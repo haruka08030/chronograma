@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTaskStore, INBOX_LIST_ID, LIST_COLORS, type SmartView } from '../store/taskStore'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
+
+export const LIST_PREFIX = 'list::'
 
 const smartViews: { id: SmartView; label: string; icon: string }[] = [
   { id: 'all', label: 'すべて', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -11,6 +13,8 @@ const smartViews: { id: SmartView; label: string; icon: string }[] = [
   { id: 'upcoming', label: '近日中', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
   { id: 'calendar', label: '月カレンダー', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-3.75h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z' },
   { id: 'week-calendar', label: '週カレンダー', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
+  { id: 'plan-vs-actual', label: '予定 vs ログ', icon: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
+  { id: 'activity-log', label: 'ログ', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'stats', label: '統計', icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
 ]
 
@@ -23,7 +27,9 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   onColorPick: () => void
 }) {
   const isInbox = list.id === INBOX_LIST_ID
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: list.id, disabled: isInbox })
+  const sortableId = `${LIST_PREFIX}${list.id}`
+  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId, disabled: isInbox })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -34,10 +40,11 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => { setSortableRef(node); setDropRef(node) }}
       style={style}
       className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm
-        ${isSelected
+        ${isOver ? 'ring-2 ring-accent-500 bg-accent-50/50 dark:bg-accent-500/10' : ''}
+        ${isSelected && !isOver
           ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
           : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
       onClick={onSelect}
@@ -102,17 +109,16 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
-  const { lists, selectedListId, selectedView, selectList, selectView, addList, renameList, updateListColor, deleteList, reorderLists } = useTaskStore()
+  const { lists, selectedListId, selectedView, selectList, selectView, addList, renameList, updateListColor, deleteList, reorderLists, exportData, importData, notificationsEnabled, toggleNotifications } = useTaskStore()
   const [adding, setAdding] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
-  const sortedIds = sorted.map((l) => l.id)
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
 
   const submitNew = () => {
     const trimmed = newName.trim()
@@ -130,18 +136,6 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const handleNav = (cb: () => void) => {
     cb()
     onClose?.()
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIdx = sortedIds.indexOf(active.id as string)
-    const newIdx = sortedIds.indexOf(over.id as string)
-    if (oldIdx < 0 || newIdx < 0) return
-    const reordered = [...sortedIds]
-    reordered.splice(oldIdx, 1)
-    reordered.splice(newIdx, 0, active.id as string)
-    reorderLists(reordered)
   }
 
   const sidebarContent = (
@@ -186,54 +180,52 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 space-y-0.5">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-            {sorted.map((list) => {
-              const isSelected = selectedListId === list.id && selectedView === null
+        <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
+          {sorted.map((list) => {
+            const isSelected = selectedListId === list.id && selectedView === null
 
-              if (editingId === list.id) {
-                return (
-                  <input
-                    key={list.id}
-                    autoFocus
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onBlur={() => submitRename(list.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitRename(list.id)
-                      if (e.key === 'Escape') setEditingId(null)
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
-                               ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100"
-                  />
-                )
-              }
-
+            if (editingId === list.id) {
               return (
-                <div key={list.id} className="relative">
-                  <SortableListItem
-                    list={list}
-                    isSelected={isSelected}
-                    onSelect={() => handleNav(() => selectList(list.id))}
-                    onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
-                    onDelete={() => deleteList(list.id)}
-                    onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
-                  />
-                  {colorPickId === list.id && (
-                    <ColorPicker
-                      current={list.color}
-                      onChange={(c) => updateListColor(list.id, c)}
-                      onClose={() => setColorPickId(null)}
-                    />
-                  )}
-                </div>
+                <input
+                  key={list.id}
+                  autoFocus
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={() => submitRename(list.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitRename(list.id)
+                    if (e.key === 'Escape') setEditingId(null)
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
+                             ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100"
+                />
               )
-            })}
-          </SortableContext>
-        </DndContext>
+            }
+
+            return (
+              <div key={list.id} className="relative">
+                <SortableListItem
+                  list={list}
+                  isSelected={isSelected}
+                  onSelect={() => handleNav(() => selectList(list.id))}
+                  onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
+                  onDelete={() => deleteList(list.id)}
+                  onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
+                />
+                {colorPickId === list.id && (
+                  <ColorPicker
+                    current={list.color}
+                    onChange={(c) => updateListColor(list.id, c)}
+                    onClose={() => setColorPickId(null)}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </SortableContext>
       </nav>
 
-      <div className="px-2 pb-4 pt-2">
+      <div className="px-2 pb-2 pt-2">
         {adding ? (
           <input
             autoFocus
@@ -262,6 +254,65 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             リストを追加
           </button>
         )}
+      </div>
+
+      <div className="mx-4 mb-2 border-t border-zinc-200 dark:border-zinc-800" />
+
+      <div className="px-2 pb-4 space-y-0.5">
+        <button
+          onClick={toggleNotifications}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
+                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
+                     rounded-lg transition-colors"
+        >
+          <svg className={`w-4 h-4 ${notificationsEnabled ? 'text-accent-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+          </svg>
+          {notificationsEnabled ? '通知オン' : '通知オフ'}
+        </button>
+        <button
+          onClick={exportData}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
+                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
+                     rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          エクスポート
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
+                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
+                     rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          </svg>
+          インポート
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            if (!window.confirm('現在のデータを上書きしますか？')) {
+              e.target.value = ''
+              return
+            }
+            const reader = new FileReader()
+            reader.onload = () => {
+              const ok = importData(reader.result as string)
+              if (!ok) alert('無効なファイルです')
+            }
+            reader.readAsText(file)
+            e.target.value = ''
+          }}
+        />
       </div>
     </aside>
   )

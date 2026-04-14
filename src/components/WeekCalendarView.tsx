@@ -11,36 +11,12 @@ import {
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { HOUR_HEIGHT, HOURS, timeToY, yToTime, formatTimeLabel } from '../lib/timeGrid'
+import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes } from '../lib/timeGrid'
+import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
+import { useTimelineDrop } from '../lib/useTimelineDrop'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
-
-interface CreateDrag {
-  kind: 'create'
-  dateKey: string
-  startY: number
-  currentY: number
-}
-
-interface MoveDrag {
-  kind: 'move'
-  taskId: string
-  origDateKey: string
-  origStartTime: string
-  origEndTime: string
-  dateKey: string
-  offsetY: number
-  currentY: number
-}
-
-type DragState = CreateDrag | MoveDrag
-
-interface CreatePopup {
-  dateKey: string
-  startTime: string
-  endTime: string
-}
 
 function TimeBlock({ task, onPointerDown, onClick }: {
   task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
@@ -50,9 +26,15 @@ function TimeBlock({ task, onPointerDown, onClick }: {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
+  const handlePointerMoveLocal = (e: React.PointerEvent) => {
+    const cursor = getResizeCursor(e)
+    ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
+  }
+
   return (
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
+      onPointerMove={handlePointerMoveLocal}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
@@ -116,11 +98,8 @@ export function WeekCalendarView() {
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [detailId, setDetailId] = useState<string | null>(null)
-  const [drag, setDrag] = useState<DragState | null>(null)
-  const [popup, setPopup] = useState<CreatePopup | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
-  const didMoveRef = useRef(false)
 
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -179,95 +158,31 @@ export function WeekCalendarView() {
     return null
   }, [])
 
-  const handleGridPointerDown = useCallback((e: React.PointerEvent, dateKey: string) => {
-    if (popup) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const y = getRelativeY(e.clientY, dateKey)
-    didMoveRef.current = false
-    setDrag({ kind: 'create', dateKey, startY: y, currentY: y })
-  }, [getRelativeY, popup])
+  const timelineDrag = useTimelineDrag({
+    getRelativeY,
+    getDateKeyFromX,
+    onMoveDone: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
+  })
 
-  const handleBlockPointerDown = useCallback((e: React.PointerEvent, taskId: string, dateKey: string, startTime: string, endTime: string) => {
-    if (popup) return
-    const blockEl = e.currentTarget as HTMLElement
-    const rect = blockEl.getBoundingClientRect()
-    const offsetY = e.clientY - rect.top
-    const y = getRelativeY(e.clientY, dateKey)
-    didMoveRef.current = false
+  const getTaskDuration = useCallback((taskId: string): number | null => {
+    const t = tasks.find((x) => x.id === taskId)
+    if (t?.startTime && t?.endTime) return timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
+    return null
+  }, [tasks])
 
-    const gridEl = gridRef.current
-    if (gridEl) {
-      gridEl.setPointerCapture(e.pointerId)
-    }
-
-    setDrag({ kind: 'move', taskId, origDateKey: dateKey, origStartTime: startTime, origEndTime: endTime, dateKey, offsetY, currentY: y })
-  }, [getRelativeY, popup])
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!drag) return
-    const dateKey = getDateKeyFromX(e.clientX) ?? drag.dateKey
-    const y = getRelativeY(e.clientY, dateKey)
-
-    if (Math.abs(y - (drag.kind === 'create' ? drag.startY : drag.currentY)) > 3) {
-      didMoveRef.current = true
-    }
-
-    if (drag.kind === 'create') {
-      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: y, dateKey } : prev)
-    } else {
-      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
-    }
-  }, [drag, getRelativeY, getDateKeyFromX])
-
-  const handlePointerUp = useCallback(() => {
-    if (!drag) return
-
-    if (drag.kind === 'create') {
-      const minY = Math.min(drag.startY, drag.currentY)
-      const maxY = Math.max(drag.startY, drag.currentY)
-      if (maxY - minY < 5) {
-        setDrag(null)
-        return
-      }
-      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY) })
-    } else {
-      if (didMoveRef.current) {
-        const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
-        const newStartY = drag.currentY - drag.offsetY
-        const newStart = yToTime(Math.max(0, newStartY))
-        const newStartMin = timeToMinutes(newStart)
-        const newEndMin = Math.min(newStartMin + durationMin, 24 * 60)
-        const newEnd = minutesToTime(newEndMin)
-        updateTask(drag.taskId, { dueDate: drag.dateKey, startTime: newStart, endTime: newEnd })
-      }
-    }
-    setDrag(null)
-  }, [drag, updateTask])
+  const timelineDrop = useTimelineDrop({
+    getRelativeY,
+    getTaskDuration,
+    onDrop: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+  })
 
   const handleCreateDone = useCallback((title?: string) => {
-    if (title && popup) {
-      addTaskWithTime(title, popup.dateKey, popup.startTime, popup.endTime)
+    if (title && timelineDrag.popup) {
+      addTaskWithTime(title, timelineDrag.popup.dateKey, timelineDrag.popup.startTime, timelineDrag.popup.endTime)
     }
-    setPopup(null)
-  }, [popup, addTaskWithTime])
-
-  const dragPreview = useMemo(() => {
-    if (!drag) return null
-    if (drag.kind === 'create') {
-      const minY = Math.min(drag.startY, drag.currentY)
-      const maxY = Math.max(drag.startY, drag.currentY)
-      if (maxY - minY < 2) return null
-      return { kind: 'create' as const, dateKey: drag.dateKey, top: minY, height: maxY - minY, label: `${yToTime(minY)} – ${yToTime(maxY)}` }
-    } else {
-      if (!didMoveRef.current) return null
-      const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
-      const newTop = Math.max(0, drag.currentY - drag.offsetY)
-      const height = (durationMin / 60) * HOUR_HEIGHT
-      const newStart = yToTime(newTop)
-      const newEndMin = Math.min(timeToMinutes(newStart) + durationMin, 24 * 60)
-      return { kind: 'move' as const, dateKey: drag.dateKey, taskId: drag.taskId, top: newTop, height, label: `${newStart} – ${minutesToTime(newEndMin)}` }
-    }
-  }, [drag])
+    timelineDrag.dismissPopup()
+  }, [timelineDrag.popup, addTaskWithTime, timelineDrag.dismissPopup])
 
   const hasAnyAllDay = useMemo(() => {
     return days.some((d) => {
@@ -275,8 +190,6 @@ export function WeekCalendarView() {
       return (allDayByDate.get(key)?.length ?? 0) > 0
     })
   }, [days, allDayByDate])
-
-  const movingTaskId = drag?.kind === 'move' ? drag.taskId : null
 
   return (
     <>
@@ -378,8 +291,8 @@ export function WeekCalendarView() {
             <div
               ref={gridRef}
               className="flex-1 grid grid-cols-7 relative"
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
+              onPointerMove={timelineDrag.handlePointerMove}
+              onPointerUp={timelineDrag.handlePointerUp}
             >
               {days.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
@@ -393,7 +306,11 @@ export function WeekCalendarView() {
                     className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
                       ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
-                    onPointerDown={(e) => handleGridPointerDown(e, key)}
+                    onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, key)}
+                    onDragEnter={timelineDrop.handleDragEnter}
+                    onDragOver={(e) => timelineDrop.handleDragOver(e, key)}
+                    onDragLeave={timelineDrop.handleDragLeave}
+                    onDrop={(e) => timelineDrop.handleDropEvent(e, key)}
                   >
                     {HOURS.map((h) => (
                       <div
@@ -413,31 +330,43 @@ export function WeekCalendarView() {
                     {today && <NowIndicator />}
 
                     {dayTimed.map((t) => (
-                      <div key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
+                      <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                         <TimeBlock
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
-                          onPointerDown={(e) => handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!)}
-                          onClick={() => { if (!didMoveRef.current) setDetailId(t.id) }}
+                          onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
+                          onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
                         />
                       </div>
                     ))}
 
-                    {dragPreview && dragPreview.dateKey === key && (
+                    {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && (
                       <div
                         className={`absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
-                          ${dragPreview.kind === 'create'
+                          ${timelineDrag.dragPreview.kind === 'create'
                             ? 'bg-accent-500/20 border-2 border-accent-500/60'
                             : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'}`}
-                        style={{ top: dragPreview.top, height: dragPreview.height }}
+                        style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
                       >
                         <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-                          {dragPreview.label}
+                          {timelineDrag.dragPreview.label}
                         </span>
                       </div>
                     )}
 
-                    {popup && popup.dateKey === key && (
-                      <InlineTimeAdd popup={popup} onDone={handleCreateDone} />
+                    {timelineDrop.dropPreview && timelineDrop.dropPreview.dateKey === key && (
+                      <div
+                        className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                                   bg-accent-500/20 border-2 border-accent-500/60 border-dashed"
+                        style={{ top: timelineDrop.dropPreview.top, height: timelineDrop.dropPreview.height }}
+                      >
+                        <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
+                          {timelineDrop.dropPreview.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {timelineDrag.popup && timelineDrag.popup.dateKey === key && (
+                      <InlineTimeAdd popup={timelineDrag.popup} onDone={handleCreateDone} />
                     )}
                   </div>
                 )
@@ -473,15 +402,4 @@ function NowIndicator() {
       </div>
     </div>
   )
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
-}
-
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }

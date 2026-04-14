@@ -1,0 +1,227 @@
+import { useState, useCallback, useRef, useMemo } from 'react'
+import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
+
+const RESIZE_EDGE_PX = 8
+const MIN_BLOCK_MINUTES = SNAP_MINUTES
+
+export interface CreateDrag {
+  kind: 'create'
+  dateKey: string
+  startY: number
+  currentY: number
+}
+
+export interface MoveDrag {
+  kind: 'move'
+  taskId: string
+  origDateKey: string
+  origStartTime: string
+  origEndTime: string
+  dateKey: string
+  offsetY: number
+  currentY: number
+}
+
+export interface ResizeDrag {
+  kind: 'resize'
+  taskId: string
+  dateKey: string
+  edge: 'top' | 'bottom'
+  origStartTime: string
+  origEndTime: string
+  currentY: number
+}
+
+export type DragState = CreateDrag | MoveDrag | ResizeDrag
+
+export interface CreatePopup {
+  dateKey: string
+  startTime: string
+  endTime: string
+}
+
+export interface DragPreview {
+  kind: 'create' | 'move' | 'resize'
+  dateKey: string
+  taskId?: string
+  top: number
+  height: number
+  label: string
+}
+
+function minutesToTime(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+interface UseTimelineDragOptions {
+  getRelativeY: (clientY: number, dateKey: string) => number
+  getDateKeyFromX?: (clientX: number) => string | null
+  onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
+  onResizeDone: (taskId: string, startTime: string, endTime: string) => void
+}
+
+export function useTimelineDrag(options: UseTimelineDragOptions) {
+  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone } = options
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [popup, setPopup] = useState<CreatePopup | null>(null)
+  const didMoveRef = useRef(false)
+
+  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string) => {
+    if (popup) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const y = getRelativeY(e.clientY, dateKey)
+    didMoveRef.current = false
+    setDrag({ kind: 'create', dateKey, startY: y, currentY: y })
+  }, [getRelativeY, popup])
+
+  const handleBlockPointerDown = useCallback((
+    e: React.PointerEvent,
+    taskId: string,
+    dateKey: string,
+    startTime: string,
+    endTime: string,
+    gridEl: HTMLElement | null,
+  ) => {
+    if (popup) return
+    const blockEl = e.currentTarget as HTMLElement
+    const rect = blockEl.getBoundingClientRect()
+    const localY = e.clientY - rect.top
+    const blockHeight = rect.height
+
+    didMoveRef.current = false
+
+    if (gridEl) gridEl.setPointerCapture(e.pointerId)
+
+    if (localY <= RESIZE_EDGE_PX) {
+      const y = getRelativeY(e.clientY, dateKey)
+      setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
+    } else if (localY >= blockHeight - RESIZE_EDGE_PX) {
+      const y = getRelativeY(e.clientY, dateKey)
+      setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+    } else {
+      const offsetY = e.clientY - rect.top
+      const y = getRelativeY(e.clientY, dateKey)
+      setDrag({ kind: 'move', taskId, origDateKey: dateKey, origStartTime: startTime, origEndTime: endTime, dateKey, offsetY, currentY: y })
+    }
+  }, [getRelativeY, popup])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!drag) return
+    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX) : null) ?? drag.dateKey
+    const y = getRelativeY(e.clientY, dateKey)
+
+    if (drag.kind === 'create') {
+      if (Math.abs(y - drag.startY) > 3) didMoveRef.current = true
+      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: y, dateKey } : prev)
+    } else if (drag.kind === 'move') {
+      if (Math.abs(y - drag.currentY) > 3) didMoveRef.current = true
+      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
+    } else {
+      didMoveRef.current = true
+      setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
+    }
+  }, [drag, getRelativeY, getDateKeyFromX])
+
+  const handlePointerUp = useCallback(() => {
+    if (!drag) return
+    if (drag.kind === 'create') {
+      const minY = Math.min(drag.startY, drag.currentY)
+      const maxY = Math.max(drag.startY, drag.currentY)
+      if (maxY - minY < 5) { setDrag(null); return }
+      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY) })
+    } else if (drag.kind === 'move') {
+      if (didMoveRef.current) {
+        const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+        const newStartY = drag.currentY - drag.offsetY
+        const newStart = yToTime(Math.max(0, newStartY))
+        const newStartMin = timeToMinutes(newStart)
+        const newEndMin = Math.min(newStartMin + durationMin, 24 * 60)
+        onMoveDone(drag.taskId, drag.dateKey, newStart, minutesToTime(newEndMin))
+      }
+    } else {
+      if (didMoveRef.current) {
+        const newTime = yToTime(drag.currentY)
+        const newMin = timeToMinutes(newTime)
+        if (drag.edge === 'top') {
+          const endMin = timeToMinutes(drag.origEndTime)
+          const clampedStart = Math.min(newMin, endMin - MIN_BLOCK_MINUTES)
+          onResizeDone(drag.taskId, minutesToTime(Math.max(0, clampedStart)), drag.origEndTime)
+        } else {
+          const startMin = timeToMinutes(drag.origStartTime)
+          const clampedEnd = Math.max(newMin, startMin + MIN_BLOCK_MINUTES)
+          onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)))
+        }
+      }
+    }
+    setDrag(null)
+  }, [drag, onMoveDone, onResizeDone])
+
+  const dismissPopup = useCallback(() => { setPopup(null) }, [])
+
+  const dragPreview = useMemo((): DragPreview | null => {
+    if (!drag) return null
+    if (drag.kind === 'create') {
+      const minY = Math.min(drag.startY, drag.currentY)
+      const maxY = Math.max(drag.startY, drag.currentY)
+      if (maxY - minY < 2) return null
+      return { kind: 'create', dateKey: drag.dateKey, top: minY, height: maxY - minY, label: `${yToTime(minY)} – ${yToTime(maxY)}` }
+    } else if (drag.kind === 'move') {
+      if (!didMoveRef.current) return null
+      const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+      const newTop = Math.max(0, drag.currentY - drag.offsetY)
+      const height = (durationMin / 60) * HOUR_HEIGHT
+      const newStart = yToTime(newTop)
+      const newEndMin = Math.min(timeToMinutes(newStart) + durationMin, 24 * 60)
+      return { kind: 'move', dateKey: drag.dateKey, taskId: drag.taskId, top: newTop, height, label: `${newStart} – ${minutesToTime(newEndMin)}` }
+    } else {
+      if (!didMoveRef.current) return null
+      const newTime = yToTime(drag.currentY)
+      const newMin = timeToMinutes(newTime)
+      let top: number, height: number, startLabel: string, endLabel: string
+      if (drag.edge === 'top') {
+        const endMin = timeToMinutes(drag.origEndTime)
+        const clampedStart = Math.max(0, Math.min(newMin, endMin - MIN_BLOCK_MINUTES))
+        top = (clampedStart / 60) * HOUR_HEIGHT
+        height = ((endMin - clampedStart) / 60) * HOUR_HEIGHT
+        startLabel = minutesToTime(clampedStart)
+        endLabel = drag.origEndTime
+      } else {
+        const startMin = timeToMinutes(drag.origStartTime)
+        const clampedEnd = Math.min(24 * 60, Math.max(newMin, startMin + MIN_BLOCK_MINUTES))
+        top = timeToY(drag.origStartTime)
+        height = ((clampedEnd - startMin) / 60) * HOUR_HEIGHT
+        startLabel = drag.origStartTime
+        endLabel = minutesToTime(clampedEnd)
+      }
+      return { kind: 'resize', dateKey: drag.dateKey, taskId: drag.taskId, top, height, label: `${startLabel} – ${endLabel}` }
+    }
+  }, [drag])
+
+  const movingTaskId = drag?.kind === 'move' ? drag.taskId : (drag?.kind === 'resize' ? drag.taskId : null)
+  const didMove = didMoveRef
+
+  return {
+    drag,
+    popup,
+    dragPreview,
+    movingTaskId,
+    didMove,
+    handleCreatePointerDown,
+    handleBlockPointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    dismissPopup,
+  }
+}
+
+export function getResizeCursor(e: React.PointerEvent): string | null {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  const localY = e.clientY - rect.top
+  if (localY <= RESIZE_EDGE_PX || localY >= rect.height - RESIZE_EDGE_PX) {
+    return 'ns-resize'
+  }
+  return null
+}

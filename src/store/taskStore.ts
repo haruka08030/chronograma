@@ -2,18 +2,25 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
+import type { CalendarEvent } from '../types/calendarEvent'
 import { newId } from '../lib/id'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 
 const INBOX_ID = '__inbox__'
 
-export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'stats'
+export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'plan-vs-actual' | 'activity-log' | 'stats'
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
 export const LIST_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
   '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#64748b',
 ]
+
+export interface ActiveTimer {
+  taskTitle: string
+  startedAt: string
+  tags: string[]
+}
 
 interface TaskState {
   tasks: Task[]
@@ -25,6 +32,14 @@ interface TaskState {
   sortMode: SortMode
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
+  filterTag: string | null
+  notificationsEnabled: boolean
+
+  calendarEvents: CalendarEvent[]
+  googleConnected: boolean
+  googleAccessToken: string | null
+
+  activeTimer: ActiveTimer | null
 
   toggleTheme: () => void
 
@@ -34,6 +49,11 @@ interface TaskState {
   setSortMode: (mode: SortMode) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
+  setFilterTag: (tag: string | null) => void
+
+  setCalendarEvents: (events: CalendarEvent[]) => void
+  setGoogleConnected: (connected: boolean) => void
+  setGoogleAccessToken: (token: string | null) => void
 
   addList: (name: string) => void
   renameList: (id: string, name: string) => void
@@ -45,6 +65,10 @@ interface TaskState {
   addTask: (title: string, listId?: string, parentId?: string) => void
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
+  addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string) => void
+  addTimeLog: (title: string, date: string, startTime: string, endTime: string, tags?: string[]) => void
+  startTimer: (title: string, tags?: string[]) => void
+  stopTimer: () => void
   toggleTask: (id: string) => void
   updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence'>>) => void
   deleteTask: (id: string) => void
@@ -52,6 +76,10 @@ interface TaskState {
   clearDeletedTasks: () => void
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
+
+  toggleNotifications: () => void
+  exportData: () => void
+  importData: (json: string) => boolean
 }
 
 const defaultInbox: TaskList = { id: INBOX_ID, name: '受信トレイ', color: '#6366f1', order: 0 }
@@ -68,13 +96,13 @@ function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']
   }
 }
 
-function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null }, maxOrder: number): Task {
+function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null; isTimeLog?: boolean; completed?: boolean; tags?: string[] }, maxOrder: number): Task {
   const now = new Date().toISOString()
   return {
     id: newId(),
     title: fields.title,
     description: '',
-    completed: false,
+    completed: fields.completed ?? false,
     createdAt: now,
     updatedAt: now,
     order: maxOrder + 1,
@@ -84,8 +112,9 @@ function makeTask(fields: { title: string; listId: string; dueDate?: string | nu
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
     priority: 'none',
-    tags: [],
+    tags: fields.tags ?? [],
     recurrence: null,
+    isTimeLog: fields.isTimeLog ?? false,
   }
 }
 
@@ -101,6 +130,17 @@ export const useTaskStore = create<TaskState>()(
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
       quickAddRequested: false,
+      filterTag: null,
+      notificationsEnabled: false,
+
+      calendarEvents: [],
+      googleConnected: false,
+      googleAccessToken: null,
+      activeTimer: null,
+
+      setCalendarEvents: (events) => set({ calendarEvents: events }),
+      setGoogleConnected: (connected) => set({ googleConnected: connected }),
+      setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
 
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
@@ -109,6 +149,7 @@ export const useTaskStore = create<TaskState>()(
       selectView: (view) => set({ selectedView: view, selectedListId: null }),
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSortMode: (mode) => set({ sortMode: mode }),
+      setFilterTag: (tag) => set({ filterTag: tag }),
       requestQuickAdd: () => {
         const s = get()
         if (s.selectedView !== null) {
@@ -176,6 +217,31 @@ export const useTaskStore = create<TaskState>()(
         const maxOrder = Math.max(0, ...get().tasks.filter((t) => t.listId === targetList).map((t) => t.order))
         set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate, startTime, endTime }, maxOrder)] }))
       },
+      addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
+        const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, completed: true }, maxOrder)] }))
+      },
+      addTimeLog: (title, date, startTime, endTime, tags) => {
+        const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags }, maxOrder)] }))
+      },
+      startTimer: (title, tags) => {
+        set({ activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [] } })
+      },
+      stopTimer: () => {
+        const timer = get().activeTimer
+        if (!timer) return
+        const start = new Date(timer.startedAt)
+        const end = new Date()
+        const dueDate = format(start, 'yyyy-MM-dd')
+        const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+        const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+        const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        set((s) => ({
+          activeTimer: null,
+          tasks: [...s.tasks, makeTask({ title: timer.taskTitle, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true, tags: timer.tags }, maxOrder)],
+        }))
+      },
       toggleTask: (id) =>
         set((s) => {
           const task = s.tasks.find((t) => t.id === id)
@@ -200,9 +266,16 @@ export const useTaskStore = create<TaskState>()(
         }),
       updateTask: (id, patch) =>
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t,
-          ),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t
+            const applied = { ...t, ...patch, updatedAt: new Date().toISOString() }
+            if (patch.dueDate === null) {
+              applied.startTime = null
+              applied.endTime = null
+              applied.recurrence = null
+            }
+            return applied
+          }),
         })),
       deleteTask: (id) =>
         set((s) => {
@@ -239,10 +312,36 @@ export const useTaskStore = create<TaskState>()(
             return idx >= 0 ? { ...t, order: idx } : t
           }),
         })),
+
+      toggleNotifications: () =>
+        set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
+
+      exportData: () => {
+        const { tasks, lists } = get()
+        const data = JSON.stringify({ tasks, lists }, null, 2)
+        const blob = new Blob([data], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `tickdo-backup-${format(new Date(), 'yyyy-MM-dd')}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+      },
+
+      importData: (json) => {
+        try {
+          const data = JSON.parse(json)
+          if (!Array.isArray(data.tasks) || !Array.isArray(data.lists)) return false
+          set({ tasks: data.tasks, lists: data.lists })
+          return true
+        } catch {
+          return false
+        }
+      },
     }),
     {
       name: 'tickdo-storage',
-      version: 5,
+      version: 8,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -280,10 +379,24 @@ export const useTaskStore = create<TaskState>()(
             color: (l as Record<string, unknown>).color ?? LIST_COLORS[i % LIST_COLORS.length],
           }))
         }
+        if (version < 6) {
+          state.notificationsEnabled = state.notificationsEnabled ?? false
+        }
+        if (version < 7) {
+          state.googleConnected = state.googleConnected ?? false
+        }
+        if (version < 8) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => ({
+            ...t,
+            isTimeLog: (t as Record<string, unknown>).isTimeLog ?? false,
+          }))
+          state.activeTimer = state.activeTimer ?? null
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
-        const { searchQuery: _sq, deletedTasks: _dt, quickAddRequested: _qa, ...rest } = state
+        const { searchQuery: _sq, deletedTasks: _dt, quickAddRequested: _qa, filterTag: _ft, calendarEvents: _ce, googleAccessToken: _gat, ...rest } = state
         return rest as unknown as TaskState
       },
     },

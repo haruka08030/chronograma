@@ -3,6 +3,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { TaskItem } from './TaskItem'
 import type { Task } from '../types/task'
 
+export const TASK_PREFIX = 'task::'
+
 export function SortableTaskItem({ task, onClick }: { task: Task; onClick?: () => void }) {
   const {
     attributes,
@@ -11,7 +13,7 @@ export function SortableTaskItem({ task, onClick }: { task: Task; onClick?: () =
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id })
+  } = useSortable({ id: `${TASK_PREFIX}${task.id}` })
 
   const style = {
     transform: CSS.Transform.toString(transform),

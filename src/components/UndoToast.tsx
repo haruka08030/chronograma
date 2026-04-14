@@ -33,6 +33,7 @@ export function UndoToast() {
         >
           元に戻す
         </button>
+        <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-1">⌘Z</span>
       </div>
     </div>
   )

@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { isToday, isPast, format, parseISO } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
@@ -22,7 +23,8 @@ export function TaskItem({ task, onClick, dragHandle }: {
   onClick?: () => void
   dragHandle?: React.ReactNode
 }) {
-  const { toggleTask, updateTask, deleteTask } = useTaskStore()
+  const hasSortableHandle = !!dragHandle
+  const { toggleTask, updateTask, deleteTask, setFilterTag } = useTaskStore()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -45,15 +47,30 @@ export function TaskItem({ task, onClick, dragHandle }: {
 
   const due = task.dueDate ? dueDateLabel(task.dueDate) : null
   const priorityColor = PRIORITY_COLORS[task.priority]
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData(TASK_DND_TYPE, task.id)
+    e.dataTransfer.effectAllowed = 'copy'
+    setIsDragging(true)
+  }, [task.id])
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+  }, [])
 
   return (
     <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors cursor-pointer
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
-                  ${task.completed ? 'opacity-50' : ''}`}
+                  ${task.completed ? 'opacity-50' : ''}
+                  ${isDragging ? 'opacity-30' : ''}`}
       onClick={() => { if (!editing) onClick?.() }}
     >
-      {dragHandle}
+      {hasSortableHandle ? <span onDragStart={(e) => e.preventDefault()}>{dragHandle}</span> : null}
 
       <button
         onClick={(e) => { e.stopPropagation(); toggleTask(task.id) }}
@@ -111,13 +128,14 @@ export function TaskItem({ task, onClick, dragHandle }: {
           {task.tags.length > 0 && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
-                <span
+                <button
                   key={tag}
+                  onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}
                   className="text-[10px] px-1.5 py-0.5 rounded bg-accent-50 dark:bg-accent-500/10
-                             text-accent-600 dark:text-accent-400"
+                             text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
                 >
                   {tag}
-                </span>
+                </button>
               ))}
             </div>
           )}

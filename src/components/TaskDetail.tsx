@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -22,6 +22,26 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
   const { updateTask, addTask, tasks, lists } = useTaskStore()
   const [tagInput, setTagInput] = useState('')
   const [subInput, setSubInput] = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleValue, setTitleValue] = useState(task.title)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setTitleValue(task.title) }, [task.title])
+  useEffect(() => {
+    if (editingTitle) {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }
+  }, [editingTitle])
+
+  const commitTitle = () => {
+    const trimmed = titleValue.trim()
+    if (trimmed && trimmed !== task.title) {
+      updateTask(task.id, { title: trimmed })
+    }
+    setEditingTitle(false)
+    setTitleValue(trimmed || task.title)
+  }
 
   const subtasks = tasks
     .filter((t) => t.parentId === task.id)
@@ -58,9 +78,28 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
         <div className="p-6 space-y-6">
           {/* header */}
           <div className="flex items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words">
-              {task.title}
-            </h2>
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={commitTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitTitle()
+                  if (e.key === 'Escape') { setTitleValue(task.title); setEditingTitle(false) }
+                }}
+                className="flex-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent outline-none
+                           border-b-2 border-accent-400 pb-0.5 break-words"
+              />
+            ) : (
+              <h2
+                onClick={() => setEditingTitle(true)}
+                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words cursor-text
+                           hover:bg-zinc-50 dark:hover:bg-zinc-800/40 rounded-md px-1 -mx-1 transition-colors"
+              >
+                {task.title}
+              </h2>
+            )}
             <button
               onClick={onClose}
               className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"

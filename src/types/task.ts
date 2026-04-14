@@ -21,4 +21,5 @@ export interface Task {
   priority: Priority
   tags: string[]
   recurrence: Recurrence | null
+  isTimeLog: boolean
 }

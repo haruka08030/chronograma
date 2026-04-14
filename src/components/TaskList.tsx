@@ -1,18 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useTaskStore, type SortMode } from '../store/taskStore'
-import { SortableTaskItem } from './SortableTaskItem'
+import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
 import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -40,13 +32,10 @@ export function TaskList() {
   const lists = useTaskStore((s) => s.lists)
   const sortMode = useTaskStore((s) => s.sortMode)
   const setSortMode = useTaskStore((s) => s.setSortMode)
-  const reorderTasks = useTaskStore((s) => s.reorderTasks)
+  const filterTag = useTaskStore((s) => s.filterTag)
+  const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [showSort, setShowSort] = useState(false)
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  )
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const title = selectedView ? VIEW_LABELS[selectedView] ?? '' : (currentList?.name ?? 'タスク')
@@ -70,6 +59,10 @@ export function TaskList() {
       result = result.filter((t) => t.listId === selectedListId)
     }
 
+    if (filterTag) {
+      result = result.filter((t) => t.tags.includes(filterTag))
+    }
+
     switch (sortMode) {
       case 'dueDate':
         return result.sort((a, b) => {
@@ -87,7 +80,7 @@ export function TaskList() {
       default:
         return result.sort((a, b) => a.order - b.order)
     }
-  }, [tasks, selectedView, selectedListId, sortMode])
+  }, [tasks, selectedView, selectedListId, sortMode, filterTag])
 
   const active = filtered.filter((t) => !t.completed)
   const completed = filtered.filter((t) => t.completed)
@@ -95,29 +88,12 @@ export function TaskList() {
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active: dragActive, over } = event
-    if (!over || dragActive.id === over.id) return
-
-    const ids = active.map((t) => t.id)
-    const oldIndex = ids.indexOf(dragActive.id as string)
-    const newIndex = ids.indexOf(over.id as string)
-    if (oldIndex < 0 || newIndex < 0) return
-
-    const newIds = [...ids]
-    newIds.splice(oldIndex, 1)
-    newIds.splice(newIndex, 0, dragActive.id as string)
-    reorderTasks(newIds)
-  }
-
   const activeContent = canDrag ? (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={active.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        {active.map((t) => (
-          <SortableTaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
-        ))}
-      </SortableContext>
-    </DndContext>
+    <SortableContext items={active.map((t) => `${TASK_PREFIX}${t.id}`)} strategy={verticalListSortingStrategy}>
+      {active.map((t) => (
+        <SortableTaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+      ))}
+    </SortableContext>
   ) : (
     active.map((t) => (
       <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
@@ -132,9 +108,24 @@ export function TaskList() {
             <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
               {title}
             </h1>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-              {active.length} 件の未完了タスク
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                {active.length} 件の未完了タスク
+              </p>
+              {filterTag && (
+                <button
+                  onClick={() => setFilterTag(null)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-md
+                             bg-accent-50 dark:bg-accent-500/10 text-accent-600 dark:text-accent-400
+                             hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
+                >
+                  {filterTag}
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="relative">
