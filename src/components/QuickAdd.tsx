@@ -6,6 +6,19 @@ export function QuickAdd() {
   const [active, setActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const addTask = useTaskStore((s) => s.addTask)
+  const quickAddRequested = useTaskStore((s) => s.quickAddRequested)
+  const clearQuickAddRequest = useTaskStore((s) => s.clearQuickAddRequest)
+
+  useEffect(() => {
+    if (quickAddRequested) {
+      if (active) {
+        inputRef.current?.focus()
+      } else {
+        setActive(true)
+      }
+      clearQuickAddRequest()
+    }
+  }, [quickAddRequested, active, clearQuickAddRequest])
 
   useEffect(() => {
     if (active) inputRef.current?.focus()
@@ -21,6 +34,7 @@ export function QuickAdd() {
   if (!active) {
     return (
       <button
+        data-quickadd
         onClick={() => setActive(true)}
         className="w-full flex items-center gap-3 px-4 py-3 text-zinc-400 dark:text-zinc-500
                    hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-xl transition-colors group"

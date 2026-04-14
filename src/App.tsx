@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { TaskList } from './components/TaskList'
 import { CalendarView } from './components/CalendarView'
 import { WeekCalendarView } from './components/WeekCalendarView'
+import { StatsView } from './components/StatsView'
 import { SearchResults } from './components/SearchResults'
 import { ThemeToggle } from './components/ThemeToggle'
 import { UndoToast } from './components/UndoToast'
@@ -15,7 +16,6 @@ export default function App() {
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
@@ -24,6 +24,15 @@ export default function App() {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
       searchRef.current?.focus()
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+      e.preventDefault()
+      const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
+      if (quickAdd) {
+        quickAdd.click()
+      } else {
+        useTaskStore.getState().requestQuickAdd()
+      }
     }
   }, [])
 
@@ -37,6 +46,7 @@ export default function App() {
     switch (selectedView) {
       case 'calendar': return <CalendarView />
       case 'week-calendar': return <WeekCalendarView />
+      case 'stats': return <StatsView />
       default: return <TaskList />
     }
   })()
@@ -47,7 +57,6 @@ export default function App() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
-          {/* Mobile hamburger */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden p-2 -ml-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -57,7 +66,6 @@ export default function App() {
             </svg>
           </button>
 
-          {/* Search */}
           <div className="flex-1 max-w-md relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />

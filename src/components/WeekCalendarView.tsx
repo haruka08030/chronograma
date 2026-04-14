@@ -16,11 +16,25 @@ import { HOUR_HEIGHT, HOURS, timeToY, yToTime, formatTimeLabel } from '../lib/ti
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-interface DragState {
+interface CreateDrag {
+  kind: 'create'
   dateKey: string
   startY: number
   currentY: number
 }
+
+interface MoveDrag {
+  kind: 'move'
+  taskId: string
+  origDateKey: string
+  origStartTime: string
+  origEndTime: string
+  dateKey: string
+  offsetY: number
+  currentY: number
+}
+
+type DragState = CreateDrag | MoveDrag
 
 interface CreatePopup {
   dateKey: string
@@ -28,15 +42,20 @@ interface CreatePopup {
   endTime: string
 }
 
-function TimeBlock({ task, onClick }: { task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }; onClick: () => void }) {
+function TimeBlock({ task, onPointerDown, onClick }: {
+  task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
+  onPointerDown: (e: React.PointerEvent) => void
+  onClick: () => void
+}) {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
   return (
     <button
+      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
       onClick={(e) => { e.stopPropagation(); onClick() }}
-      className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-pointer
-        border transition-shadow hover:shadow-md hover:z-10 select-none text-left
+      className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
+        border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${task.completed
           ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
           : 'bg-accent-100 dark:bg-accent-500/20 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
@@ -95,11 +114,13 @@ export function WeekCalendarView() {
   const [anchor, setAnchor] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
+  const updateTask = useTaskStore((s) => s.updateTask)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const didMoveRef = useRef(false)
 
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -158,36 +179,70 @@ export function WeekCalendarView() {
     return null
   }, [])
 
-  const handlePointerDown = useCallback((e: React.PointerEvent, dateKey: string) => {
+  const handleGridPointerDown = useCallback((e: React.PointerEvent, dateKey: string) => {
     if (popup) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
-    setDrag({ dateKey, startY: y, currentY: y })
+    didMoveRef.current = false
+    setDrag({ kind: 'create', dateKey, startY: y, currentY: y })
+  }, [getRelativeY, popup])
+
+  const handleBlockPointerDown = useCallback((e: React.PointerEvent, taskId: string, dateKey: string, startTime: string, endTime: string) => {
+    if (popup) return
+    const blockEl = e.currentTarget as HTMLElement
+    const rect = blockEl.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const y = getRelativeY(e.clientY, dateKey)
+    didMoveRef.current = false
+
+    const gridEl = gridRef.current
+    if (gridEl) {
+      gridEl.setPointerCapture(e.pointerId)
+    }
+
+    setDrag({ kind: 'move', taskId, origDateKey: dateKey, origStartTime: startTime, origEndTime: endTime, dateKey, offsetY, currentY: y })
   }, [getRelativeY, popup])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drag) return
     const dateKey = getDateKeyFromX(e.clientX) ?? drag.dateKey
     const y = getRelativeY(e.clientY, dateKey)
-    setDrag((prev) => prev ? { ...prev, currentY: y, dateKey } : null)
+
+    if (Math.abs(y - (drag.kind === 'create' ? drag.startY : drag.currentY)) > 3) {
+      didMoveRef.current = true
+    }
+
+    if (drag.kind === 'create') {
+      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: y, dateKey } : prev)
+    } else {
+      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
+    }
   }, [drag, getRelativeY, getDateKeyFromX])
 
   const handlePointerUp = useCallback(() => {
     if (!drag) return
-    const minY = Math.min(drag.startY, drag.currentY)
-    const maxY = Math.max(drag.startY, drag.currentY)
 
-    if (maxY - minY < 5) {
-      setDrag(null)
-      return
+    if (drag.kind === 'create') {
+      const minY = Math.min(drag.startY, drag.currentY)
+      const maxY = Math.max(drag.startY, drag.currentY)
+      if (maxY - minY < 5) {
+        setDrag(null)
+        return
+      }
+      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY) })
+    } else {
+      if (didMoveRef.current) {
+        const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+        const newStartY = drag.currentY - drag.offsetY
+        const newStart = yToTime(Math.max(0, newStartY))
+        const newStartMin = timeToMinutes(newStart)
+        const newEndMin = Math.min(newStartMin + durationMin, 24 * 60)
+        const newEnd = minutesToTime(newEndMin)
+        updateTask(drag.taskId, { dueDate: drag.dateKey, startTime: newStart, endTime: newEnd })
+      }
     }
-
-    const startTime = yToTime(minY)
-    const endTime = yToTime(maxY)
-
-    setPopup({ dateKey: drag.dateKey, startTime, endTime })
     setDrag(null)
-  }, [drag])
+  }, [drag, updateTask])
 
   const handleCreateDone = useCallback((title?: string) => {
     if (title && popup) {
@@ -198,15 +253,19 @@ export function WeekCalendarView() {
 
   const dragPreview = useMemo(() => {
     if (!drag) return null
-    const minY = Math.min(drag.startY, drag.currentY)
-    const maxY = Math.max(drag.startY, drag.currentY)
-    if (maxY - minY < 2) return null
-    return {
-      dateKey: drag.dateKey,
-      top: minY,
-      height: maxY - minY,
-      startTime: yToTime(minY),
-      endTime: yToTime(maxY),
+    if (drag.kind === 'create') {
+      const minY = Math.min(drag.startY, drag.currentY)
+      const maxY = Math.max(drag.startY, drag.currentY)
+      if (maxY - minY < 2) return null
+      return { kind: 'create' as const, dateKey: drag.dateKey, top: minY, height: maxY - minY, label: `${yToTime(minY)} – ${yToTime(maxY)}` }
+    } else {
+      if (!didMoveRef.current) return null
+      const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+      const newTop = Math.max(0, drag.currentY - drag.offsetY)
+      const height = (durationMin / 60) * HOUR_HEIGHT
+      const newStart = yToTime(newTop)
+      const newEndMin = Math.min(timeToMinutes(newStart) + durationMin, 24 * 60)
+      return { kind: 'move' as const, dateKey: drag.dateKey, taskId: drag.taskId, top: newTop, height, label: `${newStart} – ${minutesToTime(newEndMin)}` }
     }
   }, [drag])
 
@@ -217,10 +276,11 @@ export function WeekCalendarView() {
     })
   }, [days, allDayByDate])
 
+  const movingTaskId = drag?.kind === 'move' ? drag.taskId : null
+
   return (
     <>
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Header nav */}
         <div className="flex items-center justify-between px-6 pt-6 pb-3 flex-shrink-0">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             {weekLabel}
@@ -252,7 +312,6 @@ export function WeekCalendarView() {
           </div>
         </div>
 
-        {/* Day headers (sticky) */}
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
           <div className="flex-1 grid grid-cols-7">
@@ -271,7 +330,6 @@ export function WeekCalendarView() {
           </div>
         </div>
 
-        {/* All-day row */}
         {hasAnyAllDay && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
@@ -303,10 +361,8 @@ export function WeekCalendarView() {
           </div>
         )}
 
-        {/* Scrollable time grid */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-2">
           <div className="flex" style={{ height: GRID_TOTAL_HEIGHT }}>
-            {/* Time gutter */}
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 relative">
               {HOURS.map((h) => (
                 <div
@@ -319,8 +375,12 @@ export function WeekCalendarView() {
               ))}
             </div>
 
-            {/* Day columns */}
-            <div ref={gridRef} className="flex-1 grid grid-cols-7 relative">
+            <div
+              ref={gridRef}
+              className="flex-1 grid grid-cols-7 relative"
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+            >
               {days.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayTimed = timedByDate.get(key) ?? []
@@ -330,15 +390,11 @@ export function WeekCalendarView() {
                   <div
                     key={key}
                     data-datekey={key}
-                    className={`relative border-l border-zinc-100 dark:border-zinc-800
-                      ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}
-                      ${drag ? 'cursor-crosshair' : 'cursor-crosshair'}`}
+                    className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
+                      ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
-                    onPointerDown={(e) => handlePointerDown(e, key)}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
+                    onPointerDown={(e) => handleGridPointerDown(e, key)}
                   >
-                    {/* Hour grid lines */}
                     {HOURS.map((h) => (
                       <div
                         key={h}
@@ -346,7 +402,6 @@ export function WeekCalendarView() {
                         style={{ top: h * HOUR_HEIGHT }}
                       />
                     ))}
-                    {/* Half-hour lines */}
                     {HOURS.map((h) => (
                       <div
                         key={`half-${h}`}
@@ -355,31 +410,32 @@ export function WeekCalendarView() {
                       />
                     ))}
 
-                    {/* Now indicator */}
                     {today && <NowIndicator />}
 
-                    {/* Task blocks */}
                     {dayTimed.map((t) => (
-                      <TimeBlock
-                        key={t.id}
-                        task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
-                        onClick={() => setDetailId(t.id)}
-                      />
+                      <div key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
+                        <TimeBlock
+                          task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
+                          onPointerDown={(e) => handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!)}
+                          onClick={() => { if (!didMoveRef.current) setDetailId(t.id) }}
+                        />
+                      </div>
                     ))}
 
-                    {/* Drag preview */}
                     {dragPreview && dragPreview.dateKey === key && (
                       <div
-                        className="absolute left-0.5 right-0.5 rounded-md bg-accent-500/20 border-2 border-accent-500/60 pointer-events-none z-20"
+                        className={`absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                          ${dragPreview.kind === 'create'
+                            ? 'bg-accent-500/20 border-2 border-accent-500/60'
+                            : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'}`}
                         style={{ top: dragPreview.top, height: dragPreview.height }}
                       >
                         <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-                          {dragPreview.startTime} – {dragPreview.endTime}
+                          {dragPreview.label}
                         </span>
                       </div>
                     )}
 
-                    {/* Inline creation popup */}
                     {popup && popup.dateKey === key && (
                       <InlineTimeAdd popup={popup} onDone={handleCreateDone} />
                     )}
@@ -417,4 +473,15 @@ function NowIndicator() {
       </div>
     </div>
   )
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minutesToTime(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }

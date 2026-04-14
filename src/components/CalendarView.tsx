@@ -150,6 +150,9 @@ export function CalendarView() {
                           ? 'line-through text-zinc-400 dark:text-zinc-600'
                           : 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'}`}
                     >
+                      {t.startTime && (
+                        <span className="text-[9px] opacity-60 mr-0.5">{t.startTime}</span>
+                      )}
                       {t.title}
                     </div>
                   ))}

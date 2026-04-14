@@ -7,8 +7,13 @@ import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 
 const INBOX_ID = '__inbox__'
 
-export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar'
+export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'stats'
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
+
+export const LIST_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#64748b',
+]
 
 interface TaskState {
   tasks: Task[]
@@ -19,23 +24,24 @@ interface TaskState {
   searchQuery: string
   sortMode: SortMode
   deletedTasks: { task: Task; deletedAt: number }[]
+  quickAddRequested: boolean
 
   toggleTheme: () => void
 
-  // navigation
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
+  requestQuickAdd: () => void
+  clearQuickAddRequest: () => void
 
-  // lists
   addList: (name: string) => void
   renameList: (id: string, name: string) => void
+  updateListColor: (id: string, color: string) => void
   deleteList: (id: string) => void
   reorderList: (id: string, newOrder: number) => void
   reorderLists: (orderedIds: string[]) => void
 
-  // tasks
   addTask: (title: string, listId?: string, parentId?: string) => void
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
@@ -48,7 +54,7 @@ interface TaskState {
   reorderTasks: (orderedIds: string[]) => void
 }
 
-const defaultInbox: TaskList = { id: INBOX_ID, name: '受信トレイ', order: 0 }
+const defaultInbox: TaskList = { id: INBOX_ID, name: '受信トレイ', color: '#6366f1', order: 0 }
 
 export const INBOX_LIST_ID = INBOX_ID
 
@@ -94,6 +100,7 @@ export const useTaskStore = create<TaskState>()(
       searchQuery: '',
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
+      quickAddRequested: false,
 
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
@@ -102,16 +109,30 @@ export const useTaskStore = create<TaskState>()(
       selectView: (view) => set({ selectedView: view, selectedListId: null }),
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSortMode: (mode) => set({ sortMode: mode }),
+      requestQuickAdd: () => {
+        const s = get()
+        if (s.selectedView !== null) {
+          set({ selectedListId: s.selectedListId ?? INBOX_ID, selectedView: null, quickAddRequested: true })
+        } else {
+          set({ quickAddRequested: true })
+        }
+      },
+      clearQuickAddRequest: () => set({ quickAddRequested: false }),
 
       addList: (name) => {
         const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
+        const colorIdx = get().lists.length % LIST_COLORS.length
         set((s) => ({
-          lists: [...s.lists, { id: newId(), name, order: maxOrder + 1 }],
+          lists: [...s.lists, { id: newId(), name, color: LIST_COLORS[colorIdx], order: maxOrder + 1 }],
         }))
       },
       renameList: (id, name) =>
         set((s) => ({
           lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
+        })),
+      updateListColor: (id, color) =>
+        set((s) => ({
+          lists: s.lists.map((l) => (l.id === id ? { ...l, color } : l)),
         })),
       deleteList: (id) => {
         if (id === INBOX_ID) return
@@ -221,7 +242,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: 'tickdo-storage',
-      version: 4,
+      version: 5,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -252,10 +273,17 @@ export const useTaskStore = create<TaskState>()(
             endTime: (t as Record<string, unknown>).endTime ?? null,
           }))
         }
+        if (version < 5) {
+          const lists = (state.lists as Record<string, unknown>[]) ?? []
+          state.lists = lists.map((l, i) => ({
+            ...l,
+            color: (l as Record<string, unknown>).color ?? LIST_COLORS[i % LIST_COLORS.length],
+          }))
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
-        const { searchQuery: _sq, deletedTasks: _dt, ...rest } = state
+        const { searchQuery: _sq, deletedTasks: _dt, quickAddRequested: _qa, ...rest } = state
         return rest as unknown as TaskState
       },
     },

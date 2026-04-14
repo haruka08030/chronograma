@@ -4,7 +4,7 @@ import { SortableTaskItem } from './SortableTaskItem'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
-import { isToday, parseISO, addDays, isBefore, startOfDay } from 'date-fns'
+import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
 import {
   DndContext,
   closestCenter,
