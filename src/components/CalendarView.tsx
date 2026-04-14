@@ -50,8 +50,11 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
 export function CalendarView() {
   const [current, setCurrent] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
+  const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null)
+  const dragTaskIdRef = useRef<string | null>(null)
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(current)
@@ -129,8 +132,18 @@ export function CalendarView() {
                 key={key}
                 className={`min-h-[80px] border-t border-zinc-100 dark:border-zinc-800 p-1.5 cursor-pointer
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors
-                            ${!inMonth ? 'opacity-30' : ''}`}
+                            ${!inMonth ? 'opacity-30' : ''}
+                            ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
                 onClick={() => setAddingDate(key)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
+                onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setDragOverDate(null)
+                  const taskId = e.dataTransfer.getData('text/plain') || dragTaskIdRef.current
+                  if (taskId) updateTask(taskId, { dueDate: key })
+                  dragTaskIdRef.current = null
+                }}
               >
                 <div className={`text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full
                   ${today
@@ -143,8 +156,16 @@ export function CalendarView() {
                   {dayTasks.slice(0, 3).map((t) => (
                     <div
                       key={t.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation()
+                        dragTaskIdRef.current = t.id
+                        e.dataTransfer.setData('text/plain', t.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); setDetailId(t.id) }}
-                      className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer
+                      className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-grab active:cursor-grabbing
                         hover:ring-1 hover:ring-accent-400 transition-all
                         ${t.completed
                           ? 'line-through text-zinc-400 dark:text-zinc-600'

@@ -91,7 +91,7 @@ export function TaskList() {
 
   const active = filtered.filter((t) => !t.completed)
   const completed = filtered.filter((t) => t.completed)
-  const showQuickAdd = selectedView === null
+  const showQuickAdd = selectedView === null || selectedView === 'all' || selectedView === 'today' || selectedView === 'upcoming'
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
 
