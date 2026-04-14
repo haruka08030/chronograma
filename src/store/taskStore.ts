@@ -36,7 +36,7 @@ interface TaskState {
   reorderLists: (orderedIds: string[]) => void
 
   // tasks
-  addTask: (title: string, listId?: string) => void
+  addTask: (title: string, listId?: string, parentId?: string) => void
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   toggleTask: (id: string) => void
@@ -138,10 +138,12 @@ export const useTaskStore = create<TaskState>()(
           }),
         })),
 
-      addTask: (title, listId) => {
+      addTask: (title, listId, parentId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const maxOrder = Math.max(0, ...get().tasks.filter((t) => t.listId === targetList).map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList }, maxOrder)] }))
+        const task = makeTask({ title, listId: targetList }, maxOrder)
+        if (parentId) task.parentId = parentId
+        set((s) => ({ tasks: [...s.tasks, task] }))
       },
       addTaskWithDate: (title, dueDate, listId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID

@@ -57,10 +57,13 @@ export function TaskList() {
     if (selectedView === 'today') {
       result = result.filter((t) => t.dueDate && isToday(parseISO(t.dueDate)))
     } else if (selectedView === 'upcoming') {
+      const today = startOfDay(new Date())
       const limit = startOfDay(addDays(new Date(), 7))
-      result = result.filter(
-        (t) => t.dueDate && isBefore(parseISO(t.dueDate), limit),
-      )
+      result = result.filter((t) => {
+        if (!t.dueDate) return false
+        const d = parseISO(t.dueDate)
+        return (isSameDay(d, today) || isBefore(today, d)) && (isBefore(d, limit) || isSameDay(d, limit))
+      })
     } else if (selectedView === 'all') {
       // show all
     } else if (selectedListId) {
