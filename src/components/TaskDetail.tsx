@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { useTaskStore } from '../store/taskStore'
-import type { Task, Priority } from '../types/task'
+import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
+
+const RECURRENCE_TYPES: { value: Recurrence['type'] | 'none'; label: string }[] = [
+  { value: 'none', label: 'なし' },
+  { value: 'daily', label: '毎日' },
+  { value: 'weekly', label: '毎週' },
+  { value: 'monthly', label: '毎月' },
+  { value: 'yearly', label: '毎年' },
+]
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: 'none', label: 'なし', color: 'text-zinc-400' },
@@ -11,7 +19,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
 ]
 
 export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
-  const { updateTask, addTask, tasks } = useTaskStore()
+  const { updateTask, addTask, tasks, lists } = useTaskStore()
   const [tagInput, setTagInput] = useState('')
   const [subInput, setSubInput] = useState('')
 
@@ -63,6 +71,20 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
             </button>
           </div>
 
+          {/* description */}
+          <div>
+            <textarea
+              value={task.description}
+              onChange={(e) => updateTask(task.id, { description: e.target.value })}
+              placeholder="メモを追加..."
+              rows={2}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                         focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
+                         resize-none min-h-[4rem]"
+            />
+          </div>
+
           {/* priority */}
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">優先度</label>
@@ -95,6 +117,82 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
                          focus:ring-2 focus:ring-accent-500/40"
             />
           </div>
+
+          {/* time */}
+          {task.dueDate && (
+            <div>
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">時間</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={task.startTime ?? ''}
+                  onChange={(e) => updateTask(task.id, { startTime: e.target.value || null })}
+                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                             focus:ring-2 focus:ring-accent-500/40"
+                />
+                <span className="text-zinc-400 text-sm">〜</span>
+                <input
+                  type="time"
+                  value={task.endTime ?? ''}
+                  onChange={(e) => updateTask(task.id, { endTime: e.target.value || null })}
+                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                             focus:ring-2 focus:ring-accent-500/40"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* recurrence */}
+          {task.dueDate && (
+            <div>
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">繰り返し</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={task.recurrence?.type ?? 'none'}
+                  onChange={(e) => {
+                    const val = e.target.value as Recurrence['type'] | 'none'
+                    if (val === 'none') {
+                      updateTask(task.id, { recurrence: null })
+                    } else {
+                      updateTask(task.id, {
+                        recurrence: { type: val, interval: task.recurrence?.interval ?? 1 },
+                      })
+                    }
+                  }}
+                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                             focus:ring-2 focus:ring-accent-500/40"
+                >
+                  {RECURRENCE_TYPES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+                {task.recurrence && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      value={task.recurrence.interval}
+                      onChange={(e) => {
+                        const interval = Math.max(1, parseInt(e.target.value) || 1)
+                        updateTask(task.id, {
+                          recurrence: { ...task.recurrence!, type: task.recurrence!.type, interval },
+                        })
+                      }}
+                      className="w-16 px-2 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                                 focus:ring-2 focus:ring-accent-500/40 text-center"
+                    />
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {{ daily: '日ごと', weekly: '週ごと', monthly: 'ヶ月ごと', yearly: '年ごと' }[task.recurrence.type]}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* tags */}
           <div>
@@ -134,6 +232,31 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
               >
                 追加
               </button>
+            </div>
+          </div>
+
+          {/* list */}
+          <div>
+            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">リスト</label>
+            <div className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: lists.find((l) => l.id === task.listId)?.color ?? '#6366f1' }}
+              />
+              <select
+                value={task.listId}
+                onChange={(e) => updateTask(task.id, { listId: e.target.value })}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                           focus:ring-2 focus:ring-accent-500/40"
+              >
+                {lists
+                  .slice()
+                  .sort((a, b) => a.order - b.order)
+                  .map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+              </select>
             </div>
           </div>
 
