@@ -18,10 +18,11 @@ import { useTimelineDrop } from '../lib/useTimelineDrop'
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function TimeBlock({ task, onPointerDown, onClick }: {
+function TimeBlock({ task, onPointerDown, onClick, isLog }: {
   task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
   onPointerDown: (e: React.PointerEvent) => void
   onClick: () => void
+  isLog?: boolean
 }) {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
@@ -31,6 +32,10 @@ function TimeBlock({ task, onPointerDown, onClick }: {
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
+  const logCls = isLog
+    ? 'bg-emerald-50/90 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 border-dashed text-emerald-900 dark:text-emerald-100'
+    : ''
+
   return (
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
@@ -38,12 +43,15 @@ function TimeBlock({ task, onPointerDown, onClick }: {
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
-        ${task.completed
-          ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
-          : 'bg-accent-100 dark:bg-accent-500/20 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
+        ${isLog
+          ? logCls
+          : task.completed
+            ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
+            : 'bg-accent-100 dark:bg-accent-500/20 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
       style={{ top, height, minHeight: 18 }}
     >
       <span className="font-medium">{task.title}</span>
+      {isLog && <span className="ml-1 text-[9px] opacity-70">ログ</span>}
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
           {task.startTime} – {task.endTime}
@@ -107,22 +115,29 @@ export function WeekCalendarView() {
     return eachDayOfInterval({ start: ws, end: we })
   }, [anchor])
 
-  const { allDayByDate, timedByDate } = useMemo(() => {
+  const { allDayByDate, timedByDate, timeLogsByDate } = useMemo(() => {
     const allDay = new Map<string, typeof tasks>()
     const timed = new Map<string, typeof tasks>()
+    const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
       if (!t.dueDate || t.parentId) continue
       if (t.startTime && t.endTime) {
-        const arr = timed.get(t.dueDate) ?? []
-        arr.push(t)
-        timed.set(t.dueDate, arr)
+        if (t.isTimeLog) {
+          const arr = logs.get(t.dueDate) ?? []
+          arr.push(t)
+          logs.set(t.dueDate, arr)
+        } else {
+          const arr = timed.get(t.dueDate) ?? []
+          arr.push(t)
+          timed.set(t.dueDate, arr)
+        }
       } else {
         const arr = allDay.get(t.dueDate) ?? []
         arr.push(t)
         allDay.set(t.dueDate, arr)
       }
     }
-    return { allDayByDate: allDay, timedByDate: timed }
+    return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
   }, [tasks])
 
   useEffect(() => {
@@ -174,7 +189,9 @@ export function WeekCalendarView() {
   const timelineDrop = useTimelineDrop({
     getRelativeY,
     getTaskDuration,
-    onDrop: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onDrop: (taskId, dateKey, startTime, endTime) => {
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: false })
+    },
   })
 
   const handleCreateDone = useCallback((title?: string) => {
@@ -182,7 +199,7 @@ export function WeekCalendarView() {
       addTaskWithTime(title, timelineDrag.popup.dateKey, timelineDrag.popup.startTime, timelineDrag.popup.endTime)
     }
     timelineDrag.dismissPopup()
-  }, [timelineDrag.popup, addTaskWithTime, timelineDrag.dismissPopup])
+  }, [timelineDrag, addTaskWithTime])
 
   const hasAnyAllDay = useMemo(() => {
     return days.some((d) => {
@@ -297,6 +314,7 @@ export function WeekCalendarView() {
               {days.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayTimed = timedByDate.get(key) ?? []
+                const dayLogs = timeLogsByDate.get(key) ?? []
                 const today = isToday(day)
 
                 return (
@@ -333,6 +351,16 @@ export function WeekCalendarView() {
                       <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                         <TimeBlock
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
+                          onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
+                          onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
+                        />
+                      </div>
+                    ))}
+                    {dayLogs.map((t) => (
+                      <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
+                        <TimeBlock
+                          task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
+                          isLog
                           onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
                           onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
                         />

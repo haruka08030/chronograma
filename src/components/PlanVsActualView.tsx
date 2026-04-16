@@ -12,7 +12,7 @@ import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes } from '../lib/timeGrid'
-import { matchEventsForDate, type MatchedPair } from '../lib/matchEvents'
+import { matchPlanAndActualForDate, type MatchedPair } from '../lib/matchEvents'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
@@ -25,64 +25,126 @@ import {
   getClientId,
 } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
+import type { PlannedItem } from '../types/plannedItem'
+import type { Task } from '../types/task'
+import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/plannedItemUtils'
+import { habitToPlannedItem } from '../lib/habitSlots'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function PlannedBlock({ event, matchStatus, dateKey, onDone }: {
-  event: CalendarEvent
+function sourceStyles(source: PlannedItem['source'], matchStatus?: MatchedPair): {
+  borderClass: string
+  bgClass: string
+  textClass: string
+} {
+  if (matchStatus?.status === 'time-drift') {
+    return {
+      borderClass: 'border-amber-400 dark:border-amber-500/60',
+      bgClass: 'bg-amber-50 dark:bg-amber-500/10',
+      textClass: 'text-amber-800 dark:text-amber-200',
+    }
+  }
+  if (matchStatus?.status === 'planned-only') {
+    return {
+      borderClass: 'border-red-300 dark:border-red-500/40 border-dashed',
+      bgClass: 'bg-red-50/60 dark:bg-red-500/10',
+      textClass: 'text-red-800 dark:text-red-200',
+    }
+  }
+  switch (source) {
+    case 'google':
+      return {
+        borderClass: 'border-blue-300 dark:border-blue-500/40',
+        bgClass: 'bg-blue-50 dark:bg-blue-500/15',
+        textClass: 'text-blue-800 dark:text-blue-200',
+      }
+    case 'scheduled-task':
+      return {
+        borderClass: 'border-cyan-400 dark:border-cyan-500/40',
+        bgClass: 'bg-cyan-50 dark:bg-cyan-500/15',
+        textClass: 'text-cyan-800 dark:text-cyan-200',
+      }
+    case 'habit':
+      return {
+        borderClass: 'border-amber-400 dark:border-amber-500/50',
+        bgClass: 'bg-amber-50/90 dark:bg-amber-500/15',
+        textClass: 'text-amber-900 dark:text-amber-100',
+      }
+    default:
+      return {
+        borderClass: 'border-zinc-300 dark:border-zinc-600',
+        bgClass: 'bg-zinc-50 dark:bg-zinc-800',
+        textClass: 'text-zinc-800 dark:text-zinc-200',
+      }
+  }
+}
+
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompleted, onHabitToggle }: {
+  item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
-  onDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
+  onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
+  habitCompleted?: boolean
+  onHabitToggle?: () => void
 }) {
-  if (!event.startTime || !event.endTime) return null
-  const top = timeToY(event.startTime)
-  const height = Math.max(timeToY(event.endTime) - top, HOUR_HEIGHT / 4)
+  const top = timeToY(item.startTime)
+  const height = Math.max(timeToY(item.endTime) - top, HOUR_HEIGHT / 4)
 
   const isDone = matchStatus?.status === 'matched' || matchStatus?.status === 'time-drift'
+  const styles = sourceStyles(item.source, matchStatus)
 
-  let borderClass = 'border-blue-300 dark:border-blue-500/40'
-  let bgClass = 'bg-blue-50 dark:bg-blue-500/15'
   let label: string | null = null
-
   if (matchStatus?.status === 'time-drift') {
-    borderClass = 'border-amber-400 dark:border-amber-500/60'
-    bgClass = 'bg-amber-50 dark:bg-amber-500/10'
     label = `${matchStatus.driftMinutes}分ズレ`
   } else if (matchStatus?.status === 'planned-only') {
-    borderClass = 'border-red-300 dark:border-red-500/40 border-dashed'
-    bgClass = 'bg-red-50/60 dark:bg-red-500/10'
     label = '未実行'
   }
 
   return (
     <div
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden
-        border ${borderClass} ${bgClass} text-blue-800 dark:text-blue-200 select-none group/planned`}
+        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned`}
       style={{ top, height, minHeight: 18 }}
     >
       <div className="flex items-start gap-0.5">
-        <span className="font-medium truncate flex-1">{event.summary}</span>
-        {!isDone && (
+        <span className="font-medium truncate flex-1">{item.summary}</span>
+        {item.source === 'google' && !isDone && (
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onDone(event.summary, dateKey, event.startTime!, event.endTime!)
+              onGoogleDone(item.summary, dateKey, item.startTime, item.endTime)
             }}
             className="flex-shrink-0 w-4 h-4 rounded-full border border-blue-300 dark:border-blue-500/50
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
                        transition-colors opacity-0 group-hover/planned:opacity-100 flex items-center justify-center"
-            title="Done"
+            title="実績として記録"
           >
             <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </button>
         )}
+        {item.source === 'habit' && onHabitToggle && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onHabitToggle()
+            }}
+            className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center text-[10px]
+              ${habitCompleted
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'border-amber-400 dark:border-amber-500/60 opacity-80 group-hover/planned:opacity-100'}`}
+            title={habitCompleted ? '未達に戻す' : '達成にする'}
+          >
+            {habitCompleted ? '✓' : ''}
+          </button>
+        )}
       </div>
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
-          {event.startTime} – {event.endTime}
+          {item.startTime} – {item.endTime}
         </span>
       )}
       {label && (
@@ -93,6 +155,61 @@ function PlannedBlock({ event, matchStatus, dateKey, onDone }: {
         </span>
       )}
     </div>
+  )
+}
+
+function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onClick }: {
+  task: Task
+  matchStatus?: MatchedPair
+  onPointerDown: (e: React.PointerEvent) => void
+  onClick: () => void
+}) {
+  const top = timeToY(task.startTime!)
+  const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
+
+  let borderClass = 'border-cyan-400 dark:border-cyan-500/40'
+  let bgClass = 'bg-cyan-50 dark:bg-cyan-500/15'
+  let label: string | null = null
+
+  if (task.completed) {
+    borderClass = 'border-zinc-200 dark:border-zinc-700'
+    bgClass = 'bg-zinc-100 dark:bg-zinc-800'
+  } else if (matchStatus?.status === 'time-drift') {
+    borderClass = 'border-amber-400 dark:border-amber-500/60'
+    bgClass = 'bg-amber-50 dark:bg-amber-500/10'
+    label = `${matchStatus.driftMinutes}分ズレ`
+  } else if (matchStatus?.status === 'planned-only') {
+    borderClass = 'border-red-300 dark:border-red-500/40 border-dashed'
+    bgClass = 'bg-red-50/60 dark:bg-red-500/10'
+    label = '未実行'
+  }
+
+  const handlePointerMoveLocal = (e: React.PointerEvent) => {
+    const cursor = getResizeCursor(e)
+    ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
+  }
+
+  return (
+    <button
+      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
+      onPointerMove={handlePointerMoveLocal}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
+        border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
+        ${borderClass} ${bgClass}
+        ${task.completed ? 'text-zinc-400 line-through' : 'text-cyan-900 dark:text-cyan-100'}`}
+      style={{ top, height, minHeight: 18 }}
+    >
+      <span className="font-medium truncate block">{task.title}</span>
+      {height >= 32 && (
+        <span className="block text-[10px] opacity-70 mt-px">
+          {task.startTime} – {task.endTime}
+        </span>
+      )}
+      {label && (
+        <span className="block text-[9px] font-semibold mt-0.5 text-red-500 dark:text-red-400">{label}</span>
+      )}
+    </button>
   )
 }
 
@@ -166,10 +283,12 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
     onDone(trimmed || undefined)
   }
 
+  const isLog = popup.intent === 'log'
+
   return (
     <div
-      className="absolute left-0.5 right-0.5 z-30 rounded-md border-2 border-emerald-500
-                 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden"
+      className={`absolute left-0.5 right-0.5 z-30 rounded-md border-2 shadow-lg overflow-hidden
+        ${isLog ? 'border-emerald-500 bg-white dark:bg-zinc-900' : 'border-cyan-500 bg-white dark:bg-zinc-900'}`}
       style={{ top: timeToY(popup.startTime), height: Math.max(timeToY(popup.endTime) - timeToY(popup.startTime), 40) }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -183,7 +302,7 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
             if (e.key === 'Escape') onDone()
           }}
           onBlur={submit}
-          placeholder="ログを追加"
+          placeholder={isLog ? 'ログを追加' : '予定を追加'}
           className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
         />
         <span className="text-[10px] text-zinc-400 mt-auto">
@@ -248,9 +367,9 @@ function GoogleConnectBanner() {
   if (!clientId) {
     return (
       <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
-        <p className="font-medium">Google Calendar 連携の設定が必要です</p>
+        <p className="font-medium">Google Calendar 連携（任意）</p>
         <p className="text-xs mt-1 opacity-80">
-          .env ファイルに VITE_GOOGLE_CLIENT_ID を設定してください。
+          .env に VITE_GOOGLE_CLIENT_ID を設定すると外部カレンダーの予定を左列に表示できます。未設定でも習慣・自分の予定は使えます。
         </p>
       </div>
     )
@@ -300,14 +419,22 @@ function GoogleConnectBanner() {
 
 function Legend() {
   return (
-    <div className="flex items-center gap-4 px-6 py-2 text-[11px]">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2 text-[11px]">
       <div className="flex items-center gap-1.5">
         <div className="w-3 h-3 rounded-sm bg-blue-100 dark:bg-blue-500/20 border border-blue-300 dark:border-blue-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">予定 (Google Calendar)</span>
+        <span className="text-zinc-500 dark:text-zinc-400">Google</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-3 h-3 rounded-sm bg-amber-100 dark:bg-amber-500/20 border border-amber-400 dark:border-amber-500/50" />
+        <span className="text-zinc-500 dark:text-zinc-400">習慣</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-3 h-3 rounded-sm bg-cyan-100 dark:bg-cyan-500/20 border border-cyan-400 dark:border-cyan-500/40" />
+        <span className="text-zinc-500 dark:text-zinc-400">自分の予定（タスク）</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className="w-3 h-3 rounded-sm bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">ログ (TickDo)</span>
+        <span className="text-zinc-500 dark:text-zinc-400">ログ（実績）</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className="w-3 h-3 rounded-sm bg-amber-100 dark:bg-amber-500/20 border border-amber-400 dark:border-amber-500/40" />
@@ -319,7 +446,7 @@ function Legend() {
       </div>
       <div className="flex items-center gap-1.5">
         <div className="w-3 h-3 rounded-sm bg-purple-100 dark:bg-purple-500/20 border border-purple-300 dark:border-purple-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">予定外</span>
+        <span className="text-zinc-500 dark:text-zinc-400">予定外ログ</span>
       </div>
     </div>
   )
@@ -328,11 +455,14 @@ function Legend() {
 export function PlanVsActualView() {
   const [anchor, setAnchor] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
+  const habits = useTaskStore((s) => s.habits)
+  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
+  const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -401,10 +531,10 @@ export function PlanVsActualView() {
     return map
   }, [calendarEvents])
 
-  const timedByDate = useMemo(() => {
-    const map = new Map<string, typeof tasks>()
+  const scheduledTasksByDate = useMemo(() => {
+    const map = new Map<string, Task[]>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId || !t.startTime || !t.endTime) continue
+      if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || t.isTimeLog) continue
       const arr = map.get(t.dueDate) ?? []
       arr.push(t)
       map.set(t.dueDate, arr)
@@ -412,16 +542,50 @@ export function PlanVsActualView() {
     return map
   }, [tasks])
 
+  const logTasksByDate = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    for (const t of tasks) {
+      if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || !t.isTimeLog) continue
+      const arr = map.get(t.dueDate) ?? []
+      arr.push(t)
+      map.set(t.dueDate, arr)
+    }
+    return map
+  }, [tasks])
+
+  const plannedListsByDate = useMemo(() => {
+    const map = new Map<string, PlannedItem[]>()
+    for (const day of days) {
+      const key = format(day, 'yyyy-MM-dd')
+      const list: PlannedItem[] = []
+      for (const e of eventsByDate.get(key) ?? []) {
+        const p = calendarEventToPlannedItem(e)
+        if (p) list.push(p)
+      }
+      for (const h of habits) {
+        const p = habitToPlannedItem(h, key)
+        if (p) list.push(p)
+      }
+      for (const t of scheduledTasksByDate.get(key) ?? []) {
+        const p = scheduledTaskToPlannedItem(t)
+        if (p) list.push(p)
+      }
+      list.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+      map.set(key, list)
+    }
+    return map
+  }, [days, eventsByDate, habits, scheduledTasksByDate])
+
   const matchesByDate = useMemo(() => {
     const map = new Map<string, MatchedPair[]>()
     for (const day of days) {
       const key = format(day, 'yyyy-MM-dd')
-      const planned = eventsByDate.get(key) ?? []
-      const actual = timedByDate.get(key) ?? []
-      map.set(key, matchEventsForDate(planned, actual))
+      const planned = plannedListsByDate.get(key) ?? []
+      const actual = logTasksByDate.get(key) ?? []
+      map.set(key, matchPlanAndActualForDate(planned, actual))
     }
     return map
-  }, [days, eventsByDate, timedByDate])
+  }, [days, plannedListsByDate, logTasksByDate])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -459,9 +623,20 @@ export function PlanVsActualView() {
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
-    onMoveDone: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
-    onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
+    onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => {
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime })
+    },
+    onResizeDone: (taskId: string, startTime: string, endTime: string) => {
+      updateTask(taskId, { startTime, endTime })
+    },
+    defaultCreateIntent: 'schedule',
   })
+
+  const movingTask = useMemo(() => {
+    const id = timelineDrag.movingTaskId
+    if (!id) return null
+    return tasks.find((t) => t.id === id) ?? null
+  }, [timelineDrag.movingTaskId, tasks])
 
   const getTaskDuration = useCallback((taskId: string): number | null => {
     const t = tasks.find((x) => x.id === taskId)
@@ -469,33 +644,53 @@ export function PlanVsActualView() {
     return null
   }, [tasks])
 
-  const timelineDrop = useTimelineDrop({
+  const timelineDropSchedule = useTimelineDrop({
     getRelativeY,
     getTaskDuration,
-    onDrop: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onDrop: (taskId, dateKey, startTime, endTime) => {
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: false })
+    },
+  })
+
+  const timelineDropLog = useTimelineDrop({
+    getRelativeY,
+    getTaskDuration,
+    onDrop: (taskId, dateKey, startTime, endTime) => {
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true })
+    },
   })
 
   const handleCreateDone = useCallback((title?: string) => {
-    if (title && timelineDrag.popup) {
-      addTaskWithTime(title, timelineDrag.popup.dateKey, timelineDrag.popup.startTime, timelineDrag.popup.endTime)
+    const p = timelineDrag.popup
+    if (title && p) {
+      if (p.intent === 'log') {
+        addTimeLog(title, p.dateKey, p.startTime, p.endTime)
+      } else {
+        addTaskWithTime(title, p.dateKey, p.startTime, p.endTime)
+      }
     }
     timelineDrag.dismissPopup()
-  }, [timelineDrag.popup, addTaskWithTime, timelineDrag.dismissPopup])
+  }, [timelineDrag, addTaskWithTime, addTimeLog])
 
   const handlePlannedDone = useCallback((title: string, dateKey: string, startTime: string, endTime: string) => {
     addCompletedTaskWithTime(title, dateKey, startTime, endTime)
   }, [addCompletedTaskWithTime])
 
-  function getMatchForPlanned(dateKey: string, eventId: string): MatchedPair | undefined {
+  function getMatchForPlanned(dateKey: string, plannedId: string): MatchedPair | undefined {
     return matchesByDate.get(dateKey)?.find(
-      (m) => m.planned?.id === eventId && m.status !== 'actual-only'
+      (m) => m.planned?.id === plannedId && m.status !== 'actual-only',
     )
   }
 
   function getMatchForActual(dateKey: string, taskId: string): MatchedPair | undefined {
     return matchesByDate.get(dateKey)?.find(
-      (m) => m.actual?.id === taskId && m.status !== 'planned-only'
+      (m) => m.actual?.id === taskId && m.status !== 'planned-only',
     )
+  }
+
+  const habitIdFromSlotId = (slotId: string): string | null => {
+    const m = /^habit-slot::([^:]+)::/.exec(slotId)
+    return m ? m[1] : null
   }
 
   return (
@@ -652,8 +847,8 @@ export function PlanVsActualView() {
             >
               {days.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
-                const dayPlanned = eventsByDate.get(key)?.filter((e) => e.startTime && e.endTime) ?? []
-                const dayActual = timedByDate.get(key) ?? []
+                const plannedItems = plannedListsByDate.get(key) ?? []
+                const dayLogs = logTasksByDate.get(key) ?? []
                 const today = isToday(day)
 
                 return (
@@ -683,27 +878,110 @@ export function PlanVsActualView() {
 
                     {today && <NowIndicator />}
 
-                    <div className="absolute top-0 bottom-0 left-0 right-1/2">
-                      {dayPlanned.map((event) => (
-                        <PlannedBlock
-                          key={event.id}
-                          event={event}
-                          dateKey={key}
-                          matchStatus={getMatchForPlanned(key, event.id)}
-                          onDone={handlePlannedDone}
-                        />
-                      ))}
+                    {/* 予定列 */}
+                    <div
+                      className="absolute top-0 bottom-0 left-0 right-1/2 cursor-crosshair z-[2]"
+                      onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, key, 'schedule')}
+                      onDragEnter={timelineDropSchedule.handleDragEnter}
+                      onDragOver={(e) => timelineDropSchedule.handleDragOver(e, key)}
+                      onDragLeave={timelineDropSchedule.handleDragLeave}
+                      onDrop={(e) => timelineDropSchedule.handleDropEvent(e, key)}
+                    >
+                      {plannedItems.map((item) => {
+                        const match = getMatchForPlanned(key, item.id)
+                        if (item.source === 'scheduled-task') {
+                          const tid = item.id.startsWith('task::') ? item.id.slice('task::'.length) : ''
+                          const task = tasks.find((t) => t.id === tid)
+                          if (!task) return null
+                          return (
+                            <div key={item.id} style={{ opacity: timelineDrag.movingTaskId === task.id ? 0.3 : 1 }}>
+                              <ScheduledTaskDragBlock
+                                task={task}
+                                matchStatus={match}
+                                onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, task.id, key, task.startTime!, task.endTime!, gridRef.current)}
+                                onClick={() => { if (!timelineDrag.didMove.current) setDetailId(task.id) }}
+                              />
+                            </div>
+                          )
+                        }
+                        if (item.source === 'habit') {
+                          const hid = habitIdFromSlotId(item.id)
+                          const habit = hid ? habits.find((h) => h.id === hid) : null
+                          const completed = habit?.completedDates.includes(key) ?? false
+                          return (
+                            <PlannedItemBlock
+                              key={item.id}
+                              item={item}
+                              matchStatus={match}
+                              dateKey={key}
+                              onGoogleDone={handlePlannedDone}
+                              habitCompleted={completed}
+                              onHabitToggle={hid ? () => toggleHabitDate(hid, key) : undefined}
+                            />
+                          )
+                        }
+                        return (
+                          <PlannedItemBlock
+                            key={item.id}
+                            item={item}
+                            matchStatus={match}
+                            dateKey={key}
+                            onGoogleDone={handlePlannedDone}
+                          />
+                        )
+                      })}
+
+                      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && timelineDrag.activeCreateIntent === 'schedule' && (
+                        <div
+                          className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                            bg-cyan-500/20 border-2 border-cyan-500/60"
+                          style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
+                        >
+                          <span className="text-[10px] text-cyan-800 dark:text-cyan-200 px-1.5 font-medium">
+                            {timelineDrag.dragPreview.label}
+                          </span>
+                        </div>
+                      )}
+
+                      {timelineDropSchedule.dropPreview && timelineDropSchedule.dropPreview.dateKey === key && (
+                        <div
+                          className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                                     bg-cyan-500/20 border-2 border-cyan-500/60 border-dashed"
+                          style={{ top: timelineDropSchedule.dropPreview.top, height: timelineDropSchedule.dropPreview.height }}
+                        >
+                          <span className="text-[10px] text-cyan-800 dark:text-cyan-200 px-1.5 font-medium">
+                            {timelineDropSchedule.dropPreview.label}
+                          </span>
+                        </div>
+                      )}
+
+                      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && timelineDrag.dragPreview.kind !== 'create' && movingTask && !movingTask.isTimeLog && (
+                        <div
+                          className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                            bg-cyan-400/30 border-2 border-cyan-500 shadow-lg"
+                          style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
+                        >
+                          <span className="text-[10px] text-cyan-800 dark:text-cyan-200 px-1.5 font-medium">
+                            {timelineDrag.dragPreview.label}
+                          </span>
+                        </div>
+                      )}
+
+                      {timelineDrag.popup && timelineDrag.popup.dateKey === key && timelineDrag.popup.intent === 'schedule' && (
+                        <InlineTimeAdd popup={timelineDrag.popup} onDone={handleCreateDone} />
+                      )}
                     </div>
 
+                    {/* ログ列 */}
                     <div
-                      className="absolute top-0 bottom-0 left-1/2 right-0 cursor-crosshair"
-                      onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, key)}
-                      onDragEnter={timelineDrop.handleDragEnter}
-                      onDragOver={(e) => timelineDrop.handleDragOver(e, key)}
-                      onDragLeave={timelineDrop.handleDragLeave}
-                      onDrop={(e) => timelineDrop.handleDropEvent(e, key)}
+                      className="absolute top-0 bottom-0 left-1/2 right-0 cursor-crosshair z-[2]"
+                      onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, key, 'log')}
+                      onDragEnter={timelineDropLog.handleDragEnter}
+                      onDragOver={(e) => timelineDropLog.handleDragOver(e, key)}
+                      onDragLeave={timelineDropLog.handleDragLeave}
+                      onDrop={(e) => timelineDropLog.handleDropEvent(e, key)}
                     >
-                      {dayActual.map((t) => (
+                      {dayLogs.map((t) => (
                         <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
                             task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
@@ -714,7 +992,7 @@ export function PlanVsActualView() {
                         </div>
                       ))}
 
-                      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && (
+                      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && timelineDrag.activeCreateIntent === 'log' && (
                         <div
                           className={`absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
                             ${timelineDrag.dragPreview.kind === 'create'
@@ -728,19 +1006,31 @@ export function PlanVsActualView() {
                         </div>
                       )}
 
-                      {timelineDrop.dropPreview && timelineDrop.dropPreview.dateKey === key && (
+                      {timelineDropLog.dropPreview && timelineDropLog.dropPreview.dateKey === key && (
                         <div
                           className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
-                                     bg-accent-500/20 border-2 border-accent-500/60 border-dashed"
-                          style={{ top: timelineDrop.dropPreview.top, height: timelineDrop.dropPreview.height }}
+                                     bg-emerald-500/20 border-2 border-emerald-500/60 border-dashed"
+                          style={{ top: timelineDropLog.dropPreview.top, height: timelineDropLog.dropPreview.height }}
                         >
-                          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-                            {timelineDrop.dropPreview.label}
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-300 px-1.5 font-medium">
+                            {timelineDropLog.dropPreview.label}
                           </span>
                         </div>
                       )}
 
-                      {timelineDrag.popup && timelineDrag.popup.dateKey === key && (
+                      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && timelineDrag.dragPreview.kind !== 'create' && movingTask && movingTask.isTimeLog && (
+                        <div
+                          className="absolute left-0.5 right-0.5 rounded-md pointer-events-none z-20
+                            bg-emerald-400/30 border-2 border-emerald-500 shadow-lg"
+                          style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
+                        >
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-300 px-1.5 font-medium">
+                            {timelineDrag.dragPreview.label}
+                          </span>
+                        </div>
+                      )}
+
+                      {timelineDrag.popup && timelineDrag.popup.dateKey === key && timelineDrag.popup.intent === 'log' && (
                         <InlineTimeAdd popup={timelineDrag.popup} onDone={handleCreateDone} />
                       )}
                     </div>

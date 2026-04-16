@@ -9,15 +9,14 @@ export function UndoToast() {
 
   useEffect(() => {
     if (deletedTasks.length > 0) {
-      setVisible(true)
+      queueMicrotask(() => setVisible(true))
       const timer = setTimeout(() => {
         setVisible(false)
         clearDeletedTasks()
       }, 5000)
       return () => clearTimeout(timer)
-    } else {
-      setVisible(false)
     }
+    queueMicrotask(() => setVisible(false))
   }, [deletedTasks.length, clearDeletedTasks])
 
   if (!visible || deletedTasks.length === 0) return null
@@ -33,7 +32,9 @@ export function UndoToast() {
         >
           元に戻す
         </button>
-        <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-1">⌘Z</span>
+        <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-1">
+          {navigator.platform.toLowerCase().includes('mac') ? '⌘Z' : 'Ctrl+Z'}
+        </span>
       </div>
     </div>
   )

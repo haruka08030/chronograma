@@ -10,14 +10,15 @@ export function QuickAdd() {
   const clearQuickAddRequest = useTaskStore((s) => s.clearQuickAddRequest)
 
   useEffect(() => {
-    if (quickAddRequested) {
+    if (!quickAddRequested) return
+    clearQuickAddRequest()
+    queueMicrotask(() => {
       if (active) {
         inputRef.current?.focus()
       } else {
         setActive(true)
       }
-      clearQuickAddRequest()
-    }
+    })
   }, [quickAddRequested, active, clearQuickAddRequest])
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export function QuickAdd() {
     if (!trimmed) return
     addTask(trimmed)
     setValue('')
+    queueMicrotask(() => inputRef.current?.focus())
   }
 
   if (!active) {
@@ -62,7 +64,10 @@ export function QuickAdd() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') submit()
+          if (e.key === 'Enter') {
+            if (e.metaKey || e.ctrlKey) e.preventDefault()
+            submit()
+          }
           if (e.key === 'Escape') { setValue(''); setActive(false) }
         }}
         placeholder="タスク名を入力"

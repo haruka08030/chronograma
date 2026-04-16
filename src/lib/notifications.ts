@@ -11,6 +11,7 @@ export async function requestPermission(): Promise<boolean> {
 }
 
 export function checkAndNotify(tasks: Task[]) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
   const dueTasks = tasks.filter(

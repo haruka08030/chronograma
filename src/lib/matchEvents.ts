@@ -1,11 +1,11 @@
-import type { CalendarEvent } from '../types/calendarEvent'
 import type { Task } from '../types/task'
+import type { PlannedItem } from '../types/plannedItem'
 
 export type MatchStatus = 'matched' | 'time-drift' | 'planned-only' | 'actual-only'
 
 export interface MatchedPair {
   status: MatchStatus
-  planned?: CalendarEvent
+  planned?: PlannedItem
   actual?: Task
   driftMinutes?: number
 }
@@ -53,12 +53,13 @@ const TITLE_THRESHOLD = 0.3
 const TIME_OVERLAP_THRESHOLD = 0.15
 const DRIFT_THRESHOLD_MINUTES = 10
 
-export function matchEventsForDate(
-  planned: CalendarEvent[],
-  actual: Task[],
+/** 予定（Google・習慣・自分で配置したタスク）と実績ログを突き合わせる */
+export function matchPlanAndActualForDate(
+  planned: PlannedItem[],
+  actualLogs: Task[],
 ): MatchedPair[] {
   const timedPlanned = planned.filter((e) => e.startTime && e.endTime)
-  const timedActual = actual.filter((t) => t.startTime && t.endTime)
+  const timedActual = actualLogs.filter((t) => t.startTime && t.endTime)
 
   const usedPlanned = new Set<string>()
   const usedActual = new Set<string>()
@@ -78,7 +79,7 @@ export function matchEventsForDate(
       const tSim = titleSimilarity(p.summary, a.title)
       if (tSim < TITLE_THRESHOLD) continue
 
-      const overlap = timeOverlapRatio(p.startTime!, p.endTime!, a.startTime!, a.endTime!)
+      const overlap = timeOverlapRatio(p.startTime, p.endTime, a.startTime!, a.endTime!)
       if (overlap < TIME_OVERLAP_THRESHOLD && tSim < 0.8) continue
 
       candidates.push({ pIdx: pi, aIdx: ai, score: tSim * 0.6 + overlap * 0.4 })
@@ -90,13 +91,14 @@ export function matchEventsForDate(
   for (const c of candidates) {
     const p = timedPlanned[c.pIdx]
     const a = timedActual[c.aIdx]
-    if (usedPlanned.has(p.id) || usedActual.has(a.id)) continue
+    const pKey = p.id ?? `planned-${c.pIdx}`
+    const aKey = a.id ?? `actual-${c.aIdx}`
+    if (usedPlanned.has(pKey) || usedActual.has(aKey)) continue
+    usedPlanned.add(pKey)
+    usedActual.add(aKey)
 
-    usedPlanned.add(p.id)
-    usedActual.add(a.id)
-
-    const startDrift = Math.abs(timeToMinutes(p.startTime!) - timeToMinutes(a.startTime!))
-    const endDrift = Math.abs(timeToMinutes(p.endTime!) - timeToMinutes(a.endTime!))
+    const startDrift = Math.abs(timeToMinutes(p.startTime) - timeToMinutes(a.startTime!))
+    const endDrift = Math.abs(timeToMinutes(p.endTime) - timeToMinutes(a.endTime!))
     const maxDrift = Math.max(startDrift, endDrift)
 
     if (maxDrift <= DRIFT_THRESHOLD_MINUTES) {

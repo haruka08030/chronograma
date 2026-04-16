@@ -1,3 +1,5 @@
+import { AccountMenu } from './components/AccountMenu'
+import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar, LIST_PREFIX } from './components/Sidebar'
@@ -8,6 +10,7 @@ import { WeekCalendarView } from './components/WeekCalendarView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView'
+import { HabitsView } from './components/HabitsView'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SearchResults } from './components/SearchResults'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -16,6 +19,8 @@ import { requestPermission, checkAndNotify } from './lib/notifications'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, DragOverlay } from '@dnd-kit/core'
 
 export default function App() {
+  useSupabaseSync()
+
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
   const searchQuery = useTaskStore((s) => s.searchQuery)
@@ -123,6 +128,7 @@ export default function App() {
       case 'plan-vs-actual': return <PlanVsActualView />
       case 'activity-log': return <ActivityLogView />
       case 'stats': return <StatsView />
+      case 'habits': return <HabitsView />
       default: return <TaskList />
     }
   })()
@@ -169,6 +175,7 @@ export default function App() {
               )}
             </div>
 
+            <AccountMenu />
             <ThemeToggle />
           </header>
 

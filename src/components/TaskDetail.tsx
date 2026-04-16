@@ -26,7 +26,9 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
   const [titleValue, setTitleValue] = useState(task.title)
   const titleInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setTitleValue(task.title) }, [task.title])
+  useEffect(() => {
+    queueMicrotask(() => setTitleValue(task.title))
+  }, [task.title])
   useEffect(() => {
     if (editingTitle) {
       titleInputRef.current?.focus()
@@ -94,6 +96,15 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
             ) : (
               <h2
                 onClick={() => setEditingTitle(true)}
+                tabIndex={0}
+                role="button"
+                aria-label="Click to edit title"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setEditingTitle(true)
+                  }
+                }}
                 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words cursor-text
                            hover:bg-zinc-50 dark:hover:bg-zinc-800/40 rounded-md px-1 -mx-1 transition-colors"
               >

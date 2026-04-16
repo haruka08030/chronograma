@@ -60,7 +60,7 @@ export function TaskList() {
     }
 
     if (filterTag) {
-      result = result.filter((t) => t.tags.includes(filterTag))
+      result = result.filter((t) => t.tags?.includes(filterTag))
     }
 
     switch (sortMode) {

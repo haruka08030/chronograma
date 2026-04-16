@@ -9,6 +9,7 @@ export interface CreateDrag {
   dateKey: string
   startY: number
   currentY: number
+  intent: CreateIntent
 }
 
 export interface MoveDrag {
@@ -34,10 +35,14 @@ export interface ResizeDrag {
 
 export type DragState = CreateDrag | MoveDrag | ResizeDrag
 
+export type CreateIntent = 'schedule' | 'log'
+
 export interface CreatePopup {
   dateKey: string
   startTime: string
   endTime: string
+  /** 予定 vs ログ: 左=schedule 右=log */
+  intent?: CreateIntent
 }
 
 export interface DragPreview {
@@ -60,21 +65,23 @@ interface UseTimelineDragOptions {
   getDateKeyFromX?: (clientX: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
   onResizeDone: (taskId: string, startTime: string, endTime: string) => void
+  /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
+  defaultCreateIntent?: CreateIntent
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
-  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone } = options
+  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule' } = options
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
 
-  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string) => {
+  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent) => {
     if (popup) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
-    setDrag({ kind: 'create', dateKey, startY: y, currentY: y })
-  }, [getRelativeY, popup])
+    setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent })
+  }, [getRelativeY, popup, defaultCreateIntent])
 
   const handleBlockPointerDown = useCallback((
     e: React.PointerEvent,
@@ -130,7 +137,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
       if (maxY - minY < 5) { setDrag(null); return }
-      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY) })
+      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
         const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
@@ -168,6 +175,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       if (maxY - minY < 2) return null
       return { kind: 'create', dateKey: drag.dateKey, top: minY, height: maxY - minY, label: `${yToTime(minY)} – ${yToTime(maxY)}` }
     } else if (drag.kind === 'move') {
+      // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current) return null
       const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
       const newTop = Math.max(0, drag.currentY - drag.offsetY)
@@ -176,6 +184,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       const newEndMin = Math.min(timeToMinutes(newStart) + durationMin, 24 * 60)
       return { kind: 'move', dateKey: drag.dateKey, taskId: drag.taskId, top: newTop, height, label: `${newStart} – ${minutesToTime(newEndMin)}` }
     } else {
+      // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current) return null
       const newTime = yToTime(drag.currentY)
       const newMin = timeToMinutes(newTime)
@@ -202,12 +211,16 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const movingTaskId = drag?.kind === 'move' ? drag.taskId : (drag?.kind === 'resize' ? drag.taskId : null)
   const didMove = didMoveRef
 
+  const activeCreateIntent: CreateIntent | null =
+    drag?.kind === 'create' ? drag.intent : null
+
   return {
     drag,
     popup,
     dragPreview,
     movingTaskId,
     didMove,
+    activeCreateIntent,
     handleCreatePointerDown,
     handleBlockPointerDown,
     handlePointerMove,

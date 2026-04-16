@@ -28,18 +28,6 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null)
   const enterCountRef = useRef(0)
 
-  const getDuration = useCallback((e: React.DragEvent): number => {
-    if (getTaskDuration) {
-      const taskId = e.dataTransfer.types.includes(TASK_DND_TYPE)
-        ? (e.dataTransfer.getData(TASK_DND_TYPE) || null)
-        : null
-      if (taskId) {
-        const dur = getTaskDuration(taskId)
-        if (dur && dur > 0) return dur
-      }
-    }
-    return DEFAULT_DURATION_MIN
-  }, [getTaskDuration])
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
@@ -55,7 +43,8 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
     const startMin = timeToMinutes(startTime)
     const duration = DEFAULT_DURATION_MIN
     const endMin = Math.min(startMin + duration, 24 * 60)
-    const height = (duration / 60) * HOUR_HEIGHT
+    const actualDuration = endMin - startMin
+    const height = (actualDuration / 60) * HOUR_HEIGHT
     setDropPreview({ dateKey, top: y, height, label: `${startTime} – ${minutesToTime(endMin)}` })
   }, [getRelativeY])
 

@@ -51,6 +51,7 @@ export function TaskItem({ task, onClick, dragHandle }: {
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     e.dataTransfer.setData(TASK_DND_TYPE, task.id)
+    e.dataTransfer.setData('text/plain', task.id)
     e.dataTransfer.effectAllowed = 'copy'
     setIsDragging(true)
   }, [task.id])

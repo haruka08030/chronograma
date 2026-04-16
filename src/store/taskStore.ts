@@ -3,12 +3,13 @@ import { persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { CalendarEvent } from '../types/calendarEvent'
+import type { Habit } from '../types/habit'
 import { newId } from '../lib/id'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 
 const INBOX_ID = '__inbox__'
 
-export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'plan-vs-actual' | 'activity-log' | 'stats'
+export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'plan-vs-actual' | 'activity-log' | 'stats' | 'habits'
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
 export const LIST_COLORS = [
@@ -41,6 +42,8 @@ interface TaskState {
 
   activeTimer: ActiveTimer | null
 
+  habits: Habit[]
+
   toggleTheme: () => void
 
   selectList: (id: string) => void
@@ -54,6 +57,11 @@ interface TaskState {
   setCalendarEvents: (events: CalendarEvent[]) => void
   setGoogleConnected: (connected: boolean) => void
   setGoogleAccessToken: (token: string | null) => void
+
+  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'startTime' | 'endTime' | 'frequency'>) => void
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  deleteHabit: (id: string) => void
+  toggleHabitDate: (habitId: string, dateKey: string) => void
 
   addList: (name: string) => void
   renameList: (id: string, name: string) => void
@@ -70,7 +78,7 @@ interface TaskState {
   startTimer: (title: string, tags?: string[]) => void
   stopTimer: () => void
   toggleTask: (id: string) => void
-  updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence'>>) => void
+  updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed'>>) => void
   deleteTask: (id: string) => void
   undoDelete: () => void
   clearDeletedTasks: () => void
@@ -138,9 +146,45 @@ export const useTaskStore = create<TaskState>()(
       googleAccessToken: null,
       activeTimer: null,
 
+      habits: [],
+
       setCalendarEvents: (events) => set({ calendarEvents: events }),
       setGoogleConnected: (connected) => set({ googleConnected: connected }),
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
+
+      addHabit: (fields) => {
+        const now = new Date().toISOString()
+        const habit: Habit = {
+          id: newId(),
+          title: fields.title,
+          color: fields.color,
+          startTime: fields.startTime,
+          endTime: fields.endTime,
+          frequency: fields.frequency,
+          createdAt: now,
+          updatedAt: now,
+          completedDates: [],
+        }
+        set((s) => ({ habits: [...s.habits, habit] }))
+      },
+      updateHabit: (id, patch) =>
+        set((s) => ({
+          habits: s.habits.map((h) =>
+            h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h,
+          ),
+        })),
+      deleteHabit: (id) => set((s) => ({ habits: s.habits.filter((h) => h.id !== id) })),
+      toggleHabitDate: (habitId, dateKey) =>
+        set((s) => ({
+          habits: s.habits.map((h) => {
+            if (h.id !== habitId) return h
+            const has = h.completedDates.includes(dateKey)
+            const completedDates = has
+              ? h.completedDates.filter((d) => d !== dateKey)
+              : [...h.completedDates, dateKey].sort()
+            return { ...h, completedDates, updatedAt: new Date().toISOString() }
+          }),
+        })),
 
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
@@ -219,7 +263,12 @@ export const useTaskStore = create<TaskState>()(
       },
       addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, completed: true }, maxOrder)] }))
+        set((s) => ({
+          tasks: [
+            ...s.tasks,
+            makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true }, maxOrder),
+          ],
+        }))
       },
       addTimeLog: (title, date, startTime, endTime, tags) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
@@ -317,8 +366,8 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists } = get()
-        const data = JSON.stringify({ tasks, lists }, null, 2)
+        const { tasks, lists, habits } = get()
+        const data = JSON.stringify({ tasks, lists, habits }, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -332,7 +381,19 @@ export const useTaskStore = create<TaskState>()(
         try {
           const data = JSON.parse(json)
           if (!Array.isArray(data.tasks) || !Array.isArray(data.lists)) return false
-          set({ tasks: data.tasks, lists: data.lists })
+          // Basic structure validation
+          const validTasks = data.tasks.every((t: unknown) => 
+            typeof t === 'object' && t !== null && 'id' in t && 'title' in t && 'listId' in t
+          )
+          const validLists = data.lists.every((l: unknown) => 
+            typeof l === 'object' && l !== null && 'id' in l && 'name' in l
+          )
+          if (!validTasks || !validLists) return false
+          set({
+            tasks: data.tasks,
+            lists: data.lists,
+            habits: Array.isArray(data.habits) ? data.habits : [],
+          })
           return true
         } catch {
           return false
@@ -341,7 +402,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: 'tickdo-storage',
-      version: 8,
+      version: 9,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -393,10 +454,27 @@ export const useTaskStore = create<TaskState>()(
           }))
           state.activeTimer = state.activeTimer ?? null
         }
+        if (version < 9) {
+          state.habits = state.habits ?? []
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
-        const { searchQuery: _sq, deletedTasks: _dt, quickAddRequested: _qa, filterTag: _ft, calendarEvents: _ce, googleAccessToken: _gat, ...rest } = state
+        const {
+          searchQuery,
+          deletedTasks,
+          quickAddRequested,
+          filterTag,
+          calendarEvents,
+          googleAccessToken,
+          ...rest
+        } = state
+        void searchQuery
+        void deletedTasks
+        void quickAddRequested
+        void filterTag
+        void calendarEvents
+        void googleAccessToken
         return rest as unknown as TaskState
       },
     },

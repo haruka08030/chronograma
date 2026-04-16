@@ -14,6 +14,7 @@ import {
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
+import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
 
@@ -140,8 +141,21 @@ export function CalendarView() {
                 onDrop={(e) => {
                   e.preventDefault()
                   setDragOverDate(null)
-                  const taskId = e.dataTransfer.getData('text/plain') || dragTaskIdRef.current
-                  if (taskId) updateTask(taskId, { dueDate: key })
+                  const taskId =
+                    e.dataTransfer.getData(TASK_DND_TYPE)
+                    || e.dataTransfer.getData('text/plain')
+                    || dragTaskIdRef.current
+                  if (taskId) {
+                    const existingTask = tasks.find((t) => t.id === taskId)
+                    if (existingTask) {
+                      updateTask(taskId, {
+                        dueDate: key,
+                        startTime: existingTask.startTime,
+                        endTime: existingTask.endTime,
+                        isTimeLog: false,
+                      })
+                    }
+                  }
                   dragTaskIdRef.current = null
                 }}
               >

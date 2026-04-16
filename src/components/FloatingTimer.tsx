@@ -19,7 +19,7 @@ export function FloatingTimer() {
 
   useEffect(() => {
     if (!activeTimer) {
-      setElapsed(0)
+      queueMicrotask(() => setElapsed(0))
       return
     }
     const start = new Date(activeTimer.startedAt).getTime()
@@ -40,7 +40,7 @@ export function FloatingTimer() {
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
           {activeTimer.taskTitle}
         </p>
-        {activeTimer.tags.length > 0 && (
+        {activeTimer.tags?.length > 0 && (
           <div className="flex gap-1 mt-0.5">
             {activeTimer.tags.map((tag) => (
               <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-500/20 text-accent-700 dark:text-accent-300">

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { format, addDays, subDays, isToday } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
-import { HOUR_HEIGHT, HOURS, timeToY, yToTime, formatTimeLabel, timeToMinutes as _timeToMinutes } from '../lib/timeGrid'
+import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel } from '../lib/timeGrid'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
@@ -64,12 +64,21 @@ function NowIndicator() {
 
 function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endTime: string; onDone: (title?: string) => void }) {
   const [value, setValue] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
   useEffect(() => { ref.current?.focus() }, [])
-  const submit = () => { onDone(value.trim() || undefined) }
+  const submit = () => { 
+    if (isSubmitting) return  
+    setIsSubmitting(true)
+    onDone(value.trim() || undefined)
+  }
+  const cancel = () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    onDone()
+  }
   return (
-    <div
-      className="absolute left-2 right-2 z-30 rounded-lg border-2 border-emerald-500
+    <div className="absolute left-2 right-2 z-30 rounded-lg border-2 border-emerald-500
                  bg-white dark:bg-zinc-900 shadow-lg overflow-hidden"
       style={{ top: timeToY(startTime), height: Math.max(timeToY(endTime) - timeToY(startTime), 40) }}
       onClick={(e) => e.stopPropagation()}
@@ -79,12 +88,14 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
           ref={ref}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onDone() }}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') cancel() }}
           onBlur={submit}
           placeholder="ログを追加"
           className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
         />
-        <span className="text-[10px] text-zinc-400 mt-auto">{startTime} – {endTime}</span>
+        <span className="text-[10px] text-zinc-400 mt-auto">
+          {startTime} – {endTime}
+        </span>
       </div>
     </div>
   )
@@ -92,31 +103,32 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
 
 export function ActivityLogView() {
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const dateKey = format(selectedDate, 'yyyy-MM-dd')
+  const isTodaySelected = isToday(selectedDate)
+
   const tasks = useTaskStore((s) => s.tasks)
+  const updateTask = useTaskStore((s) => s.updateTask)
+  const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
-  const addTimeLog = useTaskStore((s) => s.addTimeLog)
-  const updateTask = useTaskStore((s) => s.updateTask)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const gridRef = useRef<HTMLDivElement>(null)
 
+  const [timerElapsed, setTimerElapsed] = useState(0)
   const [timerTitle, setTimerTitle] = useState('')
   const [timerTag, setTimerTag] = useState('')
-  const [timerElapsed, setTimerElapsed] = useState(0)
-
   const [manualTitle, setManualTitle] = useState('')
   const [manualStart, setManualStart] = useState('')
   const [manualEnd, setManualEnd] = useState('')
   const [manualTag, setManualTag] = useState('')
-  const [showManual, setShowManual] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
+  const [showManual, setShowManual] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
 
-  const dateKey = format(selectedDate, 'yyyy-MM-dd')
-  const isTodaySelected = isToday(selectedDate)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  const getRelativeY = useCallback((clientY: number, _dateKey: string) => {
+  const getRelativeY = useCallback((clientY: number, unusedDateKey: string) => {
+    void unusedDateKey
     if (!gridRef.current) return 0
     const rect = gridRef.current.getBoundingClientRect()
     return Math.max(0, Math.min(clientY - rect.top, GRID_TOTAL_HEIGHT))
@@ -137,7 +149,9 @@ export function ActivityLogView() {
   const timelineDrop = useTimelineDrop({
     getRelativeY,
     getTaskDuration,
-    onDrop: (taskId, _dk, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onDrop: (taskId, _dk, startTime, endTime) => {
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true })
+    },
   })
 
   const handleCreateDone = useCallback((title?: string) => {
@@ -145,11 +159,11 @@ export function ActivityLogView() {
       addTimeLog(title, dateKey, timelineDrag.popup.startTime, timelineDrag.popup.endTime)
     }
     timelineDrag.dismissPopup()
-  }, [timelineDrag.popup, addTimeLog, dateKey, timelineDrag.dismissPopup])
+  }, [timelineDrag, addTimeLog, dateKey])
 
   const dayLogs = useMemo(() => {
     return tasks
-      .filter((t) => t.dueDate === dateKey && t.startTime && t.endTime && !t.parentId)
+      .filter((t) => t.dueDate === dateKey && t.startTime && t.endTime && !t.parentId && t.isTimeLog)
       .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
   }, [tasks, dateKey])
 
@@ -182,7 +196,10 @@ export function ActivityLogView() {
   }, [dayLogs])
 
   useEffect(() => {
-    if (!activeTimer) { setTimerElapsed(0); return }
+    if (!activeTimer) {
+      queueMicrotask(() => setTimerElapsed(0))
+      return
+    }
     const start = new Date(activeTimer.startedAt).getTime()
     const tick = () => setTimerElapsed(Date.now() - start)
     tick()
@@ -447,7 +464,7 @@ export function ActivityLogView() {
                       <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${color.bg.replace('bg-', 'bg-').replace('/20', '/60').replace('100', '400')}`}
-                          style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: undefined }}
+                          style={{ width: `${Math.max(pct, 2)}%` }}
                         />
                       </div>
                     </div>
