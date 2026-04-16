@@ -9,12 +9,12 @@ import { CalendarView } from './components/CalendarView'
 import { WeekCalendarView } from './components/WeekCalendarView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
-import { ActivityLogView } from './components/ActivityLogView'
+import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
-import { FloatingTimer } from './components/FloatingTimer'
+import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
 import { ThemeToggle } from './components/ThemeToggle'
-import { UndoToast } from './components/UndoToast'
+import { UndoToast } from './components/UndoToast.tsx'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, DragOverlay } from '@dnd-kit/core'
 
@@ -135,11 +135,11 @@ export default function App() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
-      <div className="h-screen flex bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
+      <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <button
               onClick={() => setSidebarOpen(true)}
               className="md:hidden p-2 -ml-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -179,7 +179,9 @@ export default function App() {
             <ThemeToggle />
           </header>
 
-          {mainContent}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {mainContent}
+          </div>
         </div>
 
         <UndoToast />

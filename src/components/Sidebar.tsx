@@ -321,7 +321,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   if (open !== undefined) {
     return (
       <>
-        <div className="hidden md:flex">{sidebarContent}</div>
+        <div className="hidden md:flex h-full min-h-0 shrink-0 self-stretch">{sidebarContent}</div>
         {open && (
           <div className="fixed inset-0 z-40 flex md:hidden" onClick={onClose}>
             <div className="absolute inset-0 bg-black/30" />
