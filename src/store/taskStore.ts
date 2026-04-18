@@ -119,7 +119,9 @@ interface TaskState {
   stopTimer: () => void
   toggleTask: (id: string) => void
   updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed'>>) => void
+  bulkUpdateTasks: (ids: string[], patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate'>>) => void
   deleteTask: (id: string) => void
+  deleteTasks: (ids: string[]) => void
   undoDelete: () => void
   clearDeletedTasks: () => void
   reorderTask: (id: string, newOrder: number) => void
@@ -147,6 +149,32 @@ function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']
     case 'monthly': return format(addMonths(d, recurrence.interval), 'yyyy-MM-dd')
     case 'yearly': return format(addYears(d, recurrence.interval), 'yyyy-MM-dd')
   }
+}
+
+/** 子孫（任意の深さ）を含む。一括削除・リスト移動で親子の整合を取る */
+function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[]): Set<string> {
+  const out = new Set(rootIds)
+  let added = true
+  while (added) {
+    added = false
+    for (const t of allTasks) {
+      if (t.parentId && out.has(t.parentId) && !out.has(t.id)) {
+        out.add(t.id)
+        added = true
+      }
+    }
+  }
+  return out
+}
+
+function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed'>>): Task {
+  const applied = { ...task, ...patch, updatedAt: new Date().toISOString() }
+  if (patch.dueDate === null) {
+    applied.startTime = null
+    applied.endTime = null
+    applied.recurrence = null
+  }
+  return applied
 }
 
 function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null; isTimeLog?: boolean; completed?: boolean; tags?: string[] }, maxOrder: number): Task {
@@ -364,25 +392,51 @@ export const useTaskStore = create<TaskState>()(
         }),
       updateTask: (id, patch) =>
         set((s) => ({
-          tasks: s.tasks.map((t) => {
-            if (t.id !== id) return t
-            const applied = { ...t, ...patch, updatedAt: new Date().toISOString() }
-            if (patch.dueDate === null) {
-              applied.startTime = null
-              applied.endTime = null
-              applied.recurrence = null
-            }
-            return applied
-          }),
+          tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
         })),
+      bulkUpdateTasks: (ids, patch) =>
+        set((s) => {
+          const selected = new Set(ids)
+          const listTargets =
+            patch.listId !== undefined ? expandDescendantIds(selected, s.tasks) : null
+          return {
+            tasks: s.tasks.map((t) => {
+              const listHit = listTargets?.has(t.id)
+              const prioHit = patch.priority !== undefined && selected.has(t.id)
+              const dueHit = patch.dueDate !== undefined && selected.has(t.id)
+              if (!listHit && !prioHit && !dueHit) return t
+              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate'>> = {}
+              if (listHit && patch.listId !== undefined) piece.listId = patch.listId
+              if (prioHit) piece.priority = patch.priority
+              if (dueHit) piece.dueDate = patch.dueDate
+              return applyTaskPatch(t, piece)
+            }),
+          }
+        }),
       deleteTask: (id) =>
         set((s) => {
           const toDelete = s.tasks.filter((t) => t.id === id || t.parentId === id)
+          const deletedAt = Date.now()
           return {
             tasks: s.tasks.filter((t) => t.id !== id && t.parentId !== id),
             deletedTasks: [
               ...s.deletedTasks,
-              ...toDelete.map((t) => ({ task: t, deletedAt: Date.now() })),
+              ...toDelete.map((t) => ({ task: t, deletedAt })),
+            ],
+          }
+        }),
+      deleteTasks: (ids) =>
+        set((s) => {
+          if (ids.length === 0) return s
+          const del = expandDescendantIds(ids, s.tasks)
+          const toDelete = s.tasks.filter((t) => del.has(t.id))
+          if (toDelete.length === 0) return s
+          const deletedAt = Date.now()
+          return {
+            tasks: s.tasks.filter((t) => !del.has(t.id)),
+            deletedTasks: [
+              ...s.deletedTasks,
+              ...toDelete.map((t) => ({ task: t, deletedAt })),
             ],
           }
         }),

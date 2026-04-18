@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useDndMonitor } from '@dnd-kit/core'
 import { useTaskStore, type SortMode } from '../store/taskStore'
 import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
-import { TaskItem } from './TaskItem'
+import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
+import type { Priority } from '../types/task'
 import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
 import {
   SortableContext,
@@ -25,6 +27,13 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
+const BULK_PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
+  { value: 'high', label: '高' },
+  { value: 'medium', label: '中' },
+  { value: 'low', label: '低' },
+  { value: 'none', label: 'なし' },
+]
+
 export function TaskList() {
   const tasks = useTaskStore((s) => s.tasks)
   const selectedListId = useTaskStore((s) => s.selectedListId)
@@ -34,8 +43,46 @@ export function TaskList() {
   const setSortMode = useTaskStore((s) => s.setSortMode)
   const filterTag = useTaskStore((s) => s.filterTag)
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+
   const [detailId, setDetailId] = useState<string | null>(null)
   const [showSort, setShowSort] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const selectedRef = useRef(selected)
+  selectedRef.current = selected
+  const lastAnchorRef = useRef<string | null>(null)
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set())
+    lastAnchorRef.current = null
+  }, [])
+
+  useEffect(() => {
+    clearSelection()
+  }, [selectedListId, selectedView, filterTag, sortMode, clearSelection])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = document.activeElement
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return
+      if (t instanceof HTMLElement && t.isContentEditable) return
+      if (selectedRef.current.size === 0) return
+      e.preventDefault()
+      clearSelection()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [clearSelection, selected.size])
+
+  useDndMonitor({
+    onDragStart({ active }) {
+      const id = String(active.id)
+      if (id.startsWith(TASK_PREFIX)) clearSelection()
+    },
+  })
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const title = selectedView ? VIEW_LABELS[selectedView] ?? '' : (currentList?.name ?? 'タスク')
@@ -112,18 +159,117 @@ export function TaskList() {
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
 
+  const flatActiveIds = useMemo(() => {
+    const out: string[] = []
+    for (const p of active) {
+      out.push(p.id)
+      for (const st of childrenByParent.get(p.id) ?? []) {
+        if (!st.completed) out.push(st.id)
+      }
+    }
+    return out
+  }, [active, childrenByParent])
+
+  const flatCompletedIds = useMemo(() => {
+    const out: string[] = []
+    for (const p of completed) {
+      out.push(p.id)
+      for (const st of childrenByParent.get(p.id) ?? []) {
+        out.push(st.id)
+      }
+    }
+    return out
+  }, [completed, childrenByParent])
+
+  const flatCombined = useMemo(
+    () => [...flatActiveIds, ...flatCompletedIds],
+    [flatActiveIds, flatCompletedIds],
+  )
+
+  const toggleInSelection = useCallback((taskId: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(taskId)) n.delete(taskId)
+      else n.add(taskId)
+      return n
+    })
+    lastAnchorRef.current = taskId
+  }, [])
+
+  const makeRowClick = useCallback(
+    (taskId: string) => (e: React.MouseEvent) => {
+      if (e.shiftKey && lastAnchorRef.current !== null) {
+        const anchor = lastAnchorRef.current
+        const ia = flatCombined.indexOf(anchor)
+        const ib = flatCombined.indexOf(taskId)
+        if (ia >= 0 && ib >= 0) {
+          const lo = Math.min(ia, ib)
+          const hi = Math.max(ia, ib)
+          setSelected((prev) => {
+            const n = new Set(prev)
+            for (let i = lo; i <= hi; i++) n.add(flatCombined[i])
+            return n
+          })
+        }
+        lastAnchorRef.current = taskId
+        return
+      }
+      if (e.metaKey || e.ctrlKey) {
+        toggleInSelection(taskId)
+        return
+      }
+      if (selectedRef.current.size > 0) {
+        toggleInSelection(taskId)
+        return
+      }
+      setDetailId(taskId)
+      lastAnchorRef.current = taskId
+    },
+    [flatCombined, toggleInSelection],
+  )
+
+  const makeSelection = useCallback(
+    (taskId: string): TaskItemSelection => ({
+      selected: selected.has(taskId),
+      reveal: selected.size > 0,
+      onToggle: () => toggleInSelection(taskId),
+    }),
+    [selected, toggleInSelection],
+  )
+
+  const selectedIds = useMemo(() => [...selected], [selected])
+
+  const bulkComplete = useCallback(() => {
+    const ids = [...selected]
+    for (const id of ids) toggleTask(id)
+    clearSelection()
+  }, [selected, toggleTask, clearSelection])
+
+  const bulkDelete = useCallback(() => {
+    if (selected.size === 0) return
+    deleteTasks([...selected])
+    clearSelection()
+  }, [selected, deleteTasks, clearSelection])
+
+  const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
+
   const subtaskNestClass =
     'pl-11 ml-3 border-l border-zinc-200 dark:border-zinc-700'
 
   const activeContent = canDrag ? (
     <SortableContext items={active.map((t) => `${TASK_PREFIX}${t.id}`)} strategy={verticalListSortingStrategy}>
       {active.map((t) => (
-        <SortableTaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)}>
+        <SortableTaskItem
+          key={t.id}
+          task={t}
+          onRowClick={makeRowClick(t.id)}
+          selection={makeSelection(t.id)}
+        >
           {(childrenByParent.get(t.id) ?? [])
             .filter((st) => !st.completed)
             .map((st) => (
               <div key={st.id} className={subtaskNestClass}>
-                <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+                <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
               </div>
             ))}
         </SortableTaskItem>
@@ -132,12 +278,12 @@ export function TaskList() {
   ) : (
     active.map((t) => (
       <div key={t.id}>
-        <TaskItem task={t} onClick={() => setDetailId(t.id)} />
+        <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
         {(childrenByParent.get(t.id) ?? [])
           .filter((st) => !st.completed)
           .map((st) => (
             <div key={st.id} className={subtaskNestClass}>
-              <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+              <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
             </div>
           ))}
       </div>
@@ -206,6 +352,90 @@ export function TaskList() {
           </div>
         </div>
 
+        {selected.size > 0 && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/90 dark:bg-zinc-800/80
+                          flex flex-wrap items-center gap-2 text-xs text-zinc-700 dark:text-zinc-200">
+            <span className="font-medium text-zinc-600 dark:text-zinc-300 mr-1">{selected.size} 件選択中</span>
+            <button
+              type="button"
+              onClick={bulkComplete}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              完了にする
+            </button>
+            <button
+              type="button"
+              onClick={bulkDelete}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400"
+            >
+              削除
+            </button>
+            <label className="inline-flex items-center gap-1">
+              <span className="text-zinc-500 dark:text-zinc-400">リスト</span>
+              <select
+                className="max-w-[140px] rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
+                value=""
+                onChange={(e) => {
+                  const listId = e.target.value
+                  e.target.value = ''
+                  if (!listId) return
+                  bulkUpdateTasks(selectedIds, { listId })
+                }}
+              >
+                <option value="">移動…</option>
+                {sortedLists.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-1">
+              <span className="text-zinc-500 dark:text-zinc-400">優先度</span>
+              <select
+                className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value as Priority | ''
+                  e.target.value = ''
+                  if (!v) return
+                  bulkUpdateTasks(selectedIds, { priority: v })
+                }}
+              >
+                <option value="">設定…</option>
+                {BULK_PRIORITY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-1">
+              <span className="text-zinc-500 dark:text-zinc-400">期限</span>
+              <input
+                type="date"
+                className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs w-[118px]"
+                onChange={(e) => {
+                  const v = e.target.value
+                  e.target.value = ''
+                  if (!v) return
+                  bulkUpdateTasks(selectedIds, { dueDate: v })
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => bulkUpdateTasks(selectedIds, { dueDate: null })}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              期限なし
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 hover:underline"
+            >
+              選択解除
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {incompleteCount === 0 && !showQuickAdd && (
             <div className="py-16 text-center">
@@ -233,10 +463,10 @@ export function TaskList() {
               <div className="space-y-0.5 mt-1">
                 {completed.map((t) => (
                   <div key={t.id}>
-                    <TaskItem task={t} onClick={() => setDetailId(t.id)} />
+                    <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
                     {(childrenByParent.get(t.id) ?? []).map((st) => (
                       <div key={st.id} className={subtaskNestClass}>
-                        <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+                        <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
                       </div>
                     ))}
                   </div>

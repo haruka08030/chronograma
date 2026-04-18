@@ -18,12 +18,22 @@ function dueDateLabel(iso: string): { text: string; overdue: boolean } {
   return { text: format(d, 'M/d (E)', { locale: ja }), overdue }
 }
 
-export function TaskItem({ task, onClick, dragHandle, isSubtask }: {
+export type TaskItemSelection = {
+  selected: boolean
+  onToggle: (e: React.MouseEvent) => void
+  /** 一覧で何か選択中、または当該行が選択中のときチェック列を常時表示 */
+  reveal: boolean
+}
+
+export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, selection }: {
   task: Task
   onClick?: () => void
+  /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
+  onRowClick?: (e: React.MouseEvent) => void
   dragHandle?: React.ReactNode
   /** TickTick 風一覧のインデント行 */
   isSubtask?: boolean
+  selection?: TaskItemSelection
 }) {
   const hasSortableHandle = !!dragHandle
   const { toggleTask, updateTask, deleteTask, setFilterTag } = useTaskStore()
@@ -72,9 +82,41 @@ export function TaskItem({ task, onClick, dragHandle, isSubtask }: {
                   ${isSubtask ? 'px-2 py-2' : 'px-3 py-2.5'}
                   ${task.completed ? 'opacity-50' : ''}
                   ${isDragging ? 'opacity-30' : ''}`}
-      onClick={() => { if (!editing) onClick?.() }}
+      onClick={(e) => {
+        if (editing) return
+        if (onRowClick) onRowClick(e)
+        else onClick?.()
+      }}
     >
       {hasSortableHandle ? <span onDragStart={(e) => e.preventDefault()}>{dragHandle}</span> : null}
+
+      {selection ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selection.selected}
+          aria-label="一括選択に含める"
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation()
+            selection.onToggle(e)
+          }}
+          className={`flex-shrink-0 rounded border flex items-center justify-center transition-all touch-none
+            ${isSubtask ? 'w-3.5 h-3.5' : 'w-4 h-4'}
+            ${selection.reveal || selection.selected
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100'}
+            ${selection.selected
+              ? 'border-accent-500 bg-accent-500 text-white'
+              : 'border-zinc-300 dark:border-zinc-600 bg-transparent hover:border-zinc-400 dark:hover:border-zinc-500'}`}
+        >
+          {selection.selected && (
+            <svg className={isSubtask ? 'w-2 h-2' : 'w-2.5 h-2.5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          )}
+        </button>
+      ) : null}
 
       <button
         onClick={(e) => { e.stopPropagation(); toggleTask(task.id) }}

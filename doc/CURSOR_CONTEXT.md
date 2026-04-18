@@ -72,6 +72,7 @@
 ### タスク挙動メモ
 
 - **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の直下にインデント表示（DnD 手動ソート時は親行にぶら下げて移動）
+- **一覧の複数選択**: ⌘/Ctrl+クリックでトグル、Shift+クリックで表示順の範囲、何か選択中は通常クリックもトグル。左端の四角チェック（ホバーまたは選択中に表示）。Escape / ビュー・フィルタ・ソート変更 / タスク DnD 開始で選択解除。ツールバーから一括完了・`deleteTasks`・`bulkUpdateTasks`（リスト移動は子孫の `listId` も揃える、優先度・期限は選択行のみ）。一括削除は `deleteTasks` で単一 `deletedAt`（Undo 一括）
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`, `addTimeLog`, `addCompletedTaskWithTime`

@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { TaskItem } from './TaskItem'
+import { TaskItem, type TaskItemSelection } from './TaskItem'
 import type { Task } from '../types/task'
 
 export const TASK_PREFIX = 'task::'
@@ -9,10 +9,14 @@ export const TASK_PREFIX = 'task::'
 export function SortableTaskItem({
   task,
   onClick,
+  onRowClick,
+  selection,
   children,
 }: {
   task: Task
   onClick?: () => void
+  onRowClick?: (e: MouseEvent) => void
+  selection?: TaskItemSelection
   /** 一覧内サブタスク（DnD 時は親とまとめて移動） */
   children?: ReactNode
 }) {
@@ -52,7 +56,7 @@ export function SortableTaskItem({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <TaskItem task={task} onClick={onClick} dragHandle={handle} />
+      <TaskItem task={task} onClick={onClick} onRowClick={onRowClick} selection={selection} dragHandle={handle} />
       {children}
     </div>
   )
