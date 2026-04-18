@@ -82,21 +82,65 @@ export function TaskList() {
     }
   }, [tasks, selectedView, selectedListId, sortMode, filterTag])
 
+  /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
+  const childrenByParent = useMemo(() => {
+    const m = new Map<string, typeof tasks>()
+    for (const t of tasks) {
+      if (!t.parentId) continue
+      const arr = m.get(t.parentId)
+      if (arr) arr.push(t)
+      else m.set(t.parentId, [t])
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.order - b.order)
+    return m
+  }, [tasks])
+
+  const incompleteCount = useMemo(() => {
+    let n = 0
+    for (const p of filtered) {
+      if (!p.completed) n++
+      for (const st of childrenByParent.get(p.id) ?? []) {
+        if (!st.completed) n++
+      }
+    }
+    return n
+  }, [filtered, childrenByParent])
+
   const active = filtered.filter((t) => !t.completed)
   const completed = filtered.filter((t) => t.completed)
   const showQuickAdd = selectedView === null || selectedView === 'all' || selectedView === 'today' || selectedView === 'upcoming'
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
 
+  const subtaskNestClass =
+    'pl-11 ml-3 border-l border-zinc-200 dark:border-zinc-700'
+
   const activeContent = canDrag ? (
     <SortableContext items={active.map((t) => `${TASK_PREFIX}${t.id}`)} strategy={verticalListSortingStrategy}>
       {active.map((t) => (
-        <SortableTaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+        <SortableTaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)}>
+          {(childrenByParent.get(t.id) ?? [])
+            .filter((st) => !st.completed)
+            .map((st) => (
+              <div key={st.id} className={subtaskNestClass}>
+                <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+              </div>
+            ))}
+        </SortableTaskItem>
       ))}
     </SortableContext>
   ) : (
     active.map((t) => (
-      <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+      <div key={t.id}>
+        <TaskItem task={t} onClick={() => setDetailId(t.id)} />
+        {(childrenByParent.get(t.id) ?? [])
+          .filter((st) => !st.completed)
+          .map((st) => (
+            <div key={st.id} className={subtaskNestClass}>
+              <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+            </div>
+          ))}
+      </div>
     ))
   )
 
@@ -110,7 +154,7 @@ export function TaskList() {
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                {active.length} 件の未完了タスク
+                {incompleteCount} 件の未完了タスク
               </p>
               {filterTag && (
                 <button
@@ -163,7 +207,7 @@ export function TaskList() {
         </div>
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
-          {active.length === 0 && !showQuickAdd && (
+          {incompleteCount === 0 && !showQuickAdd && (
             <div className="py-16 text-center">
               <svg className="w-16 h-16 mx-auto text-zinc-200 dark:text-zinc-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -188,7 +232,14 @@ export function TaskList() {
               </summary>
               <div className="space-y-0.5 mt-1">
                 {completed.map((t) => (
-                  <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+                  <div key={t.id}>
+                    <TaskItem task={t} onClick={() => setDetailId(t.id)} />
+                    {(childrenByParent.get(t.id) ?? []).map((st) => (
+                      <div key={st.id} className={subtaskNestClass}>
+                        <TaskItem task={st} isSubtask onClick={() => setDetailId(st.id)} />
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
             </details>

@@ -18,10 +18,12 @@ function dueDateLabel(iso: string): { text: string; overdue: boolean } {
   return { text: format(d, 'M/d (E)', { locale: ja }), overdue }
 }
 
-export function TaskItem({ task, onClick, dragHandle }: {
+export function TaskItem({ task, onClick, dragHandle, isSubtask }: {
   task: Task
   onClick?: () => void
   dragHandle?: React.ReactNode
+  /** TickTick 風一覧のインデント行 */
+  isSubtask?: boolean
 }) {
   const hasSortableHandle = !!dragHandle
   const { toggleTask, updateTask, deleteTask, setFilterTag } = useTaskStore()
@@ -65,8 +67,9 @@ export function TaskItem({ task, onClick, dragHandle }: {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors cursor-pointer
+      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
+                  ${isSubtask ? 'px-2 py-2' : 'px-3 py-2.5'}
                   ${task.completed ? 'opacity-50' : ''}
                   ${isDragging ? 'opacity-30' : ''}`}
       onClick={() => { if (!editing) onClick?.() }}
@@ -75,7 +78,8 @@ export function TaskItem({ task, onClick, dragHandle }: {
 
       <button
         onClick={(e) => { e.stopPropagation(); toggleTask(task.id) }}
-        className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
+        className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
+          ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'}
           ${task.completed
             ? 'bg-accent-500 border-accent-500 text-white'
             : priorityColor
@@ -84,7 +88,7 @@ export function TaskItem({ task, onClick, dragHandle }: {
         aria-label={task.completed ? 'タスクを未完了に戻す' : 'タスクを完了にする'}
       >
         {task.completed && (
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className={isSubtask ? 'w-2.5 h-2.5' : 'w-3 h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
         )}
@@ -102,13 +106,14 @@ export function TaskItem({ task, onClick, dragHandle }: {
               if (e.key === 'Enter') commitEdit()
               if (e.key === 'Escape') { setEditValue(task.title); setEditing(false) }
             }}
-            className="w-full bg-transparent text-sm text-zinc-900 dark:text-zinc-100 outline-none
-                       border-b border-accent-400 pb-0.5"
+            className={`w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                       border-b border-accent-400 pb-0.5 ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
           />
         ) : (
           <span
             onDoubleClick={(e) => { e.stopPropagation(); setEditing(true) }}
-            className={`block text-sm truncate select-none
+            className={`block truncate select-none
+                        ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         ${task.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
             {task.title}

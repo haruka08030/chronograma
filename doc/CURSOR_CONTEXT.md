@@ -71,6 +71,7 @@
 
 ### タスク挙動メモ
 
+- **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の直下にインデント表示（DnD 手動ソート時は親行にぶら下げて移動）
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`, `addTimeLog`, `addCompletedTaskWithTime`
