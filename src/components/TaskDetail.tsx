@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -21,6 +21,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
 export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   const { updateTask, addTask, tasks, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
+  const sections = useTaskStore((s) => s.sections)
   const [tagInput, setTagInput] = useState('')
   const [subInput, setSubInput] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -49,6 +50,11 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
   const subtasks = tasks
     .filter((t) => t.parentId === task.id)
     .sort((a, b) => a.order - b.order)
+
+  const sectionsForTaskList = useMemo(
+    () => sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
+    [sections, task.listId],
+  )
 
   const addSubtask = () => {
     const trimmed = subInput.trim()
@@ -313,6 +319,26 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
                   ))}
               </select>
             </div>
+            {!task.parentId && sectionsForTaskList.length > 0 && (
+              <div className="mt-3">
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">セクション</label>
+                <select
+                  value={task.sectionId ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    updateTask(task.id, { sectionId: v === '' ? null : v })
+                  }}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                             focus:ring-2 focus:ring-accent-500/40"
+                >
+                  <option value="">セクションなし</option>
+                  {sectionsForTaskList.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* subtasks */}

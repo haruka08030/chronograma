@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
+import type { ListSection } from '../types/section'
 import type { Habit, HabitWeekday } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 
@@ -31,6 +32,7 @@ interface TaskRow {
   user_id: string
   list_id: string
   parent_id: string | null
+  section_id?: string | null
   title: string
   description: string
   completed: boolean
@@ -44,6 +46,35 @@ interface TaskRow {
   tags: unknown
   recurrence: unknown
   is_time_log: boolean
+}
+
+interface SectionRow {
+  id: string
+  user_id: string
+  list_id: string
+  name: string
+  sort_order: number
+  updated_at: string
+}
+
+function rowToSection(row: SectionRow): ListSection {
+  return {
+    id: row.id,
+    listId: row.list_id,
+    name: row.name,
+    order: row.sort_order,
+  }
+}
+
+function sectionToRow(userId: string, sec: ListSection): SectionRow {
+  return {
+    id: sec.id,
+    user_id: userId,
+    list_id: sec.listId,
+    name: sec.name,
+    sort_order: sec.order,
+    updated_at: new Date().toISOString(),
+  }
 }
 
 function rowToList(row: ListRow): TaskList {
@@ -125,6 +156,7 @@ function rowToTask(row: TaskRow): Task {
     updatedAt: row.updated_at,
     order: row.sort_order,
     listId: row.list_id,
+    sectionId: row.section_id ?? null,
     parentId: row.parent_id,
     dueDate: row.due_date,
     startTime: row.start_time,
@@ -153,6 +185,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     user_id: userId,
     list_id: task.listId,
     parent_id: task.parentId,
+    section_id: task.sectionId ?? null,
     title: task.title,
     description: task.description,
     completed: task.completed,
@@ -172,13 +205,22 @@ function taskToRow(userId: string, task: Task): TaskRow {
 export async function fetchListsTasksHabits(
   supabase: SupabaseClient,
   userId: string,
-): Promise<{ lists: TaskList[]; tasks: Task[]; habits: Habit[] } | { error: string }> {
+): Promise<
+  { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }
+> {
   const { data: listRows, error: e1 } = await supabase
     .from('lists')
     .select('*')
     .eq('user_id', userId)
 
   if (e1) return { error: e1.message }
+
+  const { data: sectionRows, error: eSec } = await supabase
+    .from('list_sections')
+    .select('*')
+    .eq('user_id', userId)
+
+  if (eSec) return { error: eSec.message }
 
   const { data: taskRows, error: e2 } = await supabase
     .from('tasks')
@@ -195,20 +237,26 @@ export async function fetchListsTasksHabits(
   if (e3) return { error: e3.message }
 
   const lists = ((listRows ?? []) as ListRow[]).map(rowToList)
+  const sections = ((sectionRows ?? []) as SectionRow[]).map(rowToSection)
   const tasks = ((taskRows ?? []) as TaskRow[]).map(rowToTask)
   const habits = ((habitRows ?? []) as HabitRow[]).map(rowToHabit)
-  return { lists, tasks, habits }
+  return { lists, tasks, habits, sections }
 }
 
 /** Remote is only default inbox and no tasks (and no extra lists / habits). */
-function isTrivialRemote(lists: TaskList[], tasks: Task[], habits: Habit[]): boolean {
-  if (tasks.length > 0 || habits.length > 0) return false
+function isTrivialRemote(
+  lists: TaskList[],
+  tasks: Task[],
+  habits: Habit[],
+  sections: ListSection[],
+): boolean {
+  if (tasks.length > 0 || habits.length > 0 || sections.length > 0) return false
   const nonInbox = lists.filter((l) => l.id !== INBOX_LIST_ID)
   return nonInbox.length === 0
 }
 
 export type HydrateDecision =
-  | { kind: 'use_remote'; lists: TaskList[]; tasks: Task[]; habits: Habit[] }
+  | { kind: 'use_remote'; lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] }
   | { kind: 'push_local' }
 
 /** Decide first sync: upload local-only data vs replace with server snapshot. */
@@ -216,21 +264,24 @@ export function decideHydrate(
   remoteLists: TaskList[],
   remoteTasks: Task[],
   remoteHabits: Habit[],
+  remoteSections: ListSection[],
   localLists: TaskList[],
   localTasks: Task[],
   localHabits: Habit[],
+  localSections: ListSection[],
 ): HydrateDecision {
-  if (remoteLists.length === 0 && remoteTasks.length === 0 && remoteHabits.length === 0) {
+  if (remoteLists.length === 0 && remoteTasks.length === 0 && remoteHabits.length === 0 && remoteSections.length === 0) {
     return { kind: 'push_local' }
   }
-  if (isTrivialRemote(remoteLists, remoteTasks, remoteHabits)) {
+  if (isTrivialRemote(remoteLists, remoteTasks, remoteHabits, remoteSections)) {
     const localHasData =
       localTasks.length > 0
       || localHabits.length > 0
+      || localSections.length > 0
       || localLists.filter((l) => l.id !== INBOX_LIST_ID).length > 0
     if (localHasData) return { kind: 'push_local' }
   }
-  return { kind: 'use_remote', lists: remoteLists, tasks: remoteTasks, habits: remoteHabits }
+  return { kind: 'use_remote', lists: remoteLists, tasks: remoteTasks, habits: remoteHabits, sections: remoteSections }
 }
 
 export async function pushListsTasksHabits(
@@ -239,13 +290,18 @@ export async function pushListsTasksHabits(
   lists: TaskList[],
   tasks: Task[],
   habits: Habit[],
+  sections: ListSection[],
 ): Promise<{ error?: string }> {
   const listRows = lists.map((l) => listToRow(userId, l))
+  const sectionRows = sections.map((s) => sectionToRow(userId, s))
   const taskRows = tasks.map((t) => taskToRow(userId, t))
   const habitRows = habits.map((h) => habitToRow(userId, h))
 
   const { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
   if (e1) return { error: e1.message }
+
+  const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
+  if (eSec) return { error: eSec.message }
 
   const { error: e2 } = await supabase.from('tasks').upsert(taskRows, { onConflict: 'id' })
   if (e2) return { error: e2.message }
@@ -273,6 +329,19 @@ export async function pushListsTasksHabits(
   if (toDeleteHabits.length > 0) {
     const { error: e8 } = await supabase.from('habits').delete().in('id', toDeleteHabits)
     if (e8) return { error: e8.message }
+  }
+
+  const localSectionIds = new Set(sections.map((s) => s.id))
+  const { data: remoteSectionIds, error: eSecDel } = await supabase
+    .from('list_sections')
+    .select('id')
+    .eq('user_id', userId)
+  if (eSecDel) return { error: eSecDel.message }
+  const toDeleteSections =
+    remoteSectionIds?.map((r) => r.id as string).filter((id) => !localSectionIds.has(id)) ?? []
+  if (toDeleteSections.length > 0) {
+    const { error: eSecDel2 } = await supabase.from('list_sections').delete().in('id', toDeleteSections)
+    if (eSecDel2) return { error: eSecDel2.message }
   }
 
   // Delete stale lists last (parent records)

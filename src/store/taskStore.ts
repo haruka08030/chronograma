@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
+import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Habit } from '../types/habit'
 import { newId } from '../lib/id'
@@ -83,6 +84,21 @@ interface TaskState {
 
   habits: Habit[]
 
+  sections: ListSection[]
+  /** Quick Add 時に付与するセクション（そのリストを開いているときのみ有効） */
+  quickAddSectionId: string | null
+  setQuickAddSectionId: (id: string | null) => void
+
+  addSection: (listId: string, name?: string) => void
+  renameSection: (id: string, name: string) => void
+  deleteSection: (id: string) => void
+  reorderSections: (listId: string, orderedIds: string[]) => void
+  /** 手動ソート: 表示中のルート未完了タスクの順と order を一致させ、任意で 1 件の sectionId を更新 */
+  reorderManualRootTasks: (
+    orderedTaskIds: string[],
+    sectionUpdate?: { taskId: string; sectionId: string | null },
+  ) => void
+
   toggleTheme: () => void
   setListColorPalette: (id: ListColorPaletteId) => void
 
@@ -118,8 +134,8 @@ interface TaskState {
   startTimer: (title: string, tags?: string[]) => void
   stopTimer: () => void
   toggleTask: (id: string) => void
-  updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed'>>) => void
-  bulkUpdateTasks: (ids: string[], patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate'>>) => void
+  updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed' | 'sectionId'>>) => void
+  bulkUpdateTasks: (ids: string[], patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>) => void
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
   undoDelete: () => void
@@ -173,8 +189,11 @@ function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[]): Set<s
   return out
 }
 
-function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed'>>): Task {
+function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed' | 'sectionId'>>): Task {
   const applied = { ...task, ...patch, updatedAt: new Date().toISOString() }
+  if (patch.listId !== undefined && patch.listId !== task.listId) {
+    applied.sectionId = null
+  }
   if (patch.dueDate === null) {
     applied.startTime = null
     applied.endTime = null
@@ -183,13 +202,35 @@ function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'descrip
   return applied
 }
 
-function orderForNewSiblingAtFront(tasks: Task[], listId: string, parentId: string | null): number {
-  const siblings = tasks.filter((t) => t.listId === listId && t.parentId === parentId)
+function orderForNewSiblingAtFront(
+  tasks: Task[],
+  listId: string,
+  parentId: string | null,
+  sectionId: string | null = null,
+): number {
+  const siblings = tasks.filter((t) => {
+    if (t.listId !== listId || t.parentId !== parentId) return false
+    if (parentId !== null) return true
+    return (t.sectionId ?? null) === (sectionId ?? null)
+  })
   if (siblings.length === 0) return 0
   return Math.min(...siblings.map((t) => t.order)) - 1
 }
 
-function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null; isTimeLog?: boolean; completed?: boolean; tags?: string[] }, order: number): Task {
+function makeTask(
+  fields: {
+    title: string
+    listId: string
+    sectionId?: string | null
+    dueDate?: string | null
+    startTime?: string | null
+    endTime?: string | null
+    isTimeLog?: boolean
+    completed?: boolean
+    tags?: string[]
+  },
+  order: number,
+): Task {
   const now = new Date().toISOString()
   return {
     id: newId(),
@@ -200,6 +241,7 @@ function makeTask(fields: { title: string; listId: string; dueDate?: string | nu
     updatedAt: now,
     order,
     listId: fields.listId,
+    sectionId: fields.sectionId ?? null,
     parentId: null,
     dueDate: fields.dueDate ?? null,
     startTime: fields.startTime ?? null,
@@ -234,6 +276,54 @@ export const useTaskStore = create<TaskState>()(
       activeTimer: null,
 
       habits: [],
+
+      sections: [] as ListSection[],
+      quickAddSectionId: null as string | null,
+
+      setQuickAddSectionId: (id) => set({ quickAddSectionId: id }),
+
+      addSection: (listId, name) => {
+        const listSections = get().sections.filter((s) => s.listId === listId)
+        const maxOrder = listSections.length === 0 ? -1 : Math.max(...listSections.map((s) => s.order))
+        set((s) => ({
+          sections: [
+            ...s.sections,
+            { id: newId(), listId, name: name?.trim() || 'セクション', order: maxOrder + 1 },
+          ],
+        }))
+      },
+      renameSection: (id, name) =>
+        set((s) => ({
+          sections: s.sections.map((sec) => (sec.id === id ? { ...sec, name: name.trim() || sec.name } : sec)),
+        })),
+      deleteSection: (id) =>
+        set((s) => ({
+          sections: s.sections.filter((sec) => sec.id !== id),
+          tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),
+        })),
+      reorderSections: (listId, orderedIds) =>
+        set((s) => ({
+          sections: s.sections.map((sec) => {
+            if (sec.listId !== listId) return sec
+            const idx = orderedIds.indexOf(sec.id)
+            return idx >= 0 ? { ...sec, order: idx } : sec
+          }),
+        })),
+
+      reorderManualRootTasks: (orderedTaskIds, sectionUpdate) => {
+        const now = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            const idx = orderedTaskIds.indexOf(t.id)
+            if (idx < 0) return t
+            let next: Task = { ...t, order: idx, updatedAt: now }
+            if (sectionUpdate && sectionUpdate.taskId === t.id) {
+              next = { ...next, sectionId: sectionUpdate.sectionId }
+            }
+            return next
+          }),
+        }))
+      },
 
       setCalendarEvents: (events) => set({ calendarEvents: events }),
       setGoogleConnected: (connected) => set({ googleConnected: connected }),
@@ -278,8 +368,8 @@ export const useTaskStore = create<TaskState>()(
 
       setListColorPalette: (id) => set({ listColorPaletteId: id }),
 
-      selectList: (id) => set({ selectedListId: id, selectedView: null }),
-      selectView: (view) => set({ selectedView: view, selectedListId: null }),
+      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null }),
+      selectView: (view) => set({ selectedView: view, selectedListId: null, quickAddSectionId: null }),
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSortMode: (mode) => set({ sortMode: mode }),
       setFilterTag: (tag) => set({ filterTag: tag }),
@@ -313,8 +403,9 @@ export const useTaskStore = create<TaskState>()(
         if (id === INBOX_ID) return
         set((s) => ({
           lists: s.lists.filter((l) => l.id !== id),
+          sections: s.sections.filter((sec) => sec.listId !== id),
           tasks: s.tasks.map((t) =>
-            t.listId === id ? { ...t, listId: INBOX_ID } : t,
+            t.listId === id ? { ...t, listId: INBOX_ID, sectionId: null } : t,
           ),
           selectedListId:
             s.selectedListId === id ? INBOX_ID : s.selectedListId,
@@ -337,10 +428,18 @@ export const useTaskStore = create<TaskState>()(
       addTask: (title, listId, parentId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const pid = parentId ?? null
-        const ord = orderForNewSiblingAtFront(get().tasks, targetList, pid)
-        const task = makeTask({ title, listId: targetList }, ord)
+        const s = get()
+        const q = s.quickAddSectionId
+        const sectionOk =
+          pid === null &&
+          Boolean(q) &&
+          targetList === s.selectedListId &&
+          s.sections.some((sec) => sec.id === q && sec.listId === targetList)
+        const sectionForAdd = sectionOk ? q : null
+        const ord = orderForNewSiblingAtFront(get().tasks, targetList, pid, sectionForAdd)
+        const task = makeTask({ title, listId: targetList, sectionId: sectionForAdd }, ord)
         if (parentId) task.parentId = parentId
-        set((s) => ({ tasks: [...s.tasks, task] }))
+        set((st) => ({ tasks: [...st.tasks, task] }))
       },
       addTaskWithDate: (title, dueDate, listId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
@@ -418,11 +517,13 @@ export const useTaskStore = create<TaskState>()(
               const listHit = listTargets?.has(t.id)
               const prioHit = patch.priority !== undefined && selected.has(t.id)
               const dueHit = patch.dueDate !== undefined && selected.has(t.id)
-              if (!listHit && !prioHit && !dueHit) return t
-              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate'>> = {}
+              const secHit = patch.sectionId !== undefined && selected.has(t.id)
+              if (!listHit && !prioHit && !dueHit && !secHit) return t
+              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>> = {}
               if (listHit && patch.listId !== undefined) piece.listId = patch.listId
               if (prioHit) piece.priority = patch.priority
               if (dueHit) piece.dueDate = patch.dueDate
+              if (secHit) piece.sectionId = patch.sectionId
               return applyTaskPatch(t, piece)
             }),
           }
@@ -504,8 +605,8 @@ export const useTaskStore = create<TaskState>()(
             tasks: state.tasks.map((t) => {
               if (!descendants.has(t.id)) return t
               if (t.id === taskId)
-                return { ...t, listId, order: rootNewOrder, updatedAt: now }
-              return { ...t, listId, updatedAt: now }
+                return { ...t, listId, order: rootNewOrder, sectionId: null, updatedAt: now }
+              return { ...t, listId, sectionId: null, updatedAt: now }
             }),
           }
         })
@@ -519,8 +620,8 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists, habits, listColorPaletteId } = get()
-        const data = JSON.stringify({ tasks, lists, habits, listColorPaletteId }, null, 2)
+        const { tasks, lists, habits, listColorPaletteId, sections } = get()
+        const data = JSON.stringify({ tasks, lists, habits, listColorPaletteId, sections }, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -541,17 +642,31 @@ export const useTaskStore = create<TaskState>()(
           const validLists = data.lists.every((l: unknown) => 
             typeof l === 'object' && l !== null && 'id' in l && 'name' in l
           )
+          const rawSections = (data as { sections?: unknown }).sections
+          const sections: ListSection[] = Array.isArray(rawSections)
+            ? rawSections.filter((sec: unknown): sec is ListSection => {
+                if (typeof sec !== 'object' || sec === null) return false
+                const o = sec as Record<string, unknown>
+                return typeof o.id === 'string' && typeof o.listId === 'string' && typeof o.name === 'string' && typeof o.order === 'number'
+              })
+            : []
           if (!validTasks || !validLists) return false
           const paletteRaw = (data as { listColorPaletteId?: unknown }).listColorPaletteId
           const listColorPaletteId =
             paletteRaw !== undefined && paletteRaw !== null
               ? normalizeListColorPaletteId(paletteRaw)
               : get().listColorPaletteId
+          const importedTasks = (data.tasks as Task[]).map((t) => ({
+            ...t,
+            sectionId: t.sectionId ?? null,
+          }))
           set({
-            tasks: data.tasks,
+            tasks: importedTasks,
             lists: data.lists,
             habits: Array.isArray(data.habits) ? data.habits : [],
             listColorPaletteId,
+            sections,
+            quickAddSectionId: null,
           })
           return true
         } catch {
@@ -561,7 +676,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: PERSIST_STORAGE_KEY,
-      version: 10,
+      version: 11,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -619,6 +734,18 @@ export const useTaskStore = create<TaskState>()(
         }
         if (version < 10) {
           state.listColorPaletteId = normalizeListColorPaletteId(state.listColorPaletteId)
+        }
+        if (version < 11) {
+          state.sections = Array.isArray(state.sections) ? state.sections : []
+          state.quickAddSectionId =
+            typeof state.quickAddSectionId === 'string' || state.quickAddSectionId === null
+              ? state.quickAddSectionId
+              : null
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => ({
+            ...t,
+            sectionId: (t as Record<string, unknown>).sectionId ?? null,
+          }))
         }
         return state as unknown as TaskState
       },

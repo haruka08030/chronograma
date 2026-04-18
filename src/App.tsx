@@ -20,6 +20,11 @@ import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import {
+  buildReorderedActiveRootIds,
+  getOrderedActiveRootTasksForDnD,
+  parseSectionDropId,
+} from './lib/mainListTasks'
+import {
   DndContext,
   closestCenter,
   pointerWithin,
@@ -54,18 +59,26 @@ export default function App() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(TASK_PREFIX)) {
+    if (activeId.startsWith(TASK_PREFIX) && (overId.startsWith(TASK_PREFIX) || parseSectionDropId(overId))) {
       const state = useTaskStore.getState()
-      const tasks = state.tasks.filter((t) => t.parentId === null && !t.completed)
-        .sort((a, b) => a.order - b.order)
-      const ids = tasks.map((t) => `${TASK_PREFIX}${t.id}`)
-      const oldIndex = ids.indexOf(activeId)
-      const newIndex = ids.indexOf(overId)
-      if (oldIndex < 0 || newIndex < 0) return
-      const reordered = [...ids]
-      reordered.splice(oldIndex, 1)
-      reordered.splice(newIndex, 0, activeId)
-      state.reorderTasks(reordered.map((id) => id.slice(TASK_PREFIX.length)))
+      const currentOrdered = getOrderedActiveRootTasksForDnD({
+        tasks: state.tasks,
+        selectedView: state.selectedView,
+        selectedListId: state.selectedListId,
+        sortMode: state.sortMode,
+        filterTag: state.filterTag,
+        sections: state.sections,
+      })
+      const built = buildReorderedActiveRootIds(
+        currentOrdered,
+        activeId,
+        overId,
+        state.sections,
+        state.selectedListId,
+      )
+      if (built) {
+        state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
+      }
     } else if (activeId.startsWith(TASK_PREFIX)) {
       // サイドバー行は useSortable が list:: を、別途 useDroppable が drop:: を同じノードに登録する。
       // 衝突判定では list:: が選ばれることが多いので両方扱う。

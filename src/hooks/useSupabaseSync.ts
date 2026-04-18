@@ -34,13 +34,22 @@ export function useSupabaseSync() {
           remote.lists,
           remote.tasks,
           remote.habits,
+          remote.sections,
           local.lists,
           local.tasks,
           local.habits,
+          local.sections,
         )
 
         if (decision.kind === 'push_local') {
-          const res = await pushListsTasksHabits(supabase, userId, local.lists, local.tasks, local.habits)
+          const res = await pushListsTasksHabits(
+            supabase,
+            userId,
+            local.lists,
+            local.tasks,
+            local.habits,
+            local.sections,
+          )
           if (res.error) console.error('[sync]', res.error)
           if (cancelled) return
         } else {
@@ -51,6 +60,7 @@ export function useSupabaseSync() {
             tasks: decision.tasks,
             lists: decision.lists,
             habits: decision.habits,
+            sections: decision.sections,
             selectedListId: sel && listIds.has(sel) ? sel : INBOX_LIST_ID,
           })
         }
@@ -77,7 +87,13 @@ export function useSupabaseSync() {
     let cancelled = false
 
     const unsub = useTaskStore.subscribe((state, prev) => {
-      if (state.tasks === prev.tasks && state.lists === prev.lists && state.habits === prev.habits) return
+      if (
+        state.tasks === prev.tasks &&
+        state.lists === prev.lists &&
+        state.habits === prev.habits &&
+        state.sections === prev.sections
+      )
+        return
       if (hydratingRef.current) return
 
       clearTimeout(timer)
@@ -85,7 +101,7 @@ export function useSupabaseSync() {
         if (cancelled) return
         const s = useTaskStore.getState()
         void (async () => {
-          const res = await pushListsTasksHabits(supabase, userId, s.lists, s.tasks, s.habits)
+          const res = await pushListsTasksHabits(supabase, userId, s.lists, s.tasks, s.habits, s.sections)
           if (!cancelled && res.error) console.error('[sync]', res.error)
         })()
       }, DEBOUNCE_MS)

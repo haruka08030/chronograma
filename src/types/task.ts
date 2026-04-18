@@ -14,6 +14,8 @@ export interface Task {
   updatedAt: string
   order: number
   listId: string
+  /** リスト内セクション。null はセクションなし */
+  sectionId: string | null
   parentId: string | null
   dueDate: string | null
   startTime: string | null

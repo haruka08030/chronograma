@@ -5,7 +5,7 @@
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で `supabase/migrations/001_chronograma_lists_tasks.sql` の内容を実行し、`lists` / `tasks` テーブルと RLS を作成します。
+2. **SQL Editor** で `supabase/migrations/001_chronograma_lists_tasks.sql` の内容を実行し、`lists` / `tasks` テーブルと RLS を作成します。続けて未実行なら `002_habits.sql`（習慣）、`003_list_sections.sql`（リスト内セクションと `tasks.section_id`）を同様に実行します。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
