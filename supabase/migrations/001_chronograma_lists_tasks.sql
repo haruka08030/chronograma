@@ -1,4 +1,4 @@
--- TickDo: lists and tasks with RLS. Run in Supabase SQL Editor or via CLI.
+-- Chronograma: lists and tasks with RLS. Run in Supabase SQL Editor or via CLI.
 
 create table if not exists public.lists (
   id text primary key,

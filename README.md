@@ -1,11 +1,11 @@
-# TickDo
+# Chronograma
 
 タスク・カレンダー・タイムログ向けの React アプリです。データはブラウザの localStorage に保存されます。オプションで **Supabase** を設定するとログイン（メールのマジックリンク）とリスト／タスクのクラウド同期が有効になります。
 
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で `supabase/migrations/001_tickdo_lists_tasks.sql` の内容を実行し、`lists` / `tasks` テーブルと RLS を作成します。
+2. **SQL Editor** で `supabase/migrations/001_chronograma_lists_tasks.sql` の内容を実行し、`lists` / `tasks` テーブルと RLS を作成します。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。

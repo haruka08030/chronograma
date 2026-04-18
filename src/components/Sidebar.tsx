@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useTaskStore, INBOX_LIST_ID, LIST_COLORS, type SmartView } from '../store/taskStore'
+import { useTaskStore, INBOX_LIST_ID, paletteColors, type SmartView } from '../store/taskStore'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -17,6 +17,7 @@ const smartViews: { id: SmartView; label: string; icon: string }[] = [
   { id: 'activity-log', label: 'ログ', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'stats', label: '統計', icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
   { id: 'habits', label: '習慣', icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z' },
+  { id: 'settings', label: '設定', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ]
 
 function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick }: {
@@ -68,9 +69,13 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       )}
 
       <button
-        onClick={(e) => { e.stopPropagation(); if (!isInbox) onColorPick() }}
-        className="w-3 h-3 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/10"
+        type="button"
+        disabled={isInbox}
+        onClick={(e) => { e.stopPropagation(); onColorPick() }}
+        className="w-3 h-3 min-w-[12px] min-h-[12px] rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/10
+          touch-manipulation disabled:opacity-60 disabled:cursor-default"
         style={{ backgroundColor: list.color }}
+        aria-label={isInbox ? '受信トレイ（色は固定）' : '色を変更'}
         tabIndex={-1}
       />
 
@@ -91,13 +96,19 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 }
 
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
+  const listColors = useTaskStore((s) => paletteColors(s.listColorPaletteId))
   return (
-    <div className="absolute left-full ml-2 top-0 z-50 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
-      onClick={(e) => e.stopPropagation()}>
+    <div
+      className="absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
+      onClick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-label="リストの色"
+    >
       <div className="grid grid-cols-5 gap-1.5">
-        {LIST_COLORS.map((c) => (
+        {listColors.map((c) => (
           <button
             key={c}
+            type="button"
             onClick={() => { onChange(c); onClose() }}
             className={`w-6 h-6 rounded-full transition-transform hover:scale-110
               ${c === current ? 'ring-2 ring-offset-2 ring-accent-500 dark:ring-offset-zinc-800' : 'ring-1 ring-black/10'}`}
@@ -148,7 +159,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
         </div>
-        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">TickDo</span>
+        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Chronograma</span>
       </div>
 
       <div className="px-2 pb-1 space-y-0.5">

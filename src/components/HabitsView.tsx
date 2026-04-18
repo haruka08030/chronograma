@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useTaskStore, LIST_COLORS } from '../store/taskStore'
+import { useState, useMemo } from 'react'
+import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { HabitWeekday } from '../types/habit'
 
 const WEEKDAYS: { v: HabitWeekday; label: string }[] = [
@@ -16,13 +16,16 @@ export function HabitsView() {
   const habits = useTaskStore((s) => s.habits)
   const addHabit = useTaskStore((s) => s.addHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
+  const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
+  const listColors = useMemo(() => paletteColors(listColorPaletteId), [listColorPaletteId])
 
   const [title, setTitle] = useState('')
   const [freq, setFreq] = useState<'daily' | 'weekly'>('daily')
   const [weekdays, setWeekdays] = useState<HabitWeekday[]>([1, 2, 3, 4, 5])
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
-  const [color, setColor] = useState(LIST_COLORS[4])
+  const [colorIndex, setColorIndex] = useState(4)
+  const color = listColors[Math.min(colorIndex, listColors.length - 1)] ?? listColors[0]
 
   const toggleWeekday = (v: HabitWeekday) => {
     setWeekdays((prev) =>
@@ -64,12 +67,12 @@ export function HabitsView() {
         />
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-xs text-zinc-500">色</span>
-          {LIST_COLORS.slice(0, 10).map((c) => (
+          {listColors.map((c, i) => (
             <button
               key={c}
               type="button"
-              onClick={() => setColor(c)}
-              className={`w-6 h-6 rounded-full ring-2 ${color === c ? 'ring-accent-500 ring-offset-2 dark:ring-offset-zinc-900' : 'ring-0'}`}
+              onClick={() => setColorIndex(i)}
+              className={`w-6 h-6 rounded-full ring-2 ${colorIndex === i ? 'ring-accent-500 ring-offset-2 dark:ring-offset-zinc-900' : 'ring-0'}`}
               style={{ backgroundColor: c }}
             />
           ))}

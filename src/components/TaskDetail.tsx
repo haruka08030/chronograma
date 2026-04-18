@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 
@@ -20,6 +20,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
 
 export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   const { updateTask, addTask, tasks, lists } = useTaskStore()
+  const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const [tagInput, setTagInput] = useState('')
   const [subInput, setSubInput] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -291,7 +292,7 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
             <div className="flex items-center gap-2">
               <span
                 className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: lists.find((l) => l.id === task.listId)?.color ?? '#6366f1' }}
+                style={{ backgroundColor: lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0] }}
               />
               <select
                 value={task.listId}

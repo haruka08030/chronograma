@@ -1,4 +1,4 @@
--- Habits for TickDo (run after 001)
+-- Habits for Chronograma (run after 001)
 
 create table if not exists public.habits (
   id text primary key,

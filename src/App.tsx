@@ -11,6 +11,7 @@ import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
+import { SettingsView } from './components/SettingsView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -129,6 +130,7 @@ export default function App() {
       case 'activity-log': return <ActivityLogView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
+      case 'settings': return <SettingsView />
       default: return <TaskList />
     }
   })()

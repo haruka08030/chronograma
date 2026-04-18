@@ -25,7 +25,7 @@ export function checkAndNotify(tasks: Task[]) {
 
   for (const task of dueTasks) {
     notifiedIds.add(task.id)
-    new Notification('TickDo - 今日のタスク', {
+    new Notification('Chronograma - 今日のタスク', {
       body: task.title,
       tag: task.id,
     })

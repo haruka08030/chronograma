@@ -5,17 +5,55 @@ import type { TaskList } from '../types/list'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Habit } from '../types/habit'
 import { newId } from '../lib/id'
+import {
+  DEFAULT_LIST_COLOR_PALETTE_ID,
+  paletteColors,
+  normalizeListColorPaletteId,
+  type ListColorPaletteId,
+} from '../lib/listColorPalettes'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
+
+const PERSIST_STORAGE_KEY = 'chronograma-storage'
+const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
+
+/** Renamed app: copy persisted state once from the old localStorage key. */
+function migrateLegacyPersistKey(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const legacy = localStorage.getItem(LEGACY_PERSIST_STORAGE_KEY)
+    if (!legacy || localStorage.getItem(PERSIST_STORAGE_KEY)) return
+    localStorage.setItem(PERSIST_STORAGE_KEY, legacy)
+    localStorage.removeItem(LEGACY_PERSIST_STORAGE_KEY)
+  } catch {
+    // ignore quota / private mode
+  }
+}
+migrateLegacyPersistKey()
 
 const INBOX_ID = '__inbox__'
 
-export type SmartView = 'all' | 'today' | 'upcoming' | 'calendar' | 'week-calendar' | 'plan-vs-actual' | 'activity-log' | 'stats' | 'habits'
+export type SmartView =
+  | 'all'
+  | 'today'
+  | 'upcoming'
+  | 'calendar'
+  | 'week-calendar'
+  | 'plan-vs-actual'
+  | 'activity-log'
+  | 'stats'
+  | 'habits'
+  | 'settings'
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
-export const LIST_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
-  '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#64748b',
-]
+export type { ListColorPaletteId }
+export {
+  DEFAULT_LIST_COLOR_PALETTE_ID,
+  paletteColors,
+  LIST_COLOR_PALETTES,
+  normalizeListColorPaletteId,
+} from '../lib/listColorPalettes'
+
+const defaultPaletteColors = paletteColors(DEFAULT_LIST_COLOR_PALETTE_ID)
 
 export interface ActiveTimer {
   taskTitle: string
@@ -35,6 +73,7 @@ interface TaskState {
   quickAddRequested: boolean
   filterTag: string | null
   notificationsEnabled: boolean
+  listColorPaletteId: ListColorPaletteId
 
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
@@ -45,6 +84,7 @@ interface TaskState {
   habits: Habit[]
 
   toggleTheme: () => void
+  setListColorPalette: (id: ListColorPaletteId) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
@@ -90,7 +130,12 @@ interface TaskState {
   importData: (json: string) => boolean
 }
 
-const defaultInbox: TaskList = { id: INBOX_ID, name: '受信トレイ', color: '#6366f1', order: 0 }
+const defaultInbox: TaskList = {
+  id: INBOX_ID,
+  name: '受信トレイ',
+  color: defaultPaletteColors[0],
+  order: 0,
+}
 
 export const INBOX_LIST_ID = INBOX_ID
 
@@ -140,6 +185,7 @@ export const useTaskStore = create<TaskState>()(
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
+      listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
 
       calendarEvents: [],
       googleConnected: false,
@@ -189,6 +235,8 @@ export const useTaskStore = create<TaskState>()(
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
 
+      setListColorPalette: (id) => set({ listColorPaletteId: id }),
+
       selectList: (id) => set({ selectedListId: id, selectedView: null }),
       selectView: (view) => set({ selectedView: view, selectedListId: null }),
       setSearchQuery: (q) => set({ searchQuery: q }),
@@ -206,9 +254,10 @@ export const useTaskStore = create<TaskState>()(
 
       addList: (name) => {
         const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
-        const colorIdx = get().lists.length % LIST_COLORS.length
+        const cols = paletteColors(get().listColorPaletteId)
+        const colorIdx = get().lists.length % cols.length
         set((s) => ({
-          lists: [...s.lists, { id: newId(), name, color: LIST_COLORS[colorIdx], order: maxOrder + 1 }],
+          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1 }],
         }))
       },
       renameList: (id, name) =>
@@ -366,13 +415,13 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists, habits } = get()
-        const data = JSON.stringify({ tasks, lists, habits }, null, 2)
+        const { tasks, lists, habits, listColorPaletteId } = get()
+        const data = JSON.stringify({ tasks, lists, habits, listColorPaletteId }, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `tickdo-backup-${format(new Date(), 'yyyy-MM-dd')}.json`
+        a.download = `chronograma-backup-${format(new Date(), 'yyyy-MM-dd')}.json`
         a.click()
         URL.revokeObjectURL(url)
       },
@@ -389,10 +438,16 @@ export const useTaskStore = create<TaskState>()(
             typeof l === 'object' && l !== null && 'id' in l && 'name' in l
           )
           if (!validTasks || !validLists) return false
+          const paletteRaw = (data as { listColorPaletteId?: unknown }).listColorPaletteId
+          const listColorPaletteId =
+            paletteRaw !== undefined && paletteRaw !== null
+              ? normalizeListColorPaletteId(paletteRaw)
+              : get().listColorPaletteId
           set({
             tasks: data.tasks,
             lists: data.lists,
             habits: Array.isArray(data.habits) ? data.habits : [],
+            listColorPaletteId,
           })
           return true
         } catch {
@@ -401,8 +456,8 @@ export const useTaskStore = create<TaskState>()(
       },
     }),
     {
-      name: 'tickdo-storage',
-      version: 9,
+      name: PERSIST_STORAGE_KEY,
+      version: 10,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -435,9 +490,10 @@ export const useTaskStore = create<TaskState>()(
         }
         if (version < 5) {
           const lists = (state.lists as Record<string, unknown>[]) ?? []
+          const cols = defaultPaletteColors
           state.lists = lists.map((l, i) => ({
             ...l,
-            color: (l as Record<string, unknown>).color ?? LIST_COLORS[i % LIST_COLORS.length],
+            color: (l as Record<string, unknown>).color ?? cols[i % cols.length],
           }))
         }
         if (version < 6) {
@@ -456,6 +512,9 @@ export const useTaskStore = create<TaskState>()(
         }
         if (version < 9) {
           state.habits = state.habits ?? []
+        }
+        if (version < 10) {
+          state.listColorPaletteId = normalizeListColorPaletteId(state.listColorPaletteId)
         }
         return state as unknown as TaskState
       },
