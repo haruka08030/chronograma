@@ -19,7 +19,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
 ]
 
 export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
-  const { updateTask, addTask, tasks, lists } = useTaskStore()
+  const { updateTask, addTask, tasks, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const [tagInput, setTagInput] = useState('')
   const [subInput, setSubInput] = useState('')
@@ -296,7 +296,11 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
               />
               <select
                 value={task.listId}
-                onChange={(e) => updateTask(task.id, { listId: e.target.value })}
+                onChange={(e) => {
+                  const next = e.target.value
+                  const r = moveTaskToList(task.id, next)
+                  if (r.moved && r.listName) showMoveBanner(`「${r.listName}」に移動しました`)
+                }}
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                            focus:ring-2 focus:ring-accent-500/40"

@@ -16,8 +16,25 @@ import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
 import { ThemeToggle } from './components/ThemeToggle'
 import { UndoToast } from './components/UndoToast.tsx'
+import { MoveToast } from './components/MoveToast'
+import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { requestPermission, checkAndNotify } from './lib/notifications'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, DragOverlay } from '@dnd-kit/core'
+import {
+  DndContext,
+  closestCenter,
+  pointerWithin,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type CollisionDetection,
+} from '@dnd-kit/core'
+
+const taskListCollision: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args)
+  if (pointerCollisions.length > 0) return pointerCollisions
+  return closestCenter(args)
+}
 
 export default function App() {
   useSupabaseSync()
@@ -27,13 +44,11 @@ export default function App() {
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [dragLabel, setDragLabel] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setDragLabel(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
     const activeId = active.id as string
@@ -51,10 +66,19 @@ export default function App() {
       reordered.splice(oldIndex, 1)
       reordered.splice(newIndex, 0, activeId)
       state.reorderTasks(reordered.map((id) => id.slice(TASK_PREFIX.length)))
-    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith('drop::')) {
-      const taskId = activeId.slice(TASK_PREFIX.length)
-      const listId = overId.slice('drop::'.length)
-      useTaskStore.getState().updateTask(taskId, { listId })
+    } else if (activeId.startsWith(TASK_PREFIX)) {
+      // サイドバー行は useSortable が list:: を、別途 useDroppable が drop:: を同じノードに登録する。
+      // 衝突判定では list:: が選ばれることが多いので両方扱う。
+      let listId: string | null = null
+      if (overId.startsWith('drop::')) listId = overId.slice('drop::'.length)
+      else if (overId.startsWith(MOBILE_DROP_PREFIX)) listId = overId.slice(MOBILE_DROP_PREFIX.length)
+      else if (overId.startsWith(LIST_PREFIX)) listId = overId.slice(LIST_PREFIX.length)
+      if (listId) {
+        const taskId = activeId.slice(TASK_PREFIX.length)
+        const { moveTaskToList, showMoveBanner } = useTaskStore.getState()
+        const r = moveTaskToList(taskId, listId)
+        if (r.moved && r.listName) showMoveBanner(`「${r.listName}」に移動しました`)
+      }
     } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
       const state = useTaskStore.getState()
       const sorted = [...state.lists].sort((a, b) => a.order - b.order)
@@ -69,14 +93,6 @@ export default function App() {
     }
   }, [])
 
-  const handleDragStart = useCallback((event: { active: { id: string | number } }) => {
-    const id = event.active.id as string
-    if (id.startsWith(TASK_PREFIX)) {
-      const taskId = id.slice(TASK_PREFIX.length)
-      const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
-      setDragLabel(task?.title ?? null)
-    }
-  }, [])
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
@@ -136,7 +152,7 @@ export default function App() {
   })()
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
+    <DndContext sensors={sensors} collisionDetection={taskListCollision} onDragEnd={handleDragEnd}>
       <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -187,16 +203,11 @@ export default function App() {
         </div>
 
         <UndoToast />
+        <MoveToast />
         <FloatingTimer />
       </div>
 
-      <DragOverlay>
-        {dragLabel && (
-          <div className="px-4 py-2.5 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-800 dark:text-zinc-200 max-w-xs truncate">
-            {dragLabel}
-          </div>
-        )}
-      </DragOverlay>
+      <DndTaskDragShell />
     </DndContext>
   )
 }

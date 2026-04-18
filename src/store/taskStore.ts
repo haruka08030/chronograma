@@ -126,6 +126,12 @@ interface TaskState {
   clearDeletedTasks: () => void
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
+  /** ルートタスクを別リストへ。子タスクは listId のみ追随。末尾 order。同一リストは no-op */
+  moveTaskToList: (taskId: string, listId: string) => { moved: boolean; listName?: string }
+
+  moveBannerText: string | null
+  showMoveBanner: (text: string) => void
+  clearMoveBanner: () => void
 
   toggleNotifications: () => void
   exportData: () => void
@@ -177,7 +183,13 @@ function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'descrip
   return applied
 }
 
-function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null; isTimeLog?: boolean; completed?: boolean; tags?: string[] }, maxOrder: number): Task {
+function orderForNewSiblingAtFront(tasks: Task[], listId: string, parentId: string | null): number {
+  const siblings = tasks.filter((t) => t.listId === listId && t.parentId === parentId)
+  if (siblings.length === 0) return 0
+  return Math.min(...siblings.map((t) => t.order)) - 1
+}
+
+function makeTask(fields: { title: string; listId: string; dueDate?: string | null; startTime?: string | null; endTime?: string | null; isTimeLog?: boolean; completed?: boolean; tags?: string[] }, order: number): Task {
   const now = new Date().toISOString()
   return {
     id: newId(),
@@ -186,7 +198,7 @@ function makeTask(fields: { title: string; listId: string; dueDate?: string | nu
     completed: fields.completed ?? false,
     createdAt: now,
     updatedAt: now,
-    order: maxOrder + 1,
+    order,
     listId: fields.listId,
     parentId: null,
     dueDate: fields.dueDate ?? null,
@@ -210,6 +222,7 @@ export const useTaskStore = create<TaskState>()(
       searchQuery: '',
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
+      moveBannerText: null as string | null,
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
@@ -323,33 +336,34 @@ export const useTaskStore = create<TaskState>()(
 
       addTask: (title, listId, parentId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
-        const maxOrder = Math.max(0, ...get().tasks.filter((t) => t.listId === targetList).map((t) => t.order))
-        const task = makeTask({ title, listId: targetList }, maxOrder)
+        const pid = parentId ?? null
+        const ord = orderForNewSiblingAtFront(get().tasks, targetList, pid)
+        const task = makeTask({ title, listId: targetList }, ord)
         if (parentId) task.parentId = parentId
         set((s) => ({ tasks: [...s.tasks, task] }))
       },
       addTaskWithDate: (title, dueDate, listId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
-        const maxOrder = Math.max(0, ...get().tasks.filter((t) => t.listId === targetList).map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate }, maxOrder)] }))
+        const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate }, ord)] }))
       },
       addTaskWithTime: (title, dueDate, startTime, endTime, listId) => {
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
-        const maxOrder = Math.max(0, ...get().tasks.filter((t) => t.listId === targetList).map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate, startTime, endTime }, maxOrder)] }))
+        const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate, startTime, endTime }, ord)] }))
       },
       addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         set((s) => ({
           tasks: [
             ...s.tasks,
-            makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true }, maxOrder),
+            makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true }, maxOrder + 1),
           ],
         }))
       },
       addTimeLog: (title, date, startTime, endTime, tags) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags }, maxOrder)] }))
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags }, maxOrder + 1)] }))
       },
       startTimer: (title, tags) => {
         set({ activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [] } })
@@ -365,7 +379,7 @@ export const useTaskStore = create<TaskState>()(
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         set((s) => ({
           activeTimer: null,
-          tasks: [...s.tasks, makeTask({ title: timer.taskTitle, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true, tags: timer.tags }, maxOrder)],
+          tasks: [...s.tasks, makeTask({ title: timer.taskTitle, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true, tags: timer.tags }, maxOrder + 1)],
         }))
       },
       toggleTask: (id) =>
@@ -464,6 +478,42 @@ export const useTaskStore = create<TaskState>()(
             return idx >= 0 ? { ...t, order: idx } : t
           }),
         })),
+
+      moveTaskToList: (taskId, listId) => {
+        const s = get()
+        const task = s.tasks.find((t) => t.id === taskId)
+        if (!task || task.listId === listId) return { moved: false }
+        const listName = s.lists.find((l) => l.id === listId)?.name ?? 'リスト'
+        const descendants = expandDescendantIds([taskId], s.tasks)
+        set((state) => {
+          const maxOrder = Math.max(
+            0,
+            ...state.tasks
+              .filter(
+                (t) =>
+                  t.listId === listId &&
+                  t.parentId === null &&
+                  !t.completed &&
+                  !descendants.has(t.id),
+              )
+              .map((t) => t.order),
+          )
+          const rootNewOrder = maxOrder + 1
+          const now = new Date().toISOString()
+          return {
+            tasks: state.tasks.map((t) => {
+              if (!descendants.has(t.id)) return t
+              if (t.id === taskId)
+                return { ...t, listId, order: rootNewOrder, updatedAt: now }
+              return { ...t, listId, updatedAt: now }
+            }),
+          }
+        })
+        return { moved: true, listName }
+      },
+
+      showMoveBanner: (text) => set({ moveBannerText: text }),
+      clearMoveBanner: () => set({ moveBannerText: null }),
 
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
@@ -580,6 +630,7 @@ export const useTaskStore = create<TaskState>()(
           filterTag,
           calendarEvents,
           googleAccessToken,
+          moveBannerText,
           ...rest
         } = state
         void searchQuery
@@ -588,6 +639,7 @@ export const useTaskStore = create<TaskState>()(
         void filterTag
         void calendarEvents
         void googleAccessToken
+        void moveBannerText
         return rest as unknown as TaskState
       },
     },

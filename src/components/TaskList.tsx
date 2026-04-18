@@ -77,12 +77,16 @@ export function TaskList() {
     return () => window.removeEventListener('keydown', onKey)
   }, [clearSelection, selected.size])
 
-  useDndMonitor({
-    onDragStart({ active }) {
-      const id = String(active.id)
-      if (id.startsWith(TASK_PREFIX)) clearSelection()
-    },
-  })
+  const dndMonitor = useMemo(
+    () => ({
+      onDragStart({ active }: { active: { id: string | number } }) {
+        const id = String(active.id)
+        if (id.startsWith(TASK_PREFIX)) clearSelection()
+      },
+    }),
+    [clearSelection],
+  )
+  useDndMonitor(dndMonitor)
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const title = selectedView ? VIEW_LABELS[selectedView] ?? '' : (currentList?.name ?? 'タスク')
@@ -437,6 +441,8 @@ export function TaskList() {
         )}
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
+          {showQuickAdd && <QuickAdd />}
+
           {incompleteCount === 0 && !showQuickAdd && (
             <div className="py-16 text-center">
               <svg className="w-16 h-16 mx-auto text-zinc-200 dark:text-zinc-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -448,12 +454,6 @@ export function TaskList() {
           )}
 
           {activeContent}
-
-          {showQuickAdd && (
-            <div className="pt-2">
-              <QuickAdd />
-            </div>
-          )}
 
           {completed.length > 0 && (
             <details className="pt-4">

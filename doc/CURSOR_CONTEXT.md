@@ -54,7 +54,7 @@
 - `deletedTasks`（Undo）、`notificationsEnabled`
 - `listColorPaletteId`（`src/lib/listColorPalettes.ts`）
 - `calendarEvents`, `googleConnected`, `googleAccessToken`
-- `activeTimer`, `habits`
+- `activeTimer`, `habits`（`addHabit` / `updateHabit` / `deleteHabit` / `toggleHabitDate`）
 
 ### `SmartView`
 
@@ -71,7 +71,8 @@
 
 ### タスク挙動メモ
 
-- **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の直下にインデント表示（DnD 手動ソート時は親行にぶら下げて移動）
+- **新規タスク**（`addTask` / `addTaskWithDate` / `addTaskWithTime`）は同一リスト・同一親の兄弟のうち **手動ソート順で先頭**（既存の最小 `order` より手前の `order` を付与）。タイムログ系の追加は従来どおり末尾相当
+- **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の直下にインデント表示（DnD 手動ソート時は親行にぶら下げて移動）。`QuickAdd` はリスト用スクロール領域の**先頭**（未完了行の直下でタスク行より上）
 - **一覧の複数選択**: ⌘/Ctrl+クリックでトグル、Shift+クリックで表示順の範囲、何か選択中は通常クリックもトグル。左端の四角チェック（ホバーまたは選択中に表示）。Escape / ビュー・フィルタ・ソート変更 / タスク DnD 開始で選択解除。ツールバーから一括完了・`deleteTasks`・`bulkUpdateTasks`（リスト移動は子孫の `listId` も揃える、優先度・期限は選択行のみ）。一括削除は `deleteTasks` で単一 `deletedAt`（Undo 一括）
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
@@ -108,7 +109,7 @@
 | `PlanVsActualView.tsx` | 予定 vs ログ |
 | `ActivityLogView.tsx` | ログ |
 | `StatsView.tsx` | 統計 |
-| `HabitsView.tsx` | 習慣 |
+| `HabitsView.tsx` | 習慣の追加・編集・削除（達成の日付は `PlanVsActualView` でトグル） |
 | `SettingsView.tsx` | 設定・通知・エクスポート・Google |
 | `SearchResults.tsx` | 検索 |
 | `AccountMenu.tsx` | アカウント |
