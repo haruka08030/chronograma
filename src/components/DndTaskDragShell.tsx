@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
-import { DragOverlay, useDndMonitor, useDroppable } from '@dnd-kit/core'
+import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { LIST_PREFIX } from './Sidebar'
 import { TASK_PREFIX } from './SortableTaskItem'
-import { TaskItem } from './TaskItem'
-import { DRAGSEC_PREFIX, DROPSEC_PREFIX, parseSectionReorderId } from '../lib/sectionReorderDnD'
+import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
 import type { TaskList } from '../types/list'
 
 export const MOBILE_DROP_PREFIX = 'mobile-drop::'
@@ -31,28 +30,11 @@ function MobileListChip({ list }: { list: TaskList }) {
   )
 }
 
-const overlayHandleDecor = (
-  <span className="opacity-70 p-0.5 touch-none flex-shrink-0" aria-hidden>
-    <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">
-      <circle cx="9" cy="6" r="1.5" />
-      <circle cx="15" cy="6" r="1.5" />
-      <circle cx="9" cy="12" r="1.5" />
-      <circle cx="15" cy="12" r="1.5" />
-      <circle cx="9" cy="18" r="1.5" />
-      <circle cx="15" cy="18" r="1.5" />
-    </svg>
-  </span>
-)
-
-/** DragOverlay + モバイル用リストドロップ帯。DndContext の直下で使う */
+/** モバイル用リストドロップ帯 + タスクドラッグ監視。DndContext の直下で使う */
 export function DndTaskDragShell() {
   const listsRaw = useTaskStore((s) => s.lists)
-  const tasks = useTaskStore((s) => s.tasks)
   const lists = useMemo(() => [...listsRaw].sort((a, b) => a.order - b.order), [listsRaw])
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  const [sectionDragTitle, setSectionDragTitle] = useState<string | null>(null)
-
-  const overlayTask = draggingTaskId ? tasks.find((t) => t.id === draggingTaskId) : undefined
 
   const monitor = useMemo(
     () => ({
@@ -62,16 +44,8 @@ export function DndTaskDragShell() {
         if (id.startsWith(DRAGSEC_PREFIX)) {
           setDraggingTaskId(null)
           setHover(null)
-          const p = parseSectionReorderId(id, DRAGSEC_PREFIX)
-          if (!p) {
-            setSectionDragTitle(null)
-            return
-          }
-          const sec = useTaskStore.getState().sections.find((s) => s.id === p.sectionId)
-          setSectionDragTitle(sec?.name ?? 'セクション')
           return
         }
-        setSectionDragTitle(null)
         if (!id.startsWith(TASK_PREFIX)) {
           setDraggingTaskId(null)
           setHover(null)
@@ -109,12 +83,10 @@ export function DndTaskDragShell() {
       },
       onDragEnd() {
         setDraggingTaskId(null)
-        setSectionDragTitle(null)
         useTaskStore.getState().setTaskDragHoverListId(null)
       },
       onDragCancel() {
         setDraggingTaskId(null)
-        setSectionDragTitle(null)
         useTaskStore.getState().setTaskDragHoverListId(null)
       },
     }),
@@ -125,28 +97,7 @@ export function DndTaskDragShell() {
 
   return (
     <>
-      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
-        {sectionDragTitle && (
-          <div
-            className="px-4 py-3 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700
-                       text-sm text-zinc-800 dark:text-zinc-200 max-w-[min(90vw,20rem)]"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">セクション</p>
-            <p className="font-medium truncate mt-0.5">{sectionDragTitle}</p>
-            <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">別のセクション見出しの上にドロップして並べ替え</p>
-          </div>
-        )}
-        {!sectionDragTitle && overlayTask && (
-          <div
-            className="pointer-events-none max-w-[min(90vw,24rem)] rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700
-                       bg-white dark:bg-zinc-900 overflow-hidden"
-          >
-            <TaskItem task={overlayTask} dragHandle={overlayHandleDecor} />
-          </div>
-        )}
-      </DragOverlay>
-
-      {draggingTaskId && !sectionDragTitle && (
+      {draggingTaskId && (
         <div
           className="md:hidden fixed bottom-0 inset-x-0 z-[52] pb-[max(0.75rem,env(safe-area-inset-bottom))]
                  pt-2 px-3 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-t border-zinc-200 dark:border-zinc-800

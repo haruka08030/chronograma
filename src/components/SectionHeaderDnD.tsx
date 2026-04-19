@@ -25,11 +25,15 @@ export function SectionHeaderDnD({
   })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId })
 
-  const handleStyle = transform ? { transform: CSS.Translate.toString(transform) } : undefined
+  const rowStyle = transform ? { transform: CSS.Translate.toString(transform) } : undefined
 
   return (
     <div
-      ref={setDropRef}
+      ref={(node) => {
+        setDragRef(node)
+        setDropRef(node)
+      }}
+      style={rowStyle}
       className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors
         ${isQuickTarget ? 'bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
         ${isOver ? 'ring-2 ring-accent-400/50' : ''}
@@ -38,8 +42,6 @@ export function SectionHeaderDnD({
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <button
           type="button"
-          ref={setDragRef}
-          style={handleStyle}
           {...listeners}
           {...attributes}
           className="touch-none flex-shrink-0 p-1 rounded-md cursor-grab active:cursor-grabbing

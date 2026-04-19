@@ -32,7 +32,7 @@ export function SortableTaskItem({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.7 : 1,
     zIndex: isDragging ? 10 : undefined,
   }
 
