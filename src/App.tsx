@@ -23,7 +23,13 @@ import {
   buildReorderedActiveRootIds,
   getOrderedActiveRootTasksForDnD,
   parseSectionDropId,
+  SECTION_DROP_PREFIX,
 } from './lib/mainListTasks'
+import {
+  DRAGSEC_PREFIX,
+  DROPSEC_PREFIX,
+  parseSectionReorderId,
+} from './lib/sectionReorderDnD'
 import {
   DndContext,
   closestCenter,
@@ -35,10 +41,41 @@ import {
   type CollisionDetection,
 } from '@dnd-kit/core'
 
+/** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args)
-  if (pointerCollisions.length > 0) return pointerCollisions
-  return closestCenter(args)
+  const activeId = String(args.active.id)
+  const fromPointer = pointerWithin(args)
+  const base = fromPointer.length > 0 ? fromPointer : closestCenter(args)
+
+  if (activeId.startsWith(TASK_PREFIX)) {
+    return [...base].sort((a, b) => rankForTaskDrag(String(a.id)) - rankForTaskDrag(String(b.id)))
+  }
+  if (activeId.startsWith(DRAGSEC_PREFIX)) {
+    return [...base].sort((a, b) => rankForSectionReorderDrag(String(a.id)) - rankForSectionReorderDrag(String(b.id)))
+  }
+  if (activeId.startsWith(LIST_PREFIX)) {
+    return [...base].sort((a, b) => rankForListReorderDrag(String(a.id)) - rankForListReorderDrag(String(b.id)))
+  }
+  return base
+}
+
+function rankForTaskDrag(id: string): number {
+  if (id.startsWith(TASK_PREFIX)) return 0
+  if (id.startsWith(SECTION_DROP_PREFIX)) return 1
+  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 2
+  if (id.startsWith(DROPSEC_PREFIX)) return 20
+  return 10
+}
+
+function rankForSectionReorderDrag(id: string): number {
+  if (id.startsWith(DROPSEC_PREFIX)) return 0
+  return 10
+}
+
+function rankForListReorderDrag(id: string): number {
+  if (id.startsWith(LIST_PREFIX)) return 0
+  if (id.startsWith('drop::')) return 1
+  return 10
 }
 
 export default function App() {
@@ -59,7 +96,29 @@ export default function App() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    if (activeId.startsWith(TASK_PREFIX) && (overId.startsWith(TASK_PREFIX) || parseSectionDropId(overId))) {
+    if (activeId.startsWith(DRAGSEC_PREFIX) && overId.startsWith(DROPSEC_PREFIX)) {
+      const a = parseSectionReorderId(activeId, DRAGSEC_PREFIX)
+      const b = parseSectionReorderId(overId, DROPSEC_PREFIX)
+      if (!a || !b || a.listId !== b.listId) return
+      if (a.sectionId === b.sectionId) return
+      const state = useTaskStore.getState()
+      const sorted = state.sections
+        .filter((s) => s.listId === a.listId)
+        .sort((x, y) => x.order - y.order)
+        .map((s) => s.id)
+      const from = sorted.indexOf(a.sectionId)
+      const to = sorted.indexOf(b.sectionId)
+      if (from < 0 || to < 0) return
+      const next = [...sorted]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item)
+      state.reorderSections(a.listId, next)
+    } else if (
+      activeId.startsWith(TASK_PREFIX) &&
+      (overId.startsWith(TASK_PREFIX) ||
+        parseSectionDropId(overId) ||
+        parseSectionReorderId(overId, DROPSEC_PREFIX))
+    ) {
       const state = useTaskStore.getState()
       const currentOrdered = getOrderedActiveRootTasksForDnD({
         tasks: state.tasks,

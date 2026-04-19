@@ -2,6 +2,7 @@ import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'dat
 import type { Task } from '../types/task'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
+import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
@@ -154,6 +155,29 @@ export function insertActiveRootIdForSectionDrop(
   return ids
 }
 
+/** セクション見出しドロップ＝そのセクションの先頭へ（空ならブロック先頭） */
+export function insertActiveRootAtSectionHead(
+  currentOrdered: Task[],
+  movedId: string,
+  targetSectionId: string,
+  listSections: ListSection[],
+): string[] {
+  const filtered = currentOrdered.filter((t) => t.id !== movedId)
+  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
+  const targetR = rank(targetSectionId)
+  const firstInSection = filtered.findIndex((t) => (t.sectionId ?? null) === targetSectionId)
+  let ins: number
+  if (firstInSection >= 0) {
+    ins = firstInSection
+  } else {
+    const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > targetR)
+    ins = idx < 0 ? filtered.length : idx
+  }
+  const ids = filtered.map((t) => t.id)
+  ids.splice(ins, 0, movedId)
+  return ids
+}
+
 const TASK_PREFIX = 'task::'
 
 export function buildReorderedActiveRootIds(
@@ -167,6 +191,27 @@ export function buildReorderedActiveRootIds(
     ? sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
     : []
   const useSectionPatch = Boolean(selectedListId && listSections.length > 0)
+
+  const headerDrop = parseSectionReorderId(overId, DROPSEC_PREFIX)
+  if (
+    useSectionPatch &&
+    activeId.startsWith(TASK_PREFIX) &&
+    headerDrop &&
+    headerDrop.listId === selectedListId &&
+    headerDrop.sectionId
+  ) {
+    const movedId = activeId.slice(TASK_PREFIX.length)
+    const orderedIds = insertActiveRootAtSectionHead(
+      currentOrdered,
+      movedId,
+      headerDrop.sectionId,
+      listSections,
+    )
+    return {
+      orderedIds,
+      sectionUpdate: { taskId: movedId, sectionId: headerDrop.sectionId },
+    }
+  }
 
   const dropParsed = parseSectionDropId(overId)
   if (dropParsed && dropParsed.listId === selectedListId) {

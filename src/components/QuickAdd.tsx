@@ -64,8 +64,8 @@ export function QuickAdd() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            if (e.metaKey || e.ctrlKey) e.preventDefault()
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
             submit()
           }
           if (e.key === 'Escape') { setValue(''); setActive(false) }

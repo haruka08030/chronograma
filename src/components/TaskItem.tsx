@@ -72,11 +72,13 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
     setIsDragging(false)
   }, [])
 
+  const rowNativeDraggable = !hasSortableHandle
+
   return (
     <div
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      draggable={rowNativeDraggable}
+      onDragStart={rowNativeDraggable ? handleDragStart : undefined}
+      onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
       className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2 py-2' : 'px-3 py-2.5'}
@@ -88,7 +90,9 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
         else onClick?.()
       }}
     >
-      {hasSortableHandle ? <span onDragStart={(e) => e.preventDefault()}>{dragHandle}</span> : null}
+      {hasSortableHandle ? (
+        <span className="touch-none flex-shrink-0">{dragHandle}</span>
+      ) : null}
 
       {selection ? (
         <button

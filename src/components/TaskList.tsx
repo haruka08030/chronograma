@@ -7,6 +7,8 @@ import {
   sectionDropId,
 } from '../lib/mainListTasks'
 import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
+import { SectionHeaderDnD } from './SectionHeaderDnD'
+import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
@@ -103,7 +105,7 @@ export function TaskList() {
     () => ({
       onDragStart({ active }: { active: { id: string | number } }) {
         const id = String(active.id)
-        if (id.startsWith(TASK_PREFIX)) clearSelection()
+        if (id.startsWith(TASK_PREFIX) || id.startsWith(DRAGSEC_PREFIX)) clearSelection()
       },
     }),
     [clearSelection],
@@ -304,51 +306,66 @@ export function TaskList() {
             (block.sectionId !== null && quickAddSectionId === block.sectionId)
           return (
             <div key={block.sectionId ?? 'none'} className="pt-3 first:pt-1">
-              <div
-                className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors
-                  ${isQuickTarget ? 'bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}`}
-              >
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                  onClick={() =>
-                    setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)
+              {block.sectionId !== null && selectedListId ? (
+                <SectionHeaderDnD
+                  listId={selectedListId}
+                  sectionId={block.sectionId}
+                  isQuickTarget={isQuickTarget}
+                  titleButton={
+                    <button
+                      type="button"
+                      className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
+                      onClick={() => setQuickAddSectionId(block.sectionId)}
+                    >
+                      {block.title}
+                    </button>
                   }
+                  actions={
+                    <span className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                        title="名前を変更"
+                        onClick={() => {
+                          const n = window.prompt('セクション名', block.title)
+                          if (n?.trim() && block.sectionId) renameSectionStore(block.sectionId, n.trim())
+                        }}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-zinc-400 hover:text-red-500"
+                        title="削除"
+                        onClick={() => {
+                          if (window.confirm('このセクションを削除しますか？（タスクは「セクションなし」に移ります）')) {
+                            deleteSectionStore(block.sectionId!)
+                          }
+                        }}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  }
+                />
+              ) : (
+                <div
+                  className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors
+                    ${isQuickTarget ? 'bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}`}
                 >
-                  {block.title}
-                </button>
-                {block.sectionId !== null && (
-                  <span className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                      title="名前を変更"
-                      onClick={() => {
-                        const n = window.prompt('セクション名', block.title)
-                        if (n?.trim() && block.sectionId) renameSectionStore(block.sectionId, n.trim())
-                      }}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="p-1 rounded text-zinc-400 hover:text-red-500"
-                      title="削除"
-                      onClick={() => {
-                        if (window.confirm('このセクションを削除しますか？（タスクは「セクションなし」に移ります）')) {
-                          deleteSectionStore(block.sectionId!)
-                        }
-                      }}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </span>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
+                    onClick={() => setQuickAddSectionId('')}
+                  >
+                    {block.title}
+                  </button>
+                </div>
+              )}
               {block.tasks.map((t) => (
                 <SortableTaskItem
                   key={t.id}

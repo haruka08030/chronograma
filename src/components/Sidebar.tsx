@@ -34,29 +34,29 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   onColorPick: () => void
 }) {
   const isInbox = list.id === INBOX_LIST_ID
+  const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
   const sortableId = `${LIST_PREFIX}${list.id}`
   const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId, disabled: isInbox })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
+  const dropHighlight = isOver || taskDragHoverListId === list.id
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : undefined,
-    ...(isOver ? { borderLeftColor: list.color } : {}),
   }
 
   return (
     <div
       ref={(node) => { setSortableRef(node); setDropRef(node) }}
       style={style}
-      className={`group flex items-center gap-2 pl-2 pr-3 py-2 rounded-lg cursor-pointer transition-all text-sm border-l-[3px]
-        ${isOver
-          ? 'ring-2 ring-accent-500/80 bg-accent-50/80 dark:bg-accent-500/15 shadow-sm scale-[1.01] text-zinc-800 dark:text-zinc-100'
-          : 'border-l-transparent'}
-        ${isSelected && !isOver
-          ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
-          : !isOver ? 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800' : ''}`}
+      className={`group flex items-center gap-2 pl-2 pr-3 py-2 rounded-lg cursor-pointer transition-colors text-sm border-l-[3px] border-l-transparent
+        ${dropHighlight
+          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+          : isSelected
+            ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
+            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
     >
@@ -88,11 +88,6 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       />
 
       <span className="flex-1 min-w-0 truncate">{list.name}</span>
-      {isOver && (
-        <span className="flex-shrink-0 text-[10px] font-medium text-accent-600 dark:text-accent-400 truncate max-w-[5.5rem]">
-          へ移動
-        </span>
-      )}
 
       {!isInbox && (
         <button

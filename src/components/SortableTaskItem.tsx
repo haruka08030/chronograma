@@ -38,9 +38,10 @@ export function SortableTaskItem({
 
   const handle = (
     <button
+      type="button"
       {...attributes}
       {...listeners}
-      className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 touch-none"
+      className="opacity-70 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 touch-none"
       tabIndex={-1}
     >
       <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">

@@ -149,6 +149,10 @@ interface TaskState {
   showMoveBanner: (text: string) => void
   clearMoveBanner: () => void
 
+  /** タスクドラッグ中のドロップ先リスト（ホバー風ハイライト用・永続化しない） */
+  taskDragHoverListId: string | null
+  setTaskDragHoverListId: (id: string | null) => void
+
   toggleNotifications: () => void
   exportData: () => void
   importData: (json: string) => boolean
@@ -265,6 +269,7 @@ export const useTaskStore = create<TaskState>()(
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
       moveBannerText: null as string | null,
+      taskDragHoverListId: null as string | null,
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
@@ -616,6 +621,8 @@ export const useTaskStore = create<TaskState>()(
       showMoveBanner: (text) => set({ moveBannerText: text }),
       clearMoveBanner: () => set({ moveBannerText: null }),
 
+      setTaskDragHoverListId: (id) => set({ taskDragHoverListId: id }),
+
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
@@ -758,6 +765,7 @@ export const useTaskStore = create<TaskState>()(
           calendarEvents,
           googleAccessToken,
           moveBannerText,
+          taskDragHoverListId,
           ...rest
         } = state
         void searchQuery
@@ -767,6 +775,7 @@ export const useTaskStore = create<TaskState>()(
         void calendarEvents
         void googleAccessToken
         void moveBannerText
+        void taskDragHoverListId
         return rest as unknown as TaskState
       },
     },
