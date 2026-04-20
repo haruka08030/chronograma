@@ -189,6 +189,13 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
 
+  /** メインが ToDo 一覧のときはサイドバー直下のリストを出さない（To‑Do パネル内では従来どおり） */
+  const isTodoRootSurface =
+    selectedView === null ||
+    selectedView === 'all' ||
+    selectedView === 'today' ||
+    selectedView === 'upcoming'
+
   const submitNew = () => {
     const trimmed = newName.trim()
     if (trimmed) addList(trimmed)
@@ -437,8 +444,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <span className="flex-1">To‑Do</span>
             </button>
             {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
-            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            {listsSection}
+            {!isTodoRootSurface && (
+              <>
+                <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+                {listsSection}
+              </>
+            )}
           </>
         )}
       </nav>
