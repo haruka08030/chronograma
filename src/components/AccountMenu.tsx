@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
 
-export function AccountMenu() {
+export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
+  const isSettings = variant === 'settings'
   const { user, loading, signInWithOtp, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
@@ -47,8 +48,13 @@ export function AccountMenu() {
   if (user) {
     const label = user.email ?? user.id
     return (
-      <div className="relative flex items-center gap-2">
-        <span className="hidden sm:inline max-w-[140px] truncate text-xs text-zinc-500 dark:text-zinc-400" title={label}>
+      <div className={`relative flex items-center gap-3 ${isSettings ? 'flex-wrap' : ''}`}>
+        <span
+          className={`truncate text-xs text-zinc-600 dark:text-zinc-300 ${
+            isSettings ? 'max-w-full sm:max-w-md' : 'hidden max-w-[140px] sm:inline'
+          }`}
+          title={label}
+        >
           {label}
         </span>
         <button
@@ -80,7 +86,9 @@ export function AccountMenu() {
             onClick={() => setOpen(false)}
           />
           <div
-            className="absolute right-0 top-full mt-2 z-50 w-[min(100vw-2rem,20rem)] rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-3"
+            className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 ${
+              isSettings ? 'left-0' : 'right-0'
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">

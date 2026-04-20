@@ -67,10 +67,12 @@ interface UseTimelineDragOptions {
   onResizeDone: (taskId: string, startTime: string, endTime: string) => void
   /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
   defaultCreateIntent?: CreateIntent
+  /** グリッドが pointer capture するため click が届かない環境向け: 移動・リサイズなしの指離し時 */
+  onBlockTap?: (taskId: string) => void
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
-  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule' } = options
+  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap } = options
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
@@ -126,7 +128,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       if (Math.abs(y - drag.currentY) > 3) didMoveRef.current = true
       setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
     } else {
-      didMoveRef.current = true
+      if (Math.abs(y - drag.currentY) > 3) didMoveRef.current = true
       setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
     }
   }, [drag, getRelativeY, getDateKeyFromX])
@@ -146,6 +148,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         const newStartMin = timeToMinutes(newStart)
         const newEndMin = Math.min(newStartMin + durationMin, 24 * 60)
         onMoveDone(drag.taskId, drag.dateKey, newStart, minutesToTime(newEndMin))
+      } else {
+        onBlockTap?.(drag.taskId)
       }
     } else {
       if (didMoveRef.current) {
@@ -160,10 +164,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
           const clampedEnd = Math.max(newMin, startMin + MIN_BLOCK_MINUTES)
           onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)))
         }
+      } else {
+        onBlockTap?.(drag.taskId)
       }
     }
     setDrag(null)
-  }, [drag, onMoveDone, onResizeDone])
+  }, [drag, onMoveDone, onResizeDone, onBlockTap])
 
   const dismissPopup = useCallback(() => { setPopup(null) }, [])
 

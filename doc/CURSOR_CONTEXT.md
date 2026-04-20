@@ -37,8 +37,12 @@
 
 - `src/main.tsx`: `AuthProvider` で `App` をラップ
 - `src/App.tsx`:
-  レイアウト、`useSupabaseSync()`、ビュー切替、グローバルキーバインド、DnD
-  ルート
+  レイアウト、`useSupabaseSync()`、ビュー切替（`calendar` は
+  `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo 面**（リスト選択
+  `selectedView === null` または `all` / `today` / `upcoming`）かつ検索が空のときだけ
+  グローバルヘッダーは ToDo 面かつ検索が空のとき**検索欄のみ**（`AccountMenu` /
+  `ThemeToggle` は `SettingsView` へ）。それ以外の画面ではヘッダー非表示（カレンダーは
+  ハブ内のメニュー、他スマートビューは `md` 未満のみ細いメニュー行）
 
 ### グローバルショートカット（`App.tsx`）
 
@@ -60,6 +64,7 @@
 
 - `tasks`, `lists` — 既定リスト「未分類」ID: `__inbox__`（`INBOX_LIST_ID`）
 - `selectedListId`, `selectedView` — スマートビューとリスト選択は排他
+- `calendarMode`（`month` | `week`）— カレンダースマートビュー内の表示切替（永続化）
 - `theme`, `searchQuery`, `sortMode`, `filterTag`
 - `deletedTasks`（Undo）、`notificationsEnabled`
 - `listColorPaletteId`（`src/lib/listColorPalettes.ts`）
@@ -69,8 +74,9 @@
 
 ### `SmartView`
 
-`all` | `today` | `upcoming` | `calendar` | `week-calendar` | `plan-vs-actual` |
-`activity-log` | `stats` | `habits` | `settings`
+`all` | `today` | `upcoming` | `calendar` | `plan-vs-actual` |
+`activity-log` | `stats` | `habits` | `settings`（旧 `week-calendar` は v12
+マイグレーションで `calendar` + `calendarMode: week` に統合）
 
 検索クエリが非空のときは `SearchResults` が最優先。
 
@@ -138,15 +144,18 @@
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`  | 一覧・ソート・DnD                                                                            |
 | `TaskDetail.tsx`                                        | 詳細編集                                                                                     |
 | `QuickAdd.tsx`                                          | クイック追加                                                                                 |
-| `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月・週                                                                                       |
+| `CalendarHubView.tsx`                                   | カレンダー用ハブ（月/週、ToDo ドック、md 未満でサイドバーを開くボタン）                       |
+| `CalendarTaskDock.tsx`                                  | カレンダー下部のリスト別 ToDo（ネイティブ DnD で月セル・週タイムラインへドロップ可）         |
+| `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月グリッド・週タイムライン（ハブから利用）                                                   |
 | `PlanVsActualView.tsx`                                  | 予定 vs ログ                                                                                 |
 | `ActivityLogView.tsx`                                   | ログ                                                                                         |
 | `StatsView.tsx`                                         | 統計                                                                                         |
 | `HabitsView.tsx`                                        | 習慣の新規は上部フォーム、既存は各タイル内で編集・削除（達成は `PlanVsActualView` でトグル） |
-| `SettingsView.tsx`                                      | 設定・通知・エクスポート・Google                                                             |
+| `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット                       |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
-| `AccountMenu.tsx`                                       | アカウント                                                                                   |
-| `FloatingTimer.tsx`, `UndoToast.tsx`, `ThemeToggle.tsx` | 周辺 UI                                                                                      |
+| `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |
+| `ThemeToggle.tsx`                                       | ライト・ダーク切替（主に設定画面）                                                           |
+| `FloatingTimer.tsx`, `UndoToast.tsx`                    | 周辺 UI                                                                                      |
 
 補助: `src/lib/timeGrid.ts`, `useTimelineDrag.ts`, `useTimelineDrop.ts`,
 `notifications.ts`, `googleCalendar.ts`, `matchEvents.ts`,

@@ -138,6 +138,9 @@ export function ActivityLogView() {
     getRelativeY,
     onMoveDone: (taskId, _dk, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
+    onBlockTap: useCallback((taskId: string) => {
+      setDetailId(taskId)
+    }, []),
   })
 
   const getTaskDuration = useCallback((taskId: string): number | null => {
@@ -543,7 +546,13 @@ export function ActivityLogView() {
                       style={{ top, height, minHeight: 24, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
                       onPointerDown={(e) => { e.stopPropagation(); timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current) }}
                       onPointerMove={(e) => { const c = getResizeCursor(e); (e.currentTarget as HTMLElement).style.cursor = c ?? 'grab' }}
-                      onClick={(e) => { e.stopPropagation(); if (!timelineDrag.didMove.current) setDetailId(task.id) }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setDetailId(task.id)
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-1.5">
                         <span className={`font-medium truncate ${task.isTimeLog ? color.text : 'text-emerald-800 dark:text-emerald-200'}`}>

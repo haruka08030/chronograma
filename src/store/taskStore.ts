@@ -33,12 +33,13 @@ migrateLegacyPersistKey()
 
 const INBOX_ID = '__inbox__'
 
+export type CalendarMode = 'month' | 'week'
+
 export type SmartView =
   | 'all'
   | 'today'
   | 'upcoming'
   | 'calendar'
-  | 'week-calendar'
   | 'plan-vs-actual'
   | 'activity-log'
   | 'stats'
@@ -67,6 +68,8 @@ interface TaskState {
   lists: TaskList[]
   selectedListId: string | null
   selectedView: SmartView | null
+  /** カレンダーハブ内の月 / 週表示（永続化） */
+  calendarMode: CalendarMode
   theme: 'light' | 'dark'
   searchQuery: string
   sortMode: SortMode
@@ -104,6 +107,7 @@ interface TaskState {
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
+  setCalendarMode: (mode: CalendarMode) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
   requestQuickAdd: () => void
@@ -264,6 +268,7 @@ export const useTaskStore = create<TaskState>()(
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
       selectedView: null,
+      calendarMode: 'month' as CalendarMode,
       theme: 'light',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
@@ -375,6 +380,7 @@ export const useTaskStore = create<TaskState>()(
 
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null }),
       selectView: (view) => set({ selectedView: view, selectedListId: null, quickAddSectionId: null }),
+      setCalendarMode: (mode) => set({ calendarMode: mode }),
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSortMode: (mode) => set({ sortMode: mode }),
       setFilterTag: (tag) => set({ filterTag: tag }),
@@ -683,7 +689,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: PERSIST_STORAGE_KEY,
-      version: 11,
+      version: 12,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -753,6 +759,15 @@ export const useTaskStore = create<TaskState>()(
             ...t,
             sectionId: (t as Record<string, unknown>).sectionId ?? null,
           }))
+        }
+        if (version < 12) {
+          if (state.selectedView === 'week-calendar') {
+            state.selectedView = 'calendar'
+            state.calendarMode = 'week'
+          } else {
+            const cm = state.calendarMode
+            state.calendarMode = cm === 'week' || cm === 'month' ? cm : 'month'
+          }
         }
         return state as unknown as TaskState
       },

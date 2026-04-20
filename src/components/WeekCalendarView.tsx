@@ -18,10 +18,10 @@ import { useTimelineDrop } from '../lib/useTimelineDrop'
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function TimeBlock({ task, onPointerDown, onClick, isLog }: {
+function TimeBlock({ task, onPointerDown, onOpenDetail, isLog }: {
   task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
   onPointerDown: (e: React.PointerEvent) => void
-  onClick: () => void
+  onOpenDetail: () => void
   isLog?: boolean
 }) {
   const top = timeToY(task.startTime)
@@ -40,7 +40,13 @@ function TimeBlock({ task, onPointerDown, onClick, isLog }: {
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
       onPointerMove={handlePointerMoveLocal}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          e.stopPropagation()
+          onOpenDetail()
+        }
+      }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${isLog
@@ -146,7 +152,6 @@ export function WeekCalendarView() {
     }
   }, [])
 
-  const weekLabel = `${format(days[0], 'M月d日', { locale: ja })} – ${format(days[6], 'M月d日', { locale: ja })}`
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
@@ -178,6 +183,9 @@ export function WeekCalendarView() {
     getDateKeyFromX,
     onMoveDone: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
+    onBlockTap: useCallback((taskId: string) => {
+      setDetailId(taskId)
+    }, []),
   })
 
   const getTaskDuration = useCallback((taskId: string): number | null => {
@@ -211,35 +219,34 @@ export function WeekCalendarView() {
   return (
     <>
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between px-6 pt-6 pb-3 flex-shrink-0">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {weekLabel}
-          </h1>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setAnchor((a) => subWeeks(a, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setAnchor(new Date())}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
-                         text-zinc-600 dark:text-zinc-400 transition-colors"
-            >
-              今週
-            </button>
-            <button
-              onClick={() => setAnchor((a) => addWeeks(a, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </div>
+        <div className="flex flex-shrink-0 items-center justify-end gap-1 px-4 py-2">
+          <button
+            type="button"
+            onClick={() => setAnchor((a) => subWeeks(a, 1))}
+            className="rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="前の週"
+          >
+            <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchor(new Date())}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            今週
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchor((a) => addWeeks(a, 1))}
+            className="rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="次の週"
+          >
+            <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
         </div>
 
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
@@ -352,7 +359,7 @@ export function WeekCalendarView() {
                         <TimeBlock
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
                           onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                          onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
+                          onOpenDetail={() => setDetailId(t.id)}
                         />
                       </div>
                     ))}
@@ -362,7 +369,7 @@ export function WeekCalendarView() {
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
                           isLog
                           onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                          onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
+                          onOpenDetail={() => setDetailId(t.id)}
                         />
                       </div>
                     ))}

@@ -20,7 +20,7 @@ import {
 
 const VIEW_LABELS: Record<string, string> = {
   all: 'すべて', today: '今日', upcoming: '近日中',
-  calendar: 'カレンダー', 'week-calendar': '週カレンダー',
+  calendar: 'カレンダー',
 }
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [

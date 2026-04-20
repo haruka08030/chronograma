@@ -158,11 +158,11 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
   )
 }
 
-function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onClick }: {
+function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   task: Task
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
-  onClick: () => void
+  onOpenDetail: () => void
 }) {
   const top = timeToY(task.startTime!)
   const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
@@ -193,7 +193,13 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onClick }: {
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
       onPointerMove={handlePointerMoveLocal}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          e.stopPropagation()
+          onOpenDetail()
+        }
+      }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${borderClass} ${bgClass}
@@ -213,11 +219,11 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onClick }: {
   )
 }
 
-function ActualBlock({ task, matchStatus, onPointerDown, onClick }: {
+function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
-  onClick: () => void
+  onOpenDetail: () => void
 }) {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
@@ -248,7 +254,13 @@ function ActualBlock({ task, matchStatus, onPointerDown, onClick }: {
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
       onPointerMove={handlePointerMoveLocal}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          e.stopPropagation()
+          onOpenDetail()
+        }
+      }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${borderClass} ${bgClass}
@@ -630,6 +642,9 @@ export function PlanVsActualView() {
       updateTask(taskId, { startTime, endTime })
     },
     defaultCreateIntent: 'schedule',
+    onBlockTap: useCallback((taskId: string) => {
+      setDetailId(taskId)
+    }, []),
   })
 
   const movingTask = useMemo(() => {
@@ -899,7 +914,7 @@ export function PlanVsActualView() {
                                 task={task}
                                 matchStatus={match}
                                 onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, task.id, key, task.startTime!, task.endTime!, gridRef.current)}
-                                onClick={() => { if (!timelineDrag.didMove.current) setDetailId(task.id) }}
+                                onOpenDetail={() => setDetailId(task.id)}
                               />
                             </div>
                           )
@@ -987,7 +1002,7 @@ export function PlanVsActualView() {
                             task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
                             matchStatus={getMatchForActual(key, t.id)}
                             onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                            onClick={() => { if (!timelineDrag.didMove.current) setDetailId(t.id) }}
+                            onOpenDetail={() => setDetailId(t.id)}
                           />
                         </div>
                       ))}

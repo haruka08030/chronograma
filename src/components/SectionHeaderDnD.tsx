@@ -25,7 +25,10 @@ export function SectionHeaderDnD({
   })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId })
 
-  const rowStyle = transform ? { transform: CSS.Translate.toString(transform) } : undefined
+  /** リスト内の上下並べ替えのみ。タスクのように横方向へは動かさない */
+  const rowStyle = transform
+    ? { transform: CSS.Translate.toString({ ...transform, x: 0 }) }
+    : undefined
 
   return (
     <div
