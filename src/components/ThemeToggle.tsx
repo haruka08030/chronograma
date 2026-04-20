@@ -7,7 +7,7 @@ export function ThemeToggle() {
     <button
       onClick={toggleTheme}
       className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-      aria-label="テーマ切替"
+      aria-label="ライトとダークを切り替え"
     >
       {theme === 'light' ? (
         <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

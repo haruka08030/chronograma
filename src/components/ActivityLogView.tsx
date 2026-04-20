@@ -6,6 +6,7 @@ import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, formatDura
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
+import { getTagColor, logBlockAccentFromTags, timeLogTagUniverse } from '../lib/tagColors'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 
@@ -16,19 +17,6 @@ function formatElapsed(ms: number): string {
   const s = totalSec % 60
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-const TAG_COLORS = [
-  { bg: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-500/30' },
-  { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-500/30' },
-  { bg: 'bg-purple-100 dark:bg-purple-500/20', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-500/30' },
-  { bg: 'bg-amber-100 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-500/30' },
-  { bg: 'bg-pink-100 dark:bg-pink-500/20', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-500/30' },
-  { bg: 'bg-cyan-100 dark:bg-cyan-500/20', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-500/30' },
-]
-
-function getTagColor(idx: number) {
-  return TAG_COLORS[idx % TAG_COLORS.length]
 }
 
 function NowIndicator() {
@@ -157,15 +145,7 @@ export function ActivityLogView() {
       .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
   }, [tasks, dateKey])
 
-  const allTags = useMemo(() => {
-    const set = new Set<string>()
-    for (const t of tasks) {
-      if (t.isTimeLog) {
-        for (const tag of t.tags) set.add(tag)
-      }
-    }
-    return Array.from(set)
-  }, [tasks])
+  const tagUniverse = useMemo(() => timeLogTagUniverse(tasks), [tasks])
 
   const summary = useMemo(() => {
     let totalMinutes = 0
@@ -331,7 +311,7 @@ export function ActivityLogView() {
                     list="tag-suggestions"
                   />
                   <datalist id="tag-suggestions">
-                    {allTags.map((t) => <option key={t} value={t} />)}
+                    {tagUniverse.map((t) => <option key={t} value={t} />)}
                   </datalist>
                 </div>
                 <button
@@ -414,7 +394,7 @@ export function ActivityLogView() {
                   list="tag-suggestions-manual"
                 />
                 <datalist id="tag-suggestions-manual">
-                  {allTags.map((t) => <option key={t} value={t} />)}
+                  {tagUniverse.map((t) => <option key={t} value={t} />)}
                 </datalist>
                 {manualError && (
                   <p className="text-xs text-red-500">{manualError}</p>
@@ -518,8 +498,7 @@ export function ActivityLogView() {
                   const top = timeToY(task.startTime)
                   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
                   const dur = timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
-                  const tagIdx = task.tags.length > 0 ? allTags.indexOf(task.tags[0]) : -1
-                  const color = tagIdx >= 0 ? getTagColor(tagIdx) : getTagColor(0)
+                  const color = logBlockAccentFromTags(task.tags, tagUniverse)
 
                   return (
                     <button
@@ -527,8 +506,8 @@ export function ActivityLogView() {
                       className={`absolute left-2 right-2 rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
                         cursor-grab active:cursor-grabbing select-none text-left touch-none
                         border transition-shadow hover:shadow-md hover:z-10
-                        ${task.isTimeLog ? color.border : 'border-emerald-200 dark:border-emerald-500/30'}
-                        ${task.isTimeLog ? color.bg : 'bg-emerald-50 dark:bg-emerald-500/15'}
+                        ${color.border}
+                        ${color.bg}
                         ${task.completed ? 'opacity-90' : ''}`}
                       style={{ top, height, minHeight: 24, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
                       onPointerDown={(e) => { e.stopPropagation(); timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current) }}
@@ -542,7 +521,7 @@ export function ActivityLogView() {
                       }}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className={`font-medium truncate ${task.isTimeLog ? color.text : 'text-emerald-800 dark:text-emerald-200'}`}>
+                        <span className={`font-medium truncate ${color.text}`}>
                           {task.title}
                         </span>
                       </div>

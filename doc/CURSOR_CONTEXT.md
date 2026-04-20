@@ -156,8 +156,8 @@
 | `CalendarHubView.tsx`                                   | カレンダー用ハブ（月/週、ToDo ドック、md 未満でサイドバーを開くボタン）                       |
 | `CalendarTaskDock.tsx`                                  | カレンダー下部のリスト別 ToDo（ネイティブ DnD で月セル・週タイムラインへドロップ可）         |
 | `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月グリッド・週タイムライン（ハブから利用）                                                   |
-| `PlanVsActualView.tsx`                                  | 予定 vs ログ                                                                                 |
-| `ActivityLogView.tsx`                                   | ログ                                                                                         |
+| `PlanVsActualView.tsx`                                  | 予定 vs ログ（ログ列ブロックは `tagColors.ts` で先頭タグに応じた色、タグなしはエメラルド）   |
+| `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
 | `StatsView.tsx`                                         | 統計                                                                                         |
 | `HabitsView.tsx`                                        | 習慣の新規は上部フォーム、既存は各タイル内で編集・削除（達成は `PlanVsActualView` でトグル） |
 | `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
@@ -166,7 +166,7 @@
 | `ThemeToggle.tsx`                                       | ライト・ダーク切替（主に設定画面）                                                           |
 | `FloatingTimer.tsx`, `UndoToast.tsx`                    | 周辺 UI                                                                                      |
 
-補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` 等）, `useTimelineDrag.ts`（ブロックの
+補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` 等）, `tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`）, `useTimelineDrag.ts`（ブロックの
 `setPointerCapture` 後は `click` が届かないため、タップで詳細を開く処理は
 `onBlockTap` で `pointerup` 時に行う）, `useTimelineDrop.ts`,
 `notifications.ts`, `googleCalendar.ts`, `matchEvents.ts`,
