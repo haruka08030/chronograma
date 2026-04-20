@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 
 const VIEW_LABELS: Record<string, string> = {
-  all: 'すべて', today: '今日', upcoming: '近日中',
+  all: 'すべて', today: '今日', upcoming: '近日中', overdue: '期限切れ',
   calendar: 'カレンダー',
 }
 
@@ -194,7 +194,12 @@ export function TaskList() {
     return rows
   }, [showSectionBlocks, selectedListId, listSectionsOrdered, active])
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
-  const showQuickAdd = selectedView === null || selectedView === 'all' || selectedView === 'today' || selectedView === 'upcoming'
+  const showQuickAdd =
+    selectedView === null ||
+    selectedView === 'all' ||
+    selectedView === 'today' ||
+    selectedView === 'upcoming' ||
+    selectedView === 'overdue'
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
 

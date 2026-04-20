@@ -39,7 +39,7 @@
 - `src/App.tsx`:
   レイアウト、`useSupabaseSync()`、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo 面**（リスト選択
-  `selectedView === null` または `all` / `today` / `upcoming`）かつ検索が空のときだけ
+  `selectedView === null` または `all` / `today` / `upcoming` / `overdue`）かつ検索が空のときだけ
   グローバルヘッダーは ToDo 面かつ検索が空のとき**検索欄のみ**（`AccountMenu` /
   `ThemeToggle` は `SettingsView` へ）。それ以外の画面ではヘッダー非表示（カレンダーは
   ハブ内のメニュー、他スマートビューは `md` 未満のみ細いメニュー行）
@@ -76,7 +76,7 @@
 
 ### `SmartView`
 
-`all` | `today` | `upcoming` | `calendar` | `plan-vs-actual` |
+`all` | `today` | `upcoming` | `overdue` | `calendar` | `plan-vs-actual` |
 `activity-log` | `stats` | `habits` | `settings`（旧 `week-calendar` は v12
 マイグレーションで `calendar` + `calendarMode: week` に統合）
 
@@ -149,8 +149,9 @@
 
 | パス                                                    | 役割                                                                                         |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。To-Do 内は「全て／今日／近日中」→区切り→リスト。ToDo 面（リスト選択または all/today/upcoming）では折りたたみ時に直下の「リスト」節は出さず、To‑Do パネルを開いたときだけリストを表示。モバイル |
+| `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。To‑Do パネル展開時はヘッダに戻ると「To‑Do」のみ（アカウントアイコン・Chronograma は非表示）。本文は「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）。折りたたみ時にリスト節を出す場合のみ「リスト」見出し付き。ToDo 面（リスト選択または all/today/upcoming/overdue）では折りたたみ時に直下の「リスト」節は出さず、パネル内でリストを表示。モバイル |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`  | 一覧・ソート・DnD                                                                            |
+| `SectionHeaderDnD.tsx`                                  | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える |
 | `TaskDetail.tsx`                                        | 詳細編集。`isTimeLog` は行動ログ UI（記録日・時間・所要時間・削除）に切替え、優先度・リスト等は非表示 |
 | `QuickAdd.tsx`                                          | クイック追加                                                                                 |
 | `CalendarHubView.tsx`                                   | カレンダー用ハブ（月/週、ToDo ドック、md 未満でサイドバーを開くボタン）                       |
@@ -197,5 +198,5 @@
 
 - 同期は **全体スナップショット型**（フィールド単位マージではない）
 - Google トークン・`calendarEvents` は永続化されない
-- 未分類（`__inbox__`）は削除不可（リスト DnD では並べ替え無効など実装依存）
+- 未分類（`__inbox__`）は削除不可（リスト DnD では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左
 - README とマイグレーション（002）の説明の齟齬に注意

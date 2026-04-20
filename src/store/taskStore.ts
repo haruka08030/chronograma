@@ -39,6 +39,7 @@ export type SmartView =
   | 'all'
   | 'today'
   | 'upcoming'
+  | 'overdue'
   | 'calendar'
   | 'plan-vs-actual'
   | 'activity-log'
@@ -172,7 +173,7 @@ interface TaskState {
 
 const defaultInbox: TaskList = {
   id: INBOX_ID,
-  name: '受信トレイ',
+  name: '未分類',
   color: defaultPaletteColors[0],
   order: 0,
 }
@@ -719,7 +720,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: PERSIST_STORAGE_KEY,
-      version: 13,
+      version: 14,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -805,6 +806,16 @@ export const useTaskStore = create<TaskState>()(
             ...t,
             isTimeLog: t.isTimeLog === true || t.is_time_log === true,
           }))
+        }
+        if (version < 14) {
+          const lists = (state.lists as Record<string, unknown>[]) ?? []
+          state.lists = lists.map((l) => {
+            const rec = l as Record<string, unknown>
+            if (rec.id === INBOX_ID && rec.name === '受信トレイ') {
+              return { ...rec, name: '未分類' }
+            }
+            return l
+          })
         }
         return state as unknown as TaskState
       },
