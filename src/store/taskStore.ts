@@ -84,9 +84,6 @@ interface TaskState {
   filterTag: string | null
   notificationsEnabled: boolean
   listColorPaletteId: ListColorPaletteId
-  /** ToDo リスト・カレンダー横ドックにタイムログ折りたたみを出す（ログ画面等は常に表示） */
-  showTimeLogsInTaskList: boolean
-  setShowTimeLogsInTaskList: (show: boolean) => void
 
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
@@ -291,7 +288,6 @@ export const useTaskStore = create<TaskState>()(
       filterTag: null,
       notificationsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
-      showTimeLogsInTaskList: true,
 
       calendarEvents: [],
       googleConnected: false,
@@ -390,7 +386,6 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
 
       setListColorPalette: (id) => set({ listColorPaletteId: id }),
-      setShowTimeLogsInTaskList: (show) => set({ showTimeLogsInTaskList: show }),
 
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
       selectView: (view) =>

@@ -29,6 +29,7 @@ import type { PlannedItem } from '../types/plannedItem'
 import type { Task } from '../types/task'
 import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/plannedItemUtils'
 import { habitToPlannedItem } from '../lib/habitSlots'
+import { logBlockAccentFromTags, timeLogTagUniverse, type LogBlockAccent } from '../lib/tagColors'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -219,8 +220,9 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   )
 }
 
-function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
-  task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
+function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }: {
+  task: { id: string; title: string; startTime: string; endTime: string }
+  accent: LogBlockAccent
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
@@ -228,14 +230,12 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
-  let borderClass = 'border-emerald-300 dark:border-emerald-500/40'
-  let bgClass = 'bg-emerald-50 dark:bg-emerald-500/15'
+  let borderClass = accent.border
+  let bgClass = accent.bg
+  let textClass = accent.text
   let label: string | null = null
 
-  if (task.completed) {
-    borderClass = 'border-zinc-200 dark:border-zinc-700'
-    bgClass = 'bg-zinc-100 dark:bg-zinc-800'
-  } else if (matchStatus?.status === 'time-drift') {
+  if (matchStatus?.status === 'time-drift') {
     borderClass = 'border-amber-400 dark:border-amber-500/60'
     bgClass = 'bg-amber-50 dark:bg-amber-500/10'
     label = `${matchStatus.driftMinutes}分ズレ`
@@ -264,7 +264,7 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${borderClass} ${bgClass}
-        ${task.completed ? 'text-zinc-400 line-through' : 'text-emerald-800 dark:text-emerald-200'}`}
+        ${textClass}`}
       style={{ top, height, minHeight: 18 }}
     >
       <span className="font-medium truncate block">{task.title}</span>
@@ -564,6 +564,8 @@ export function PlanVsActualView() {
     }
     return map
   }, [tasks])
+
+  const timeLogTagUniverseMemo = useMemo(() => timeLogTagUniverse(tasks), [tasks])
 
   const plannedListsByDate = useMemo(() => {
     const map = new Map<string, PlannedItem[]>()
@@ -999,7 +1001,8 @@ export function PlanVsActualView() {
                       {dayLogs.map((t) => (
                         <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
-                            task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
+                            task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime! }}
+                            accent={logBlockAccentFromTags(t.tags, timeLogTagUniverseMemo)}
                             matchStatus={getMatchForActual(key, t.id)}
                             onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
                             onOpenDetail={() => setDetailId(t.id)}
