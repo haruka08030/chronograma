@@ -66,21 +66,25 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
     >
-      {!isInbox && (
-        <button
-          {...attributes}
-          {...listeners}
-          className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 touch-none -ml-1"
-          tabIndex={-1}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <svg className="w-3 h-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
-            <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
-            <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-            <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
-          </svg>
-        </button>
-      )}
+      <div className="flex shrink-0 items-center justify-center -ml-1 p-0.5 touch-none">
+        {!isInbox ? (
+          <button
+            {...attributes}
+            {...listeners}
+            className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <svg className="w-3 h-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
+              <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
+              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
+              <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
+            </svg>
+          </button>
+        ) : (
+          <span className="block h-3 w-3 shrink-0" aria-hidden />
+        )}
+      </div>
 
       <button
         type="button"
@@ -89,22 +93,26 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         className="w-3 h-3 min-w-[12px] min-h-[12px] rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/10
           touch-manipulation disabled:opacity-60 disabled:cursor-default"
         style={{ backgroundColor: list.color }}
-        aria-label={isInbox ? '受信トレイ（色は固定）' : '色を変更'}
+        aria-label={isInbox ? '未分類（色は固定）' : '色を変更'}
         tabIndex={-1}
       />
 
       <span className="flex-1 min-w-0 truncate">{list.name}</span>
 
-      {!isInbox && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-        >
-          <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      )}
+      <div className="flex shrink-0 items-center justify-center p-0.5">
+        {!isInbox ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="opacity-0 group-hover:opacity-100 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+          >
+            <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        ) : (
+          <span className="block h-3.5 w-3.5 shrink-0" aria-hidden />
+        )}
+      </div>
     </div>
   )
 }
@@ -237,13 +245,15 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     if (accountMenuOpen) accountMenuFirstItemRef.current?.focus()
   }, [accountMenuOpen])
 
-  const listsSection = (
+  const renderListsSection = (showListHeading: boolean) => (
     <>
-      <div className="px-4 pb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          リスト
-        </span>
-      </div>
+      {showListHeading ? (
+        <div className="px-4 pb-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            リスト
+          </span>
+        </div>
+      ) : null}
       <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
@@ -324,117 +334,122 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const sidebarContent = (
     <aside className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
                        flex flex-col h-full">
-      <div className="px-4 pt-5 pb-3 flex items-center gap-2">
+      <div className="px-4 pt-5 pb-3 flex items-center gap-2 min-w-0">
         {todoPanelOpen ? (
-          <button
-            type="button"
-            onClick={() => setTodoPanelOpen(false)}
-            aria-label="戻る"
-            className="p-1.5 -ml-1 rounded-lg text-zinc-600 dark:text-zinc-400
-              hover:bg-zinc-200/80 dark:hover:bg-zinc-800 transition-colors shrink-0"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-        ) : null}
-        <div className="relative shrink-0" ref={accountMenuRootRef}>
-          <button
-            type="button"
-            onClick={() => setAccountMenuOpen((o) => !o)}
-            aria-label="アカウントメニュー"
-            aria-haspopup="menu"
-            aria-expanded={accountMenuOpen}
-            title="アカウントメニュー"
-            className={`flex h-7 w-7 items-center justify-center rounded-lg text-white transition-colors
-              ${selectedView === 'settings' || accountMenuOpen
-                ? 'bg-accent-600 ring-2 ring-accent-400/40 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-900'
-                : 'bg-accent-500 hover:bg-accent-600'}`}
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
-            </svg>
-          </button>
-          {accountMenuOpen ? (
-            <div
-              role="menu"
-              aria-label="設定・アカウント・アプリ"
-              className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+          <>
+            <button
+              type="button"
+              onClick={() => setTodoPanelOpen(false)}
+              aria-label="戻る"
+              className="p-1.5 -ml-1 rounded-lg text-zinc-600 dark:text-zinc-400
+                hover:bg-zinc-200/80 dark:hover:bg-zinc-800 transition-colors shrink-0"
             >
-              <button
-                ref={accountMenuFirstItemRef}
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                onClick={() => {
-                  handleNav(() => openSettingsWithScroll('appearance'))
-                  setAccountMenuOpen(false)
-                }}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
-                </svg>
-                設定
-              </button>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <span className="min-w-0 flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              To‑Do
+            </span>
+          </>
+        ) : (
+          <>
+            <div className="relative shrink-0" ref={accountMenuRootRef}>
               <button
                 type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                onClick={() => {
-                  handleNav(() => openSettingsWithScroll('account'))
-                  setAccountMenuOpen(false)
-                }}
+                onClick={() => setAccountMenuOpen((o) => !o)}
+                aria-label="アカウントメニュー"
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                title="アカウントメニュー"
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors
+                  ${selectedView === 'settings' || accountMenuOpen
+                    ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
                 </svg>
-                アカウント
               </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={!installUrl}
-                title={
-                  installUrl
-                    ? '新しいタブで開きます'
-                    : '.env に VITE_APP_INSTALL_URL を設定すると有効になります'
-                }
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
-                onClick={() => {
-                  if (!installUrl) return
-                  window.open(installUrl, '_blank', 'noopener,noreferrer')
-                  handleNav(() => {})
-                  setAccountMenuOpen(false)
-                }}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
-                </svg>
-                アプリを入手する
-              </button>
+              {accountMenuOpen ? (
+                <div
+                  role="menu"
+                  aria-label="設定・アカウント・アプリ"
+                  className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                  <button
+                    ref={accountMenuFirstItemRef}
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                    onClick={() => {
+                      handleNav(() => openSettingsWithScroll('appearance'))
+                      setAccountMenuOpen(false)
+                    }}
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
+                    </svg>
+                    設定
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                    onClick={() => {
+                      handleNav(() => openSettingsWithScroll('account'))
+                      setAccountMenuOpen(false)
+                    }}
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
+                    </svg>
+                    アカウント
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!installUrl}
+                    title={
+                      installUrl
+                        ? '新しいタブで開きます'
+                        : '.env に VITE_APP_INSTALL_URL を設定すると有効になります'
+                    }
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
+                    onClick={() => {
+                      if (!installUrl) return
+                      window.open(installUrl, '_blank', 'noopener,noreferrer')
+                      handleNav(() => {})
+                      setAccountMenuOpen(false)
+                    }}
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
+                    </svg>
+                    アプリを入手する
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Chronograma</span>
+            <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
+              Chronograma
+            </span>
+          </>
+        )}
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-1 space-y-0.5">
         {todoPanelOpen ? (
           <>
-            {listsSection}
-            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            <div className="px-4 pb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                期限
-              </span>
-            </div>
             {DUE_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
+            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+            {renderListsSection(false)}
           </>
         ) : (
           <>
             <button
               type="button"
-              onClick={() => { setTodoPanelOpen(true); onClose?.() }}
+              onClick={() => { setTodoPanelOpen(true); setAccountMenuOpen(false); onClose?.() }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
                 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
@@ -447,7 +462,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             {!isTodoRootSurface && (
               <>
                 <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-                {listsSection}
+                {renderListsSection(true)}
               </>
             )}
           </>

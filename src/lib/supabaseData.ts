@@ -78,9 +78,10 @@ function sectionToRow(userId: string, sec: ListSection): SectionRow {
 }
 
 function rowToList(row: ListRow): TaskList {
+  const name = row.id === INBOX_LIST_ID && row.name === '受信トレイ' ? '未分類' : row.name
   return {
     id: row.id,
-    name: row.name,
+    name,
     color: row.color,
     order: row.sort_order,
   }
