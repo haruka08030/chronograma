@@ -1,5 +1,6 @@
 import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
 import type { Task } from '../types/task'
+import { isListedTimeLog } from './timeLogTask'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
 import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
@@ -65,7 +66,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
  */
 export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task[] {
   const filtered = getFilteredRootTasks(input)
-  const active = filtered.filter((t) => !t.completed)
+  const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
   const { selectedListId, sortMode, sections } = input
 
   if (!selectedListId || sortMode !== 'manual') {

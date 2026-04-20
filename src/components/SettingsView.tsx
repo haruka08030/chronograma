@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react'
 import { useTaskStore, LIST_COLOR_PALETTES } from '../store/taskStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AccountMenu } from './AccountMenu'
@@ -6,6 +7,16 @@ import { ThemeToggle } from './ThemeToggle'
 export function SettingsView() {
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const setListColorPalette = useTaskStore((s) => s.setListColorPalette)
+  const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
+  const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
+
+  useLayoutEffect(() => {
+    if (!settingsScrollTarget) return
+    const id =
+      settingsScrollTarget === 'appearance' ? 'settings-appearance' : 'settings-account'
+    document.getElementById(id)?.scrollIntoView({ block: 'start' })
+    clearSettingsScrollTarget()
+  }, [settingsScrollTarget, clearSettingsScrollTarget])
 
   return (
     <div className="max-w-2xl flex-1 space-y-8 overflow-y-auto px-6 py-8">
@@ -16,16 +27,31 @@ export function SettingsView() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">外観</h2>
-        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">ライトモードとダークモードを切り替えます。</p>
+      <section
+        id="settings-appearance"
+        className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
+      >
+        <h2 className="mb-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">外観</h2>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-zinc-700 dark:text-zinc-300">テーマ</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <svg
+              className="h-4 w-4 flex-shrink-0 text-zinc-500 dark:text-zinc-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden
+            >
+            </svg>
+          </div>
           <ThemeToggle />
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
+      <section
+        id="settings-account"
+        className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
+      >
         <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">アカウント</h2>
         <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
           メールのマジックリンクでログインすると、タスクなどを複数端末で同期できます。

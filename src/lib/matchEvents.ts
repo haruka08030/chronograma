@@ -53,7 +53,7 @@ const TITLE_THRESHOLD = 0.3
 const TIME_OVERLAP_THRESHOLD = 0.15
 const DRIFT_THRESHOLD_MINUTES = 10
 
-/** 予定（Google・習慣・自分で配置したタスク）と実績ログを突き合わせる */
+/** 予定（Google・習慣・自分で配置したタスク）とタイムログを突き合わせる */
 export function matchPlanAndActualForDate(
   planned: PlannedItem[],
   actualLogs: Task[],

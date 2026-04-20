@@ -2,25 +2,12 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { format, addDays, subDays, isToday } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel } from '../lib/timeGrid'
+import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, formatDuration } from '../lib/timeGrid'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
-}
-
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (h > 0 && m > 0) return `${h}時間${m}分`
-  if (h > 0) return `${h}時間`
-  return `${m}分`
-}
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)

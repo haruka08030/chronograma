@@ -164,7 +164,7 @@ function rowToTask(row: TaskRow): Task {
     priority,
     tags,
     recurrence,
-    isTimeLog: row.is_time_log,
+    isTimeLog: row.is_time_log === true,
   }
 }
 

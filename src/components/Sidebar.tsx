@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTaskStore, INBOX_LIST_ID, paletteColors, type SmartView } from '../store/taskStore'
+import { getAppInstallUrl } from '../lib/appInstallUrl'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -19,10 +20,16 @@ const OTHER_VIEWS: { id: SmartView; label: string; icon: string }[] = [
   { id: 'activity-log', label: 'ログ', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'stats', label: '統計', icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
   { id: 'habits', label: '習慣', icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z' },
-  { id: 'settings', label: '設定', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ]
 
 const TODO_OPENER_ICON = 'M4.5 12.75l6 6 9-13.5'
+
+const MENU_ICON_SETTINGS =
+  'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'
+const MENU_ICON_USER =
+  'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'
+const MENU_ICON_DOWNLOAD =
+  'M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3'
 
 function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick }: {
   list: TaskList
@@ -152,10 +159,28 @@ function renderSmartViewRow(
 }
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
-  const { lists, selectedListId, selectedView, selectList, selectView, addList, renameList, updateListColor, deleteList, exportData, importData, notificationsEnabled, toggleNotifications } = useTaskStore()
+  const {
+    lists,
+    selectedListId,
+    selectedView,
+    selectList,
+    selectView,
+    openSettingsWithScroll,
+    addList,
+    renameList,
+    updateListColor,
+    deleteList,
+    exportData,
+    importData,
+    notificationsEnabled,
+    toggleNotifications,
+  } = useTaskStore()
   const [todoPanelOpen, setTodoPanelOpen] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const accountMenuRootRef = useRef<HTMLDivElement>(null)
+  const accountMenuFirstItemRef = useRef<HTMLButtonElement>(null)
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -163,6 +188,13 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
+
+  /** メインが ToDo 一覧のときはサイドバー直下のリストを出さない（To‑Do パネル内では従来どおり） */
+  const isTodoRootSurface =
+    selectedView === null ||
+    selectedView === 'all' ||
+    selectedView === 'today' ||
+    selectedView === 'upcoming'
 
   const submitNew = () => {
     const trimmed = newName.trim()
@@ -181,6 +213,29 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     cb()
     onClose?.()
   }
+
+  const installUrl = getAppInstallUrl()
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      const root = accountMenuRootRef.current
+      if (root && !root.contains(e.target as Node)) setAccountMenuOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [accountMenuOpen])
+
+  useEffect(() => {
+    if (accountMenuOpen) accountMenuFirstItemRef.current?.focus()
+  }, [accountMenuOpen])
 
   const listsSection = (
     <>
@@ -283,10 +338,82 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             </svg>
           </button>
         ) : null}
-        <div className="w-7 h-7 rounded-lg bg-accent-500 flex items-center justify-center">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
+        <div className="relative shrink-0" ref={accountMenuRootRef}>
+          <button
+            type="button"
+            onClick={() => setAccountMenuOpen((o) => !o)}
+            aria-label="アカウントメニュー"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            title="アカウントメニュー"
+            className={`flex h-7 w-7 items-center justify-center rounded-lg text-white transition-colors
+              ${selectedView === 'settings' || accountMenuOpen
+                ? 'bg-accent-600 ring-2 ring-accent-400/40 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-900'
+                : 'bg-accent-500 hover:bg-accent-600'}`}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
+            </svg>
+          </button>
+          {accountMenuOpen ? (
+            <div
+              role="menu"
+              aria-label="設定・アカウント・アプリ"
+              className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <button
+                ref={accountMenuFirstItemRef}
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                onClick={() => {
+                  handleNav(() => openSettingsWithScroll('appearance'))
+                  setAccountMenuOpen(false)
+                }}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
+                </svg>
+                設定
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                onClick={() => {
+                  handleNav(() => openSettingsWithScroll('account'))
+                  setAccountMenuOpen(false)
+                }}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
+                </svg>
+                アカウント
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!installUrl}
+                title={
+                  installUrl
+                    ? '新しいタブで開きます'
+                    : '.env に VITE_APP_INSTALL_URL を設定すると有効になります'
+                }
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
+                onClick={() => {
+                  if (!installUrl) return
+                  window.open(installUrl, '_blank', 'noopener,noreferrer')
+                  handleNav(() => {})
+                  setAccountMenuOpen(false)
+                }}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
+                </svg>
+                アプリを入手する
+              </button>
+            </div>
+          ) : null}
         </div>
         <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Chronograma</span>
       </div>
@@ -317,8 +444,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <span className="flex-1">To‑Do</span>
             </button>
             {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
-            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            {listsSection}
+            {!isTodoRootSurface && (
+              <>
+                <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+                {listsSection}
+              </>
+            )}
           </>
         )}
       </nav>

@@ -4,6 +4,7 @@ import type { Task } from '../types/task'
 import { isToday, isPast, format, parseISO } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { isListedTimeLog } from '../lib/timeLogTask'
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
@@ -58,6 +59,7 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
   }
 
   const due = task.dueDate ? dueDateLabel(task.dueDate) : null
+  const timeLog = isListedTimeLog(task)
   const priorityColor = PRIORITY_COLORS[task.priority]
   const [isDragging, setIsDragging] = useState(false)
 
@@ -82,7 +84,7 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
       className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2 py-2' : 'px-3 py-2.5'}
-                  ${task.completed ? 'opacity-50' : ''}
+                  ${task.completed && !timeLog ? 'opacity-50' : ''}
                   ${isDragging ? 'opacity-30' : ''}`}
       onClick={(e) => {
         if (editing) return
@@ -126,12 +128,22 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
         onClick={(e) => { e.stopPropagation(); toggleTask(task.id) }}
         className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
           ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'}
-          ${task.completed
-            ? 'bg-accent-500 border-accent-500 text-white'
-            : priorityColor
-              ? `border-current ${priorityColor}`
-              : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'}`}
-        aria-label={task.completed ? 'タスクを未完了に戻す' : 'タスクを完了にする'}
+          ${
+            task.completed
+              ? timeLog
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'bg-accent-500 border-accent-500 text-white'
+              : priorityColor
+                ? `border-current ${priorityColor}`
+                : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'
+          }`}
+        aria-label={
+          task.completed
+            ? timeLog
+              ? 'タイムログを取り消して未完了に戻す'
+              : 'タスクを未完了に戻す'
+            : 'タスクを完了にする'
+        }
       >
         {task.completed && (
           <svg className={isSubtask ? 'w-2.5 h-2.5' : 'w-3 h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -160,14 +172,14 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
             onDoubleClick={(e) => { e.stopPropagation(); setEditing(true) }}
             className={`block truncate select-none
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
-                        ${task.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                        ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
             {task.title}
           </span>
         )}
 
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-          {due && !task.completed && (
+          {due && (!task.completed || timeLog) && (
             <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
               {due.text}
             </span>

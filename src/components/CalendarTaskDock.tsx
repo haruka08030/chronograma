@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
+import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 
@@ -29,8 +30,8 @@ export function CalendarTaskDock() {
     [tasks, dockListId, sortMode, filterTag, sections],
   )
 
-  const active = filtered.filter((t) => !t.completed)
-  const completed = filtered.filter((t) => t.completed)
+  const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+  const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
 
   return (
@@ -54,16 +55,16 @@ export function CalendarTaskDock() {
           </select>
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {active.length === 0 && completed.length === 0 && (
+          {active.length === 0 && completedTodos.length === 0 && (
             <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">タスクがありません</p>
           )}
           {active.map((t) => (
             <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
           ))}
-          {completed.length > 0 && (
+          {completedTodos.length > 0 && (
             <div className="pt-2">
               <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">完了</div>
-              {completed.map((t) => (
+              {completedTodos.map((t) => (
                 <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
               ))}
             </div>
