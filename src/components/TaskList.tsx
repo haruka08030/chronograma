@@ -6,6 +6,7 @@ import {
   getOrderedActiveRootTasksForDnD,
   sectionDropId,
 } from '../lib/mainListTasks'
+import { isListedTimeLog } from '../lib/timeLogTask'
 import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
@@ -152,16 +153,16 @@ export function TaskList() {
   const incompleteCount = useMemo(() => {
     let n = 0
     for (const p of filtered) {
-      if (!p.completed) n++
+      if (!p.completed && !isListedTimeLog(p)) n++
       for (const st of childrenByParent.get(p.id) ?? []) {
-        if (!st.completed) n++
+        if (!st.completed && !isListedTimeLog(st)) n++
       }
     }
     return n
   }, [filtered, childrenByParent])
 
   const active = useMemo(() => {
-    const incomplete = filtered.filter((t) => !t.completed)
+    const incomplete = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
     if (!showSectionBlocks) return incomplete
     return getOrderedActiveRootTasksForDnD({
       tasks,
@@ -192,7 +193,7 @@ export function TaskList() {
     }
     return rows
   }, [showSectionBlocks, selectedListId, listSectionsOrdered, active])
-  const completed = filtered.filter((t) => t.completed)
+  const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   const showQuickAdd = selectedView === null || selectedView === 'all' || selectedView === 'today' || selectedView === 'upcoming'
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
@@ -202,26 +203,26 @@ export function TaskList() {
     for (const p of active) {
       out.push(p.id)
       for (const st of childrenByParent.get(p.id) ?? []) {
-        if (!st.completed) out.push(st.id)
+        if (!st.completed && !isListedTimeLog(st)) out.push(st.id)
       }
     }
     return out
   }, [active, childrenByParent])
 
-  const flatCompletedIds = useMemo(() => {
+  const flatCompletedTodoIds = useMemo(() => {
     const out: string[] = []
-    for (const p of completed) {
+    for (const p of completedTodos) {
       out.push(p.id)
       for (const st of childrenByParent.get(p.id) ?? []) {
         out.push(st.id)
       }
     }
     return out
-  }, [completed, childrenByParent])
+  }, [completedTodos, childrenByParent])
 
   const flatCombined = useMemo(
-    () => [...flatActiveIds, ...flatCompletedIds],
-    [flatActiveIds, flatCompletedIds],
+    () => [...flatActiveIds, ...flatCompletedTodoIds],
+    [flatActiveIds, flatCompletedTodoIds],
   )
 
   const toggleInSelection = useCallback((taskId: string) => {
@@ -374,7 +375,7 @@ export function TaskList() {
                   selection={makeSelection(t.id)}
                 >
                   {(childrenByParent.get(t.id) ?? [])
-                    .filter((st) => !st.completed)
+                    .filter((st) => !st.completed && !isListedTimeLog(st))
                     .map((st) => (
                       <div key={st.id} className={subtaskNestWithDrag}>
                         <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
@@ -397,7 +398,7 @@ export function TaskList() {
             selection={makeSelection(t.id)}
           >
             {(childrenByParent.get(t.id) ?? [])
-              .filter((st) => !st.completed)
+              .filter((st) => !st.completed && !isListedTimeLog(st))
               .map((st) => (
                 <div key={st.id} className={subtaskNestWithDrag}>
                   <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
@@ -421,7 +422,7 @@ export function TaskList() {
           <div key={t.id}>
             <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
             {(childrenByParent.get(t.id) ?? [])
-              .filter((st) => !st.completed)
+              .filter((st) => !st.completed && !isListedTimeLog(st))
               .map((st) => (
                 <div key={st.id} className={subtaskNestNoDrag}>
                   <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
@@ -436,7 +437,7 @@ export function TaskList() {
       <div key={t.id}>
         <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
         {(childrenByParent.get(t.id) ?? [])
-          .filter((st) => !st.completed)
+          .filter((st) => !st.completed && !isListedTimeLog(st))
           .map((st) => (
             <div key={st.id} className={subtaskNestNoDrag}>
               <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
@@ -619,13 +620,13 @@ export function TaskList() {
 
           {activeContent}
 
-          {completed.length > 0 && (
+          {completedTodos.length > 0 && (
             <details className="pt-4">
               <summary className="text-xs font-medium text-zinc-400 dark:text-zinc-500 cursor-pointer select-none px-4 py-2">
-                完了済み ({completed.length})
+                完了済み ({completedTodos.length})
               </summary>
               <div className="space-y-0.5 mt-1">
-                {completed.map((t) => (
+                {completedTodos.map((t) => (
                   <div key={t.id}>
                     <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
                     {(childrenByParent.get(t.id) ?? []).map((st) => (

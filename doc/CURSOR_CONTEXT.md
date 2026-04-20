@@ -111,8 +111,9 @@
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
-  のままだが、`TaskList` / `CalendarTaskDock` では **「実績ログ」→「完了済み」**
-  の順で折りたたみ分離。`TaskItem` は実績ログ行に取り消し線を付けない（緑の
+  のまま。**ToDo 一覧（`TaskList`）とカレンダー横ドック（`CalendarTaskDock`）には
+  タイムログ行を出さない**（完了済みにも混ぜない）。確認・追加は「ログ」「予定 vs
+  ログ」や週カレンダーのログ列などで行う。`TaskItem` はタイムログ行に取り消し線を付けない（緑の
   円チェック）。`importData` は `is_time_log` を `isTimeLog` に正規化。永続化
   v13 でタスクの `is_time_log` をマージ。未完了件数・手動 DnD
   の未完了ルート（`getOrderedActiveRootTasksForDnD`）からは除外
