@@ -31,6 +31,13 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
       const d = parseISO(t.dueDate)
       return (isSameDay(d, today) || isBefore(today, d)) && (isBefore(d, limit) || isSameDay(d, limit))
     })
+  } else if (selectedView === 'overdue') {
+    const todayStart = startOfDay(new Date())
+    result = result.filter((t) => {
+      if (!t.dueDate) return false
+      const d = startOfDay(parseISO(t.dueDate))
+      return isBefore(d, todayStart)
+    })
   } else if (selectedView === 'all') {
     // all
   } else if (selectedListId) {

@@ -210,7 +210,8 @@ export default function App() {
     selectedView === null ||
     selectedView === 'all' ||
     selectedView === 'today' ||
-    selectedView === 'upcoming'
+    selectedView === 'upcoming' ||
+    selectedView === 'overdue'
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
   const showMobileChromeWhenHeaderHidden =
     hideGlobalHeader && selectedView !== 'calendar' && !searchQuery.trim()

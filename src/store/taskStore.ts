@@ -39,6 +39,7 @@ export type SmartView =
   | 'all'
   | 'today'
   | 'upcoming'
+  | 'overdue'
   | 'calendar'
   | 'plan-vs-actual'
   | 'activity-log'
