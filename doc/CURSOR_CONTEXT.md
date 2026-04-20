@@ -16,7 +16,7 @@
 
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React SPA**
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 12**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 13**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -64,6 +64,8 @@
 
 - `tasks`, `lists` — 既定リスト「未分類」ID: `__inbox__`（`INBOX_LIST_ID`）
 - `selectedListId`, `selectedView` — スマートビューとリスト選択は排他
+- `settingsScrollTarget`（`'appearance'` | `'account'` | `null`）—
+  `openSettingsWithScroll` で設定を開いた直後に `SettingsView` が該当セクションへスクロールし、直後にクリア（永続化しない）
 - `calendarMode`（`month` | `week`）— カレンダースマートビュー内の表示切替（永続化）
 - `theme`, `searchQuery`, `sortMode`, `filterTag`
 - `deletedTasks`（Undo）、`notificationsEnabled`
@@ -85,7 +87,8 @@
 次は **localStorage に保存されない**（リロードで初期化）:
 
 - `searchQuery`, `deletedTasks`, `quickAddRequested`, `filterTag`
-- `calendarEvents`, `googleAccessToken`, `manualRootDnDBlockIds`
+- `calendarEvents`, `googleAccessToken`, `moveBannerText`, `taskDragHoverListId`,
+  `settingsScrollTarget`
 
 ### タスク挙動メモ
 
@@ -107,7 +110,12 @@
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`,
-  `addTimeLog`, `addCompletedTaskWithTime`
+  `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
+  のままだが、`TaskList` / `CalendarTaskDock` では **「実績ログ」→「完了済み」**
+  の順で折りたたみ分離。`TaskItem` は実績ログ行に取り消し線を付けない（緑の
+  円チェック）。`importData` は `is_time_log` を `isTimeLog` に正規化。永続化
+  v13 でタスクの `is_time_log` をマージ。未完了件数・手動 DnD
+  の未完了ルート（`getOrderedActiveRootTasksForDnD`）からは除外
 - **import/export**: `exportData` / `importData`（JSON）。ダウンロード名
   `chronograma-backup-YYYY-MM-DD.json`
 
@@ -140,9 +148,9 @@
 
 | パス                                                    | 役割                                                                                         |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Sidebar.tsx`                                           | スマートビュー、To-Do 内は「全て／今日／近日中」→区切り→リスト、リスト選択のみ accent、モバイル |
+| `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。To-Do 内は「全て／今日／近日中」→区切り→リスト、モバイル |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`  | 一覧・ソート・DnD                                                                            |
-| `TaskDetail.tsx`                                        | 詳細編集                                                                                     |
+| `TaskDetail.tsx`                                        | 詳細編集。`isTimeLog` は行動ログ UI（記録日・時間・所要時間・削除）に切替え、優先度・リスト等は非表示 |
 | `QuickAdd.tsx`                                          | クイック追加                                                                                 |
 | `CalendarHubView.tsx`                                   | カレンダー用ハブ（月/週、ToDo ドック、md 未満でサイドバーを開くボタン）                       |
 | `CalendarTaskDock.tsx`                                  | カレンダー下部のリスト別 ToDo（ネイティブ DnD で月セル・週タイムラインへドロップ可）         |
@@ -151,13 +159,15 @@
 | `ActivityLogView.tsx`                                   | ログ                                                                                         |
 | `StatsView.tsx`                                         | 統計                                                                                         |
 | `HabitsView.tsx`                                        | 習慣の新規は上部フォーム、既存は各タイル内で編集・削除（達成は `PlanVsActualView` でトグル） |
-| `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット                       |
+| `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
 | `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |
 | `ThemeToggle.tsx`                                       | ライト・ダーク切替（主に設定画面）                                                           |
 | `FloatingTimer.tsx`, `UndoToast.tsx`                    | 周辺 UI                                                                                      |
 
-補助: `src/lib/timeGrid.ts`, `useTimelineDrag.ts`, `useTimelineDrop.ts`,
+補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` 等）, `useTimelineDrag.ts`（ブロックの
+`setPointerCapture` 後は `click` が届かないため、タップで詳細を開く処理は
+`onBlockTap` で `pointerup` 時に行う）, `useTimelineDrop.ts`,
 `notifications.ts`, `googleCalendar.ts`, `matchEvents.ts`,
 `plannedItemUtils.ts`, `id.ts` など。
 
@@ -173,6 +183,7 @@
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase
 - `VITE_GOOGLE_CLIENT_ID` — Google Calendar（任意）
+- `VITE_APP_INSTALL_URL` — 任意。設定時のみサイドバー「アプリを入手する」が有効（`src/lib/appInstallUrl.ts`）
 
 ## npm scripts
 

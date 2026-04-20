@@ -45,6 +45,10 @@ export type SmartView =
   | 'stats'
   | 'habits'
   | 'settings'
+
+/** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
+export type SettingsScrollTarget = 'appearance' | 'account'
+
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
 export type { ListColorPaletteId }
@@ -68,6 +72,8 @@ interface TaskState {
   lists: TaskList[]
   selectedListId: string | null
   selectedView: SmartView | null
+  /** 設定を開いた直後のみ使い、スクロール後にクリア */
+  settingsScrollTarget: SettingsScrollTarget | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
   calendarMode: CalendarMode
   theme: 'light' | 'dark'
@@ -107,6 +113,8 @@ interface TaskState {
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
+  openSettingsWithScroll: (target: SettingsScrollTarget) => void
+  clearSettingsScrollTarget: () => void
   setCalendarMode: (mode: CalendarMode) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
@@ -268,6 +276,7 @@ export const useTaskStore = create<TaskState>()(
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
       selectedView: null,
+      settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'month' as CalendarMode,
       theme: 'light',
       searchQuery: '',
@@ -378,8 +387,22 @@ export const useTaskStore = create<TaskState>()(
 
       setListColorPalette: (id) => set({ listColorPaletteId: id }),
 
-      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null }),
-      selectView: (view) => set({ selectedView: view, selectedListId: null, quickAddSectionId: null }),
+      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
+      selectView: (view) =>
+        set({
+          selectedView: view,
+          selectedListId: null,
+          quickAddSectionId: null,
+          settingsScrollTarget: null,
+        }),
+      openSettingsWithScroll: (target) =>
+        set({
+          selectedView: 'settings',
+          selectedListId: null,
+          quickAddSectionId: null,
+          settingsScrollTarget: target,
+        }),
+      clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
       setCalendarMode: (mode) => set({ calendarMode: mode }),
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSortMode: (mode) => set({ sortMode: mode }),
@@ -669,10 +692,17 @@ export const useTaskStore = create<TaskState>()(
             paletteRaw !== undefined && paletteRaw !== null
               ? normalizeListColorPaletteId(paletteRaw)
               : get().listColorPaletteId
-          const importedTasks = (data.tasks as Task[]).map((t) => ({
-            ...t,
-            sectionId: t.sectionId ?? null,
-          }))
+          const importedTasks = (data.tasks as unknown[]).map((raw) => {
+            const row = raw as Record<string, unknown>
+            const t = raw as Task
+            const isTimeLog =
+              t.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true'
+            return {
+              ...t,
+              sectionId: t.sectionId ?? null,
+              isTimeLog: Boolean(isTimeLog),
+            }
+          })
           set({
             tasks: importedTasks,
             lists: data.lists,
@@ -689,7 +719,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: PERSIST_STORAGE_KEY,
-      version: 12,
+      version: 13,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -769,6 +799,13 @@ export const useTaskStore = create<TaskState>()(
             state.calendarMode = cm === 'week' || cm === 'month' ? cm : 'month'
           }
         }
+        if (version < 13) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => ({
+            ...t,
+            isTimeLog: t.isTimeLog === true || t.is_time_log === true,
+          }))
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
@@ -781,6 +818,7 @@ export const useTaskStore = create<TaskState>()(
           googleAccessToken,
           moveBannerText,
           taskDragHoverListId,
+          settingsScrollTarget,
           ...rest
         } = state
         void searchQuery
@@ -791,6 +829,7 @@ export const useTaskStore = create<TaskState>()(
         void googleAccessToken
         void moveBannerText
         void taskDragHoverListId
+        void settingsScrollTarget
         return rest as unknown as TaskState
       },
     },
