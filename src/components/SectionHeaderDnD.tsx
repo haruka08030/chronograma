@@ -42,18 +42,19 @@ export function SectionHeaderDnD({
         ${isOver ? 'ring-2 ring-accent-400/50' : ''}
         ${isDragging ? 'opacity-70' : ''}`}
     >
-      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      <div className="min-w-0 flex-1">{titleButton}</div>
+      <div className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           {...listeners}
           {...attributes}
-          className="touch-none flex-shrink-0 p-1 rounded-md cursor-grab active:cursor-grabbing
+          className="touch-none flex-shrink-0 rounded-md p-1 cursor-grab active:cursor-grabbing
                      text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400
                      hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80"
           title="セクションを並べ替え"
           aria-label="セクションを並べ替え"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <circle cx="9" cy="6" r="1.5" />
             <circle cx="15" cy="6" r="1.5" />
             <circle cx="9" cy="12" r="1.5" />
@@ -62,9 +63,8 @@ export function SectionHeaderDnD({
             <circle cx="15" cy="18" r="1.5" />
           </svg>
         </button>
-        <div className="min-w-0 flex-1">{titleButton}</div>
+        {actions}
       </div>
-      {actions}
     </div>
   )
 }

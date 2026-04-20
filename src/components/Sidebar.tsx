@@ -66,53 +66,49 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
     >
-      <div className="flex shrink-0 items-center justify-center -ml-1 p-0.5 touch-none">
-        {!isInbox ? (
-          <button
-            {...attributes}
-            {...listeners}
-            className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing"
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg className="w-3 h-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
-            </svg>
-          </button>
-        ) : (
-          <span className="block h-3 w-3 shrink-0" aria-hidden />
-        )}
-      </div>
-
       <button
         type="button"
         disabled={isInbox}
         onClick={(e) => { e.stopPropagation(); onColorPick() }}
-        className="w-3 h-3 min-w-[12px] min-h-[12px] rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/10
+        className="w-3 h-3 min-w-[12px] min-h-[12px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
           touch-manipulation disabled:opacity-60 disabled:cursor-default"
         style={{ backgroundColor: list.color }}
         aria-label={isInbox ? '未分類（色は固定）' : '色を変更'}
         tabIndex={-1}
       />
 
-      <span className="flex-1 min-w-0 truncate">{list.name}</span>
+      <span className="min-w-0 flex-1 truncate">{list.name}</span>
 
-      <div className="flex shrink-0 items-center justify-center p-0.5">
-        {!isInbox ? (
+      {!isInbox ? (
+        <>
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="opacity-0 group-hover:opacity-100 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+            {...attributes}
+            {...listeners}
+            type="button"
+            className="touch-none shrink-0 rounded p-0.5 opacity-0 cursor-grab group-hover:opacity-100 active:cursor-grabbing"
+            tabIndex={-1}
+            title="リストを並べ替え"
+            aria-label="リストを並べ替え"
+            onClick={(e) => e.stopPropagation()}
           >
-            <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-3 w-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
+              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
+              <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            aria-label="リストを削除"
+          >
+            <svg className="h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-        ) : (
-          <span className="block h-3.5 w-3.5 shrink-0" aria-hidden />
-        )}
-      </div>
+        </>
+      ) : null}
     </div>
   )
 }
