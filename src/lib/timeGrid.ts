@@ -25,6 +25,15 @@ export function timeToMinutes(time: string): number {
   return h * 60 + m
 }
 
+/** 分単位の長さを日本語表示（例: 1時間15分） */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h > 0 && m > 0) return `${h}時間${m}分`
+  if (h > 0) return `${h}時間`
+  return `${m}分`
+}
+
 export function blockHeight(startTime: string, endTime: string): number {
   const startY = timeToY(startTime)
   const endY = timeToY(endTime)
