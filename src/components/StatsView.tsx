@@ -2,14 +2,16 @@ import { useMemo } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { isListedTimeLog } from '../lib/timeLogTask'
 
 export function StatsView() {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
 
   const stats = useMemo(() => {
-    const completed = tasks.filter((t) => t.completed && t.parentId === null)
-    const active = tasks.filter((t) => !t.completed && t.parentId === null)
+    const countedTasks = tasks.filter((t) => t.parentId === null && !isListedTimeLog(t))
+    const completed = countedTasks.filter((t) => t.completed)
+    const active = countedTasks.filter((t) => !t.completed)
     const today = startOfDay(new Date())
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
     const monthStart = startOfMonth(new Date())

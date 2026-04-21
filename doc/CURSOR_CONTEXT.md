@@ -16,7 +16,7 @@
 
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React SPA**
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 13**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 14**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -100,6 +100,8 @@
   付きサブタスクを親の直下にインデント表示（DnD
   手動ソート時は親行にぶら下げて移動）。`QuickAdd`
   はリスト用スクロール領域の**先頭**（未完了行の直下でタスク行より上）。確定は **⌘/Ctrl+Enter**（Enter のみでは追加しない）
+- 一覧の**予定タスク**（`dueDate` + `startTime` + `endTime` あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了` / `時間をずらして実行` を選び、開始・終了時刻をピッカーで調整し、**メモ必須**で保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする
+- `PlanVsActualView` の左列（自分の予定タスク）もクリックで同じ「完了を記録」モーダルを開く。ドラッグ/リサイズ時は従来どおり時間調整を優先し、クリック時のみ完了フローへ入る
 - **タイトル行**: ダブルクリックで名前をインライン編集。タイトル文字上のシングルクリックで詳細を開く挙動は短い遅延後（ダブルクリックと競合しないため）。修飾キー・一括選択中のタイトルクリックは従来どおり即時
 - **一覧の複数選択**:
   ⌘/Ctrl+クリックでトグル、Shift+クリックで表示順の範囲、何か選択中は通常クリックもトグル。左端の四角チェック（ホバーまたは選択中に表示）。Escape
@@ -160,8 +162,8 @@
 | `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月グリッド・週タイムライン（ハブから利用）                                                   |
 | `PlanVsActualView.tsx`                                  | 予定 vs ログ（ログ列ブロックは `tagColors.ts` で先頭タグに応じた色、タグなしはエメラルド）   |
 | `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
-| `StatsView.tsx`                                         | 統計                                                                                         |
-| `HabitsView.tsx`                                        | 習慣の新規は上部フォーム、既存は各タイル内で編集・削除（達成は `PlanVsActualView` でトグル） |
+| `StatsView.tsx`                                         | 統計（ルートの通常タスクのみ集計、タイムログは除外）                                         |
+| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は `Add Habit` で展開、既存はカードから編集・削除 |
 | `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
 | `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |
