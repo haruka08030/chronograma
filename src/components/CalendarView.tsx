@@ -15,6 +15,7 @@ import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { isListedTimeLog } from '../lib/timeLogTask'
 
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
 
@@ -68,7 +69,7 @@ export function CalendarView() {
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId) continue
+      if (!t.dueDate || t.parentId || isListedTimeLog(t)) continue
       const key = t.dueDate
       const arr = map.get(key) ?? []
       arr.push(t)
