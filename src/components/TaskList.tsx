@@ -13,7 +13,7 @@ import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
-import type { Priority } from '../types/task'
+import type { Priority, Task } from '../types/task'
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -50,6 +50,116 @@ const BULK_PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: 'none', label: 'なし' },
 ]
 
+type CompletionMode = 'as-planned' | 'shifted'
+
+interface CompleteWithLogDraft {
+  taskId: string
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  memo: string
+  mode: CompletionMode
+  tags: string[]
+}
+
+function CompleteWithLogModal({
+  draft,
+  onClose,
+  onChange,
+  onSubmit,
+}: {
+  draft: CompleteWithLogDraft
+  onClose: () => void
+  onChange: (patch: Partial<CompleteWithLogDraft>) => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
+      <div
+        className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">完了を記録</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          実績ログを作成してから、予定タスクを完了にします。
+        </p>
+
+        <div className="mt-4 space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="completion-mode"
+              checked={draft.mode === 'as-planned'}
+              onChange={() => onChange({ mode: 'as-planned' })}
+            />
+            <span className="text-zinc-700 dark:text-zinc-300">予定どおり完了</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="completion-mode"
+              checked={draft.mode === 'shifted'}
+              onChange={() => onChange({ mode: 'shifted' })}
+            />
+            <span className="text-zinc-700 dark:text-zinc-300">時間をずらして実行</span>
+          </label>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
+            <input
+              type="time"
+              value={draft.startTime}
+              onChange={(e) => onChange({ startTime: e.target.value, mode: 'shifted' })}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
+            <input
+              type="time"
+              value={draft.endTime}
+              onChange={(e) => onChange({ endTime: e.target.value, mode: 'shifted' })}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">メモ（任意）</label>
+          <textarea
+            value={draft.memo}
+            onChange={(e) => onChange({ memo: e.target.value })}
+            rows={4}
+            placeholder="実行内容のメモを入力"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600"
+          >
+            保存して完了
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TaskList() {
   const tasks = useTaskStore((s) => s.tasks)
   const selectedListId = useTaskStore((s) => s.selectedListId)
@@ -60,6 +170,7 @@ export function TaskList() {
   const filterTag = useTaskStore((s) => s.filterTag)
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
+  const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const sections = useTaskStore((s) => s.sections)
@@ -72,6 +183,7 @@ export function TaskList() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
 
@@ -202,6 +314,46 @@ export function TaskList() {
     selectedView === 'overdue'
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
   const canDrag = sortMode === 'manual'
+
+  const openCompleteWithLog = useCallback((task: Task) => {
+    if (task.completed || isListedTimeLog(task) || !task.dueDate || !task.startTime || !task.endTime) {
+      toggleTask(task.id)
+      return
+    }
+    setCompletionDraft({
+      taskId: task.id,
+      title: task.title,
+      date: task.dueDate,
+      startTime: task.startTime,
+      endTime: task.endTime,
+      memo: task.description.trim(),
+      mode: 'as-planned',
+      tags: [...task.tags],
+    })
+  }, [toggleTask])
+
+  const submitCompleteWithLog = useCallback(() => {
+    if (!completionDraft) return
+    const memo = completionDraft.memo.trim()
+    const toMin = (v: string) => {
+      const [h, m] = v.split(':').map(Number)
+      return h * 60 + m
+    }
+    if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
+      alert('終了時刻は開始時刻より後にしてください')
+      return
+    }
+    addTimeLog(
+      completionDraft.title,
+      completionDraft.date,
+      completionDraft.startTime,
+      completionDraft.endTime,
+      completionDraft.tags,
+      memo || undefined,
+    )
+    toggleTask(completionDraft.taskId)
+    setCompletionDraft(null)
+  }, [completionDraft, addTimeLog, toggleTask])
 
   const flatActiveIds = useMemo(() => {
     const out: string[] = []
@@ -377,13 +529,20 @@ export function TaskList() {
                   key={t.id}
                   task={t}
                   onRowClick={makeRowClick(t.id)}
+                  onCompleteRequest={openCompleteWithLog}
                   selection={makeSelection(t.id)}
                 >
                   {(childrenByParent.get(t.id) ?? [])
                     .filter((st) => !st.completed && !isListedTimeLog(st))
                     .map((st) => (
                       <div key={st.id} className={subtaskNestWithDrag}>
-                        <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
+                        <TaskItem
+                          task={st}
+                          isSubtask
+                          onRowClick={makeRowClick(st.id)}
+                          onCompleteRequest={openCompleteWithLog}
+                          selection={makeSelection(st.id)}
+                        />
                       </div>
                     ))}
                 </SortableTaskItem>
@@ -400,13 +559,20 @@ export function TaskList() {
             key={t.id}
             task={t}
             onRowClick={makeRowClick(t.id)}
+            onCompleteRequest={openCompleteWithLog}
             selection={makeSelection(t.id)}
           >
             {(childrenByParent.get(t.id) ?? [])
               .filter((st) => !st.completed && !isListedTimeLog(st))
               .map((st) => (
                 <div key={st.id} className={subtaskNestWithDrag}>
-                  <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
+                  <TaskItem
+                    task={st}
+                    isSubtask
+                    onRowClick={makeRowClick(st.id)}
+                    onCompleteRequest={openCompleteWithLog}
+                    selection={makeSelection(st.id)}
+                  />
                 </div>
               ))}
           </SortableTaskItem>
@@ -425,12 +591,23 @@ export function TaskList() {
         </button>
         {block.tasks.map((t) => (
           <div key={t.id}>
-            <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
+            <TaskItem
+              task={t}
+              onRowClick={makeRowClick(t.id)}
+              onCompleteRequest={openCompleteWithLog}
+              selection={makeSelection(t.id)}
+            />
             {(childrenByParent.get(t.id) ?? [])
               .filter((st) => !st.completed && !isListedTimeLog(st))
               .map((st) => (
                 <div key={st.id} className={subtaskNestNoDrag}>
-                  <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
+                  <TaskItem
+                    task={st}
+                    isSubtask
+                    onRowClick={makeRowClick(st.id)}
+                    onCompleteRequest={openCompleteWithLog}
+                    selection={makeSelection(st.id)}
+                  />
                 </div>
               ))}
           </div>
@@ -440,12 +617,23 @@ export function TaskList() {
   ) : (
     active.map((t) => (
       <div key={t.id}>
-        <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
+        <TaskItem
+          task={t}
+          onRowClick={makeRowClick(t.id)}
+          onCompleteRequest={openCompleteWithLog}
+          selection={makeSelection(t.id)}
+        />
         {(childrenByParent.get(t.id) ?? [])
           .filter((st) => !st.completed && !isListedTimeLog(st))
           .map((st) => (
             <div key={st.id} className={subtaskNestNoDrag}>
-              <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
+              <TaskItem
+                task={st}
+                isSubtask
+                onRowClick={makeRowClick(st.id)}
+                onCompleteRequest={openCompleteWithLog}
+                selection={makeSelection(st.id)}
+              />
             </div>
           ))}
       </div>
@@ -633,10 +821,21 @@ export function TaskList() {
               <div className="space-y-0.5 mt-1">
                 {completedTodos.map((t) => (
                   <div key={t.id}>
-                    <TaskItem task={t} onRowClick={makeRowClick(t.id)} selection={makeSelection(t.id)} />
+                    <TaskItem
+                      task={t}
+                      onRowClick={makeRowClick(t.id)}
+                      onCompleteRequest={openCompleteWithLog}
+                      selection={makeSelection(t.id)}
+                    />
                     {(childrenByParent.get(t.id) ?? []).map((st) => (
                       <div key={st.id} className={subtaskNestNoDrag}>
-                        <TaskItem task={st} isSubtask onRowClick={makeRowClick(st.id)} selection={makeSelection(st.id)} />
+                        <TaskItem
+                          task={st}
+                          isSubtask
+                          onRowClick={makeRowClick(st.id)}
+                          onCompleteRequest={openCompleteWithLog}
+                          selection={makeSelection(st.id)}
+                        />
                       </div>
                     ))}
                   </div>
@@ -649,6 +848,14 @@ export function TaskList() {
 
       {detailTask && (
         <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
+      )}
+      {completionDraft && (
+        <CompleteWithLogModal
+          draft={completionDraft}
+          onClose={() => setCompletionDraft(null)}
+          onChange={(patch) => setCompletionDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
+          onSubmit={submitCompleteWithLog}
+        />
       )}
     </>
   )

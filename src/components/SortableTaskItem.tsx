@@ -10,12 +10,14 @@ export function SortableTaskItem({
   task,
   onClick,
   onRowClick,
+  onCompleteRequest,
   selection,
   children,
 }: {
   task: Task
   onClick?: () => void
   onRowClick?: (e: MouseEvent) => void
+  onCompleteRequest?: (task: Task) => void
   selection?: TaskItemSelection
   /** 一覧内サブタスク（DnD 時は親とまとめて移動） */
   children?: ReactNode
@@ -57,7 +59,14 @@ export function SortableTaskItem({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <TaskItem task={task} onClick={onClick} onRowClick={onRowClick} selection={selection} dragHandle={handle} />
+      <TaskItem
+        task={task}
+        onClick={onClick}
+        onRowClick={onRowClick}
+        onCompleteRequest={onCompleteRequest}
+        selection={selection}
+        dragHandle={handle}
+      />
       {children}
     </div>
   )

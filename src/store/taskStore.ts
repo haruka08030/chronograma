@@ -143,7 +143,14 @@ interface TaskState {
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string) => void
-  addTimeLog: (title: string, date: string, startTime: string, endTime: string, tags?: string[]) => void
+  addTimeLog: (
+    title: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+    tags?: string[],
+    description?: string,
+  ) => void
   startTimer: (title: string, tags?: string[]) => void
   stopTimer: () => void
   toggleTask: (id: string) => void
@@ -495,9 +502,16 @@ export const useTaskStore = create<TaskState>()(
           ],
         }))
       },
-      addTimeLog: (title, date, startTime, endTime, tags) => {
+      addTimeLog: (title, date, startTime, endTime, tags, description) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags }, maxOrder + 1)] }))
+        const log = makeTask(
+          { title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags },
+          maxOrder + 1,
+        )
+        if (description !== undefined) {
+          log.description = description
+        }
+        set((s) => ({ tasks: [...s.tasks, log] }))
       },
       startTimer: (title, tags) => {
         set({ activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [] } })

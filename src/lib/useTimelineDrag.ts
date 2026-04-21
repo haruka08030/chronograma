@@ -76,12 +76,14 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent) => {
     if (popup) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
     setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent })
   }, [getRelativeY, popup, defaultCreateIntent])
 
@@ -100,6 +102,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     const blockHeight = rect.height
 
     didMoveRef.current = false
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
 
     if (gridEl) gridEl.setPointerCapture(e.pointerId)
 
@@ -118,17 +121,20 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drag) return
+    const p0 = pointerStartRef.current
+    if (p0 && !didMoveRef.current) {
+      const dx = Math.abs(e.clientX - p0.x)
+      const dy = Math.abs(e.clientY - p0.y)
+      if (dx > 6 || dy > 6) didMoveRef.current = true
+    }
     const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX) : null) ?? drag.dateKey
     const y = getRelativeY(e.clientY, dateKey)
 
     if (drag.kind === 'create') {
-      if (Math.abs(y - drag.startY) > 3) didMoveRef.current = true
       setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: y, dateKey } : prev)
     } else if (drag.kind === 'move') {
-      if (Math.abs(y - drag.currentY) > 3) didMoveRef.current = true
       setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
     } else {
-      if (Math.abs(y - drag.currentY) > 3) didMoveRef.current = true
       setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
     }
   }, [drag, getRelativeY, getDateKeyFromX])
@@ -138,7 +144,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (drag.kind === 'create') {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
-      if (maxY - minY < 5) { setDrag(null); return }
+      if (maxY - minY < 5) {
+        setDrag(null)
+        pointerStartRef.current = null
+        return
+      }
       setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
@@ -169,6 +179,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       }
     }
     setDrag(null)
+    pointerStartRef.current = null
   }, [drag, onMoveDone, onResizeDone, onBlockTap])
 
   const dismissPopup = useCallback(() => { setPopup(null) }, [])

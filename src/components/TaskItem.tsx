@@ -26,11 +26,13 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, selection }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHandle, isSubtask, selection }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
   onRowClick?: (e: React.MouseEvent) => void
+  /** 未完了タスクを完了する直前のフック。指定時は通常トグルより優先。 */
+  onCompleteRequest?: (task: Task) => void
   dragHandle?: React.ReactNode
   /** TickTick 風一覧のインデント行 */
   isSubtask?: boolean
@@ -43,10 +45,6 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
   const inputRef = useRef<HTMLInputElement>(null)
   /** タイトル1クリックが詳細オープンと競合しないよう遅延（ダブルクリックで編集） */
   const titleOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    if (!editing) setEditValue(task.title)
-  }, [task.title, task.id, editing])
 
   useEffect(() => {
     return () => {
@@ -162,7 +160,14 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
       ) : null}
 
       <button
-        onClick={(e) => { e.stopPropagation(); toggleTask(task.id) }}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!task.completed && !timeLog && onCompleteRequest) {
+            onCompleteRequest(task)
+            return
+          }
+          toggleTask(task.id)
+        }}
         className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
           ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'}
           ${
@@ -175,7 +180,9 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
                 : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'
           }`}
         aria-label={
-          task.completed
+          !task.completed && !timeLog && onCompleteRequest
+            ? '完了としてログを記録する'
+            : task.completed
             ? timeLog
               ? 'タイムログを取り消して未完了に戻す'
               : 'タスクを未完了に戻す'

@@ -12,7 +12,7 @@ import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes } from '../lib/timeGrid'
-import { matchPlanAndActualForDate, type MatchedPair } from '../lib/matchEvents'
+import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
@@ -29,71 +29,102 @@ import type { PlannedItem } from '../types/plannedItem'
 import type { Task } from '../types/task'
 import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/plannedItemUtils'
 import { habitToPlannedItem } from '../lib/habitSlots'
-import { logBlockAccentFromTags, timeLogTagUniverse, type LogBlockAccent } from '../lib/tagColors'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function sourceStyles(source: PlannedItem['source'], matchStatus?: MatchedPair): {
+/** 予定 vs ログ: ソース種別ではなくマッチステータスで色を統一 */
+function blockStylesForStatus(status: MatchStatus): {
   borderClass: string
   bgClass: string
   textClass: string
 } {
-  if (matchStatus?.status === 'time-drift') {
-    return {
-      borderClass: 'border-amber-400 dark:border-amber-500/60',
-      bgClass: 'bg-amber-50 dark:bg-amber-500/10',
-      textClass: 'text-amber-800 dark:text-amber-200',
-    }
-  }
-  if (matchStatus?.status === 'planned-only') {
-    return {
-      borderClass: 'border-red-300 dark:border-red-500/40 border-dashed',
-      bgClass: 'bg-red-50/60 dark:bg-red-500/10',
-      textClass: 'text-red-800 dark:text-red-200',
-    }
-  }
-  switch (source) {
-    case 'google':
+  switch (status) {
+    case 'matched':
       return {
-        borderClass: 'border-blue-300 dark:border-blue-500/40',
-        bgClass: 'bg-blue-50 dark:bg-blue-500/15',
-        textClass: 'text-blue-800 dark:text-blue-200',
+        borderClass: 'border-emerald-400 dark:border-emerald-500/50',
+        bgClass: 'bg-emerald-50 dark:bg-emerald-500/15',
+        textClass: 'text-emerald-900 dark:text-emerald-100',
       }
-    case 'scheduled-task':
+    case 'time-drift':
       return {
-        borderClass: 'border-cyan-400 dark:border-cyan-500/40',
-        bgClass: 'bg-cyan-50 dark:bg-cyan-500/15',
-        textClass: 'text-cyan-800 dark:text-cyan-200',
+        borderClass: 'border-amber-400 dark:border-amber-500/60',
+        bgClass: 'bg-amber-50 dark:bg-amber-500/10',
+        textClass: 'text-amber-800 dark:text-amber-200',
       }
-    case 'habit':
+    case 'planned-only':
       return {
-        borderClass: 'border-amber-400 dark:border-amber-500/50',
-        bgClass: 'bg-amber-50/90 dark:bg-amber-500/15',
-        textClass: 'text-amber-900 dark:text-amber-100',
+        borderClass: 'border-red-300 dark:border-red-500/40 border-dashed',
+        bgClass: 'bg-red-50/60 dark:bg-red-500/10',
+        textClass: 'text-red-800 dark:text-red-200',
+      }
+    case 'actual-only':
+      return {
+        borderClass: 'border-purple-300 dark:border-purple-500/40',
+        bgClass: 'bg-purple-50 dark:bg-purple-500/15',
+        textClass: 'text-purple-800 dark:text-purple-200',
       }
     default:
       return {
-        borderClass: 'border-zinc-300 dark:border-zinc-600',
-        bgClass: 'bg-zinc-50 dark:bg-zinc-800',
+        borderClass: 'border-zinc-200 dark:border-zinc-600',
+        bgClass: 'bg-zinc-50 dark:bg-zinc-800/80',
         textClass: 'text-zinc-800 dark:text-zinc-200',
       }
   }
 }
 
-function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompleted, onHabitToggle }: {
+function neutralPlanStyles(): { borderClass: string; bgClass: string; textClass: string } {
+  return {
+    borderClass: 'border-zinc-200 dark:border-zinc-600',
+    bgClass: 'bg-zinc-50 dark:bg-zinc-800/80',
+    textClass: 'text-zinc-800 dark:text-zinc-200',
+  }
+}
+
+/** 左列（予定）: マッチ結果。タスク完了・習慣達成のみの場合は実行済み色に寄せる */
+function planBlockStyles(
+  matchStatus: MatchedPair | undefined,
+  opts?: { habitCompleted?: boolean; taskCompleted?: boolean; isHabit?: boolean },
+): { borderClass: string; bgClass: string; textClass: string } {
+  if (opts?.taskCompleted) {
+    return blockStylesForStatus('matched')
+  }
+  if (opts?.isHabit && opts?.habitCompleted) {
+    const st = matchStatus?.status
+    if (st === 'planned-only' || st === undefined) {
+      return blockStylesForStatus('matched')
+    }
+  }
+  if (!matchStatus) return neutralPlanStyles()
+  return blockStylesForStatus(matchStatus.status)
+}
+
+/** 右列（ログ）: マッチステータスのみ（タグ色は使わない） */
+function actualBlockStyles(matchStatus: MatchedPair | undefined): {
+  borderClass: string
+  bgClass: string
+  textClass: string
+} {
+  if (!matchStatus) return neutralPlanStyles()
+  return blockStylesForStatus(matchStatus.status)
+}
+
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompleted, onOpen }: {
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
   onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
   habitCompleted?: boolean
-  onHabitToggle?: () => void
+  onOpen?: () => void
 }) {
   const top = timeToY(item.startTime)
   const height = Math.max(timeToY(item.endTime) - top, HOUR_HEIGHT / 4)
 
   const isDone = matchStatus?.status === 'matched' || matchStatus?.status === 'time-drift'
-  const styles = sourceStyles(item.source, matchStatus)
+  const styles = planBlockStyles(matchStatus, {
+    isHabit: item.source === 'habit',
+    habitCompleted,
+  })
 
   let label: string | null = null
   if (matchStatus?.status === 'time-drift') {
@@ -105,8 +136,17 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
   return (
     <div
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden
-        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned`}
+        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned
+        ${onOpen ? 'cursor-pointer' : ''}`}
       style={{ top, height, minHeight: 18 }}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+      }}
+      onClick={(e) => {
+        if (!onOpen) return
+        e.stopPropagation()
+        onOpen()
+      }}
     >
       <div className="flex items-start gap-0.5">
         <span className="font-medium truncate flex-1">{item.summary}</span>
@@ -116,7 +156,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
               e.stopPropagation()
               onGoogleDone(item.summary, dateKey, item.startTime, item.endTime)
             }}
-            className="flex-shrink-0 w-4 h-4 rounded-full border border-blue-300 dark:border-blue-500/50
+            className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
                        transition-colors opacity-0 group-hover/planned:opacity-100 flex items-center justify-center"
             title="実績として記録"
@@ -126,22 +166,6 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
             </svg>
           </button>
         )}
-        {item.source === 'habit' && onHabitToggle && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onHabitToggle()
-            }}
-            className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center text-[10px]
-              ${habitCompleted
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'border-amber-400 dark:border-amber-500/60 opacity-80 group-hover/planned:opacity-100'}`}
-            title={habitCompleted ? '未達に戻す' : '達成にする'}
-          >
-            {habitCompleted ? '✓' : ''}
-          </button>
-        )}
       </div>
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
@@ -149,10 +173,8 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
         </span>
       )}
       {label && (
-        <span className="block text-[9px] font-semibold mt-0.5 text-amber-600 dark:text-amber-400">
-          {matchStatus?.status === 'planned-only'
-            ? <span className="text-red-500 dark:text-red-400">{label}</span>
-            : label}
+        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>
+          {label}
         </span>
       )}
     </div>
@@ -168,20 +190,12 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   const top = timeToY(task.startTime!)
   const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
 
-  let borderClass = 'border-cyan-400 dark:border-cyan-500/40'
-  let bgClass = 'bg-cyan-50 dark:bg-cyan-500/15'
+  const styles = planBlockStyles(matchStatus, { taskCompleted: task.completed })
   let label: string | null = null
 
-  if (task.completed) {
-    borderClass = 'border-zinc-200 dark:border-zinc-700'
-    bgClass = 'bg-zinc-100 dark:bg-zinc-800'
-  } else if (matchStatus?.status === 'time-drift') {
-    borderClass = 'border-amber-400 dark:border-amber-500/60'
-    bgClass = 'bg-amber-50 dark:bg-amber-500/10'
+  if (matchStatus?.status === 'time-drift') {
     label = `${matchStatus.driftMinutes}分ズレ`
-  } else if (matchStatus?.status === 'planned-only') {
-    borderClass = 'border-red-300 dark:border-red-500/40 border-dashed'
-    bgClass = 'bg-red-50/60 dark:bg-red-500/10'
+  } else if (matchStatus?.status === 'planned-only' && !task.completed) {
     label = '未実行'
   }
 
@@ -193,6 +207,10 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   return (
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpenDetail()
+      }}
       onPointerMove={handlePointerMoveLocal}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -203,8 +221,8 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
-        ${borderClass} ${bgClass}
-        ${task.completed ? 'text-zinc-400 line-through' : 'text-cyan-900 dark:text-cyan-100'}`}
+        ${styles.borderClass} ${styles.bgClass} ${styles.textClass}
+        ${task.completed ? 'line-through opacity-80' : ''}`}
       style={{ top, height, minHeight: 18 }}
     >
       <span className="font-medium truncate block">{task.title}</span>
@@ -214,15 +232,14 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
         </span>
       )}
       {label && (
-        <span className="block text-[9px] font-semibold mt-0.5 text-red-500 dark:text-red-400">{label}</span>
+        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>{label}</span>
       )}
     </button>
   )
 }
 
-function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }: {
+function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   task: { id: string; title: string; startTime: string; endTime: string }
-  accent: LogBlockAccent
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
@@ -230,18 +247,12 @@ function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }:
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
-  let borderClass = accent.border
-  let bgClass = accent.bg
-  let textClass = accent.text
+  const styles = actualBlockStyles(matchStatus)
   let label: string | null = null
 
   if (matchStatus?.status === 'time-drift') {
-    borderClass = 'border-amber-400 dark:border-amber-500/60'
-    bgClass = 'bg-amber-50 dark:bg-amber-500/10'
     label = `${matchStatus.driftMinutes}分ズレ`
   } else if (matchStatus?.status === 'actual-only') {
-    borderClass = 'border-purple-300 dark:border-purple-500/40'
-    bgClass = 'bg-purple-50 dark:bg-purple-500/15'
     label = '予定外'
   }
 
@@ -253,6 +264,10 @@ function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }:
   return (
     <button
       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpenDetail()
+      }}
       onPointerMove={handlePointerMoveLocal}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -263,8 +278,7 @@ function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }:
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
-        ${borderClass} ${bgClass}
-        ${textClass}`}
+        ${styles.borderClass} ${styles.bgClass} ${styles.textClass}`}
       style={{ top, height, minHeight: 18 }}
     >
       <span className="font-medium truncate block">{task.title}</span>
@@ -274,10 +288,8 @@ function ActualBlock({ task, matchStatus, accent, onPointerDown, onOpenDetail }:
         </span>
       )}
       {label && (
-        <span className="block text-[9px] font-semibold mt-0.5">
-          {matchStatus?.status === 'actual-only'
-            ? <span className="text-purple-600 dark:text-purple-400">{label}</span>
-            : <span className="text-amber-600 dark:text-amber-400">{label}</span>}
+        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>
+          {label}
         </span>
       )}
     </button>
@@ -430,35 +442,144 @@ function GoogleConnectBanner() {
 }
 
 function Legend() {
+  const matched = blockStylesForStatus('matched')
+  const drift = blockStylesForStatus('time-drift')
+  const plannedOnly = blockStylesForStatus('planned-only')
+  const actualOnly = blockStylesForStatus('actual-only')
+  const neutral = neutralPlanStyles()
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2 text-[11px]">
       <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-blue-100 dark:bg-blue-500/20 border border-blue-300 dark:border-blue-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">Google</span>
+        <div className={`w-3 h-3 rounded-sm border ${matched.bgClass} ${matched.borderClass}`} />
+        <span className="text-zinc-500 dark:text-zinc-400">実行済み</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-amber-100 dark:bg-amber-500/20 border border-amber-400 dark:border-amber-500/50" />
-        <span className="text-zinc-500 dark:text-zinc-400">習慣</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-cyan-100 dark:bg-cyan-500/20 border border-cyan-400 dark:border-cyan-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">自分の予定（タスク）</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">ログ（実績）</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-amber-100 dark:bg-amber-500/20 border border-amber-400 dark:border-amber-500/40" />
+        <div className={`w-3 h-3 rounded-sm border ${drift.bgClass} ${drift.borderClass}`} />
         <span className="text-zinc-500 dark:text-zinc-400">時間ズレ</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/40 border-dashed" />
+        <div className={`w-3 h-3 rounded-sm border ${plannedOnly.bgClass} ${plannedOnly.borderClass}`} />
         <span className="text-zinc-500 dark:text-zinc-400">未実行</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded-sm bg-purple-100 dark:bg-purple-500/20 border border-purple-300 dark:border-purple-500/40" />
-        <span className="text-zinc-500 dark:text-zinc-400">予定外ログ</span>
+        <div className={`w-3 h-3 rounded-sm border ${actualOnly.bgClass} ${actualOnly.borderClass}`} />
+        <span className="text-zinc-500 dark:text-zinc-400">予定外</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className={`w-3 h-3 rounded-sm border ${neutral.bgClass} ${neutral.borderClass}`} />
+        <span className="text-zinc-500 dark:text-zinc-400">照合前</span>
+      </div>
+    </div>
+  )
+}
+
+type CompletionMode = 'as-planned' | 'shifted'
+
+interface CompleteWithLogDraft {
+  source: 'task' | 'habit'
+  taskId: string | null
+  habitId: string | null
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  memo: string
+  mode: CompletionMode
+  tags: string[]
+}
+
+function CompleteWithLogModal({
+  draft,
+  onClose,
+  onChange,
+  onSubmit,
+}: {
+  draft: CompleteWithLogDraft
+  onClose: () => void
+  onChange: (patch: Partial<CompleteWithLogDraft>) => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
+      <div
+        className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">完了を記録</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          実績ログを作成してから、予定タスクを完了にします。
+        </p>
+
+        <div className="mt-4 space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="completion-mode-pva"
+              checked={draft.mode === 'as-planned'}
+              onChange={() => onChange({ mode: 'as-planned' })}
+            />
+            <span className="text-zinc-700 dark:text-zinc-300">予定どおり完了</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="completion-mode-pva"
+              checked={draft.mode === 'shifted'}
+              onChange={() => onChange({ mode: 'shifted' })}
+            />
+            <span className="text-zinc-700 dark:text-zinc-300">時間をずらして実行</span>
+          </label>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
+            <input
+              type="time"
+              value={draft.startTime}
+              onChange={(e) => onChange({ startTime: e.target.value, mode: 'shifted' })}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
+            <input
+              type="time"
+              value={draft.endTime}
+              onChange={(e) => onChange({ endTime: e.target.value, mode: 'shifted' })}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">メモ（任意）</label>
+          <textarea
+            value={draft.memo}
+            onChange={(e) => onChange({ memo: e.target.value })}
+            rows={4}
+            placeholder="実行内容のメモを入力"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600"
+          >
+            保存して完了
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -476,6 +597,7 @@ export function PlanVsActualView() {
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const updateTask = useTaskStore((s) => s.updateTask)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -484,6 +606,7 @@ export function PlanVsActualView() {
   const [showTimerInput, setShowTimerInput] = useState(false)
   const [timerInputValue, setTimerInputValue] = useState('')
   const [timerTagValue, setTimerTagValue] = useState('')
+  const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -565,8 +688,6 @@ export function PlanVsActualView() {
     return map
   }, [tasks])
 
-  const timeLogTagUniverseMemo = useMemo(() => timeLogTagUniverse(tasks), [tasks])
-
   const plannedListsByDate = useMemo(() => {
     const map = new Map<string, PlannedItem[]>()
     for (const day of days) {
@@ -645,6 +766,23 @@ export function PlanVsActualView() {
     },
     defaultCreateIntent: 'schedule',
     onBlockTap: useCallback((taskId: string) => {
+      const tapped = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+      if (!tapped) return
+      if (!tapped.completed && !tapped.isTimeLog && tapped.dueDate && tapped.startTime && tapped.endTime) {
+        setCompletionDraft({
+          source: 'task',
+          taskId: tapped.id,
+          habitId: null,
+          title: tapped.title,
+          date: tapped.dueDate,
+          startTime: tapped.startTime,
+          endTime: tapped.endTime,
+          memo: tapped.description.trim(),
+          mode: 'as-planned',
+          tags: [...tapped.tags],
+        })
+        return
+      }
       setDetailId(taskId)
     }, []),
   })
@@ -692,6 +830,67 @@ export function PlanVsActualView() {
   const handlePlannedDone = useCallback((title: string, dateKey: string, startTime: string, endTime: string) => {
     addCompletedTaskWithTime(title, dateKey, startTime, endTime)
   }, [addCompletedTaskWithTime])
+
+  const openCompleteWithLog = useCallback((task: Task) => {
+    if (task.completed || task.isTimeLog || !task.dueDate || !task.startTime || !task.endTime) {
+      setDetailId(task.id)
+      return
+    }
+    setCompletionDraft({
+      source: 'task',
+      taskId: task.id,
+      habitId: null,
+      title: task.title,
+      date: task.dueDate,
+      startTime: task.startTime,
+      endTime: task.endTime,
+      memo: task.description.trim(),
+      mode: 'as-planned',
+      tags: [...task.tags],
+    })
+  }, [])
+
+  const openHabitCompleteWithLog = useCallback((habitId: string, title: string, date: string, startTime: string, endTime: string) => {
+    setCompletionDraft({
+      source: 'habit',
+      taskId: null,
+      habitId,
+      title,
+      date,
+      startTime,
+      endTime,
+      memo: '',
+      mode: 'as-planned',
+      tags: [],
+    })
+  }, [])
+
+  const submitCompleteWithLog = useCallback(() => {
+    if (!completionDraft) return
+    const memo = completionDraft.memo.trim()
+    const toMin = (v: string) => {
+      const [h, m] = v.split(':').map(Number)
+      return h * 60 + m
+    }
+    if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
+      alert('終了時刻は開始時刻より後にしてください')
+      return
+    }
+    addTimeLog(
+      completionDraft.title,
+      completionDraft.date,
+      completionDraft.startTime,
+      completionDraft.endTime,
+      completionDraft.tags,
+      memo || undefined,
+    )
+    if (completionDraft.source === 'task' && completionDraft.taskId) {
+      toggleTask(completionDraft.taskId)
+    } else if (completionDraft.source === 'habit' && completionDraft.habitId) {
+      toggleHabitDate(completionDraft.habitId, completionDraft.date)
+    }
+    setCompletionDraft(null)
+  }, [completionDraft, addTimeLog, toggleTask, toggleHabitDate])
 
   function getMatchForPlanned(dateKey: string, plannedId: string): MatchedPair | undefined {
     return matchesByDate.get(dateKey)?.find(
@@ -916,7 +1115,7 @@ export function PlanVsActualView() {
                                 task={task}
                                 matchStatus={match}
                                 onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, task.id, key, task.startTime!, task.endTime!, gridRef.current)}
-                                onOpenDetail={() => setDetailId(task.id)}
+                                onOpenDetail={() => openCompleteWithLog(task)}
                               />
                             </div>
                           )
@@ -933,7 +1132,11 @@ export function PlanVsActualView() {
                               dateKey={key}
                               onGoogleDone={handlePlannedDone}
                               habitCompleted={completed}
-                              onHabitToggle={hid ? () => toggleHabitDate(hid, key) : undefined}
+                              onOpen={
+                                hid
+                                  ? () => openHabitCompleteWithLog(hid, item.summary, key, item.startTime, item.endTime)
+                                  : undefined
+                              }
                             />
                           )
                         }
@@ -1002,7 +1205,6 @@ export function PlanVsActualView() {
                         <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
                             task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime! }}
-                            accent={logBlockAccentFromTags(t.tags, timeLogTagUniverseMemo)}
                             matchStatus={getMatchForActual(key, t.id)}
                             onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
                             onOpenDetail={() => setDetailId(t.id)}
@@ -1062,6 +1264,14 @@ export function PlanVsActualView() {
 
       {detailTask && (
         <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
+      )}
+      {completionDraft && (
+        <CompleteWithLogModal
+          draft={completionDraft}
+          onClose={() => setCompletionDraft(null)}
+          onChange={(patch) => setCompletionDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
+          onSubmit={submitCompleteWithLog}
+        />
       )}
     </>
   )
