@@ -41,6 +41,18 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
+  /** タイトル1クリックが詳細オープンと競合しないよう遅延（ダブルクリックで編集） */
+  const titleOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!editing) setEditValue(task.title)
+  }, [task.title, task.id, editing])
+
+  useEffect(() => {
+    return () => {
+      if (titleOpenTimerRef.current) clearTimeout(titleOpenTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (editing) {
@@ -88,6 +100,31 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
                   ${isDragging ? 'opacity-30' : ''}`}
       onClick={(e) => {
         if (editing) return
+        const fromTitle = (e.target as HTMLElement).closest('[data-task-title]')
+        if (fromTitle && (onRowClick || onClick)) {
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            if (onRowClick) onRowClick(e)
+            return
+          }
+          if (selection?.reveal && onRowClick) {
+            onRowClick(e)
+            return
+          }
+          if (e.detail >= 2) {
+            if (titleOpenTimerRef.current) {
+              clearTimeout(titleOpenTimerRef.current)
+              titleOpenTimerRef.current = null
+            }
+            return
+          }
+          if (titleOpenTimerRef.current) clearTimeout(titleOpenTimerRef.current)
+          titleOpenTimerRef.current = setTimeout(() => {
+            titleOpenTimerRef.current = null
+            if (onRowClick) onRowClick(e)
+            else onClick?.()
+          }, 280)
+          return
+        }
         if (onRowClick) onRowClick(e)
         else onClick?.()
       }}
@@ -169,7 +206,16 @@ export function TaskItem({ task, onClick, onRowClick, dragHandle, isSubtask, sel
           />
         ) : (
           <span
-            onDoubleClick={(e) => { e.stopPropagation(); setEditing(true) }}
+            data-task-title
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              if (titleOpenTimerRef.current) {
+                clearTimeout(titleOpenTimerRef.current)
+                titleOpenTimerRef.current = null
+              }
+              setEditValue(task.title)
+              setEditing(true)
+            }}
             className={`block truncate select-none
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
