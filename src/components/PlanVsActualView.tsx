@@ -912,11 +912,11 @@ export function PlanVsActualView() {
   return (
     <>
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between px-6 pt-6 pb-1 flex-shrink-0">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            予定 vs ログ
-            <span className="text-sm font-normal text-zinc-400 dark:text-zinc-500 ml-3">{weekLabel}</span>
-          </h1>
+        <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">予定 vs ログ</h1>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{weekLabel}</p>
+          </div>
           <div className="flex items-center gap-2">
             {!activeTimer && !showTimerInput && (
               <button

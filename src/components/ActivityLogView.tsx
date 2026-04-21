@@ -216,11 +216,11 @@ export function ActivityLogView() {
     <>
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-6 pb-1 flex-shrink-0">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          ログ
-          <span className="text-sm font-normal text-zinc-400 dark:text-zinc-500 ml-3">{dateLabel}</span>
-        </h1>
+      <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">ログ</h1>
+          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{dateLabel}</p>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setSelectedDate((d) => subDays(d, 1))}

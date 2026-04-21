@@ -276,9 +276,9 @@ export function HabitsView() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-4xl px-6 py-8">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">Habits</h1>
+      <div className="px-6 pt-8 pb-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">習慣</h1>
           <button
             type="button"
             onClick={() => setShowComposer((v) => !v)}
@@ -287,7 +287,9 @@ export function HabitsView() {
             {showComposer ? 'Close' : 'Add Habit'}
           </button>
         </div>
+      </div>
 
+      <div className="mx-auto w-full max-w-4xl px-6 pb-8">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
           <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.18em] text-zinc-800 dark:text-zinc-200">
             Master View

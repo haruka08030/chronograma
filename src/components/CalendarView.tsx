@@ -83,7 +83,7 @@ export function CalendarView() {
     <>
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         <div className="flex items-center justify-between px-6 pt-8 pb-4">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             {format(current, 'yyyy年M月', { locale: ja })}
           </h1>
           <div className="flex items-center gap-1">

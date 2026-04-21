@@ -83,7 +83,7 @@ export function StatsView() {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">統計</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">統計</h1>
         <p className="text-xs text-zinc-400 mt-1">タスクの進捗を振り返る</p>
       </div>
 
