@@ -14,7 +14,7 @@
 
 ## プロダクト概要
 
-- タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React SPA**
+- タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web SPA**（`src/`）と、**Flutter モバイル**（`mobile/`、機能は段階実装）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
   `chronograma-storage`、スキーマ **version 14**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
@@ -31,11 +31,27 @@
 | 状態       | Zustand 5 + `persist`                                  |
 | DnD        | `@dnd-kit/core`, `sortable`, `utilities`               |
 | 日付       | `date-fns`                                             |
+| i18n       | `i18next` + `react-i18next`（`src/i18n/config.ts`、`ja` / `en` は `src/locales/*.ts`、言語キー `chronograma-lang`） |
 | BaaS       | `@supabase/supabase-js`                                |
+
+### モバイル（`mobile/`）
+
+| 領域     | 内容                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| ランタイム | Flutter（Dart 3.11+）、iOS / Android ターゲット                      |
+| 状態     | `flutter_riverpod`                                                   |
+| ルーティング | `go_router`（`StatefulShellRoute.indexedStack` で Bottom Tabs）        |
+| 永続化   | `hive` + `hive_flutter`（タスク JSON、`hasEverPersisted` で初回シード制御） |
+| タイポ   | `google_fonts`（Inter）                                              |
+
+- **Phase 1**: To‑Do（すべて/今日/近日中/期限切れ、**画面上部固定の検索欄**（Web の To‑Do 面に近い）、完了、削除＋確認＋Undo SnackBar、クイック追加・詳細シート）、ガラス風ナビ・**円形**グラデーション FAB、同期 UI モックは **More** から（失敗時は再試行）
+- **Phase 2 スタブ**: Calendar / Habits / Log / More（外観・同期 UI のみ）
+
+エントリ: `mobile/lib/main.dart`（`Hive.initFlutter` → `ProviderScope` で `hiveBoxProvider` を override → `ChronogramaApp`）。詳細は `mobile/README.md`。
 
 ## エントリ
 
-- `src/main.tsx`: `AuthProvider` で `App` をラップ
+- `src/main.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
 - `src/App.tsx`:
   レイアウト、`useSupabaseSync()`、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo 面**（リスト選択
@@ -115,7 +131,7 @@
 - `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
-  のまま。**ToDo 一覧（`TaskList`）とカレンダー横ドック（`CalendarTaskDock`）には
+  のまま。**ToDo 一覧（`TaskList`）とカレンダー横ドック（`CalendarTaskDock`）、月カレンダー（`CalendarView`）には
   タイムログ行を出さない**（完了済みにも混ぜない）。確認・追加は「ログ」「予定 vs
   ログ」や週カレンダーのログ列などで行う。`TaskItem` はタイムログ行に取り消し線を付けない（緑の
   円チェック）。`importData` は `is_time_log` を `isTimeLog` に正規化。永続化
@@ -153,7 +169,7 @@
 
 | パス                                                    | 役割                                                                                         |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビューのみ（**リスト節は出さない**）。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル |
+| `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビュー（**統計は除く**）のみ（**リスト節は出さない**）。**統計**はスクロールナビの下・フッター区切り線の上に単独行。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」（このとき統計行は非表示）。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`  | 一覧・ソート・DnD                                                                            |
 | `SectionHeaderDnD.tsx`                                  | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える |
 | `TaskDetail.tsx`                                        | 詳細編集。`isTimeLog` は行動ログ UI（記録日・時間・所要時間・削除）に切替え、優先度・リスト等は非表示 |
@@ -164,14 +180,14 @@
 | `PlanVsActualView.tsx`                                  | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸）   |
 | `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
 | `StatsView.tsx`                                         | 統計（ルートの通常タスクのみ集計、タイムログは除外）                                         |
-| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は `Add Habit` で展開、既存はカードから編集・削除 |
+| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間帯は任意（オフ時は `startTime` / `endTime` を `null` で保存）。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |
 | `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
 | `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |
 | `ThemeToggle.tsx`                                       | ライト・ダーク切替（主に設定画面）                                                           |
 | `FloatingTimer.tsx`, `UndoToast.tsx`                    | 周辺 UI                                                                                      |
 
-補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` 等）, `tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`）, `useTimelineDrag.ts`（ブロックの
+補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` / タスク枠の分換算 `durationMinutesForTaskSlot`・`durationMinutesForTaskId` 等）, `keyboard.ts`（`isModKey`: ⌘/Ctrl）, `habitStats.ts` / `habitDraft.ts`, `src/locales/ja.ts`・`en`（`displayListName` 用 `lists.inbox` 等）, `tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`）, `useTimelineDrag.ts`（ブロックの
 `setPointerCapture` 後は `click` が届かないため、タップで詳細/完了モーダルを開く処理は
 `onBlockTap` で `pointerup` 時に行う。タップ誤判定を減らすため、ドラッグ判定は `pointerdown` からの移動量（6px 超）で行う）, `useTimelineDrop.ts`,
 `notifications.ts`, `googleCalendar.ts`, `matchEvents.ts`,

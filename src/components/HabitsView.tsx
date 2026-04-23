@@ -1,17 +1,24 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { addDays, format, getISODay, getISOWeek, startOfWeek, subDays } from 'date-fns'
+import { useTranslation } from 'react-i18next'
+import { addDays, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Habit, HabitWeekday } from '../types/habit'
+import {
+  canSubmitHabitDraft,
+  habitFrequencyFromDraft,
+  toggleHabitWeekdaySelection,
+} from '../lib/habitDraft'
+import {
+  colorIndexForPalette,
+  habitDateKey,
+  isHabitScheduledOnDate,
+  completionRatioOnDate,
+  completionsInLast7Days,
+  consistencyForLast7Days,
+  currentStreakDays,
+} from '../lib/habitStats'
 
-const WEEKDAYS: { v: HabitWeekday; label: string }[] = [
-  { v: 1, label: 'M' },
-  { v: 2, label: 'T' },
-  { v: 3, label: 'W' },
-  { v: 4, label: 'T' },
-  { v: 5, label: 'F' },
-  { v: 6, label: 'S' },
-  { v: 7, label: 'S' },
-]
+const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 const HABIT_ICONS = [
@@ -19,75 +26,6 @@ const HABIT_ICONS = [
   'M15.182 3.318a.75.75 0 011.06 0l4.44 4.44a.75.75 0 010 1.06l-8.03 8.03a3 3 0 01-1.289.744l-3.35.96a.75.75 0 01-.928-.928l.96-3.35a3 3 0 01.744-1.288l8.03-8.03zM5.25 19.5A1.5 1.5 0 006.75 21h10.5a1.5 1.5 0 000-3h-10.5a1.5 1.5 0 00-1.5 1.5z',
   'M4.5 4.5h6v6h-6v-6zm9 0h6v6h-6v-6zm-9 9h6v6h-6v-6zm9 1.5h6M16.5 12v6',
 ]
-
-function colorIndexForPalette(habitColor: string, listColors: readonly string[]): number {
-  const normalized = habitColor.trim().toLowerCase()
-  const i = listColors.findIndex((c) => c.trim().toLowerCase() === normalized)
-  return i >= 0 ? i : Math.min(4, listColors.length - 1)
-}
-
-function completionsInLast7Days(completedDates: string[]): number {
-  const set = new Set(completedDates)
-  let n = 0
-  const today = new Date()
-  for (let i = 0; i < 7; i++) {
-    const key = format(subDays(today, i), 'yyyy-MM-dd')
-    if (set.has(key)) n++
-  }
-  return n
-}
-
-function dateKey(date: Date): string {
-  return format(date, 'yyyy-MM-dd')
-}
-
-function isHabitScheduledOnDate(habit: Habit, d: Date): boolean {
-  if (habit.frequency.type === 'daily') return true
-  const weekday = getISODay(d) as HabitWeekday
-  return habit.frequency.weekdays.includes(weekday)
-}
-
-function completionRatioOnDate(habits: Habit[], d: Date): number {
-  if (habits.length === 0) return 0
-  const key = dateKey(d)
-  let expected = 0
-  let completed = 0
-  for (const h of habits) {
-    if (!isHabitScheduledOnDate(h, d)) continue
-    expected++
-    if (h.completedDates.includes(key)) completed++
-  }
-  if (expected === 0) return 0
-  return completed / expected
-}
-
-function consistencyForLast7Days(habits: Habit[]): number {
-  let expected = 0
-  let completed = 0
-  for (let i = 0; i < 7; i++) {
-    const d = subDays(new Date(), i)
-    const key = dateKey(d)
-    for (const h of habits) {
-      if (!isHabitScheduledOnDate(h, d)) continue
-      expected++
-      if (h.completedDates.includes(key)) completed++
-    }
-  }
-  if (expected === 0) return 0
-  return Math.round((completed / expected) * 100)
-}
-
-function currentStreakDays(habits: Habit[]): number {
-  if (habits.length === 0) return 0
-  const anyCompletion = new Set(habits.flatMap((h) => h.completedDates))
-  let streak = 0
-  for (let i = 0; i < 1200; i++) {
-    const key = dateKey(subDays(new Date(), i))
-    if (!anyCompletion.has(key)) break
-    streak++
-  }
-  return streak
-}
 
 const iconPencil = 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10'
 const iconTrash = 'M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0'
@@ -101,9 +39,10 @@ function ColorPicker({
   colorIndex: number
   onPick: (i: number) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-wrap gap-2 items-center">
-      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">色</span>
+      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
       {listColors.map((c, i) => (
         <button
           key={c}
@@ -111,7 +50,7 @@ function ColorPicker({
           onClick={() => onPick(i)}
           className={`w-7 h-7 rounded-full ring-2 transition-shadow ${colorIndex === i ? 'ring-accent-500 ring-offset-2 dark:ring-offset-zinc-900' : 'ring-transparent hover:ring-zinc-300 dark:hover:ring-zinc-600'}`}
           style={{ backgroundColor: c }}
-          aria-label={`色 ${i + 1}`}
+          aria-label={t('habits.colorSwatch', { n: i + 1 })}
         />
       ))}
     </div>
@@ -127,10 +66,12 @@ function WeekdayPicker({
   weekdays: HabitWeekday[]
   onToggle: (v: HabitWeekday) => void
 }) {
+  const { t } = useTranslation()
+  const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   if (freq !== 'weekly') return null
   return (
     <div className="flex flex-wrap gap-1.5">
-      {WEEKDAYS.map(({ v, label }) => (
+      {HABIT_WEEKDAY_ORDER.map((v) => (
         <button
           key={v}
           type="button"
@@ -140,7 +81,7 @@ function WeekdayPicker({
               ? 'bg-accent-500 text-white'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
         >
-          {label}
+          {labels[v - 1]}
         </button>
       ))}
     </div>
@@ -148,6 +89,7 @@ function WeekdayPicker({
 }
 
 export function HabitsView() {
+  const { t } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
   const addHabit = useTaskStore((s) => s.addHabit)
   const updateHabit = useTaskStore((s) => s.updateHabit)
@@ -159,6 +101,7 @@ export function HabitsView() {
   const [newTitle, setNewTitle] = useState('')
   const [newFreq, setNewFreq] = useState<'daily' | 'weekly'>('daily')
   const [newWeekdays, setNewWeekdays] = useState<HabitWeekday[]>(DEFAULT_WEEKDAYS)
+  const [newHasTime, setNewHasTime] = useState(true)
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
   const [newColorIndex, setNewColorIndex] = useState(4)
@@ -169,6 +112,7 @@ export function HabitsView() {
   const [editTitle, setEditTitle] = useState('')
   const [editFreq, setEditFreq] = useState<'daily' | 'weekly'>('daily')
   const [editWeekdays, setEditWeekdays] = useState<HabitWeekday[]>(DEFAULT_WEEKDAYS)
+  const [editHasTime, setEditHasTime] = useState(true)
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
   const [editColorIndex, setEditColorIndex] = useState(4)
@@ -189,6 +133,7 @@ export function HabitsView() {
         setEditFreq('weekly')
         setEditWeekdays([...h.frequency.weekdays].sort((a, b) => a - b))
       }
+      setEditHasTime(Boolean(h.startTime && h.endTime))
       setEditStartTime(h.startTime ?? '09:00')
       setEditEndTime(h.endTime ?? '10:00')
       setEditColorIndex(colorIndexForPalette(h.color, listColors))
@@ -204,139 +149,151 @@ export function HabitsView() {
   }, [habits, editingHabitId, cancelEdit])
 
   const toggleNewWeekday = (v: HabitWeekday) => {
-    setNewWeekdays((prev) =>
-      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => a - b),
-    )
+    setNewWeekdays((prev) => toggleHabitWeekdaySelection(prev, v))
   }
 
   const toggleEditWeekday = (v: HabitWeekday) => {
-    setEditWeekdays((prev) =>
-      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => a - b),
-    )
+    setEditWeekdays((prev) => toggleHabitWeekdaySelection(prev, v))
   }
 
   const submitNew = () => {
-    const t = newTitle.trim()
-    if (!t) return
-    if (newFreq === 'weekly' && newWeekdays.length === 0) return
-    if (newStartTime >= newEndTime) return
+    const draft = {
+      title: newTitle,
+      freq: newFreq,
+      weekdays: newWeekdays,
+      startTime: newHasTime ? newStartTime : '',
+      endTime: newHasTime ? newEndTime : '',
+    }
+    if (!canSubmitHabitDraft(draft)) return
     addHabit({
-      title: t,
+      title: newTitle.trim(),
       color: newColor,
-      startTime: newStartTime,
-      endTime: newEndTime,
-      frequency: newFreq === 'daily' ? { type: 'daily' } : { type: 'weekly', weekdays: newWeekdays },
+      startTime: newHasTime ? newStartTime : null,
+      endTime: newHasTime ? newEndTime : null,
+      frequency: habitFrequencyFromDraft(draft.freq, draft.weekdays),
     })
     setNewTitle('')
   }
 
   const saveEdit = () => {
     if (!editingHabitId) return
-    const t = editTitle.trim()
-    if (!t) return
-    if (editFreq === 'weekly' && editWeekdays.length === 0) return
-    if (editStartTime >= editEndTime) return
+    const draft = {
+      title: editTitle,
+      freq: editFreq,
+      weekdays: editWeekdays,
+      startTime: editHasTime ? editStartTime : '',
+      endTime: editHasTime ? editEndTime : '',
+    }
+    if (!canSubmitHabitDraft(draft)) return
     updateHabit(editingHabitId, {
-      title: t,
+      title: editTitle.trim(),
       color: editColor,
-      startTime: editStartTime,
-      endTime: editEndTime,
-      frequency: editFreq === 'daily' ? { type: 'daily' } : { type: 'weekly', weekdays: editWeekdays },
+      startTime: editHasTime ? editStartTime : null,
+      endTime: editHasTime ? editEndTime : null,
+      frequency: habitFrequencyFromDraft(draft.freq, draft.weekdays),
     })
     cancelEdit()
   }
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (typeof window !== 'undefined' && !window.confirm('この習慣を削除しますか？')) return
+    if (typeof window !== 'undefined' && !window.confirm(t('confirm.deleteHabit'))) return
     deleteHabit(id)
     if (editingHabitId === id) cancelEdit()
   }
 
-  const newFormDisabled =
-    !newTitle.trim() || (newFreq === 'weekly' && newWeekdays.length === 0) || newStartTime >= newEndTime
-  const editFormDisabled =
-    !editTitle.trim() || (editFreq === 'weekly' && editWeekdays.length === 0) || editStartTime >= editEndTime
+  const newFormDisabled = !canSubmitHabitDraft({
+    title: newTitle,
+    freq: newFreq,
+    weekdays: newWeekdays,
+    startTime: newHasTime ? newStartTime : '',
+    endTime: newHasTime ? newEndTime : '',
+  })
+  const editFormDisabled = !canSubmitHabitDraft({
+    title: editTitle,
+    freq: editFreq,
+    weekdays: editWeekdays,
+    startTime: editHasTime ? editStartTime : '',
+    endTime: editHasTime ? editEndTime : '',
+  })
 
   const heatmapDays = useMemo(
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(new Date(), 27 - i)
-        return { key: dateKey(d), ratio: completionRatioOnDate(habits, d) }
+        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d) }
       }),
     [habits],
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits), [habits])
   const streak = useMemo(() => currentStreakDays(habits), [habits])
-  const weekIndex = getISOWeek(new Date())
   const weekDates = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [])
+  const habitWeekdayLabels = useMemo(
+    () => t('habits.weekdays', { returnObjects: true }) as string[],
+    [t],
+  )
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">習慣</h1>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('habits.title')}</h1>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{t('habits.subtitle')}</p>
+          </div>
           <button
             type="button"
             onClick={() => setShowComposer((v) => !v)}
-            className="rounded-full bg-accent-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-accent-700"
+            className={
+              showComposer
+                ? 'rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                : 'rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700'
+            }
           >
-            {showComposer ? 'Close' : 'Add Habit'}
+            {showComposer ? t('common.close') : t('habits.addHabitCta')}
           </button>
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-4xl px-6 pb-8">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-          <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.18em] text-zinc-800 dark:text-zinc-200">
-            Master View
-          </p>
-          <div className="grid grid-cols-14 gap-2">
+      <div className="space-y-4 px-6 pb-8">
+        <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.heatmapTitle')}</h2>
+          <div className="grid grid-cols-7 gap-2">
             {heatmapDays.map((d) => {
               const intensity = d.ratio === 0 ? 0.12 : 0.35 + d.ratio * 0.6
               return (
                 <div
                   key={d.key}
-                  className="h-8 rounded-md border border-zinc-100 dark:border-zinc-800"
+                  className="h-9 w-full rounded-md border border-zinc-100 dark:border-zinc-800 sm:h-10"
                   style={{ backgroundColor: `rgba(99, 102, 241, ${intensity})` }}
-                  title={`${d.key}: ${Math.round(d.ratio * 100)}%`}
+                  title={t('habits.heatmapTooltip', { date: d.key, pct: Math.round(d.ratio * 100) })}
                 />
               )
             })}
           </div>
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Last 28 Days Kinetic Load</p>
-            <button
-              type="button"
-              onClick={() => setShowComposer(true)}
-              className="rounded-full border border-zinc-200 bg-zinc-50 px-4 py-1.5 text-xs font-extrabold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            >
-              Expand
-            </button>
-          </div>
+          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{t('habits.heatmapHint')}</p>
         </section>
 
-        <section className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-600">Week {weekIndex}</p>
-            <p className="text-5xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">{consistency}%</p>
-            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Consistency Score
-            </p>
+        <section className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <p className="mb-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">{t('habits.score7d')}</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100">{consistency}%</p>
           </div>
-          <div className="rounded-2xl border border-accent-300/60 bg-accent-500 p-5 text-white dark:border-accent-500/40 dark:bg-accent-600">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/80">Hot Streak</p>
-            <p className="text-5xl font-black tracking-tight">{streak}</p>
-            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/80">Days Completed</p>
+          <div className="rounded-xl border border-accent-300/60 bg-accent-500 p-4 text-white dark:border-accent-500/40 dark:bg-accent-600">
+            <p className="mb-1 text-[11px] font-medium text-white/80">{t('habits.streakDays')}</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight">
+              {streak}
+              <span className="ml-0.5 text-lg font-medium">{t('habits.daySuffix')}</span>
+            </p>
           </div>
         </section>
 
         {showComposer ? (
-          <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">New Habit</h2>
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <h2 className="mb-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.newHabit')}</h2>
             <div className="space-y-3">
               <input
                 value={newTitle}
@@ -344,7 +301,7 @@ export function HabitsView() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !newFormDisabled) submitNew()
                 }}
-                placeholder="名前（例: 朝のストレッチ）"
+                placeholder={t('habits.placeholderName')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
               <ColorPicker listColors={listColors} colorIndex={newColorIndex} onPick={setNewColorIndex} />
@@ -357,7 +314,7 @@ export function HabitsView() {
                     onChange={() => setNewFreq('daily')}
                     className="text-accent-500"
                   />
-                  毎日
+                  {t('habits.freqDaily')}
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
                   <input
@@ -367,41 +324,54 @@ export function HabitsView() {
                     onChange={() => setNewFreq('weekly')}
                     className="text-accent-500"
                   />
-                  週指定
+                  {t('habits.freqWeeklyLabel')}
                 </label>
               </div>
               <WeekdayPicker freq={newFreq} weekdays={newWeekdays} onToggle={toggleNewWeekday} />
+              <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={newHasTime}
+                  onChange={(e) => setNewHasTime(e.target.checked)}
+                  className="text-accent-500"
+                />
+                {t('habits.enableTimeRange')}
+              </label>
               <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">時間</span>
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
                 <input
                   type="time"
                   value={newStartTime}
                   onChange={(e) => setNewStartTime(e.target.value)}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  disabled={!newHasTime}
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 />
                 <span className="text-zinc-400">〜</span>
                 <input
                   type="time"
                   value={newEndTime}
                   onChange={(e) => setNewEndTime(e.target.value)}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  disabled={!newHasTime}
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 />
               </div>
               <button
                 type="button"
                 onClick={submitNew}
                 disabled={newFormDisabled}
-                className="rounded-full bg-accent-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                追加
+                {t('common.add')}
               </button>
             </div>
           </div>
         ) : null}
 
-        <ul className="mt-4 space-y-3">
+        <ul className="space-y-3">
         {habits.length === 0 && (
-          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">まだ習慣がありません。右上の Add Habit から作成できます。</p>
+          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">
+            {t('habits.empty', { add: t('habits.addHabit') })}
+          </p>
         )}
         {habits.map((h) => {
           const last7 = completionsInLast7Days(h.completedDates)
@@ -409,26 +379,30 @@ export function HabitsView() {
           const icon = HABIT_ICONS[Math.abs(h.id.charCodeAt(0)) % HABIT_ICONS.length]
           const completedSet = new Set(h.completedDates)
           const weeklyExpected = weekDates.filter((d) => isHabitScheduledOnDate(h, d)).length
-          const weeklyDone = weekDates.filter((d) => completedSet.has(dateKey(d))).length
+          const weeklyDone = weekDates.filter((d) => completedSet.has(habitDateKey(d))).length
           const weeklyProgress = weeklyExpected > 0 ? Math.round((weeklyDone / weeklyExpected) * 100) : 0
-          const goalText = h.frequency.type === 'daily' ? 'Goal: Every day' : `Goal: ${h.frequency.weekdays.length} days / week`
-          const timeText = h.startTime && h.endTime ? `${h.startTime} - ${h.endTime}` : null
+          const goalText =
+            h.frequency.type === 'daily'
+              ? t('habits.goalDaily')
+              : t('habits.goalWeekly', { count: h.frequency.weekdays.length })
+          const timeText =
+            h.startTime && h.endTime ? t('habits.timeRange', { start: h.startTime, end: h.endTime }) : null
 
           if (isEditing) {
             return (
               <li key={h.id}>
                 <div
-                  className="overflow-hidden rounded-2xl border border-accent-400/60 bg-white dark:border-accent-500/40 dark:bg-zinc-900/40"
+                  className="overflow-hidden rounded-xl border border-accent-400/60 bg-white dark:border-accent-500/40 dark:bg-zinc-900/40"
                 >
                   <div className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">この習慣を編集</h3>
+                      <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.editTitle')}</h3>
                       <button
                         type="button"
                         onClick={(e) => handleDelete(h.id, e)}
                         className="p-1.5 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
-                        title="削除"
-                        aria-label="削除"
+                        title={t('common.delete')}
+                        aria-label={t('common.delete')}
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d={iconTrash} />
@@ -441,7 +415,7 @@ export function HabitsView() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !editFormDisabled) saveEdit()
                       }}
-                      placeholder="名前"
+                      placeholder={t('habits.nameShort')}
                       className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
                     />
                     <ColorPicker listColors={listColors} colorIndex={editColorIndex} onPick={setEditColorIndex} />
@@ -454,7 +428,7 @@ export function HabitsView() {
                           onChange={() => setEditFreq('daily')}
                           className="text-accent-500"
                         />
-                        毎日
+                        {t('habits.freqDaily')}
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300">
                         <input
@@ -464,44 +438,57 @@ export function HabitsView() {
                           onChange={() => setEditFreq('weekly')}
                           className="text-accent-500"
                         />
-                        週指定
+                        {t('habits.freqWeeklyLabel')}
                       </label>
                     </div>
                     <WeekdayPicker freq={editFreq} weekdays={editWeekdays} onToggle={toggleEditWeekday} />
+                    <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={editHasTime}
+                        onChange={(e) => setEditHasTime(e.target.checked)}
+                        className="text-accent-500"
+                      />
+                      {t('habits.enableTimeRange')}
+                    </label>
                     <div className="flex flex-wrap gap-3 items-center text-sm">
-                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">時間</span>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
                       <input
                         type="time"
                         value={editStartTime}
                         onChange={(e) => setEditStartTime(e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
+                        disabled={!editHasTime}
+                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100"
                       />
                       <span className="text-zinc-400">〜</span>
                       <input
                         type="time"
                         value={editEndTime}
                         onChange={(e) => setEditEndTime(e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
+                        disabled={!editHasTime}
+                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100"
                       />
                     </div>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500">直近7日 {last7} 回達成（保存後も履歴はそのまま）</p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                      {t('habits.editNote', { count: last7 })}
+                    </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button
                         type="button"
                         onClick={saveEdit}
                         disabled={editFormDisabled}
-                        className="px-4 py-2 rounded-xl bg-accent-500 text-white text-sm font-medium hover:bg-accent-600
-                                   disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700
+                                   disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        保存
+                        {t('common.save')}
                       </button>
                       <button
                         type="button"
                         onClick={cancelEdit}
-                        className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-300
-                                   hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                        className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50
+                                   dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
                       >
-                        キャンセル
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </div>
@@ -515,7 +502,7 @@ export function HabitsView() {
               <div
                 role="button"
                 tabIndex={0}
-                title="クリックしてこのカードで編集"
+                title={t('habits.cardEditHint')}
                 onClick={() => beginEdit(h)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -523,7 +510,7 @@ export function HabitsView() {
                     beginEdit(h)
                   }
                 }}
-                className="group rounded-2xl border border-zinc-200 bg-white p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:bg-zinc-800/40"
+                className="group rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:bg-zinc-800/40"
               >
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -533,8 +520,8 @@ export function HabitsView() {
                       </svg>
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">{h.title}</p>
-                      <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">{goalText}</p>
+                      <p className="truncate text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{h.title}</p>
+                      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">{goalText}</p>
                       {timeText ? <p className="text-xs text-zinc-500 dark:text-zinc-400">{timeText}</p> : null}
                     </div>
                   </div>
@@ -545,7 +532,7 @@ export function HabitsView() {
                         background: `conic-gradient(${h.color} ${weeklyProgress * 3.6}deg, rgba(148,163,184,0.25) 0deg)`,
                       }}
                     >
-                      <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-bold text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                      <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
                         {weeklyProgress}%
                       </div>
                     </div>
@@ -556,8 +543,8 @@ export function HabitsView() {
                         beginEdit(h)
                       }}
                       className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                      title="編集"
-                      aria-label="編集"
+                      title={t('common.edit')}
+                      aria-label={t('common.edit')}
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d={iconPencil} />
@@ -567,8 +554,8 @@ export function HabitsView() {
                       type="button"
                       onClick={(e) => handleDelete(h.id, e)}
                       className="p-2 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                      title="削除"
-                      aria-label="削除"
+                      title={t('common.delete')}
+                      aria-label={t('common.delete')}
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d={iconTrash} />
@@ -579,7 +566,7 @@ export function HabitsView() {
 
                 <div className="grid grid-cols-7 gap-1.5">
                   {weekDates.map((d, i) => {
-                    const key = dateKey(d)
+                    const key = habitDateKey(d)
                     const isScheduled = isHabitScheduledOnDate(h, d)
                     const isDone = completedSet.has(key)
                     return (
@@ -594,7 +581,7 @@ export function HabitsView() {
                         }}
                         className="flex flex-col items-center gap-1 disabled:cursor-default"
                       >
-                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500">{WEEKDAYS[i]?.label}</span>
+                        <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{habitWeekdayLabels[i]}</span>
                         <span
                           className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                             isDone
@@ -611,7 +598,9 @@ export function HabitsView() {
                     )
                   })}
                 </div>
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">直近7日: {last7} 回達成</p>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('habits.weekProgress', { count: last7 })}
+                </p>
               </div>
             </li>
           )
