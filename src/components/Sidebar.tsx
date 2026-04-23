@@ -194,14 +194,6 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
 
-  /** メインが ToDo 一覧のときはサイドバー直下のリストを出さない（To‑Do パネル内では従来どおり） */
-  const isTodoRootSurface =
-    selectedView === null ||
-    selectedView === 'all' ||
-    selectedView === 'today' ||
-    selectedView === 'upcoming' ||
-    selectedView === 'overdue'
-
   const submitNew = () => {
     const trimmed = newName.trim()
     if (trimmed) addList(trimmed)
@@ -243,15 +235,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     if (accountMenuOpen) accountMenuFirstItemRef.current?.focus()
   }, [accountMenuOpen])
 
-  const renderListsSection = (showListHeading: boolean) => (
+  const renderListsSection = () => (
     <>
-      {showListHeading ? (
-        <div className="px-4 pb-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            リスト
-          </span>
-        </div>
-      ) : null}
       <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
@@ -441,7 +426,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           <>
             {DUE_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
             <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            {renderListsSection(false)}
+            {renderListsSection()}
           </>
         ) : (
           <>
@@ -457,12 +442,6 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <span className="flex-1">To‑Do</span>
             </button>
             {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
-            {!isTodoRootSurface && (
-              <>
-                <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-                {renderListsSection(true)}
-              </>
-            )}
           </>
         )}
       </nav>
