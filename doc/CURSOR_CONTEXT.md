@@ -181,7 +181,7 @@
 | `PlanVsActualView.tsx`                                  | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸）   |
 | `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
 | `StatsView.tsx`                                         | 統計（ルートの通常タスクのみ集計、タイムログは除外）                                         |
-| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間帯は任意（オフ時は `startTime` / `endTime` を `null` で保存）。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |
+| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間帯は任意（オフ時は `startTime` / `endTime` を `null` で保存）。週トグルでは「今日」の曜日ラベルと丸を強調表示。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |
 | `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
 | `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |

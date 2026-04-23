@@ -231,6 +231,7 @@ export function HabitsView() {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [])
+  const todayKey = habitDateKey(new Date())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
@@ -567,6 +568,7 @@ export function HabitsView() {
                 <div className="grid grid-cols-7 gap-1.5">
                   {weekDates.map((d, i) => {
                     const key = habitDateKey(d)
+                    const isToday = key === todayKey
                     const isScheduled = isHabitScheduledOnDate(h, d)
                     const isDone = completedSet.has(key)
                     return (
@@ -581,7 +583,15 @@ export function HabitsView() {
                         }}
                         className="flex flex-col items-center gap-1 disabled:cursor-default"
                       >
-                        <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{habitWeekdayLabels[i]}</span>
+                        <span
+                          className={`text-[10px] font-medium ${
+                            isToday
+                              ? 'text-accent-600 dark:text-accent-300'
+                              : 'text-zinc-400 dark:text-zinc-500'
+                          }`}
+                        >
+                          {habitWeekdayLabels[i]}
+                        </span>
                         <span
                           className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                             isDone
@@ -589,7 +599,7 @@ export function HabitsView() {
                               : isScheduled
                                 ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                                 : 'bg-zinc-200/70 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-700'
-                          }`}
+                          } ${isToday ? 'ring-2 ring-accent-300 dark:ring-accent-500/60' : ''}`}
                           title={key}
                         >
                           {isDone ? '✓' : ''}
