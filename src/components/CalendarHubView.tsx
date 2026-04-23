@@ -1,13 +1,16 @@
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
 import { WeekCalendarView } from './WeekCalendarView'
 import { CalendarTaskDock } from './CalendarTaskDock'
+import { CalendarDayPanel } from './CalendarDayPanel'
 
 export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   const calendarMode = useTaskStore((s) => s.calendarMode)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const [dockOpen, setDockOpen] = useState(true)
+  const [selectedDateKey, setSelectedDateKey] = useState(() => format(new Date(), 'yyyy-MM-dd'))
 
   const setMode = (mode: 'month' | 'week') => setCalendarMode(mode)
 
@@ -67,15 +70,24 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
         </button>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {calendarMode === 'month' ? <CalendarView /> : <WeekCalendarView />}
-        </div>
-        {dockOpen && (
-          <div className="flex max-h-[45vh] min-h-[140px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:flex-[0_0_38%]">
-            <CalendarTaskDock />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {calendarMode === 'month' ? (
+              <CalendarView selectedDateKey={selectedDateKey} onSelectDate={setSelectedDateKey} />
+            ) : (
+              <WeekCalendarView selectedDateKey={selectedDateKey} onSelectDate={setSelectedDateKey} />
+            )}
           </div>
-        )}
+          {dockOpen && (
+            <div className="flex max-h-[45vh] min-h-[140px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:flex-[0_0_38%]">
+              <CalendarTaskDock />
+            </div>
+          )}
+        </div>
+        <aside className="hidden h-full w-[360px] shrink-0 border-l border-zinc-200 dark:border-zinc-800 lg:block">
+          <CalendarDayPanel selectedDateKey={selectedDateKey} />
+        </aside>
       </div>
     </div>
   )

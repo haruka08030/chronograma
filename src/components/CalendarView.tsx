@@ -49,7 +49,13 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
   )
 }
 
-export function CalendarView() {
+export function CalendarView({
+  selectedDateKey,
+  onSelectDate,
+}: {
+  selectedDateKey?: string
+  onSelectDate?: (dateKey: string) => void
+}) {
   const [current, setCurrent] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -128,6 +134,7 @@ export function CalendarView() {
             const dayTasks = tasksByDate.get(key) ?? []
             const inMonth = isSameMonth(day, current)
             const today = isToday(day)
+            const selected = selectedDateKey ? key === selectedDateKey : false
 
             return (
               <div
@@ -136,7 +143,10 @@ export function CalendarView() {
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors
                             ${!inMonth ? 'opacity-30' : ''}
                             ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
-                onClick={() => setAddingDate(key)}
+                onClick={() => {
+                  onSelectDate?.(key)
+                  setAddingDate(key)
+                }}
                 onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
                 onDrop={(e) => {
@@ -163,7 +173,9 @@ export function CalendarView() {
                 <div className={`text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full
                   ${today
                     ? 'bg-accent-500 text-white font-semibold'
-                    : 'text-zinc-500 dark:text-zinc-400'}`}
+                    : selected
+                      ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
+                      : 'text-zinc-500 dark:text-zinc-400'}`}
                 >
                   {format(day, 'd')}
                 </div>
