@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n/config'
 import { useTaskStore, INBOX_LIST_ID, paletteColors, type SmartView } from '../store/taskStore'
 import { getAppInstallUrl } from '../lib/appInstallUrl'
 import { useDroppable } from '@dnd-kit/core'
@@ -8,19 +11,23 @@ import type { TaskList } from '../types/list'
 
 export const LIST_PREFIX = 'list::'
 
-const DUE_VIEWS: { id: SmartView; label: string; icon: string }[] = [
-  { id: 'all', label: 'すべて', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
-  { id: 'today', label: '今日', icon: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' },
-  { id: 'upcoming', label: '近日中', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
-  { id: 'overdue', label: '期限切れ', icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
+const DUE_VIEWS: { id: SmartView; icon: string }[] = [
+  { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
+  { id: 'today', icon: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' },
+  { id: 'upcoming', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
+  { id: 'overdue', icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
 ]
 
-const OTHER_VIEWS: { id: SmartView; label: string; icon: string }[] = [
-  { id: 'calendar', label: 'カレンダー', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
-  { id: 'plan-vs-actual', label: '予定 vs ログ', icon: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
-  { id: 'activity-log', label: 'ログ', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { id: 'stats', label: '統計', icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
-  { id: 'habits', label: '習慣', icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z' },
+const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
+  id: 'stats',
+  icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
+}
+
+const OTHER_VIEWS: { id: SmartView; icon: string }[] = [
+  { id: 'calendar', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
+  { id: 'plan-vs-actual', icon: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
+  { id: 'activity-log', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { id: 'habits', icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z' },
 ]
 
 const TODO_OPENER_ICON = 'M4.5 12.75l6 6 9-13.5'
@@ -40,6 +47,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   onDelete: () => void
   onColorPick: () => void
 }) {
+  const { t } = useTranslation()
   const isInbox = list.id === INBOX_LIST_ID
   const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
   const sortableId = `${LIST_PREFIX}${list.id}`
@@ -74,7 +82,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         className="w-3 h-3 min-w-[12px] min-h-[12px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
           touch-manipulation disabled:opacity-60 disabled:cursor-default"
         style={{ backgroundColor: list.color }}
-        aria-label={isInbox ? '未分類（色は固定）' : '色を変更'}
+        aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
         tabIndex={-1}
       />
 
@@ -88,8 +96,8 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             className="touch-none shrink-0 rounded p-0.5 opacity-0 cursor-grab group-hover:opacity-100 active:cursor-grabbing"
             tabIndex={-1}
-            title="リストを並べ替え"
-            aria-label="リストを並べ替え"
+            title={t('sidebar.reorderList')}
+            aria-label={t('sidebar.reorderList')}
             onClick={(e) => e.stopPropagation()}
           >
             <svg className="h-3 w-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -102,7 +110,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
             className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-            aria-label="リストを削除"
+            aria-label={t('sidebar.deleteList')}
           >
             <svg className="h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -115,13 +123,14 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 }
 
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
+  const { t } = useTranslation()
   const listColors = useTaskStore((s) => paletteColors(s.listColorPaletteId))
   return (
     <div
       className="absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
       onClick={(e) => e.stopPropagation()}
       role="dialog"
-      aria-label="リストの色"
+      aria-label={t('sidebar.listColorDialog')}
     >
       <div className="grid grid-cols-5 gap-1.5">
         {listColors.map((c) => (
@@ -140,10 +149,11 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 function renderSmartViewRow(
-  v: { id: SmartView; label: string; icon: string },
+  v: { id: SmartView; icon: string },
   selectedView: SmartView | null,
   handleNav: (cb: () => void) => void,
   selectView: (id: SmartView) => void,
+  t: TFunction,
 ) {
   const isSelected = selectedView === v.id
   return (
@@ -158,12 +168,13 @@ function renderSmartViewRow(
       <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d={v.icon} />
       </svg>
-      <span className="flex-1">{v.label}</span>
+      <span className="flex-1">{t(`sidebar.views.${v.id}`)}</span>
     </div>
   )
 }
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+  const { t } = useTranslation()
   const {
     lists,
     selectedListId,
@@ -291,7 +302,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               if (e.key === 'Enter') submitNew()
               if (e.key === 'Escape') { setNewName(''); setAdding(false) }
             }}
-            placeholder="リスト名"
+            placeholder={t('sidebar.listPlaceholder')}
             className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
                        ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
                        placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
@@ -307,7 +318,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            リストを追加
+            {t('sidebar.addList')}
           </button>
         )}
       </div>
@@ -323,7 +334,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             <button
               type="button"
               onClick={() => setTodoPanelOpen(false)}
-              aria-label="戻る"
+              aria-label={t('common.back')}
               className="p-1.5 -ml-1 rounded-lg text-zinc-600 dark:text-zinc-400
                 hover:bg-zinc-200/80 dark:hover:bg-zinc-800 transition-colors shrink-0"
             >
@@ -332,7 +343,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               </svg>
             </button>
             <span className="min-w-0 flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              To‑Do
+              {t('sidebar.todo')}
             </span>
           </>
         ) : (
@@ -341,10 +352,10 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <button
                 type="button"
                 onClick={() => setAccountMenuOpen((o) => !o)}
-                aria-label="アカウントメニュー"
+                aria-label={t('sidebar.accountMenu')}
                 aria-haspopup="menu"
                 aria-expanded={accountMenuOpen}
-                title="アカウントメニュー"
+                title={t('sidebar.accountMenu')}
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors
                   ${selectedView === 'settings' || accountMenuOpen
                     ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'
@@ -357,7 +368,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               {accountMenuOpen ? (
                 <div
                   role="menu"
-                  aria-label="設定・アカウント・アプリ"
+                  aria-label={t('sidebar.accountMenuAria')}
                   className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
                 >
                   <button
@@ -373,7 +384,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
                     </svg>
-                    設定
+                    {t('sidebar.settings')}
                   </button>
                   <button
                     type="button"
@@ -387,7 +398,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
                     </svg>
-                    アカウント
+                    {t('sidebar.account')}
                   </button>
                   <button
                     type="button"
@@ -395,8 +406,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                     disabled={!installUrl}
                     title={
                       installUrl
-                        ? '新しいタブで開きます'
-                        : '.env に VITE_APP_INSTALL_URL を設定すると有効になります'
+                        ? t('sidebar.getAppTitleOn')
+                        : t('sidebar.getAppTitleOff')
                     }
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
                     onClick={() => {
@@ -409,13 +420,13 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
                     </svg>
-                    アプリを入手する
+                    {t('sidebar.getApp')}
                   </button>
                 </div>
               ) : null}
             </div>
             <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
-              Chronograma
+              {t('sidebar.brand')}
             </span>
           </>
         )}
@@ -424,7 +435,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-1 space-y-0.5">
         {todoPanelOpen ? (
           <>
-            {DUE_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
+            {DUE_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView, t))}
             <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
             {renderListsSection()}
           </>
@@ -432,19 +443,32 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           <>
             <button
               type="button"
-              onClick={() => { setTodoPanelOpen(true); setAccountMenuOpen(false); onClose?.() }}
+              onClick={() => {
+                setTodoPanelOpen(true)
+                selectView('all')
+                setAccountMenuOpen(false)
+                onClose?.()
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
                 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d={TODO_OPENER_ICON} />
               </svg>
-              <span className="flex-1">To‑Do</span>
+              <span className="flex-1">{t('sidebar.todo')}</span>
             </button>
-            {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView))}
+            {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView, t))}
           </>
         )}
       </nav>
+
+      {!todoPanelOpen
+        ? (
+            <div className="shrink-0 px-2 pb-1">
+              {renderSmartViewRow(STATS_SMART_VIEW, selectedView, handleNav, selectView, t)}
+            </div>
+          )
+        : null}
 
       <div className="mx-4 mb-2 border-t border-zinc-200 dark:border-zinc-800 shrink-0" />
 
@@ -458,7 +482,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           <svg className={`w-4 h-4 ${notificationsEnabled ? 'text-accent-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
           </svg>
-          {notificationsEnabled ? '通知オン' : '通知オフ'}
+          {notificationsEnabled ? t('sidebar.notificationsOn') : t('sidebar.notificationsOff')}
         </button>
         <button
           onClick={exportData}
@@ -469,7 +493,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
-          エクスポート
+          {t('sidebar.export')}
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -480,7 +504,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
           </svg>
-          インポート
+          {t('sidebar.import')}
         </button>
         <input
           ref={fileInputRef}
@@ -490,14 +514,14 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
-            if (!window.confirm('現在のデータを上書きしますか？')) {
+            if (!window.confirm(i18n.t('confirm.importOverwrite'))) {
               e.target.value = ''
               return
             }
             const reader = new FileReader()
             reader.onload = () => {
               const ok = importData(reader.result as string)
-              if (!ok) alert('無効なファイルです')
+              if (!ok) alert(i18n.t('alert.invalidImportFile'))
             }
             reader.readAsText(file)
             e.target.value = ''
