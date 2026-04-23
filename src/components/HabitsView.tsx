@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore, paletteColors } from '../store/taskStore'
-import type { Habit, HabitWeekday } from '../types/habit'
+import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
   canSubmitHabitDraft,
   habitFrequencyFromDraft,
@@ -17,6 +17,7 @@ import {
   consistencyForLast7Days,
   currentStreakDays,
 } from '../lib/habitStats'
+import { TimeInput } from './TimeInput'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -88,6 +89,90 @@ function WeekdayPicker({
   )
 }
 
+function HabitTimeFields({
+  mode,
+  name,
+  startTime,
+  endTime,
+  onModeChange,
+  onStartTimeChange,
+  onEndTimeChange,
+}: {
+  mode: HabitTimeMode
+  name: string
+  startTime: string
+  endTime: string
+  onModeChange: (mode: HabitTimeMode) => void
+  onStartTimeChange: (time: string) => void
+  onEndTimeChange: (time: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-5 text-sm">
+        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
+          <input
+            type="radio"
+            name={`${name}-time-mode`}
+            checked={mode === 'none'}
+            onChange={() => onModeChange('none')}
+            className="text-accent-500"
+          />
+          {t('habits.timeModeNone')}
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
+          <input
+            type="radio"
+            name={`${name}-time-mode`}
+            checked={mode === 'fixed'}
+            onChange={() => onModeChange('fixed')}
+            className="text-accent-500"
+          />
+          {t('habits.timeModeFixed')}
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
+          <input
+            type="radio"
+            name={`${name}-time-mode`}
+            checked={mode === 'range'}
+            onChange={() => onModeChange('range')}
+            className="text-accent-500"
+          />
+          {t('habits.timeModeRange')}
+        </label>
+      </div>
+
+      {mode === 'fixed' ? (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.timeAt')}</span>
+          <TimeInput
+            value={startTime}
+            onChange={onStartTimeChange}
+            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+      ) : null}
+
+      {mode === 'range' ? (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
+          <TimeInput
+            value={startTime}
+            onChange={onStartTimeChange}
+            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          />
+          <span className="text-zinc-400">〜</span>
+          <TimeInput
+            value={endTime}
+            onChange={onEndTimeChange}
+            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function HabitsView() {
   const { t } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
@@ -101,7 +186,7 @@ export function HabitsView() {
   const [newTitle, setNewTitle] = useState('')
   const [newFreq, setNewFreq] = useState<'daily' | 'weekly'>('daily')
   const [newWeekdays, setNewWeekdays] = useState<HabitWeekday[]>(DEFAULT_WEEKDAYS)
-  const [newHasTime, setNewHasTime] = useState(true)
+  const [newTimeMode, setNewTimeMode] = useState<HabitTimeMode>('range')
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
   const [newColorIndex, setNewColorIndex] = useState(4)
@@ -112,7 +197,7 @@ export function HabitsView() {
   const [editTitle, setEditTitle] = useState('')
   const [editFreq, setEditFreq] = useState<'daily' | 'weekly'>('daily')
   const [editWeekdays, setEditWeekdays] = useState<HabitWeekday[]>(DEFAULT_WEEKDAYS)
-  const [editHasTime, setEditHasTime] = useState(true)
+  const [editTimeMode, setEditTimeMode] = useState<HabitTimeMode>('range')
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
   const [editColorIndex, setEditColorIndex] = useState(4)
@@ -133,7 +218,7 @@ export function HabitsView() {
         setEditFreq('weekly')
         setEditWeekdays([...h.frequency.weekdays].sort((a, b) => a - b))
       }
-      setEditHasTime(Boolean(h.startTime && h.endTime))
+      setEditTimeMode(h.timeMode)
       setEditStartTime(h.startTime ?? '09:00')
       setEditEndTime(h.endTime ?? '10:00')
       setEditColorIndex(colorIndexForPalette(h.color, listColors))
@@ -161,15 +246,17 @@ export function HabitsView() {
       title: newTitle,
       freq: newFreq,
       weekdays: newWeekdays,
-      startTime: newHasTime ? newStartTime : '',
-      endTime: newHasTime ? newEndTime : '',
+      timeMode: newTimeMode,
+      startTime: newTimeMode === 'none' ? '' : newStartTime,
+      endTime: newTimeMode === 'range' ? newEndTime : '',
     }
     if (!canSubmitHabitDraft(draft)) return
     addHabit({
       title: newTitle.trim(),
       color: newColor,
-      startTime: newHasTime ? newStartTime : null,
-      endTime: newHasTime ? newEndTime : null,
+      timeMode: newTimeMode,
+      startTime: newTimeMode === 'none' ? null : newStartTime,
+      endTime: newTimeMode === 'range' ? newEndTime : null,
       frequency: habitFrequencyFromDraft(draft.freq, draft.weekdays),
     })
     setNewTitle('')
@@ -181,15 +268,17 @@ export function HabitsView() {
       title: editTitle,
       freq: editFreq,
       weekdays: editWeekdays,
-      startTime: editHasTime ? editStartTime : '',
-      endTime: editHasTime ? editEndTime : '',
+      timeMode: editTimeMode,
+      startTime: editTimeMode === 'none' ? '' : editStartTime,
+      endTime: editTimeMode === 'range' ? editEndTime : '',
     }
     if (!canSubmitHabitDraft(draft)) return
     updateHabit(editingHabitId, {
       title: editTitle.trim(),
       color: editColor,
-      startTime: editHasTime ? editStartTime : null,
-      endTime: editHasTime ? editEndTime : null,
+      timeMode: editTimeMode,
+      startTime: editTimeMode === 'none' ? null : editStartTime,
+      endTime: editTimeMode === 'range' ? editEndTime : null,
       frequency: habitFrequencyFromDraft(draft.freq, draft.weekdays),
     })
     cancelEdit()
@@ -206,15 +295,17 @@ export function HabitsView() {
     title: newTitle,
     freq: newFreq,
     weekdays: newWeekdays,
-    startTime: newHasTime ? newStartTime : '',
-    endTime: newHasTime ? newEndTime : '',
+    timeMode: newTimeMode,
+    startTime: newTimeMode === 'none' ? '' : newStartTime,
+    endTime: newTimeMode === 'range' ? newEndTime : '',
   })
   const editFormDisabled = !canSubmitHabitDraft({
     title: editTitle,
     freq: editFreq,
     weekdays: editWeekdays,
-    startTime: editHasTime ? editStartTime : '',
-    endTime: editHasTime ? editEndTime : '',
+    timeMode: editTimeMode,
+    startTime: editTimeMode === 'none' ? '' : editStartTime,
+    endTime: editTimeMode === 'range' ? editEndTime : '',
   })
 
   const heatmapDays = useMemo(
@@ -329,33 +420,15 @@ export function HabitsView() {
                 </label>
               </div>
               <WeekdayPicker freq={newFreq} weekdays={newWeekdays} onToggle={toggleNewWeekday} />
-              <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                <input
-                  type="checkbox"
-                  checked={newHasTime}
-                  onChange={(e) => setNewHasTime(e.target.checked)}
-                  className="text-accent-500"
-                />
-                {t('habits.enableTimeRange')}
-              </label>
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
-                <input
-                  type="time"
-                  value={newStartTime}
-                  onChange={(e) => setNewStartTime(e.target.value)}
-                  disabled={!newHasTime}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                />
-                <span className="text-zinc-400">〜</span>
-                <input
-                  type="time"
-                  value={newEndTime}
-                  onChange={(e) => setNewEndTime(e.target.value)}
-                  disabled={!newHasTime}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                />
-              </div>
+              <HabitTimeFields
+                mode={newTimeMode}
+                name="new-habit"
+                startTime={newStartTime}
+                endTime={newEndTime}
+                onModeChange={setNewTimeMode}
+                onStartTimeChange={setNewStartTime}
+                onEndTimeChange={setNewEndTime}
+              />
               <button
                 type="button"
                 onClick={submitNew}
@@ -386,8 +459,11 @@ export function HabitsView() {
             h.frequency.type === 'daily'
               ? t('habits.goalDaily')
               : t('habits.goalWeekly', { count: h.frequency.weekdays.length })
-          const timeText =
-            h.startTime && h.endTime ? t('habits.timeRange', { start: h.startTime, end: h.endTime }) : null
+          const timeText = h.timeMode === 'range' && h.startTime && h.endTime
+            ? t('habits.timeRange', { start: h.startTime, end: h.endTime })
+            : h.timeMode === 'fixed' && h.startTime
+              ? t('habits.timeAtValue', { time: h.startTime })
+              : null
 
           if (isEditing) {
             return (
@@ -443,33 +519,15 @@ export function HabitsView() {
                       </label>
                     </div>
                     <WeekdayPicker freq={editFreq} weekdays={editWeekdays} onToggle={toggleEditWeekday} />
-                    <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                      <input
-                        type="checkbox"
-                        checked={editHasTime}
-                        onChange={(e) => setEditHasTime(e.target.checked)}
-                        className="text-accent-500"
-                      />
-                      {t('habits.enableTimeRange')}
-                    </label>
-                    <div className="flex flex-wrap gap-3 items-center text-sm">
-                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
-                      <input
-                        type="time"
-                        value={editStartTime}
-                        onChange={(e) => setEditStartTime(e.target.value)}
-                        disabled={!editHasTime}
-                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100"
-                      />
-                      <span className="text-zinc-400">〜</span>
-                      <input
-                        type="time"
-                        value={editEndTime}
-                        onChange={(e) => setEditEndTime(e.target.value)}
-                        disabled={!editHasTime}
-                        className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100"
-                      />
-                    </div>
+                    <HabitTimeFields
+                      mode={editTimeMode}
+                      name="edit-habit"
+                      startTime={editStartTime}
+                      endTime={editEndTime}
+                      onModeChange={setEditTimeMode}
+                      onStartTimeChange={setEditStartTime}
+                      onEndTimeChange={setEditEndTime}
+                    />
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">
                       {t('habits.editNote', { count: last7 })}
                     </p>

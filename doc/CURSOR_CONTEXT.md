@@ -16,7 +16,7 @@
 
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web SPA**（`src/`）と、**Flutter モバイル**（`mobile/`、機能は段階実装）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 14**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 15**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -159,8 +159,8 @@
 
 - `task.ts` — `Task`, `Priority`, `Recurrence`
 - `list.ts` — `TaskList`（`order` ↔ DB `sort_order`）
-- `habit.ts` — `Habit`, `HabitFrequency`（daily /
-  weekly+weekdays）、`completedDates` は `yyyy-MM-dd`
+- `habit.ts` — `Habit`, `HabitFrequency`, `HabitTimeMode`（`none` | `fixed` |
+  `range`）。`completedDates` は `yyyy-MM-dd`
 - `calendarEvent.ts` — 正規化済み Google 等イベント
 - `plannedItem.ts` — `PlannedItem`, `PlannedSource`（`google` | `scheduled-task`
   | `habit`）
@@ -181,7 +181,7 @@
 | `PlanVsActualView.tsx`                                  | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸）   |
 | `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
 | `StatsView.tsx`                                         | 統計（ルートの通常タスクのみ集計、タイムログは除外）                                         |
-| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間帯は任意（オフ時は `startTime` / `endTime` を `null` で保存）。週トグルでは「今日」の曜日ラベルと丸を強調表示。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |
+| `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間指定は `none` / `fixed` / `range` の3モード。`fixed` は時刻のみ（幅なし）として保存され、`PlanVsActual` タイムラインには表示しない（`range` のみ表示）。週トグルでは「今日」の曜日ラベルと丸を強調表示。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |
 | `SettingsView.tsx`                                      | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先 |
 | `SearchResults.tsx`                                     | 検索                                                                                         |
 | `AccountMenu.tsx`                                       | ログイン / ログアウト（設定では `variant="settings"`）                                       |
@@ -198,8 +198,11 @@
 
 1. `001_chronograma_lists_tasks.sql` — `lists`, `tasks`, インデックス、RLS
 2. `002_habits.sql` — `habits`, RLS
+3. `003_list_sections.sql` — `list_sections`, インデックス、RLS
+4. `004_habit_time_mode.sql` — `habits.time_mode` 追加（`none` / `fixed` /
+   `range`）、既存行の backfill、CHECK 制約
 
-習慣のクラウド同期には **002 まで実行**が必要。`README.md` は主に 001
+習慣のクラウド同期には **004 まで実行**が必要。`README.md` は主に 001
 のみ言及している点に注意。
 
 ## 環境変数（`.env.example`）

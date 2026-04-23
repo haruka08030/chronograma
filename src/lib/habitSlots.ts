@@ -20,6 +20,7 @@ function addHoursToTimeString(time: string, hours: number): string {
 /** タイムライン用。時刻未設定ならデフォルト 1h */
 export function habitToPlannedItem(habit: Habit, dateKey: string): PlannedItem | null {
   if (!habitAppliesOnDate(habit, dateKey)) return null
+  if (habit.timeMode !== 'range') return null
   const start = habit.startTime ?? DEFAULT_START
   const end = habit.endTime ?? addHoursToTimeString(start, DEFAULT_DURATION_HOURS)
   return {

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import type { Habit, HabitWeekday } from '../types/habit'
+import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 
 interface ListRow {
@@ -19,6 +19,7 @@ interface HabitRow {
   user_id: string
   title: string
   color: string
+  time_mode: string | null
   start_time: string | null
   end_time: string | null
   frequency: unknown
@@ -102,10 +103,15 @@ function rowToHabit(row: HabitRow): Habit {
   const completedDates = Array.isArray(datesRaw)
     ? datesRaw.filter((d): d is string => typeof d === 'string')
     : []
+  const inferredMode = inferHabitTimeMode(row.start_time, row.end_time)
+  const timeMode = row.time_mode === 'none' || row.time_mode === 'fixed' || row.time_mode === 'range'
+    ? row.time_mode
+    : inferredMode
   return {
     id: row.id,
     title: row.title,
     color: row.color,
+    timeMode,
     startTime: row.start_time,
     endTime: row.end_time,
     frequency,
@@ -121,6 +127,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     user_id: userId,
     title: h.title,
     color: h.color,
+    time_mode: h.timeMode,
     start_time: h.startTime,
     end_time: h.endTime,
     frequency: h.frequency,

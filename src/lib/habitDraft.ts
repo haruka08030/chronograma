@@ -1,9 +1,10 @@
-import type { HabitFrequency, HabitWeekday } from '../types/habit'
+import type { HabitFrequency, HabitTimeMode, HabitWeekday } from '../types/habit'
 
 export type HabitDraftFields = {
   title: string
   freq: 'daily' | 'weekly'
   weekdays: HabitWeekday[]
+  timeMode: HabitTimeMode
   startTime: string
   endTime: string
 }
@@ -14,8 +15,10 @@ export function canSubmitHabitDraft(d: HabitDraftFields): boolean {
   if (d.freq === 'weekly' && d.weekdays.length === 0) return false
   const hasStartTime = d.startTime.trim().length > 0
   const hasEndTime = d.endTime.trim().length > 0
-  if (hasStartTime !== hasEndTime) return false
-  if (hasStartTime && hasEndTime && d.startTime >= d.endTime) return false
+  if (d.timeMode === 'none') return !hasStartTime && !hasEndTime
+  if (d.timeMode === 'fixed') return hasStartTime && !hasEndTime
+  if (!hasStartTime || !hasEndTime) return false
+  if (d.startTime >= d.endTime) return false
   return true
 }
 
