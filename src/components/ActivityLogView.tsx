@@ -2,11 +2,21 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { format, addDays, subDays, isToday } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, formatDuration } from '../lib/timeGrid'
+import {
+  HOUR_HEIGHT,
+  HOURS,
+  timeToY,
+  formatTimeLabel,
+  timeToMinutes,
+  formatDuration,
+  durationMinutesForTaskId,
+  durationMinutesForTaskSlot,
+} from '../lib/timeGrid'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
 import { getTagColor, logBlockAccentFromTags, timeLogTagUniverse } from '../lib/tagColors'
+import { TimeInput } from './TimeInput'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 
@@ -118,11 +128,10 @@ export function ActivityLogView() {
     }, []),
   })
 
-  const getTaskDuration = useCallback((taskId: string): number | null => {
-    const t = tasks.find((x) => x.id === taskId)
-    if (t?.startTime && t?.endTime) return timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
-    return null
-  }, [tasks])
+  const getTaskDuration = useCallback(
+    (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
+    [tasks],
+  )
 
   const timelineDrop = useTimelineDrop({
     getRelativeY,
@@ -151,9 +160,8 @@ export function ActivityLogView() {
     let totalMinutes = 0
     const byTag = new Map<string, number>()
     for (const t of dayLogs) {
-      if (!t.startTime || !t.endTime) continue
-      const dur = timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
-      if (dur <= 0) continue
+      const dur = durationMinutesForTaskSlot(t)
+      if (dur == null || dur <= 0) continue
       totalMinutes += dur
       for (const tag of t.tags) {
         byTag.set(tag, (byTag.get(tag) ?? 0) + dur)
@@ -360,10 +368,9 @@ export function ActivityLogView() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] text-zinc-400 mb-0.5 block">開始</label>
-                    <input
-                      type="time"
+                    <TimeInput
                       value={manualStart}
-                      onChange={(e) => setManualStart(e.target.value)}
+                      onChange={setManualStart}
                       className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                                  border border-zinc-200 dark:border-zinc-700 outline-none
                                  focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
@@ -372,10 +379,9 @@ export function ActivityLogView() {
                   </div>
                   <div>
                     <label className="text-[11px] text-zinc-400 mb-0.5 block">終了</label>
-                    <input
-                      type="time"
+                    <TimeInput
                       value={manualEnd}
-                      onChange={(e) => setManualEnd(e.target.value)}
+                      onChange={setManualEnd}
                       className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                                  border border-zinc-200 dark:border-zinc-700 outline-none
                                  focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
@@ -497,7 +503,7 @@ export function ActivityLogView() {
                   if (!task.startTime || !task.endTime) return null
                   const top = timeToY(task.startTime)
                   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
-                  const dur = timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
+                  const dur = durationMinutesForTaskSlot(task)!
                   const color = logBlockAccentFromTags(task.tags, tagUniverse)
 
                   return (

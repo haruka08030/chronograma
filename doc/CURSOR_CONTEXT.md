@@ -173,13 +173,13 @@
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`  | 一覧・ソート・DnD                                                                            |
 | `SectionHeaderDnD.tsx`                                  | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える |
 | `TaskDetail.tsx`                                        | 詳細編集。`isTimeLog` は行動ログ UI（記録日・時間・所要時間・削除）に切替え、優先度・リスト等は非表示 |
-| `TimeInput.tsx`                                         | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供し、`TaskDetail` / `TaskList` / `PlanVsActualView` / `ActivityLogView` / `HabitsView` で利用 |
+| `TimeInput.tsx`                                         | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供。手入力補正（例 `930`→`09:30`）を維持しつつ、上下キー移動 / Enter 確定 / Esc 取消 / Tab 確定 / 外側クリック確定の挙動を統一。`TaskDetail` / `TaskList` / `PlanVsActualView` / `ActivityLogView` / `HabitsView` で利用 |
 | `QuickAdd.tsx`                                          | クイック追加                                                                                 |
 | `CalendarHubView.tsx`                                   | カレンダー用ハブ（月/週、ToDo ドック、`lg` 以上で右側に「選択日パネル（予定/ToDo vs ログ）」、md 未満でサイドバーを開くボタン） |
-| `CalendarDayPanel.tsx`                                  | 選択日の詳細パネル。タブで「予定 / ToDo」「ログ」を切替し、当日ログの合計時間を表示 |
+| `CalendarDayPanel.tsx`                                  | 選択日の詳細パネル。タブで「予定 / ToDo」「ログ」を切替し、当日ログの合計時間を表示。`予定 / ToDo` タブには Google 取り込み予定（青系）も併記 |
 | `CalendarTaskDock.tsx`                                  | カレンダー下部のリスト別 ToDo（ネイティブ DnD で月セル・週タイムラインへドロップ可）         |
-| `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月グリッド・週タイムライン（ハブから利用）。日付選択を `CalendarHubView` に通知し、選択日を軽くハイライト |
-| `PlanVsActualView.tsx`                                  | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸）   |
+| `CalendarView.tsx`, `WeekCalendarView.tsx`              | 月グリッド・週タイムライン（ハブから利用）。日付選択を `CalendarHubView` に通知し、選択日を軽くハイライト。`googleConnected` 時は表示中レンジの Google 予定を取得し、月セル/週タイムラインにも描画 |
+| `PlanVsActualView.tsx`                                  | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸）。予定列の Google 取り込み予定と Habit スロットは本体タップでモーダルを開かず、明示操作でのみ実績化する   |
 | `ActivityLogView.tsx`                                   | ログ（タイムラインのログ色は上記と同じルール）                                               |
 | `StatsView.tsx`                                         | 統計（ルートの通常タスクのみ集計、タイムログは除外）                                         |
 | `HabitsView.tsx`                                        | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋習慣カード（週進捗リング・曜日トグル）。新規追加は「習慣を追加」で展開、既存はカードから編集・削除。時間指定は `none` / `fixed` / `range` の3モード。`fixed` は時刻のみ（幅なし）として保存され、`PlanVsActual` タイムラインには表示しない（`range` のみ表示）。週トグルでは「今日」の曜日ラベルと丸を強調表示。集計・曜日判定は `habitStats.ts`、フォーム検証は `habitDraft.ts` |

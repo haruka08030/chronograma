@@ -5,6 +5,7 @@ import { isToday, isPast, format, parseISO } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isModKey } from '../lib/keyboard'
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
@@ -100,7 +101,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         if (editing) return
         const fromTitle = (e.target as HTMLElement).closest('[data-task-title]')
         if (fromTitle && (onRowClick || onClick)) {
-          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          if (e.shiftKey || isModKey(e)) {
             if (onRowClick) onRowClick(e)
             return
           }

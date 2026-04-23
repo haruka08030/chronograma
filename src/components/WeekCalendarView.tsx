@@ -11,18 +11,26 @@ import {
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes } from '../lib/timeGrid'
+import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, durationMinutesForTaskId } from '../lib/timeGrid'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
+import {
+  fetchCalendarEvents,
+  initGoogleAuth,
+  isGoogleAvailable,
+  signIn,
+  signInSilent,
+} from '../lib/googleCalendar'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function TimeBlock({ task, onPointerDown, onOpenDetail, isLog }: {
+function TimeBlock({ task, onPointerDown, onOpenDetail, isLog, isExternal }: {
   task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
   isLog?: boolean
+  isExternal?: boolean
 }) {
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
@@ -35,6 +43,10 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog }: {
   const logCls = isLog
     ? 'bg-emerald-50/90 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 border-dashed text-emerald-900 dark:text-emerald-100'
     : ''
+  const externalCls =
+    !isLog && isExternal
+      ? 'bg-blue-50 dark:bg-blue-500/15 border-blue-300 dark:border-blue-500/40 text-blue-900 dark:text-blue-100'
+      : ''
 
   return (
     <button
@@ -51,6 +63,8 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog }: {
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${isLog
           ? logCls
+          : isExternal
+            ? externalCls
           : task.completed
             ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
             : 'bg-accent-100 dark:bg-accent-500/20 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
@@ -58,6 +72,7 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog }: {
     >
       <span className="font-medium">{task.title}</span>
       {isLog && <span className="ml-1 text-[9px] opacity-70">ログ</span>}
+      {!isLog && isExternal && <span className="ml-1 text-[9px] opacity-70">外部</span>}
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
           {task.startTime} – {task.endTime}
@@ -106,9 +121,19 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
   )
 }
 
-export function WeekCalendarView() {
+export function WeekCalendarView({
+  selectedDateKey,
+  onSelectDate,
+}: {
+  selectedDateKey?: string
+  onSelectDate?: (dateKey: string) => void
+}) {
   const [anchor, setAnchor] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const googleConnected = useTaskStore((s) => s.googleConnected)
+  const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
+  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -145,6 +170,50 @@ export function WeekCalendarView() {
     }
     return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
   }, [tasks])
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, typeof calendarEvents>()
+    for (const e of calendarEvents) {
+      const arr = map.get(e.date) ?? []
+      arr.push(e)
+      map.set(e.date, arr)
+    }
+    return map
+  }, [calendarEvents])
+
+  useEffect(() => {
+    if (!googleConnected) return
+    let cancelled = false
+
+    const doFetch = async () => {
+      try {
+        if (!isGoogleAvailable()) {
+          await initGoogleAuth()
+        }
+
+        let token = useTaskStore.getState().googleAccessToken
+        if (!token) {
+          try {
+            token = await signInSilent()
+          } catch {
+            token = await signIn()
+          }
+          if (!cancelled) setGoogleAccessToken(token)
+        }
+
+        const ws = startOfWeek(anchor, { weekStartsOn: 1 })
+        const we = endOfWeek(anchor, { weekStartsOn: 1 })
+        we.setHours(23, 59, 59)
+        const events = await fetchCalendarEvents(ws, we, token)
+        if (!cancelled) setCalendarEvents(events)
+      } catch {
+        if (!cancelled) setCalendarEvents([])
+      }
+    }
+
+    doFetch()
+    return () => { cancelled = true }
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -188,11 +257,10 @@ export function WeekCalendarView() {
     }, []),
   })
 
-  const getTaskDuration = useCallback((taskId: string): number | null => {
-    const t = tasks.find((x) => x.id === taskId)
-    if (t?.startTime && t?.endTime) return timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
-    return null
-  }, [tasks])
+  const getTaskDuration = useCallback(
+    (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
+    [tasks],
+  )
 
   const timelineDrop = useTimelineDrop({
     getRelativeY,
@@ -254,14 +322,23 @@ export function WeekCalendarView() {
           <div className="flex-1 grid grid-cols-7">
             {days.map((day) => {
               const today = isToday(day)
+              const key = format(day, 'yyyy-MM-dd')
+              const selected = selectedDateKey ? selectedDateKey === key : false
               return (
-                <div key={day.toISOString()} className={`text-center py-2 ${today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => onSelectDate?.(key)}
+                  className={`text-center py-2 transition-colors ${
+                    today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
+                  }`}
+                >
                   <div className="text-[11px] font-medium">{format(day, 'E', { locale: ja })}</div>
                   <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                    ${today ? 'bg-accent-500 text-white' : ''}`}>
+                    ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
                     {format(day, 'd')}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -276,8 +353,18 @@ export function WeekCalendarView() {
               {days.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayAllDay = allDayByDate.get(key) ?? []
+                const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
                 return (
                   <div key={key} className="min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5">
+                    {dayAllDayEvents.map((e) => (
+                      <div
+                        key={`event-all-day-${e.id}`}
+                        title={e.summary}
+                        className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300"
+                      >
+                        {e.summary}
+                      </div>
+                    ))}
                     {dayAllDay.map((t) => (
                       <div
                         key={t.id}
@@ -322,6 +409,9 @@ export function WeekCalendarView() {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayTimed = timedByDate.get(key) ?? []
                 const dayLogs = timeLogsByDate.get(key) ?? []
+                const dayTimedEvents = (eventsByDate.get(key) ?? []).filter(
+                  (e) => !e.isAllDay && e.startTime && e.endTime,
+                )
                 const today = isToday(day)
 
                 return (
@@ -329,9 +419,13 @@ export function WeekCalendarView() {
                     key={key}
                     data-datekey={key}
                     className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
-                      ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}`}
+                      ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}
+                      ${selectedDateKey === key ? 'ring-1 ring-inset ring-accent-400/50' : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
-                    onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, key)}
+                    onPointerDown={(e) => {
+                      onSelectDate?.(key)
+                      timelineDrag.handleCreatePointerDown(e, key)
+                    }}
                     onDragEnter={timelineDrop.handleDragEnter}
                     onDragOver={(e) => timelineDrop.handleDragOver(e, key)}
                     onDragLeave={timelineDrop.handleDragLeave}
@@ -372,6 +466,24 @@ export function WeekCalendarView() {
                           onOpenDetail={() => setDetailId(t.id)}
                         />
                       </div>
+                    ))}
+                    {dayTimedEvents.map((e) => (
+                      <TimeBlock
+                        key={`event-${e.id}`}
+                        task={{
+                          id: `event-${e.id}`,
+                          title: e.summary,
+                          startTime: e.startTime!,
+                          endTime: e.endTime!,
+                          completed: false,
+                        }}
+                        isExternal
+                        onPointerDown={(evt) => {
+                          evt.preventDefault()
+                          evt.stopPropagation()
+                        }}
+                        onOpenDetail={() => {}}
+                      />
                     ))}
 
                     {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && (

@@ -1,5 +1,8 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from './i18n/config'
+import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar, LIST_PREFIX } from './components/Sidebar'
 import { TaskList } from './components/TaskList'
@@ -27,6 +30,7 @@ import {
   DROPSEC_PREFIX,
   parseSectionReorderId,
 } from './lib/sectionReorderDnD'
+import { isModKey } from './lib/keyboard'
 import {
   DndContext,
   closestCenter,
@@ -77,6 +81,7 @@ function rankForListReorderDrag(id: string): number {
 
 export default function App() {
   useSupabaseSync()
+  const { t } = useTranslation()
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
@@ -146,7 +151,13 @@ export default function App() {
         const taskId = activeId.slice(TASK_PREFIX.length)
         const { moveTaskToList, showMoveBanner } = useTaskStore.getState()
         const r = moveTaskToList(taskId, listId)
-        if (r.moved && r.listName) showMoveBanner(`「${r.listName}」に移動しました`)
+        if (r.moved && r.listName && r.listId != null) {
+          showMoveBanner(
+            i18n.t('toast.taskMovedToList', {
+              name: displayListName(r.listId, r.listName),
+            }),
+          )
+        }
       }
     } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
       const state = useTaskStore.getState()
@@ -167,11 +178,11 @@ export default function App() {
   }, [theme])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    if (isModKey(e) && e.key === 'k') {
       e.preventDefault()
       searchRef.current?.focus()
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+    if (isModKey(e) && e.key === 'n') {
       e.preventDefault()
       const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
       if (quickAdd) {
@@ -180,7 +191,7 @@ export default function App() {
         useTaskStore.getState().requestQuickAdd()
       }
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
       const state = useTaskStore.getState()
       if (state.deletedTasks.length > 0) {
         e.preventDefault()
@@ -248,26 +259,29 @@ export default function App() {
               </button>
 
               <div className="relative min-w-0 flex-1 max-w-2xl">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400/45 dark:text-zinc-500/45"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                 </svg>
                 <input
                   ref={searchRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="検索… (⌘K)"
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-zinc-100 dark:bg-zinc-800
-                             border border-transparent focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
-                             outline-none text-zinc-900 dark:text-zinc-100
-                             placeholder:text-zinc-400 dark:placeholder:text-zinc-500 transition-all"
+                  placeholder={t('app.searchPlaceholder')}
+                  className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400/55 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-zinc-900/[0.04] dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500/45 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-400/70 transition-colors hover:bg-zinc-200/50 hover:text-zinc-600 dark:text-zinc-500/60 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-300"
                   >
-                    <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -282,7 +296,7 @@ export default function App() {
                 type="button"
                 onClick={() => setSidebarOpen(true)}
                 className="-ml-1 shrink-0 rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                aria-label="メニューを開く"
+                aria-label={t('app.openMenu')}
               >
                 <svg className="h-5 w-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />

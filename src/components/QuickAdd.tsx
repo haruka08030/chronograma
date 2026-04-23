@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTaskStore } from '../store/taskStore'
+import { isModKey } from '../lib/keyboard'
 
 export function QuickAdd() {
   const [value, setValue] = useState('')
@@ -64,7 +65,7 @@ export function QuickAdd() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          if (e.key === 'Enter' && isModKey(e)) {
             e.preventDefault()
             submit()
           }

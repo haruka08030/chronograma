@@ -7,12 +7,14 @@ import {
   sectionDropId,
 } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isModKey } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
+import { TimeInput } from './TimeInput'
 import type { Priority, Task } from '../types/task'
 import {
   SortableContext,
@@ -110,19 +112,17 @@ function CompleteWithLogModal({
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div>
             <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
-            <input
-              type="time"
+            <TimeInput
               value={draft.startTime}
-              onChange={(e) => onChange({ startTime: e.target.value, mode: 'shifted' })}
+              onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
               className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
-            <input
-              type="time"
+            <TimeInput
               value={draft.endTime}
-              onChange={(e) => onChange({ endTime: e.target.value, mode: 'shifted' })}
+              onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
               className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
@@ -410,7 +410,7 @@ export function TaskList() {
         lastAnchorRef.current = taskId
         return
       }
-      if (e.metaKey || e.ctrlKey) {
+      if (isModKey(e)) {
         toggleInSelection(taskId)
         return
       }

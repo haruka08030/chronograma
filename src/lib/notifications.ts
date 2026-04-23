@@ -1,5 +1,6 @@
 import type { Task } from '../types/task'
 import { isToday, parseISO } from 'date-fns'
+import i18n from '../i18n/config'
 
 const notifiedIds = new Set<string>()
 
@@ -25,7 +26,7 @@ export function checkAndNotify(tasks: Task[]) {
 
   for (const task of dueTasks) {
     notifiedIds.add(task.id)
-    new Notification('Chronograma - 今日のタスク', {
+    new Notification(i18n.t('notifications.dueTitle'), {
       body: task.title,
       tag: task.id,
     })

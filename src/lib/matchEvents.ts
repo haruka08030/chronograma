@@ -1,5 +1,6 @@
 import type { Task } from '../types/task'
 import type { PlannedItem } from '../types/plannedItem'
+import { timeToMinutes } from './timeGrid'
 
 export type MatchStatus = 'matched' | 'time-drift' | 'planned-only' | 'actual-only'
 
@@ -8,11 +9,6 @@ export interface MatchedPair {
   planned?: PlannedItem
   actual?: Task
   driftMinutes?: number
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
 }
 
 function titleSimilarity(a: string, b: string): number {

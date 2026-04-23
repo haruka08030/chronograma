@@ -2,6 +2,10 @@
 
 タスク・カレンダー・タイムログ向けの React アプリです。データはブラウザの localStorage に保存されます。オプションで **Supabase** を設定するとログイン（メールのマジックリンク）とリスト／タスクのクラウド同期が有効になります。
 
+## モバイル（Flutter）
+
+`mobile/` に Flutter 版があります（To‑Do 中心の Phase 1）。`cd mobile && flutter run`。概要は [`mobile/README.md`](mobile/README.md)。
+
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。

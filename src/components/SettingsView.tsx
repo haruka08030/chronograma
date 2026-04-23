@@ -1,10 +1,13 @@
 import { useLayoutEffect } from 'react'
-import { useTaskStore, LIST_COLOR_PALETTES } from '../store/taskStore'
+import { useTranslation } from 'react-i18next'
+import { useTaskStore } from '../store/taskStore'
+import { LIST_COLOR_PALETTES } from '../lib/listColorPalettes'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AccountMenu } from './AccountMenu'
 import { ThemeToggle } from './ThemeToggle'
 
 export function SettingsView() {
+  const { t } = useTranslation()
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const setListColorPalette = useTaskStore((s) => s.setListColorPalette)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
@@ -21,17 +24,15 @@ export function SettingsView() {
   return (
     <div className="max-w-2xl flex-1 space-y-8 overflow-y-auto px-6 py-8">
       <div>
-        <h1 className="mb-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">設定</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          外観・アカウント・リストの色パレットを変更できます。
-        </p>
+        <h1 className="mb-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('settings.intro')}</p>
       </div>
 
       <section
         id="settings-appearance"
         className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
       >
-        <h2 className="mb-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">外観</h2>
+        <h2 className="mb-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('settings.appearance')}</h2>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2">
             <svg
@@ -52,26 +53,20 @@ export function SettingsView() {
         id="settings-account"
         className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
       >
-        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">アカウント</h2>
-        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          メールのマジックリンクでログインすると、タスクなどを複数端末で同期できます。
-        </p>
+        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('settings.account')}</h2>
+        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.accountHelp')}</p>
         {isSupabaseConfigured ? (
           <div className="relative">
             <AccountMenu variant="settings" />
           </div>
         ) : (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Supabase が未設定のため、クラウドログインは利用できません。
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('settings.supabaseOff')}</p>
         )}
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">リスト色パレット</h2>
-        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          リストの色チップと新規リストの候補に使うパレットを選べます。既存リストの色は変わりません。
-        </p>
+        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('settings.paletteTitle')}</h2>
+        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.paletteHelp')}</p>
         <div className="space-y-3">
           {LIST_COLOR_PALETTES.map((p) => {
             const selected = listColorPaletteId === p.id
@@ -87,11 +82,17 @@ export function SettingsView() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{p.label}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{p.description}</div>
+                    <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {t(`palettes.${p.id}.label`)}
+                    </div>
+                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {t(`palettes.${p.id}.description`)}
+                    </div>
                   </div>
                   {selected && (
-                    <span className="flex-shrink-0 text-xs font-medium text-accent-600 dark:text-accent-400">選択中</span>
+                    <span className="flex-shrink-0 text-xs font-medium text-accent-600 dark:text-accent-400">
+                      {t('settings.selected')}
+                    </span>
                   )}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">

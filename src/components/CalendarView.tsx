@@ -16,6 +16,13 @@ import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import {
+  fetchCalendarEvents,
+  initGoogleAuth,
+  isGoogleAvailable,
+  signIn,
+  signInSilent,
+} from '../lib/googleCalendar'
 
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
 
@@ -58,6 +65,10 @@ export function CalendarView({
 }) {
   const [current, setCurrent] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const googleConnected = useTaskStore((s) => s.googleConnected)
+  const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
+  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -83,6 +94,52 @@ export function CalendarView({
     }
     return map
   }, [tasks])
+
+  useEffect(() => {
+    if (!googleConnected) return
+    let cancelled = false
+
+    const doFetch = async () => {
+      try {
+        if (!isGoogleAvailable()) {
+          await initGoogleAuth()
+        }
+
+        let token = useTaskStore.getState().googleAccessToken
+        if (!token) {
+          try {
+            token = await signInSilent()
+          } catch {
+            token = await signIn()
+          }
+          if (!cancelled) setGoogleAccessToken(token)
+        }
+
+        const monthStart = startOfMonth(current)
+        const monthEnd = endOfMonth(current)
+        const ws = startOfWeek(monthStart, { weekStartsOn: 1 })
+        const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
+        we.setHours(23, 59, 59)
+        const events = await fetchCalendarEvents(ws, we, token)
+        if (!cancelled) setCalendarEvents(events)
+      } catch {
+        if (!cancelled) setCalendarEvents([])
+      }
+    }
+
+    doFetch()
+    return () => { cancelled = true }
+  }, [current, googleConnected, setCalendarEvents, setGoogleAccessToken])
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, typeof calendarEvents>()
+    for (const e of calendarEvents) {
+      const arr = map.get(e.date) ?? []
+      arr.push(e)
+      map.set(e.date, arr)
+    }
+    return map
+  }, [calendarEvents])
 
   const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
 
@@ -132,6 +189,7 @@ export function CalendarView({
           {days.map((day) => {
             const key = format(day, 'yyyy-MM-dd')
             const dayTasks = tasksByDate.get(key) ?? []
+            const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
             const inMonth = isSameMonth(day, current)
             const today = isToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
@@ -180,6 +238,18 @@ export function CalendarView({
                   {format(day, 'd')}
                 </div>
                 <div className="space-y-0.5">
+                  {dayEvents.slice(0, 2).map((e) => (
+                    <div
+                      key={`event-${e.id}`}
+                      title={e.summary}
+                      className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300"
+                    >
+                      {e.startTime && (
+                        <span className="text-[9px] opacity-60 mr-0.5">{e.startTime}</span>
+                      )}
+                      {e.summary}
+                    </div>
+                  ))}
                   {dayTasks.slice(0, 3).map((t) => (
                     <div
                       key={t.id}
@@ -204,9 +274,9 @@ export function CalendarView({
                       {t.title}
                     </div>
                   ))}
-                  {dayTasks.length > 3 && (
+                  {(dayTasks.length > 3 || dayEvents.length > 2) && (
                     <div className="text-[10px] text-zinc-400 px-1.5">
-                      +{dayTasks.length - 3}
+                      +{Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0)}
                     </div>
                   )}
                   {addingDate === key && (

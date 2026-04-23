@@ -11,7 +11,8 @@ import {
 import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes } from '../lib/timeGrid'
+import { TimeInput } from './TimeInput'
+import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, durationMinutesForTaskId } from '../lib/timeGrid'
 import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
@@ -109,11 +110,12 @@ function actualBlockStyles(matchStatus: MatchedPair | undefined): {
   return blockStylesForStatus(matchStatus.status)
 }
 
-function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompleted, onOpen }: {
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, habitCompleted, onOpen }: {
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
   onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
+  onHabitDone?: () => void
   habitCompleted?: boolean
   onOpen?: () => void
 }) {
@@ -158,7 +160,23 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, habitCompl
             }}
             className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
-                       transition-colors opacity-0 group-hover/planned:opacity-100 flex items-center justify-center"
+                       transition-colors opacity-100 sm:opacity-0 sm:group-hover/planned:opacity-100 flex items-center justify-center"
+            title="実績として記録"
+          >
+            <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </button>
+        )}
+        {item.source === 'habit' && !isDone && !habitCompleted && onHabitDone && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onHabitDone()
+            }}
+            className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
+                       hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
+                       transition-colors opacity-100 sm:opacity-0 sm:group-hover/planned:opacity-100 flex items-center justify-center"
             title="実績として記録"
           >
             <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -535,19 +553,17 @@ function CompleteWithLogModal({
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div>
             <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
-            <input
-              type="time"
+            <TimeInput
               value={draft.startTime}
-              onChange={(e) => onChange({ startTime: e.target.value, mode: 'shifted' })}
+              onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
               className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
-            <input
-              type="time"
+            <TimeInput
               value={draft.endTime}
-              onChange={(e) => onChange({ endTime: e.target.value, mode: 'shifted' })}
+              onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
               className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
@@ -793,11 +809,10 @@ export function PlanVsActualView() {
     return tasks.find((t) => t.id === id) ?? null
   }, [timelineDrag.movingTaskId, tasks])
 
-  const getTaskDuration = useCallback((taskId: string): number | null => {
-    const t = tasks.find((x) => x.id === taskId)
-    if (t?.startTime && t?.endTime) return timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
-    return null
-  }, [tasks])
+  const getTaskDuration = useCallback(
+    (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
+    [tasks],
+  )
 
   const timelineDropSchedule = useTimelineDrop({
     getRelativeY,
@@ -1131,12 +1146,10 @@ export function PlanVsActualView() {
                               matchStatus={match}
                               dateKey={key}
                               onGoogleDone={handlePlannedDone}
+                              onHabitDone={hid
+                                ? () => openHabitCompleteWithLog(hid, item.summary, key, item.startTime, item.endTime)
+                                : undefined}
                               habitCompleted={completed}
-                              onOpen={
-                                hid
-                                  ? () => openHabitCompleteWithLog(hid, item.summary, key, item.startTime, item.endTime)
-                                  : undefined
-                              }
                             />
                           )
                         }

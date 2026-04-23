@@ -14,6 +14,7 @@ export function CalendarDayPanel({
   selectedDateKey: string
 }) {
   const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
   const [detailId, setDetailId] = useState<string | null>(null)
 
@@ -35,6 +36,20 @@ export function CalendarDayPanel({
           return a.order - b.order
         }),
     [tasks, selectedDateKey],
+  )
+  const externalEvents = useMemo(
+    () =>
+      calendarEvents
+        .filter((e) => e.date === selectedDateKey)
+        .sort((a, b) => {
+          if (!a.startTime && b.startTime) return -1
+          if (a.startTime && !b.startTime) return 1
+          if (a.startTime && b.startTime) {
+            return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+          }
+          return a.summary.localeCompare(b.summary)
+        }),
+    [calendarEvents, selectedDateKey],
   )
 
   const logItems = useMemo(
@@ -65,7 +80,6 @@ export function CalendarDayPanel({
       <div className="flex h-full min-h-0 flex-col bg-zinc-50/70 dark:bg-zinc-900/70">
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">当日の予定/ToDo とログ</p>
         </div>
 
         <div className="px-4 pt-3">
@@ -98,12 +112,31 @@ export function CalendarDayPanel({
         {tab === 'planned' ? (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
-              {plannedItems.length === 0 ? (
+              {externalEvents.length === 0 && plannedItems.length === 0 ? (
                 <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">この日の予定ToDoはまだありません</p>
               ) : (
-                plannedItems.map((task) => (
-                  <TaskItem key={task.id} task={task} onClick={() => setDetailId(task.id)} />
-                ))
+                <>
+                  {externalEvents.length > 0 && (
+                    <div className="mb-2 space-y-1.5 px-2">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-blue-500 dark:text-blue-400">取り込み予定</div>
+                      {externalEvents.map((event) => (
+                        <div
+                          key={event.id}
+                          title={event.summary}
+                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left dark:border-blue-500/40 dark:bg-blue-500/10"
+                        >
+                          <div className="text-sm font-medium text-blue-900 dark:text-blue-100">{event.summary}</div>
+                          <div className="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
+                            {event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '終日'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {plannedItems.map((task) => (
+                    <TaskItem key={task.id} task={task} onClick={() => setDetailId(task.id)} />
+                  ))}
+                </>
               )}
             </div>
           </>

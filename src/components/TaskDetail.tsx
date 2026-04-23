@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
+import { TimeInput } from './TimeInput'
 import { timeToMinutes, formatDuration } from '../lib/timeGrid'
 
 const RECURRENCE_TYPES: { value: Recurrence['type'] | 'none'; label: string }[] = [
@@ -230,19 +231,17 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
             <div>
               <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">時間</label>
               <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="time"
+                <TimeInput
                   value={task.startTime ?? ''}
-                  onChange={(e) => updateTask(task.id, { startTime: e.target.value || null })}
+                  onChange={(v) => updateTask(task.id, { startTime: v || null })}
                   className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                              bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                              focus:ring-2 focus:ring-accent-500/40"
                 />
                 <span className="text-zinc-400 text-sm">〜</span>
-                <input
-                  type="time"
+                <TimeInput
                   value={task.endTime ?? ''}
-                  onChange={(e) => updateTask(task.id, { endTime: e.target.value || null })}
+                  onChange={(v) => updateTask(task.id, { endTime: v || null })}
                   className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                              bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                              focus:ring-2 focus:ring-accent-500/40"
@@ -260,19 +259,17 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
             <div>
               <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">時間</label>
               <div className="flex items-center gap-2">
-                <input
-                  type="time"
+                <TimeInput
                   value={task.startTime ?? ''}
-                  onChange={(e) => updateTask(task.id, { startTime: e.target.value || null })}
+                  onChange={(v) => updateTask(task.id, { startTime: v || null })}
                   className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                              bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                              focus:ring-2 focus:ring-accent-500/40"
                 />
                 <span className="text-zinc-400 text-sm">〜</span>
-                <input
-                  type="time"
+                <TimeInput
                   value={task.endTime ?? ''}
-                  onChange={(e) => updateTask(task.id, { endTime: e.target.value || null })}
+                  onChange={(v) => updateTask(task.id, { endTime: v || null })}
                   className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                              bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                              focus:ring-2 focus:ring-accent-500/40"

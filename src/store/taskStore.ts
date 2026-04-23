@@ -4,7 +4,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
-import type { Habit } from '../types/habit'
+import { inferHabitTimeMode, type Habit } from '../types/habit'
 import { newId } from '../lib/id'
 import {
   DEFAULT_LIST_COLOR_PALETTE_ID,
@@ -13,6 +13,7 @@ import {
   type ListColorPaletteId,
 } from '../lib/listColorPalettes'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
+import i18n from '../i18n/config'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -127,8 +128,8 @@ interface TaskState {
   setGoogleConnected: (connected: boolean) => void
   setGoogleAccessToken: (token: string | null) => void
 
-  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'startTime' | 'endTime' | 'frequency'>) => void
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
   deleteHabit: (id: string) => void
   toggleHabitDate: (habitId: string, dateKey: string) => void
 
@@ -163,7 +164,10 @@ interface TaskState {
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
   /** ルートタスクを別リストへ。子タスクは listId のみ追随。末尾 order。同一リストは no-op */
-  moveTaskToList: (taskId: string, listId: string) => { moved: boolean; listName?: string }
+  moveTaskToList: (
+    taskId: string,
+    listId: string,
+  ) => { moved: boolean; listName?: string; listId?: string }
 
   moveBannerText: string | null
   showMoveBanner: (text: string) => void
@@ -315,7 +319,7 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({
           sections: [
             ...s.sections,
-            { id: newId(), listId, name: name?.trim() || 'セクション', order: maxOrder + 1 },
+            { id: newId(), listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1 },
           ],
         }))
       },
@@ -362,6 +366,7 @@ export const useTaskStore = create<TaskState>()(
           id: newId(),
           title: fields.title,
           color: fields.color,
+          timeMode: fields.timeMode,
           startTime: fields.startTime,
           endTime: fields.endTime,
           frequency: fields.frequency,
@@ -633,7 +638,7 @@ export const useTaskStore = create<TaskState>()(
         const s = get()
         const task = s.tasks.find((t) => t.id === taskId)
         if (!task || task.listId === listId) return { moved: false }
-        const listName = s.lists.find((l) => l.id === listId)?.name ?? 'リスト'
+        const listName = s.lists.find((l) => l.id === listId)?.name ?? i18n.t('lists.unnamedList')
         const descendants = expandDescendantIds([taskId], s.tasks)
         set((state) => {
           const maxOrder = Math.max(
@@ -659,7 +664,7 @@ export const useTaskStore = create<TaskState>()(
             }),
           }
         })
-        return { moved: true, listName }
+        return { moved: true, listName, listId }
       },
 
       showMoveBanner: (text) => set({ moveBannerText: text }),
@@ -718,10 +723,29 @@ export const useTaskStore = create<TaskState>()(
               isTimeLog: Boolean(isTimeLog),
             }
           })
+          const importedHabits = Array.isArray(data.habits)
+            ? (data.habits as unknown[]).map((raw) => {
+                const rec = raw as Record<string, unknown>
+                const h = raw as Habit
+                const startTime = typeof h.startTime === 'string' ? h.startTime : null
+                const endTime = typeof h.endTime === 'string' ? h.endTime : null
+                const timeMode =
+                  h.timeMode === 'none' || h.timeMode === 'fixed' || h.timeMode === 'range'
+                    ? h.timeMode
+                    : inferHabitTimeMode(startTime, endTime)
+                return {
+                  ...h,
+                  ...rec,
+                  timeMode,
+                  startTime,
+                  endTime,
+                }
+              })
+            : []
           set({
             tasks: importedTasks,
             lists: data.lists,
-            habits: Array.isArray(data.habits) ? data.habits : [],
+            habits: importedHabits,
             listColorPaletteId,
             sections,
             quickAddSectionId: null,
@@ -734,7 +758,7 @@ export const useTaskStore = create<TaskState>()(
     }),
     {
       name: PERSIST_STORAGE_KEY,
-      version: 14,
+      version: 15,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -829,6 +853,24 @@ export const useTaskStore = create<TaskState>()(
               return { ...rec, name: '未分類' }
             }
             return l
+          })
+        }
+        if (version < 15) {
+          const habits = (state.habits as Record<string, unknown>[]) ?? []
+          state.habits = habits.map((h) => {
+            const rec = h as Record<string, unknown>
+            const startTime = typeof rec.startTime === 'string' ? rec.startTime : null
+            const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
+            const timeMode =
+              rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range'
+                ? rec.timeMode
+                : inferHabitTimeMode(startTime, endTime)
+            return {
+              ...rec,
+              timeMode,
+              startTime,
+              endTime,
+            }
           })
         }
         return state as unknown as TaskState
