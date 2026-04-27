@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import { isToday, isPast, format, parseISO } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import type { Locale } from 'date-fns'
+import { isToday, isPast, format, parseISO, startOfDay, addDays } from 'date-fns'
+import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
+import { displayListName } from '../lib/displayListName'
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
@@ -13,11 +16,11 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: 'text-blue-500',
 }
 
-function dueDateLabel(iso: string): { text: string; overdue: boolean } {
+function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; overdue: boolean } {
   const d = parseISO(iso)
-  if (isToday(d)) return { text: '今日', overdue: false }
+  if (isToday(d)) return { text: todayLabel, overdue: false }
   const overdue = isPast(d) && !isToday(d)
-  return { text: format(d, 'M/d (E)', { locale: ja }), overdue }
+  return { text: format(d, 'M/d (E)', { locale }), overdue }
 }
 
 export type TaskItemSelection = {
@@ -27,7 +30,7 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHandle, isSubtask, selection }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHandle, isSubtask, selection, rowClassName }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -38,10 +41,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
   /** TickTick 風一覧のインデント行 */
   isSubtask?: boolean
   selection?: TaskItemSelection
+  /** 行ラッパーに付与（例: 右端ネスト帯と並べたときの `rounded-r-none min-w-0`） */
+  rowClassName?: string
 }) {
+  const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
-  const { toggleTask, updateTask, deleteTask, setFilterTag } = useTaskStore()
+  const { toggleTask, updateTask, deleteTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(false)
+  const [rowMenuOpen, setRowMenuOpen] = useState(false)
+  const rowMenuRef = useRef<HTMLDivElement>(null)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
   /** タイトル1クリックが詳細オープンと競合しないよう遅延（ダブルクリックで編集） */
@@ -60,6 +68,19 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
     }
   }, [editing])
 
+  useEffect(() => {
+    if (!rowMenuOpen) return
+    const close = (e: MouseEvent) => {
+      if (rowMenuRef.current && !rowMenuRef.current.contains(e.target as Node)) setRowMenuOpen(false)
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [rowMenuOpen])
+
+  const dueTodayIso = format(startOfDay(new Date()), 'yyyy-MM-dd')
+  const dueTomorrowIso = format(addDays(startOfDay(new Date()), 1), 'yyyy-MM-dd')
+  const sortedLists = [...lists].sort((a, b) => a.order - b.order)
+
   const commitEdit = () => {
     const trimmed = editValue.trim()
     if (trimmed && trimmed !== task.title) {
@@ -69,8 +90,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
     setEditValue(trimmed || task.title)
   }
 
-  const due = task.dueDate ? dueDateLabel(task.dueDate) : null
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const due = task.dueDate ? dueDateLabel(task.dueDate, t('taskItem.dueToday'), dateLocale) : null
   const timeLog = isListedTimeLog(task)
+  const showRowExtras = !task.completed && !timeLog
   const priorityColor = PRIORITY_COLORS[task.priority]
   const [isDragging, setIsDragging] = useState(false)
 
@@ -94,9 +117,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
       className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
-                  ${isSubtask ? 'px-2 py-2' : 'px-3 py-2.5'}
+                  ${isSubtask ? 'px-2.5 py-1.5' : 'px-2.5 py-2'}
                   ${task.completed && !timeLog ? 'opacity-50' : ''}
-                  ${isDragging ? 'opacity-30' : ''}`}
+                  ${isDragging ? 'opacity-30' : ''}
+                  ${rowClassName ?? ''}`}
       onClick={(e) => {
         if (editing) return
         const fromTitle = (e.target as HTMLElement).closest('[data-task-title]')
@@ -137,7 +161,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
           type="button"
           role="checkbox"
           aria-checked={selection.selected}
-          aria-label="一括選択に含める"
+          aria-label={t('taskItem.bulkSelectAria')}
           tabIndex={-1}
           onClick={(e) => {
             e.stopPropagation()
@@ -170,7 +194,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
           toggleTask(task.id)
         }}
         className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
-          ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'}
+          ${isSubtask ? 'w-4 h-4' : 'w-[18px] h-[18px]'}
           ${
             task.completed
               ? timeLog
@@ -182,12 +206,12 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
           }`}
         aria-label={
           !task.completed && !timeLog && onCompleteRequest
-            ? '完了としてログを記録する'
+            ? t('taskItem.completeWithLog')
             : task.completed
             ? timeLog
-              ? 'タイムログを取り消して未完了に戻す'
-              : 'タスクを未完了に戻す'
-            : 'タスクを完了にする'
+              ? t('taskItem.unlogIncomplete')
+              : t('taskItem.markIncomplete')
+            : t('taskItem.markComplete')
         }
       >
         {task.completed && (
@@ -260,8 +284,43 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         </div>
       </div>
 
+      {showRowExtras && (
+        <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button
+            type="button"
+            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            onClick={(e) => {
+              e.stopPropagation()
+              updateTask(task.id, { dueDate: dueTodayIso })
+            }}
+          >
+            {t('taskItem.quickDueToday')}
+          </button>
+          <button
+            type="button"
+            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            onClick={(e) => {
+              e.stopPropagation()
+              updateTask(task.id, { dueDate: dueTomorrowIso })
+            }}
+          >
+            {t('taskItem.quickDueTomorrow')}
+          </button>
+          <button
+            type="button"
+            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            onClick={(e) => {
+              e.stopPropagation()
+              updateTask(task.id, { dueDate: null })
+            }}
+          >
+            {t('taskItem.quickDueClear')}
+          </button>
+        </div>
+      )}
+
       <label
-        className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+        className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -275,10 +334,84 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         </svg>
       </label>
 
+      <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={rowMenuRef}>
+        <button
+          type="button"
+          className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400"
+          aria-expanded={rowMenuOpen}
+          aria-haspopup="true"
+          aria-label={t('taskItem.moreMenuAria')}
+          onClick={(e) => {
+            e.stopPropagation()
+            setRowMenuOpen((o) => !o)
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5M3.75 14.25h16.5M12 6v12" />
+          </svg>
+        </button>
+        {rowMenuOpen && (
+          <div
+            className="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-zinc-200 bg-white py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {showRowExtras && (
+              <div className="flex flex-wrap gap-1 px-2 pb-2 border-b border-zinc-100 dark:border-zinc-700 sm:hidden">
+                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: dueTodayIso }); setRowMenuOpen(false) }}>{t('taskItem.quickDueToday')}</button>
+                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: dueTomorrowIso }); setRowMenuOpen(false) }}>{t('taskItem.quickDueTomorrow')}</button>
+                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: null }); setRowMenuOpen(false) }}>{t('taskItem.quickDueClear')}</button>
+              </div>
+            )}
+            {!task.parentId && (
+              <div className="px-2 pb-2">
+                <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">{t('taskDetail.list')}</label>
+                <select
+                  className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1"
+                  value={task.listId}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    const r = moveTaskToList(task.id, next)
+                    setRowMenuOpen(false)
+                    if (r.moved && r.listName) {
+                      showMoveBanner(
+                        i18n.t('toast.taskMovedToList', {
+                          name: displayListName(r.listId ?? next, r.listName),
+                        }),
+                      )
+                    }
+                  }}
+                >
+                  {sortedLists.map((l) => (
+                    <option key={l.id} value={l.id}>{displayListName(l.id, l.name)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!task.parentId && showRowExtras && (
+        <button
+          type="button"
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all flex-shrink-0 text-zinc-400"
+          aria-pressed={task.pinned === true}
+          aria-label={task.pinned ? t('taskItem.unpinAria') : t('taskItem.pinAria')}
+          onClick={(e) => {
+            e.stopPropagation()
+            updateTask(task.id, { pinned: !task.pinned })
+          }}
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill={task.pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.75V16.5l-4.5-3-4.5 3V3.75A1.5 1.5 0 017.5 3h9A1.5 1.5 0 0116.5 3.75z" />
+          </svg>
+        </button>
+      )}
+
       <button
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
         className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-        aria-label="削除"
+        aria-label={t('taskItem.deleteAria')}
       >
         <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />

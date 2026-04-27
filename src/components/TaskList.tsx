@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import { useTaskStore, type SortMode } from '../store/taskStore'
 import {
@@ -7,32 +8,152 @@ import {
   sectionDropId,
 } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { isModKey } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
+import { SortableSubtaskItem } from './SortableSubtaskItem'
+import { SUBTASK_PREFIX, subtaskDragId } from '../lib/subtaskDnD'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
-import { TimeInput } from './TimeInput'
 import type { Priority, Task } from '../types/task'
+import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { displayListName } from '../lib/displayListName'
 
-const VIEW_LABELS: Record<string, string> = {
-  all: 'すべて', today: '今日', upcoming: '近日中', overdue: '期限切れ',
-  calendar: 'カレンダー',
+const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
+
+function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
+  let n = 0
+  for (const st of childrenByParent.get(parentId) ?? []) {
+    if (!st.completed && !isListedTimeLog(st)) {
+      n += 1 + countIncompleteDescendants(st.id, childrenByParent)
+    }
+  }
+  return n
 }
 
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: 'manual', label: '手動' },
-  { value: 'dueDate', label: '期限日' },
-  { value: 'priority', label: '優先度' },
-  { value: 'title', label: 'タイトル' },
-  { value: 'createdAt', label: '作成日' },
-]
+function DnDSubtreeRows({
+  parentId,
+  depth,
+  incompleteSubtasks,
+  makeRowClick,
+  makeSelection,
+  openCompleteWithLog,
+  subtaskNestWithDrag,
+}: {
+  parentId: string
+  depth: number
+  incompleteSubtasks: (id: string) => Task[]
+  makeRowClick: (id: string) => (e: MouseEvent) => void
+  makeSelection: (id: string) => TaskItemSelection
+  openCompleteWithLog: (task: Task) => void
+  subtaskNestWithDrag: string
+}): ReactNode[] {
+  return incompleteSubtasks(parentId).flatMap((st): ReactNode[] => [
+    <div key={st.id} className={`${subtaskNestWithDrag}${depth > 0 ? ' ml-2' : ''}`}>
+      <SortableSubtaskItem
+        task={st}
+        onRowClick={makeRowClick(st.id)}
+        onCompleteRequest={openCompleteWithLog}
+        selection={makeSelection(st.id)}
+      />
+    </div>,
+    ...DnDSubtreeRows({
+      parentId: st.id,
+      depth: depth + 1,
+      incompleteSubtasks,
+      makeRowClick,
+      makeSelection,
+      openCompleteWithLog,
+      subtaskNestWithDrag,
+    }),
+  ])
+}
+
+function StaticSubtreeRows({
+  parentId,
+  depth,
+  incompleteSubtasks,
+  makeRowClick,
+  makeSelection,
+  openCompleteWithLog,
+  subtaskNestNoDrag,
+}: {
+  parentId: string
+  depth: number
+  incompleteSubtasks: (id: string) => Task[]
+  makeRowClick: (id: string) => (e: MouseEvent) => void
+  makeSelection: (id: string) => TaskItemSelection
+  openCompleteWithLog: (task: Task) => void
+  subtaskNestNoDrag: string
+}): ReactNode[] {
+  return incompleteSubtasks(parentId).map((st): ReactNode => (
+    <div key={st.id} className={`${subtaskNestNoDrag}${depth > 0 ? ' ml-1.5' : ''}`}>
+      <TaskItem
+        task={st}
+        isSubtask
+        onRowClick={makeRowClick(st.id)}
+        onCompleteRequest={openCompleteWithLog}
+        selection={makeSelection(st.id)}
+      />
+      {StaticSubtreeRows({
+        parentId: st.id,
+        depth: depth + 1,
+        incompleteSubtasks,
+        makeRowClick,
+        makeSelection,
+        openCompleteWithLog,
+        subtaskNestNoDrag,
+      })}
+    </div>
+  ))
+}
+
+function CompletedSubtreeRows({
+  parentId,
+  depth,
+  childrenByParent,
+  makeRowClick,
+  makeSelection,
+  openCompleteWithLog,
+  subtaskNestNoDrag,
+}: {
+  parentId: string
+  depth: number
+  childrenByParent: Map<string, Task[]>
+  makeRowClick: (id: string) => (e: MouseEvent) => void
+  makeSelection: (id: string) => TaskItemSelection
+  openCompleteWithLog: (task: Task) => void
+  subtaskNestNoDrag: string
+}): ReactNode[] {
+  return (childrenByParent.get(parentId) ?? []).map((st): ReactNode => (
+    <div key={st.id} className={`${subtaskNestNoDrag}${depth > 0 ? ' ml-1.5' : ''}`}>
+      <TaskItem
+        task={st}
+        isSubtask
+        onRowClick={makeRowClick(st.id)}
+        onCompleteRequest={openCompleteWithLog}
+        selection={makeSelection(st.id)}
+      />
+      {CompletedSubtreeRows({
+        parentId: st.id,
+        depth: depth + 1,
+        childrenByParent,
+        makeRowClick,
+        makeSelection,
+        openCompleteWithLog,
+        subtaskNestNoDrag,
+      })}
+    </div>
+  ))
+}
 
 function SectionDropZone({ listId, sectionId }: { listId: string; sectionId: string | null }) {
   const { setNodeRef, isOver } = useDroppable({ id: sectionDropId(listId, sectionId) })
@@ -45,122 +166,10 @@ function SectionDropZone({ listId, sectionId }: { listId: string; sectionId: str
   )
 }
 
-const BULK_PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' },
-  { value: 'none', label: 'なし' },
-]
-
-type CompletionMode = 'as-planned' | 'shifted'
-
-interface CompleteWithLogDraft {
-  taskId: string
-  title: string
-  date: string
-  startTime: string
-  endTime: string
-  memo: string
-  mode: CompletionMode
-  tags: string[]
-}
-
-function CompleteWithLogModal({
-  draft,
-  onClose,
-  onChange,
-  onSubmit,
-}: {
-  draft: CompleteWithLogDraft
-  onClose: () => void
-  onChange: (patch: Partial<CompleteWithLogDraft>) => void
-  onSubmit: () => void
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
-      <div
-        className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">完了を記録</h2>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          実績ログを作成してから、予定タスクを完了にします。
-        </p>
-
-        <div className="mt-4 space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="completion-mode"
-              checked={draft.mode === 'as-planned'}
-              onChange={() => onChange({ mode: 'as-planned' })}
-            />
-            <span className="text-zinc-700 dark:text-zinc-300">予定どおり完了</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="completion-mode"
-              checked={draft.mode === 'shifted'}
-              onChange={() => onChange({ mode: 'shifted' })}
-            />
-            <span className="text-zinc-700 dark:text-zinc-300">時間をずらして実行</span>
-          </label>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
-            <TimeInput
-              value={draft.startTime}
-              onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
-            <TimeInput
-              value={draft.endTime}
-              onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">メモ（任意）</label>
-          <textarea
-            value={draft.memo}
-            onChange={(e) => onChange({ memo: e.target.value })}
-            rows={4}
-            placeholder="実行内容のメモを入力"
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600"
-          >
-            保存して完了
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+const BULK_PRIORITY_OPTIONS: Priority[] = ['high', 'medium', 'low', 'none']
 
 export function TaskList() {
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
@@ -179,8 +188,9 @@ export function TaskList() {
   const deleteSectionStore = useTaskStore((s) => s.deleteSection)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const todayIncludeOverdue = useTaskStore((s) => s.todayIncludeOverdue)
 
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
@@ -218,7 +228,7 @@ export function TaskList() {
     () => ({
       onDragStart({ active }: { active: { id: string | number } }) {
         const id = String(active.id)
-        if (id.startsWith(TASK_PREFIX) || id.startsWith(DRAGSEC_PREFIX)) clearSelection()
+        if (id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX) || id.startsWith(DRAGSEC_PREFIX)) clearSelection()
       },
     }),
     [clearSelection],
@@ -226,7 +236,17 @@ export function TaskList() {
   useDndMonitor(dndMonitor)
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
-  const title = selectedView ? VIEW_LABELS[selectedView] ?? '' : (currentList?.name ?? 'タスク')
+  const sortOptions = useMemo(
+    () => SORT_OPTIONS.map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
+    [t],
+  )
+  const bulkPriorityOptions = useMemo(
+    () => BULK_PRIORITY_OPTIONS.map((value) => ({ value, label: t(`common.${value}`) })),
+    [t],
+  )
+  const title = selectedView
+    ? t(`sidebar.views.${selectedView}`)
+    : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
 
   const filtered = useMemo(
     () =>
@@ -237,8 +257,9 @@ export function TaskList() {
         sortMode,
         filterTag,
         sections,
+        todayIncludeOverdue,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, sections],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, sections, todayIncludeOverdue],
   )
 
   const listSectionsOrdered = useMemo(() => {
@@ -266,9 +287,7 @@ export function TaskList() {
     let n = 0
     for (const p of filtered) {
       if (!p.completed && !isListedTimeLog(p)) n++
-      for (const st of childrenByParent.get(p.id) ?? []) {
-        if (!st.completed && !isListedTimeLog(st)) n++
-      }
+      n += countIncompleteDescendants(p.id, childrenByParent)
     }
     return n
   }, [filtered, childrenByParent])
@@ -283,8 +302,9 @@ export function TaskList() {
       sortMode,
       filterTag,
       sections,
+      todayIncludeOverdue,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections])
+  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, todayIncludeOverdue])
 
   const sectionBlocks = useMemo(() => {
     if (!showSectionBlocks || !selectedListId) return null
@@ -298,21 +318,15 @@ export function TaskList() {
       else map.get(null)!.push(t)
     }
     const rows: { sectionId: string | null; title: string; tasks: typeof active }[] = [
-      { sectionId: null, title: 'セクションなし', tasks: map.get(null) ?? [] },
+      { sectionId: null, title: t('sections.noneTitle'), tasks: map.get(null) ?? [] },
     ]
     for (const s of listSectionsOrdered) {
       rows.push({ sectionId: s.id, title: s.name, tasks: map.get(s.id) ?? [] })
     }
     return rows
-  }, [showSectionBlocks, selectedListId, listSectionsOrdered, active])
+  }, [showSectionBlocks, selectedListId, listSectionsOrdered, active, t])
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
-  const showQuickAdd =
-    selectedView === null ||
-    selectedView === 'all' ||
-    selectedView === 'today' ||
-    selectedView === 'upcoming' ||
-    selectedView === 'overdue'
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
+  const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 
   const openCompleteWithLog = useCallback((task: Task) => {
@@ -340,7 +354,7 @@ export function TaskList() {
       return h * 60 + m
     }
     if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
-      alert('終了時刻は開始時刻より後にしてください')
+      alert(t('alert.endAfterStart'))
       return
     }
     addTimeLog(
@@ -353,26 +367,36 @@ export function TaskList() {
     )
     toggleTask(completionDraft.taskId)
     setCompletionDraft(null)
-  }, [completionDraft, addTimeLog, toggleTask])
+  }, [completionDraft, addTimeLog, toggleTask, t])
 
   const flatActiveIds = useMemo(() => {
     const out: string[] = []
+    const walk = (parentId: string) => {
+      for (const st of childrenByParent.get(parentId) ?? []) {
+        if (!st.completed && !isListedTimeLog(st)) {
+          out.push(st.id)
+          walk(st.id)
+        }
+      }
+    }
     for (const p of active) {
       out.push(p.id)
-      for (const st of childrenByParent.get(p.id) ?? []) {
-        if (!st.completed && !isListedTimeLog(st)) out.push(st.id)
-      }
+      walk(p.id)
     }
     return out
   }, [active, childrenByParent])
 
   const flatCompletedTodoIds = useMemo(() => {
     const out: string[] = []
+    const walk = (parentId: string) => {
+      for (const st of childrenByParent.get(parentId) ?? []) {
+        out.push(st.id)
+        walk(st.id)
+      }
+    }
     for (const p of completedTodos) {
       out.push(p.id)
-      for (const st of childrenByParent.get(p.id) ?? []) {
-        out.push(st.id)
-      }
+      walk(p.id)
     }
     return out
   }, [completedTodos, childrenByParent])
@@ -418,10 +442,10 @@ export function TaskList() {
         toggleInSelection(taskId)
         return
       }
-      setDetailId(taskId)
+      openDetail(taskId)
       lastAnchorRef.current = taskId
     },
-    [flatCombined, toggleInSelection],
+    [flatCombined, openDetail, toggleInSelection],
   )
 
   const makeSelection = useCallback(
@@ -449,16 +473,45 @@ export function TaskList() {
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
-  /** 縦線を親の完了サークル列の下（中心付近）に合わす。DnD ハンドル有無で前段幅が変わる */
-  const subtaskNestNoDrag =
-    'border-l border-zinc-200 dark:border-zinc-700 ml-[45px] pl-3'
-  const subtaskNestWithDrag =
-    'border-l border-zinc-200 dark:border-zinc-700 ml-[73px] pl-3'
+  /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
+  const subtaskNestRow =
+    'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
+  const subtaskNestNoDrag = subtaskNestRow
+  const subtaskNestWithDrag = subtaskNestRow
+
+  const incompleteSubtasks = useCallback(
+    (parentId: string) =>
+      (childrenByParent.get(parentId) ?? []).filter((st) => !st.completed && !isListedTimeLog(st)),
+    [childrenByParent],
+  )
+
+  /** ネストした SortableContext を避ける: DOM 順と一致する単一コンテキスト（各ルート直後にそのサブ） */
+  const flatManualSortableIds = useMemo(() => {
+    const appendForRoots = (roots: Task[], out: string[]) => {
+      const walkSubs = (parentId: string) => {
+        for (const st of incompleteSubtasks(parentId)) {
+          out.push(subtaskDragId(st.id))
+          walkSubs(st.id)
+        }
+      }
+      for (const t of roots) {
+        out.push(`${TASK_PREFIX}${t.id}`)
+        walkSubs(t.id)
+      }
+    }
+    const out: string[] = []
+    if (showSectionBlocks && sectionBlocks) {
+      for (const block of sectionBlocks) appendForRoots(block.tasks, out)
+    } else {
+      appendForRoots(active, out)
+    }
+    return out
+  }, [showSectionBlocks, sectionBlocks, active, incompleteSubtasks])
 
   const activeContent = canDrag ? (
-    showSectionBlocks && sectionBlocks && selectedListId ? (
-      <SortableContext items={active.map((t) => `${TASK_PREFIX}${t.id}`)} strategy={verticalListSortingStrategy}>
-        {sectionBlocks.map((block) => {
+    <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
+      {showSectionBlocks && sectionBlocks && selectedListId ? (
+        sectionBlocks.map((block) => {
           const isQuickTarget =
             (block.sectionId === null && quickAddSectionId === '') ||
             (block.sectionId !== null && quickAddSectionId === block.sectionId)
@@ -483,9 +536,9 @@ export function TaskList() {
                       <button
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                        title="名前を変更"
+                        title={t('sections.renameTitle')}
                         onClick={() => {
-                          const n = window.prompt('セクション名', block.title)
+                          const n = window.prompt(t('sections.renamePrompt'), block.title)
                           if (n?.trim() && block.sectionId) renameSectionStore(block.sectionId, n.trim())
                         }}
                       >
@@ -496,9 +549,9 @@ export function TaskList() {
                       <button
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-red-500"
-                        title="削除"
+                        title={t('common.delete')}
                         onClick={() => {
-                          if (window.confirm('このセクションを削除しますか？（タスクは「セクションなし」に移ります）')) {
+                          if (window.confirm(t('sections.deleteConfirm'))) {
                             deleteSectionStore(block.sectionId!)
                           }
                         }}
@@ -524,61 +577,49 @@ export function TaskList() {
                   </button>
                 </div>
               )}
-              {block.tasks.map((t) => (
+              {block.tasks.flatMap((t) => [
                 <SortableTaskItem
                   key={t.id}
                   task={t}
                   onRowClick={makeRowClick(t.id)}
                   onCompleteRequest={openCompleteWithLog}
                   selection={makeSelection(t.id)}
-                >
-                  {(childrenByParent.get(t.id) ?? [])
-                    .filter((st) => !st.completed && !isListedTimeLog(st))
-                    .map((st) => (
-                      <div key={st.id} className={subtaskNestWithDrag}>
-                        <TaskItem
-                          task={st}
-                          isSubtask
-                          onRowClick={makeRowClick(st.id)}
-                          onCompleteRequest={openCompleteWithLog}
-                          selection={makeSelection(st.id)}
-                        />
-                      </div>
-                    ))}
-                </SortableTaskItem>
-              ))}
+                />,
+                ...DnDSubtreeRows({
+                  parentId: t.id,
+                  depth: 0,
+                  incompleteSubtasks,
+                  makeRowClick,
+                  makeSelection,
+                  openCompleteWithLog,
+                  subtaskNestWithDrag,
+                }),
+              ])}
               <SectionDropZone listId={selectedListId} sectionId={block.sectionId} />
             </div>
           )
-        })}
-      </SortableContext>
-    ) : (
-      <SortableContext items={active.map((t) => `${TASK_PREFIX}${t.id}`)} strategy={verticalListSortingStrategy}>
-        {active.map((t) => (
+        })
+      ) : (
+        active.flatMap((t) => [
           <SortableTaskItem
             key={t.id}
             task={t}
             onRowClick={makeRowClick(t.id)}
             onCompleteRequest={openCompleteWithLog}
             selection={makeSelection(t.id)}
-          >
-            {(childrenByParent.get(t.id) ?? [])
-              .filter((st) => !st.completed && !isListedTimeLog(st))
-              .map((st) => (
-                <div key={st.id} className={subtaskNestWithDrag}>
-                  <TaskItem
-                    task={st}
-                    isSubtask
-                    onRowClick={makeRowClick(st.id)}
-                    onCompleteRequest={openCompleteWithLog}
-                    selection={makeSelection(st.id)}
-                  />
-                </div>
-              ))}
-          </SortableTaskItem>
-        ))}
-      </SortableContext>
-    )
+          />,
+          ...DnDSubtreeRows({
+            parentId: t.id,
+            depth: 0,
+            incompleteSubtasks,
+            makeRowClick,
+            makeSelection,
+            openCompleteWithLog,
+            subtaskNestWithDrag,
+          }),
+        ])
+      )}
+    </SortableContext>
   ) : showSectionBlocks && sectionBlocks && selectedListId ? (
     sectionBlocks.map((block) => (
       <div key={block.sectionId ?? 'none'} className="pt-3 first:pt-1">
@@ -597,19 +638,15 @@ export function TaskList() {
               onCompleteRequest={openCompleteWithLog}
               selection={makeSelection(t.id)}
             />
-            {(childrenByParent.get(t.id) ?? [])
-              .filter((st) => !st.completed && !isListedTimeLog(st))
-              .map((st) => (
-                <div key={st.id} className={subtaskNestNoDrag}>
-                  <TaskItem
-                    task={st}
-                    isSubtask
-                    onRowClick={makeRowClick(st.id)}
-                    onCompleteRequest={openCompleteWithLog}
-                    selection={makeSelection(st.id)}
-                  />
-                </div>
-              ))}
+            {StaticSubtreeRows({
+              parentId: t.id,
+              depth: 0,
+              incompleteSubtasks,
+              makeRowClick,
+              makeSelection,
+              openCompleteWithLog,
+              subtaskNestNoDrag,
+            })}
           </div>
         ))}
       </div>
@@ -623,19 +660,15 @@ export function TaskList() {
           onCompleteRequest={openCompleteWithLog}
           selection={makeSelection(t.id)}
         />
-        {(childrenByParent.get(t.id) ?? [])
-          .filter((st) => !st.completed && !isListedTimeLog(st))
-          .map((st) => (
-            <div key={st.id} className={subtaskNestNoDrag}>
-              <TaskItem
-                task={st}
-                isSubtask
-                onRowClick={makeRowClick(st.id)}
-                onCompleteRequest={openCompleteWithLog}
-                selection={makeSelection(st.id)}
-              />
-            </div>
-          ))}
+        {StaticSubtreeRows({
+          parentId: t.id,
+          depth: 0,
+          incompleteSubtasks,
+          makeRowClick,
+          makeSelection,
+          openCompleteWithLog,
+          subtaskNestNoDrag,
+        })}
       </div>
     ))
   )
@@ -650,7 +683,7 @@ export function TaskList() {
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                {incompleteCount} 件の未完了タスク
+                {t('taskList.incompleteTasks', { count: incompleteCount })}
               </p>
               {filterTag && (
                 <button
@@ -676,7 +709,7 @@ export function TaskList() {
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-600
                            text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
-                ＋ セクション
+                {t('taskList.addSection')}
               </button>
             )}
             <div className="relative">
@@ -688,14 +721,14 @@ export function TaskList() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5-4.5L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
               </svg>
-              {SORT_OPTIONS.find((o) => o.value === sortMode)?.label}
+              {sortOptions.find((o) => o.value === sortMode)?.label}
             </button>
             {showSort && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowSort(false)} />
                 <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-800 rounded-lg shadow-lg
                                 border border-zinc-200 dark:border-zinc-700 py-1 min-w-[120px]">
-                  {SORT_OPTIONS.map((opt) => (
+                  {sortOptions.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => { setSortMode(opt.value); setShowSort(false) }}
@@ -717,23 +750,43 @@ export function TaskList() {
         {selected.size > 0 && (
           <div className="mx-4 mb-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/90 dark:bg-zinc-800/80
                           flex flex-wrap items-center gap-2 text-xs text-zinc-700 dark:text-zinc-200">
-            <span className="font-medium text-zinc-600 dark:text-zinc-300 mr-1">{selected.size} 件選択中</span>
+            <span className="font-medium text-zinc-600 dark:text-zinc-300 mr-1">{t('taskList.selectedCount', { count: selected.size })}</span>
             <button
               type="button"
               onClick={bulkComplete}
               className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
             >
-              完了にする
+              {t('taskList.markComplete')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                bulkUpdateTasks(selectedIds, { pinned: true })
+                clearSelection()
+              }}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {t('taskList.bulkPin')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                bulkUpdateTasks(selectedIds, { pinned: false })
+                clearSelection()
+              }}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {t('taskList.bulkUnpin')}
             </button>
             <button
               type="button"
               onClick={bulkDelete}
               className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400"
             >
-              削除
+              {t('taskList.bulkDelete')}
             </button>
             <label className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">リスト</span>
+              <span className="text-zinc-500 dark:text-zinc-400">{t('common.list')}</span>
               <select
                 className="max-w-[140px] rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
                 value=""
@@ -744,14 +797,14 @@ export function TaskList() {
                   bulkUpdateTasks(selectedIds, { listId })
                 }}
               >
-                <option value="">移動…</option>
+                <option value="">{t('taskList.moveEllipsis')}</option>
                 {sortedLists.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
+                  <option key={l.id} value={l.id}>{displayListName(l.id, l.name)}</option>
                 ))}
               </select>
             </label>
             <label className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">優先度</span>
+              <span className="text-zinc-500 dark:text-zinc-400">{t('common.priority')}</span>
               <select
                 className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
                 value=""
@@ -762,14 +815,14 @@ export function TaskList() {
                   bulkUpdateTasks(selectedIds, { priority: v })
                 }}
               >
-                <option value="">設定…</option>
-                {BULK_PRIORITY_OPTIONS.map((o) => (
+                <option value="">{t('taskList.priorityEllipsis')}</option>
+                {bulkPriorityOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </label>
             <label className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">期限</span>
+              <span className="text-zinc-500 dark:text-zinc-400">{t('common.due')}</span>
               <input
                 type="date"
                 className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs w-[118px]"
@@ -786,14 +839,14 @@ export function TaskList() {
               onClick={() => bulkUpdateTasks(selectedIds, { dueDate: null })}
               className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
             >
-              期限なし
+              {t('taskList.noDue')}
             </button>
             <button
               type="button"
               onClick={clearSelection}
               className="px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 hover:underline"
             >
-              選択解除
+              {t('taskList.clearSelection')}
             </button>
           </div>
         )}
@@ -806,8 +859,8 @@ export function TaskList() {
               <svg className="w-16 h-16 mx-auto text-zinc-200 dark:text-zinc-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">すべて完了です！</p>
-              <p className="text-xs text-zinc-300 dark:text-zinc-600 mt-1">お疲れさまでした</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('taskList.allDoneTitle')}</p>
+              <p className="text-xs text-zinc-300 dark:text-zinc-600 mt-1">{t('taskList.allDoneSubtitle')}</p>
             </div>
           )}
 
@@ -816,7 +869,7 @@ export function TaskList() {
           {completedTodos.length > 0 && (
             <details className="pt-4">
               <summary className="text-xs font-medium text-zinc-400 dark:text-zinc-500 cursor-pointer select-none px-4 py-2">
-                完了済み ({completedTodos.length})
+                {t('taskList.completedHeader', { count: completedTodos.length })}
               </summary>
               <div className="space-y-0.5 mt-1">
                 {completedTodos.map((t) => (
@@ -827,17 +880,15 @@ export function TaskList() {
                       onCompleteRequest={openCompleteWithLog}
                       selection={makeSelection(t.id)}
                     />
-                    {(childrenByParent.get(t.id) ?? []).map((st) => (
-                      <div key={st.id} className={subtaskNestNoDrag}>
-                        <TaskItem
-                          task={st}
-                          isSubtask
-                          onRowClick={makeRowClick(st.id)}
-                          onCompleteRequest={openCompleteWithLog}
-                          selection={makeSelection(st.id)}
-                        />
-                      </div>
-                    ))}
+                    {CompletedSubtreeRows({
+                      parentId: t.id,
+                      depth: 0,
+                      childrenByParent,
+                      makeRowClick,
+                      makeSelection,
+                      openCompleteWithLog,
+                      subtaskNestNoDrag,
+                    })}
                   </div>
                 ))}
               </div>
@@ -847,11 +898,12 @@ export function TaskList() {
       </div>
 
       {detailTask && (
-        <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
+        <TaskDetail task={detailTask} onClose={closeDetail} />
       )}
       {completionDraft && (
         <CompleteWithLogModal
           draft={completionDraft}
+          radioGroupName="completion-mode"
           onClose={() => setCompletionDraft(null)}
           onChange={(patch) => setCompletionDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
           onSubmit={submitCompleteWithLog}
