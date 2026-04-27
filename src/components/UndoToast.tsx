@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 
 export function UndoToast() {
+  const { t } = useTranslation()
   const deletedTasks = useTaskStore((s) => s.deletedTasks)
+  const undoLastOperation = useTaskStore((s) => s.undoLastOperation)
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const [visible, setVisible] = useState(false)
@@ -25,15 +28,18 @@ export function UndoToast() {
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-toast-in">
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-900 dark:bg-zinc-100
                        text-white dark:text-zinc-900 shadow-lg text-sm">
-        <span>タスクを削除しました</span>
+        <span>{t('undo.message')}</span>
         <button
-          onClick={() => { undoDelete(); setVisible(false) }}
+          onClick={() => {
+            if (!undoLastOperation()) undoDelete()
+            setVisible(false)
+          }}
           className="font-medium text-accent-300 dark:text-accent-600 hover:underline"
         >
-          元に戻す
+          {t('undo.button')}
         </button>
         <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-1">
-          {navigator.platform.toLowerCase().includes('mac') ? '⌘Z' : 'Ctrl+Z'}
+          {navigator.platform.toLowerCase().includes('mac') ? t('undo.shortcutMac') : t('undo.shortcutWin')}
         </span>
       </div>
     </div>

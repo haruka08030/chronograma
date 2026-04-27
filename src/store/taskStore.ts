@@ -12,8 +12,11 @@ import {
   normalizeListColorPaletteId,
   type ListColorPaletteId,
 } from '../lib/listColorPalettes'
+import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
+import { isListedTimeLog } from '../lib/timeLogTask'
+import { canNestUnder } from '../lib/taskDepth'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -78,14 +81,20 @@ interface TaskState {
   settingsScrollTarget: SettingsScrollTarget | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
   calendarMode: CalendarMode
+  /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
+  selectedCalendarDateKey: string
   theme: 'light' | 'dark'
   searchQuery: string
   sortMode: SortMode
+  /** 「今日」スマートリストに期限切れタスクも含める */
+  todayIncludeOverdue: boolean
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
   filterTag: string | null
   notificationsEnabled: boolean
   listColorPaletteId: ListColorPaletteId
+  /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
+  timeLogTagPresets: string[]
 
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
@@ -109,17 +118,35 @@ interface TaskState {
     orderedTaskIds: string[],
     sectionUpdate?: { taskId: string; sectionId: string | null },
   ) => void
+  /**
+   * サブタスクを別のルート親の下へ移動、または同一親内で順序変更。
+   * `insertBeforeChildId` が兄弟に存在すればその手前、なければ末尾。
+   */
+  moveSubtaskInList: (
+    taskId: string,
+    newParentId: string,
+    insertBeforeChildId: string | null,
+  ) => void
+  /** ルートタスクを別タスクの子へ（TickTick のネスト DnD）。`insertBeforeChildId` なしは末尾 */
+  nestRootUnderParent: (
+    taskId: string,
+    parentId: string,
+    insertBeforeChildId: string | null,
+  ) => void
 
   toggleTheme: () => void
   setListColorPalette: (id: ListColorPaletteId) => void
+  setTimeLogTagPresets: (presets: string[]) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
   openSettingsWithScroll: (target: SettingsScrollTarget) => void
   clearSettingsScrollTarget: () => void
   setCalendarMode: (mode: CalendarMode) => void
+  setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
+  setTodayIncludeOverdue: (v: boolean) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
@@ -140,7 +167,7 @@ interface TaskState {
   reorderList: (id: string, newOrder: number) => void
   reorderLists: (orderedIds: string[]) => void
 
-  addTask: (title: string, listId?: string, parentId?: string) => void
+  addTask: (title: string, listId?: string, parentId?: string) => string | undefined
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string) => void
@@ -155,11 +182,37 @@ interface TaskState {
   startTimer: (title: string, tags?: string[]) => void
   stopTimer: () => void
   toggleTask: (id: string) => void
-  updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed' | 'sectionId'>>) => void
-  bulkUpdateTasks: (ids: string[], patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>) => void
+  updateTask: (
+    id: string,
+    patch: Partial<
+      Pick<
+        Task,
+        | 'title'
+        | 'description'
+        | 'dueDate'
+        | 'startTime'
+        | 'endTime'
+        | 'priority'
+        | 'tags'
+        | 'listId'
+        | 'parentId'
+        | 'recurrence'
+        | 'isTimeLog'
+        | 'completed'
+        | 'sectionId'
+        | 'pinned'
+      >
+    >,
+  ) => void
+  bulkUpdateTasks: (
+    ids: string[],
+    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'pinned'>>,
+  ) => void
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
   undoDelete: () => void
+  /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
+  undoLastOperation: () => boolean
   clearDeletedTasks: () => void
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
@@ -202,6 +255,24 @@ function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']
 }
 
 /** 子孫（任意の深さ）を含む。一括削除・リスト移動で親子の整合を取る */
+/** `nodeId` の祖先チェーンに `possibleAncestorId` が現れるか（自身含む） */
+function isAncestorInChain(tasks: Task[], possibleAncestorId: string, nodeId: string): boolean {
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  let cur: string | null = nodeId
+  for (let i = 0; i < 10_000 && cur; i++) {
+    if (cur === possibleAncestorId) return true
+    cur = byId.get(cur)?.parentId ?? null
+  }
+  return false
+}
+
+function siblingIdsOrdered(tasks: Task[], parentId: string | null, excludeTaskId?: string): string[] {
+  return tasks
+    .filter((t) => t.parentId === parentId && (!excludeTaskId || t.id !== excludeTaskId))
+    .sort((a, b) => a.order - b.order)
+    .map((t) => t.id)
+}
+
 function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[]): Set<string> {
   const out = new Set(rootIds)
   let added = true
@@ -217,7 +288,28 @@ function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[]): Set<s
   return out
 }
 
-function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startTime' | 'endTime' | 'priority' | 'tags' | 'listId' | 'parentId' | 'recurrence' | 'isTimeLog' | 'completed' | 'sectionId'>>): Task {
+function applyTaskPatch(
+  task: Task,
+  patch: Partial<
+    Pick<
+      Task,
+      | 'title'
+      | 'description'
+      | 'dueDate'
+      | 'startTime'
+      | 'endTime'
+      | 'priority'
+      | 'tags'
+      | 'listId'
+      | 'parentId'
+      | 'recurrence'
+      | 'isTimeLog'
+      | 'completed'
+      | 'sectionId'
+      | 'pinned'
+    >
+  >,
+): Task {
   const applied = { ...task, ...patch, updatedAt: new Date().toISOString() }
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
@@ -228,6 +320,26 @@ function applyTaskPatch(task: Task, patch: Partial<Pick<Task, 'title' | 'descrip
     applied.recurrence = null
   }
   return applied
+}
+
+/** ⌘Z 用。永続化しない */
+interface ChronogramaUndoSnapshot {
+  tasks: Task[]
+  lists: TaskList[]
+  sections: ListSection[]
+  habits: Habit[]
+  deletedTasks: { task: Task; deletedAt: number }[]
+  listColorPaletteId: ListColorPaletteId
+  timeLogTagPresets: string[]
+  selectedListId: string | null
+  selectedView: SmartView | null
+  quickAddSectionId: string | null
+  sortMode: SortMode
+  todayIncludeOverdue: boolean
+  filterTag: string | null
+  calendarMode: CalendarMode
+  selectedCalendarDateKey: string
+  activeTimer: ActiveTimer | null
 }
 
 function orderForNewSiblingAtFront(
@@ -278,21 +390,55 @@ function makeTask(
     tags: fields.tags ?? [],
     recurrence: null,
     isTimeLog: fields.isTimeLog ?? false,
+    pinned: false,
   }
 }
 
 export const useTaskStore = create<TaskState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      const undoStack: ChronogramaUndoSnapshot[] = []
+      const MAX_UNDO = 50
+
+      const captureUndoSnapshot = (): ChronogramaUndoSnapshot => {
+        const s = get()
+        return {
+          tasks: structuredClone(s.tasks),
+          lists: structuredClone(s.lists),
+          sections: structuredClone(s.sections),
+          habits: structuredClone(s.habits),
+          deletedTasks: structuredClone(s.deletedTasks),
+          listColorPaletteId: s.listColorPaletteId,
+          timeLogTagPresets: structuredClone(s.timeLogTagPresets),
+          selectedListId: s.selectedListId,
+          selectedView: s.selectedView,
+          quickAddSectionId: s.quickAddSectionId,
+          sortMode: s.sortMode,
+          todayIncludeOverdue: s.todayIncludeOverdue,
+          filterTag: s.filterTag,
+          calendarMode: s.calendarMode,
+          selectedCalendarDateKey: s.selectedCalendarDateKey,
+          activeTimer: s.activeTimer ? structuredClone(s.activeTimer) : null,
+        }
+      }
+
+      const pushUndo = () => {
+        undoStack.push(captureUndoSnapshot())
+        if (undoStack.length > MAX_UNDO) undoStack.shift()
+      }
+
+      return {
       tasks: [],
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
       selectedView: null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'month' as CalendarMode,
+      selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
       theme: 'light',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
+      todayIncludeOverdue: false,
       deletedTasks: [],
       moveBannerText: null as string | null,
       taskDragHoverListId: null as string | null,
@@ -300,6 +446,7 @@ export const useTaskStore = create<TaskState>()(
       filterTag: null,
       notificationsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
+      timeLogTagPresets: [] as string[],
 
       calendarEvents: [],
       googleConnected: false,
@@ -316,6 +463,7 @@ export const useTaskStore = create<TaskState>()(
       addSection: (listId, name) => {
         const listSections = get().sections.filter((s) => s.listId === listId)
         const maxOrder = listSections.length === 0 ? -1 : Math.max(...listSections.map((s) => s.order))
+        pushUndo()
         set((s) => ({
           sections: [
             ...s.sections,
@@ -323,26 +471,33 @@ export const useTaskStore = create<TaskState>()(
           ],
         }))
       },
-      renameSection: (id, name) =>
-        set((s) => ({
+      renameSection: (id, name) => {
+        pushUndo()
+        return set((s) => ({
           sections: s.sections.map((sec) => (sec.id === id ? { ...sec, name: name.trim() || sec.name } : sec)),
-        })),
-      deleteSection: (id) =>
-        set((s) => ({
+        }))
+      },
+      deleteSection: (id) => {
+        pushUndo()
+        return set((s) => ({
           sections: s.sections.filter((sec) => sec.id !== id),
           tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),
-        })),
-      reorderSections: (listId, orderedIds) =>
-        set((s) => ({
+        }))
+      },
+      reorderSections: (listId, orderedIds) => {
+        pushUndo()
+        return set((s) => ({
           sections: s.sections.map((sec) => {
             if (sec.listId !== listId) return sec
             const idx = orderedIds.indexOf(sec.id)
             return idx >= 0 ? { ...sec, order: idx } : sec
           }),
-        })),
+        }))
+      },
 
       reorderManualRootTasks: (orderedTaskIds, sectionUpdate) => {
         const now = new Date().toISOString()
+        pushUndo()
         set((s) => ({
           tasks: s.tasks.map((t) => {
             const idx = orderedTaskIds.indexOf(t.id)
@@ -356,11 +511,131 @@ export const useTaskStore = create<TaskState>()(
         }))
       },
 
+      moveSubtaskInList: (taskId, newParentId, insertBeforeChildId) => {
+        const s0 = get()
+        const moved = s0.tasks.find((t) => t.id === taskId)
+        const parent = s0.tasks.find((t) => t.id === newParentId)
+        if (!moved || moved.parentId == null) return
+        if (!parent) return
+        if (taskId === newParentId) return
+        if (isListedTimeLog(moved) || isListedTimeLog(parent)) return
+        if (isAncestorInChain(s0.tasks, taskId, newParentId)) return
+        if (moved.parentId !== newParentId && !canNestUnder(s0.tasks, taskId, newParentId)) return
+
+        pushUndo()
+        set((s) => {
+          const now = new Date().toISOString()
+          const oldParentId = moved.parentId
+
+          let newChildOrder = siblingIdsOrdered(s.tasks, newParentId, taskId)
+          if (insertBeforeChildId && newChildOrder.includes(insertBeforeChildId)) {
+            newChildOrder.splice(newChildOrder.indexOf(insertBeforeChildId), 0, taskId)
+          } else {
+            newChildOrder = [...newChildOrder, taskId]
+          }
+
+          const orderAtNewParent = new Map<string, number>()
+          newChildOrder.forEach((id, i) => orderAtNewParent.set(id, i))
+
+          const orderAtOldParent = new Map<string, number>()
+          if (oldParentId !== newParentId) {
+            const oldSiblings = siblingIdsOrdered(s.tasks, oldParentId, taskId)
+            oldSiblings.forEach((id, i) => orderAtOldParent.set(id, i))
+          }
+
+          const subtree = expandDescendantIds([taskId], s.tasks)
+          const listIdChanged = parent.listId !== moved.listId
+
+          return {
+            tasks: s.tasks.map((t) => {
+              if (t.id === taskId) {
+                return {
+                  ...t,
+                  parentId: newParentId,
+                  listId: parent.listId,
+                  sectionId: null,
+                  order: orderAtNewParent.get(taskId) ?? 0,
+                  updatedAt: now,
+                }
+              }
+              if (listIdChanged && subtree.has(t.id) && t.id !== taskId) {
+                return { ...t, listId: parent.listId, sectionId: null, updatedAt: now }
+              }
+              if (orderAtNewParent.has(t.id) && t.parentId === newParentId) {
+                const o = orderAtNewParent.get(t.id)
+                if (o === undefined || o === t.order) return t
+                return { ...t, order: o, updatedAt: now }
+              }
+              if (oldParentId !== newParentId && orderAtOldParent.has(t.id) && t.parentId === oldParentId) {
+                const o = orderAtOldParent.get(t.id)
+                if (o === undefined || o === t.order) return t
+                return { ...t, order: o, updatedAt: now }
+              }
+              return t
+            }),
+          }
+        })
+      },
+
+      nestRootUnderParent: (taskId, parentId, insertBeforeChildId) => {
+        const s0 = get()
+        const moved = s0.tasks.find((t) => t.id === taskId)
+        const parent = s0.tasks.find((t) => t.id === parentId)
+        if (!moved || moved.parentId !== null) return
+        if (!parent) return
+        if (taskId === parentId) return
+        if (isListedTimeLog(moved) || isListedTimeLog(parent)) return
+        if (isAncestorInChain(s0.tasks, taskId, parentId)) return
+        if (!canNestUnder(s0.tasks, taskId, parentId)) return
+
+        pushUndo()
+        set((s) => {
+          const now = new Date().toISOString()
+          const subtree = expandDescendantIds([taskId], s.tasks)
+          const listIdChanged = parent.listId !== moved.listId
+
+          let newChildOrder = siblingIdsOrdered(s.tasks, parentId)
+          if (insertBeforeChildId && newChildOrder.includes(insertBeforeChildId)) {
+            newChildOrder.splice(newChildOrder.indexOf(insertBeforeChildId), 0, taskId)
+          } else {
+            newChildOrder = [...newChildOrder, taskId]
+          }
+
+          const orderAtNewParent = new Map<string, number>()
+          newChildOrder.forEach((id, i) => orderAtNewParent.set(id, i))
+
+          return {
+            tasks: s.tasks.map((t) => {
+              if (t.id === taskId) {
+                return {
+                  ...t,
+                  parentId,
+                  listId: parent.listId,
+                  sectionId: null,
+                  order: orderAtNewParent.get(taskId) ?? 0,
+                  updatedAt: now,
+                }
+              }
+              if (listIdChanged && subtree.has(t.id) && t.id !== taskId) {
+                return { ...t, listId: parent.listId, sectionId: null, updatedAt: now }
+              }
+              if (orderAtNewParent.has(t.id) && t.parentId === parentId && t.id !== taskId) {
+                const o = orderAtNewParent.get(t.id)
+                if (o === undefined || o === t.order) return t
+                return { ...t, order: o, updatedAt: now }
+              }
+              return t
+            }),
+          }
+        })
+      },
+
       setCalendarEvents: (events) => set({ calendarEvents: events }),
       setGoogleConnected: (connected) => set({ googleConnected: connected }),
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
 
       addHabit: (fields) => {
+        pushUndo()
         const now = new Date().toISOString()
         const habit: Habit = {
           id: newId(),
@@ -376,15 +651,21 @@ export const useTaskStore = create<TaskState>()(
         }
         set((s) => ({ habits: [...s.habits, habit] }))
       },
-      updateHabit: (id, patch) =>
-        set((s) => ({
+      updateHabit: (id, patch) => {
+        pushUndo()
+        return set((s) => ({
           habits: s.habits.map((h) =>
             h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h,
           ),
-        })),
-      deleteHabit: (id) => set((s) => ({ habits: s.habits.filter((h) => h.id !== id) })),
-      toggleHabitDate: (habitId, dateKey) =>
-        set((s) => ({
+        }))
+      },
+      deleteHabit: (id) => {
+        pushUndo()
+        return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
+      },
+      toggleHabitDate: (habitId, dateKey) => {
+        pushUndo()
+        return set((s) => ({
           habits: s.habits.map((h) => {
             if (h.id !== habitId) return h
             const has = h.completedDates.includes(dateKey)
@@ -393,12 +674,21 @@ export const useTaskStore = create<TaskState>()(
               : [...h.completedDates, dateKey].sort()
             return { ...h, completedDates, updatedAt: new Date().toISOString() }
           }),
-        })),
+        }))
+      },
 
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
 
-      setListColorPalette: (id) => set({ listColorPaletteId: id }),
+      setListColorPalette: (id) => {
+        pushUndo()
+        set({ listColorPaletteId: id })
+      },
+
+      setTimeLogTagPresets: (presets) => {
+        pushUndo()
+        set({ timeLogTagPresets: normalizeTimeLogTagPresetList(presets) })
+      },
 
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
       selectView: (view) =>
@@ -416,10 +706,27 @@ export const useTaskStore = create<TaskState>()(
           settingsScrollTarget: target,
         }),
       clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
-      setCalendarMode: (mode) => set({ calendarMode: mode }),
+      setCalendarMode: (mode) => {
+        pushUndo()
+        set({ calendarMode: mode })
+      },
+      setSelectedCalendarDateKey: (key) => {
+        pushUndo()
+        set({ selectedCalendarDateKey: key })
+      },
       setSearchQuery: (q) => set({ searchQuery: q }),
-      setSortMode: (mode) => set({ sortMode: mode }),
-      setFilterTag: (tag) => set({ filterTag: tag }),
+      setSortMode: (mode) => {
+        pushUndo()
+        set({ sortMode: mode })
+      },
+      setTodayIncludeOverdue: (todayIncludeOverdue) => {
+        pushUndo()
+        set({ todayIncludeOverdue })
+      },
+      setFilterTag: (tag) => {
+        pushUndo()
+        set({ filterTag: tag })
+      },
       requestQuickAdd: () => {
         const s = get()
         if (s.selectedView !== null) {
@@ -431,6 +738,7 @@ export const useTaskStore = create<TaskState>()(
       clearQuickAddRequest: () => set({ quickAddRequested: false }),
 
       addList: (name) => {
+        pushUndo()
         const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
         const cols = paletteColors(get().listColorPaletteId)
         const colorIdx = get().lists.length % cols.length
@@ -438,16 +746,21 @@ export const useTaskStore = create<TaskState>()(
           lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1 }],
         }))
       },
-      renameList: (id, name) =>
-        set((s) => ({
+      renameList: (id, name) => {
+        pushUndo()
+        return set((s) => ({
           lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
-        })),
-      updateListColor: (id, color) =>
-        set((s) => ({
+        }))
+      },
+      updateListColor: (id, color) => {
+        pushUndo()
+        return set((s) => ({
           lists: s.lists.map((l) => (l.id === id ? { ...l, color } : l)),
-        })),
+        }))
+      },
       deleteList: (id) => {
         if (id === INBOX_ID) return
+        pushUndo()
         set((s) => ({
           lists: s.lists.filter((l) => l.id !== id),
           sections: s.sections.filter((sec) => sec.listId !== id),
@@ -458,47 +771,63 @@ export const useTaskStore = create<TaskState>()(
             s.selectedListId === id ? INBOX_ID : s.selectedListId,
         }))
       },
-      reorderList: (id, newOrder) =>
-        set((s) => ({
+      reorderList: (id, newOrder) => {
+        pushUndo()
+        return set((s) => ({
           lists: s.lists.map((l) =>
             l.id === id ? { ...l, order: newOrder } : l,
           ),
-        })),
-      reorderLists: (orderedIds) =>
-        set((s) => ({
+        }))
+      },
+      reorderLists: (orderedIds) => {
+        pushUndo()
+        return set((s) => ({
           lists: s.lists.map((l) => {
             const idx = orderedIds.indexOf(l.id)
             return idx >= 0 ? { ...l, order: idx } : l
           }),
-        })),
+        }))
+      },
 
       addTask: (title, listId, parentId) => {
-        const targetList = listId ?? get().selectedListId ?? INBOX_ID
-        const pid = parentId ?? null
         const s = get()
+        const pid = parentId ?? null
+        const parent = pid ? s.tasks.find((t) => t.id === pid) : null
+        const targetList = parent?.listId ?? listId ?? s.selectedListId ?? INBOX_ID
         const q = s.quickAddSectionId
-        const sectionOk =
+        const sectionResolved =
           pid === null &&
-          Boolean(q) &&
           targetList === s.selectedListId &&
-          s.sections.some((sec) => sec.id === q && sec.listId === targetList)
-        const sectionForAdd = sectionOk ? q : null
-        const ord = orderForNewSiblingAtFront(get().tasks, targetList, pid, sectionForAdd)
-        const task = makeTask({ title, listId: targetList, sectionId: sectionForAdd }, ord)
+          q !== null &&
+          (q === '' || s.sections.some((sec) => sec.id === q && sec.listId === targetList))
+            ? q === ''
+              ? null
+              : q
+            : null
+        const ord = orderForNewSiblingAtFront(s.tasks, targetList, pid, pid === null ? sectionResolved : null)
+        const task = makeTask(
+          { title, listId: targetList, sectionId: pid === null ? sectionResolved ?? undefined : undefined },
+          ord,
+        )
         if (parentId) task.parentId = parentId
+        pushUndo()
         set((st) => ({ tasks: [...st.tasks, task] }))
+        return task.id
       },
       addTaskWithDate: (title, dueDate, listId) => {
+        pushUndo()
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
         set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate }, ord)] }))
       },
       addTaskWithTime: (title, dueDate, startTime, endTime, listId) => {
+        pushUndo()
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
         set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate, startTime, endTime }, ord)] }))
       },
       addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
+        pushUndo()
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         set((s) => ({
           tasks: [
@@ -516,6 +845,7 @@ export const useTaskStore = create<TaskState>()(
         if (description !== undefined) {
           log.description = description
         }
+        pushUndo()
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
       startTimer: (title, tags) => {
@@ -530,38 +860,48 @@ export const useTaskStore = create<TaskState>()(
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        pushUndo()
         set((s) => ({
           activeTimer: null,
           tasks: [...s.tasks, makeTask({ title: timer.taskTitle, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true, tags: timer.tags }, maxOrder + 1)],
         }))
       },
-      toggleTask: (id) =>
+      toggleTask: (id) => {
+        const s0 = get()
+        const task = s0.tasks.find((t) => t.id === id)
+        if (!task) return
+        pushUndo()
         set((s) => {
-          const task = s.tasks.find((t) => t.id === id)
-          if (!task) return s
-          const willComplete = !task.completed
+          const tsk = s.tasks.find((t) => t.id === id)
+          if (!tsk) return s
+          const willComplete = !tsk.completed
           const now = new Date().toISOString()
           let newTasks = s.tasks.map((t) =>
             t.id === id ? { ...t, completed: willComplete, updatedAt: now } : t,
           )
-          if (willComplete && task.recurrence && task.dueDate) {
+          if (willComplete && tsk.recurrence && tsk.dueDate) {
             const next: Task = {
-              ...task,
+              ...tsk,
               id: newId(),
               completed: false,
-              dueDate: nextDueDate(task.dueDate, task.recurrence),
+              dueDate: nextDueDate(tsk.dueDate, tsk.recurrence),
               createdAt: now,
               updatedAt: now,
             }
             newTasks = [...newTasks, next]
           }
           return { tasks: newTasks }
-        }),
-      updateTask: (id, patch) =>
-        set((s) => ({
+        })
+      },
+      updateTask: (id, patch) => {
+        pushUndo()
+        return set((s) => ({
           tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
-        })),
-      bulkUpdateTasks: (ids, patch) =>
+        }))
+      },
+      bulkUpdateTasks: (ids, patch) => {
+        if (ids.length === 0) return
+        pushUndo()
         set((s) => {
           const selected = new Set(ids)
           const listTargets =
@@ -572,34 +912,24 @@ export const useTaskStore = create<TaskState>()(
               const prioHit = patch.priority !== undefined && selected.has(t.id)
               const dueHit = patch.dueDate !== undefined && selected.has(t.id)
               const secHit = patch.sectionId !== undefined && selected.has(t.id)
-              if (!listHit && !prioHit && !dueHit && !secHit) return t
-              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>> = {}
+              const pinHit = patch.pinned !== undefined && selected.has(t.id)
+              if (!listHit && !prioHit && !dueHit && !secHit && !pinHit) return t
+              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'pinned'>> = {}
               if (listHit && patch.listId !== undefined) piece.listId = patch.listId
               if (prioHit) piece.priority = patch.priority
               if (dueHit) piece.dueDate = patch.dueDate
               if (secHit) piece.sectionId = patch.sectionId
+              if (pinHit) piece.pinned = patch.pinned
               return applyTaskPatch(t, piece)
             }),
           }
-        }),
-      deleteTask: (id) =>
-        set((s) => {
-          const toDelete = s.tasks.filter((t) => t.id === id || t.parentId === id)
-          const deletedAt = Date.now()
-          return {
-            tasks: s.tasks.filter((t) => t.id !== id && t.parentId !== id),
-            deletedTasks: [
-              ...s.deletedTasks,
-              ...toDelete.map((t) => ({ task: t, deletedAt })),
-            ],
-          }
-        }),
-      deleteTasks: (ids) =>
-        set((s) => {
-          if (ids.length === 0) return s
-          const del = expandDescendantIds(ids, s.tasks)
+        })
+      },
+      deleteTask: (id) => {
+        pushUndo()
+        return set((s) => {
+          const del = expandDescendantIds([id], s.tasks)
           const toDelete = s.tasks.filter((t) => del.has(t.id))
-          if (toDelete.length === 0) return s
           const deletedAt = Date.now()
           return {
             tasks: s.tasks.filter((t) => !del.has(t.id)),
@@ -608,7 +938,24 @@ export const useTaskStore = create<TaskState>()(
               ...toDelete.map((t) => ({ task: t, deletedAt })),
             ],
           }
-        }),
+        })
+      },
+      deleteTasks: (ids) => {
+        if (ids.length === 0) return
+        const s0 = get()
+        const del = expandDescendantIds(ids, s0.tasks)
+        const toDelete = s0.tasks.filter((t) => del.has(t.id))
+        if (toDelete.length === 0) return
+        pushUndo()
+        const deletedAt = Date.now()
+        set((s) => ({
+          tasks: s.tasks.filter((t) => !del.has(t.id)),
+          deletedTasks: [
+            ...s.deletedTasks,
+            ...toDelete.map((t) => ({ task: t, deletedAt })),
+          ],
+        }))
+      },
       undoDelete: () =>
         set((s) => {
           if (s.deletedTasks.length === 0) return s
@@ -620,19 +967,23 @@ export const useTaskStore = create<TaskState>()(
           }
         }),
       clearDeletedTasks: () => set({ deletedTasks: [] }),
-      reorderTask: (id, newOrder) =>
-        set((s) => ({
+      reorderTask: (id, newOrder) => {
+        pushUndo()
+        return set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id ? { ...t, order: newOrder } : t,
           ),
-        })),
-      reorderTasks: (orderedIds) =>
-        set((s) => ({
+        }))
+      },
+      reorderTasks: (orderedIds) => {
+        pushUndo()
+        return set((s) => ({
           tasks: s.tasks.map((t) => {
             const idx = orderedIds.indexOf(t.id)
             return idx >= 0 ? { ...t, order: idx } : t
           }),
-        })),
+        }))
+      },
 
       moveTaskToList: (taskId, listId) => {
         const s = get()
@@ -640,6 +991,7 @@ export const useTaskStore = create<TaskState>()(
         if (!task || task.listId === listId) return { moved: false }
         const listName = s.lists.find((l) => l.id === listId)?.name ?? i18n.t('lists.unnamedList')
         const descendants = expandDescendantIds([taskId], s.tasks)
+        pushUndo()
         set((state) => {
           const maxOrder = Math.max(
             0,
@@ -676,8 +1028,12 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists, habits, listColorPaletteId, sections } = get()
-        const data = JSON.stringify({ tasks, lists, habits, listColorPaletteId, sections }, null, 2)
+        const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets } = get()
+        const data = JSON.stringify(
+          { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets },
+          null,
+          2,
+        )
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -712,6 +1068,10 @@ export const useTaskStore = create<TaskState>()(
             paletteRaw !== undefined && paletteRaw !== null
               ? normalizeListColorPaletteId(paletteRaw)
               : get().listColorPaletteId
+          const rawPresets = (data as { timeLogTagPresets?: unknown }).timeLogTagPresets
+          const timeLogTagPresets = Array.isArray(rawPresets)
+            ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
+            : []
           const importedTasks = (data.tasks as unknown[]).map((raw) => {
             const row = raw as Record<string, unknown>
             const t = raw as Task
@@ -721,6 +1081,7 @@ export const useTaskStore = create<TaskState>()(
               ...t,
               sectionId: t.sectionId ?? null,
               isTimeLog: Boolean(isTimeLog),
+              pinned: t.pinned === true || row.pinned === true,
             }
           })
           const importedHabits = Array.isArray(data.habits)
@@ -742,12 +1103,14 @@ export const useTaskStore = create<TaskState>()(
                 }
               })
             : []
+          pushUndo()
           set({
             tasks: importedTasks,
             lists: data.lists,
             habits: importedHabits,
             listColorPaletteId,
             sections,
+            timeLogTagPresets,
             quickAddSectionId: null,
           })
           return true
@@ -755,10 +1118,18 @@ export const useTaskStore = create<TaskState>()(
           return false
         }
       },
-    }),
+
+      undoLastOperation: () => {
+        const snap = undoStack.pop()
+        if (!snap) return false
+        set({ ...snap })
+        return true
+      },
+      }
+    },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 15,
+      version: 18,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -872,6 +1243,27 @@ export const useTaskStore = create<TaskState>()(
               endTime,
             }
           })
+        }
+        if (version < 16) {
+          const raw = state.timeLogTagPresets
+          state.timeLogTagPresets = Array.isArray(raw)
+            ? normalizeTimeLogTagPresetList(raw.filter((x): x is string => typeof x === 'string'))
+            : []
+        }
+        if (version < 17) {
+          const raw = state.selectedCalendarDateKey
+          state.selectedCalendarDateKey =
+            typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+              ? raw
+              : format(new Date(), 'yyyy-MM-dd')
+        }
+        if (version < 18) {
+          state.todayIncludeOverdue = state.todayIncludeOverdue === true
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => ({
+            ...t,
+            pinned: (t as Record<string, unknown>).pinned === true,
+          }))
         }
         return state as unknown as TaskState
       },

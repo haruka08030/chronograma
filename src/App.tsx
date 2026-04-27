@@ -30,7 +30,14 @@ import {
   DROPSEC_PREFIX,
   parseSectionReorderId,
 } from './lib/sectionReorderDnD'
-import { isModKey } from './lib/keyboard'
+import {
+  NEST_DROP_PREFIX,
+  SUBTASK_PREFIX,
+  parseNestDropId,
+  parseSubtaskDragId,
+} from './lib/subtaskDnD'
+import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
+import { isTodoSurfaceView } from './lib/todoSurfaceView'
 import {
   DndContext,
   closestCenter,
@@ -51,6 +58,9 @@ const taskListCollision: CollisionDetection = (args) => {
   if (activeId.startsWith(TASK_PREFIX)) {
     return [...base].sort((a, b) => rankForTaskDrag(String(a.id)) - rankForTaskDrag(String(b.id)))
   }
+  if (activeId.startsWith(SUBTASK_PREFIX)) {
+    return [...base].sort((a, b) => rankForSubtaskDrag(String(a.id)) - rankForSubtaskDrag(String(b.id)))
+  }
   if (activeId.startsWith(DRAGSEC_PREFIX)) {
     return [...base].sort((a, b) => rankForSectionReorderDrag(String(a.id)) - rankForSectionReorderDrag(String(b.id)))
   }
@@ -61,9 +71,21 @@ const taskListCollision: CollisionDetection = (args) => {
 }
 
 function rankForTaskDrag(id: string): number {
-  if (id.startsWith(TASK_PREFIX)) return 0
-  if (id.startsWith(SECTION_DROP_PREFIX)) return 1
-  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 2
+  if (id.startsWith(NEST_DROP_PREFIX)) return 0
+  if (id.startsWith(TASK_PREFIX)) return 1
+  if (id.startsWith(SECTION_DROP_PREFIX)) return 2
+  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 3
+  if (id.startsWith(DROPSEC_PREFIX)) return 20
+  return 10
+}
+
+/** サブタスクDnD: ネスト帯・兄弟行をルート行より優先 */
+function rankForSubtaskDrag(id: string): number {
+  if (id.startsWith(NEST_DROP_PREFIX)) return 0
+  if (id.startsWith(SUBTASK_PREFIX)) return 1
+  if (id.startsWith(TASK_PREFIX)) return 2
+  if (id.startsWith(SECTION_DROP_PREFIX)) return 3
+  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 4
   if (id.startsWith(DROPSEC_PREFIX)) return 20
   return 10
 }
@@ -115,6 +137,39 @@ export default function App() {
       const [item] = next.splice(from, 1)
       next.splice(to, 0, item)
       state.reorderSections(a.listId, next)
+    } else if (activeId.startsWith(SUBTASK_PREFIX)) {
+      const movedTaskId = parseSubtaskDragId(activeId)
+      if (!movedTaskId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === movedTaskId)
+      if (!moved?.parentId) return
+
+      if (overId.startsWith(NEST_DROP_PREFIX)) {
+        const parentId = parseNestDropId(overId)
+        if (!parentId) return
+        const parent = state.tasks.find((t) => t.id === parentId)
+        if (!parent) return
+        state.moveSubtaskInList(movedTaskId, parentId, null)
+      } else if (overId.startsWith(SUBTASK_PREFIX)) {
+        const overTaskId = parseSubtaskDragId(overId)
+        if (!overTaskId) return
+        const overTask = state.tasks.find((t) => t.id === overTaskId)
+        if (!overTask?.parentId) return
+        state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
+      } else if (overId.startsWith(TASK_PREFIX)) {
+        const rootId = overId.slice(TASK_PREFIX.length)
+        const root = state.tasks.find((t) => t.id === rootId)
+        if (!root) return
+        state.moveSubtaskInList(movedTaskId, rootId, null)
+      }
+    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(NEST_DROP_PREFIX)) {
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const parentId = parseNestDropId(overId)
+      if (!parentId || taskId === parentId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === taskId)
+      if (!moved || moved.parentId != null) return
+      state.nestRootUnderParent(taskId, parentId, null)
     } else if (
       activeId.startsWith(TASK_PREFIX) &&
       (overId.startsWith(TASK_PREFIX) ||
@@ -129,6 +184,7 @@ export default function App() {
         sortMode: state.sortMode,
         filterTag: state.filterTag,
         sections: state.sections,
+        todayIncludeOverdue: state.todayIncludeOverdue,
       })
       const built = buildReorderedActiveRootIds(
         currentOrdered,
@@ -192,7 +248,12 @@ export default function App() {
       }
     }
     if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
+      if (isTextFieldUndoTarget(e.target)) return
       const state = useTaskStore.getState()
+      if (state.undoLastOperation()) {
+        e.preventDefault()
+        return
+      }
       if (state.deletedTasks.length > 0) {
         e.preventDefault()
         state.undoDelete()
@@ -217,12 +278,7 @@ export default function App() {
     return () => clearInterval(id)
   }, [notificationsEnabled])
 
-  const isTodoSurface =
-    selectedView === null ||
-    selectedView === 'all' ||
-    selectedView === 'today' ||
-    selectedView === 'upcoming' ||
-    selectedView === 'overdue'
+  const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
   const showMobileChromeWhenHeaderHidden =
     hideGlobalHeader && selectedView !== 'calendar' && !searchQuery.trim()
