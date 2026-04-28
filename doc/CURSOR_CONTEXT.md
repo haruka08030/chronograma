@@ -74,12 +74,12 @@
   `DRAGSEC_PREFIX` / `DROPSEC_PREFIX` + `reorderSections`
 - サブタスク（`SUBTASK_PREFIX` + `SortableSubtaskItem`）：兄弟の並べ替え／任意の親タスクへ移動（各行右端の `RowNestDropTarget` が `nest::{parentId}`、ルート行・他サブタスク行へのドロップ）→ `moveSubtaskInList`（`src/lib/subtaskDnD.ts`）。親は多段可（最大深さは `src/lib/taskDepth.ts` の `MAX_TASK_TREE_DEPTH`）
 - サブタスクを他サブタスク行へドロップしたときは、衝突列に `nest::` があればそれを最優先（明示ネスト）。それが無い場合のみ右寄せポインタ判定（約 52% 以降）で子化し、条件不成立時は兄弟並び替えへフォールバック
-- **ルートをサブ化**: `nest::{parentId}` へドロップ、または別ルート行 `task::` へドロップしつつ**ポインタがその行の右寄り**（`over.rect` 基準）→ `nestRootUnderParent`（`taskStore`）。TickTick の「下＋右」に寄せた判定。衝突では `NEST_DROP_PREFIX` を優先（`rankForTaskDrag`）
+- **ルートをサブ化**: `nest::{parentId}` へドロップ、または別ルート行 `task::` へドロップしつつ**ポインタがその行の下＋右**（`over.rect` 基準、概ね右 42% 以降かつ下 42% 以降）→ `nestRootUnderParent`（`taskStore`）。TickTick の「下＋右」に寄せた判定。衝突では `NEST_DROP_PREFIX` を優先（`rankForTaskDrag`）
 - `TaskList` の手動ソートは **単一の `SortableContext`（`flatManualSortableIds`）** で、ルートとその下の**全段**の未完了サブを表示順どおり登録（`DnDSubtreeRows`）
 - タスク／サブタスクのドラッグ中は `DragOverlay` で `TaskItem` プレビューを表示し、元行は `SortableTaskItem` / `SortableSubtaskItem` 側で非表示化（`opacity: 0`）。同時に `transition` を抑えて境界付近の「押し出し」感を減らす
 - タスクをリストへドロップ（`drop::{listId}` + `moveTaskToList` / 複数選択時は `moveTasksToList`）— ドラッグ元はルートの `task::` のみ
 - リスト並べ替え（`LIST_PREFIX` + `reorderLists`）
-- 衝突判定は `taskListCollision` でドラッグ種別ごとに優先順を切替（`pointerWithin` が空のとき `rectIntersection` で `nest::` 等）。**確定時**は `nest::` に加え、ルート同士の `task::` ドロップでポインタが `over.rect` の右寄り（約 52% 以降）なら `nestRootUnderParent`；サブタスク行同士は右寄りで `moveSubtaskInList` の親付け替え（`App.tsx` の `lastDragClientRef` + **`DndPointerBridge` 内の `useDndMonitor`**（`DndContext` の子である必要がある））
+- 衝突判定は `taskListCollision` でドラッグ種別ごとに優先順を切替（`pointerWithin` が空のとき `rectIntersection` で `nest::` 等）。**確定時**は `nest::` に加え、ルート同士 / サブタスク同士の `task::` / `subtask::` ドロップでポインタが `over.rect` の下＋右（概ね右 42% 以降かつ下 42% 以降）なら子化（`nestRootUnderParent` / `moveSubtaskInList`）し、それ以外は通常並び替え（`App.tsx` の `lastDragClientRef` + **`DndPointerBridge` 内の `useDndMonitor`**（`DndContext` の子である必要がある））
 
 ## 状態管理（`src/store/taskStore.ts`）
 
@@ -117,13 +117,14 @@
 
 ### タスク挙動メモ
 
-- **新規タスク**（`addTask` / `addTaskWithDate` /
-  `addTaskWithTime`）は同一リスト・同一親の兄弟のうち
-  **手動ソート順で先頭**（既存の最小 `order` より手前の `order`
-  を付与）。`addTask` は新規タスクの **id を返す**。親指定時は親の `listId` に合わせる。タイムログ系の追加は従来どおり末尾相当
+- **新規タスク**（`addTask` / `addTaskAfter` / `addTaskWithDate` /
+  `addTaskWithTime`）は、`addTask*` が同一リスト・同一親の兄弟のうち
+  **手動ソート順で先頭**（既存の最小 `order` より手前の `order`）へ追加。
+  `addTaskAfter` は指定タスクの**直後**に同階層挿入（次兄弟がいれば中間 `order`、末尾なら `+1`）。`addTask` と `addTaskAfter`
+  は新規タスクの **id を返す**。親指定時は親の `listId` に合わせる。タイムログ系の追加は従来どおり末尾相当
 - **新規セクション**（`addSection`）は作成したセクションの **id を返す**。`TaskList` の「セクションを追加」直後はその見出しがインライン入力に切り替わり、自動フォーカスで即時リネームできる（Enter/Blur で確定、Esc でキャンセル）
 - **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の下に**再帰的**にインデント表示（`StaticSubtreeRows` / `DnDSubtreeRows` / 完了は `CompletedSubtreeRows`）。手動ソート時は単一 `SortableContext` + 各行の `RowNestDropTarget` でサブタスク DnD（`moveSubtaskInList`）。`QuickAdd`
-  はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の Enter。タイトル末尾は `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・日付語などを解釈（UI の日付チップはなし）
+  はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の Enter。行タイトル編集中の Enter では編集を確定し、同じ階層の**直下**へ空タイトルの次タスクを追加（サブタスクは同じ親の配下に追加）。タイトル末尾は `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・日付語などを解釈（UI の日付チップはなし）
 - **ピン**: `Task.pinned`。手動ソートのルート一覧ではピンを先に並べ替え（`mainListTasks.ts` の `pinnedCmp`）。行のピンアイコン・詳細のチェック・一括「ピン / ピン解除」
 - **「今日」**: `todayIncludeOverdue` がオンのとき `getFilteredRootTasks` で期限切れルートも含める。設定は `SettingsView` の外観セクション
 - 一覧の**予定タスク**（`dueDate` + `startTime` + `endTime` あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了` / `時間をずらして実行` を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする
@@ -165,6 +166,7 @@
   `pushListsTasksHabits`
 - **push**: upsert のあと、ローカルにない ID を **tasks → habits → lists**
   の順で削除（FK 順序）
+- `tasks` upsert で `pinned` カラム未適用エラー（`Could not find the 'pinned' column`）が出た場合は、同一セッション内で `pinned` なし payload にフォールバックして再試行する（005 未適用環境の互換）。再試行成功後も同期は継続し、`pinned` 同期は 005 適用後に自動復帰
 
 ## 型（`src/types/`）
 

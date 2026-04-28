@@ -1,12 +1,12 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from './i18n/config'
 import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar, LIST_PREFIX } from './components/Sidebar'
 import { TaskList } from './components/TaskList'
-import { TASK_PREFIX } from './components/SortableTaskItem'
+import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
@@ -18,9 +18,10 @@ import { SearchResults } from './components/SearchResults'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
+import { TaskItem } from './components/TaskItem'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import {
-  buildReorderedActiveRootIds,
+  buildReorderedActiveRootIdsForGroup,
   getOrderedActiveRootTasksForDnD,
   parseSectionDropId,
   SECTION_DROP_PREFIX,
@@ -33,26 +34,100 @@ import {
 import {
   NEST_DROP_PREFIX,
   SUBTASK_PREFIX,
+  nestDropId,
   parseNestDropId,
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
 import { isTodoSurfaceView } from './lib/todoSurfaceView'
+import { canNestUnder } from './lib/taskDepth'
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
+  useDndMonitor,
+  type DragStartEvent,
   type DragEndEvent,
+  type DragCancelEvent,
   type CollisionDetection,
 } from '@dnd-kit/core'
+import type { Task } from './types/task'
+
+/** ドロップ行の右寄り＝ネスト意図（`nest::` が衝突に載らない環境向け） */
+const lastDragClientRef: { current: { x: number; y: number } | null } = { current: null }
+const NEST_BAND_RATIO = 0.42
+const NEST_LOWER_HALF_RATIO = 0.42
+
+function isPointerInNestBand(
+  clientX: number,
+  rect: { left: number; width: number },
+  ratio = NEST_BAND_RATIO,
+): boolean {
+  return clientX >= rect.left + rect.width * ratio
+}
+
+function isPointerInLowerHalf(
+  clientY: number,
+  rect: { top: number; height: number },
+  ratio = NEST_LOWER_HALF_RATIO,
+): boolean {
+  return clientY >= rect.top + rect.height * ratio
+}
+
+function isPointerInNestIntent(
+  pointer: { x: number; y: number },
+  rect: { left: number; width: number; top: number; height: number },
+): boolean {
+  return isPointerInNestBand(pointer.x, rect) && isPointerInLowerHalf(pointer.y, rect)
+}
+
+function pickNestDropCollisionId(collisions: DragEndEvent['collisions']): string | null {
+  if (!collisions?.length) return null
+  const hit = collisions.find((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
+  return hit ? String(hit.id) : null
+}
+
+/** 同一行に `task::` と `nest::` が両方載るとき、`over` が task のみでも衝突列に nest があればネストに寄せる */
+function preferNestWhenCoListed(
+  activeId: string,
+  overId: string,
+  collisions: DragEndEvent['collisions'],
+  activeData: TaskRootDragData | undefined,
+): string {
+  if (activeData?.dragGroupRootIds && activeData.dragGroupRootIds.length > 1) return overId
+  if (!collisions?.length) return overId
+  if (!(activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX))) return overId
+  if (!overId.startsWith(TASK_PREFIX)) return overId
+  const rootId = overId.slice(TASK_PREFIX.length)
+  const nestId = nestDropId(rootId)
+  return collisions.some((c) => String(c.id) === nestId) ? nestId : overId
+}
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
   const activeId = String(args.active.id)
   const fromPointer = pointerWithin(args)
+
+  if (activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX)) {
+    if (fromPointer.length > 0) {
+      const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
+      return [...fromPointer].sort((a, b) => rank(String(a.id)) - rank(String(b.id)))
+    }
+    const fromRect = rectIntersection(args)
+    const nestHits = fromRect.filter((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
+    if (nestHits.length > 0) {
+      const bestNest = nestHits[0]
+      const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
+      const rest = closestCenter(args).filter((c) => c.id !== bestNest.id)
+      return [bestNest, ...rest.sort((a, b) => rank(String(a.id)) - rank(String(b.id)))]
+    }
+  }
+
   const base = fromPointer.length > 0 ? fromPointer : closestCenter(args)
 
   if (activeId.startsWith(TASK_PREFIX)) {
@@ -101,24 +176,92 @@ function rankForListReorderDrag(id: string): number {
   return 10
 }
 
+function DragOverlayTaskRow({ task, isSubtask }: { task: Task; isSubtask: boolean }) {
+  return (
+    <div className="w-[min(640px,calc(100vw-2rem))] rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70">
+      <TaskItem task={task} isSubtask={isSubtask} />
+    </div>
+  )
+}
+
+/** `useDndMonitor` は `<DndContext>` の子ツリー内でのみ有効 */
+function DndPointerBridge({ trackDragPointer }: { trackDragPointer: (e: PointerEvent) => void }) {
+  useDndMonitor(
+    useMemo(
+      () => ({
+        onDragStart() {
+          lastDragClientRef.current = null
+          window.addEventListener('pointermove', trackDragPointer, { capture: true, passive: true })
+          window.addEventListener('pointerup', trackDragPointer, { capture: true })
+          window.addEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+        onDragEnd() {
+          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
+          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
+          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+        onDragCancel() {
+          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
+          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
+          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+      }),
+      [trackDragPointer],
+    ),
+  )
+  return null
+}
+
 export default function App() {
-  useSupabaseSync()
   const { t } = useTranslation()
+  useSupabaseSync()
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
+  const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
+  const trackDragPointer = useCallback((e: PointerEvent) => {
+    lastDragClientRef.current = { x: e.clientX, y: e.clientY }
+  }, [])
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activeId = String(event.active.id)
+    if (activeId.startsWith(TASK_PREFIX)) {
+      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false })
+      return
+    }
+    if (activeId.startsWith(SUBTASK_PREFIX)) {
+      const taskId = parseSubtaskDragId(activeId)
+      setDragOverlayTask(taskId ? { taskId, isSubtask: true } : null)
+      return
+    }
+    setDragOverlayTask(null)
+  }, [])
+
+  const handleDragCancel = useCallback((_: DragCancelEvent) => {
+    setDragOverlayTask(null)
+  }, [])
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+    setDragOverlayTask(null)
+    const { active, over, collisions } = event
+    if (!over || active.id === over.id) {
+      return
+    }
     const activeId = active.id as string
-    const overId = over.id as string
+    const overId = preferNestWhenCoListed(
+      activeId,
+      over.id as string,
+      collisions,
+      active.data.current as TaskRootDragData | undefined,
+    )
 
     if (activeId.startsWith(DRAGSEC_PREFIX) && overId.startsWith(DROPSEC_PREFIX)) {
       const a = parseSectionReorderId(activeId, DRAGSEC_PREFIX)
@@ -155,7 +298,31 @@ export default function App() {
         if (!overTaskId) return
         const overTask = state.tasks.find((t) => t.id === overTaskId)
         if (!overTask?.parentId) return
-        state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
+
+        const nestCollisionId = pickNestDropCollisionId(collisions)
+        if (nestCollisionId) {
+          const collisionParentId = parseNestDropId(nestCollisionId)
+          if (
+            collisionParentId &&
+            movedTaskId !== collisionParentId &&
+            canNestUnder(state.tasks, movedTaskId, collisionParentId)
+          ) {
+            state.moveSubtaskInList(movedTaskId, collisionParentId, null)
+            return
+          }
+        }
+
+        const ptr = lastDragClientRef.current
+        if (
+          ptr &&
+          isPointerInNestIntent(ptr, over.rect) &&
+          movedTaskId !== overTaskId &&
+          canNestUnder(state.tasks, movedTaskId, overTaskId)
+        ) {
+          state.moveSubtaskInList(movedTaskId, overTaskId, null)
+        } else {
+          state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
+        }
       } else if (overId.startsWith(TASK_PREFIX)) {
         const rootId = overId.slice(TASK_PREFIX.length)
         const root = state.tasks.find((t) => t.id === rootId)
@@ -163,6 +330,8 @@ export default function App() {
         state.moveSubtaskInList(movedTaskId, rootId, null)
       }
     } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(NEST_DROP_PREFIX)) {
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+      if (group && group.length > 1) return
       const taskId = activeId.slice(TASK_PREFIX.length)
       const parentId = parseNestDropId(overId)
       if (!parentId || taskId === parentId) return
@@ -170,6 +339,31 @@ export default function App() {
       const moved = state.tasks.find((t) => t.id === taskId)
       if (!moved || moved.parentId != null) return
       state.nestRootUnderParent(taskId, parentId, null)
+    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(SUBTASK_PREFIX)) {
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+      if (group && group.length > 1) return
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const overTaskId = parseSubtaskDragId(overId)
+      if (!overTaskId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === taskId)
+      const overTask = state.tasks.find((t) => t.id === overTaskId)
+      if (!moved || moved.parentId != null || !overTask) return
+      const ptr = lastDragClientRef.current
+      if (
+        ptr &&
+        isPointerInNestIntent(ptr, over.rect) &&
+        taskId !== overTaskId &&
+        canNestUnder(state.tasks, taskId, overTaskId)
+      ) {
+        state.nestRootUnderParent(taskId, overTaskId, null)
+        return
+      }
+      const fallbackParentId = overTask.parentId
+      if (!fallbackParentId || !canNestUnder(state.tasks, taskId, fallbackParentId)) {
+        return
+      }
+      state.nestRootUnderParent(taskId, fallbackParentId, overTaskId)
     } else if (
       activeId.startsWith(TASK_PREFIX) &&
       (overId.startsWith(TASK_PREFIX) ||
@@ -177,6 +371,30 @@ export default function App() {
         parseSectionReorderId(overId, DROPSEC_PREFIX))
     ) {
       const state = useTaskStore.getState()
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const group =
+        (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+
+      if (
+        overId.startsWith(TASK_PREFIX) &&
+        activeId !== overId &&
+        group.length === 1
+      ) {
+        const overTaskId = overId.slice(TASK_PREFIX.length)
+        const moved = state.tasks.find((t) => t.id === taskId)
+        const ptr = lastDragClientRef.current
+        if (
+          moved?.parentId == null &&
+          ptr &&
+          isPointerInNestIntent(ptr, over.rect) &&
+          taskId !== overTaskId &&
+          canNestUnder(state.tasks, taskId, overTaskId)
+        ) {
+          state.nestRootUnderParent(taskId, overTaskId, null)
+          return
+        }
+      }
+
       const currentOrdered = getOrderedActiveRootTasksForDnD({
         tasks: state.tasks,
         selectedView: state.selectedView,
@@ -186,10 +404,11 @@ export default function App() {
         sections: state.sections,
         todayIncludeOverdue: state.todayIncludeOverdue,
       })
-      const built = buildReorderedActiveRootIds(
+      const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,
-        activeId,
+        taskId,
         overId,
+        group,
         state.sections,
         state.selectedListId,
       )
@@ -205,8 +424,11 @@ export default function App() {
       else if (overId.startsWith(LIST_PREFIX)) listId = overId.slice(LIST_PREFIX.length)
       if (listId) {
         const taskId = activeId.slice(TASK_PREFIX.length)
-        const { moveTaskToList, showMoveBanner } = useTaskStore.getState()
-        const r = moveTaskToList(taskId, listId)
+        const group =
+          (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+        const { moveTaskToList, moveTasksToList, showMoveBanner } = useTaskStore.getState()
+        const r =
+          group.length > 1 ? moveTasksToList(group, listId) : moveTaskToList(taskId, listId)
         if (r.moved && r.listName && r.listId != null) {
           showMoveBanner(
             i18n.t('toast.taskMovedToList', {
@@ -296,8 +518,20 @@ export default function App() {
     }
   })()
 
+  const dragOverlayTaskEntity = useMemo(
+    () => (dragOverlayTask ? tasks.find((task) => task.id === dragOverlayTask.taskId) ?? null : null),
+    [dragOverlayTask, tasks],
+  )
+
   return (
-    <DndContext sensors={sensors} collisionDetection={taskListCollision} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={taskListCollision}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <DndPointerBridge trackDragPointer={trackDragPointer} />
       <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -370,6 +604,12 @@ export default function App() {
         <MoveToast />
         <FloatingTimer />
       </div>
+
+      <DragOverlay dropAnimation={null}>
+        {dragOverlayTaskEntity && dragOverlayTask ? (
+          <DragOverlayTaskRow task={dragOverlayTaskEntity} isSubtask={dragOverlayTask.isSubtask} />
+        ) : null}
+      </DragOverlay>
 
       <DndTaskDragShell />
     </DndContext>

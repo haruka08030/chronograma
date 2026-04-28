@@ -168,6 +168,7 @@ interface TaskState {
   reorderLists: (orderedIds: string[]) => void
 
   addTask: (title: string, listId?: string, parentId?: string) => string | undefined
+  addTaskAfter: (afterTaskId: string, title: string) => string | undefined
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string) => void
@@ -821,6 +822,36 @@ export const useTaskStore = create<TaskState>()(
           ord,
         )
         if (parentId) task.parentId = parentId
+        pushUndo()
+        set((st) => ({ tasks: [...st.tasks, task] }))
+        return task.id
+      },
+      addTaskAfter: (afterTaskId, title) => {
+        const s = get()
+        const afterTask = s.tasks.find((t) => t.id === afterTaskId)
+        if (!afterTask) return undefined
+        const siblings = s.tasks
+          .filter((t) => {
+            if (t.listId !== afterTask.listId || t.parentId !== afterTask.parentId) return false
+            if (afterTask.parentId !== null) return true
+            return (t.sectionId ?? null) === (afterTask.sectionId ?? null)
+          })
+          .sort((a, b) => a.order - b.order)
+        const afterIndex = siblings.findIndex((t) => t.id === afterTaskId)
+        if (afterIndex < 0) return undefined
+        const nextSibling = siblings[afterIndex + 1]
+        const order = nextSibling
+          ? (afterTask.order + nextSibling.order) / 2
+          : afterTask.order + 1
+        const task = makeTask(
+          {
+            title,
+            listId: afterTask.listId,
+            sectionId: afterTask.parentId === null ? afterTask.sectionId : undefined,
+          },
+          order,
+        )
+        if (afterTask.parentId) task.parentId = afterTask.parentId
         pushUndo()
         set((st) => ({ tasks: [...st.tasks, task] }))
         return task.id
