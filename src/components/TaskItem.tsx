@@ -20,13 +20,15 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHandle, isSubtask, selection, rowClassName }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
   onRowClick?: (e: React.MouseEvent) => void
   /** 未完了タスクを完了する直前のフック。指定時は通常トグルより優先。 */
   onCompleteRequest?: (task: Task) => void
+  /** タイトル編集中 Enter で、同階層の次タスクを作成する */
+  onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
   /** TickTick 風一覧のインデント行 */
   isSubtask?: boolean
@@ -203,7 +205,12 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
             onBlur={commitEdit}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit()
+              if (e.key === 'Enter') {
+                if (e.nativeEvent.isComposing) return
+                e.preventDefault()
+                commitEdit()
+                onEnterCreateSibling?.(task)
+              }
               if (e.key === 'Escape') { setEditValue(task.title); setEditing(false) }
             }}
             className={`w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none

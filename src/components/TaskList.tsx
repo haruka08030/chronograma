@@ -46,6 +46,7 @@ function DnDSubtreeRows({
   makeRowClick,
   makeSelection,
   openCompleteWithLog,
+  onEnterCreateSibling,
   subtaskNestWithDrag,
 }: {
   parentId: string
@@ -54,6 +55,7 @@ function DnDSubtreeRows({
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
+  onEnterCreateSibling: (task: Task) => void
   subtaskNestWithDrag: string
 }): ReactNode[] {
   return incompleteSubtasks(parentId).flatMap((st): ReactNode[] => [
@@ -62,6 +64,7 @@ function DnDSubtreeRows({
         task={st}
         onRowClick={makeRowClick(st.id)}
         onCompleteRequest={openCompleteWithLog}
+        onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
       />
     </div>,
@@ -72,6 +75,7 @@ function DnDSubtreeRows({
       makeRowClick,
       makeSelection,
       openCompleteWithLog,
+      onEnterCreateSibling,
       subtaskNestWithDrag,
     }),
   ])
@@ -84,6 +88,7 @@ function StaticSubtreeRows({
   makeRowClick,
   makeSelection,
   openCompleteWithLog,
+  onEnterCreateSibling,
   subtaskNestNoDrag,
 }: {
   parentId: string
@@ -92,6 +97,7 @@ function StaticSubtreeRows({
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
+  onEnterCreateSibling: (task: Task) => void
   subtaskNestNoDrag: string
 }): ReactNode[] {
   return incompleteSubtasks(parentId).map((st): ReactNode => (
@@ -101,6 +107,7 @@ function StaticSubtreeRows({
         isSubtask
         onRowClick={makeRowClick(st.id)}
         onCompleteRequest={openCompleteWithLog}
+        onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
       />
       {StaticSubtreeRows({
@@ -110,6 +117,7 @@ function StaticSubtreeRows({
         makeRowClick,
         makeSelection,
         openCompleteWithLog,
+        onEnterCreateSibling,
         subtaskNestNoDrag,
       })}
     </div>
@@ -123,6 +131,7 @@ function CompletedSubtreeRows({
   makeRowClick,
   makeSelection,
   openCompleteWithLog,
+  onEnterCreateSibling,
   subtaskNestNoDrag,
 }: {
   parentId: string
@@ -131,6 +140,7 @@ function CompletedSubtreeRows({
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
+  onEnterCreateSibling: (task: Task) => void
   subtaskNestNoDrag: string
 }): ReactNode[] {
   return (childrenByParent.get(parentId) ?? []).map((st): ReactNode => (
@@ -140,6 +150,7 @@ function CompletedSubtreeRows({
         isSubtask
         onRowClick={makeRowClick(st.id)}
         onCompleteRequest={openCompleteWithLog}
+        onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
       />
       {CompletedSubtreeRows({
@@ -149,6 +160,7 @@ function CompletedSubtreeRows({
         makeRowClick,
         makeSelection,
         openCompleteWithLog,
+        onEnterCreateSibling,
         subtaskNestNoDrag,
       })}
     </div>
@@ -179,6 +191,7 @@ export function TaskList() {
   const filterTag = useTaskStore((s) => s.filterTag)
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
+  const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
@@ -380,6 +393,10 @@ export function TaskList() {
       tags: [...task.tags],
     })
   }, [toggleTask])
+
+  const handleEnterCreateSibling = useCallback((task: Task) => {
+    addTaskAfter(task.id, '')
+  }, [addTaskAfter])
 
   const submitCompleteWithLog = useCallback(() => {
     if (!completionDraft) return
@@ -658,6 +675,7 @@ export function TaskList() {
                   dragGroupRootIds={getDragGroupRootIds(t.id)}
                   onRowClick={makeRowClick(t.id)}
                   onCompleteRequest={openCompleteWithLog}
+                  onEnterCreateSibling={handleEnterCreateSibling}
                   selection={makeSelection(t.id)}
                 />,
                 ...DnDSubtreeRows({
@@ -667,6 +685,7 @@ export function TaskList() {
                   makeRowClick,
                   makeSelection,
                   openCompleteWithLog,
+                  onEnterCreateSibling: handleEnterCreateSibling,
                   subtaskNestWithDrag,
                 }),
               ])}
@@ -682,6 +701,7 @@ export function TaskList() {
             dragGroupRootIds={getDragGroupRootIds(t.id)}
             onRowClick={makeRowClick(t.id)}
             onCompleteRequest={openCompleteWithLog}
+            onEnterCreateSibling={handleEnterCreateSibling}
             selection={makeSelection(t.id)}
           />,
           ...DnDSubtreeRows({
@@ -691,6 +711,7 @@ export function TaskList() {
             makeRowClick,
             makeSelection,
             openCompleteWithLog,
+            onEnterCreateSibling: handleEnterCreateSibling,
             subtaskNestWithDrag,
           }),
         ])
@@ -712,6 +733,7 @@ export function TaskList() {
               task={t}
               onRowClick={makeRowClick(t.id)}
               onCompleteRequest={openCompleteWithLog}
+              onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
             />
             {StaticSubtreeRows({
@@ -721,6 +743,7 @@ export function TaskList() {
               makeRowClick,
               makeSelection,
               openCompleteWithLog,
+              onEnterCreateSibling: handleEnterCreateSibling,
               subtaskNestNoDrag,
             })}
           </div>
@@ -734,6 +757,7 @@ export function TaskList() {
           task={t}
           onRowClick={makeRowClick(t.id)}
           onCompleteRequest={openCompleteWithLog}
+          onEnterCreateSibling={handleEnterCreateSibling}
           selection={makeSelection(t.id)}
         />
         {StaticSubtreeRows({
@@ -743,6 +767,7 @@ export function TaskList() {
           makeRowClick,
           makeSelection,
           openCompleteWithLog,
+          onEnterCreateSibling: handleEnterCreateSibling,
           subtaskNestNoDrag,
         })}
       </div>
@@ -961,6 +986,7 @@ export function TaskList() {
                       task={t}
                       onRowClick={makeRowClick(t.id)}
                       onCompleteRequest={openCompleteWithLog}
+                      onEnterCreateSibling={handleEnterCreateSibling}
                       selection={makeSelection(t.id)}
                     />
                     {CompletedSubtreeRows({
@@ -970,6 +996,7 @@ export function TaskList() {
                       makeRowClick,
                       makeSelection,
                       openCompleteWithLog,
+                      onEnterCreateSibling: handleEnterCreateSibling,
                       subtaskNestNoDrag,
                     })}
                   </div>
