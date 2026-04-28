@@ -1,10 +1,7 @@
-import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import type { Locale } from 'date-fns'
-import { isToday, isPast, format, parseISO, startOfDay, addDays } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
@@ -14,13 +11,6 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
   medium: 'text-amber-500',
   low: 'text-blue-500',
-}
-
-function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; overdue: boolean } {
-  const d = parseISO(iso)
-  if (isToday(d)) return { text: todayLabel, overdue: false }
-  const overdue = isPast(d) && !isToday(d)
-  return { text: format(d, 'M/d (E)', { locale }), overdue }
 }
 
 export type TaskItemSelection = {
@@ -44,7 +34,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
   /** 行ラッパーに付与（例: 右端ネスト帯と並べたときの `rounded-r-none min-w-0`） */
   rowClassName?: string
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const { toggleTask, updateTask, deleteTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(false)
@@ -74,9 +64,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
     return () => window.removeEventListener('mousedown', close)
   }, [rowMenuOpen])
 
-  const dueTodayIso = format(startOfDay(new Date()), 'yyyy-MM-dd')
-  const dueTomorrowIso = format(addDays(startOfDay(new Date()), 1), 'yyyy-MM-dd')
-  const sortedLists = [...lists].sort((a, b) => a.order - b.order)
+  const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
   const commitEdit = () => {
     const trimmed = editValue.trim()
@@ -87,8 +75,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
     setEditValue(trimmed || task.title)
   }
 
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const due = task.dueDate ? dueDateLabel(task.dueDate, t('taskItem.dueToday'), dateLocale) : null
   const timeLog = isListedTimeLog(task)
   const showRowExtras = !task.completed && !timeLog
   const priorityColor = PRIORITY_COLORS[task.priority]
@@ -106,6 +92,21 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
   }, [])
 
   const rowNativeDraggable = !hasSortableHandle
+  const canShowPin = !task.parentId && showRowExtras
+
+  const beginTitleInteraction = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation()
+    if (e.shiftKey || isModKey(e)) {
+      onRowClick?.(e as unknown as MouseEvent)
+      return
+    }
+    if (selection?.reveal && onRowClick) {
+      onRowClick(e as unknown as MouseEvent)
+      return
+    }
+    setEditValue(task.title)
+    setEditing(true)
+  }, [onRowClick, selection?.reveal, task.title])
 
   return (
     <div
@@ -213,33 +214,11 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
             data-task-title
             role="button"
             tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.shiftKey || isModKey(e)) {
-                onRowClick?.(e)
-                return
-              }
-              if (selection?.reveal && onRowClick) {
-                onRowClick(e)
-                return
-              }
-              setEditValue(task.title)
-              setEditing(true)
-            }}
+            onClick={beginTitleInteraction}
             onKeyDown={(e) => {
               if (e.key !== 'Enter' && e.key !== ' ') return
               e.preventDefault()
-              e.stopPropagation()
-              if (e.shiftKey || isModKey(e)) {
-                onRowClick?.(e as unknown as MouseEvent)
-                return
-              }
-              if (selection?.reveal && onRowClick) {
-                onRowClick(e as unknown as MouseEvent)
-                return
-              }
-              setEditValue(task.title)
-              setEditing(true)
+              beginTitleInteraction(e)
             }}
             className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
@@ -250,11 +229,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         )}
 
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-          {due && (!task.completed || timeLog) && (
-            <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
-              {due.text}
-            </span>
-          )}
           {task.recurrence && (
             <svg className="w-3 h-3 text-zinc-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
@@ -276,41 +250,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
           )}
         </div>
       </div>
-
-      {showRowExtras && (
-        <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <button
-            type="button"
-            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-            onClick={(e) => {
-              e.stopPropagation()
-              updateTask(task.id, { dueDate: dueTodayIso })
-            }}
-          >
-            {t('taskItem.quickDueToday')}
-          </button>
-          <button
-            type="button"
-            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-            onClick={(e) => {
-              e.stopPropagation()
-              updateTask(task.id, { dueDate: dueTomorrowIso })
-            }}
-          >
-            {t('taskItem.quickDueTomorrow')}
-          </button>
-          <button
-            type="button"
-            className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-            onClick={(e) => {
-              e.stopPropagation()
-              updateTask(task.id, { dueDate: null })
-            }}
-          >
-            {t('taskItem.quickDueClear')}
-          </button>
-        </div>
-      )}
 
       <label
         className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer flex-shrink-0"
@@ -348,13 +287,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
             className="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-zinc-200 bg-white py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
             onClick={(e) => e.stopPropagation()}
           >
-            {showRowExtras && (
-              <div className="flex flex-wrap gap-1 px-2 pb-2 border-b border-zinc-100 dark:border-zinc-700 sm:hidden">
-                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: dueTodayIso }); setRowMenuOpen(false) }}>{t('taskItem.quickDueToday')}</button>
-                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: dueTomorrowIso }); setRowMenuOpen(false) }}>{t('taskItem.quickDueTomorrow')}</button>
-                <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900" onClick={() => { updateTask(task.id, { dueDate: null }); setRowMenuOpen(false) }}>{t('taskItem.quickDueClear')}</button>
-              </div>
-            )}
             {!task.parentId && (
               <div className="px-2 pb-2">
                 <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">{t('taskDetail.list')}</label>
@@ -367,7 +299,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
                     setRowMenuOpen(false)
                     if (r.moved && r.listName) {
                       showMoveBanner(
-                        i18n.t('toast.taskMovedToList', {
+                        t('toast.taskMovedToList', {
                           name: displayListName(r.listId ?? next, r.listName),
                         }),
                       )
@@ -384,7 +316,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         )}
       </div>
 
-      {!task.parentId && showRowExtras && (
+      {canShowPin && (
         <button
           type="button"
           className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all flex-shrink-0 text-zinc-400"
