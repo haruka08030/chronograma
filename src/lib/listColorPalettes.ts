@@ -8,10 +8,8 @@ export type ListColorPaletteId =
   | 'cool-pastel'
   | 'mono-hue'
 
-export interface ListColorPalette {
+interface ListColorPalette {
   id: ListColorPaletteId
-  label: string
-  description: string
   colors: readonly string[]
 }
 
@@ -39,42 +37,12 @@ const COOL_HUES = [188, 198, 208, 218, 228, 238, 248, 258, 268, 278] as const
 const MONO_STEPS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => hslToHex(226, 12 + i * 1.8, 84 - i * 4.2))
 
 export const LIST_COLOR_PALETTES: readonly ListColorPalette[] = [
-  {
-    id: 'pastel-rainbow',
-    label: 'パステル虹',
-    description: '色相を36°刻み。明るめで区別しやすい',
-    colors: spectrumPastel(42, 81),
-  },
-  {
-    id: 'tint-rainbow',
-    label: 'ティント虹',
-    description: '白に近い薄色。同じ色相回りでさらに穏やか',
-    colors: spectrumPastel(32, 90),
-  },
-  {
-    id: 'candy-soft',
-    label: 'キャンディ',
-    description: '彩度少し上げた飴色。ネオンより一段落ち着き',
-    colors: spectrumPastel(52, 74),
-  },
-  {
-    id: 'neon-mute',
-    label: 'ソフトビビッド',
-    description: 'はっきりした虹に近いが、中間明度で眩しさ緩和',
-    colors: spectrumPastel(48, 66),
-  },
-  {
-    id: 'cool-pastel',
-    label: '寒色パステル',
-    description: 'シアン〜ラベンダー帯のみ。茶・オリーブなし',
-    colors: COOL_HUES.map((h) => hslToHex(h, 36, 83)),
-  },
-  {
-    id: 'mono-hue',
-    label: 'ブルーグレー段階',
-    description: '単一色相の明度差。統一感重視',
-    colors: MONO_STEPS,
-  },
+  { id: 'pastel-rainbow', colors: spectrumPastel(42, 81) },
+  { id: 'tint-rainbow', colors: spectrumPastel(32, 90) },
+  { id: 'candy-soft', colors: spectrumPastel(52, 74) },
+  { id: 'neon-mute', colors: spectrumPastel(48, 66) },
+  { id: 'cool-pastel', colors: COOL_HUES.map((h) => hslToHex(h, 36, 83)) },
+  { id: 'mono-hue', colors: MONO_STEPS },
 ] as const
 
 export const DEFAULT_LIST_COLOR_PALETTE_ID: ListColorPaletteId = 'pastel-rainbow'

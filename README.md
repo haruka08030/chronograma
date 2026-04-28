@@ -1,88 +1,49 @@
 # Chronograma
 
-タスク・カレンダー・タイムログ向けの React アプリです。データはブラウザの localStorage に保存されます。オプションで **Supabase** を設定するとログイン（メールのマジックリンク）とリスト／タスクのクラウド同期が有効になります。
+## プロジェクト概要
+
+**Chronograma** は、**タスク（To‑Do）**・**カレンダー**・**タイムログ**・**習慣トラッキング**をまとめて扱う **React** のシングルページアプリです。ローカルの作業フォルダ名が `jikanwari` のままの場合があります。
+
+主な機能のイメージは次のとおりです。
+
+- **To‑Do**: リストとセクション、期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替えとリスト間の移動、複数選択と一括操作、直近削除の Undo
+- **カレンダー**: 月表示／週タイムライン、（任意で）Google カレンダー連携、日付パネルでその日の予定・ログを確認
+- **予定 vs 実績**・**活動ログ**・**統計**（通常タスク中心の集計）
+- **習慣**: ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
+- **外観**: ライト／ダーク、日本語と英語の UI
+
+**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、メールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+
+同梱の **Flutter** アプリ（`mobile/`）では、スマホ向けに To‑Do 中心の画面を段階的に用意しています。
+
+実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。
+
+## ローカルで動かす（Web）
+
+プロジェクトルートで依存関係を入れたうえで開発サーバーを起動します。
+
+```bash
+npm install
+npm run dev
+```
+
+ビルドは `npm run build`、Lint は `npm run lint` です。
+
+## モバイル（Flutter）
+
+`mobile/` に Flutter 版があります（To‑Do 中心の Phase 1）。`cd mobile && flutter run`。概要は [`mobile/README.md`](mobile/README.md)。
 
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で `supabase/migrations/001_chronograma_lists_tasks.sql` の内容を実行し、`lists` / `tasks` テーブルと RLS を作成します。続けて未実行なら `002_habits.sql`（習慣）、`003_list_sections.sql`（リスト内セクションと `tasks.section_id`）を同様に実行します。
+2. **SQL Editor** で `supabase/migrations/` を **番号順**に実行し、テーブルと RLS を作成します。
+   - `001_chronograma_lists_tasks.sql` — リスト・タスク
+   - `002_habits.sql` — 習慣
+   - `003_list_sections.sql` — リスト内セクションと `tasks.section_id`
+   - `004_habit_time_mode.sql` — 習慣の時間モード列（クラウド同期で習慣を使う場合に必要）
+   - `005_tasks_pinned.sql` — タスクの `pinned` 列（ピン留め・Supabase 同期用）
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
 
 ヘッダーの「ログイン」からメールアドレスを送信し、届いたリンクでサインインすると、約 1.8 秒のデバウンス後に変更がサーバーへ同期されます。
-
----
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```

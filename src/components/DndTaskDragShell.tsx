@@ -3,6 +3,7 @@ import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { LIST_PREFIX } from './Sidebar'
 import { TASK_PREFIX } from './SortableTaskItem'
+import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
 import type { TaskList } from '../types/list'
 
@@ -46,19 +47,22 @@ export function DndTaskDragShell() {
           setHover(null)
           return
         }
-        if (!id.startsWith(TASK_PREFIX)) {
+        let taskId: string | null = null
+        if (id.startsWith(TASK_PREFIX)) taskId = id.slice(TASK_PREFIX.length)
+        else if (id.startsWith(SUBTASK_PREFIX)) taskId = parseSubtaskDragId(id)
+        if (!taskId) {
           setDraggingTaskId(null)
           setHover(null)
           return
         }
-        const taskId = id.slice(TASK_PREFIX.length)
         const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
         setDraggingTaskId(task ? taskId : null)
         setHover(null)
       },
       onDragOver({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) {
         const setHover = useTaskStore.getState().setTaskDragHoverListId
-        if (!String(active.id).startsWith(TASK_PREFIX)) {
+        const aid = String(active.id)
+        if (!aid.startsWith(TASK_PREFIX) && !aid.startsWith(SUBTASK_PREFIX)) {
           setHover(null)
           return
         }

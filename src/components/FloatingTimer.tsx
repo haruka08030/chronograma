@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 
 function formatElapsed(ms: number): string {
@@ -13,6 +14,7 @@ function formatElapsed(ms: number): string {
 }
 
 export function FloatingTimer() {
+  const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
   const [elapsed, setElapsed] = useState(0)
@@ -56,7 +58,7 @@ export function FloatingTimer() {
       <button
         onClick={stopTimer}
         className="p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors"
-        title="記録を停止"
+        title={t('floatingTimer.stopTitle')}
       >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
           <rect x="6" y="6" width="12" height="12" rx="1" />

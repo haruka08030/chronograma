@@ -25,6 +25,24 @@ export function timeToMinutes(time: string): number {
   return h * 60 + m
 }
 
+/** `startTime`〜`endTime` の差（分）。どちらか欠けるときは `null` */
+export function durationMinutesForTaskSlot(task: {
+  startTime?: string | null
+  endTime?: string | null
+}): number | null {
+  const { startTime, endTime } = task
+  if (!startTime || !endTime) return null
+  return timeToMinutes(endTime) - timeToMinutes(startTime)
+}
+
+export function durationMinutesForTaskId<T extends { id: string; startTime?: string | null; endTime?: string | null }>(
+  tasks: T[],
+  taskId: string,
+): number | null {
+  const t = tasks.find((x) => x.id === taskId)
+  return t ? durationMinutesForTaskSlot(t) : null
+}
+
 /** 分単位の長さを日本語表示（例: 1時間15分） */
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)
@@ -34,8 +52,3 @@ export function formatDuration(minutes: number): string {
   return `${m}分`
 }
 
-export function blockHeight(startTime: string, endTime: string): number {
-  const startY = timeToY(startTime)
-  const endY = timeToY(endTime)
-  return Math.max(endY - startY, HOUR_HEIGHT / 4)
-}

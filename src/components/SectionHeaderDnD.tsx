@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { sectionDragHandleId, sectionDropHeaderId } from '../lib/sectionReorderDnD'
 
 /** 名前付きセクション見出し：行全体がドロップ先、左のハンドルでドラッグ */
@@ -17,6 +18,7 @@ export function SectionHeaderDnD({
   titleButton: ReactNode
   actions: ReactNode
 }) {
+  const { t } = useTranslation()
   const dragId = sectionDragHandleId(listId, sectionId)
   const dropId = sectionDropHeaderId(listId, sectionId)
 
@@ -37,8 +39,8 @@ export function SectionHeaderDnD({
         setDropRef(node)
       }}
       style={rowStyle}
-      className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors
-        ${isQuickTarget ? 'bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
+      className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
+        ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
         ${isOver ? 'ring-2 ring-accent-400/50' : ''}
         ${isDragging ? 'opacity-70' : ''}`}
     >
@@ -51,8 +53,8 @@ export function SectionHeaderDnD({
           className="touch-none flex-shrink-0 rounded-md p-1 cursor-grab active:cursor-grabbing
                      text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400
                      hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80"
-          title="セクションを並べ替え"
-          aria-label="セクションを並べ替え"
+          title={t('taskList.reorderSection')}
+          aria-label={t('taskList.reorderSection')}
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <circle cx="9" cy="6" r="1.5" />

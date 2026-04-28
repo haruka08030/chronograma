@@ -1,9 +1,11 @@
 import type { FormEvent } from 'react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
+  const { t } = useTranslation()
   const isSettings = variant === 'settings'
   const { user, loading, signInWithOtp, signOut } = useAuth()
   const [open, setOpen] = useState(false)
@@ -19,19 +21,19 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
     setError(null)
     setMessage(null)
     if (!email.trim()) {
-      setError('メールアドレスを入力してください')
+      setError(t('account.emailRequired'))
       return
     }
     setPending(true)
     try {
       const res = await signInWithOtp(email)
-          if (res.error) setError(res.error)
-          else {
-            setMessage('ログイン用のリンクをメールに送信しました。受信箱を確認してください。')
+      if (res.error) setError(res.error)
+      else {
+        setMessage(t('account.linkSent'))
         setEmail('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました。もう一度お試しください。')
+      setError(err instanceof Error ? err.message : t('account.genericError'))
     } finally {
       setPending(false)
     }
@@ -62,7 +64,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
           onClick={() => void signOut()}
           className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
-          ログアウト
+          {t('account.signOut')}
         </button>
       </div>
     )
@@ -75,14 +77,14 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         onClick={() => setOpen((o) => !o)}
         className="text-xs px-2.5 py-1.5 rounded-lg border border-accent-300 dark:border-accent-600 text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-500/10 transition-colors"
       >
-        ログイン
+        {t('account.signIn')}
       </button>
       {open && (
         <>
           <button
             type="button"
             className="fixed inset-0 z-40 cursor-default"
-            aria-label="閉じる"
+            aria-label={t('account.closeOverlay')}
             onClick={() => setOpen(false)}
           />
           <div
@@ -92,13 +94,13 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-              メールに届くリンクでログインします。複数端末でデータが同期されます。
+              {t('account.intro')}
             </p>
             <form onSubmit={handleSubmit} className="flex flex-col gap-2">
               <input
                 type="email"
                 autoComplete="email"
-                placeholder="メールアドレス"
+                placeholder={t('account.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none"
@@ -110,7 +112,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                 disabled={pending}
                 className="text-sm py-2 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 disabled:opacity-50"
               >
-                {pending ? '送信中…' : 'リンクを送信'}
+                {pending ? t('account.sending') : t('account.sendLink')}
               </button>
             </form>
           </div>

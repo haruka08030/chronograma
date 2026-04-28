@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { displayListName } from '../lib/displayListName'
 
 export function CalendarTaskDock() {
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const sortMode = useTaskStore((s) => s.sortMode)
@@ -13,7 +17,7 @@ export function CalendarTaskDock() {
   const sections = useTaskStore((s) => s.sections)
 
   const [dockListId, setDockListId] = useState(INBOX_LIST_ID)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -32,14 +36,12 @@ export function CalendarTaskDock() {
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
-
   return (
-    <>
-      <div className="flex h-full min-h-0 min-w-0 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
           <label htmlFor="calendar-dock-list" className="shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-            リスト
+            {t('calendarDock.listHeading')}
           </label>
           <select
             id="calendar-dock-list"
@@ -49,29 +51,29 @@ export function CalendarTaskDock() {
           >
             {sortedLists.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
+                {displayListName(l.id, l.name)}
               </option>
             ))}
           </select>
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
           {active.length === 0 && completedTodos.length === 0 && (
-            <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">タスクがありません</p>
+            <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDock.empty')}</p>
           )}
           {active.map((t) => (
-            <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+            <TaskItem key={t.id} task={t} onRowClick={() => openDetail(t.id)} />
           ))}
           {completedTodos.length > 0 && (
             <div className="pt-2">
-              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">完了</div>
+              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">{t('calendarDock.done')}</div>
               {completedTodos.map((t) => (
-                <TaskItem key={t.id} task={t} onClick={() => setDetailId(t.id)} />
+                <TaskItem key={t.id} task={t} onRowClick={() => openDetail(t.id)} />
               ))}
             </div>
           )}
         </div>
       </div>
-      {detailTask && <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />}
-    </>
+      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+    </div>
   )
 }

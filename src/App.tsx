@@ -1,9 +1,12 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from './i18n/config'
+import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar, LIST_PREFIX } from './components/Sidebar'
 import { TaskList } from './components/TaskList'
-import { TASK_PREFIX } from './components/SortableTaskItem'
+import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
@@ -15,9 +18,10 @@ import { SearchResults } from './components/SearchResults'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
+import { TaskItem } from './components/TaskItem'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import {
-  buildReorderedActiveRootIds,
+  buildReorderedActiveRootIdsForGroup,
   getOrderedActiveRootTasksForDnD,
   parseSectionDropId,
   SECTION_DROP_PREFIX,
@@ -28,24 +32,127 @@ import {
   parseSectionReorderId,
 } from './lib/sectionReorderDnD'
 import {
+  NEST_DROP_PREFIX,
+  SUBTASK_PREFIX,
+  nestDropId,
+  parseNestDropId,
+  parseSubtaskDragId,
+} from './lib/subtaskDnD'
+import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
+import { isTodoSurfaceView } from './lib/todoSurfaceView'
+import { canNestUnder } from './lib/taskDepth'
+import {
   DndContext,
+  DragOverlay,
   closestCenter,
   pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
+  useDndMonitor,
+  type DragStartEvent,
   type DragEndEvent,
+  type DragCancelEvent,
   type CollisionDetection,
 } from '@dnd-kit/core'
+import type { Task } from './types/task'
+
+/** ドロップ行の右寄り＝ネスト意図（`nest::` が衝突に載らない環境向け） */
+const lastDragClientRef: { current: { x: number; y: number } | null } = { current: null }
+const NEST_BAND_RATIO = 0.42
+const NEST_LOWER_HALF_RATIO = 0.42
+
+function emitDebugLog(location: string, message: string, data: Record<string, unknown>, hypothesisId: string): void {
+  const runId = `run-${Date.now()}`
+  // #region agent log
+  fetch('http://127.0.0.1:7408/ingest/94ff9d55-ac05-49ec-936a-1e664dd0438d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'363202'},body:JSON.stringify({sessionId:'363202',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{})
+  // #endregion
+}
+
+function isPointerInNestBand(
+  clientX: number,
+  rect: { left: number; width: number },
+  ratio = NEST_BAND_RATIO,
+): boolean {
+  return clientX >= rect.left + rect.width * ratio
+}
+
+function isPointerInLowerHalf(
+  clientY: number,
+  rect: { top: number; height: number },
+  ratio = NEST_LOWER_HALF_RATIO,
+): boolean {
+  return clientY >= rect.top + rect.height * ratio
+}
+
+function isPointerInNestIntent(
+  pointer: { x: number; y: number },
+  rect: { left: number; width: number; top: number; height: number },
+): boolean {
+  return isPointerInNestBand(pointer.x, rect) && isPointerInLowerHalf(pointer.y, rect)
+}
+
+function isPointerInNestIntentForRoot(
+  pointer: { x: number; y: number },
+  rect: { left: number; width: number; top: number; height: number },
+  overHasChildren: boolean,
+): boolean {
+  if (overHasChildren) return isPointerInNestIntent(pointer, rect)
+  const relaxedRight = pointer.x >= rect.left + 80
+  const relaxedLower = isPointerInLowerHalf(pointer.y, rect, 0.32)
+  return relaxedRight && relaxedLower
+}
+
+function pickNestDropCollisionId(collisions: DragEndEvent['collisions']): string | null {
+  if (!collisions?.length) return null
+  const hit = collisions.find((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
+  return hit ? String(hit.id) : null
+}
+
+/** 同一行に `task::` と `nest::` が両方載るとき、`over` が task のみでも衝突列に nest があればネストに寄せる */
+function preferNestWhenCoListed(
+  activeId: string,
+  overId: string,
+  collisions: DragEndEvent['collisions'],
+  activeData: TaskRootDragData | undefined,
+): string {
+  if (activeData?.dragGroupRootIds && activeData.dragGroupRootIds.length > 1) return overId
+  if (!collisions?.length) return overId
+  if (!(activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX))) return overId
+  if (!overId.startsWith(TASK_PREFIX)) return overId
+  const rootId = overId.slice(TASK_PREFIX.length)
+  const nestId = nestDropId(rootId)
+  return collisions.some((c) => String(c.id) === nestId) ? nestId : overId
+}
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
   const activeId = String(args.active.id)
   const fromPointer = pointerWithin(args)
+
+  if (activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX)) {
+    if (fromPointer.length > 0) {
+      const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
+      return [...fromPointer].sort((a, b) => rank(String(a.id)) - rank(String(b.id)))
+    }
+    const fromRect = rectIntersection(args)
+    const nestHits = fromRect.filter((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
+    if (nestHits.length > 0) {
+      const bestNest = nestHits[0]
+      const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
+      const rest = closestCenter(args).filter((c) => c.id !== bestNest.id)
+      return [bestNest, ...rest.sort((a, b) => rank(String(a.id)) - rank(String(b.id)))]
+    }
+  }
+
   const base = fromPointer.length > 0 ? fromPointer : closestCenter(args)
 
   if (activeId.startsWith(TASK_PREFIX)) {
     return [...base].sort((a, b) => rankForTaskDrag(String(a.id)) - rankForTaskDrag(String(b.id)))
+  }
+  if (activeId.startsWith(SUBTASK_PREFIX)) {
+    return [...base].sort((a, b) => rankForSubtaskDrag(String(a.id)) - rankForSubtaskDrag(String(b.id)))
   }
   if (activeId.startsWith(DRAGSEC_PREFIX)) {
     return [...base].sort((a, b) => rankForSectionReorderDrag(String(a.id)) - rankForSectionReorderDrag(String(b.id)))
@@ -57,9 +164,21 @@ const taskListCollision: CollisionDetection = (args) => {
 }
 
 function rankForTaskDrag(id: string): number {
-  if (id.startsWith(TASK_PREFIX)) return 0
-  if (id.startsWith(SECTION_DROP_PREFIX)) return 1
-  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 2
+  if (id.startsWith(NEST_DROP_PREFIX)) return 0
+  if (id.startsWith(TASK_PREFIX)) return 1
+  if (id.startsWith(SECTION_DROP_PREFIX)) return 2
+  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 3
+  if (id.startsWith(DROPSEC_PREFIX)) return 20
+  return 10
+}
+
+/** サブタスクDnD: ネスト帯・兄弟行をルート行より優先 */
+function rankForSubtaskDrag(id: string): number {
+  if (id.startsWith(NEST_DROP_PREFIX)) return 0
+  if (id.startsWith(SUBTASK_PREFIX)) return 1
+  if (id.startsWith(TASK_PREFIX)) return 2
+  if (id.startsWith(SECTION_DROP_PREFIX)) return 3
+  if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 4
   if (id.startsWith(DROPSEC_PREFIX)) return 20
   return 10
 }
@@ -75,23 +194,98 @@ function rankForListReorderDrag(id: string): number {
   return 10
 }
 
+function DragOverlayTaskRow({ task, isSubtask }: { task: Task; isSubtask: boolean }) {
+  return (
+    <div className="w-[min(640px,calc(100vw-2rem))] rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70">
+      <TaskItem task={task} isSubtask={isSubtask} />
+    </div>
+  )
+}
+
+/** `useDndMonitor` は `<DndContext>` の子ツリー内でのみ有効 */
+function DndPointerBridge({ trackDragPointer }: { trackDragPointer: (e: PointerEvent) => void }) {
+  useDndMonitor(
+    useMemo(
+      () => ({
+        onDragStart() {
+          lastDragClientRef.current = null
+          window.addEventListener('pointermove', trackDragPointer, { capture: true, passive: true })
+          window.addEventListener('pointerup', trackDragPointer, { capture: true })
+          window.addEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+        onDragEnd() {
+          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
+          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
+          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+        onDragCancel() {
+          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
+          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
+          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
+        },
+      }),
+      [trackDragPointer],
+    ),
+  )
+  return null
+}
+
 export default function App() {
+  const { t } = useTranslation()
   useSupabaseSync()
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
+  const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
+  const trackDragPointer = useCallback((e: PointerEvent) => {
+    lastDragClientRef.current = { x: e.clientX, y: e.clientY }
+  }, [])
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activeId = String(event.active.id)
+    if (activeId.startsWith(TASK_PREFIX)) {
+      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false })
+      return
+    }
+    if (activeId.startsWith(SUBTASK_PREFIX)) {
+      const taskId = parseSubtaskDragId(activeId)
+      setDragOverlayTask(taskId ? { taskId, isSubtask: true } : null)
+      return
+    }
+    setDragOverlayTask(null)
+  }, [])
+
+  const handleDragCancel = useCallback((_: DragCancelEvent) => {
+    setDragOverlayTask(null)
+  }, [])
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+    setDragOverlayTask(null)
+    const { active, over, collisions } = event
+    emitDebugLog('App.tsx:257', 'drag end snapshot', {
+      activeId: String(active.id),
+      overId: over ? String(over.id) : null,
+      collisions: collisions?.map((c) => String(c.id)) ?? [],
+      pointer: lastDragClientRef.current,
+    }, 'H1')
+    if (!over || active.id === over.id) {
+      return
+    }
     const activeId = active.id as string
-    const overId = over.id as string
+    const overId = preferNestWhenCoListed(
+      activeId,
+      over.id as string,
+      collisions,
+      active.data.current as TaskRootDragData | undefined,
+    )
 
     if (activeId.startsWith(DRAGSEC_PREFIX) && overId.startsWith(DROPSEC_PREFIX)) {
       const a = parseSectionReorderId(activeId, DRAGSEC_PREFIX)
@@ -110,6 +304,107 @@ export default function App() {
       const [item] = next.splice(from, 1)
       next.splice(to, 0, item)
       state.reorderSections(a.listId, next)
+    } else if (activeId.startsWith(SUBTASK_PREFIX)) {
+      const movedTaskId = parseSubtaskDragId(activeId)
+      if (!movedTaskId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === movedTaskId)
+      if (!moved?.parentId) return
+
+      if (overId.startsWith(NEST_DROP_PREFIX)) {
+        const parentId = parseNestDropId(overId)
+        if (!parentId) return
+        const parent = state.tasks.find((t) => t.id === parentId)
+        if (!parent) return
+        state.moveSubtaskInList(movedTaskId, parentId, null)
+      } else if (overId.startsWith(SUBTASK_PREFIX)) {
+        const overTaskId = parseSubtaskDragId(overId)
+        if (!overTaskId) return
+        const overTask = state.tasks.find((t) => t.id === overTaskId)
+        if (!overTask?.parentId) return
+
+        const nestCollisionId = pickNestDropCollisionId(collisions)
+        if (nestCollisionId) {
+          const collisionParentId = parseNestDropId(nestCollisionId)
+          if (
+            collisionParentId &&
+            movedTaskId !== collisionParentId &&
+            canNestUnder(state.tasks, movedTaskId, collisionParentId)
+          ) {
+            state.moveSubtaskInList(movedTaskId, collisionParentId, null)
+            return
+          }
+        }
+
+        const ptr = lastDragClientRef.current
+        if (
+          ptr &&
+          isPointerInNestIntent(ptr, over.rect) &&
+          movedTaskId !== overTaskId &&
+          canNestUnder(state.tasks, movedTaskId, overTaskId)
+        ) {
+          state.moveSubtaskInList(movedTaskId, overTaskId, null)
+        } else {
+          state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
+        }
+      } else if (overId.startsWith(TASK_PREFIX)) {
+        const rootId = overId.slice(TASK_PREFIX.length)
+        const root = state.tasks.find((t) => t.id === rootId)
+        if (!root) return
+        state.moveSubtaskInList(movedTaskId, rootId, null)
+      }
+    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(NEST_DROP_PREFIX)) {
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+      if (group && group.length > 1) return
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const parentId = parseNestDropId(overId)
+      if (!parentId || taskId === parentId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === taskId)
+      if (!moved || moved.parentId != null) return
+      state.nestRootUnderParent(taskId, parentId, null)
+    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(SUBTASK_PREFIX)) {
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+      if (group && group.length > 1) return
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const overTaskId = parseSubtaskDragId(overId)
+      if (!overTaskId) return
+      const state = useTaskStore.getState()
+      const moved = state.tasks.find((t) => t.id === taskId)
+      const overTask = state.tasks.find((t) => t.id === overTaskId)
+      if (!moved || moved.parentId != null || !overTask) return
+      const ptr = lastDragClientRef.current
+      if (
+        ptr &&
+        isPointerInNestIntent(ptr, over.rect) &&
+        taskId !== overTaskId &&
+        canNestUnder(state.tasks, taskId, overTaskId)
+      ) {
+        emitDebugLog('App.tsx:363', 'root over subtask nested', {
+          taskId,
+          overTaskId,
+          pointer: ptr,
+        }, 'H4')
+        state.nestRootUnderParent(taskId, overTaskId, null)
+        return
+      }
+      const fallbackParentId = overTask.parentId
+      if (!fallbackParentId || !canNestUnder(state.tasks, taskId, fallbackParentId)) {
+        emitDebugLog('App.tsx:372', 'root over subtask fallback rejected', {
+          taskId,
+          overTaskId,
+          fallbackParentId,
+          pointer: ptr,
+        }, 'H4')
+        return
+      }
+      emitDebugLog('App.tsx:380', 'root over subtask fallback parent insert', {
+        taskId,
+        overTaskId,
+        fallbackParentId,
+        pointer: ptr,
+      }, 'H4')
+      state.nestRootUnderParent(taskId, fallbackParentId, overTaskId)
     } else if (
       activeId.startsWith(TASK_PREFIX) &&
       (overId.startsWith(TASK_PREFIX) ||
@@ -117,6 +412,45 @@ export default function App() {
         parseSectionReorderId(overId, DROPSEC_PREFIX))
     ) {
       const state = useTaskStore.getState()
+      const taskId = activeId.slice(TASK_PREFIX.length)
+      const group =
+        (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+
+      if (
+        overId.startsWith(TASK_PREFIX) &&
+        activeId !== overId &&
+        group.length === 1
+      ) {
+        const overTaskId = overId.slice(TASK_PREFIX.length)
+        const moved = state.tasks.find((t) => t.id === taskId)
+        const overHasChildren = state.tasks.some((t) => t.parentId === overTaskId)
+        const ptr = lastDragClientRef.current
+        const intent = ptr ? isPointerInNestIntentForRoot(ptr, over.rect, overHasChildren) : false
+        const canNest = canNestUnder(state.tasks, taskId, overTaskId)
+        emitDebugLog('App.tsx:409', 'root over root nest decision', {
+          taskId,
+          overTaskId,
+          overHasChildren,
+          movedParentId: moved?.parentId ?? null,
+          pointer: ptr,
+          intent,
+          canNest,
+          groupSize: group.length,
+          overRect: over.rect,
+        }, 'H2')
+        if (
+          moved?.parentId == null &&
+          ptr &&
+          intent &&
+          taskId !== overTaskId &&
+          canNest
+        ) {
+          emitDebugLog('App.tsx:428', 'root over root nested', { taskId, overTaskId }, 'H3')
+          state.nestRootUnderParent(taskId, overTaskId, null)
+          return
+        }
+      }
+
       const currentOrdered = getOrderedActiveRootTasksForDnD({
         tasks: state.tasks,
         selectedView: state.selectedView,
@@ -124,14 +458,21 @@ export default function App() {
         sortMode: state.sortMode,
         filterTag: state.filterTag,
         sections: state.sections,
+        todayIncludeOverdue: state.todayIncludeOverdue,
       })
-      const built = buildReorderedActiveRootIds(
+      const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,
-        activeId,
+        taskId,
         overId,
+        group,
         state.sections,
         state.selectedListId,
       )
+      emitDebugLog('App.tsx:451', 'root reorder fallback path', {
+        taskId,
+        overId,
+        built: Boolean(built),
+      }, 'H1')
       if (built) {
         state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
       }
@@ -144,9 +485,18 @@ export default function App() {
       else if (overId.startsWith(LIST_PREFIX)) listId = overId.slice(LIST_PREFIX.length)
       if (listId) {
         const taskId = activeId.slice(TASK_PREFIX.length)
-        const { moveTaskToList, showMoveBanner } = useTaskStore.getState()
-        const r = moveTaskToList(taskId, listId)
-        if (r.moved && r.listName) showMoveBanner(`「${r.listName}」に移動しました`)
+        const group =
+          (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+        const { moveTaskToList, moveTasksToList, showMoveBanner } = useTaskStore.getState()
+        const r =
+          group.length > 1 ? moveTasksToList(group, listId) : moveTaskToList(taskId, listId)
+        if (r.moved && r.listName && r.listId != null) {
+          showMoveBanner(
+            i18n.t('toast.taskMovedToList', {
+              name: displayListName(r.listId, r.listName),
+            }),
+          )
+        }
       }
     } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
       const state = useTaskStore.getState()
@@ -167,11 +517,11 @@ export default function App() {
   }, [theme])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    if (isModKey(e) && e.key === 'k') {
       e.preventDefault()
       searchRef.current?.focus()
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+    if (isModKey(e) && e.key === 'n') {
       e.preventDefault()
       const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
       if (quickAdd) {
@@ -180,8 +530,13 @@ export default function App() {
         useTaskStore.getState().requestQuickAdd()
       }
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
+      if (isTextFieldUndoTarget(e.target)) return
       const state = useTaskStore.getState()
+      if (state.undoLastOperation()) {
+        e.preventDefault()
+        return
+      }
       if (state.deletedTasks.length > 0) {
         e.preventDefault()
         state.undoDelete()
@@ -206,12 +561,7 @@ export default function App() {
     return () => clearInterval(id)
   }, [notificationsEnabled])
 
-  const isTodoSurface =
-    selectedView === null ||
-    selectedView === 'all' ||
-    selectedView === 'today' ||
-    selectedView === 'upcoming' ||
-    selectedView === 'overdue'
+  const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
   const showMobileChromeWhenHeaderHidden =
     hideGlobalHeader && selectedView !== 'calendar' && !searchQuery.trim()
@@ -229,8 +579,20 @@ export default function App() {
     }
   })()
 
+  const dragOverlayTaskEntity = useMemo(
+    () => (dragOverlayTask ? tasks.find((task) => task.id === dragOverlayTask.taskId) ?? null : null),
+    [dragOverlayTask, tasks],
+  )
+
   return (
-    <DndContext sensors={sensors} collisionDetection={taskListCollision} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={taskListCollision}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <DndPointerBridge trackDragPointer={trackDragPointer} />
       <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -248,26 +610,29 @@ export default function App() {
               </button>
 
               <div className="relative min-w-0 flex-1 max-w-2xl">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400/45 dark:text-zinc-500/45"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                 </svg>
                 <input
                   ref={searchRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="検索… (⌘K)"
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-zinc-100 dark:bg-zinc-800
-                             border border-transparent focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
-                             outline-none text-zinc-900 dark:text-zinc-100
-                             placeholder:text-zinc-400 dark:placeholder:text-zinc-500 transition-all"
+                  placeholder={t('app.searchPlaceholder')}
+                  className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400/55 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-zinc-900/[0.04] dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500/45 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-400/70 transition-colors hover:bg-zinc-200/50 hover:text-zinc-600 dark:text-zinc-500/60 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-300"
                   >
-                    <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -282,7 +647,7 @@ export default function App() {
                 type="button"
                 onClick={() => setSidebarOpen(true)}
                 className="-ml-1 shrink-0 rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                aria-label="メニューを開く"
+                aria-label={t('app.openMenu')}
               >
                 <svg className="h-5 w-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -300,6 +665,12 @@ export default function App() {
         <MoveToast />
         <FloatingTimer />
       </div>
+
+      <DragOverlay dropAnimation={null}>
+        {dragOverlayTaskEntity && dragOverlayTask ? (
+          <DragOverlayTaskRow task={dragOverlayTaskEntity} isSubtask={dragOverlayTask.isSubtask} />
+        ) : null}
+      </DragOverlay>
 
       <DndTaskDragShell />
     </DndContext>

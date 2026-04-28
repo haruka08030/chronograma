@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   startOfMonth,
   endOfMonth,
@@ -8,17 +9,22 @@ import {
   format,
   isSameMonth,
   isToday,
-  addMonths,
-  subMonths,
 } from 'date-fns'
-import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
-
-const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
+import { isListedTimeLog } from '../lib/timeLogTask'
+import {
+  fetchCalendarEvents,
+  initGoogleAuth,
+  isGoogleAvailable,
+  signIn,
+  signInSilent,
+} from '../lib/googleCalendar'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
   const addTaskWithDate = useTaskStore((s) => s.addTaskWithDate)
@@ -41,34 +47,45 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
         if (e.key === 'Escape') onDone()
       }}
       onBlur={submit}
-      placeholder="タスク追加"
+      placeholder={t('calendar.addTaskPlaceholder')}
       className="w-full text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 border border-accent-400
                  outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
     />
   )
 }
 
-export function CalendarView() {
-  const [current, setCurrent] = useState(new Date())
+export function CalendarView({
+  displayMonth,
+  selectedDateKey,
+  onSelectDate,
+}: {
+  displayMonth: Date
+  selectedDateKey?: string
+  onSelectDate?: (dateKey: string) => void
+}) {
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const googleConnected = useTaskStore((s) => s.googleConnected)
+  const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
+  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const dragTaskIdRef = useRef<string | null>(null)
-
   const days = useMemo(() => {
-    const monthStart = startOfMonth(current)
-    const monthEnd = endOfMonth(current)
+    const monthStart = startOfMonth(displayMonth)
+    const monthEnd = endOfMonth(displayMonth)
     const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
     const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: calStart, end: calEnd })
-  }, [current])
+  }, [displayMonth])
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId) continue
+      if (!t.dueDate || t.parentId || isListedTimeLog(t)) continue
       const key = t.dueDate
       const arr = map.get(key) ?? []
       arr.push(t)
@@ -77,44 +94,57 @@ export function CalendarView() {
     return map
   }, [tasks])
 
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
+  useEffect(() => {
+    if (!googleConnected) return
+    let cancelled = false
+
+    const doFetch = async () => {
+      try {
+        if (!isGoogleAvailable()) {
+          await initGoogleAuth()
+        }
+
+        let token = useTaskStore.getState().googleAccessToken
+        if (!token) {
+          try {
+            token = await signInSilent()
+          } catch {
+            token = await signIn()
+          }
+          if (!cancelled) setGoogleAccessToken(token)
+        }
+
+        const monthStart = startOfMonth(displayMonth)
+        const monthEnd = endOfMonth(displayMonth)
+        const ws = startOfWeek(monthStart, { weekStartsOn: 1 })
+        const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
+        we.setHours(23, 59, 59)
+        const events = await fetchCalendarEvents(ws, we, token)
+        if (!cancelled) setCalendarEvents(events)
+      } catch {
+        if (!cancelled) setCalendarEvents([])
+      }
+    }
+
+    doFetch()
+    return () => { cancelled = true }
+  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleAccessToken])
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, typeof calendarEvents>()
+    for (const e of calendarEvents) {
+      const arr = map.get(e.date) ?? []
+      arr.push(e)
+      map.set(e.date, arr)
+    }
+    return map
+  }, [calendarEvents])
 
   return (
-    <>
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-        <div className="flex items-center justify-between px-6 pt-8 pb-4">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {format(current, 'yyyy年M月', { locale: ja })}
-          </h1>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrent((c) => subMonths(c, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrent(new Date())}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
-                         text-zinc-600 dark:text-zinc-400 transition-colors"
-            >
-              今月
-            </button>
-            <button
-              onClick={() => setCurrent((c) => addMonths(c, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-7 px-4">
-          {WEEKDAYS.map((d) => (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="grid grid-cols-7 px-4 pt-4">
+          {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">
               {d}
             </div>
@@ -125,8 +155,10 @@ export function CalendarView() {
           {days.map((day) => {
             const key = format(day, 'yyyy-MM-dd')
             const dayTasks = tasksByDate.get(key) ?? []
-            const inMonth = isSameMonth(day, current)
+            const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
+            const inMonth = isSameMonth(day, displayMonth)
             const today = isToday(day)
+            const selected = selectedDateKey ? key === selectedDateKey : false
 
             return (
               <div
@@ -135,7 +167,10 @@ export function CalendarView() {
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors
                             ${!inMonth ? 'opacity-30' : ''}
                             ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
-                onClick={() => setAddingDate(key)}
+                onClick={() => {
+                  onSelectDate?.(key)
+                  setAddingDate(key)
+                }}
                 onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
                 onDrop={(e) => {
@@ -162,11 +197,25 @@ export function CalendarView() {
                 <div className={`text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full
                   ${today
                     ? 'bg-accent-500 text-white font-semibold'
-                    : 'text-zinc-500 dark:text-zinc-400'}`}
+                    : selected
+                      ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
+                      : 'text-zinc-500 dark:text-zinc-400'}`}
                 >
                   {format(day, 'd')}
                 </div>
                 <div className="space-y-0.5">
+                  {dayEvents.slice(0, 2).map((e) => (
+                    <div
+                      key={`event-${e.id}`}
+                      title={e.summary}
+                      className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300"
+                    >
+                      {e.startTime && (
+                        <span className="text-[9px] opacity-60 mr-0.5">{e.startTime}</span>
+                      )}
+                      {e.summary}
+                    </div>
+                  ))}
                   {dayTasks.slice(0, 3).map((t) => (
                     <div
                       key={t.id}
@@ -178,7 +227,7 @@ export function CalendarView() {
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
-                      onClick={(e) => { e.stopPropagation(); setDetailId(t.id) }}
+                      onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
                       className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-grab active:cursor-grabbing
                         hover:ring-1 hover:ring-accent-400 transition-all
                         ${t.completed
@@ -191,9 +240,9 @@ export function CalendarView() {
                       {t.title}
                     </div>
                   ))}
-                  {dayTasks.length > 3 && (
+                  {(dayTasks.length > 3 || dayEvents.length > 2) && (
                     <div className="text-[10px] text-zinc-400 px-1.5">
-                      +{dayTasks.length - 3}
+                      +{Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0)}
                     </div>
                   )}
                   {addingDate === key && (
@@ -206,9 +255,7 @@ export function CalendarView() {
         </div>
       </div>
 
-      {detailTask && (
-        <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
-      )}
-    </>
+      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+    </div>
   )
 }
