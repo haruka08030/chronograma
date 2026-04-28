@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDndMonitor, useDroppable } from '@dnd-kit/core'
+import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, type SortMode } from '../store/taskStore'
 import {
   getFilteredRootTasks,
@@ -10,7 +10,7 @@ import {
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { isModKey } from '../lib/keyboard'
-import { SortableTaskItem, TASK_PREFIX } from './SortableTaskItem'
+import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, subtaskDragId } from '../lib/subtaskDnD'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
@@ -226,9 +226,28 @@ export function TaskList() {
 
   const dndMonitor = useMemo(
     () => ({
-      onDragStart({ active }: { active: { id: string | number } }) {
+      onDragStart({ active }: DragStartEvent) {
         const id = String(active.id)
-        if (id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX) || id.startsWith(DRAGSEC_PREFIX)) clearSelection()
+        if (id.startsWith(DRAGSEC_PREFIX)) {
+          clearSelection()
+          return
+        }
+        if (id.startsWith(SUBTASK_PREFIX)) {
+          clearSelection()
+          return
+        }
+        if (id.startsWith(TASK_PREFIX)) {
+          const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+          if (!group || group.length <= 1) clearSelection()
+        }
+      },
+      onDragEnd({ active }: DragEndEvent) {
+        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+        if (group && group.length > 1) clearSelection()
+      },
+      onDragCancel({ active }: DragCancelEvent) {
+        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+        if (group && group.length > 1) clearSelection()
       },
     }),
     [clearSelection],
@@ -328,6 +347,15 @@ export function TaskList() {
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
+
+  const getDragGroupRootIds = useCallback(
+    (taskId: string): string[] => {
+      const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
+      if (selected.has(taskId) && rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
+      return [taskId]
+    },
+    [active, selected],
+  )
 
   const openCompleteWithLog = useCallback((task: Task) => {
     if (task.completed || isListedTimeLog(task) || !task.dueDate || !task.startTime || !task.endTime) {
@@ -581,6 +609,7 @@ export function TaskList() {
                 <SortableTaskItem
                   key={t.id}
                   task={t}
+                  dragGroupRootIds={getDragGroupRootIds(t.id)}
                   onRowClick={makeRowClick(t.id)}
                   onCompleteRequest={openCompleteWithLog}
                   selection={makeSelection(t.id)}
@@ -604,6 +633,7 @@ export function TaskList() {
           <SortableTaskItem
             key={t.id}
             task={t}
+            dragGroupRootIds={getDragGroupRootIds(t.id)}
             onRowClick={makeRowClick(t.id)}
             onCompleteRequest={openCompleteWithLog}
             selection={makeSelection(t.id)}
@@ -674,8 +704,8 @@ export function TaskList() {
   )
 
   return (
-    <>
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-6 pt-8 pb-2 flex items-end justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
@@ -852,7 +882,11 @@ export function TaskList() {
         )}
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
-          {showQuickAdd && <QuickAdd />}
+          {showQuickAdd && (
+            <div className="mb-1.5">
+              <QuickAdd />
+            </div>
+          )}
 
           {incompleteCount === 0 && !showQuickAdd && (
             <div className="py-16 text-center">
@@ -909,6 +943,6 @@ export function TaskList() {
           onSubmit={submitCompleteWithLog}
         />
       )}
-    </>
+    </div>
   )
 }

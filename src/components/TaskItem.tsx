@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
@@ -52,26 +52,23 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
-  /** タイトル1クリックが詳細オープンと競合しないよう遅延（ダブルクリックで編集） */
-  const titleOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (titleOpenTimerRef.current) clearTimeout(titleOpenTimerRef.current)
-    }
-  }, [])
 
   useEffect(() => {
     if (editing) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
+      const el = inputRef.current
+      el?.focus()
+      if (el) {
+        const len = el.value.length
+        queueMicrotask(() => el.setSelectionRange(len, len))
+      }
     }
   }, [editing])
 
   useEffect(() => {
     if (!rowMenuOpen) return
-    const close = (e: MouseEvent) => {
-      if (rowMenuRef.current && !rowMenuRef.current.contains(e.target as Node)) setRowMenuOpen(false)
+    const close = (e: Event) => {
+      const t = e.target
+      if (rowMenuRef.current && t instanceof Node && !rowMenuRef.current.contains(t)) setRowMenuOpen(false)
     }
     window.addEventListener('mousedown', close)
     return () => window.removeEventListener('mousedown', close)
@@ -123,31 +120,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
                   ${rowClassName ?? ''}`}
       onClick={(e) => {
         if (editing) return
-        const fromTitle = (e.target as HTMLElement).closest('[data-task-title]')
-        if (fromTitle && (onRowClick || onClick)) {
-          if (e.shiftKey || isModKey(e)) {
-            if (onRowClick) onRowClick(e)
-            return
-          }
-          if (selection?.reveal && onRowClick) {
-            onRowClick(e)
-            return
-          }
-          if (e.detail >= 2) {
-            if (titleOpenTimerRef.current) {
-              clearTimeout(titleOpenTimerRef.current)
-              titleOpenTimerRef.current = null
-            }
-            return
-          }
-          if (titleOpenTimerRef.current) clearTimeout(titleOpenTimerRef.current)
-          titleOpenTimerRef.current = setTimeout(() => {
-            titleOpenTimerRef.current = null
-            if (onRowClick) onRowClick(e)
-            else onClick?.()
-          }, 280)
-          return
-        }
         if (onRowClick) onRowClick(e)
         else onClick?.()
       }}
@@ -239,16 +211,37 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, dragHan
         ) : (
           <span
             data-task-title
-            onDoubleClick={(e) => {
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
               e.stopPropagation()
-              if (titleOpenTimerRef.current) {
-                clearTimeout(titleOpenTimerRef.current)
-                titleOpenTimerRef.current = null
+              if (e.shiftKey || isModKey(e)) {
+                onRowClick?.(e)
+                return
+              }
+              if (selection?.reveal && onRowClick) {
+                onRowClick(e)
+                return
               }
               setEditValue(task.title)
               setEditing(true)
             }}
-            className={`block truncate select-none
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              e.stopPropagation()
+              if (e.shiftKey || isModKey(e)) {
+                onRowClick?.(e as unknown as MouseEvent)
+                return
+              }
+              if (selection?.reveal && onRowClick) {
+                onRowClick(e as unknown as MouseEvent)
+                return
+              }
+              setEditValue(task.title)
+              setEditing(true)
+            }}
+            className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
