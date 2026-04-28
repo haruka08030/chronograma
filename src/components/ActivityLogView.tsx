@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format, addDays, subDays, isToday } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
@@ -15,8 +16,11 @@ import {
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
-import { getTagColor, logBlockAccentFromTags, timeLogTagUniverse } from '../lib/tagColors'
+import { getTagColor, logBlockAccentFromTags, buildTimeLogTagUniverse } from '../lib/tagColors'
+import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
+import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 
@@ -30,11 +34,7 @@ function formatElapsed(ms: number): string {
 }
 
 function NowIndicator() {
-  const [now, setNow] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useNowMinuteTick()
   const minutes = now.getHours() * 60 + now.getMinutes()
   const top = (minutes / 60) * HOUR_HEIGHT
   return (
@@ -48,6 +48,7 @@ function NowIndicator() {
 }
 
 function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endTime: string; onDone: (title?: string) => void }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
@@ -75,7 +76,7 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') cancel() }}
           onBlur={submit}
-          placeholder="ログを追加"
+          placeholder={t('activityLog.inlineAddPlaceholder')}
           className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
         />
         <span className="text-[10px] text-zinc-400 mt-auto">
@@ -87,11 +88,13 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
 }
 
 export function ActivityLogView() {
+  const { t, i18n } = useTranslation()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const dateKey = format(selectedDate, 'yyyy-MM-dd')
   const isTodaySelected = isToday(selectedDate)
 
   const tasks = useTaskStore((s) => s.tasks)
+  const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -107,7 +110,7 @@ export function ActivityLogView() {
   const [manualTag, setManualTag] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
   const gridRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -124,8 +127,8 @@ export function ActivityLogView() {
     onMoveDone: (taskId, _dk, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
     onBlockTap: useCallback((taskId: string) => {
-      setDetailId(taskId)
-    }, []),
+      openDetail(taskId)
+    }, [openDetail]),
   })
 
   const getTaskDuration = useCallback(
@@ -154,24 +157,28 @@ export function ActivityLogView() {
       .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
   }, [tasks, dateKey])
 
-  const tagUniverse = useMemo(() => timeLogTagUniverse(tasks), [tasks])
+  const tagUniverse = useMemo(
+    () => buildTimeLogTagUniverse(timeLogTagPresets, tasks),
+    [timeLogTagPresets, tasks],
+  )
 
   const summary = useMemo(() => {
     let totalMinutes = 0
     const byTag = new Map<string, number>()
-    for (const t of dayLogs) {
-      const dur = durationMinutesForTaskSlot(t)
+    for (const log of dayLogs) {
+      const dur = durationMinutesForTaskSlot(log)
       if (dur == null || dur <= 0) continue
       totalMinutes += dur
-      for (const tag of t.tags) {
+      for (const tag of log.tags) {
         byTag.set(tag, (byTag.get(tag) ?? 0) + dur)
       }
-      if (t.tags.length === 0) {
-        byTag.set('未分類', (byTag.get('未分類') ?? 0) + dur)
+      if (log.tags.length === 0) {
+        const untagged = t('tags.untagged')
+        byTag.set(untagged, (byTag.get(untagged) ?? 0) + dur)
       }
     }
     return { totalMinutes, byTag: Array.from(byTag.entries()).sort((a, b) => b[1] - a[1]) }
-  }, [dayLogs])
+  }, [dayLogs, t])
 
   useEffect(() => {
     if (!activeTimer) {
@@ -204,7 +211,7 @@ export function ActivityLogView() {
     const title = manualTitle.trim()
     if (!title || !manualStart || !manualEnd) return
     if (timeToMinutes(manualEnd) <= timeToMinutes(manualStart)) {
-      setManualError('終了時刻は開始時刻より後にしてください')
+      setManualError(t('alert.endAfterStart'))
       return
     }
     setManualError(null)
@@ -217,16 +224,15 @@ export function ActivityLogView() {
     setShowManual(false)
   }
 
-  const dateLabel = format(selectedDate, 'M月d日 (E)', { locale: ja })
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
-
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLabel = format(selectedDate, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
   return (
-    <>
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">ログ</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('activityLog.title')}</h1>
           <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{dateLabel}</p>
         </div>
         <div className="flex items-center gap-1">
@@ -243,7 +249,7 @@ export function ActivityLogView() {
             className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
                        text-zinc-600 dark:text-zinc-400 transition-colors"
           >
-            今日
+            {t('activityLog.today')}
           </button>
           <button
             onClick={() => setSelectedDate((d) => addDays(d, 1))}
@@ -265,7 +271,7 @@ export function ActivityLogView() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              タイマー
+              {t('activityLog.timer')}
             </h2>
 
             {activeTimer ? (
@@ -292,7 +298,7 @@ export function ActivityLogView() {
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <rect x="6" y="6" width="12" height="12" rx="1" />
                   </svg>
-                  停止して記録
+                  {t('activityLog.stopAndSave')}
                 </button>
               </div>
             ) : (
@@ -301,27 +307,21 @@ export function ActivityLogView() {
                   value={timerTitle}
                   onChange={(e) => setTimerTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleStartTimer() }}
-                  placeholder="何をする？"
+                  placeholder={t('activityLog.timerWhat')}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                              border border-zinc-200 dark:border-zinc-700 outline-none
                              focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
                              text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
-                <div className="flex gap-2">
-                  <input
-                    value={timerTag}
-                    onChange={(e) => setTimerTag(e.target.value)}
-                    placeholder="タグ (任意)"
-                    className="flex-1 px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
+                <TimeLogTagField
+                  listId="activity-log-timer"
+                  value={timerTag}
+                  onChange={setTimerTag}
+                  inputClassName="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                                border border-zinc-200 dark:border-zinc-700 outline-none
                                focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
                                text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-                    list="tag-suggestions"
-                  />
-                  <datalist id="tag-suggestions">
-                    {tagUniverse.map((t) => <option key={t} value={t} />)}
-                  </datalist>
-                </div>
+                />
                 <button
                   onClick={handleStartTimer}
                   disabled={!timerTitle.trim()}
@@ -331,7 +331,7 @@ export function ActivityLogView() {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
                   </svg>
-                  開始
+                  {t('activityLog.start')}
                 </button>
               </div>
             )}
@@ -347,7 +347,7 @@ export function ActivityLogView() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
-                後から記録
+                {t('activityLog.logLater')}
               </span>
               <svg className={`w-4 h-4 transition-transform ${showManual ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -359,7 +359,7 @@ export function ActivityLogView() {
                 <input
                   value={manualTitle}
                   onChange={(e) => setManualTitle(e.target.value)}
-                  placeholder="活動名"
+                  placeholder={t('activityLog.activityName')}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                              border border-zinc-200 dark:border-zinc-700 outline-none
                              focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
@@ -367,7 +367,7 @@ export function ActivityLogView() {
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] text-zinc-400 mb-0.5 block">開始</label>
+                    <label className="text-[11px] text-zinc-400 mb-0.5 block">{t('common.start')}</label>
                     <TimeInput
                       value={manualStart}
                       onChange={setManualStart}
@@ -378,7 +378,7 @@ export function ActivityLogView() {
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400 mb-0.5 block">終了</label>
+                    <label className="text-[11px] text-zinc-400 mb-0.5 block">{t('common.end')}</label>
                     <TimeInput
                       value={manualEnd}
                       onChange={setManualEnd}
@@ -389,19 +389,15 @@ export function ActivityLogView() {
                     />
                   </div>
                 </div>
-                <input
+                <TimeLogTagField
+                  listId="activity-log-manual"
                   value={manualTag}
-                  onChange={(e) => setManualTag(e.target.value)}
-                  placeholder="タグ (任意)"
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
+                  onChange={setManualTag}
+                  inputClassName="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                              border border-zinc-200 dark:border-zinc-700 outline-none
                              focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
                              text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-                  list="tag-suggestions-manual"
                 />
-                <datalist id="tag-suggestions-manual">
-                  {tagUniverse.map((t) => <option key={t} value={t} />)}
-                </datalist>
                 {manualError && (
                   <p className="text-xs text-red-500">{manualError}</p>
                 )}
@@ -411,7 +407,7 @@ export function ActivityLogView() {
                   className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed
                              text-white font-medium text-sm transition-colors"
                 >
-                  記録する
+                  {t('activityLog.record')}
                 </button>
               </div>
             )}
@@ -419,12 +415,12 @@ export function ActivityLogView() {
 
           {/* Summary */}
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">サマリー</h2>
+            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('activityLog.summary')}</h2>
             <div className="text-center py-2">
               <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                 {formatDuration(summary.totalMinutes)}
               </p>
-              <p className="text-xs text-zinc-400 mt-1">合計記録時間</p>
+              <p className="text-xs text-zinc-400 mt-1">{t('activityLog.totalLogged')}</p>
             </div>
             {summary.byTag.length > 0 && (
               <div className="space-y-2">
@@ -449,7 +445,7 @@ export function ActivityLogView() {
               </div>
             )}
             {dayLogs.length === 0 && (
-              <p className="text-xs text-zinc-400 text-center py-2">まだ記録がありません</p>
+              <p className="text-xs text-zinc-400 text-center py-2">{t('activityLog.noLogs')}</p>
             )}
           </div>
         </div>
@@ -522,7 +518,7 @@ export function ActivityLogView() {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
                           e.stopPropagation()
-                          setDetailId(task.id)
+                          openDetail(task.id)
                         }
                       }}
                     >
@@ -589,9 +585,7 @@ export function ActivityLogView() {
       </div>
     </div>
 
-    {detailTask && (
-      <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
-    )}
-    </>
+    {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+    </div>
   )
 }

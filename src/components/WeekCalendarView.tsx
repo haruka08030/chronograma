@@ -1,14 +1,13 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
   format,
   isToday,
-  addWeeks,
-  subWeeks,
 } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, durationMinutesForTaskId } from '../lib/timeGrid'
@@ -21,6 +20,8 @@ import {
   signIn,
   signInSilent,
 } from '../lib/googleCalendar'
+import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -32,6 +33,7 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog, isExternal }: {
   isLog?: boolean
   isExternal?: boolean
 }) {
+  const { t } = useTranslation()
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
@@ -71,8 +73,8 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog, isExternal }: {
       style={{ top, height, minHeight: 18 }}
     >
       <span className="font-medium">{task.title}</span>
-      {isLog && <span className="ml-1 text-[9px] opacity-70">ログ</span>}
-      {!isLog && isExternal && <span className="ml-1 text-[9px] opacity-70">外部</span>}
+      {isLog && <span className="ml-1 text-[9px] opacity-70">{t('common.log')}</span>}
+      {!isLog && isExternal && <span className="ml-1 text-[9px] opacity-70">{t('weekCalendar.external')}</span>}
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
           {task.startTime} – {task.endTime}
@@ -83,6 +85,7 @@ function TimeBlock({ task, onPointerDown, onOpenDetail, isLog, isExternal }: {
 }
 
 function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?: string) => void }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
 
@@ -110,7 +113,7 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
             if (e.key === 'Escape') onDone()
           }}
           onBlur={submit}
-          placeholder="タスク名"
+          placeholder={t('weekCalendar.taskNamePlaceholder')}
           className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
         />
         <span className="text-[10px] text-zinc-400 mt-auto">
@@ -122,13 +125,15 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
 }
 
 export function WeekCalendarView({
+  anchor,
   selectedDateKey,
   onSelectDate,
 }: {
+  anchor: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
 }) {
-  const [anchor, setAnchor] = useState(new Date())
+  const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
@@ -136,9 +141,10 @@ export function WeekCalendarView({
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -221,8 +227,6 @@ export function WeekCalendarView({
     }
   }, [])
 
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
-
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
     if (!gridRef.current) return 0
     const cols = gridRef.current.querySelectorAll<HTMLElement>('[data-datekey]')
@@ -253,8 +257,8 @@ export function WeekCalendarView({
     onMoveDone: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
     onBlockTap: useCallback((taskId: string) => {
-      setDetailId(taskId)
-    }, []),
+      openDetail(taskId)
+    }, [openDetail]),
   })
 
   const getTaskDuration = useCallback(
@@ -285,39 +289,9 @@ export function WeekCalendarView({
   }, [days, allDayByDate])
 
   return (
-    <>
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex flex-shrink-0 items-center justify-end gap-1 px-4 py-2">
-          <button
-            type="button"
-            onClick={() => setAnchor((a) => subWeeks(a, 1))}
-            className="rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            aria-label="前の週"
-          >
-            <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => setAnchor(new Date())}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            今週
-          </button>
-          <button
-            type="button"
-            onClick={() => setAnchor((a) => addWeeks(a, 1))}
-            className="rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            aria-label="次の週"
-          >
-            <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
           <div className="flex-1 grid grid-cols-7">
             {days.map((day) => {
@@ -333,7 +307,7 @@ export function WeekCalendarView({
                     today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
                   }`}
                 >
-                  <div className="text-[11px] font-medium">{format(day, 'E', { locale: ja })}</div>
+                  <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                   <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
                     ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
                     {format(day, 'd')}
@@ -347,7 +321,7 @@ export function WeekCalendarView({
         {hasAnyAllDay && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
-              終日
+              {t('weekCalendar.allDay')}
             </div>
             <div className="flex-1 grid grid-cols-7">
               {days.map((day) => {
@@ -368,7 +342,7 @@ export function WeekCalendarView({
                     {dayAllDay.map((t) => (
                       <div
                         key={t.id}
-                        onClick={() => setDetailId(t.id)}
+                        onClick={() => openDetail(t.id)}
                         className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer
                           hover:ring-1 hover:ring-accent-400 transition-all
                           ${t.completed
@@ -453,7 +427,7 @@ export function WeekCalendarView({
                         <TimeBlock
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
                           onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                          onOpenDetail={() => setDetailId(t.id)}
+                          onOpenDetail={() => openDetail(t.id)}
                         />
                       </div>
                     ))}
@@ -463,7 +437,7 @@ export function WeekCalendarView({
                           task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
                           isLog
                           onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                          onOpenDetail={() => setDetailId(t.id)}
+                          onOpenDetail={() => openDetail(t.id)}
                         />
                       </div>
                     ))}
@@ -523,20 +497,13 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      {detailTask && (
-        <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
-      )}
-    </>
+      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+    </div>
   )
 }
 
 function NowIndicator() {
-  const [now, setNow] = useState(new Date())
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useNowMinuteTick()
 
   const minutes = now.getHours() * 60 + now.getMinutes()
   const top = (minutes / 60) * HOUR_HEIGHT

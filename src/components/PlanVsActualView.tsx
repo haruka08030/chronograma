@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   startOfWeek,
   endOfWeek,
@@ -8,10 +9,11 @@ import {
   addWeeks,
   subWeeks,
 } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { TimeInput } from './TimeInput'
+import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
+import { TimeLogTagField } from './TimeLogTagField'
 import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, durationMinutesForTaskId } from '../lib/timeGrid'
 import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
@@ -30,6 +32,8 @@ import type { PlannedItem } from '../types/plannedItem'
 import type { Task } from '../types/task'
 import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/plannedItemUtils'
 import { habitToPlannedItem } from '../lib/habitSlots'
+import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -82,19 +86,13 @@ function neutralPlanStyles(): { borderClass: string; bgClass: string; textClass:
   }
 }
 
-/** 左列（予定）: マッチ結果。タスク完了・習慣達成のみの場合は実行済み色に寄せる */
+/** 左列（予定）: マッチ結果。タスク完了のみマッチ色に寄せる（習慣はログ突合のみ。達成フラグだけでは緑にしない） */
 function planBlockStyles(
   matchStatus: MatchedPair | undefined,
-  opts?: { habitCompleted?: boolean; taskCompleted?: boolean; isHabit?: boolean },
+  opts?: { taskCompleted?: boolean },
 ): { borderClass: string; bgClass: string; textClass: string } {
   if (opts?.taskCompleted) {
     return blockStylesForStatus('matched')
-  }
-  if (opts?.isHabit && opts?.habitCompleted) {
-    const st = matchStatus?.status
-    if (st === 'planned-only' || st === undefined) {
-      return blockStylesForStatus('matched')
-    }
   }
   if (!matchStatus) return neutralPlanStyles()
   return blockStylesForStatus(matchStatus.status)
@@ -110,29 +108,26 @@ function actualBlockStyles(matchStatus: MatchedPair | undefined): {
   return blockStylesForStatus(matchStatus.status)
 }
 
-function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, habitCompleted, onOpen }: {
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, onOpen }: {
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
   onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
   onHabitDone?: () => void
-  habitCompleted?: boolean
   onOpen?: () => void
 }) {
+  const { t } = useTranslation()
   const top = timeToY(item.startTime)
   const height = Math.max(timeToY(item.endTime) - top, HOUR_HEIGHT / 4)
 
   const isDone = matchStatus?.status === 'matched' || matchStatus?.status === 'time-drift'
-  const styles = planBlockStyles(matchStatus, {
-    isHabit: item.source === 'habit',
-    habitCompleted,
-  })
+  const styles = planBlockStyles(matchStatus)
 
   let label: string | null = null
   if (matchStatus?.status === 'time-drift') {
-    label = `${matchStatus.driftMinutes}分ズレ`
+    label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
   } else if (matchStatus?.status === 'planned-only') {
-    label = '未実行'
+    label = t('planVsActual.statusNotRun')
   }
 
   return (
@@ -161,14 +156,14 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
             className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
                        transition-colors opacity-100 sm:opacity-0 sm:group-hover/planned:opacity-100 flex items-center justify-center"
-            title="実績として記録"
+            title={t('planVsActual.logAsActualTitle')}
           >
             <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </button>
         )}
-        {item.source === 'habit' && !isDone && !habitCompleted && onHabitDone && (
+        {item.source === 'habit' && !isDone && onHabitDone && (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -177,7 +172,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
             className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
                        transition-colors opacity-100 sm:opacity-0 sm:group-hover/planned:opacity-100 flex items-center justify-center"
-            title="実績として記録"
+            title={t('planVsActual.logAsActualTitle')}
           >
             <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -205,6 +200,7 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
 }) {
+  const { t } = useTranslation()
   const top = timeToY(task.startTime!)
   const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
 
@@ -212,9 +208,9 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   let label: string | null = null
 
   if (matchStatus?.status === 'time-drift') {
-    label = `${matchStatus.driftMinutes}分ズレ`
+    label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
   } else if (matchStatus?.status === 'planned-only' && !task.completed) {
-    label = '未実行'
+    label = t('planVsActual.statusNotRun')
   }
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -262,6 +258,7 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
 }) {
+  const { t } = useTranslation()
   const top = timeToY(task.startTime)
   const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
@@ -269,9 +266,9 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
   let label: string | null = null
 
   if (matchStatus?.status === 'time-drift') {
-    label = `${matchStatus.driftMinutes}分ズレ`
+    label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
   } else if (matchStatus?.status === 'actual-only') {
-    label = '予定外'
+    label = t('planVsActual.statusUnplanned')
   }
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -315,6 +312,7 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
 }
 
 function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?: string) => void }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
 
@@ -344,7 +342,7 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
             if (e.key === 'Escape') onDone()
           }}
           onBlur={submit}
-          placeholder={isLog ? 'ログを追加' : '予定を追加'}
+          placeholder={isLog ? t('planVsActual.inlinePlaceholderLog') : t('planVsActual.inlinePlaceholderTask')}
           className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
         />
         <span className="text-[10px] text-zinc-400 mt-auto">
@@ -356,11 +354,7 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
 }
 
 function NowIndicator() {
-  const [now, setNow] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useNowMinuteTick()
 
   const minutes = now.getHours() * 60 + now.getMinutes()
   const top = (minutes / 60) * HOUR_HEIGHT
@@ -376,6 +370,7 @@ function NowIndicator() {
 }
 
 function GoogleConnectBanner() {
+  const { t } = useTranslation()
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
@@ -393,7 +388,7 @@ function GoogleConnectBanner() {
       setGoogleAccessToken(token)
       setGoogleConnected(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to connect')
+      setError(e instanceof Error ? e.message : t('account.genericError'))
     } finally {
       setLoading(false)
     }
@@ -409,9 +404,9 @@ function GoogleConnectBanner() {
   if (!clientId) {
     return (
       <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
-        <p className="font-medium">Google Calendar 連携（任意）</p>
+        <p className="font-medium">{t('planVsActual.googleHeading')}</p>
         <p className="text-xs mt-1 opacity-80">
-          .env に VITE_GOOGLE_CLIENT_ID を設定すると外部カレンダーの予定を左列に表示できます。未設定でも習慣・自分の予定は使えます。
+          {t('planVsActual.googleBody')}
         </p>
       </div>
     )
@@ -422,13 +417,13 @@ function GoogleConnectBanner() {
       <div className="mx-6 mt-4 flex items-center gap-2">
         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
           <div className="w-2 h-2 rounded-full bg-emerald-500" />
-          Google Calendar 接続中
+          {t('planVsActual.googleConnected')}
         </div>
         <button
           onClick={handleDisconnect}
           className="ml-auto text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
         >
-          切断
+          {t('planVsActual.disconnect')}
         </button>
       </div>
     )
@@ -450,7 +445,7 @@ function GoogleConnectBanner() {
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
         </svg>
-        {loading ? '接続中…' : 'Google Calendar に接続'}
+        {loading ? t('planVsActual.connecting') : t('planVsActual.connect')}
       </button>
       {error && (
         <p className="text-xs text-red-500 mt-1.5">{error}</p>
@@ -460,6 +455,7 @@ function GoogleConnectBanner() {
 }
 
 function Legend() {
+  const { t } = useTranslation()
   const matched = blockStylesForStatus('matched')
   const drift = blockStylesForStatus('time-drift')
   const plannedOnly = blockStylesForStatus('planned-only')
@@ -469,139 +465,30 @@ function Legend() {
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2 text-[11px]">
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${matched.bgClass} ${matched.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">実行済み</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendDone')}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${drift.bgClass} ${drift.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">時間ズレ</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendDrift')}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${plannedOnly.bgClass} ${plannedOnly.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">未実行</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendMissed')}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${actualOnly.bgClass} ${actualOnly.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">予定外</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendExtra')}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${neutral.bgClass} ${neutral.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">照合前</span>
-      </div>
-    </div>
-  )
-}
-
-type CompletionMode = 'as-planned' | 'shifted'
-
-interface CompleteWithLogDraft {
-  source: 'task' | 'habit'
-  taskId: string | null
-  habitId: string | null
-  title: string
-  date: string
-  startTime: string
-  endTime: string
-  memo: string
-  mode: CompletionMode
-  tags: string[]
-}
-
-function CompleteWithLogModal({
-  draft,
-  onClose,
-  onChange,
-  onSubmit,
-}: {
-  draft: CompleteWithLogDraft
-  onClose: () => void
-  onChange: (patch: Partial<CompleteWithLogDraft>) => void
-  onSubmit: () => void
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
-      <div
-        className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">完了を記録</h2>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          実績ログを作成してから、予定タスクを完了にします。
-        </p>
-
-        <div className="mt-4 space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="completion-mode-pva"
-              checked={draft.mode === 'as-planned'}
-              onChange={() => onChange({ mode: 'as-planned' })}
-            />
-            <span className="text-zinc-700 dark:text-zinc-300">予定どおり完了</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="completion-mode-pva"
-              checked={draft.mode === 'shifted'}
-              onChange={() => onChange({ mode: 'shifted' })}
-            />
-            <span className="text-zinc-700 dark:text-zinc-300">時間をずらして実行</span>
-          </label>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">開始</label>
-            <TimeInput
-              value={draft.startTime}
-              onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">終了</label>
-            <TimeInput
-              value={draft.endTime}
-              onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">メモ（任意）</label>
-          <textarea
-            value={draft.memo}
-            onChange={(e) => onChange({ memo: e.target.value })}
-            rows={4}
-            placeholder="実行内容のメモを入力"
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600"
-          >
-            保存して完了
-          </button>
-        </div>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendPending')}</span>
       </div>
     </div>
   )
 }
 
 export function PlanVsActualView() {
+  const { t, i18n } = useTranslation()
   const [anchor, setAnchor] = useState(new Date())
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
@@ -618,7 +505,7 @@ export function PlanVsActualView() {
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showTimerInput, setShowTimerInput] = useState(false)
   const [timerInputValue, setTimerInputValue] = useState('')
   const [timerTagValue, setTimerTagValue] = useState('')
@@ -663,14 +550,14 @@ export function PlanVsActualView() {
         }
       } catch (e) {
         if (!cancelled) {
-          setFetchError(e instanceof Error ? e.message : 'Failed to fetch events')
+          setFetchError(e instanceof Error ? e.message : t('account.genericError'))
         }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, t])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
@@ -744,8 +631,8 @@ export function PlanVsActualView() {
     }
   }, [])
 
-  const weekLabel = `${format(days[0], 'M月d日', { locale: ja })} – ${format(days[6], 'M月d日', { locale: ja })}`
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const weekLabel = `${format(days[0], i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日' : 'MMM d', { locale: dateLocale })} – ${format(days[6], i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日' : 'MMM d', { locale: dateLocale })}`
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
     if (!gridRef.current) return 0
@@ -786,9 +673,7 @@ export function PlanVsActualView() {
       if (!tapped) return
       if (!tapped.completed && !tapped.isTimeLog && tapped.dueDate && tapped.startTime && tapped.endTime) {
         setCompletionDraft({
-          source: 'task',
           taskId: tapped.id,
-          habitId: null,
           title: tapped.title,
           date: tapped.dueDate,
           startTime: tapped.startTime,
@@ -799,8 +684,8 @@ export function PlanVsActualView() {
         })
         return
       }
-      setDetailId(taskId)
-    }, []),
+      openDetail(taskId)
+    }, [openDetail]),
   })
 
   const movingTask = useMemo(() => {
@@ -848,13 +733,11 @@ export function PlanVsActualView() {
 
   const openCompleteWithLog = useCallback((task: Task) => {
     if (task.completed || task.isTimeLog || !task.dueDate || !task.startTime || !task.endTime) {
-      setDetailId(task.id)
+      openDetail(task.id)
       return
     }
     setCompletionDraft({
-      source: 'task',
       taskId: task.id,
-      habitId: null,
       title: task.title,
       date: task.dueDate,
       startTime: task.startTime,
@@ -863,22 +746,28 @@ export function PlanVsActualView() {
       mode: 'as-planned',
       tags: [...task.tags],
     })
-  }, [])
+  }, [openDetail])
 
-  const openHabitCompleteWithLog = useCallback((habitId: string, title: string, date: string, startTime: string, endTime: string) => {
-    setCompletionDraft({
-      source: 'habit',
-      taskId: null,
-      habitId,
-      title,
-      date,
-      startTime,
-      endTime,
-      memo: '',
-      mode: 'as-planned',
-      tags: [],
-    })
-  }, [])
+  /** 習慣スロットのチェックは Google 予定と同様ワンクリック（タイムログ追加＋未達成なら達成）。既に達成済みでログだけ欠けた場合はログのみ追加 */
+  const completeHabitSlotFromPlan = useCallback(
+    (habitId: string, title: string, dateKey: string, startTime: string, endTime: string) => {
+      const toMin = (v: string) => {
+        const [h, m] = v.split(':').map(Number)
+        return h * 60 + m
+      }
+      if (toMin(endTime) <= toMin(startTime)) {
+        alert(t('alert.endAfterStart'))
+        return
+      }
+      addCompletedTaskWithTime(title, dateKey, startTime, endTime)
+      const habit = habits.find((h) => h.id === habitId)
+      const alreadyDone = habit?.completedDates.includes(dateKey) ?? false
+      if (!alreadyDone) {
+        toggleHabitDate(habitId, dateKey)
+      }
+    },
+    [addCompletedTaskWithTime, toggleHabitDate, habits, t],
+  )
 
   const submitCompleteWithLog = useCallback(() => {
     if (!completionDraft) return
@@ -888,7 +777,7 @@ export function PlanVsActualView() {
       return h * 60 + m
     }
     if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
-      alert('終了時刻は開始時刻より後にしてください')
+      alert(t('alert.endAfterStart'))
       return
     }
     addTimeLog(
@@ -899,13 +788,9 @@ export function PlanVsActualView() {
       completionDraft.tags,
       memo || undefined,
     )
-    if (completionDraft.source === 'task' && completionDraft.taskId) {
-      toggleTask(completionDraft.taskId)
-    } else if (completionDraft.source === 'habit' && completionDraft.habitId) {
-      toggleHabitDate(completionDraft.habitId, completionDraft.date)
-    }
+    toggleTask(completionDraft.taskId)
     setCompletionDraft(null)
-  }, [completionDraft, addTimeLog, toggleTask, toggleHabitDate])
+  }, [completionDraft, addTimeLog, toggleTask, t])
 
   function getMatchForPlanned(dateKey: string, plannedId: string): MatchedPair | undefined {
     return matchesByDate.get(dateKey)?.find(
@@ -925,11 +810,11 @@ export function PlanVsActualView() {
   }
 
   return (
-    <>
-      <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">予定 vs ログ</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('planVsActual.title')}</h1>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{weekLabel}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -943,11 +828,11 @@ export function PlanVsActualView() {
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                記録開始
+                {t('planVsActual.startRecording')}
               </button>
             )}
             {showTimerInput && !activeTimer && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-col gap-1.5 min-w-[11rem] max-w-[14rem]">
                 <input
                   autoFocus
                   value={timerInputValue}
@@ -963,13 +848,17 @@ export function PlanVsActualView() {
                     if (e.key === 'Escape') { setShowTimerInput(false); setTimerInputValue(''); setTimerTagValue('') }
                   }}
                   onBlur={() => { if (!timerInputValue.trim() && !timerTagValue.trim()) setShowTimerInput(false) }}
-                  placeholder="何をする？"
-                  className="w-36 px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-accent-300 dark:border-accent-500/40
+                  placeholder={t('planVsActual.timerWhat')}
+                  className="w-full px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-accent-300 dark:border-accent-500/40
                              outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
-                <input
+                <TimeLogTagField
+                  compact
+                  listId="plan-vs-actual-timer"
                   value={timerTagValue}
-                  onChange={(e) => setTimerTagValue(e.target.value)}
+                  onChange={setTimerTagValue}
+                  inputClassName="w-full px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
+                             outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && timerInputValue.trim()) {
                       const tags = timerTagValue.trim() ? [timerTagValue.trim()] : []
@@ -980,9 +869,6 @@ export function PlanVsActualView() {
                     }
                     if (e.key === 'Escape') { setShowTimerInput(false); setTimerInputValue(''); setTimerTagValue('') }
                   }}
-                  placeholder="タグ"
-                  className="w-20 px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
-                             outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
               </div>
             )}
@@ -994,7 +880,7 @@ export function PlanVsActualView() {
                            hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
               >
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                記録中
+                {t('planVsActual.recording')}
               </button>
             )}
             <div className="flex items-center gap-1">
@@ -1011,7 +897,7 @@ export function PlanVsActualView() {
                 className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
                            text-zinc-600 dark:text-zinc-400 transition-colors"
               >
-                今週
+                {t('planVsActual.thisWeek')}
               </button>
               <button
                 onClick={() => setAnchor((a) => addWeeks(a, 1))}
@@ -1040,15 +926,15 @@ export function PlanVsActualView() {
               const today = isToday(day)
               return (
                 <div key={day.toISOString()} className={`text-center py-2 ${today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                  <div className="text-[11px] font-medium">{format(day, 'E', { locale: ja })}</div>
+                  <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                   <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
                     ${today ? 'bg-accent-500 text-white' : ''}`}>
                     {format(day, 'd')}
                   </div>
                   <div className="flex justify-center gap-0.5 mt-0.5">
-                    <span className="text-[9px] text-blue-500 dark:text-blue-400">予定</span>
+                    <span className="text-[9px] text-blue-500 dark:text-blue-400">{t('common.planned')}</span>
                     <span className="text-[9px] text-zinc-300 dark:text-zinc-600">|</span>
-                    <span className="text-[9px] text-emerald-500 dark:text-emerald-400">ログ</span>
+                    <span className="text-[9px] text-emerald-500 dark:text-emerald-400">{t('common.log')}</span>
                   </div>
                 </div>
               )
@@ -1137,8 +1023,6 @@ export function PlanVsActualView() {
                         }
                         if (item.source === 'habit') {
                           const hid = habitIdFromSlotId(item.id)
-                          const habit = hid ? habits.find((h) => h.id === hid) : null
-                          const completed = habit?.completedDates.includes(key) ?? false
                           return (
                             <PlannedItemBlock
                               key={item.id}
@@ -1147,9 +1031,8 @@ export function PlanVsActualView() {
                               dateKey={key}
                               onGoogleDone={handlePlannedDone}
                               onHabitDone={hid
-                                ? () => openHabitCompleteWithLog(hid, item.summary, key, item.startTime, item.endTime)
+                                ? () => completeHabitSlotFromPlan(hid, item.summary, key, item.startTime, item.endTime)
                                 : undefined}
-                              habitCompleted={completed}
                             />
                           )
                         }
@@ -1220,7 +1103,7 @@ export function PlanVsActualView() {
                             task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime! }}
                             matchStatus={getMatchForActual(key, t.id)}
                             onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
-                            onOpenDetail={() => setDetailId(t.id)}
+                            onOpenDetail={() => openDetail(t.id)}
                           />
                         </div>
                       ))}
@@ -1276,16 +1159,17 @@ export function PlanVsActualView() {
       </div>
 
       {detailTask && (
-        <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
+        <TaskDetail task={detailTask} onClose={closeDetail} />
       )}
       {completionDraft && (
         <CompleteWithLogModal
           draft={completionDraft}
+          radioGroupName="completion-mode-pva"
           onClose={() => setCompletionDraft(null)}
           onChange={(patch) => setCompletionDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
           onSubmit={submitCompleteWithLog}
         />
       )}
-    </>
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   startOfMonth,
   endOfMonth,
@@ -8,10 +9,7 @@ import {
   format,
   isSameMonth,
   isToday,
-  addMonths,
-  subMonths,
 } from 'date-fns'
-import { ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
@@ -23,10 +21,10 @@ import {
   signIn,
   signInSilent,
 } from '../lib/googleCalendar'
-
-const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
   const addTaskWithDate = useTaskStore((s) => s.addTaskWithDate)
@@ -49,7 +47,7 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
         if (e.key === 'Escape') onDone()
       }}
       onBlur={submit}
-      placeholder="タスク追加"
+      placeholder={t('calendar.addTaskPlaceholder')}
       className="w-full text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 border border-accent-400
                  outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
     />
@@ -57,13 +55,15 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
 }
 
 export function CalendarView({
+  displayMonth,
   selectedDateKey,
   onSelectDate,
 }: {
+  displayMonth: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
 }) {
-  const [current, setCurrent] = useState(new Date())
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
@@ -71,17 +71,16 @@ export function CalendarView({
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const dragTaskIdRef = useRef<string | null>(null)
-
   const days = useMemo(() => {
-    const monthStart = startOfMonth(current)
-    const monthEnd = endOfMonth(current)
+    const monthStart = startOfMonth(displayMonth)
+    const monthEnd = endOfMonth(displayMonth)
     const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
     const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: calStart, end: calEnd })
-  }, [current])
+  }, [displayMonth])
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
@@ -115,8 +114,8 @@ export function CalendarView({
           if (!cancelled) setGoogleAccessToken(token)
         }
 
-        const monthStart = startOfMonth(current)
-        const monthEnd = endOfMonth(current)
+        const monthStart = startOfMonth(displayMonth)
+        const monthEnd = endOfMonth(displayMonth)
         const ws = startOfWeek(monthStart, { weekStartsOn: 1 })
         const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
@@ -129,7 +128,7 @@ export function CalendarView({
 
     doFetch()
     return () => { cancelled = true }
-  }, [current, googleConnected, setCalendarEvents, setGoogleAccessToken])
+  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleAccessToken])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()
@@ -141,44 +140,11 @@ export function CalendarView({
     return map
   }, [calendarEvents])
 
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
-
   return (
-    <>
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-        <div className="flex items-center justify-between px-6 pt-8 pb-4">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {format(current, 'yyyy年M月', { locale: ja })}
-          </h1>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrent((c) => subMonths(c, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrent(new Date())}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
-                         text-zinc-600 dark:text-zinc-400 transition-colors"
-            >
-              今月
-            </button>
-            <button
-              onClick={() => setCurrent((c) => addMonths(c, 1))}
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-7 px-4">
-          {WEEKDAYS.map((d) => (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="grid grid-cols-7 px-4 pt-4">
+          {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">
               {d}
             </div>
@@ -190,7 +156,7 @@ export function CalendarView({
             const key = format(day, 'yyyy-MM-dd')
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
-            const inMonth = isSameMonth(day, current)
+            const inMonth = isSameMonth(day, displayMonth)
             const today = isToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
 
@@ -261,7 +227,7 @@ export function CalendarView({
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
-                      onClick={(e) => { e.stopPropagation(); setDetailId(t.id) }}
+                      onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
                       className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-grab active:cursor-grabbing
                         hover:ring-1 hover:ring-accent-400 transition-all
                         ${t.completed
@@ -289,9 +255,7 @@ export function CalendarView({
         </div>
       </div>
 
-      {detailTask && (
-        <TaskDetail task={detailTask} onClose={() => setDetailId(null)} />
-      )}
-    </>
+      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+    </div>
   )
 }

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format, isToday, parseISO } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { durationMinutesForTaskSlot, formatDuration, timeToMinutes } from '../lib/timeGrid'
+import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -13,15 +15,17 @@ export function CalendarDayPanel({
 }: {
   selectedDateKey: string
 }) {
+  const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
-  const [detailId, setDetailId] = useState<string | null>(null)
+  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
   const dateLabel = isToday(date)
-    ? `${format(date, 'M月d日 (E)', { locale: ja })} · 今日`
-    : format(date, 'M月d日 (E)', { locale: ja })
+    ? `${format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })} · ${t('activityLog.today')}`
+    : format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
 
   const plannedItems = useMemo(
     () =>
@@ -73,11 +77,9 @@ export function CalendarDayPanel({
     [logItems],
   )
 
-  const detailTask = detailId ? tasks.find((t) => t.id === detailId) : null
-
   return (
-    <>
-      <div className="flex h-full min-h-0 flex-col bg-zinc-50/70 dark:bg-zinc-900/70">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/70 dark:bg-zinc-900/70">
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>
         </div>
@@ -93,7 +95,7 @@ export function CalendarDayPanel({
                   : 'text-zinc-500 dark:text-zinc-400'
               }`}
             >
-              予定 / ToDo
+              {t('calendarDayPanel.plannedTab')}
             </button>
             <button
               type="button"
@@ -104,7 +106,7 @@ export function CalendarDayPanel({
                   : 'text-zinc-500 dark:text-zinc-400'
               }`}
             >
-              ログ
+              {t('common.log')}
             </button>
           </div>
         </div>
@@ -113,12 +115,12 @@ export function CalendarDayPanel({
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
               {externalEvents.length === 0 && plannedItems.length === 0 ? (
-                <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">この日の予定ToDoはまだありません</p>
+                <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noPlanned')}</p>
               ) : (
                 <>
                   {externalEvents.length > 0 && (
                     <div className="mb-2 space-y-1.5 px-2">
-                      <div className="text-[10px] font-medium uppercase tracking-wide text-blue-500 dark:text-blue-400">取り込み予定</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-blue-500 dark:text-blue-400">{t('calendarDayPanel.importedEvents')}</div>
                       {externalEvents.map((event) => (
                         <div
                           key={event.id}
@@ -127,14 +129,14 @@ export function CalendarDayPanel({
                         >
                           <div className="text-sm font-medium text-blue-900 dark:text-blue-100">{event.summary}</div>
                           <div className="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
-                            {event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '終日'}
+                            {event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : t('weekCalendar.allDay')}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
                   {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} onClick={() => setDetailId(task.id)} />
+                    <TaskItem key={task.id} task={task} onRowClick={() => openDetail(task.id)} />
                   ))}
                 </>
               )}
@@ -143,22 +145,22 @@ export function CalendarDayPanel({
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
             <div className="mb-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-              合計記録: <span className="font-semibold">{formatDuration(totalLoggedMinutes)}</span>
+              {t('calendarDayPanel.totalLogged')}: <span className="font-semibold">{formatDuration(totalLoggedMinutes)}</span>
             </div>
             {logItems.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">この日のログはまだありません</p>
+              <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noLogs')}</p>
             ) : (
               <div className="space-y-2">
                 {logItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setDetailId(item.id)}
+                    onClick={() => openDetail(item.id)}
                     className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800/70"
                   >
                     <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.title}</div>
                     <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : '時刻未設定'}
+                      {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : t('calendarDayPanel.timeUnset')}
                     </div>
                   </button>
                 ))}
@@ -167,7 +169,7 @@ export function CalendarDayPanel({
           </div>
         )}
       </div>
-      {detailTask ? <TaskDetail task={detailTask} onClose={() => setDetailId(null)} /> : null}
-    </>
+      {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
+    </div>
   )
 }
