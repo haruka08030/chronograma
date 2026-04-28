@@ -14,15 +14,28 @@ export interface MainListTasksInput {
   sortMode: SortMode
   filterTag: string | null
   sections: ListSection[]
+  /** 「今日」に期限切れを含める（既定 false） */
+  todayIncludeOverdue?: boolean
+}
+
+function pinnedCmp(a: Task, b: Task): number {
+  return Number(!!b.pinned) - Number(!!a.pinned)
 }
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag, todayIncludeOverdue } = input
   let result = tasks.filter((t) => t.parentId === null)
 
   if (selectedView === 'today') {
-    result = result.filter((t) => t.dueDate && isToday(parseISO(t.dueDate)))
+    const todayStart = startOfDay(new Date())
+    result = result.filter((t) => {
+      if (!t.dueDate) return false
+      const d = startOfDay(parseISO(t.dueDate))
+      if (isToday(parseISO(t.dueDate))) return true
+      if (todayIncludeOverdue && isBefore(d, todayStart)) return true
+      return false
+    })
   } else if (selectedView === 'upcoming') {
     const today = startOfDay(new Date())
     const limit = startOfDay(addDays(new Date(), 7))
@@ -63,7 +76,11 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     case 'createdAt':
       return [...result].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     default:
-      return [...result].sort((a, b) => a.order - b.order)
+      return [...result].sort((a, b) => {
+        const p = pinnedCmp(a, b)
+        if (p !== 0) return p
+        return a.order - b.order
+      })
   }
 }
 
@@ -95,6 +112,8 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
     const ra = sectionRank(a.sectionId ?? null)
     const rb = sectionRank(b.sectionId ?? null)
     if (ra !== rb) return ra - rb
+    const p = pinnedCmp(a, b)
+    if (p !== 0) return p
     return a.order - b.order
   })
 }
@@ -117,11 +136,23 @@ export function parseSectionDropId(id: string): { listId: string; sectionId: str
   return { listId, sectionId: tail }
 }
 
-function arrayMoveIds(ids: string[], from: number, to: number): string[] {
-  const next = [...ids]
-  const [item] = next.splice(from, 1)
-  next.splice(to, 0, item)
-  return next
+/** 表示順 `ids` 上でブロックをまとめて移動 */
+export function moveRootBlockInOrderedIds(
+  ids: string[],
+  blockOrdered: string[],
+  activeRootId: string,
+  overTaskId: string,
+): string[] | null {
+  const set = new Set(blockOrdered)
+  if (!set.has(activeRootId)) return null
+  const rest = ids.filter((id) => !set.has(id))
+  const oldIndex = ids.indexOf(activeRootId)
+  const newIndex = ids.indexOf(overTaskId)
+  if (oldIndex < 0 || newIndex < 0) return null
+  let insert = rest.indexOf(overTaskId)
+  if (insert < 0) return null
+  if (oldIndex < newIndex) insert += 1
+  return [...rest.slice(0, insert), ...blockOrdered, ...rest.slice(insert)]
 }
 
 function sectionRankForList(sectionId: string | null, listSections: ListSection[]): number {
@@ -163,6 +194,41 @@ export function insertActiveRootIdForSectionDrop(
   return ids
 }
 
+/** 複数ルートをセクション帯へ一度に挿入 */
+export function insertActiveRootIdsForSectionDrop(
+  currentOrdered: Task[],
+  movedIds: string[],
+  targetSectionId: string | null,
+  listSections: ListSection[],
+): string[] {
+  const set = new Set(movedIds)
+  const blockOrdered = currentOrdered.map((t) => t.id).filter((id) => set.has(id))
+  const filtered = currentOrdered.filter((t) => !set.has(t.id))
+  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
+  let ins = filtered.length
+
+  if (targetSectionId === null) {
+    const firstNamed = filtered.findIndex((t) => rank(t.sectionId ?? null) > -1)
+    ins = firstNamed < 0 ? filtered.length : firstNamed
+  } else {
+    for (let i = filtered.length - 1; i >= 0; i--) {
+      if ((filtered[i].sectionId ?? null) === targetSectionId) {
+        ins = i + 1
+        break
+      }
+    }
+    if (!filtered.some((t) => (t.sectionId ?? null) === targetSectionId)) {
+      const tr0 = rank(targetSectionId)
+      const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > tr0)
+      ins = idx < 0 ? filtered.length : idx
+    }
+  }
+
+  const ids = filtered.map((t) => t.id)
+  ids.splice(ins, 0, ...blockOrdered)
+  return ids
+}
+
 /** セクション見出しドロップ＝そのセクションの先頭へ（空ならブロック先頭） */
 export function insertActiveRootAtSectionHead(
   currentOrdered: Task[],
@@ -186,15 +252,49 @@ export function insertActiveRootAtSectionHead(
   return ids
 }
 
+/** 複数ルートをセクション見出しドロップ先へ一度に挿入 */
+export function insertActiveRootIdsAtSectionHead(
+  currentOrdered: Task[],
+  movedIds: string[],
+  targetSectionId: string,
+  listSections: ListSection[],
+): string[] {
+  const set = new Set(movedIds)
+  const blockOrdered = currentOrdered.map((t) => t.id).filter((id) => set.has(id))
+  const filtered = currentOrdered.filter((t) => !set.has(t.id))
+  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
+  const targetR = rank(targetSectionId)
+  const firstInSection = filtered.findIndex((t) => (t.sectionId ?? null) === targetSectionId)
+  let ins: number
+  if (firstInSection >= 0) {
+    ins = firstInSection
+  } else {
+    const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > targetR)
+    ins = idx < 0 ? filtered.length : idx
+  }
+  const ids = filtered.map((t) => t.id)
+  ids.splice(ins, 0, ...blockOrdered)
+  return ids
+}
+
 const TASK_PREFIX = 'task::'
 
-export function buildReorderedActiveRootIds(
+export type ManualRootReorderSectionUpdate = { taskIds: string[]; sectionId: string | null }
+
+/** 手動ソート一覧でのルート並べ替え（複数 ID 可）。`dragGroupRootIds` は表示順に正規化される */
+export function buildReorderedActiveRootIdsForGroup(
   currentOrdered: Task[],
-  activeId: string,
+  activeRootId: string,
   overId: string,
+  dragGroupRootIds: string[],
   sections: ListSection[],
   selectedListId: string | null,
-): { orderedIds: string[]; sectionUpdate?: { taskId: string; sectionId: string | null } } | null {
+): { orderedIds: string[]; sectionUpdate?: ManualRootReorderSectionUpdate } | null {
+  const rootIdsOrdered = currentOrdered.map((t) => t.id)
+  const sel = new Set(dragGroupRootIds)
+  const orderedGroup = rootIdsOrdered.filter((id) => sel.has(id))
+  if (orderedGroup.length === 0 || !orderedGroup.includes(activeRootId)) return null
+
   const listSections = selectedListId
     ? sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
     : []
@@ -203,47 +303,39 @@ export function buildReorderedActiveRootIds(
   const headerDrop = parseSectionReorderId(overId, DROPSEC_PREFIX)
   if (
     useSectionPatch &&
-    activeId.startsWith(TASK_PREFIX) &&
     headerDrop &&
     headerDrop.listId === selectedListId &&
     headerDrop.sectionId
   ) {
-    const movedId = activeId.slice(TASK_PREFIX.length)
-    const orderedIds = insertActiveRootAtSectionHead(
+    const orderedIds = insertActiveRootIdsAtSectionHead(
       currentOrdered,
-      movedId,
+      orderedGroup,
       headerDrop.sectionId,
       listSections,
     )
     return {
       orderedIds,
-      sectionUpdate: { taskId: movedId, sectionId: headerDrop.sectionId },
+      sectionUpdate: { taskIds: orderedGroup, sectionId: headerDrop.sectionId },
     }
   }
 
   const dropParsed = parseSectionDropId(overId)
   if (dropParsed && dropParsed.listId === selectedListId) {
-    const movedId = activeId.startsWith(TASK_PREFIX) ? activeId.slice(TASK_PREFIX.length) : ''
-    if (!movedId) return null
-    const orderedIds = insertActiveRootIdForSectionDrop(
+    const orderedIds = insertActiveRootIdsForSectionDrop(
       currentOrdered,
-      movedId,
+      orderedGroup,
       dropParsed.sectionId,
       listSections,
     )
     return useSectionPatch
-      ? { orderedIds, sectionUpdate: { taskId: movedId, sectionId: dropParsed.sectionId } }
+      ? { orderedIds, sectionUpdate: { taskIds: orderedGroup, sectionId: dropParsed.sectionId } }
       : { orderedIds }
   }
 
-  if (!overId.startsWith(TASK_PREFIX) || !activeId.startsWith(TASK_PREFIX)) return null
-  const movedId = activeId.slice(TASK_PREFIX.length)
+  if (!overId.startsWith(TASK_PREFIX)) return null
   const overTaskId = overId.slice(TASK_PREFIX.length)
-  const ids = currentOrdered.map((t) => t.id)
-  const oldIndex = ids.indexOf(movedId)
-  const newIndex = ids.indexOf(overTaskId)
-  if (oldIndex < 0 || newIndex < 0) return null
-  const orderedIds = arrayMoveIds(ids, oldIndex, newIndex)
+  const orderedIds = moveRootBlockInOrderedIds(rootIdsOrdered, orderedGroup, activeRootId, overTaskId)
+  if (!orderedIds) return null
   if (!useSectionPatch) {
     return { orderedIds }
   }
@@ -251,8 +343,27 @@ export function buildReorderedActiveRootIds(
   return {
     orderedIds,
     sectionUpdate: {
-      taskId: movedId,
+      taskIds: orderedGroup,
       sectionId: overTask ? (overTask.sectionId ?? null) : null,
     },
   }
+}
+
+export function buildReorderedActiveRootIds(
+  currentOrdered: Task[],
+  activeId: string,
+  overId: string,
+  sections: ListSection[],
+  selectedListId: string | null,
+): { orderedIds: string[]; sectionUpdate?: ManualRootReorderSectionUpdate } | null {
+  if (!activeId.startsWith(TASK_PREFIX)) return null
+  const movedId = activeId.slice(TASK_PREFIX.length)
+  return buildReorderedActiveRootIdsForGroup(
+    currentOrdered,
+    movedId,
+    overId,
+    [movedId],
+    sections,
+    selectedListId,
+  )
 }
