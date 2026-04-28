@@ -47,6 +47,21 @@ interface TaskRow {
   tags: unknown
   recurrence: unknown
   is_time_log: boolean
+  pinned?: boolean
+}
+
+let tasksPinnedColumnAvailable = true
+
+function isMissingPinnedColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'pinned' column")
+}
+
+function stripPinnedFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ pinned, ...rest }) => {
+    void pinned
+    return rest
+  })
 }
 
 interface SectionRow {
@@ -173,6 +188,7 @@ function rowToTask(row: TaskRow): Task {
     tags,
     recurrence,
     isTimeLog: row.is_time_log === true,
+    pinned: row.pinned === true,
   }
 }
 
@@ -207,6 +223,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     tags: task.tags,
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
+    pinned: task.pinned === true,
   }
 }
 
@@ -220,28 +237,24 @@ export async function fetchListsTasksHabits(
     .from('lists')
     .select('*')
     .eq('user_id', userId)
-
   if (e1) return { error: e1.message }
 
   const { data: sectionRows, error: eSec } = await supabase
     .from('list_sections')
     .select('*')
     .eq('user_id', userId)
-
   if (eSec) return { error: eSec.message }
 
   const { data: taskRows, error: e2 } = await supabase
     .from('tasks')
     .select('*')
     .eq('user_id', userId)
-
   if (e2) return { error: e2.message }
 
   const { data: habitRows, error: e3 } = await supabase
     .from('habits')
     .select('*')
     .eq('user_id', userId)
-
   if (e3) return { error: e3.message }
 
   const lists = ((listRows ?? []) as ListRow[]).map(rowToList)
@@ -311,8 +324,20 @@ export async function pushListsTasksHabits(
   const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
   if (eSec) return { error: eSec.message }
 
-  const { error: e2 } = await supabase.from('tasks').upsert(taskRows, { onConflict: 'id' })
-  if (e2) return { error: e2.message }
+  const firstTaskUpsertRows = tasksPinnedColumnAvailable
+    ? taskRows
+    : stripPinnedFromTaskRows(taskRows)
+  const { error: e2 } = await supabase.from('tasks').upsert(firstTaskUpsertRows, { onConflict: 'id' })
+  if (e2 && isMissingPinnedColumnError(e2.message)) {
+    tasksPinnedColumnAvailable = false
+    const fallbackTaskRows = stripPinnedFromTaskRows(taskRows)
+    const { error: e2Retry } = await supabase.from('tasks').upsert(fallbackTaskRows, { onConflict: 'id' })
+    if (e2Retry) return { error: e2Retry.message }
+  } else if (!e2 && tasksPinnedColumnAvailable === false) {
+    tasksPinnedColumnAvailable = true
+  } else if (e2) {
+    return { error: e2.message }
+  }
 
   const { error: eH } = await supabase.from('habits').upsert(habitRows, { onConflict: 'id' })
   if (eH) return { error: eH.message }
