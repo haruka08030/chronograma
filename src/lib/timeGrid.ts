@@ -52,8 +52,3 @@ export function formatDuration(minutes: number): string {
   return `${m}分`
 }
 
-export function blockHeight(startTime: string, endTime: string): number {
-  const startY = timeToY(startTime)
-  const endY = timeToY(endTime)
-  return Math.max(endY - startY, HOUR_HEIGHT / 4)
-}

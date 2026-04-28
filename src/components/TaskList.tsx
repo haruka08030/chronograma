@@ -1035,8 +1035,18 @@ export function TaskList() {
         </div>
       </div>
 
-      {detailTask && (
+      {detailTask ? (
         <TaskDetail task={detailTask} onClose={closeDetail} />
+      ) : (
+        <aside className="flex h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/60 p-6 text-center dark:border-zinc-700 dark:bg-zinc-900/40">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {t('taskList.selectTaskForDetail')}
+              </p>
+            </div>
+          </div>
+        </aside>
       )}
       {completionDraft && (
         <CompleteWithLogModal

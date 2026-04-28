@@ -1,13 +1,13 @@
 import type { Task } from '../types/task'
 
 /** タイムログブロック・アクティビティサマリーなどで共有するパステルセット */
-export type LogBlockAccent = {
+type LogBlockAccent = {
   bg: string
   text: string
   border: string
 }
 
-export const TAG_COLORS: LogBlockAccent[] = [
+const TAG_COLORS: LogBlockAccent[] = [
   { bg: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-500/30' },
   { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-500/30' },
   { bg: 'bg-purple-100 dark:bg-purple-500/20', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-500/30' },
@@ -36,6 +36,42 @@ export function timeLogTagUniverse(tasks: Task[]): string[] {
     }
   }
   return Array.from(set)
+}
+
+/**
+ * 設定のプリセット行（1行1タグ）を正規化: trim・空行除去・先勝ちで重複除去。
+ */
+export function parseTimeLogTagPresetLines(text: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim()
+    if (!t || seen.has(t)) continue
+    seen.add(t)
+    out.push(t)
+  }
+  return out
+}
+
+/** プリセット配列を正規化（trim・空除去・重複除去）。 */
+export function normalizeTimeLogTagPresetList(presets: string[]): string[] {
+  return parseTimeLogTagPresetLines(presets.join('\n'))
+}
+
+/**
+ * タイムライン色・datalist 用: プリセット順を先頭に固定し、その後ログにのみ存在するタグを続ける。
+ */
+export function buildTimeLogTagUniverse(presets: string[], tasks: Task[]): string[] {
+  const head = normalizeTimeLogTagPresetList(presets)
+  const seen = new Set(head)
+  const out = [...head]
+  for (const t of timeLogTagUniverse(tasks)) {
+    if (!seen.has(t)) {
+      seen.add(t)
+      out.push(t)
+    }
+  }
+  return out
 }
 
 /**

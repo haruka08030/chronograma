@@ -1,5 +1,6 @@
-import { format, getISODay, subDays } from 'date-fns'
-import type { Habit, HabitWeekday } from '../types/habit'
+import { format, subDays } from 'date-fns'
+import type { Habit } from '../types/habit'
+import { isHabitScheduledOnDate } from './habitSchedule'
 
 export function colorIndexForPalette(habitColor: string, listColors: readonly string[]): number {
   const normalized = habitColor.trim().toLowerCase()
@@ -9,12 +10,6 @@ export function colorIndexForPalette(habitColor: string, listColors: readonly st
 
 export function habitDateKey(date: Date): string {
   return format(date, 'yyyy-MM-dd')
-}
-
-export function isHabitScheduledOnDate(habit: Habit, d: Date): boolean {
-  if (habit.frequency.type === 'daily') return true
-  const weekday = getISODay(d) as HabitWeekday
-  return habit.frequency.weekdays.includes(weekday)
 }
 
 export function completionRatioOnDate(habits: Habit[], d: Date): number {

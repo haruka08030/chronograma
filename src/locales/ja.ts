@@ -204,6 +204,7 @@ export default {
     priorityEllipsis: '設定…',
     noDue: '期限なし',
     clearSelection: '選択解除',
+    selectTaskForDetail: 'タスクを選択すると詳細を表示します',
     allDoneTitle: 'すべて完了です！',
     allDoneSubtitle: 'お疲れさまでした',
     completedHeader: '完了済み ({{count}})',

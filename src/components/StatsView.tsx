@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
-import { ja } from 'date-fns/locale'
+import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { displayListName } from '../lib/displayListName'
 
 export function StatsView() {
+  const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
 
@@ -34,7 +37,8 @@ export function StatsView() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const day = subDays(today, 6 - i)
       const count = completed.filter((t) => isSameDay(new Date(t.updatedAt), day)).length
-      return { date: day, count, label: format(day, 'E', { locale: ja }), dayNum: format(day, 'd') }
+      const locale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+      return { date: day, count, label: format(day, 'E', { locale }), dayNum: format(day, 'd') }
     })
     const maxDayCount = Math.max(1, ...last7Days.map((d) => d.count))
 
@@ -45,7 +49,7 @@ export function StatsView() {
 
     const byList = lists.map((l) => ({
       id: l.id,
-      name: l.name,
+      name: displayListName(l.id, l.name),
       color: l.color,
       active: active.filter((t) => t.listId === l.id).length,
       completed: completed.filter((t) => t.listId === l.id).length,
@@ -78,34 +82,34 @@ export function StatsView() {
       overdue,
       streak,
     }
-  }, [tasks, lists])
+  }, [tasks, lists, i18n.resolvedLanguage])
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">統計</h1>
-        <p className="text-xs text-zinc-400 mt-1">タスクの進捗を振り返る</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('stats.title')}</h1>
+        <p className="text-xs text-zinc-400 mt-1">{t('stats.subtitle')}</p>
       </div>
 
       <div className="px-6 pb-8 space-y-8">
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="今日の完了" value={stats.completedToday} accent />
-          <StatCard label="今週の完了" value={stats.completedThisWeek} />
-          <StatCard label="今月の完了" value={stats.completedThisMonth} />
-          <StatCard label="連続完了日数" value={stats.streak} suffix="日" accent />
+          <StatCard label={t('stats.completedToday')} value={stats.completedToday} accent />
+          <StatCard label={t('stats.completedThisWeek')} value={stats.completedThisWeek} />
+          <StatCard label={t('stats.completedThisMonth')} value={stats.completedThisMonth} />
+          <StatCard label={t('stats.streakDays')} value={stats.streak} suffix={t('stats.daySuffix')} accent />
         </div>
 
         {/* Active vs completed */}
         <div className="grid grid-cols-3 gap-3">
-          <MiniCard label="未完了" value={stats.totalActive} color="text-amber-500" />
-          <MiniCard label="完了済み" value={stats.totalCompleted} color="text-green-500" />
-          <MiniCard label="期限超過" value={stats.overdue} color="text-red-500" />
+          <MiniCard label={t('stats.active')} value={stats.totalActive} color="text-amber-500" />
+          <MiniCard label={t('stats.done')} value={stats.totalCompleted} color="text-green-500" />
+          <MiniCard label={t('stats.overdue')} value={stats.overdue} color="text-red-500" />
         </div>
 
         {/* 7-day chart */}
         <div>
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">過去7日間の完了</h2>
+          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">{t('stats.chartTitle')}</h2>
           <div className="flex items-end gap-2 h-32">
             {stats.last7Days.map((d) => {
               const heightPct = (d.count / stats.maxDayCount) * 100
@@ -133,26 +137,26 @@ export function StatsView() {
 
         {/* Priority breakdown */}
         <div>
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">優先度別 (未完了)</h2>
+          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{t('stats.priorityTitle')}</h2>
           <div className="space-y-2">
-            <PriorityBar label="高" count={stats.byPriority.high} total={stats.totalActive} color="bg-red-500" />
-            <PriorityBar label="中" count={stats.byPriority.medium} total={stats.totalActive} color="bg-amber-500" />
-            <PriorityBar label="低" count={stats.byPriority.low} total={stats.totalActive} color="bg-blue-500" />
-            <PriorityBar label="なし" count={stats.byPriority.none} total={stats.totalActive} color="bg-zinc-300 dark:bg-zinc-600" />
+            <PriorityBar label={t('common.high')} count={stats.byPriority.high} total={stats.totalActive} color="bg-red-500" />
+            <PriorityBar label={t('common.medium')} count={stats.byPriority.medium} total={stats.totalActive} color="bg-amber-500" />
+            <PriorityBar label={t('common.low')} count={stats.byPriority.low} total={stats.totalActive} color="bg-blue-500" />
+            <PriorityBar label={t('common.none')} count={stats.byPriority.none} total={stats.totalActive} color="bg-zinc-300 dark:bg-zinc-600" />
           </div>
         </div>
 
         {/* List breakdown */}
         {stats.byList.length > 0 && (
           <div>
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">リスト別</h2>
+            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{t('stats.byListTitle')}</h2>
             <div className="space-y-2">
               {stats.byList.map((l) => (
                 <div key={l.id} className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: l.color }} />
                   <span className="text-sm text-zinc-700 dark:text-zinc-300 flex-1 truncate">{l.name}</span>
-                  <span className="text-xs text-zinc-500 tabular-nums">{l.active} 未完了</span>
-                  <span className="text-xs text-green-500 tabular-nums">{l.completed} 完了</span>
+                  <span className="text-xs text-zinc-500 tabular-nums">{t('stats.listActive', { count: l.active })}</span>
+                  <span className="text-xs text-green-500 tabular-nums">{t('stats.listCompleted', { count: l.completed })}</span>
                 </div>
               ))}
             </div>

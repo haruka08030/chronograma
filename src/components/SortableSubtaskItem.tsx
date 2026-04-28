@@ -5,14 +5,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { RowNestDropTarget } from './RowNestDropTarget'
 import type { Task } from '../types/task'
+import { subtaskDragId } from '../lib/subtaskDnD'
 
-export const TASK_PREFIX = 'task::'
-
-export type TaskRootDragData = { dragGroupRootIds: string[] }
-
-export function SortableTaskItem({
+export function SortableSubtaskItem({
   task,
-  dragGroupRootIds,
   onClick,
   onRowClick,
   onCompleteRequest,
@@ -22,18 +18,16 @@ export function SortableTaskItem({
   children,
 }: {
   task: Task
-  /** この行をドラッグしたときにまとめて動かすルート ID（表示順・単体なら `[task.id]`） */
-  dragGroupRootIds: string[]
   onClick?: () => void
   onRowClick?: (e: MouseEvent) => void
   onCompleteRequest?: (task: Task) => void
   onEnterCreateSibling?: (task: Task) => void
   selection?: TaskItemSelection
   autoEdit?: boolean
-  /** 一覧内サブタスク（DnD 時は親とまとめて移動） */
   children?: ReactNode
 }) {
   const { active } = useDndContext()
+  const id = subtaskDragId(task.id)
   const {
     attributes,
     listeners,
@@ -41,10 +35,7 @@ export function SortableTaskItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({
-    id: `${TASK_PREFIX}${task.id}`,
-    data: { dragGroupRootIds } satisfies TaskRootDragData,
-  })
+  } = useSortable({ id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -77,6 +68,7 @@ export function SortableTaskItem({
       <div className="flex min-w-0 items-stretch rounded-lg overflow-hidden">
         <TaskItem
           task={task}
+          isSubtask
           onClick={onClick}
           onRowClick={onRowClick}
           onCompleteRequest={onCompleteRequest}
@@ -86,7 +78,7 @@ export function SortableTaskItem({
           dragHandle={handle}
           rowClassName="min-w-0 flex-1 rounded-r-none"
         />
-        <RowNestDropTarget parentTaskId={task.id} />
+        <RowNestDropTarget parentTaskId={task.id} compact />
       </div>
       {children}
     </div>

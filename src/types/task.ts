@@ -24,4 +24,6 @@ export interface Task {
   tags: string[]
   recurrence: Recurrence | null
   isTimeLog?: boolean
+  /** 手動ソート時に先頭付近へ固定（TickTick のピンに相当） */
+  pinned?: boolean
 }

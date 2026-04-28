@@ -124,7 +124,7 @@
   は新規タスクの **id を返す**。親指定時は親の `listId` に合わせる。タイムログ系の追加は従来どおり末尾相当
 - **新規セクション**（`addSection`）は作成したセクションの **id を返す**。`TaskList` の「セクションを追加」直後はその見出しがインライン入力に切り替わり、自動フォーカスで即時リネームできる（Enter/Blur で確定、Esc でキャンセル）
 - **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の下に**再帰的**にインデント表示（`StaticSubtreeRows` / `DnDSubtreeRows` / 完了は `CompletedSubtreeRows`）。手動ソート時は単一 `SortableContext` + 各行の `RowNestDropTarget` でサブタスク DnD（`moveSubtaskInList`）。`QuickAdd`
-  はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の Enter。行タイトル編集中の Enter では編集を確定し、同じ階層の**直下**へ空タイトルの次タスクを追加（サブタスクは同じ親の配下に追加）し、追加された行は自動でインライン編集に入りそのまま入力できる。タイトル末尾は `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・日付語などを解釈（UI の日付チップはなし）
+  はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の Enter。行タイトル編集中の Enter では編集を確定し、同じ階層の**直下**へ空タイトルの次タスクを追加（サブタスクは同じ親の配下に追加）し、追加された行は自動でインライン編集に入りそのまま入力できる。右側の詳細ペインは未選択時も空状態を表示して幅を維持する（一覧幅が切り替わらない）。タイトル末尾は `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・日付語などを解釈（UI の日付チップはなし）
 - **ピン**: `Task.pinned`。手動ソートのルート一覧ではピンを先に並べ替え（`mainListTasks.ts` の `pinnedCmp`）。行のピンアイコン・詳細のチェック・一括「ピン / ピン解除」
 - **「今日」**: `todayIncludeOverdue` がオンのとき `getFilteredRootTasks` で期限切れルートも含める。設定は `SettingsView` の外観セクション
 - 一覧の**予定タスク**（`dueDate` + `startTime` + `endTime` あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了` / `時間をずらして実行` を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする

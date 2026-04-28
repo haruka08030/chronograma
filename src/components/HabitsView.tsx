@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, startOfWeek, subDays } from 'date-fns'
+import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
+import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
@@ -11,12 +12,12 @@ import {
 import {
   colorIndexForPalette,
   habitDateKey,
-  isHabitScheduledOnDate,
   completionRatioOnDate,
   completionsInLast7Days,
   consistencyForLast7Days,
   currentStreakDays,
 } from '../lib/habitStats'
+import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { TimeInput } from './TimeInput'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
@@ -174,8 +175,10 @@ function HabitTimeFields({
 }
 
 export function HabitsView() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
+  const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
+  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const addHabit = useTaskStore((s) => s.addHabit)
   const updateHabit = useTaskStore((s) => s.updateHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
@@ -318,15 +321,45 @@ export function HabitsView() {
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits), [habits])
   const streak = useMemo(() => currentStreakDays(habits), [habits])
+  const focusDate = useMemo(
+    () => parseISO(`${selectedCalendarDateKey}T12:00:00`),
+    [selectedCalendarDateKey],
+  )
   const weekDates = useMemo(() => {
-    const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+    const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
-  }, [])
+  }, [focusDate])
   const todayKey = habitDateKey(new Date())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
   )
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const focusDateLabel = format(
+    focusDate,
+    i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)',
+    { locale: dateLocale },
+  )
+  const isFocusToday = selectedCalendarDateKey === todayKey
+
+  const habitsForList = useMemo(() => {
+    const filtered = habits.filter((h) => isHabitScheduledOnDate(h, focusDate))
+    if (editingHabitId) {
+      const editing = habits.find((h) => h.id === editingHabitId)
+      if (editing && !filtered.some((h) => h.id === editingHabitId)) {
+        return [...filtered, editing]
+      }
+    }
+    return filtered
+  }, [habits, focusDate, editingHabitId])
+
+  const shiftFocusDay = useCallback((delta: number) => {
+    setSelectedCalendarDateKey(format(addDays(focusDate, delta), 'yyyy-MM-dd'))
+  }, [focusDate, setSelectedCalendarDateKey])
+
+  const goFocusToday = useCallback(() => {
+    setSelectedCalendarDateKey(todayKey)
+  }, [setSelectedCalendarDateKey, todayKey])
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -441,13 +474,78 @@ export function HabitsView() {
           </div>
         ) : null}
 
+        {habits.length > 0 ? (
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.listForDayTitle')}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-1 items-center justify-center gap-1 sm:justify-start">
+                <button
+                  type="button"
+                  onClick={() => shiftFocusDay(-1)}
+                  className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  aria-label={t('habits.prevDayAria')}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+                <span className="min-w-[9.5rem] text-center text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {focusDateLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => shiftFocusDay(1)}
+                  className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  aria-label={t('habits.nextDayAria')}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={goFocusToday}
+                disabled={isFocusToday}
+                className="shrink-0 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                {t('common.today')}
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {weekDates.map((d, i) => {
+                const key = habitDateKey(d)
+                const isColToday = key === todayKey
+                const isColFocus = key === selectedCalendarDateKey
+                return (
+                  <div
+                    key={key}
+                    className={`text-center text-[10px] font-medium ${
+                      isColFocus
+                        ? 'text-accent-600 dark:text-accent-300'
+                        : isColToday
+                          ? 'text-accent-600/90 dark:text-accent-400/90'
+                          : 'text-zinc-400 dark:text-zinc-500'
+                    }`}
+                  >
+                    {habitWeekdayLabels[i]}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <ul className="space-y-3">
         {habits.length === 0 && (
           <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">
             {t('habits.empty', { add: t('habits.addHabit') })}
           </p>
         )}
-        {habits.map((h) => {
+        {habits.length > 0 && habitsForList.length === 0 && (
+          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">{t('habits.noneScheduledForDay')}</p>
+        )}
+        {habitsForList.map((h) => {
           const last7 = completionsInLast7Days(h.completedDates)
           const isEditing = editingHabitId === h.id
           const icon = HABIT_ICONS[Math.abs(h.id.charCodeAt(0)) % HABIT_ICONS.length]
@@ -624,9 +722,10 @@ export function HabitsView() {
                 </div>
 
                 <div className="grid grid-cols-7 gap-1.5">
-                  {weekDates.map((d, i) => {
+                  {weekDates.map((d) => {
                     const key = habitDateKey(d)
-                    const isToday = key === todayKey
+                    const isCellToday = key === todayKey
+                    const isCellFocus = key === selectedCalendarDateKey
                     const isScheduled = isHabitScheduledOnDate(h, d)
                     const isDone = completedSet.has(key)
                     return (
@@ -639,17 +738,8 @@ export function HabitsView() {
                           if (!isScheduled) return
                           toggleHabitDate(h.id, key)
                         }}
-                        className="flex flex-col items-center gap-1 disabled:cursor-default"
+                        className="flex justify-center disabled:cursor-default"
                       >
-                        <span
-                          className={`text-[10px] font-medium ${
-                            isToday
-                              ? 'text-accent-600 dark:text-accent-300'
-                              : 'text-zinc-400 dark:text-zinc-500'
-                          }`}
-                        >
-                          {habitWeekdayLabels[i]}
-                        </span>
                         <span
                           className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                             isDone
@@ -657,7 +747,9 @@ export function HabitsView() {
                               : isScheduled
                                 ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                                 : 'bg-zinc-200/70 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-700'
-                          } ${isToday ? 'ring-2 ring-accent-300 dark:ring-accent-500/60' : ''}`}
+                          } ${isCellToday ? 'ring-2 ring-accent-300 dark:ring-accent-500/60' : ''} ${
+                            !isCellToday && isCellFocus ? 'ring-1 ring-accent-400/70 dark:ring-accent-500/50' : ''
+                          }`}
                           title={key}
                         >
                           {isDone ? '✓' : ''}

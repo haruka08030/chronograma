@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 interface TimeInputProps {
   value: string
@@ -61,7 +61,7 @@ export function TimeInput({
   className = '',
   placeholder = '00:00',
 }: TimeInputProps) {
-  const [draft, setDraft] = useState(value ?? '')
+  const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -71,22 +71,12 @@ export function TimeInput({
   const options = useMemo(() => buildTimeOptions(15), [])
 
   useEffect(() => {
-    setDraft(value ?? '')
-  }, [value])
-
-  useEffect(() => {
-    if (!open) return
-    const idx = options.indexOf(draft)
-    if (idx >= 0) setHighlightIndex(idx)
-  }, [open, draft, options])
-
-  useEffect(() => {
     if (!open) return
     const node = optionRefs.current[highlightIndex]
     if (node) node.scrollIntoView({ block: 'nearest' })
   }, [highlightIndex, open])
 
-  const commitDraft = () => {
+  const commitDraft = useCallback(() => {
     const normalized = normalizeTime(draft)
     if (normalized === null) {
       setDraft(value ?? '')
@@ -94,7 +84,7 @@ export function TimeInput({
     }
     onChange(normalized)
     setDraft(normalized)
-  }
+  }, [draft, onChange, value])
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
@@ -106,7 +96,7 @@ export function TimeInput({
     }
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
-  }, [draft, onChange, value])
+  }, [commitDraft])
 
   const selectValue = (next: string) => {
     onChange(next)
@@ -141,8 +131,21 @@ export function TimeInput({
     }
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (open && options[highlightIndex]) {
-        selectValue(options[highlightIndex])
+      const normalizedDraft = normalizeTime(draft)
+      const highlightedOption = options[highlightIndex]
+      const shouldPreferTypedValue =
+        normalizedDraft !== null &&
+        normalizedDraft !== '' &&
+        normalizedDraft !== highlightedOption
+
+      if (shouldPreferTypedValue) {
+        commitDraft()
+        setOpen(false)
+        return
+      }
+
+      if (open && highlightedOption) {
+        selectValue(highlightedOption)
         return
       }
       commitDraft()
@@ -164,7 +167,9 @@ export function TimeInput({
 
   const handleFocus = () => {
     if (disabled) return
-    const idx = options.indexOf(normalizeTime(draft) ?? '')
+    const nextDraft = value ?? ''
+    setDraft(nextDraft)
+    const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
     if (idx >= 0) setHighlightIndex(idx)
     setOpen(true)
   }
@@ -175,8 +180,14 @@ export function TimeInput({
         ref={inputRef}
         type="text"
         inputMode="numeric"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        value={open ? draft : (value ?? '')}
+        onChange={(e) => {
+          const nextDraft = e.target.value
+          setDraft(nextDraft)
+          if (!open) return
+          const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
+          if (idx >= 0) setHighlightIndex(idx)
+        }}
         onFocus={handleFocus}
         onBlur={(e) => {
           const nextTarget = e.relatedTarget

@@ -8,7 +8,7 @@ export type ListColorPaletteId =
   | 'cool-pastel'
   | 'mono-hue'
 
-export interface ListColorPalette {
+interface ListColorPalette {
   id: ListColorPaletteId
   colors: readonly string[]
 }

@@ -203,6 +203,7 @@ export default {
     priorityEllipsis: 'Set…',
     noDue: 'No due date',
     clearSelection: 'Clear selection',
+    selectTaskForDetail: 'Select a task to view details',
     allDoneTitle: 'All caught up!',
     allDoneSubtitle: 'Nice work.',
     completedHeader: 'Completed ({{count}})',
