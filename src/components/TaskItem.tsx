@@ -20,7 +20,7 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -35,11 +35,13 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   selection?: TaskItemSelection
   /** 行ラッパーに付与（例: 右端ネスト帯と並べたときの `rounded-r-none min-w-0`） */
   rowClassName?: string
+  /** true のとき初回レンダーでタイトル編集へ入る */
+  autoEdit?: boolean
 }) {
   const { t } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const { toggleTask, updateTask, deleteTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const [editValue, setEditValue] = useState(task.title)
@@ -231,7 +233,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
-            {task.title}
+            {task.title || '\u00A0'}
           </span>
         )}
 

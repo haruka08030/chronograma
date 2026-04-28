@@ -47,6 +47,7 @@ function DnDSubtreeRows({
   makeSelection,
   openCompleteWithLog,
   onEnterCreateSibling,
+  pendingAutoEditTaskId,
   subtaskNestWithDrag,
 }: {
   parentId: string
@@ -56,6 +57,7 @@ function DnDSubtreeRows({
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
+  pendingAutoEditTaskId: string | null
   subtaskNestWithDrag: string
 }): ReactNode[] {
   return incompleteSubtasks(parentId).flatMap((st): ReactNode[] => [
@@ -66,6 +68,7 @@ function DnDSubtreeRows({
         onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
+        autoEdit={pendingAutoEditTaskId === st.id}
       />
     </div>,
     ...DnDSubtreeRows({
@@ -76,6 +79,7 @@ function DnDSubtreeRows({
       makeSelection,
       openCompleteWithLog,
       onEnterCreateSibling,
+      pendingAutoEditTaskId,
       subtaskNestWithDrag,
     }),
   ])
@@ -89,6 +93,7 @@ function StaticSubtreeRows({
   makeSelection,
   openCompleteWithLog,
   onEnterCreateSibling,
+  pendingAutoEditTaskId,
   subtaskNestNoDrag,
 }: {
   parentId: string
@@ -98,6 +103,7 @@ function StaticSubtreeRows({
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
+  pendingAutoEditTaskId: string | null
   subtaskNestNoDrag: string
 }): ReactNode[] {
   return incompleteSubtasks(parentId).map((st): ReactNode => (
@@ -109,6 +115,7 @@ function StaticSubtreeRows({
         onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
+        autoEdit={pendingAutoEditTaskId === st.id}
       />
       {StaticSubtreeRows({
         parentId: st.id,
@@ -118,6 +125,7 @@ function StaticSubtreeRows({
         makeSelection,
         openCompleteWithLog,
         onEnterCreateSibling,
+        pendingAutoEditTaskId,
         subtaskNestNoDrag,
       })}
     </div>
@@ -132,6 +140,7 @@ function CompletedSubtreeRows({
   makeSelection,
   openCompleteWithLog,
   onEnterCreateSibling,
+  pendingAutoEditTaskId,
   subtaskNestNoDrag,
 }: {
   parentId: string
@@ -141,6 +150,7 @@ function CompletedSubtreeRows({
   makeSelection: (id: string) => TaskItemSelection
   openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
+  pendingAutoEditTaskId: string | null
   subtaskNestNoDrag: string
 }): ReactNode[] {
   return (childrenByParent.get(parentId) ?? []).map((st): ReactNode => (
@@ -152,6 +162,7 @@ function CompletedSubtreeRows({
         onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
+        autoEdit={pendingAutoEditTaskId === st.id}
       />
       {CompletedSubtreeRows({
         parentId: st.id,
@@ -161,6 +172,7 @@ function CompletedSubtreeRows({
         makeSelection,
         openCompleteWithLog,
         onEnterCreateSibling,
+        pendingAutoEditTaskId,
         subtaskNestNoDrag,
       })}
     </div>
@@ -209,6 +221,7 @@ export function TaskList() {
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
+  const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
 
@@ -395,7 +408,12 @@ export function TaskList() {
   }, [toggleTask])
 
   const handleEnterCreateSibling = useCallback((task: Task) => {
-    addTaskAfter(task.id, '')
+    const newTaskId = addTaskAfter(task.id, '')
+    if (!newTaskId) return
+    setPendingAutoEditTaskId(newTaskId)
+    queueMicrotask(() => {
+      setPendingAutoEditTaskId((prev) => (prev === newTaskId ? null : prev))
+    })
   }, [addTaskAfter])
 
   const submitCompleteWithLog = useCallback(() => {
@@ -677,6 +695,7 @@ export function TaskList() {
                   onCompleteRequest={openCompleteWithLog}
                   onEnterCreateSibling={handleEnterCreateSibling}
                   selection={makeSelection(t.id)}
+                  autoEdit={pendingAutoEditTaskId === t.id}
                 />,
                 ...DnDSubtreeRows({
                   parentId: t.id,
@@ -686,6 +705,7 @@ export function TaskList() {
                   makeSelection,
                   openCompleteWithLog,
                   onEnterCreateSibling: handleEnterCreateSibling,
+                  pendingAutoEditTaskId,
                   subtaskNestWithDrag,
                 }),
               ])}
@@ -703,6 +723,7 @@ export function TaskList() {
             onCompleteRequest={openCompleteWithLog}
             onEnterCreateSibling={handleEnterCreateSibling}
             selection={makeSelection(t.id)}
+            autoEdit={pendingAutoEditTaskId === t.id}
           />,
           ...DnDSubtreeRows({
             parentId: t.id,
@@ -712,6 +733,7 @@ export function TaskList() {
             makeSelection,
             openCompleteWithLog,
             onEnterCreateSibling: handleEnterCreateSibling,
+            pendingAutoEditTaskId,
             subtaskNestWithDrag,
           }),
         ])
@@ -735,6 +757,7 @@ export function TaskList() {
               onCompleteRequest={openCompleteWithLog}
               onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
+              autoEdit={pendingAutoEditTaskId === t.id}
             />
             {StaticSubtreeRows({
               parentId: t.id,
@@ -744,6 +767,7 @@ export function TaskList() {
               makeSelection,
               openCompleteWithLog,
               onEnterCreateSibling: handleEnterCreateSibling,
+              pendingAutoEditTaskId,
               subtaskNestNoDrag,
             })}
           </div>
@@ -759,6 +783,7 @@ export function TaskList() {
           onCompleteRequest={openCompleteWithLog}
           onEnterCreateSibling={handleEnterCreateSibling}
           selection={makeSelection(t.id)}
+          autoEdit={pendingAutoEditTaskId === t.id}
         />
         {StaticSubtreeRows({
           parentId: t.id,
@@ -768,6 +793,7 @@ export function TaskList() {
           makeSelection,
           openCompleteWithLog,
           onEnterCreateSibling: handleEnterCreateSibling,
+          pendingAutoEditTaskId,
           subtaskNestNoDrag,
         })}
       </div>
@@ -988,6 +1014,7 @@ export function TaskList() {
                       onCompleteRequest={openCompleteWithLog}
                       onEnterCreateSibling={handleEnterCreateSibling}
                       selection={makeSelection(t.id)}
+                      autoEdit={pendingAutoEditTaskId === t.id}
                     />
                     {CompletedSubtreeRows({
                       parentId: t.id,
@@ -997,6 +1024,7 @@ export function TaskList() {
                       makeSelection,
                       openCompleteWithLog,
                       onEnterCreateSibling: handleEnterCreateSibling,
+                      pendingAutoEditTaskId,
                       subtaskNestNoDrag,
                     })}
                   </div>
