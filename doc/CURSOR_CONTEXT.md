@@ -31,7 +31,7 @@
 | 状態       | Zustand 5 + `persist`                                  |
 | DnD        | `@dnd-kit/core`, `sortable`, `utilities`               |
 | 日付       | `date-fns`                                             |
-| i18n       | `i18next` + `react-i18next`（`src/i18n/config.ts`、`ja` / `en` は `src/locales/*.ts`、言語キー `chronograma-lang`） |
+| i18n       | `i18next` + `react-i18next`（`src/i18n/config.ts`、`react.useSuspense: false` でルートに Suspense なしでも描画可能、`ja` / `en` は `src/locales/*.ts`、言語キー `chronograma-lang`） |
 | BaaS       | `@supabase/supabase-js`                                |
 
 ### モバイル（`mobile/`）
@@ -63,20 +63,23 @@
 ### グローバルショートカット（`App.tsx`）
 
 - **⌘/Ctrl+K**: 検索フォーカス
-- **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または `requestQuickAdd()`）。入力中は **Enter** / **Shift+Enter**（子タスク連鎖）で確定
+- **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または `requestQuickAdd()`）。確定は「追加」ボタン、または IME 未変換時の **Enter**（`isComposing` でないときのみ）
 - **⌘/Ctrl+Z**（Shift なし）: 直前の**データ操作**を 1 段階戻す（`taskStore` のメモリ上の履歴、最大約 50 段）。入力欄・`contenteditable` フォーカス時はブラウザのテキスト取り消しを優先。履歴が空で `deletedTasks` だけ残っている場合は従来どおり `undoDelete()`
 
 ### DnD（`DndContext`）
 
 - 未完了ルートタスクの手動並べ替え・セクション間移動（`TASK_PREFIX` +
-  `buildReorderedActiveRootIds` → `reorderManualRootTasks`）。セクション見出しの並べ替えは
+  `buildReorderedActiveRootIdsForGroup`（`SortableTaskItem` の `data.dragGroupRootIds`）→
+  `reorderManualRootTasks`）。複数ルート選択中にドラッグすると選択ブロックをまとめて移動（ネスト帯ドロップは複数時無効）。セクション見出しの並べ替えは
   `DRAGSEC_PREFIX` / `DROPSEC_PREFIX` + `reorderSections`
 - サブタスク（`SUBTASK_PREFIX` + `SortableSubtaskItem`）：兄弟の並べ替え／任意の親タスクへ移動（各行右端の `RowNestDropTarget` が `nest::{parentId}`、ルート行・他サブタスク行へのドロップ）→ `moveSubtaskInList`（`src/lib/subtaskDnD.ts`）。親は多段可（最大深さは `src/lib/taskDepth.ts` の `MAX_TASK_TREE_DEPTH`）
-- **ルートをサブ化**: ルート行を並べ替え対象の**右端ネスト帯**（`NEST_DROP_PREFIX`）へドロップ → `nestRootUnderParent`（`taskStore`）。TickTick の「下＋右」に寄せ、行間の細い帯は使わない。衝突優先で `NEST_DROP_PREFIX` を先に拾う（`App.tsx` の `rankForTaskDrag`）
+- サブタスクを他サブタスク行へドロップしたときは、衝突列に `nest::` があればそれを最優先（明示ネスト）。それが無い場合のみ右寄せポインタ判定（約 52% 以降）で子化し、条件不成立時は兄弟並び替えへフォールバック
+- **ルートをサブ化**: `nest::{parentId}` へドロップ、または別ルート行 `task::` へドロップしつつ**ポインタがその行の右寄り**（`over.rect` 基準）→ `nestRootUnderParent`（`taskStore`）。TickTick の「下＋右」に寄せた判定。衝突では `NEST_DROP_PREFIX` を優先（`rankForTaskDrag`）
 - `TaskList` の手動ソートは **単一の `SortableContext`（`flatManualSortableIds`）** で、ルートとその下の**全段**の未完了サブを表示順どおり登録（`DnDSubtreeRows`）
-- タスクをリストへドロップ（`drop::{listId}` + `moveTaskToList`）— ドラッグ元はルートの `task::` のみ
+- タスク／サブタスクのドラッグ中は `DragOverlay` で `TaskItem` プレビューを表示し、元行は `SortableTaskItem` / `SortableSubtaskItem` 側で非表示化（`opacity: 0`）。同時に `transition` を抑えて境界付近の「押し出し」感を減らす
+- タスクをリストへドロップ（`drop::{listId}` + `moveTaskToList` / 複数選択時は `moveTasksToList`）— ドラッグ元はルートの `task::` のみ
 - リスト並べ替え（`LIST_PREFIX` + `reorderLists`）
-- 衝突判定は `taskListCollision` でドラッグ種別ごとに優先順を切替
+- 衝突判定は `taskListCollision` でドラッグ種別ごとに優先順を切替（`pointerWithin` が空のとき `rectIntersection` で `nest::` 等）。**確定時**は `nest::` に加え、ルート同士の `task::` ドロップでポインタが `over.rect` の右寄り（約 52% 以降）なら `nestRootUnderParent`；サブタスク行同士は右寄りで `moveSubtaskInList` の親付け替え（`App.tsx` の `lastDragClientRef` + **`DndPointerBridge` 内の `useDndMonitor`**（`DndContext` の子である必要がある））
 
 ## 状態管理（`src/store/taskStore.ts`）
 
@@ -118,8 +121,9 @@
   `addTaskWithTime`）は同一リスト・同一親の兄弟のうち
   **手動ソート順で先頭**（既存の最小 `order` より手前の `order`
   を付与）。`addTask` は新規タスクの **id を返す**。親指定時は親の `listId` に合わせる。タイムログ系の追加は従来どおり末尾相当
+- **新規セクション**（`addSection`）は作成したセクションの **id を返す**。`TaskList` の「セクションを追加」直後はその見出しがインライン入力に切り替わり、自動フォーカスで即時リネームできる（Enter/Blur で確定、Esc でキャンセル）
 - **一覧**（`TaskList`）では `parentId` 付きサブタスクを親の下に**再帰的**にインデント表示（`StaticSubtreeRows` / `DnDSubtreeRows` / 完了は `CompletedSubtreeRows`）。手動ソート時は単一 `SortableContext` + 各行の `RowNestDropTarget` でサブタスク DnD（`moveSubtaskInList`）。`QuickAdd`
-  はリスト用スクロール領域の**先頭**。**Enter** で追加、**Shift+Enter** で直前に追加したタスクの子として連鎖追加。末尾トークンを `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・`today` / `tomorrow` / `今日` / `明日` / `yyyy-MM-dd` として解釈
+  はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の Enter。タイトル末尾は `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で `#tag`・日付語などを解釈（UI の日付チップはなし）
 - **ピン**: `Task.pinned`。手動ソートのルート一覧ではピンを先に並べ替え（`mainListTasks.ts` の `pinnedCmp`）。行のピンアイコン・詳細のチェック・一括「ピン / ピン解除」
 - **「今日」**: `todayIncludeOverdue` がオンのとき `getFilteredRootTasks` で期限切れルートも含める。設定は `SettingsView` の外観セクション
 - 一覧の**予定タスク**（`dueDate` + `startTime` + `endTime` あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了` / `時間をずらして実行` を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする
@@ -177,9 +181,9 @@
 | パス                                                    | 役割                                                                                         |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `Sidebar.tsx`                                           | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビュー（**統計は除く**）のみ（**リスト節は出さない**）。「To‑Do」行を押すと To‑Do パネルを開き、表示は `all`（すべて）に切り替える。**統計**はスクロールナビの下・フッター区切り線の上に単独行。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」（このとき統計行は非表示）。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル |
-| `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `RowNestDropTarget.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等）。`TaskItem` はホバーで期限チップ・ピン・「その他」メニュー（リスト移動） |
+| `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `RowNestDropTarget.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。行内の期限チップ（今日/明日/期限なし）は表示せず、期限編集は日付アイコン/詳細側で行う。ホバーでピン・「その他」メニュー |
 | `SectionHeaderDnD.tsx`                                  | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える |
-| `TaskDetail.tsx`                                        | 詳細編集。`isTimeLog` は行動ログ UI（記録日・時間・所要時間・削除）に切替え、優先度・リスト等は非表示 |
+| `TaskDetail.tsx`                                        | 詳細編集。**既定は右ペイン分割**（`layout="split"`、親が `flex-row`＋`min-h-0`）。`layout="modal"` で全画面オーバーレイ。`isTimeLog` は行動ログ UI に切替え、優先度・リスト等は非表示 |
 | `CompleteWithLogModal.tsx`                              | 予定タスクの「完了を記録」モーダル（タイムログ作成＋完了）。`TaskList` と `PlanVsActualView` で共有 |
 | `TimeInput.tsx`                                         | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供。手入力補正（例 `930`→`09:30`）を維持しつつ、上下キー移動 / Enter 確定 / Esc 取消 / Tab 確定 / 外側クリック確定の挙動を統一。`TaskDetail` / `CompleteWithLogModal` / `ActivityLogView` / `HabitsView` で利用 |
 | `QuickAdd.tsx`                                          | クイック追加                                                                                 |

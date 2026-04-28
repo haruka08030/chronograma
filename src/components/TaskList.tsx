@@ -194,6 +194,8 @@ export function TaskList() {
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [editingSectionName, setEditingSectionName] = useState('')
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
 
@@ -209,6 +211,11 @@ export function TaskList() {
   useEffect(() => {
     queueMicrotask(() => clearSelection())
   }, [selectedListId, selectedView, filterTag, sortMode, clearSelection])
+
+  useEffect(() => {
+    setEditingSectionId(null)
+    setEditingSectionName('')
+  }, [selectedListId, selectedView])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -501,6 +508,25 @@ export function TaskList() {
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
+  const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
+    setEditingSectionId(sectionId)
+    setEditingSectionName(currentName)
+  }, [])
+
+  const finishSectionRename = useCallback((sectionId: string, currentName: string) => {
+    if (editingSectionId !== sectionId) return
+    const name = editingSectionName.trim()
+    if (name && name !== currentName) renameSectionStore(sectionId, name)
+    setEditingSectionId(null)
+    setEditingSectionName('')
+  }, [editingSectionId, editingSectionName, renameSectionStore])
+
+  const cancelSectionRename = useCallback((sectionId: string) => {
+    if (editingSectionId !== sectionId) return
+    setEditingSectionId(null)
+    setEditingSectionName('')
+  }, [editingSectionId])
+
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
   const subtaskNestRow =
     'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
@@ -544,20 +570,43 @@ export function TaskList() {
             (block.sectionId === null && quickAddSectionId === '') ||
             (block.sectionId !== null && quickAddSectionId === block.sectionId)
           return (
-            <div key={block.sectionId ?? 'none'} className="pt-3 first:pt-1">
+            <div key={block.sectionId ?? 'none'} className="relative pt-3 first:pt-1">
               {block.sectionId !== null && selectedListId ? (
                 <SectionHeaderDnD
                   listId={selectedListId}
                   sectionId={block.sectionId}
                   isQuickTarget={isQuickTarget}
                   titleButton={
-                    <button
-                      type="button"
-                      className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                      onClick={() => setQuickAddSectionId(block.sectionId)}
-                    >
-                      {block.title}
-                    </button>
+                    editingSectionId === block.sectionId ? (
+                      <input
+                        autoFocus
+                        value={editingSectionName}
+                        placeholder={t('sections.defaultName')}
+                        onChange={(e) => setEditingSectionName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={() => finishSectionRename(block.sectionId, block.title)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                            return
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelSectionRename(block.sectionId)
+                          }
+                        }}
+                        className="w-full rounded bg-transparent text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent-400/50"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
+                        onClick={() => setQuickAddSectionId(block.sectionId)}
+                      >
+                        {block.title}
+                      </button>
+                    )
                   }
                   actions={
                     <span className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -565,10 +614,7 @@ export function TaskList() {
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                         title={t('sections.renameTitle')}
-                        onClick={() => {
-                          const n = window.prompt(t('sections.renamePrompt'), block.title)
-                          if (n?.trim() && block.sectionId) renameSectionStore(block.sectionId, n.trim())
-                        }}
+                        onClick={() => beginSectionRename(block.sectionId, block.title)}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -593,8 +639,8 @@ export function TaskList() {
                 />
               ) : (
                 <div
-                  className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors
-                    ${isQuickTarget ? 'bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}`}
+                  className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
+                    ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}`}
                 >
                   <button
                     type="button"
@@ -652,10 +698,10 @@ export function TaskList() {
     </SortableContext>
   ) : showSectionBlocks && sectionBlocks && selectedListId ? (
     sectionBlocks.map((block) => (
-      <div key={block.sectionId ?? 'none'} className="pt-3 first:pt-1">
+      <div key={block.sectionId ?? 'none'} className="relative pt-3 first:pt-1">
         <button
           type="button"
-          className="w-full text-left px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-0.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+          className="relative z-10 w-full text-left px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
           onClick={() => setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)}
         >
           {block.title}
@@ -735,7 +781,10 @@ export function TaskList() {
             {selectedListId && sortMode === 'manual' && (
               <button
                 type="button"
-                onClick={() => addSectionStore(selectedListId)}
+                onClick={() => {
+                  const sectionId = addSectionStore(selectedListId)
+                  beginSectionRename(sectionId, '')
+                }}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-600
                            text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >

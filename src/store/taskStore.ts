@@ -109,14 +109,14 @@ interface TaskState {
   quickAddSectionId: string | null
   setQuickAddSectionId: (id: string | null) => void
 
-  addSection: (listId: string, name?: string) => void
+  addSection: (listId: string, name?: string) => string
   renameSection: (id: string, name: string) => void
   deleteSection: (id: string) => void
   reorderSections: (listId: string, orderedIds: string[]) => void
-  /** 手動ソート: 表示中のルート未完了タスクの順と order を一致させ、任意で 1 件の sectionId を更新 */
+  /** 手動ソート: 表示中のルート未完了タスクの順と order を一致させ、任意で複数ルートの sectionId を更新 */
   reorderManualRootTasks: (
     orderedTaskIds: string[],
-    sectionUpdate?: { taskId: string; sectionId: string | null },
+    sectionUpdate?: { taskIds: string[]; sectionId: string | null },
   ) => void
   /**
    * サブタスクを別のルート親の下へ移動、または同一親内で順序変更。
@@ -221,6 +221,11 @@ interface TaskState {
     taskId: string,
     listId: string,
   ) => { moved: boolean; listName?: string; listId?: string }
+  /** 複数ルートを同一リストへ（相対順維持・末尾に連続 order）。各ルートの子は追随 */
+  moveTasksToList: (
+    rootTaskIds: string[],
+    listId: string,
+  ) => { moved: boolean; listName?: string; listId?: string; count?: number }
 
   moveBannerText: string | null
   showMoveBanner: (text: string) => void
@@ -463,13 +468,15 @@ export const useTaskStore = create<TaskState>()(
       addSection: (listId, name) => {
         const listSections = get().sections.filter((s) => s.listId === listId)
         const maxOrder = listSections.length === 0 ? -1 : Math.max(...listSections.map((s) => s.order))
+        const sectionId = newId()
         pushUndo()
         set((s) => ({
           sections: [
             ...s.sections,
-            { id: newId(), listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1 },
+            { id: sectionId, listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1 },
           ],
         }))
+        return sectionId
       },
       renameSection: (id, name) => {
         pushUndo()
@@ -497,13 +504,17 @@ export const useTaskStore = create<TaskState>()(
 
       reorderManualRootTasks: (orderedTaskIds, sectionUpdate) => {
         const now = new Date().toISOString()
+        const sectionSet =
+          sectionUpdate && sectionUpdate.taskIds.length > 0
+            ? new Set(sectionUpdate.taskIds)
+            : null
         pushUndo()
         set((s) => ({
           tasks: s.tasks.map((t) => {
             const idx = orderedTaskIds.indexOf(t.id)
             if (idx < 0) return t
             let next: Task = { ...t, order: idx, updatedAt: now }
-            if (sectionUpdate && sectionUpdate.taskId === t.id) {
+            if (sectionSet?.has(t.id) && sectionUpdate) {
               next = { ...next, sectionId: sectionUpdate.sectionId }
             }
             return next
@@ -1017,6 +1028,57 @@ export const useTaskStore = create<TaskState>()(
           }
         })
         return { moved: true, listName, listId }
+      },
+
+      moveTasksToList: (rootTaskIds, listId) => {
+        const s = get()
+        const uniqueRoots = [...new Set(rootTaskIds)]
+        const rootsToMove = uniqueRoots.filter((id) => {
+          const t = s.tasks.find((x) => x.id === id)
+          return Boolean(t && t.parentId == null && t.listId !== listId)
+        })
+        if (rootsToMove.length === 0) return { moved: false }
+        const listName = s.lists.find((l) => l.id === listId)?.name ?? i18n.t('lists.unnamedList')
+        const descendantsUnion = new Set<string>()
+        const taskToRoot = new Map<string, string>()
+        for (const rid of rootsToMove) {
+          for (const tid of expandDescendantIds([rid], s.tasks)) {
+            descendantsUnion.add(tid)
+            taskToRoot.set(tid, rid)
+          }
+        }
+        pushUndo()
+        set((state) => {
+          const maxOrder = Math.max(
+            0,
+            ...state.tasks
+              .filter(
+                (t) =>
+                  t.listId === listId &&
+                  t.parentId === null &&
+                  !t.completed &&
+                  !descendantsUnion.has(t.id),
+              )
+              .map((t) => t.order),
+          )
+          const rootOrder = new Map<string, number>()
+          rootsToMove.forEach((rid, i) => {
+            rootOrder.set(rid, maxOrder + 1 + i)
+          })
+          const now = new Date().toISOString()
+          return {
+            tasks: state.tasks.map((t) => {
+              if (!descendantsUnion.has(t.id)) return t
+              const rootId = taskToRoot.get(t.id)
+              if (!rootId) return t
+              const ord = rootOrder.get(rootId)
+              if (t.id === rootId && ord !== undefined)
+                return { ...t, listId, order: ord, sectionId: null, updatedAt: now }
+              return { ...t, listId, sectionId: null, updatedAt: now }
+            }),
+          }
+        })
+        return { moved: true, listName, listId, count: rootsToMove.length }
       },
 
       showMoveBanner: (text) => set({ moveBannerText: text }),
