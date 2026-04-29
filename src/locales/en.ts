@@ -335,7 +335,6 @@ export default {
   calendarDayPanel: {
     plannedTab: 'Planned / To-do',
     noPlanned: 'No planned items or to-dos for this day.',
-    importedEvents: 'Imported events',
     totalLogged: 'Total logged',
     noLogs: 'No logs for this day yet.',
     timeUnset: 'Time not set',

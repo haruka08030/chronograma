@@ -63,13 +63,6 @@ const lastDragClientRef: { current: { x: number; y: number } | null } = { curren
 const NEST_BAND_RATIO = 0.42
 const NEST_LOWER_HALF_RATIO = 0.42
 
-function emitDebugLog(location: string, message: string, data: Record<string, unknown>, hypothesisId: string): void {
-  const runId = `run-${Date.now()}`
-  // #region agent log
-  fetch('http://127.0.0.1:7408/ingest/94ff9d55-ac05-49ec-936a-1e664dd0438d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'363202'},body:JSON.stringify({sessionId:'363202',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{})
-  // #endregion
-}
-
 function isPointerInNestBand(
   clientX: number,
   rect: { left: number; width: number },
@@ -98,9 +91,8 @@ function isPointerInNestIntentForRoot(
   rect: { left: number; width: number; top: number; height: number },
   overHasChildren: boolean,
 ): boolean {
-  if (overHasChildren) return isPointerInNestIntent(pointer, rect)
   const relaxedRight = pointer.x >= rect.left + 80
-  const relaxedLower = isPointerInLowerHalf(pointer.y, rect, 0.32)
+  const relaxedLower = isPointerInLowerHalf(pointer.y, rect, overHasChildren ? 0.38 : 0.32)
   return relaxedRight && relaxedLower
 }
 
@@ -270,12 +262,6 @@ export default function App() {
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDragOverlayTask(null)
     const { active, over, collisions } = event
-    emitDebugLog('App.tsx:257', 'drag end snapshot', {
-      activeId: String(active.id),
-      overId: over ? String(over.id) : null,
-      collisions: collisions?.map((c) => String(c.id)) ?? [],
-      pointer: lastDragClientRef.current,
-    }, 'H1')
     if (!over || active.id === over.id) {
       return
     }
@@ -380,30 +366,13 @@ export default function App() {
         taskId !== overTaskId &&
         canNestUnder(state.tasks, taskId, overTaskId)
       ) {
-        emitDebugLog('App.tsx:363', 'root over subtask nested', {
-          taskId,
-          overTaskId,
-          pointer: ptr,
-        }, 'H4')
         state.nestRootUnderParent(taskId, overTaskId, null)
         return
       }
       const fallbackParentId = overTask.parentId
       if (!fallbackParentId || !canNestUnder(state.tasks, taskId, fallbackParentId)) {
-        emitDebugLog('App.tsx:372', 'root over subtask fallback rejected', {
-          taskId,
-          overTaskId,
-          fallbackParentId,
-          pointer: ptr,
-        }, 'H4')
         return
       }
-      emitDebugLog('App.tsx:380', 'root over subtask fallback parent insert', {
-        taskId,
-        overTaskId,
-        fallbackParentId,
-        pointer: ptr,
-      }, 'H4')
       state.nestRootUnderParent(taskId, fallbackParentId, overTaskId)
     } else if (
       activeId.startsWith(TASK_PREFIX) &&
@@ -427,17 +396,6 @@ export default function App() {
         const ptr = lastDragClientRef.current
         const intent = ptr ? isPointerInNestIntentForRoot(ptr, over.rect, overHasChildren) : false
         const canNest = canNestUnder(state.tasks, taskId, overTaskId)
-        emitDebugLog('App.tsx:409', 'root over root nest decision', {
-          taskId,
-          overTaskId,
-          overHasChildren,
-          movedParentId: moved?.parentId ?? null,
-          pointer: ptr,
-          intent,
-          canNest,
-          groupSize: group.length,
-          overRect: over.rect,
-        }, 'H2')
         if (
           moved?.parentId == null &&
           ptr &&
@@ -445,7 +403,6 @@ export default function App() {
           taskId !== overTaskId &&
           canNest
         ) {
-          emitDebugLog('App.tsx:428', 'root over root nested', { taskId, overTaskId }, 'H3')
           state.nestRootUnderParent(taskId, overTaskId, null)
           return
         }
@@ -468,11 +425,6 @@ export default function App() {
         state.sections,
         state.selectedListId,
       )
-      emitDebugLog('App.tsx:451', 'root reorder fallback path', {
-        taskId,
-        overId,
-        built: Boolean(built),
-      }, 'H1')
       if (built) {
         state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
       }

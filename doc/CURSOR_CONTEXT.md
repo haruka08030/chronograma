@@ -41,13 +41,15 @@
 | ランタイム | Flutter（Dart 3.11+）、iOS / Android ターゲット                      |
 | 状態     | `flutter_riverpod`                                                   |
 | ルーティング | `go_router`（`StatefulShellRoute.indexedStack` で Bottom Tabs）        |
-| 永続化   | `hive` + `hive_flutter`（タスク JSON、`hasEverPersisted` で初回シード制御） |
+| 永続化   | `hive` + `hive_flutter`（タスク JSON） |
+| Supabase | `supabase_flutter`；URL/anon は `--dart-define` または `mobile/assets/supabase.env`（`VITE_*` 互換可） |
 | タイポ   | `google_fonts`（Inter）                                              |
 
-- **Phase 1**: To‑Do（すべて/今日/近日中/期限切れ、**画面上部固定の検索欄**（Web の To‑Do 面に近い）、完了、削除＋確認＋Undo SnackBar、クイック追加・詳細シート）、ガラス風ナビ・**円形**グラデーション FAB、同期 UI モックは **More** から（失敗時は再試行）
-- **Phase 2 スタブ**: Calendar / Habits / Log / More（外観・同期 UI のみ）
+- **Phase 1**: To‑Do（すべて/今日/近日中/期限切れ、**画面上部固定の検索欄**（Web の To‑Do 面に近い）、完了、削除＋確認＋Undo SnackBar、クイック追加・詳細シート）、ガラス風ナビ・**円形**グラデーション FAB、**More** から Supabase ログインとタスク同期（pull / debounce push）
+- **Log（第2段）**: `tasks.is_time_log` 相当の `Task.isTimeLog`＋`dueDate`（日）＋`startTime`/`endTime`（`HH:mm`）＋`description`。Log タブで日付ナビ・一覧・FAB/シートで追加編集削除に加え、タイマー開始/停止でログ行を生成。To‑Do 一覧からタイムログ行は除外。同期は `is_time_log` / `start_time` / `end_time` / `description` を含む
+- **Calendar/Habits（第2段）**: Calendar は Month/Week 切替（週列で日別ログ件数と時刻付きログプレビュー）、日別の予定/ログ一覧。Habits は独立モデル（`habits_json_v1`）で作成・編集・削除・日別達成トグル、Supabase `habits` テーブル（`completed_dates`）と同期。More は外観・同期・テーマ
 
-エントリ: `mobile/lib/main.dart`（`Hive.initFlutter` → `ProviderScope` で `hiveBoxProvider` を override → `ChronogramaApp`）。詳細は `mobile/README.md`。
+エントリ: `mobile/lib/main.dart`（`SupabaseEnv.load` → 設定時 `Supabase.initialize` → `Hive.initFlutter` → `ProviderScope` で `hiveBoxProvider` を override → `ChronogramaApp`）。詳細は `mobile/README.md`。
 
 ## エントリ
 

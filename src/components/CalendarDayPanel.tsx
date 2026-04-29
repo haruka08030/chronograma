@@ -120,7 +120,6 @@ export function CalendarDayPanel({
                 <>
                   {externalEvents.length > 0 && (
                     <div className="mb-2 space-y-1.5 px-2">
-                      <div className="text-[10px] font-medium uppercase tracking-wide text-blue-500 dark:text-blue-400">{t('calendarDayPanel.importedEvents')}</div>
                       {externalEvents.map((event) => (
                         <div
                           key={event.id}
