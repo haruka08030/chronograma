@@ -336,7 +336,6 @@ export default {
   calendarDayPanel: {
     plannedTab: '予定 / ToDo',
     noPlanned: 'この日の予定ToDoはまだありません',
-    importedEvents: '取り込み予定',
     totalLogged: '合計記録',
     noLogs: 'この日のログはまだありません',
     timeUnset: '時刻未設定',

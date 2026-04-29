@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } fr
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
+import type { Locale } from 'date-fns'
+import { isToday, isPast, format, parseISO } from 'date-fns'
+import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
@@ -11,6 +14,13 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
   medium: 'text-amber-500',
   low: 'text-blue-500',
+}
+
+function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; overdue: boolean } {
+  const d = parseISO(iso)
+  if (isToday(d)) return { text: todayLabel, overdue: false }
+  const overdue = isPast(d) && !isToday(d)
+  return { text: format(d, 'M/d (E)', { locale }), overdue }
 }
 
 export type TaskItemSelection = {
@@ -38,7 +48,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   /** true のとき初回レンダーでタイトル編集へ入る */
   autoEdit?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const { toggleTask, updateTask, deleteTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
@@ -82,6 +92,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const timeLog = isListedTimeLog(task)
   const showRowExtras = !task.completed && !timeLog
   const priorityColor = PRIORITY_COLORS[task.priority]
+  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -238,6 +250,11 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         )}
 
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
+          {due && (!task.completed || timeLog) && (
+            <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
+              {due.text}
+            </span>
+          )}
           {task.recurrence && (
             <svg className="w-3 h-3 text-zinc-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
