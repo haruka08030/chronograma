@@ -601,25 +601,26 @@ export function TaskList() {
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
       {showSectionBlocks && sectionBlocks && selectedListId ? (
         sectionBlocks.map((block) => {
+          const sectionId = block.sectionId
           const isQuickTarget =
-            (block.sectionId === null && quickAddSectionId === '') ||
-            (block.sectionId !== null && quickAddSectionId === block.sectionId)
+            (sectionId === null && quickAddSectionId === '') ||
+            (sectionId !== null && quickAddSectionId === sectionId)
           return (
-            <div key={block.sectionId ?? 'none'} className="relative pt-3 first:pt-1">
-              {block.sectionId !== null && selectedListId ? (
+            <div key={sectionId ?? 'none'} className="relative pt-3 first:pt-1">
+              {sectionId !== null && selectedListId ? (
                 <SectionHeaderDnD
                   listId={selectedListId}
-                  sectionId={block.sectionId}
+                  sectionId={sectionId}
                   isQuickTarget={isQuickTarget}
                   titleButton={
-                    editingSectionId === block.sectionId ? (
+                    editingSectionId === sectionId ? (
                       <input
                         autoFocus
                         value={editingSectionName}
                         placeholder={t('sections.defaultName')}
                         onChange={(e) => setEditingSectionName(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        onBlur={() => finishSectionRename(block.sectionId!, block.title)}
+                        onBlur={() => finishSectionRename(sectionId, block.title)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault()
@@ -628,7 +629,7 @@ export function TaskList() {
                           }
                           if (e.key === 'Escape') {
                             e.preventDefault()
-                            cancelSectionRename(block.sectionId!)
+                            cancelSectionRename(sectionId)
                           }
                         }}
                         className="w-full rounded bg-transparent text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent-400/50"
@@ -637,7 +638,7 @@ export function TaskList() {
                       <button
                         type="button"
                         className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                        onClick={() => setQuickAddSectionId(block.sectionId)}
+                        onClick={() => setQuickAddSectionId(sectionId)}
                       >
                         {block.title}
                       </button>
@@ -649,7 +650,7 @@ export function TaskList() {
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                         title={t('sections.renameTitle')}
-                        onClick={() => beginSectionRename(block.sectionId!, block.title)}
+                        onClick={() => beginSectionRename(sectionId, block.title)}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -661,7 +662,7 @@ export function TaskList() {
                         title={t('common.delete')}
                         onClick={() => {
                           if (window.confirm(t('sections.deleteConfirm'))) {
-                            deleteSectionStore(block.sectionId!)
+                            deleteSectionStore(sectionId)
                           }
                         }}
                       >
