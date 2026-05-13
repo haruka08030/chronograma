@@ -16,7 +16,7 @@
 
 同梱の **Flutter** アプリ（`mobile/`）では、スマホ向けに To‑Do 中心の画面を段階的に用意しています。
 
-実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。
+実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。優先して直したい作業候補の一覧は [`doc/NEXT_TASKS.md`](doc/NEXT_TASKS.md) です。
 
 ## ローカルで動かす（Web）
 
@@ -41,7 +41,8 @@ npm run dev
    - `002_habits.sql` — 習慣
    - `003_list_sections.sql` — リスト内セクションと `tasks.section_id`
    - `004_habit_time_mode.sql` — 習慣の時間モード列（クラウド同期で習慣を使う場合に必要）
-   - `005_tasks_pinned.sql` — タスクの `pinned` 列（ピン留め・Supabase 同期用）
+   - `005_drop_tasks_pinned.sql` — 旧ピン機能の `tasks.pinned` 列を削除（無ければノーオペ）
+   - `006_tasks_end_date.sql` — タスクの `end_date` 列（タイムログの終了日・複数日）
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
