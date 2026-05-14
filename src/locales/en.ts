@@ -303,7 +303,6 @@ export default {
     addTaskPlaceholder: 'Add task',
     thisMonth: 'This month',
     weekdayInitials: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    completedOnDayTitle: '{{count}} to-do(s) completed on this day',
   },
   calendarHub: {
     calendarTabsAria: 'Calendar view',

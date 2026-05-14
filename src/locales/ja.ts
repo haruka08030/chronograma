@@ -304,7 +304,6 @@ export default {
     addTaskPlaceholder: 'タスク追加',
     thisMonth: '今月',
     weekdayInitials: ['月', '火', '水', '木', '金', '土', '日'],
-    completedOnDayTitle: '{{count}} 件の ToDo をこの日に完了',
   },
   calendarHub: {
     calendarTabsAria: 'カレンダー表示',

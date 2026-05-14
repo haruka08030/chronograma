@@ -35,7 +35,6 @@ export function CalendarTaskDock() {
   )
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
-  const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
@@ -57,20 +56,12 @@ export function CalendarTaskDock() {
           </select>
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {active.length === 0 && completedTodos.length === 0 && (
+          {active.length === 0 && (
             <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDock.empty')}</p>
           )}
           {active.map((t) => (
-            <TaskItem key={t.id} task={t} onRowClick={() => openDetail(t.id)} />
+            <TaskItem key={t.id} task={t} hideDueDatePicker onRowClick={() => openDetail(t.id)} />
           ))}
-          {completedTodos.length > 0 && (
-            <div className="pt-2">
-              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">{t('calendarDock.done')}</div>
-              {completedTodos.map((t) => (
-                <TaskItem key={t.id} task={t} onRowClick={() => openDetail(t.id)} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
