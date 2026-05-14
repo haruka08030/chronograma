@@ -517,19 +517,35 @@ export function HabitsView() {
                 const key = habitDateKey(d)
                 const isColToday = key === todayKey
                 const isColFocus = key === selectedCalendarDateKey
+                const colBand =
+                  isColFocus ? 'bg-accent-500/10 dark:bg-accent-400/10' : ''
+                const labelTone = isColFocus
+                  ? 'text-accent-700 dark:text-accent-200 font-semibold'
+                  : isColToday
+                    ? 'text-accent-600/90 dark:text-accent-400/90'
+                    : 'text-zinc-400 dark:text-zinc-500'
+                const headerDateShort = format(d, i18n.resolvedLanguage?.startsWith('ja') ? 'M/d' : 'MMM d', {
+                  locale: dateLocale,
+                })
                 return (
-                  <div
+                  <button
                     key={key}
-                    className={`text-center text-[10px] font-medium ${
-                      isColFocus
-                        ? 'text-accent-600 dark:text-accent-300'
-                        : isColToday
-                          ? 'text-accent-600/90 dark:text-accent-400/90'
-                          : 'text-zinc-400 dark:text-zinc-500'
-                    }`}
+                    type="button"
+                    onClick={() => setSelectedCalendarDateKey(key)}
+                    aria-label={t('habits.focusColumnAria', { date: headerDateShort })}
+                    aria-current={isColFocus ? 'date' : undefined}
+                    className={`w-full rounded-md py-1.5 text-center text-[10px] font-medium transition-colors hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 ${colBand} ${labelTone}`}
                   >
-                    {habitWeekdayLabels[i]}
-                  </div>
+                    <span
+                      className={
+                        isColFocus
+                          ? 'inline-block rounded-full bg-accent-500/15 px-1.5 py-0.5 dark:bg-accent-400/15'
+                          : undefined
+                      }
+                    >
+                      {habitWeekdayLabels[i]}
+                    </span>
+                  </button>
                 )
               })}
             </div>
@@ -728,6 +744,11 @@ export function HabitsView() {
                     const isCellFocus = key === selectedCalendarDateKey
                     const isScheduled = isHabitScheduledOnDate(h, d)
                     const isDone = completedSet.has(key)
+                    const ringClass = isCellToday
+                      ? 'ring-2 ring-accent-400 dark:ring-accent-500/70'
+                      : isCellFocus
+                        ? 'ring-2 ring-accent-500/50 ring-offset-2 ring-offset-white dark:ring-accent-400/55 dark:ring-offset-zinc-900'
+                        : ''
                     return (
                       <button
                         key={key}
@@ -747,9 +768,7 @@ export function HabitsView() {
                               : isScheduled
                                 ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                                 : 'bg-zinc-200/70 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-700'
-                          } ${isCellToday ? 'ring-2 ring-accent-300 dark:ring-accent-500/60' : ''} ${
-                            !isCellToday && isCellFocus ? 'ring-1 ring-accent-400/70 dark:ring-accent-500/50' : ''
-                          }`}
+                          } ${ringClass}`}
                           title={key}
                         >
                           {isDone ? '✓' : ''}
