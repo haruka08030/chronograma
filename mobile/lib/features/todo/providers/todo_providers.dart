@@ -6,9 +6,12 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import 'search_provider.dart';
+import '../data/task_lists_repository.dart';
 import '../data/todo_repository.dart';
+import '../models/list_section_meta.dart';
 import '../models/smart_view.dart';
 import '../models/task.dart';
+import '../models/task_list_meta.dart';
 import '../models/task_priority.dart';
 
 final hiveBoxProvider = Provider<Box<dynamic>>((ref) {
@@ -20,6 +23,60 @@ final todoRepositoryProvider = Provider<TodoRepository>((ref) {
   return TodoRepository(box);
 });
 
+final taskListsRepositoryProvider = Provider<TaskListsRepository>((ref) {
+  final box = ref.watch(hiveBoxProvider);
+  return TaskListsRepository(box);
+});
+
+/// 未選択時は全リストのタスクを表示。選択時は [Task.listId] で絞り込み。
+final selectedTaskListIdProvider = StateProvider<String?>((ref) => null);
+
+final taskListsProvider =
+    NotifierProvider<TaskListsNotifier, List<TaskListMeta>>(TaskListsNotifier.new);
+
+class TaskListsNotifier extends Notifier<List<TaskListMeta>> {
+  TaskListsRepository get _repo => ref.read(taskListsRepositoryProvider);
+
+  @override
+  List<TaskListMeta> build() {
+    if (!_repo.hasEverPersistedLists) {
+      _repo.saveLists(const []);
+      return const [];
+    }
+    return List<TaskListMeta>.from(_repo.readLists());
+  }
+
+  void _persist() {
+    _repo.saveLists(state);
+  }
+
+  void replaceAll(List<TaskListMeta> lists) {
+    state = List<TaskListMeta>.from(lists);
+    _persist();
+  }
+}
+
+final listSectionsProvider =
+    NotifierProvider<ListSectionsNotifier, List<ListSectionMeta>>(ListSectionsNotifier.new);
+
+class ListSectionsNotifier extends Notifier<List<ListSectionMeta>> {
+  TaskListsRepository get _repo => ref.read(taskListsRepositoryProvider);
+
+  @override
+  List<ListSectionMeta> build() {
+    return List<ListSectionMeta>.from(_repo.readSections());
+  }
+
+  void _persist() {
+    _repo.saveSections(state);
+  }
+
+  void replaceAll(List<ListSectionMeta> sections) {
+    state = List<ListSectionMeta>.from(sections);
+    _persist();
+  }
+}
+
 final smartViewProvider =
     StateProvider<SmartView>((ref) => SmartView.today);
 
@@ -28,9 +85,13 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
       .watch(todoListProvider)
       .where((t) => !t.isTimeLog)
       .toList();
+  final listId = ref.watch(selectedTaskListIdProvider);
   final view = ref.watch(smartViewProvider);
   final q = ref.watch(searchQueryProvider).trim().toLowerCase();
   var list = filterForSmartView(all, view);
+  if (listId != null) {
+    list = list.where((t) => t.listId == listId).toList();
+  }
   if (q.isNotEmpty) {
     list = list
         .where((t) {
@@ -86,12 +147,14 @@ class TodoListNotifier extends Notifier<List<Task>> {
     DateTime? dueDate,
     TaskPriority priority = TaskPriority.medium,
   }) {
+    final listId = ref.read(selectedTaskListIdProvider) ?? Task.inboxListId;
     final t = newLocalTask(
       id: _uuid.v4(),
       title: title.trim(),
       dueDate: dueDate,
       priority: priority,
       isTimeLog: false,
+      listId: listId,
     );
     addTask(t);
   }

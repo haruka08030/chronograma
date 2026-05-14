@@ -63,7 +63,9 @@ class TodoScreen extends ConsumerWidget {
                     onChanged: (v) =>
                         ref.read(smartViewProvider.notifier).state = v,
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.md),
+                  _TaskListFilterChips(),
+                  const SizedBox(height: AppSpacing.lg),
                   if (tasks.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 48),
@@ -133,6 +135,43 @@ class TodoScreen extends ConsumerWidget {
     final d = DateTime.now();
     const w = ['月', '火', '水', '木', '金', '土', '日'];
     return '${d.year}年${d.month}月${d.day}日（${w[d.weekday - 1]}）';
+  }
+}
+
+class _TaskListFilterChips extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lists = ref.watch(taskListsProvider);
+    if (lists.isEmpty) return const SizedBox.shrink();
+    final selected = ref.watch(selectedTaskListIdProvider);
+    final sorted = [...lists]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('すべて'),
+            selected: selected == null,
+            onSelected: (_) {
+              ref.read(selectedTaskListIdProvider.notifier).state = null;
+            },
+          ),
+          ...sorted.map(
+            (l) => Padding(
+              padding: const EdgeInsets.only(left: AppSpacing.sm),
+              child: FilterChip(
+                label: Text(l.name),
+                selected: selected == l.id,
+                onSelected: (_) {
+                  ref.read(selectedTaskListIdProvider.notifier).state = l.id;
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

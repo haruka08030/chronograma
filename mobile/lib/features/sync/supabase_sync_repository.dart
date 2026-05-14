@@ -1,12 +1,46 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../habits/models/habit.dart';
+import '../todo/models/list_section_meta.dart';
 import '../todo/models/task.dart';
+import '../todo/models/task_list_meta.dart';
 
 class SupabaseSyncRepository {
   SupabaseSyncRepository(this._client);
 
   final SupabaseClient _client;
+
+  /// タスクが参照する `list_id` について、メタが無い ID にはスタブ行を足して FK 違反を防ぐ。
+  static List<TaskListMeta> mergeListsForPush({
+    required List<TaskListMeta> stored,
+    required List<Task> tasks,
+  }) {
+    final map = <String, TaskListMeta>{for (final l in stored) l.id: l};
+    for (final t in tasks) {
+      final lid = t.listId.isNotEmpty ? t.listId : Task.inboxListId;
+      map.putIfAbsent(
+        lid,
+        () => TaskListMeta(
+          id: lid,
+          name: lid == Task.inboxListId ? '未分類' : 'リスト',
+          color: lid == Task.inboxListId ? '#6366f1' : '#64748b',
+          sortOrder: lid == Task.inboxListId ? 0 : 999,
+        ),
+      );
+    }
+    map.putIfAbsent(
+      Task.inboxListId,
+      () => const TaskListMeta(
+        id: Task.inboxListId,
+        name: '未分類',
+        color: '#6366f1',
+        sortOrder: 0,
+      ),
+    );
+    final out = map.values.toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return out;
+  }
 
   User? get currentUser => _client.auth.currentUser;
 
@@ -47,6 +81,88 @@ class SupabaseSyncRepository {
     await _client.auth.signOut();
   }
 
+  Future<List<TaskListMeta>> fetchLists(String userId) async {
+    try {
+      final rows = await _client
+          .from('lists')
+          .select('id,name,color,sort_order')
+          .eq('user_id', userId);
+      return (rows as List<dynamic>)
+          .map((row) => TaskListMeta.fromJson(Map<String, dynamic>.from(row as Map)))
+          .toList();
+    } on PostgrestException {
+      rethrow;
+    }
+  }
+
+  /// `list_sections` 未マイグレーション環境では空リストを返す。
+  Future<List<ListSectionMeta>> fetchListSections(String userId) async {
+    try {
+      final rows = await _client
+          .from('list_sections')
+          .select('id,list_id,name,sort_order')
+          .eq('user_id', userId);
+      return (rows as List<dynamic>)
+          .map((row) => ListSectionMeta.fromJson(Map<String, dynamic>.from(row as Map)))
+          .toList();
+    } on PostgrestException {
+      return const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// リモートの余分なリストは削除しない（upsert のみ）。
+  Future<String?> pushListsUpsert(String userId, List<TaskListMeta> lists) async {
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final rows = lists
+          .map(
+            (l) => {
+              'id': l.id,
+              'user_id': userId,
+              'name': l.name,
+              'color': l.color,
+              'sort_order': l.sortOrder,
+              'updated_at': nowIso,
+            },
+          )
+          .toList();
+      if (rows.isEmpty) return null;
+      await _client.from('lists').upsert(rows, onConflict: 'id');
+      return null;
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> pushListSectionsUpsert(String userId, List<ListSectionMeta> sections) async {
+    if (sections.isEmpty) return null;
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final rows = sections
+          .map(
+            (s) => {
+              'id': s.id,
+              'user_id': userId,
+              'list_id': s.listId,
+              'name': s.name,
+              'sort_order': s.sortOrder,
+              'updated_at': nowIso,
+            },
+          )
+          .toList();
+      await _client.from('list_sections').upsert(rows, onConflict: 'id');
+      return null;
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<List<Task>> fetchTasks(String userId) async {
     try {
       final rows = await _client
@@ -84,9 +200,6 @@ class SupabaseSyncRepository {
 
   Future<String?> pushTasks(String userId, List<Task> tasks) async {
     try {
-      final listErr = await _ensureInboxList(userId);
-      if (listErr != null) return listErr;
-
       final nowIso = DateTime.now().toUtc().toIso8601String();
       final taskRows = tasks.map((t) => _taskToRow(userId, t, nowIso)).toList();
       await _client.from('tasks').upsert(taskRows, onConflict: 'id');
@@ -123,24 +236,6 @@ class SupabaseSyncRepository {
       if (staleIds.isNotEmpty) {
         await _client.from('habits').delete().inFilter('id', staleIds);
       }
-      return null;
-    } on PostgrestException catch (e) {
-      return e.message;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  Future<String?> _ensureInboxList(String userId) async {
-    try {
-      await _client.from('lists').upsert({
-        'id': Task.inboxListId,
-        'user_id': userId,
-        'name': '未分類',
-        'color': '#6366f1',
-        'sort_order': 0,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'id');
       return null;
     } on PostgrestException catch (e) {
       return e.message;
