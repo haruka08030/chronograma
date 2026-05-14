@@ -304,6 +304,7 @@ export default {
     addTaskPlaceholder: 'タスク追加',
     thisMonth: '今月',
     weekdayInitials: ['月', '火', '水', '木', '金', '土', '日'],
+    completedOnDayTitle: '{{count}} 件の ToDo をこの日に完了',
   },
   calendarHub: {
     calendarTabsAria: 'カレンダー表示',
@@ -322,7 +323,6 @@ export default {
   calendarDock: {
     listHeading: 'リスト',
     empty: 'タスクがありません',
-    done: '完了',
   },
   weekCalendar: {
     taskNamePlaceholder: 'タスク名',
@@ -334,7 +334,9 @@ export default {
   },
   calendarDayPanel: {
     plannedTab: '予定 / ToDo',
-    noPlanned: 'この日の予定ToDoはまだありません',
+    noPlanned: 'この日の予定ToDo・この日に完了したタスク・予定はまだありません',
+    executedSection: '実行済み（{{count}}）',
+    noExecuted: 'この日に完了した ToDo はありません',
     totalLogged: '合計記録',
     noLogs: 'この日のログはまだありません',
     timeUnset: '時刻未設定',

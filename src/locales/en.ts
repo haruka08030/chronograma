@@ -303,6 +303,7 @@ export default {
     addTaskPlaceholder: 'Add task',
     thisMonth: 'This month',
     weekdayInitials: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    completedOnDayTitle: '{{count}} to-do(s) completed on this day',
   },
   calendarHub: {
     calendarTabsAria: 'Calendar view',
@@ -321,7 +322,6 @@ export default {
   calendarDock: {
     listHeading: 'Lists',
     empty: 'No tasks',
-    done: 'Done',
   },
   weekCalendar: {
     taskNamePlaceholder: 'Task title',
@@ -333,7 +333,9 @@ export default {
   },
   calendarDayPanel: {
     plannedTab: 'Planned / To-do',
-    noPlanned: 'No planned items or to-dos for this day.',
+    noPlanned: 'No planned to-dos, tasks completed this day, or calendar events.',
+    executedSection: 'Completed ({{count}})',
+    noExecuted: 'No to-dos were completed on this day.',
     totalLogged: 'Total logged',
     noLogs: 'No logs for this day yet.',
     timeUnset: 'Time not set',
