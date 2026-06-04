@@ -171,7 +171,6 @@ export default {
     timeLogTagPresetsHelp:
       '1行に1つ、よく使うタグ名を書きます。ログ画面や予定 vs ログのタイマーでワンタップ選択でき、タイムライン上の色の優先順にも使われます。',
     timeLogTagPresetsPlaceholder: '例:\n睡眠\n授業\n課題',
-    todayIncludeOverdue: '「今日」スマートリストに期限切れも含める',
   },
   palettes: {
     'pastel-rainbow': {
