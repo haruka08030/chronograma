@@ -10,32 +10,65 @@ import {
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, durationMinutesForTaskId } from '../lib/timeGrid'
+import {
+  HOUR_HEIGHT,
+  HOURS,
+  timeToY,
+  formatTimeLabel,
+} from '../lib/timeGrid'
+import {
+  durationMinutesForTaskId,
+  logOverlapsDateKey,
+  patchAfterTimelineMove,
+  timeLogSegmentLayoutForDay,
+} from '../lib/taskTimeRange'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
   fetchCalendarEvents,
   initGoogleAuth,
   isGoogleAvailable,
-  signIn,
   signInSilent,
 } from '../lib/googleCalendar'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import type { Task } from '../types/task'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-function TimeBlock({ task, onPointerDown, onOpenDetail, isLog, isExternal }: {
-  task: { id: string; title: string; startTime: string; endTime: string; completed: boolean }
+/** 週タイムラインのブロック用（列上では開始・終了時刻が必須。Google 等の外部ブロックは最小形） */
+type TimeBlockTask = {
+  id: string
+  title: string
+  startTime: string
+  endTime: string
+  completed: boolean
+  dueDate?: string | null
+  endDate?: string | null
+  isTimeLog?: boolean
+  parentId?: string | null
+}
+
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal }: {
+  task: TimeBlockTask
+  /** 週グリッド上の列の日付（ログのセグメント表示用） */
+  dayKey?: string
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
   isLog?: boolean
   isExternal?: boolean
 }) {
   const { t } = useTranslation()
-  const top = timeToY(task.startTime)
-  const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
+  const top =
+    isLog && dayKey
+      ? (timeLogSegmentLayoutForDay(task as Task, dayKey)?.top ?? timeToY(task.startTime))
+      : timeToY(task.startTime)
+  const height =
+    isLog && dayKey
+      ? (timeLogSegmentLayoutForDay(task as Task, dayKey)?.height ??
+        Math.max(timeToY(task.endTime) - timeToY(task.startTime), HOUR_HEIGHT / 4))
+      : Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
     const cursor = getResizeCursor(e)
@@ -109,8 +142,13 @@ function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?:
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') submit()
-            if (e.key === 'Escape') onDone()
+            if (e.key === 'Escape') {
+              onDone()
+              return
+            }
+            const isSubmitEnter =
+              (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing
+            if (isSubmitEnter) submit()
           }}
           onBlur={submit}
           placeholder={t('weekCalendar.taskNamePlaceholder')}
@@ -139,6 +177,7 @@ export function WeekCalendarView({
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
+  const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
@@ -160,9 +199,13 @@ export function WeekCalendarView({
       if (!t.dueDate || t.parentId) continue
       if (t.startTime && t.endTime) {
         if (t.isTimeLog) {
-          const arr = logs.get(t.dueDate) ?? []
-          arr.push(t)
-          logs.set(t.dueDate, arr)
+          for (const day of days) {
+            const dk = format(day, 'yyyy-MM-dd')
+            if (!logOverlapsDateKey(t, dk)) continue
+            const arr = logs.get(dk) ?? []
+            arr.push(t)
+            logs.set(dk, arr)
+          }
         } else {
           const arr = timed.get(t.dueDate) ?? []
           arr.push(t)
@@ -175,7 +218,7 @@ export function WeekCalendarView({
       }
     }
     return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
-  }, [tasks])
+  }, [tasks, days])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()
@@ -202,7 +245,11 @@ export function WeekCalendarView({
           try {
             token = await signInSilent()
           } catch {
-            token = await signIn()
+            if (!cancelled) {
+              setGoogleConnected(false)
+              setCalendarEvents([])
+            }
+            return
           }
           if (!cancelled) setGoogleAccessToken(token)
         }
@@ -219,7 +266,7 @@ export function WeekCalendarView({
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -254,7 +301,11 @@ export function WeekCalendarView({
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
-    onMoveDone: (taskId, dateKey, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onMoveDone: (taskId, dateKey, startTime, endTime) => {
+      const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
+      if (!prev) return
+      updateTask(taskId, patchAfterTimelineMove(prev, dateKey, startTime, endTime))
+    },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
     onBlockTap: useCallback((taskId: string) => {
       openDetail(taskId)
@@ -425,18 +476,33 @@ export function WeekCalendarView({
                     {dayTimed.map((t) => (
                       <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                         <TimeBlock
-                          task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
-                          onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
+                          task={t as TimeBlockTask}
+                          onPointerDown={(e) =>
+                            timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+                              startTime: t.startTime!,
+                              endTime: t.endTime!,
+                              isTimeLog: false,
+                            })
+                          }
                           onOpenDetail={() => openDetail(t.id)}
                         />
                       </div>
                     ))}
                     {dayLogs.map((t) => (
-                      <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
+                      <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                         <TimeBlock
-                          task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime!, completed: t.completed }}
+                          task={t as TimeBlockTask}
+                          dayKey={key}
                           isLog
-                          onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
+                          onPointerDown={(e) =>
+                            timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+                                startTime: t.startTime!,
+                                endTime: t.endTime!,
+                                isTimeLog: true,
+                                dueDate: t.dueDate,
+                                endDate: t.endDate,
+                              })
+                          }
                           onOpenDetail={() => openDetail(t.id)}
                         />
                       </div>

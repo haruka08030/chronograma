@@ -18,7 +18,6 @@ import {
   fetchCalendarEvents,
   initGoogleAuth,
   isGoogleAvailable,
-  signIn,
   signInSilent,
 } from '../lib/googleCalendar'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -43,8 +42,13 @@ function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') submit()
-        if (e.key === 'Escape') onDone()
+        if (e.key === 'Escape') {
+          onDone()
+          return
+        }
+        const isSubmitEnter =
+          (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing
+        if (isSubmitEnter) submit()
       }}
       onBlur={submit}
       placeholder={t('calendar.addTaskPlaceholder')}
@@ -69,6 +73,7 @@ export function CalendarView({
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
+  const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
@@ -109,7 +114,11 @@ export function CalendarView({
           try {
             token = await signInSilent()
           } catch {
-            token = await signIn()
+            if (!cancelled) {
+              setGoogleConnected(false)
+              setCalendarEvents([])
+            }
+            return
           }
           if (!cancelled) setGoogleAccessToken(token)
         }
@@ -128,7 +137,7 @@ export function CalendarView({
 
     doFetch()
     return () => { cancelled = true }
-  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleAccessToken])
+  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()

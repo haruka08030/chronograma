@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
+import { dragBlockDurationMinutes } from './taskTimeRange'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -21,6 +22,8 @@ export interface MoveDrag {
   dateKey: string
   offsetY: number
   currentY: number
+  /** 移動後も維持するブロック長（分）。省略時は壁時計の差（下限 SNAP） */
+  blockDurationMinutes: number
 }
 
 export interface ResizeDrag {
@@ -94,6 +97,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     startTime: string,
     endTime: string,
     gridEl: HTMLElement | null,
+    blockDurationSource?: {
+      startTime: string
+      endTime: string
+      isTimeLog?: boolean
+      dueDate?: string | null
+      endDate?: string | null
+    },
   ) => {
     if (popup) return
     const blockEl = e.currentTarget as HTMLElement
@@ -115,7 +125,20 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     } else {
       const offsetY = e.clientY - rect.top
       const y = getRelativeY(e.clientY, dateKey)
-      setDrag({ kind: 'move', taskId, origDateKey: dateKey, origStartTime: startTime, origEndTime: endTime, dateKey, offsetY, currentY: y })
+      const blockDurationMinutes = blockDurationSource
+        ? dragBlockDurationMinutes(blockDurationSource)
+        : dragBlockDurationMinutes({ startTime, endTime })
+      setDrag({
+        kind: 'move',
+        taskId,
+        origDateKey: dateKey,
+        origStartTime: startTime,
+        origEndTime: endTime,
+        dateKey,
+        offsetY,
+        currentY: y,
+        blockDurationMinutes,
+      })
     }
   }, [getRelativeY, popup])
 
@@ -152,12 +175,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
-        const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+        const durationMin = drag.blockDurationMinutes
         const newStartY = drag.currentY - drag.offsetY
         const newStart = yToTime(Math.max(0, newStartY))
         const newStartMin = timeToMinutes(newStart)
-        const newEndMin = Math.min(newStartMin + durationMin, 24 * 60)
-        onMoveDone(drag.taskId, drag.dateKey, newStart, minutesToTime(newEndMin))
+        const M = 24 * 60
+        const endWallMin = (newStartMin + durationMin) % M
+        onMoveDone(drag.taskId, drag.dateKey, newStart, minutesToTime(endWallMin))
       } else {
         onBlockTap?.(drag.taskId)
       }
@@ -194,12 +218,22 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     } else if (drag.kind === 'move') {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current) return null
-      const durationMin = timeToMinutes(drag.origEndTime) - timeToMinutes(drag.origStartTime)
+      const durationMin = drag.blockDurationMinutes
       const newTop = Math.max(0, drag.currentY - drag.offsetY)
-      const height = (durationMin / 60) * HOUR_HEIGHT
       const newStart = yToTime(newTop)
-      const newEndMin = Math.min(timeToMinutes(newStart) + durationMin, 24 * 60)
-      return { kind: 'move', dateKey: drag.dateKey, taskId: drag.taskId, top: newTop, height, label: `${newStart} – ${minutesToTime(newEndMin)}` }
+      const newStartMin = timeToMinutes(newStart)
+      const M = 24 * 60
+      const endWallMin = (newStartMin + durationMin) % M
+      const visibleMin = Math.min(durationMin, M - newStartMin)
+      const height = Math.max((visibleMin / 60) * HOUR_HEIGHT, HOUR_HEIGHT / 4)
+      return {
+        kind: 'move',
+        dateKey: drag.dateKey,
+        taskId: drag.taskId,
+        top: newTop,
+        height,
+        label: `${newStart} – ${minutesToTime(endWallMin)}`,
+      }
     } else {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current) return null

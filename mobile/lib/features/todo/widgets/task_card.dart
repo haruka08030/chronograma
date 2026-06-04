@@ -28,6 +28,8 @@ class TaskCard extends StatelessWidget {
         return cs.secondary;
       case TaskPriority.low:
         return cs.tertiary;
+      case TaskPriority.none:
+        return cs.outline;
     }
   }
 

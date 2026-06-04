@@ -14,7 +14,21 @@ import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
 import { TimeLogTagField } from './TimeLogTagField'
-import { HOUR_HEIGHT, HOURS, timeToY, formatTimeLabel, timeToMinutes, durationMinutesForTaskId } from '../lib/timeGrid'
+import {
+  HOUR_HEIGHT,
+  HOURS,
+  timeToY,
+  formatTimeLabel,
+  timeToMinutes,
+} from '../lib/timeGrid'
+import {
+  durationMinutesForTaskId,
+  durationMinutesForTaskSlot,
+  isOvernightTimeLog,
+  logOverlapsDateKey,
+  patchAfterTimelineMove,
+  timeLogSegmentLayoutForDay,
+} from '../lib/taskTimeRange'
 import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
@@ -34,6 +48,7 @@ import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/p
 import { habitToPlannedItem } from '../lib/habitSlots'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { useAuth } from '../contexts/AuthContext'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -252,15 +267,17 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   )
 }
 
-function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
-  task: { id: string; title: string; startTime: string; endTime: string }
+function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail }: {
+  task: Task
+  dateKey: string
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
 }) {
   const { t } = useTranslation()
-  const top = timeToY(task.startTime)
-  const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
+  const seg = timeLogSegmentLayoutForDay(task, dateKey)
+  const top = seg?.top ?? timeToY(task.startTime!)
+  const height = seg?.height ?? Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
 
   const styles = actualBlockStyles(matchStatus)
   let label: string | null = null
@@ -300,6 +317,7 @@ function ActualBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
       {height >= 32 && (
         <span className="block text-[10px] opacity-70 mt-px">
           {task.startTime} – {task.endTime}
+          {isOvernightTimeLog(task) ? ` · ${t('activityLog.spansNextDay', { time: task.endTime! })}` : ''}
         </span>
       )}
       {label && (
@@ -371,9 +389,9 @@ function NowIndicator() {
 
 function GoogleConnectBanner() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
-  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -384,10 +402,10 @@ function GoogleConnectBanner() {
     setError(null)
     try {
       await initGoogleAuth()
-      const token = await signIn()
-      setGoogleAccessToken(token)
       setGoogleConnected(true)
+      await signIn()
     } catch (e) {
+      setGoogleConnected(false)
       setError(e instanceof Error ? e.message : t('account.genericError'))
     } finally {
       setLoading(false)
@@ -396,7 +414,6 @@ function GoogleConnectBanner() {
 
   const handleDisconnect = () => {
     signOut()
-    setGoogleAccessToken(null)
     setGoogleConnected(false)
     useTaskStore.getState().setCalendarEvents([])
   }
@@ -447,6 +464,11 @@ function GoogleConnectBanner() {
         </svg>
         {loading ? t('planVsActual.connecting') : t('planVsActual.connect')}
       </button>
+      {!user && (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">
+          {t('settings.accountHelp')}
+        </p>
+      )}
       {error && (
         <p className="text-xs text-red-500 mt-1.5">{error}</p>
       )}
@@ -497,6 +519,7 @@ export function PlanVsActualView() {
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
+  const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
@@ -534,8 +557,12 @@ export function PlanVsActualView() {
         if (!token) {
           try {
             token = await signInSilent()
-          } catch {
-            token = await signIn()
+          } catch (tokenErr) {
+            if (!cancelled) {
+              setGoogleConnected(false)
+              setFetchError(tokenErr instanceof Error ? tokenErr.message : t('account.genericError'))
+            }
+            return
           }
           if (!cancelled) setGoogleAccessToken(token)
         }
@@ -557,7 +584,7 @@ export function PlanVsActualView() {
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, t])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected, t])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
@@ -582,14 +609,18 @@ export function PlanVsActualView() {
 
   const logTasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
-    for (const t of tasks) {
-      if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || !t.isTimeLog) continue
-      const arr = map.get(t.dueDate) ?? []
-      arr.push(t)
-      map.set(t.dueDate, arr)
+    for (const day of days) {
+      const key = format(day, 'yyyy-MM-dd')
+      for (const t of tasks) {
+        if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || !t.isTimeLog) continue
+        if (!logOverlapsDateKey(t, key)) continue
+        const arr = map.get(key) ?? []
+        arr.push(t)
+        map.set(key, arr)
+      }
     }
     return map
-  }, [tasks])
+  }, [tasks, days])
 
   const plannedListsByDate = useMemo(() => {
     const map = new Map<string, PlannedItem[]>()
@@ -662,7 +693,9 @@ export function PlanVsActualView() {
     getRelativeY,
     getDateKeyFromX,
     onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => {
-      updateTask(taskId, { dueDate: dateKey, startTime, endTime })
+      const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
+      if (!prev) return
+      updateTask(taskId, patchAfterTimelineMove(prev, dateKey, startTime, endTime))
     },
     onResizeDone: (taskId: string, startTime: string, endTime: string) => {
       updateTask(taskId, { startTime, endTime })
@@ -676,6 +709,7 @@ export function PlanVsActualView() {
           taskId: tapped.id,
           title: tapped.title,
           date: tapped.dueDate,
+          endDate: tapped.endDate ?? tapped.dueDate,
           startTime: tapped.startTime,
           endTime: tapped.endTime,
           memo: tapped.description.trim(),
@@ -711,7 +745,7 @@ export function PlanVsActualView() {
     getRelativeY,
     getTaskDuration,
     onDrop: (taskId, dateKey, startTime, endTime) => {
-      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true })
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true, endDate: null })
     },
   })
 
@@ -740,6 +774,7 @@ export function PlanVsActualView() {
       taskId: task.id,
       title: task.title,
       date: task.dueDate,
+      endDate: task.endDate ?? task.dueDate,
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
@@ -772,11 +807,15 @@ export function PlanVsActualView() {
   const submitCompleteWithLog = useCallback(() => {
     if (!completionDraft) return
     const memo = completionDraft.memo.trim()
-    const toMin = (v: string) => {
-      const [h, m] = v.split(':').map(Number)
-      return h * 60 + m
-    }
-    if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
+    const endDateArg = completionDraft.endDate !== completionDraft.date ? completionDraft.endDate : null
+    const dur = durationMinutesForTaskSlot({
+      dueDate: completionDraft.date,
+      endDate: endDateArg,
+      startTime: completionDraft.startTime,
+      endTime: completionDraft.endTime,
+      isTimeLog: true,
+    })
+    if (dur == null || dur <= 0) {
       alert(t('alert.endAfterStart'))
       return
     }
@@ -787,6 +826,7 @@ export function PlanVsActualView() {
       completionDraft.endTime,
       completionDraft.tags,
       memo || undefined,
+      endDateArg,
     )
     toggleTask(completionDraft.taskId)
     setCompletionDraft(null)
@@ -1015,7 +1055,13 @@ export function PlanVsActualView() {
                               <ScheduledTaskDragBlock
                                 task={task}
                                 matchStatus={match}
-                                onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, task.id, key, task.startTime!, task.endTime!, gridRef.current)}
+                                onPointerDown={(e) =>
+                                  timelineDrag.handleBlockPointerDown(e, task.id, key, task.startTime!, task.endTime!, gridRef.current, {
+                                    startTime: task.startTime!,
+                                    endTime: task.endTime!,
+                                    isTimeLog: false,
+                                  })
+                                }
                                 onOpenDetail={() => openCompleteWithLog(task)}
                               />
                             </div>
@@ -1098,11 +1144,20 @@ export function PlanVsActualView() {
                       onDrop={(e) => timelineDropLog.handleDropEvent(e, key)}
                     >
                       {dayLogs.map((t) => (
-                        <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
+                        <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
-                            task={{ id: t.id, title: t.title, startTime: t.startTime!, endTime: t.endTime! }}
+                            task={t}
+                            dateKey={key}
                             matchStatus={getMatchForActual(key, t.id)}
-                            onPointerDown={(e) => timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current)}
+                            onPointerDown={(e) =>
+                              timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+                                startTime: t.startTime!,
+                                endTime: t.endTime!,
+                                isTimeLog: true,
+                                dueDate: t.dueDate,
+                                endDate: t.endDate,
+                              })
+                            }
                             onOpenDetail={() => openDetail(t.id)}
                           />
                         </div>

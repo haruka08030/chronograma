@@ -30,7 +30,7 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -47,6 +47,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   rowClassName?: string
   /** true のとき初回レンダーでタイトル編集へ入る */
   autoEdit?: boolean
+  /** true のときホバー用のネイティブ期限ピッカー（カレンダー形アイコン）を出さない */
+  hideDueDatePicker?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
@@ -90,7 +92,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   }
 
   const timeLog = isListedTimeLog(task)
-  const showRowExtras = !task.completed && !timeLog
   const priorityColor = PRIORITY_COLORS[task.priority]
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
@@ -108,7 +109,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   }, [])
 
   const rowNativeDraggable = !hasSortableHandle
-  const canShowPin = !task.parentId && showRowExtras
 
   const beginTitleInteraction = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
@@ -277,20 +277,22 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         </div>
       </div>
 
-      <label
-        className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          type="date"
-          value={task.dueDate ?? ''}
-          onChange={(e) => updateTask(task.id, { dueDate: e.target.value || null })}
-          className="sr-only"
-        />
-        <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-        </svg>
-      </label>
+      {!hideDueDatePicker && (
+        <label
+          className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="date"
+            value={task.dueDate ?? ''}
+            onChange={(e) => updateTask(task.id, { dueDate: e.target.value || null })}
+            className="sr-only"
+          />
+          <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+        </label>
+      )}
 
       <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={rowMenuRef}>
         <button
@@ -305,7 +307,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5M3.75 14.25h16.5M12 6v12" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Z" />
           </svg>
         </button>
         {rowMenuOpen && (
@@ -341,23 +343,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           </div>
         )}
       </div>
-
-      {canShowPin && (
-        <button
-          type="button"
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all flex-shrink-0 text-zinc-400"
-          aria-pressed={task.pinned === true}
-          aria-label={task.pinned ? t('taskItem.unpinAria') : t('taskItem.pinAria')}
-          onClick={(e) => {
-            e.stopPropagation()
-            updateTask(task.id, { pinned: !task.pinned })
-          }}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill={task.pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.75V16.5l-4.5-3-4.5 3V3.75A1.5 1.5 0 017.5 3h9A1.5 1.5 0 0116.5 3.75z" />
-          </svg>
-        </button>
-      )}
 
       <button
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}

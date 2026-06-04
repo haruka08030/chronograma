@@ -26,6 +26,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { displayListName } from '../lib/displayListName'
+import { durationMinutesForTaskSlot } from '../lib/taskTimeRange'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -399,6 +400,7 @@ export function TaskList() {
       taskId: task.id,
       title: task.title,
       date: task.dueDate,
+      endDate: task.endDate ?? task.dueDate,
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
@@ -419,11 +421,15 @@ export function TaskList() {
   const submitCompleteWithLog = useCallback(() => {
     if (!completionDraft) return
     const memo = completionDraft.memo.trim()
-    const toMin = (v: string) => {
-      const [h, m] = v.split(':').map(Number)
-      return h * 60 + m
-    }
-    if (toMin(completionDraft.endTime) <= toMin(completionDraft.startTime)) {
+    const endDateArg = completionDraft.endDate !== completionDraft.date ? completionDraft.endDate : null
+    const dur = durationMinutesForTaskSlot({
+      dueDate: completionDraft.date,
+      endDate: endDateArg,
+      startTime: completionDraft.startTime,
+      endTime: completionDraft.endTime,
+      isTimeLog: true,
+    })
+    if (dur == null || dur <= 0) {
       alert(t('alert.endAfterStart'))
       return
     }
@@ -434,6 +440,7 @@ export function TaskList() {
       completionDraft.endTime,
       completionDraft.tags,
       memo || undefined,
+      endDateArg,
     )
     toggleTask(completionDraft.taskId)
     setCompletionDraft(null)
@@ -888,26 +895,6 @@ export function TaskList() {
               className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
             >
               {t('taskList.markComplete')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                bulkUpdateTasks(selectedIds, { pinned: true })
-                clearSelection()
-              }}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-            >
-              {t('taskList.bulkPin')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                bulkUpdateTasks(selectedIds, { pinned: false })
-                clearSelection()
-              }}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-            >
-              {t('taskList.bulkUnpin')}
             </button>
             <button
               type="button"

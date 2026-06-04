@@ -63,12 +63,17 @@ export function TimeInput({
 }: TimeInputProps) {
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
+  const openRef = useRef(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const options = useMemo(() => buildTimeOptions(15), [])
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -90,7 +95,9 @@ export function TimeInput({
     const onPointerDown = (e: MouseEvent) => {
       if (!rootRef.current) return
       if (!rootRef.current.contains(e.target as Node)) {
-        commitDraft()
+        // フォーカスしていないインスタンスは draft が初期値のままなので、
+        // 外側クリックのたびに commit すると他 UI（日付など）操作で空文字が確定し value が消える
+        if (openRef.current) commitDraft()
         setOpen(false)
       }
     }
