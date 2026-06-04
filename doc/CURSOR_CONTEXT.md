@@ -57,8 +57,9 @@
   push）。**同期順**: `lists`（upsert のみ）→
   `list_sections`（upsert、空ならスキップ）→ `tasks` → `habits`。`tasks` は
   `list_id` / `parent_id` / `section_id` / `sort_order` / `recurrence` /
-  `created_at` / `updated_at` を round-trip（**`completed_at`
-  はモバイル未対応**、DB は **`001_chronograma_schema.sql`** の `tasks.end_date` /
+  `created_at` / `updated_at` / `completed_at` を round-trip。完了トグルで
+  `Task.completedAt` を自動更新（完了時は現在時刻、未完了へ戻すと null）。
+  DB 正本は **`001_chronograma_schema.sql`**（`tasks.end_date` /
   `tasks.completed_at`）。タスクが参照する未知の `list_id` は push
   直前にスタブ `lists` 行を補完。UI はフラット
   To‑Do（サブタスク入れ子・セクション編集なし）。`habits` は `frequency` /
@@ -80,8 +81,9 @@
   は独立モデル（`habits_json_v1`）で作成・編集・削除・日別達成トグル、Supabase
   `habits`（`completed_dates` / `frequency` / `time_mode` 等）と同期。PC の
   `HabitsView` はフォーカス日に該当しない習慣も一覧下部にグレー表示して編集可。More
-  は外観・同期・テーマに加え、JSON
-  エクスポート/インポート、通知権限+テスト通知、統計カードを実装
+  は外観・同期・テーマに加え、JSON バックアップ **schema v3**（`mobile/lib/core/backup_format.dart`。
+  Web と同型の `listSections`・`order` エイリアス。`habits` 無し import は `[]`）、
+  通知権限+テスト通知、統計カードを実装
 
 エントリ: `mobile/lib/main.dart`（`SupabaseEnv.load` → 設定時
 `Supabase.initialize` → `Hive.initFlutter` → `ProviderScope` で
@@ -253,9 +255,16 @@
   の未完了ルート（`getOrderedActiveRootTasksForDnD`）からは除外
 - **単体削除**（`deleteTask`）: 対象タスクと **全子孫**
   をまとめて削除（`expandDescendantIds`）
-- **import/export**: `exportData` / `importData`（JSON、`timeLogTagPresets`
-  を含む。インポート時 `completedAt` / `completed_at` を正規化）。ダウンロード名
+- **import/export**: JSON バックアップ **schema v3**（`src/lib/backupFormat.ts`）。
+  `schemaVersion` / `exportedAt` / `listSections`（import は `sections`・`list_sections`
+  も可）。`order`・`sortOrder` エイリアス。`timeLogTagPresets`・`listColorPaletteId`
+  含む。**import バリデーション**: 重複 ID（tasks/lists/sections）、
+  孤児参照（`task.listId` / `task.sectionId` / `task.parentId` / `section.listId`）を
+  検出した JSON は適用しない。ダウンロード名
   `chronograma-backup-YYYY-MM-DD.json`
+- **CSV 取り込み（Web）**: `importTasksFromCsv`（`src/lib/importTasksCsv.ts`）—
+  既存データに**マージ**（全置換 JSON とは別ボタン）。列: `title` 必須、`due_date`、
+  `list`、`completed`、`tags`、`priority`、`description` 等
 
 ## Supabase 同期（`src/hooks/useSupabaseSync.ts`）
 

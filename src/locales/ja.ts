@@ -50,6 +50,11 @@ export default {
   },
   alert: {
     invalidImportFile: '無効なファイルです',
+    csvImportResult: '{{imported}} 件を追加しました（スキップ {{skipped}} 件）',
+    csvImportFailed: 'CSV を読み込めませんでした。1 行目に title 列があるか確認してください。',
+    invalidCsvFile: 'CSV の形式が不正です（1 行目に title 列が必要です）',
+    csvNoRows: '取り込める行がありませんでした',
+    csvImported: '{{count}} 件のタスクを追加しました（スキップ {{skipped}} 行）',
     endAfterStart: '終了時刻は開始時刻より後にしてください',
   },
   sidebar: {
@@ -67,7 +72,8 @@ export default {
     notificationsOn: '通知オン',
     notificationsOff: '通知オフ',
     export: 'エクスポート',
-    import: 'インポート',
+    import: 'インポート（JSON・全置換）',
+    importCsv: 'CSV からタスク追加',
     inboxColorFixed: '未分類（色は固定）',
     changeListColor: '色を変更',
     listColorDialog: 'リストの色',

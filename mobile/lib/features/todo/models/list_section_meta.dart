@@ -38,7 +38,7 @@ class ListSectionMeta {
       id: json['id'] as String,
       listId: (json['listId'] ?? json['list_id']) as String? ?? '',
       name: json['name'] as String? ?? '',
-      sortOrder: switch (json['sortOrder'] ?? json['sort_order']) {
+      sortOrder: switch (json['sortOrder'] ?? json['sort_order'] ?? json['order']) {
         final int i => i,
         final String s => int.tryParse(s) ?? 0,
         final v => int.tryParse('$v') ?? 0,

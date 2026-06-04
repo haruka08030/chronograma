@@ -5,8 +5,15 @@ import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
-import { durationMinutesForTaskSlot, formatDuration, timeToMinutes } from '../lib/timeGrid'
+import { formatDuration, timeToMinutes } from '../lib/timeGrid'
+import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import type { Task } from '../types/task'
+
+function completionDateKey(t: Task): string {
+  const raw = t.completedAt ?? t.updatedAt
+  return typeof raw === 'string' ? raw.slice(0, 10) : ''
+}
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -30,7 +37,7 @@ export function CalendarDayPanel({
   const plannedItems = useMemo(
     () =>
       tasks
-        .filter((t) => t.dueDate === selectedDateKey && !t.parentId && !t.isTimeLog)
+        .filter((t) => t.dueDate === selectedDateKey && !t.parentId && !t.isTimeLog && !t.completed)
         .sort((a, b) => {
           if (!a.startTime && b.startTime) return -1
           if (a.startTime && !b.startTime) return 1
@@ -56,10 +63,28 @@ export function CalendarDayPanel({
     [calendarEvents, selectedDateKey],
   )
 
+  const executedItems = useMemo(
+    () =>
+      tasks
+        .filter(
+          (t) =>
+            !t.parentId &&
+            !t.isTimeLog &&
+            t.completed &&
+            completionDateKey(t) === selectedDateKey,
+        )
+        .sort((a, b) => {
+          const ta = new Date(a.completedAt ?? a.updatedAt).getTime()
+          const tb = new Date(b.completedAt ?? b.updatedAt).getTime()
+          return tb - ta
+        }),
+    [tasks, selectedDateKey],
+  )
+
   const logItems = useMemo(
     () =>
       tasks
-        .filter((t) => t.dueDate === selectedDateKey && !t.parentId && t.isTimeLog)
+        .filter((t) => !t.parentId && t.isTimeLog && logOverlapsDateKey(t, selectedDateKey))
         .sort((a, b) => {
           if (!a.startTime || !b.startTime) return a.order - b.order
           return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
@@ -69,12 +94,8 @@ export function CalendarDayPanel({
 
   const totalLoggedMinutes = useMemo(
     () =>
-      logItems.reduce((acc, item) => {
-        const d = durationMinutesForTaskSlot(item)
-        if (!d || d <= 0) return acc
-        return acc + d
-      }, 0),
-    [logItems],
+      logItems.reduce((acc, item) => acc + minutesOfLogOnCalendarDay(item, selectedDateKey), 0),
+    [logItems, selectedDateKey],
   )
 
   return (
@@ -114,7 +135,7 @@ export function CalendarDayPanel({
         {tab === 'planned' ? (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
-              {externalEvents.length === 0 && plannedItems.length === 0 ? (
+              {externalEvents.length === 0 && plannedItems.length === 0 && executedItems.length === 0 ? (
                 <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noPlanned')}</p>
               ) : (
                 <>
@@ -135,8 +156,28 @@ export function CalendarDayPanel({
                     </div>
                   )}
                   {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} onRowClick={() => openDetail(task.id)} />
+                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                   ))}
+                  {(externalEvents.length > 0 ||
+                    plannedItems.length > 0 ||
+                    executedItems.length > 0) && (
+                    <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                      <p className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        {t('calendarDayPanel.executedSection', { count: executedItems.length })}
+                      </p>
+                      {executedItems.length > 0 ? (
+                        <div className="space-y-0">
+                          {executedItems.map((task) => (
+                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="px-2 py-1 text-xs text-zinc-400 dark:text-zinc-500">
+                          {t('calendarDayPanel.noExecuted')}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -159,7 +200,11 @@ export function CalendarDayPanel({
                   >
                     <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.title}</div>
                     <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : t('calendarDayPanel.timeUnset')}
+                      {item.startTime && item.endTime
+                        ? `${item.startTime} - ${item.endTime}${
+                            isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
+                          }`
+                        : t('calendarDayPanel.timeUnset')}
                     </div>
                   </button>
                 ))}

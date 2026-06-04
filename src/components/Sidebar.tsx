@@ -188,6 +188,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     deleteList,
     exportData,
     importData,
+    importTasksFromCsv,
     notificationsEnabled,
     toggleNotifications,
   } = useTaskStore()
@@ -195,6 +196,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
   const accountMenuRootRef = useRef<HTMLDivElement>(null)
   const accountMenuFirstItemRef = useRef<HTMLButtonElement>(null)
   const [newName, setNewName] = useState('')
@@ -506,10 +508,21 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           </svg>
           {t('sidebar.import')}
         </button>
+        <button
+          onClick={() => csvInputRef.current?.click()}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
+                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
+                     rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c1.01.014 1.887.093 2.927.26 1.066.174 1.976 1.053 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-3.75m-9-2.25h9" />
+          </svg>
+          {t('sidebar.importCsv')}
+        </button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json"
+          accept=".json,application/json"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -522,6 +535,34 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             reader.onload = () => {
               const ok = importData(reader.result as string)
               if (!ok) alert(i18n.t('alert.invalidImportFile'))
+            }
+            reader.readAsText(file)
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = () => {
+              const text = reader.result as string
+              const result = importTasksFromCsv(text)
+              if (result.errors.length > 0) {
+                alert(i18n.t('alert.invalidCsvFile'))
+              } else if (result.imported === 0) {
+                alert(i18n.t('alert.csvNoRows'))
+              } else {
+                const msg = i18n.t('alert.csvImported', {
+                  count: result.imported,
+                  skipped: result.skipped,
+                })
+                alert(msg)
+              }
             }
             reader.readAsText(file)
             e.target.value = ''

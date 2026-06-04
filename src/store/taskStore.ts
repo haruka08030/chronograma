@@ -17,6 +17,8 @@ import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { canNestUnder } from '../lib/taskDepth'
+import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
+import { parseTasksCsv } from '../lib/importTasksCsv'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -179,6 +181,7 @@ interface TaskState {
     endTime: string,
     tags?: string[],
     description?: string,
+    endDate?: string | null,
   ) => void
   startTimer: (title: string, tags?: string[]) => void
   stopTimer: () => void
@@ -191,6 +194,7 @@ interface TaskState {
         | 'title'
         | 'description'
         | 'dueDate'
+        | 'endDate'
         | 'startTime'
         | 'endTime'
         | 'priority'
@@ -200,14 +204,14 @@ interface TaskState {
         | 'recurrence'
         | 'isTimeLog'
         | 'completed'
+        | 'completedAt'
         | 'sectionId'
-        | 'pinned'
       >
     >,
   ) => void
   bulkUpdateTasks: (
     ids: string[],
-    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'pinned'>>,
+    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>,
   ) => void
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
@@ -239,6 +243,8 @@ interface TaskState {
   toggleNotifications: () => void
   exportData: () => void
   importData: (json: string) => boolean
+  /** CSV からタスクを追加（既存データは保持） */
+  importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
 
 const defaultInbox: TaskList = {
@@ -302,6 +308,7 @@ function applyTaskPatch(
       | 'title'
       | 'description'
       | 'dueDate'
+      | 'endDate'
       | 'startTime'
       | 'endTime'
       | 'priority'
@@ -311,18 +318,31 @@ function applyTaskPatch(
       | 'recurrence'
       | 'isTimeLog'
       | 'completed'
+      | 'completedAt'
       | 'sectionId'
-      | 'pinned'
     >
   >,
 ): Task {
-  const applied = { ...task, ...patch, updatedAt: new Date().toISOString() }
+  const now = new Date().toISOString()
+  const applied = { ...task, ...patch, updatedAt: now }
+  if (patch.completed === true) {
+    if (!task.completed) {
+      applied.completedAt = typeof patch.completedAt === 'string' ? patch.completedAt : now
+    } else if (patch.completedAt !== undefined) {
+      applied.completedAt = patch.completedAt
+    }
+  } else if (patch.completed === false) {
+    applied.completedAt = null
+  } else if (patch.completedAt !== undefined) {
+    applied.completedAt = patch.completedAt
+  }
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
   }
   if (patch.dueDate === null) {
     applied.startTime = null
     applied.endTime = null
+    applied.endDate = null
     applied.recurrence = null
   }
   return applied
@@ -369,6 +389,7 @@ function makeTask(
     listId: string
     sectionId?: string | null
     dueDate?: string | null
+    endDate?: string | null
     startTime?: string | null
     endTime?: string | null
     isTimeLog?: boolean
@@ -383,6 +404,7 @@ function makeTask(
     title: fields.title,
     description: '',
     completed: fields.completed ?? false,
+    completedAt: fields.completed === true ? now : null,
     createdAt: now,
     updatedAt: now,
     order,
@@ -390,13 +412,13 @@ function makeTask(
     sectionId: fields.sectionId ?? null,
     parentId: null,
     dueDate: fields.dueDate ?? null,
+    endDate: fields.endDate ?? null,
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
     priority: 'none',
     tags: fields.tags ?? [],
     recurrence: null,
     isTimeLog: fields.isTimeLog ?? false,
-    pinned: false,
   }
 }
 
@@ -878,10 +900,22 @@ export const useTaskStore = create<TaskState>()(
           ],
         }))
       },
-      addTimeLog: (title, date, startTime, endTime, tags, description) => {
+      addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        const endDate =
+          endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
         const log = makeTask(
-          { title, listId: INBOX_ID, dueDate: date, startTime, endTime, isTimeLog: true, completed: true, tags },
+          {
+            title,
+            listId: INBOX_ID,
+            dueDate: date,
+            endDate,
+            startTime,
+            endTime,
+            isTimeLog: true,
+            completed: true,
+            tags,
+          },
           maxOrder + 1,
         )
         if (description !== undefined) {
@@ -899,13 +933,28 @@ export const useTaskStore = create<TaskState>()(
         const start = new Date(timer.startedAt)
         const end = new Date()
         const dueDate = format(start, 'yyyy-MM-dd')
+        const endDay = format(end, 'yyyy-MM-dd')
+        const endDate = endDay !== dueDate ? endDay : null
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         pushUndo()
         set((s) => ({
           activeTimer: null,
-          tasks: [...s.tasks, makeTask({ title: timer.taskTitle, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true, tags: timer.tags }, maxOrder + 1)],
+          tasks: [
+            ...s.tasks,
+            makeTask({
+              title: timer.taskTitle,
+              listId: INBOX_ID,
+              dueDate,
+              endDate,
+              startTime,
+              endTime,
+              isTimeLog: true,
+              completed: true,
+              tags: timer.tags,
+            }, maxOrder + 1),
+          ],
         }))
       },
       toggleTask: (id) => {
@@ -919,13 +968,21 @@ export const useTaskStore = create<TaskState>()(
           const willComplete = !tsk.completed
           const now = new Date().toISOString()
           let newTasks = s.tasks.map((t) =>
-            t.id === id ? { ...t, completed: willComplete, updatedAt: now } : t,
+            t.id === id
+              ? {
+                  ...t,
+                  completed: willComplete,
+                  updatedAt: now,
+                  completedAt: willComplete ? now : null,
+                }
+              : t,
           )
           if (willComplete && tsk.recurrence && tsk.dueDate) {
             const next: Task = {
               ...tsk,
               id: newId(),
               completed: false,
+              completedAt: null,
               dueDate: nextDueDate(tsk.dueDate, tsk.recurrence),
               createdAt: now,
               updatedAt: now,
@@ -954,14 +1011,12 @@ export const useTaskStore = create<TaskState>()(
               const prioHit = patch.priority !== undefined && selected.has(t.id)
               const dueHit = patch.dueDate !== undefined && selected.has(t.id)
               const secHit = patch.sectionId !== undefined && selected.has(t.id)
-              const pinHit = patch.pinned !== undefined && selected.has(t.id)
-              if (!listHit && !prioHit && !dueHit && !secHit && !pinHit) return t
-              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'pinned'>> = {}
+              if (!listHit && !prioHit && !dueHit && !secHit) return t
+              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>> = {}
               if (listHit && patch.listId !== undefined) piece.listId = patch.listId
               if (prioHit) piece.priority = patch.priority
               if (dueHit) piece.dueDate = patch.dueDate
               if (secHit) piece.sectionId = patch.sectionId
-              if (pinHit) piece.pinned = patch.pinned
               return applyTaskPatch(t, piece)
             }),
           }
@@ -1123,7 +1178,14 @@ export const useTaskStore = create<TaskState>()(
       exportData: () => {
         const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets } = get()
         const data = JSON.stringify(
-          { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets },
+          buildBackupPayload({
+            tasks,
+            lists,
+            habits,
+            sections,
+            listColorPaletteId,
+            timeLogTagPresets,
+          }),
           null,
           2,
         )
@@ -1137,79 +1199,63 @@ export const useTaskStore = create<TaskState>()(
       },
 
       importData: (json) => {
-        try {
-          const data = JSON.parse(json)
-          if (!Array.isArray(data.tasks) || !Array.isArray(data.lists)) return false
-          // Basic structure validation
-          const validTasks = data.tasks.every((t: unknown) => 
-            typeof t === 'object' && t !== null && 'id' in t && 'title' in t && 'listId' in t
-          )
-          const validLists = data.lists.every((l: unknown) => 
-            typeof l === 'object' && l !== null && 'id' in l && 'name' in l
-          )
-          const rawSections = (data as { sections?: unknown }).sections
-          const sections: ListSection[] = Array.isArray(rawSections)
-            ? rawSections.filter((sec: unknown): sec is ListSection => {
-                if (typeof sec !== 'object' || sec === null) return false
-                const o = sec as Record<string, unknown>
-                return typeof o.id === 'string' && typeof o.listId === 'string' && typeof o.name === 'string' && typeof o.order === 'number'
-              })
-            : []
-          if (!validTasks || !validLists) return false
-          const paletteRaw = (data as { listColorPaletteId?: unknown }).listColorPaletteId
-          const listColorPaletteId =
-            paletteRaw !== undefined && paletteRaw !== null
-              ? normalizeListColorPaletteId(paletteRaw)
-              : get().listColorPaletteId
-          const rawPresets = (data as { timeLogTagPresets?: unknown }).timeLogTagPresets
-          const timeLogTagPresets = Array.isArray(rawPresets)
-            ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
-            : []
-          const importedTasks = (data.tasks as unknown[]).map((raw) => {
-            const row = raw as Record<string, unknown>
-            const t = raw as Task
-            const isTimeLog =
-              t.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true'
-            return {
-              ...t,
-              sectionId: t.sectionId ?? null,
-              isTimeLog: Boolean(isTimeLog),
-              pinned: t.pinned === true || row.pinned === true,
-            }
-          })
-          const importedHabits = Array.isArray(data.habits)
-            ? (data.habits as unknown[]).map((raw) => {
-                const rec = raw as Record<string, unknown>
-                const h = raw as Habit
-                const startTime = typeof h.startTime === 'string' ? h.startTime : null
-                const endTime = typeof h.endTime === 'string' ? h.endTime : null
-                const timeMode =
-                  h.timeMode === 'none' || h.timeMode === 'fixed' || h.timeMode === 'range'
-                    ? h.timeMode
-                    : inferHabitTimeMode(startTime, endTime)
-                return {
-                  ...h,
-                  ...rec,
-                  timeMode,
-                  startTime,
-                  endTime,
-                }
-              })
-            : []
-          pushUndo()
-          set({
-            tasks: importedTasks,
-            lists: data.lists,
-            habits: importedHabits,
-            listColorPaletteId,
-            sections,
-            timeLogTagPresets,
-            quickAddSectionId: null,
-          })
-          return true
-        } catch {
-          return false
+        const parsed = parseBackupJson(json)
+        if (!parsed) return false
+        pushUndo()
+        set({
+          tasks: parsed.tasks,
+          lists: parsed.lists,
+          habits: parsed.habits,
+          listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
+          sections: parsed.sections,
+          timeLogTagPresets: parsed.timeLogTagPresets ?? [],
+          quickAddSectionId: null,
+        })
+        return true
+      },
+
+      importTasksFromCsv: (csv) => {
+        const { rows, skipped, errors } = parseTasksCsv(csv)
+        if (errors.length > 0 || rows.length === 0) {
+          return { imported: 0, skipped, errors }
         }
+        const s = get()
+        const listByName = new Map(
+          s.lists.map((l) => [l.name.trim().toLowerCase(), l.id]),
+        )
+        const resolveListId = (name: string | null): string => {
+          if (!name?.trim()) return INBOX_ID
+          return listByName.get(name.trim().toLowerCase()) ?? INBOX_ID
+        }
+        let baseOrder = Math.max(0, ...s.tasks.map((t) => t.order))
+        const now = new Date().toISOString()
+        const newTasks: Task[] = rows.map((row) => {
+          baseOrder += 1
+          return {
+            id: newId(),
+            title: row.title,
+            description: row.description,
+            completed: row.completed,
+            completedAt: row.completed ? now : null,
+            createdAt: now,
+            updatedAt: now,
+            order: baseOrder,
+            listId: resolveListId(row.listName),
+            sectionId: null,
+            parentId: null,
+            dueDate: row.dueDate,
+            endDate: null,
+            startTime: null,
+            endTime: null,
+            priority: row.priority,
+            tags: row.tags,
+            recurrence: null,
+            isTimeLog: false,
+          }
+        })
+        pushUndo()
+        set((st) => ({ tasks: [...st.tasks, ...newTasks] }))
+        return { imported: newTasks.length, skipped, errors: [] }
       },
 
       undoLastOperation: () => {
@@ -1222,7 +1268,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 18,
+      version: 21,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1352,11 +1398,42 @@ export const useTaskStore = create<TaskState>()(
         }
         if (version < 18) {
           state.todayIncludeOverdue = state.todayIncludeOverdue === true
+        }
+        if (version < 19) {
           const tasks = (state.tasks as Record<string, unknown>[]) ?? []
           state.tasks = tasks.map((t) => ({
             ...t,
-            pinned: (t as Record<string, unknown>).pinned === true,
+            endDate:
+              typeof (t as Record<string, unknown>).endDate === 'string'
+                ? ((t as Record<string, unknown>).endDate as string)
+                : null,
           }))
+        }
+        if (version < 20) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => {
+            const { pinned, ...rest } = t as Record<string, unknown>
+            void pinned
+            return rest
+          })
+        }
+        if (version < 21) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => {
+            const rec = t as Record<string, unknown>
+            const completed = rec.completed === true
+            const has = typeof rec.completedAt === 'string'
+            if (completed && !has) {
+              return {
+                ...rec,
+                completedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : null,
+              }
+            }
+            if (!completed) {
+              return { ...rec, completedAt: null }
+            }
+            return { ...rec }
+          })
         }
         return state as unknown as TaskState
       },

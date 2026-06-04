@@ -137,6 +137,15 @@ class TodoListNotifier extends Notifier<List<Task>> {
     );
   }
 
+  Task _normalizeCompletedAt(Task before, Task after) {
+    if (before.completed == after.completed) return after;
+    final now = _nowIso();
+    if (after.completed) {
+      return after.copyWith(completedAt: after.completedAt ?? now);
+    }
+    return after.copyWith(completedAt: null);
+  }
+
   void addTask(Task task) {
     state = [_ensureTimestamps(task, bumpUpdated: false), ...state];
     _persist();
@@ -172,7 +181,15 @@ class TodoListNotifier extends Notifier<List<Task>> {
   }
 
   void updateTask(Task updated) {
-    final next = _ensureTimestamps(updated, bumpUpdated: true);
+    Task? current;
+    for (final t in state) {
+      if (t.id == updated.id) {
+        current = t;
+        break;
+      }
+    }
+    final merged = current == null ? updated : _normalizeCompletedAt(current, updated);
+    final next = _ensureTimestamps(merged, bumpUpdated: true);
     state = [
       for (final t in state)
         if (t.id == next.id) next else t,
@@ -189,7 +206,10 @@ class TodoListNotifier extends Notifier<List<Task>> {
     state = [
       for (final t in state)
         if (t.id == id)
-          _ensureTimestamps(t.copyWith(completed: !t.completed), bumpUpdated: true)
+          _ensureTimestamps(
+            _normalizeCompletedAt(t, t.copyWith(completed: !t.completed)),
+            bumpUpdated: true,
+          )
         else
           t,
     ];

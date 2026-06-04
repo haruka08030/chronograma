@@ -18,10 +18,6 @@ export interface MainListTasksInput {
   todayIncludeOverdue?: boolean
 }
 
-function pinnedCmp(a: Task, b: Task): number {
-  return Number(!!b.pinned) - Number(!!a.pinned)
-}
-
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   const { tasks, selectedView, selectedListId, sortMode, filterTag, todayIncludeOverdue } = input
@@ -76,11 +72,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     case 'createdAt':
       return [...result].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     default:
-      return [...result].sort((a, b) => {
-        const p = pinnedCmp(a, b)
-        if (p !== 0) return p
-        return a.order - b.order
-      })
+      return [...result].sort((a, b) => a.order - b.order)
   }
 }
 
@@ -112,8 +104,6 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
     const ra = sectionRank(a.sectionId ?? null)
     const rb = sectionRank(b.sectionId ?? null)
     if (ra !== rb) return ra - rb
-    const p = pinnedCmp(a, b)
-    if (p !== 0) return p
     return a.order - b.order
   })
 }

@@ -45,7 +45,7 @@ class TaskListMeta {
       id: id,
       name: name,
       color: json['color'] as String? ?? '#6366f1',
-      sortOrder: switch (json['sortOrder'] ?? json['sort_order']) {
+      sortOrder: switch (json['sortOrder'] ?? json['sort_order'] ?? json['order']) {
         final int i => i,
         final String s => int.tryParse(s) ?? 0,
         final v => int.tryParse('$v') ?? 0,

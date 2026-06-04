@@ -10,6 +10,8 @@ export interface Task {
   title: string
   description: string
   completed: boolean
+  /** 完了した瞬間の ISO 時刻。未完了は null。`updatedAt`（最終更新）とは別。レガシーで completed のみの行は null のことがある */
+  completedAt: string | null
   createdAt: string
   updatedAt: string
   order: number
@@ -18,12 +20,12 @@ export interface Task {
   sectionId: string | null
   parentId: string | null
   dueDate: string | null
+  /** 終了日（`null` は `dueDate` と同日）。タイムログの複数日・睡眠の翌日など */
+  endDate?: string | null
   startTime: string | null
   endTime: string | null
   priority: Priority
   tags: string[]
   recurrence: Recurrence | null
   isTimeLog?: boolean
-  /** 手動ソート時に先頭付近へ固定（TickTick のピンに相当） */
-  pinned?: boolean
 }

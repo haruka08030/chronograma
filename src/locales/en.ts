@@ -50,6 +50,11 @@ export default {
   },
   alert: {
     invalidImportFile: 'Invalid file.',
+    csvImportResult: 'Added {{imported}} tasks (skipped {{skipped}}).',
+    csvImportFailed: 'Could not read CSV. Ensure the first row includes a title column.',
+    invalidCsvFile: 'Invalid CSV (first row needs a title column).',
+    csvNoRows: 'No rows to import.',
+    csvImported: 'Added {{count}} tasks (skipped {{skipped}} rows).',
     endAfterStart: 'End time must be after start time.',
   },
   sidebar: {
@@ -67,7 +72,8 @@ export default {
     notificationsOn: 'Notifications on',
     notificationsOff: 'Notifications off',
     export: 'Export',
-    import: 'Import',
+    import: 'Import (JSON, replace all)',
+    importCsv: 'Add tasks from CSV',
     inboxColorFixed: 'Inbox (fixed color)',
     changeListColor: 'Change color',
     listColorDialog: 'List color',

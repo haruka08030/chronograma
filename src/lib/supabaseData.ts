@@ -41,25 +41,39 @@ interface TaskRow {
   updated_at: string
   sort_order: number
   due_date: string | null
+  end_date?: string | null
   start_time: string | null
   end_time: string | null
   priority: string
   tags: unknown
   recurrence: unknown
   is_time_log: boolean
-  pinned?: boolean
+  completed_at?: string | null
 }
 
-let tasksPinnedColumnAvailable = true
+let tasksEndDateColumnAvailable = true
+let tasksCompletedAtColumnAvailable = true
 
-function isMissingPinnedColumnError(message: string | undefined): boolean {
+function isMissingEndDateColumnError(message: string | undefined): boolean {
   if (!message) return false
-  return message.includes("Could not find the 'pinned' column")
+  return message.includes("Could not find the 'end_date' column")
 }
 
-function stripPinnedFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ pinned, ...rest }) => {
-    void pinned
+function stripEndDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ end_date, ...rest }) => {
+    void end_date
+    return rest
+  })
+}
+
+function isMissingCompletedAtColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'completed_at' column")
+}
+
+function stripCompletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ completed_at, ...rest }) => {
+    void completed_at
     return rest
   })
 }
@@ -170,11 +184,18 @@ function rowToTask(row: TaskRow): Task {
     row.priority === 'low' || row.priority === 'medium' || row.priority === 'high' || row.priority === 'none'
       ? row.priority
       : 'none'
+  const completedAt =
+    typeof row.completed_at === 'string'
+      ? row.completed_at
+      : row.completed
+        ? row.updated_at
+        : null
   return {
     id: row.id,
     title: row.title,
     description: row.description ?? '',
     completed: row.completed,
+    completedAt,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     order: row.sort_order,
@@ -182,13 +203,13 @@ function rowToTask(row: TaskRow): Task {
     sectionId: row.section_id ?? null,
     parentId: row.parent_id,
     dueDate: row.due_date,
+    endDate: row.end_date ?? null,
     startTime: row.start_time,
     endTime: row.end_time,
     priority,
     tags,
     recurrence,
     isTimeLog: row.is_time_log === true,
-    pinned: row.pinned === true,
   }
 }
 
@@ -213,17 +234,18 @@ function taskToRow(userId: string, task: Task): TaskRow {
     title: task.title,
     description: task.description,
     completed: task.completed,
+    completed_at: task.completedAt ?? null,
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     sort_order: task.order,
     due_date: task.dueDate,
+    end_date: task.endDate ?? null,
     start_time: task.startTime,
     end_time: task.endTime,
     priority: task.priority,
     tags: task.tags,
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
-    pinned: task.pinned === true,
   }
 }
 
@@ -324,19 +346,25 @@ export async function pushListsTasksHabits(
   const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
   if (eSec) return { error: eSec.message }
 
-  const firstTaskUpsertRows = tasksPinnedColumnAvailable
-    ? taskRows
-    : stripPinnedFromTaskRows(taskRows)
-  const { error: e2 } = await supabase.from('tasks').upsert(firstTaskUpsertRows, { onConflict: 'id' })
-  if (e2 && isMissingPinnedColumnError(e2.message)) {
-    tasksPinnedColumnAvailable = false
-    const fallbackTaskRows = stripPinnedFromTaskRows(taskRows)
-    const { error: e2Retry } = await supabase.from('tasks').upsert(fallbackTaskRows, { onConflict: 'id' })
-    if (e2Retry) return { error: e2Retry.message }
-  } else if (!e2 && tasksPinnedColumnAvailable === false) {
-    tasksPinnedColumnAvailable = true
-  } else if (e2) {
-    return { error: e2.message }
+  const upsertTasksRows = async (): Promise<string | undefined> => {
+    let rows: TaskRow[] = taskRows
+    if (!tasksEndDateColumnAvailable) rows = stripEndDateFromTaskRows(rows)
+    if (!tasksCompletedAtColumnAvailable) rows = stripCompletedAtFromTaskRows(rows)
+    const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' })
+    return error?.message
+  }
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const errMsg = await upsertTasksRows()
+    if (!errMsg) break
+    if (isMissingEndDateColumnError(errMsg)) {
+      tasksEndDateColumnAvailable = false
+      continue
+    }
+    if (isMissingCompletedAtColumnError(errMsg)) {
+      tasksCompletedAtColumnAvailable = false
+      continue
+    }
+    return { error: errMsg }
   }
 
   const { error: eH } = await supabase.from('habits').upsert(habitRows, { onConflict: 'id' })

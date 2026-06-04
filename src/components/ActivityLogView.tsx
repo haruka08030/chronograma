@@ -8,11 +8,18 @@ import {
   HOURS,
   timeToY,
   formatTimeLabel,
-  timeToMinutes,
   formatDuration,
+} from '../lib/timeGrid'
+import {
+  compareLogsOnDay,
   durationMinutesForTaskId,
   durationMinutesForTaskSlot,
-} from '../lib/timeGrid'
+  isOvernightTimeLog,
+  logOverlapsDateKey,
+  minutesOfLogOnCalendarDay,
+  patchAfterTimelineMove,
+  timeLogSegmentLayoutForDay,
+} from '../lib/taskTimeRange'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
@@ -105,12 +112,19 @@ export function ActivityLogView() {
   const [timerTitle, setTimerTitle] = useState('')
   const [timerTag, setTimerTag] = useState('')
   const [manualTitle, setManualTitle] = useState('')
+  const [manualStartDate, setManualStartDate] = useState(dateKey)
+  const [manualEndDate, setManualEndDate] = useState(dateKey)
   const [manualStart, setManualStart] = useState('')
   const [manualEnd, setManualEnd] = useState('')
   const [manualTag, setManualTag] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+
+  useEffect(() => {
+    setManualStartDate(dateKey)
+    setManualEndDate(dateKey)
+  }, [dateKey])
 
   const gridRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -124,7 +138,11 @@ export function ActivityLogView() {
 
   const timelineDrag = useTimelineDrag({
     getRelativeY,
-    onMoveDone: (taskId, _dk, startTime, endTime) => { updateTask(taskId, { dueDate: dateKey, startTime, endTime }) },
+    onMoveDone: (taskId, _dk, startTime, endTime) => {
+      const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
+      if (!prev) return
+      updateTask(taskId, patchAfterTimelineMove(prev, dateKey, startTime, endTime))
+    },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
     onBlockTap: useCallback((taskId: string) => {
       openDetail(taskId)
@@ -140,7 +158,7 @@ export function ActivityLogView() {
     getRelativeY,
     getTaskDuration,
     onDrop: (taskId, _dk, startTime, endTime) => {
-      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true })
+      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: true, completed: true, endDate: null })
     },
   })
 
@@ -153,8 +171,8 @@ export function ActivityLogView() {
 
   const dayLogs = useMemo(() => {
     return tasks
-      .filter((t) => t.dueDate === dateKey && t.startTime && t.endTime && !t.parentId && t.isTimeLog)
-      .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
+      .filter((t) => t.startTime && t.endTime && !t.parentId && t.isTimeLog && logOverlapsDateKey(t, dateKey))
+      .sort((a, b) => compareLogsOnDay(a, b, dateKey))
   }, [tasks, dateKey])
 
   const tagUniverse = useMemo(
@@ -166,8 +184,8 @@ export function ActivityLogView() {
     let totalMinutes = 0
     const byTag = new Map<string, number>()
     for (const log of dayLogs) {
-      const dur = durationMinutesForTaskSlot(log)
-      if (dur == null || dur <= 0) continue
+      const dur = minutesOfLogOnCalendarDay(log, dateKey)
+      if (dur <= 0) continue
       totalMinutes += dur
       for (const tag of log.tags) {
         byTag.set(tag, (byTag.get(tag) ?? 0) + dur)
@@ -210,13 +228,21 @@ export function ActivityLogView() {
   const handleManualAdd = () => {
     const title = manualTitle.trim()
     if (!title || !manualStart || !manualEnd) return
-    if (timeToMinutes(manualEnd) <= timeToMinutes(manualStart)) {
+    const endDateArg = manualEndDate !== manualStartDate ? manualEndDate : null
+    const dur = durationMinutesForTaskSlot({
+      dueDate: manualStartDate,
+      endDate: endDateArg,
+      startTime: manualStart,
+      endTime: manualEnd,
+      isTimeLog: true,
+    })
+    if (dur == null || dur <= 0) {
       setManualError(t('alert.endAfterStart'))
       return
     }
     setManualError(null)
     const tags = manualTag.trim() ? [manualTag.trim()] : []
-    addTimeLog(title, dateKey, manualStart, manualEnd, tags)
+    addTimeLog(title, manualStartDate, manualStart, manualEnd, tags, undefined, endDateArg)
     setManualTitle('')
     setManualStart('')
     setManualEnd('')
@@ -365,30 +391,80 @@ export function ActivityLogView() {
                              focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
                              text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] text-zinc-400 mb-0.5 block">{t('common.start')}</label>
-                    <TimeInput
-                      value={manualStart}
-                      onChange={setManualStart}
-                      className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
-                                 border border-zinc-200 dark:border-zinc-700 outline-none
-                                 focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
-                                 text-zinc-900 dark:text-zinc-100"
-                    />
+                <div className="space-y-2">
+                  <div
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/30
+                               p-3 space-y-2"
+                  >
+                    <p className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
+                        <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                          {t('activityLog.startDate')}
+                        </label>
+                        <input
+                          type="date"
+                          value={manualStartDate}
+                          onChange={(e) => setManualStartDate(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-zinc-900
+                                     border border-zinc-200 dark:border-zinc-700 outline-none
+                                     focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
+                                     text-zinc-900 dark:text-zinc-100"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
+                        <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                          {t('taskDetail.time')}
+                        </label>
+                        <TimeInput
+                          value={manualStart}
+                          onChange={setManualStart}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-zinc-900
+                                     border border-zinc-200 dark:border-zinc-700 outline-none
+                                     focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
+                                     text-zinc-900 dark:text-zinc-100"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[11px] text-zinc-400 mb-0.5 block">{t('common.end')}</label>
-                    <TimeInput
-                      value={manualEnd}
-                      onChange={setManualEnd}
-                      className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
-                                 border border-zinc-200 dark:border-zinc-700 outline-none
-                                 focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
-                                 text-zinc-900 dark:text-zinc-100"
-                    />
+                  <div
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/30
+                               p-3 space-y-2"
+                  >
+                    <p className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">{t('common.end')}</p>
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
+                        <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                          {t('activityLog.endDate')}
+                        </label>
+                        <input
+                          type="date"
+                          value={manualEndDate}
+                          min={manualStartDate}
+                          onChange={(e) => setManualEndDate(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-zinc-900
+                                     border border-zinc-200 dark:border-zinc-700 outline-none
+                                     focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
+                                     text-zinc-900 dark:text-zinc-100"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
+                        <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                          {t('taskDetail.time')}
+                        </label>
+                        <TimeInput
+                          value={manualEnd}
+                          onChange={setManualEnd}
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-zinc-900
+                                     border border-zinc-200 dark:border-zinc-700 outline-none
+                                     focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40
+                                     text-zinc-900 dark:text-zinc-100"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
+                <p className="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
                 <TimeLogTagField
                   listId="activity-log-manual"
                   value={manualTag}
@@ -497,14 +573,15 @@ export function ActivityLogView() {
 
                 {dayLogs.map((task) => {
                   if (!task.startTime || !task.endTime) return null
-                  const top = timeToY(task.startTime)
-                  const height = Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
-                  const dur = durationMinutesForTaskSlot(task)!
+                  const seg = timeLogSegmentLayoutForDay(task, dateKey)
+                  if (!seg) return null
+                  const { top, height } = seg
+                  const dur = durationMinutesForTaskSlot(task)
                   const color = logBlockAccentFromTags(task.tags, tagUniverse)
 
                   return (
                     <button
-                      key={task.id}
+                      key={`${task.id}::${dateKey}`}
                       className={`absolute left-2 right-2 rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
                         cursor-grab active:cursor-grabbing select-none text-left touch-none
                         border transition-shadow hover:shadow-md hover:z-10
@@ -512,7 +589,16 @@ export function ActivityLogView() {
                         ${color.bg}
                         ${task.completed ? 'opacity-90' : ''}`}
                       style={{ top, height, minHeight: 24, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
-                      onPointerDown={(e) => { e.stopPropagation(); timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current) }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation()
+                        timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current, {
+                          startTime: task.startTime!,
+                          endTime: task.endTime!,
+                          isTimeLog: true,
+                          dueDate: task.dueDate,
+                          endDate: task.endDate,
+                        })
+                      }}
                       onPointerMove={(e) => { const c = getResizeCursor(e); (e.currentTarget as HTMLElement).style.cursor = c ?? 'grab' }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
@@ -527,9 +613,10 @@ export function ActivityLogView() {
                           {task.title}
                         </span>
                       </div>
-                      {height >= 36 && (
+                      {height >= 36 && dur != null && dur > 0 && (
                         <span className="block text-[10px] opacity-70 mt-0.5">
                           {task.startTime} – {task.endTime} ({formatDuration(dur)})
+                          {isOvernightTimeLog(task) ? ` · ${t('activityLog.spansNextDay', { time: task.endTime })}` : ''}
                         </span>
                       )}
                       {height >= 52 && task.tags.length > 0 && (

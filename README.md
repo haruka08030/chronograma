@@ -36,13 +36,7 @@ npm run dev
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で `supabase/migrations/` を **番号順**に実行し、テーブルと RLS を作成します。
-   - `001_chronograma_lists_tasks.sql` — リスト・タスク
-   - `002_habits.sql` — 習慣
-   - `003_list_sections.sql` — リスト内セクションと `tasks.section_id`
-   - `004_habit_time_mode.sql` — 習慣の時間モード列（クラウド同期で習慣を使う場合に必要）
-   - `005_drop_tasks_pinned.sql` — 旧ピン機能の `tasks.pinned` 列を削除（無ければノーオペ）
-   - `006_tasks_end_date.sql` — タスクの `end_date` 列（タイムログの終了日・複数日）
+2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。

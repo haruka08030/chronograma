@@ -1,115 +1,72 @@
 import type { CalendarEvent } from '../types/calendarEvent'
 import { format } from 'date-fns'
+import { getSupabase, isSupabaseConfigured } from './supabase'
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
-
-interface TokenClient {
-  requestAccessToken: (opts?: { prompt?: string }) => void
-  callback: (resp: TokenResponse) => void
-}
-
-interface TokenResponse {
-  access_token: string
-  error?: string
-}
-
-let tokenClient: TokenClient | null = null
 let currentToken: string | null = null
-let resolveSignIn: ((token: string) => void) | null = null
-let rejectSignIn: ((err: Error) => void) | null = null
 
 export function getClientId(): string | undefined {
-  return CLIENT_ID
+  return isSupabaseConfigured ? 'supabase-oauth' : undefined
 }
 
 export function isGoogleAvailable(): boolean {
-  return !!(CLIENT_ID && typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).google)
+  return isSupabaseConfigured
 }
 
 export function initGoogleAuth(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!CLIENT_ID) {
-      reject(new Error('VITE_GOOGLE_CLIENT_ID is not set'))
-      return
-    }
-
-    const tryInit = () => {
-      const g = (window as unknown as Record<string, unknown>).google as
-        | { accounts: { oauth2: { initTokenClient: (cfg: Record<string, unknown>) => TokenClient } } }
-        | undefined
-
-      if (!g?.accounts?.oauth2) {
-        reject(new Error('Google Identity Services not loaded'))
-        return
-      }
-
-      tokenClient = g.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (resp: TokenResponse) => {
-          if (resp.error) {
-            rejectSignIn?.(new Error(resp.error))
-          } else {
-            currentToken = resp.access_token
-            resolveSignIn?.(resp.access_token)
-          }
-          resolveSignIn = null
-          rejectSignIn = null
-        },
-      })
-      resolve()
-    }
-
-    if ((window as unknown as Record<string, unknown>).google) {
-      tryInit()
-    } else {
-      const checkInterval = setInterval(() => {
-        if ((window as unknown as Record<string, unknown>).google) {
-          clearInterval(checkInterval)
-          tryInit()
-        }
-      }, 200)
-      setTimeout(() => {
-        clearInterval(checkInterval)
-        reject(new Error('Google Identity Services load timeout'))
-      }, 10_000)
-    }
-  })
+  if (!isSupabaseConfigured) {
+    return Promise.reject(new Error('Supabase is not configured'))
+  }
+  return Promise.resolve()
 }
 
 export function signIn(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!tokenClient) {
-      reject(new Error('Google Auth not initialized'))
-      return
+  const sb = getSupabase()
+  if (!sb) return Promise.reject(new Error('Supabase is not configured'))
+
+  const options = {
+    redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+    scopes: SCOPES,
+    queryParams: {
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: 'true',
+    },
+  }
+
+  return sb.auth.getUser().then(async ({ data: { user } }) => {
+    if (user) {
+      const { error } = await sb.auth.linkIdentity({
+        provider: 'google',
+        options,
+      })
+      if (error) throw error
+      return ''
     }
-    resolveSignIn = resolve
-    rejectSignIn = reject
-    tokenClient.requestAccessToken({ prompt: 'consent' })
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options,
+    })
+    if (error) throw error
+    return ''
   })
 }
 
 export function signInSilent(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!tokenClient) {
-      reject(new Error('Google Auth not initialized'))
-      return
+  const sb = getSupabase()
+  if (!sb) return Promise.reject(new Error('Supabase is not configured'))
+  return sb.auth.getSession().then(({ data: { session } }) => {
+    const token = session?.provider_token ?? null
+    if (!token) {
+      throw new Error('Google provider token is missing. Reconnect Google Calendar.')
     }
-    resolveSignIn = resolve
-    rejectSignIn = reject
-    tokenClient.requestAccessToken({ prompt: '' })
+    currentToken = token
+    return token
   })
 }
 
 export function signOut(): void {
-  if (currentToken) {
-    const g = (window as unknown as Record<string, unknown>).google as
-      | { accounts: { oauth2: { revoke: (token: string, cb: () => void) => void } } }
-      | undefined
-    g?.accounts?.oauth2?.revoke(currentToken, () => {})
-  }
   currentToken = null
 }
 

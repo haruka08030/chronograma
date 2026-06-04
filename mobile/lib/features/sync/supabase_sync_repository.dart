@@ -170,7 +170,7 @@ class SupabaseSyncRepository {
           .select(
             'id,list_id,parent_id,section_id,title,description,completed,'
             'sort_order,due_date,end_date,priority,tags,recurrence,'
-            'is_time_log,start_time,end_time,created_at,updated_at',
+            'is_time_log,start_time,end_time,created_at,updated_at,completed_at',
           )
           .eq('user_id', userId);
       return (rows as List<dynamic>)
@@ -264,6 +264,7 @@ class SupabaseSyncRepository {
       'is_time_log': task.isTimeLog,
       'start_time': task.startTime,
       'end_time': task.endTime,
+      'completed_at': task.completed ? (task.completedAt ?? nowIso) : null,
       'created_at': created,
       'updated_at': nowIso,
     };

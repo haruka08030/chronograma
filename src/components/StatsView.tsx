@@ -5,6 +5,11 @@ import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseI
 import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { displayListName } from '../lib/displayListName'
+import type { Task } from '../types/task'
+
+function completionInstant(t: Task): string {
+  return t.completedAt ?? t.updatedAt
+}
 
 export function StatsView() {
   const { t, i18n } = useTranslation()
@@ -20,23 +25,23 @@ export function StatsView() {
     const monthStart = startOfMonth(new Date())
 
     const completedToday = completed.filter((t) => {
-      const d = new Date(t.updatedAt)
+      const d = new Date(completionInstant(t))
       return isSameDay(d, today)
     }).length
 
     const completedThisWeek = completed.filter((t) => {
-      const d = new Date(t.updatedAt)
+      const d = new Date(completionInstant(t))
       return d >= weekStart
     }).length
 
     const completedThisMonth = completed.filter((t) => {
-      const d = new Date(t.updatedAt)
+      const d = new Date(completionInstant(t))
       return d >= monthStart
     }).length
 
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const day = subDays(today, 6 - i)
-      const count = completed.filter((t) => isSameDay(new Date(t.updatedAt), day)).length
+      const count = completed.filter((t) => isSameDay(new Date(completionInstant(t)), day)).length
       const locale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
       return { date: day, count, label: format(day, 'E', { locale }), dayNum: format(day, 'd') }
     })
@@ -64,7 +69,7 @@ export function StatsView() {
     let streak = 0
     for (let i = 0; i < 365; i++) {
       const day = subDays(today, i)
-      const hasCompleted = completed.some((t) => isSameDay(new Date(t.updatedAt), day))
+      const hasCompleted = completed.some((t) => isSameDay(new Date(completionInstant(t)), day))
       if (hasCompleted) streak++
       else break
     }

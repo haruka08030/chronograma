@@ -24,6 +24,7 @@ class Task {
     this.recurrence,
     this.createdAt,
     this.updatedAt,
+    this.completedAt,
   });
 
   final String id;
@@ -53,6 +54,8 @@ class Task {
   /// ISO 8601（UTC 推奨）。未設定のローカル行は同期時に補完。
   final String? createdAt;
   final String? updatedAt;
+  /// Web / DB `tasks.completed_at`。未完了は null。
+  final String? completedAt;
 
   Task copyWith({
     String? id,
@@ -73,6 +76,7 @@ class Task {
     Map<String, dynamic>? recurrence,
     String? createdAt,
     String? updatedAt,
+    String? completedAt,
     bool clearDueDate = false,
     bool clearEndDate = false,
     bool clearStartTime = false,
@@ -100,6 +104,7 @@ class Task {
       recurrence: clearRecurrence ? null : (recurrence ?? this.recurrence),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 
@@ -122,6 +127,7 @@ class Task {
         if (recurrence != null) 'recurrence': recurrence,
         if (createdAt != null) 'createdAt': createdAt,
         if (updatedAt != null) 'updatedAt': updatedAt,
+        if (completedAt != null) 'completedAt': completedAt,
       };
 
   static TaskPriority _priorityFromJson(String? raw) {
@@ -164,13 +170,21 @@ class Task {
     final listRaw = json['listId'] ?? json['list_id'];
     final parentRaw = json['parentId'] ?? json['parent_id'];
     final sectionRaw = json['sectionId'] ?? json['section_id'];
-    final sortRaw = json['sortOrder'] ?? json['sort_order'];
+    final sortRaw = json['sortOrder'] ?? json['sort_order'] ?? json['order'];
     final dueRaw = json['dueDate'] ?? json['due_date'];
     final endRaw = json['endDate'] ?? json['end_date'];
+    final completedAtRaw = json['completedAt'] ?? json['completed_at'];
+    final updatedAtRaw = json['updatedAt'] ?? json['updated_at'];
+    final completedRaw = json['completed'] as bool? ?? false;
+    final completedAt = switch (completedAtRaw) {
+      final String s => s,
+      _ when completedRaw => updatedAtRaw as String?,
+      _ => null,
+    };
     return Task(
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
-      completed: json['completed'] as bool? ?? false,
+      completed: completedRaw,
       dueDate: _parseDateField(dueRaw),
       endDate: _parseDateField(endRaw),
       priority: _priorityFromJson(json['priority'] as String?),
@@ -189,7 +203,8 @@ class Task {
       },
       recurrence: _recurrenceFromJson(json['recurrence']),
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
-      updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
+      updatedAt: updatedAtRaw as String?,
+      completedAt: completedAt,
     );
   }
 }
@@ -235,6 +250,7 @@ Task newLocalTask({
     recurrence: recurrence,
     createdAt: now,
     updatedAt: now,
+    completedAt: completed ? now : null,
   );
 }
 

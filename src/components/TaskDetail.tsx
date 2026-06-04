@@ -4,7 +4,8 @@ import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 import { TimeInput } from './TimeInput'
-import { timeToMinutes, formatDuration } from '../lib/timeGrid'
+import { formatDuration } from '../lib/timeGrid'
+import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
@@ -80,10 +81,10 @@ export function TaskDetail({
 
   const logDurationLabel = useMemo(() => {
     if (!isLog || !task.startTime || !task.endTime) return null
-    const mins = timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
-    if (mins <= 0) return null
+    const mins = durationMinutesForTaskSlot(task)
+    if (mins == null || mins <= 0) return null
     return formatDuration(mins)
-  }, [isLog, task.startTime, task.endTime])
+  }, [isLog, task])
 
   const addSubtask = () => {
     const trimmed = subInput.trim()
@@ -208,46 +209,92 @@ export function TaskDetail({
           )}
 
           {isLog && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.logDate')}</label>
-              <input
-                type="date"
-                value={task.dueDate ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (v) updateTask(task.id, { dueDate: v })
-                }}
-                className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                         focus:ring-2 focus:ring-accent-500/40"
-              />
-            </div>
-          )}
-
-          {isLog && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.time')}</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                <TimeInput
-                  value={task.startTime ?? ''}
-                  onChange={(v) => updateTask(task.id, { startTime: v || null })}
-                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
-                />
-                <span className="text-zinc-400 text-sm">〜</span>
-                <TimeInput
-                  value={task.endTime ?? ''}
-                  onChange={(v) => updateTask(task.id, { endTime: v || null })}
-                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
-                />
+            <div className="space-y-3">
+              <div
+                className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/30
+                           p-3 space-y-2"
+              >
+                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      {t('taskDetail.logDate')}
+                    </label>
+                    <input
+                      type="date"
+                      value={task.dueDate ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v) updateTask(task.id, { dueDate: v })
+                      }}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                               bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
+                               focus:ring-2 focus:ring-accent-500/40"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      {t('taskDetail.time')}
+                    </label>
+                    <TimeInput
+                      value={task.startTime ?? ''}
+                      onChange={(v) => updateTask(task.id, { startTime: v || null })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
+                                 focus:ring-2 focus:ring-accent-500/40"
+                    />
+                  </div>
+                </div>
               </div>
+
+              <div
+                className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/30
+                           p-3 space-y-2"
+              >
+                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.end')}</p>
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      {t('taskDetail.logEndDate')}
+                    </label>
+                    <input
+                      type="date"
+                      value={task.dueDate ? (task.endDate ?? task.dueDate) : ''}
+                      min={task.dueDate ?? undefined}
+                      disabled={!task.dueDate}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (!v || !task.dueDate) return
+                        updateTask(task.id, { endDate: v !== task.dueDate ? v : null })
+                      }}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                               bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
+                               focus:ring-2 focus:ring-accent-500/40
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      {t('taskDetail.time')}
+                    </label>
+                    <TimeInput
+                      value={task.endTime ?? ''}
+                      onChange={(v) => updateTask(task.id, { endTime: v || null })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
+                                 focus:ring-2 focus:ring-accent-500/40"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {logDurationLabel && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   {t('taskDetail.logDuration', { label: logDurationLabel })}
                 </p>
+              )}
+              {isOvernightTimeLog(task) && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
               )}
             </div>
           )}
@@ -399,17 +446,6 @@ export function TaskDetail({
                       ))}
                   </select>
                 </div>
-                {!task.parentId && (
-                  <label className="mt-3 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={task.pinned === true}
-                      onChange={(e) => updateTask(task.id, { pinned: e.target.checked })}
-                      className="rounded border-zinc-300 text-accent-600 focus:ring-accent-500"
-                    />
-                    {t('taskDetail.pinLabel')}
-                  </label>
-                )}
                 {!task.parentId && sectionsForTaskList.length > 0 && (
                   <div className="mt-3">
                     <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.section')}</label>
