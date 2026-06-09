@@ -33,12 +33,10 @@ import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '.
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
+  disconnectGoogleCalendar,
   initGoogleAuth,
   signIn,
-  signInSilent,
-  signOut,
   fetchCalendarEvents,
-  isGoogleAvailable,
   getClientId,
 } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
@@ -402,7 +400,6 @@ function GoogleConnectBanner() {
     setError(null)
     try {
       await initGoogleAuth()
-      setGoogleConnected(true)
       await signIn()
     } catch (e) {
       setGoogleConnected(false)
@@ -412,8 +409,12 @@ function GoogleConnectBanner() {
     }
   }
 
-  const handleDisconnect = () => {
-    signOut()
+  const handleDisconnect = async () => {
+    try {
+      await disconnectGoogleCalendar()
+    } catch {
+      /* ignore */
+    }
     setGoogleConnected(false)
     useTaskStore.getState().setCalendarEvents([])
   }
@@ -518,7 +519,6 @@ export function PlanVsActualView() {
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
-  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
@@ -549,42 +549,28 @@ export function PlanVsActualView() {
 
     const doFetch = async () => {
       try {
-        if (!isGoogleAvailable()) {
-          await initGoogleAuth()
-        }
-
-        let token = useTaskStore.getState().googleAccessToken
-        if (!token) {
-          try {
-            token = await signInSilent()
-          } catch (tokenErr) {
-            if (!cancelled) {
-              setGoogleConnected(false)
-              setFetchError(tokenErr instanceof Error ? tokenErr.message : t('account.genericError'))
-            }
-            return
-          }
-          if (!cancelled) setGoogleAccessToken(token)
-        }
-
         const ws = startOfWeek(anchor, { weekStartsOn: 1 })
         const we = endOfWeek(anchor, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
-        const events = await fetchCalendarEvents(ws, we, token)
+        const events = await fetchCalendarEvents(ws, we)
         if (!cancelled) {
           setCalendarEvents(events)
           setFetchError(null)
         }
       } catch (e) {
         if (!cancelled) {
-          setFetchError(e instanceof Error ? e.message : t('account.genericError'))
+          const msg = e instanceof Error ? e.message : t('account.genericError')
+          setFetchError(msg)
+          if (msg.includes('not connected') || msg.includes('Reconnect')) {
+            setGoogleConnected(false)
+          }
         }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected, t])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, t])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()

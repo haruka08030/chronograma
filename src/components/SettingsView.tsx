@@ -9,8 +9,6 @@ import { ThemeToggle } from './ThemeToggle'
 
 export function SettingsView() {
   const { t } = useTranslation()
-  const todayIncludeOverdue = useTaskStore((s) => s.todayIncludeOverdue)
-  const setTodayIncludeOverdue = useTaskStore((s) => s.setTodayIncludeOverdue)
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const setListColorPalette = useTaskStore((s) => s.setListColorPalette)
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
@@ -62,15 +60,6 @@ export function SettingsView() {
           </div>
           <ThemeToggle />
         </div>
-        <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-          <input
-            type="checkbox"
-            checked={todayIncludeOverdue}
-            onChange={(e) => setTodayIncludeOverdue(e.target.checked)}
-            className="rounded border-zinc-300 text-accent-600 focus:ring-accent-500"
-          />
-          {t('settings.todayIncludeOverdue')}
-        </label>
       </section>
 
       <section

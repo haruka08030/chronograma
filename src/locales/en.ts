@@ -170,7 +170,6 @@ export default {
     timeLogTagPresetsHelp:
       'One tag per line. These appear as quick picks on the log and Plan vs log timer, and set the color order on the timeline.',
     timeLogTagPresetsPlaceholder: 'e.g.\nsleep\nclass\nhomework',
-    todayIncludeOverdue: 'Include overdue tasks in the “Today” smart list',
   },
   palettes: {
     'pastel-rainbow': {

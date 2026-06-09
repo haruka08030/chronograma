@@ -88,8 +88,6 @@ interface TaskState {
   theme: 'light' | 'dark'
   searchQuery: string
   sortMode: SortMode
-  /** 「今日」スマートリストに期限切れタスクも含める */
-  todayIncludeOverdue: boolean
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
   filterTag: string | null
@@ -148,7 +146,6 @@ interface TaskState {
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
-  setTodayIncludeOverdue: (v: boolean) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
@@ -361,7 +358,6 @@ interface ChronogramaUndoSnapshot {
   selectedView: SmartView | null
   quickAddSectionId: string | null
   sortMode: SortMode
-  todayIncludeOverdue: boolean
   filterTag: string | null
   calendarMode: CalendarMode
   selectedCalendarDateKey: string
@@ -442,7 +438,6 @@ export const useTaskStore = create<TaskState>()(
           selectedView: s.selectedView,
           quickAddSectionId: s.quickAddSectionId,
           sortMode: s.sortMode,
-          todayIncludeOverdue: s.todayIncludeOverdue,
           filterTag: s.filterTag,
           calendarMode: s.calendarMode,
           selectedCalendarDateKey: s.selectedCalendarDateKey,
@@ -466,7 +461,6 @@ export const useTaskStore = create<TaskState>()(
       theme: 'light',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
-      todayIncludeOverdue: false,
       deletedTasks: [],
       moveBannerText: null as string | null,
       taskDragHoverListId: null as string | null,
@@ -752,10 +746,6 @@ export const useTaskStore = create<TaskState>()(
       setSortMode: (mode) => {
         pushUndo()
         set({ sortMode: mode })
-      },
-      setTodayIncludeOverdue: (todayIncludeOverdue) => {
-        pushUndo()
-        set({ todayIncludeOverdue })
       },
       setFilterTag: (tag) => {
         pushUndo()
@@ -1268,7 +1258,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 21,
+      version: 22,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1434,6 +1424,9 @@ export const useTaskStore = create<TaskState>()(
             }
             return { ...rec }
           })
+        }
+        if (version < 22) {
+          delete state.todayIncludeOverdue
         }
         return state as unknown as TaskState
       },

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../design/app_radius.dart';
 import '../../design/app_spacing.dart';
+import '../../shared/pickers/native_pickers.dart';
+import '../../shared/widgets/draggable_sheet.dart';
 import '../todo/models/task.dart';
+import '../todo/providers/todo_providers.dart';
 
 String _formatHm(TimeOfDay t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -27,18 +30,19 @@ Future<void> showTimeLogEditSheet({
   required BuildContext context,
   required DateTime initialDay,
   Task? existing,
+  int? initialStartMinutes,
   required void Function(Task task) onSave,
   required VoidCallback onDelete,
 }) {
-  return showModalBottomSheet<void>(
+  return showDraggableBottomSheet<void>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) {
+    initialChildSize: 0.5,
+    builder: (ctx, scrollController) {
       return _TimeLogEditBody(
+        scrollController: scrollController,
         initialDay: initialDay,
         existing: existing,
+        initialStartMinutes: initialStartMinutes,
         onSave: onSave,
         onDelete: onDelete,
       );
@@ -46,24 +50,28 @@ Future<void> showTimeLogEditSheet({
   );
 }
 
-class _TimeLogEditBody extends StatefulWidget {
+class _TimeLogEditBody extends ConsumerStatefulWidget {
   const _TimeLogEditBody({
+    required this.scrollController,
     required this.initialDay,
     required this.existing,
+    this.initialStartMinutes,
     required this.onSave,
     required this.onDelete,
   });
 
+  final ScrollController scrollController;
   final DateTime initialDay;
   final Task? existing;
+  final int? initialStartMinutes;
   final void Function(Task task) onSave;
   final VoidCallback onDelete;
 
   @override
-  State<_TimeLogEditBody> createState() => _TimeLogEditBodyState();
+  ConsumerState<_TimeLogEditBody> createState() => _TimeLogEditBodyState();
 }
 
-class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
+class _TimeLogEditBodyState extends ConsumerState<_TimeLogEditBody> {
   final _uuid = const Uuid();
   late final TextEditingController _title;
   late final TextEditingController _tags;
@@ -91,8 +99,15 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
     _endDay = e?.endDate != null
         ? DateTime(e!.endDate!.year, e.endDate!.month, e.endDate!.day)
         : _day;
-    _start = _parseHm(e?.startTime) ?? const TimeOfDay(hour: 9, minute: 0);
-    _end = _parseHm(e?.endTime) ?? const TimeOfDay(hour: 10, minute: 0);
+    final startMin = widget.initialStartMinutes;
+    final defaultStart = startMin != null
+        ? TimeOfDay(hour: (startMin ~/ 60).clamp(0, 23), minute: startMin % 60)
+        : const TimeOfDay(hour: 9, minute: 0);
+    final defaultEnd = startMin != null
+        ? TimeOfDay(hour: ((startMin + 60) ~/ 60).clamp(0, 23), minute: (startMin + 60) % 60)
+        : const TimeOfDay(hour: 10, minute: 0);
+    _start = _parseHm(e?.startTime) ?? defaultStart;
+    _end = _parseHm(e?.endTime) ?? defaultEnd;
     _completed = e?.completed ?? true;
   }
 
@@ -105,8 +120,8 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
   }
 
   Future<void> _pickStartDay() async {
-    final d = await showDatePicker(
-      context: context,
+    final d = await pickNativeDate(
+      context,
       initialDate: _day,
       firstDate: DateTime(_day.year - 2),
       lastDate: DateTime(_day.year + 3),
@@ -120,8 +135,8 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
   }
 
   Future<void> _pickEndDay() async {
-    final d = await showDatePicker(
-      context: context,
+    final d = await pickNativeDate(
+      context,
       initialDate: _endDay,
       firstDate: _day,
       lastDate: DateTime(_day.year + 3),
@@ -130,12 +145,12 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
   }
 
   Future<void> _pickStart() async {
-    final t = await showTimePicker(context: context, initialTime: _start);
+    final t = await pickNativeTime(context, initialTime: _start);
     if (t != null) setState(() => _start = t);
   }
 
   Future<void> _pickEnd() async {
-    final t = await showTimePicker(context: context, initialTime: _end);
+    final t = await pickNativeTime(context, initialTime: _end);
     if (t != null) setState(() => _end = t);
   }
 
@@ -195,43 +210,54 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
     Navigator.pop(context);
   }
 
+  void _applyPresetTag(String tag) {
+    final current = _tags.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (current.any((t) => t.toLowerCase() == tag.toLowerCase())) return;
+    current.add(tag);
+    setState(() => _tags.text = current.join(', '));
+  }
+
+  Widget _buildTagPresets() {
+    final presets = ref.watch(timeLogTagPresetsProvider);
+    if (presets.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final tag in presets)
+            ActionChip(
+              label: Text(tag),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _applyPresetTag(tag),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppRadius.xl),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: cs.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                Text(
-                  widget.existing == null ? 'ログを追加' : 'ログを編集',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TextField(
+    return SingleChildScrollView(
+      controller: widget.scrollController,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl + bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
                   controller: _title,
                   decoration: const InputDecoration(
                     labelText: 'タイトル',
@@ -316,6 +342,7 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
                     labelText: 'タグ（カンマ区切り）',
                   ),
                 ),
+                _buildTagPresets(),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                   controller: _description,
@@ -366,10 +393,7 @@ class _TimeLogEditBodyState extends State<_TimeLogEditBody> {
                     child: const Text('削除'),
                   ),
                 ],
-              ],
-            ),
-          ),
-        ),
+        ],
       ),
     );
   }

@@ -1,0 +1,8 @@
+# Minimal Supabase CLI config for Edge Functions deploy
+project_id = "chronograma"
+
+[api]
+enabled = true
+
+[functions.google-calendar]
+verify_jwt = true

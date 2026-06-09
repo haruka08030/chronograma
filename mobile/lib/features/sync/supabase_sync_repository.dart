@@ -61,6 +61,9 @@ class SupabaseSyncRepository {
     }
   }
 
+  static const _calendarScope =
+      'https://www.googleapis.com/auth/calendar.readonly';
+
   Future<String?> signInWithGoogle() async {
     try {
       final redirectTo = _defaultMobileRedirectUrl();
@@ -68,6 +71,12 @@ class SupabaseSyncRepository {
         OAuthProvider.google,
         redirectTo: redirectTo,
         authScreenLaunchMode: LaunchMode.externalApplication,
+        scopes: _calendarScope,
+        queryParams: const {
+          'access_type': 'offline',
+          'prompt': 'consent',
+          'include_granted_scopes': 'true',
+        },
       );
       return null;
     } on AuthException catch (e) {
@@ -109,6 +118,27 @@ class SupabaseSyncRepository {
       return const [];
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// Upsert lists and delete remote rows not present locally (except inbox).
+  Future<String?> pushListsSync(String userId, List<TaskListMeta> lists) async {
+    try {
+      final error = await pushListsUpsert(userId, lists);
+      if (error != null) return error;
+      final remote = await fetchLists(userId);
+      final localIds = lists.map((l) => l.id).toSet();
+      for (final r in remote) {
+        if (r.id == Task.inboxListId) continue;
+        if (!localIds.contains(r.id)) {
+          await _client.from('lists').delete().eq('id', r.id).eq('user_id', userId);
+        }
+      }
+      return null;
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
     }
   }
 

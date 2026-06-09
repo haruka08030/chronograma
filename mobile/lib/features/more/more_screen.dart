@@ -6,9 +6,15 @@ import 'package:flutter/services.dart';
 
 import '../../app/theme_mode_provider.dart';
 import '../../core/backup_format.dart';
-import '../../design/app_spacing.dart';
+import '../../core/csv_import.dart';
+import '../../l10n/app_strings.dart';
+import '../google/google_calendar_service.dart';
+import '../google/google_connection_provider.dart';
+import '../stats/stats_screen.dart';
+import '../../design/design.dart';
 import '../habits/models/habit.dart';
 import '../habits/providers/habits_providers.dart';
+import '../todo/data/list_color_palettes.dart';
 import '../todo/models/list_section_meta.dart';
 import '../todo/models/task.dart';
 import '../todo/models/task_list_meta.dart';
@@ -27,16 +33,21 @@ class MoreScreen extends ConsumerStatefulWidget {
 
 class _MoreScreenState extends ConsumerState<MoreScreen> {
   late final TextEditingController _emailController;
+  late final TextEditingController _tagPresetsController;
 
   @override
   void initState() {
     super.initState();
     _emailController = TextEditingController();
+    _tagPresetsController = TextEditingController(
+      text: ref.read(timeLogTagPresetsProvider).join('\n'),
+    );
   }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _tagPresetsController.dispose();
     super.dispose();
   }
 
@@ -48,16 +59,18 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final tasks = ref.watch(todoListProvider);
     final habits = ref.watch(habitsListProvider);
     final signedIn = (sync.userEmail ?? '').isNotEmpty;
+    final googleConnected = ref.watch(googleConnectedProvider);
+    final locale = ref.watch(appLocaleProvider);
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.lg,
+          AppSpacing.xl,
+          96,
+        ),
         children: [
-          Text(
-            'More',
-            style: Theme.of(context).textTheme.displaySmall,
-          ),
-          const SizedBox(height: AppSpacing.xl),
           Text(
             '外観',
             style: Theme.of(context).textTheme.titleMedium,
@@ -83,6 +96,98 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               ref.read(themeModeProvider.notifier).state = s.first;
             },
           ),
+          const SizedBox(height: AppSpacing.md),
+          SegmentedButton<AppLocale>(
+            segments: const [
+              ButtonSegment(value: AppLocale.ja, label: Text('日本語')),
+              ButtonSegment(value: AppLocale.en, label: Text('English')),
+            ],
+            selected: {locale},
+            onSelectionChanged: (s) {
+              ref.read(appLocaleProvider.notifier).state = s.first;
+            },
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+          Text(
+            'カスタマイズ',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'リスト色パレット',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _PalettePicker(),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            '活動ログのタグ候補（1行に1つ）',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _tagPresetsController,
+            minLines: 3,
+            maxLines: 8,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '仕事\n勉強\n運動',
+            ),
+            onEditingComplete: () {
+              ref
+                  .read(timeLogTagPresetsProvider.notifier)
+                  .setFromText(_tagPresetsController.text);
+              FocusScope.of(context).unfocus();
+            },
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                ref
+                    .read(timeLogTagPresetsProvider.notifier)
+                    .setFromText(_tagPresetsController.text);
+                FocusScope.of(context).unfocus();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('タグ候補を保存しました')),
+                );
+              },
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('タグ候補を保存'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+          Text(
+            'Google Calendar',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (googleConnected)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available, color: Colors.green),
+              title: const Text('Google Calendar 接続中'),
+              trailing: TextButton(
+                onPressed: () async {
+                  final svc = GoogleCalendarService.tryCreate();
+                  if (svc != null) await svc.disconnect();
+                  await ref.read(googleConnectedProvider.notifier).setConnected(false);
+                },
+                child: const Text('切断'),
+              ),
+            )
+          else
+            FilledButton.tonalIcon(
+              onPressed: signedIn
+                  ? () async {
+                      await ref.read(syncNotifierProvider.notifier).signInWithGoogle();
+                      await ref.read(googleConnectedProvider.notifier).setConnected(true);
+                    }
+                  : null,
+              icon: const Icon(Icons.calendar_month),
+              label: const Text('Google Calendar に接続'),
+            ),
           const SizedBox(height: AppSpacing.xxl),
           Text(
             '同期（Supabase）',
@@ -190,6 +295,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             icon: const Icon(Icons.download_for_offline_outlined),
             label: const Text('JSON インポート'),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: _showCsvImportDialog,
+            icon: const Icon(Icons.table_rows_outlined),
+            label: const Text('CSV からタスク追加'),
+          ),
           const SizedBox(height: AppSpacing.xxl),
           Text(
             '通知',
@@ -212,6 +323,9 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                 }
               }
               ref.read(notificationsEnabledProvider.notifier).setEnabled(v);
+              if (v) {
+                await _rescheduleNotifications(ref);
+              }
             },
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -234,17 +348,17 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.sm),
-          _StatsSection(tasks: tasks, habits: habits),
-          const SizedBox(height: AppSpacing.xxl),
-          Text(
-            'Phase 2 予定',
-            style: Theme.of(context).textTheme.titleMedium,
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const StatsScreen()),
+              );
+            },
+            icon: const Icon(Icons.bar_chart),
+            label: const Text('統計を開く'),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            'リスト色パレット、予定 vs ログの専用ビュー、通知スケジューリング強化。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          _StatsSection(tasks: tasks, habits: habits),
         ],
       ),
     );
@@ -389,6 +503,118 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<void> _rescheduleNotifications(WidgetRef ref) async {
+    final tasks = ref.read(todoListProvider);
+    await NotificationService.instance.rescheduleDueReminders(
+      tasks: [
+        for (final t in tasks.where((t) => !t.isTimeLog))
+          (id: t.id, title: t.title, dueDate: t.dueDate, completed: t.completed),
+      ],
+    );
+  }
+
+  void _showCsvImportDialog() {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('CSV からタスク追加'),
+        content: SizedBox(
+          width: 560,
+          child: TextField(
+            controller: controller,
+            maxLines: 12,
+            decoration: const InputDecoration(
+              hintText: 'title,due date 形式の CSV',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final result = importTasksFromCsv(
+                controller.text,
+                defaultListId: Task.inboxListId,
+              );
+              if (result.tasks.isNotEmpty) {
+                final existing = ref.read(todoListProvider);
+                ref.read(todoListProvider.notifier).replaceAll([
+                  ...existing,
+                  ...result.tasks,
+                ]);
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '追加 ${result.imported} / スキップ ${result.skipped}',
+                  ),
+                ),
+              );
+            },
+            child: const Text('インポート'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PalettePicker extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(listColorPaletteProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final p in listColorPalettes)
+          InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            onTap: () => ref.read(listColorPaletteProvider.notifier).set(p.id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    p.id == selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: p.id == selected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        for (final c in p.colors.take(8))
+                          Container(
+                            width: 16,
+                            height: 16,
+                            margin: const EdgeInsets.only(right: 3),
+                            decoration: BoxDecoration(
+                              color: hexToColor(c),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

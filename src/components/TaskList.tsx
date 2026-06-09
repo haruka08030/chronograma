@@ -214,8 +214,6 @@ export function TaskList() {
   const deleteSectionStore = useTaskStore((s) => s.deleteSection)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  const todayIncludeOverdue = useTaskStore((s) => s.todayIncludeOverdue)
-
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
@@ -310,9 +308,8 @@ export function TaskList() {
         sortMode,
         filterTag,
         sections,
-        todayIncludeOverdue,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, sections, todayIncludeOverdue],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, sections],
   )
 
   const listSectionsOrdered = useMemo(() => {
@@ -355,9 +352,8 @@ export function TaskList() {
       sortMode,
       filterTag,
       sections,
-      todayIncludeOverdue,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, todayIncludeOverdue])
+  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections])
 
   const sectionBlocks = useMemo(() => {
     if (!showSectionBlocks || !selectedListId) return null

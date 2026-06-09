@@ -14,12 +14,7 @@ import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import {
-  fetchCalendarEvents,
-  initGoogleAuth,
-  isGoogleAvailable,
-  signInSilent,
-} from '../lib/googleCalendar'
+import { fetchCalendarEvents } from '../lib/googleCalendar'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void }) {
@@ -72,7 +67,6 @@ export function CalendarView({
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
-  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
@@ -105,39 +99,24 @@ export function CalendarView({
 
     const doFetch = async () => {
       try {
-        if (!isGoogleAvailable()) {
-          await initGoogleAuth()
-        }
-
-        let token = useTaskStore.getState().googleAccessToken
-        if (!token) {
-          try {
-            token = await signInSilent()
-          } catch {
-            if (!cancelled) {
-              setGoogleConnected(false)
-              setCalendarEvents([])
-            }
-            return
-          }
-          if (!cancelled) setGoogleAccessToken(token)
-        }
-
         const monthStart = startOfMonth(displayMonth)
         const monthEnd = endOfMonth(displayMonth)
         const ws = startOfWeek(monthStart, { weekStartsOn: 1 })
         const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
-        const events = await fetchCalendarEvents(ws, we, token)
+        const events = await fetchCalendarEvents(ws, we)
         if (!cancelled) setCalendarEvents(events)
       } catch {
-        if (!cancelled) setCalendarEvents([])
+        if (!cancelled) {
+          setGoogleConnected(false)
+          setCalendarEvents([])
+        }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected])
+  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleConnected])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()

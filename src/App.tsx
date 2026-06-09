@@ -415,7 +415,6 @@ export default function App() {
         sortMode: state.sortMode,
         filterTag: state.filterTag,
         sections: state.sections,
-        todayIncludeOverdue: state.todayIncludeOverdue,
       })
       const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,

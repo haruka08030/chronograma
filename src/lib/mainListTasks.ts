@@ -14,24 +14,15 @@ export interface MainListTasksInput {
   sortMode: SortMode
   filterTag: string | null
   sections: ListSection[]
-  /** 「今日」に期限切れを含める（既定 false） */
-  todayIncludeOverdue?: boolean
 }
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag, todayIncludeOverdue } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag } = input
   let result = tasks.filter((t) => t.parentId === null)
 
   if (selectedView === 'today') {
-    const todayStart = startOfDay(new Date())
-    result = result.filter((t) => {
-      if (!t.dueDate) return false
-      const d = startOfDay(parseISO(t.dueDate))
-      if (isToday(parseISO(t.dueDate))) return true
-      if (todayIncludeOverdue && isBefore(d, todayStart)) return true
-      return false
-    })
+    result = result.filter((t) => t.dueDate && isToday(parseISO(t.dueDate)))
   } else if (selectedView === 'upcoming') {
     const today = startOfDay(new Date())
     const limit = startOfDay(addDays(new Date(), 7))
