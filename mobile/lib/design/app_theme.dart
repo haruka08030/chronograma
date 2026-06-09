@@ -99,6 +99,7 @@ abstract final class AppTheme {
         color: AppColors.surfaceContainerLowest,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
+          side: BorderSide(color: AppColors.zinc200.withValues(alpha: 0.7)),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -106,35 +107,120 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
       ),
+      chipTheme: _chipTheme(
+        selectedBg: AppColors.accent50,
+        selectedFg: AppColors.accent700,
+        unselectedBg: AppColors.zinc100,
+        unselectedFg: AppColors.zinc600,
+        border: AppColors.zinc200,
+      ),
+      segmentedButtonTheme: _segmentedTheme(
+        selectedBg: AppColors.accent50,
+        selectedFg: AppColors.accent700,
+        unselectedFg: AppColors.zinc600,
+        border: AppColors.zinc200,
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
-        backgroundColor: AppColors.inverseSurface,
+        backgroundColor: AppColors.zinc900,
         contentTextStyle: GoogleFonts.inter(
-          color: AppColors.inverseOnSurface,
+          color: AppColors.zinc50,
           fontWeight: FontWeight.w500,
         ),
-        actionTextColor: AppColors.darkPrimary,
+        actionTextColor: AppColors.accent300,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide.none,
+      inputDecorationTheme: _inputTheme(
+        fill: AppColors.zinc50,
+        border: AppColors.zinc200,
+        focus: AppColors.accent500,
+      ),
+    );
+  }
+
+  static InputDecorationTheme _inputTheme({
+    required Color fill,
+    required Color border,
+    required Color focus,
+  }) {
+    return InputDecorationTheme(
+      filled: true,
+      fillColor: fill,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: focus.withValues(alpha: 0.6), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+    );
+  }
+
+  static ChipThemeData _chipTheme({
+    required Color selectedBg,
+    required Color selectedFg,
+    required Color unselectedBg,
+    required Color unselectedFg,
+    required Color border,
+  }) {
+    return ChipThemeData(
+      backgroundColor: unselectedBg,
+      selectedColor: selectedBg,
+      labelStyle: GoogleFonts.inter(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: unselectedFg,
+      ),
+      secondaryLabelStyle: GoogleFonts.inter(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: selectedFg,
+      ),
+      side: BorderSide(color: border),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(999),
+      ),
+      showCheckmark: false,
+    );
+  }
+
+  static SegmentedButtonThemeData _segmentedTheme({
+    required Color selectedBg,
+    required Color selectedFg,
+    required Color unselectedFg,
+    required Color border,
+  }) {
+    return SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? selectedBg
+              : Colors.transparent,
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-            width: 1,
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? selectedFg
+              : unselectedFg,
+        ),
+        side: WidgetStatePropertyAll(BorderSide(color: border)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+        textStyle: WidgetStatePropertyAll(
+          GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -202,6 +288,7 @@ abstract final class AppTheme {
         color: AppColors.darkSurfaceContainerLowest,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
+          side: BorderSide(color: AppColors.zinc800),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -209,36 +296,35 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
       ),
+      chipTheme: _chipTheme(
+        selectedBg: AppColors.accent500.withValues(alpha: 0.16),
+        selectedFg: AppColors.accent300,
+        unselectedBg: AppColors.zinc800,
+        unselectedFg: AppColors.zinc300,
+        border: AppColors.zinc700,
+      ),
+      segmentedButtonTheme: _segmentedTheme(
+        selectedBg: AppColors.accent500.withValues(alpha: 0.16),
+        selectedFg: AppColors.accent300,
+        unselectedFg: AppColors.zinc300,
+        border: AppColors.zinc700,
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
-        backgroundColor: AppColors.darkSurfaceContainerHighest,
+        backgroundColor: AppColors.zinc800,
         contentTextStyle: GoogleFonts.inter(
-          color: AppColors.darkOnSurface,
+          color: AppColors.zinc100,
           fontWeight: FontWeight.w500,
         ),
-        actionTextColor: AppColors.darkPrimary,
+        actionTextColor: AppColors.accent300,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.darkSurfaceContainer,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(
-            color: AppColors.darkPrimary,
-            width: 1,
-          ),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
-        ),
+      inputDecorationTheme: _inputTheme(
+        fill: AppColors.zinc800,
+        border: AppColors.zinc700,
+        focus: AppColors.accent400,
       ),
     );
   }

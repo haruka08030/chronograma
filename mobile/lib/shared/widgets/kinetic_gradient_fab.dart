@@ -40,8 +40,8 @@ class KineticGradientFab extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.primary,
-                  AppColors.primaryContainer,
+                  AppColors.accent500,
+                  AppColors.accent600,
                 ],
               ),
             ),

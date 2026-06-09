@@ -48,6 +48,8 @@
 | Supabase     | `supabase_flutter`；URL/anon は `--dart-define` または `mobile/assets/supabase.env`（`VITE_*` 互換可） |
 | 通知         | `flutter_local_notifications`（権限要求 + テスト通知）                                                 |
 | タイポ       | `google_fonts`（Inter）                                                                                |
+| UI トーン    | Web 準拠（Tailwind accent/zinc + Inter）。トークン `lib/design/app_colors.dart` / `app_theme.dart`、共有部品 `lib/shared/widgets/chronograma_kit.dart`（ScreenHeader/SearchBar/FilterChips/EmptyState/Card） |
+| カレンダー/ログ | 時間グリッド型プランナー。共有基盤 `lib/shared/time_grid/`（`TimeGrid`/`NowIndicator`/`timeToY`, hourHeight=56）。カレンダーは月(実チップ+選択日アジェンダ)/週(7日)/日(1日)/**Plan**(予定vs実績)、ログは1日タイムグリッド。ブロック色は `lib/features/calendar/calendar_blocks.dart`（予定=accent / ログ=タグ色 / Google=blue）。**ブロックは縦ドラッグで移動・下端ハンドルでリサイズ**（`TimeBlockData.onMove/onResize`）。週/日の下に**ToDo ドック**（未スケジュールタスクをタップ/長押しドラッグで配置、列は `onAcceptTask` の `DragTarget`）。サブ画面は左上見出しなし（ブランドは To-Do のみ） |
 
 - **Phase 1**: To‑Do（すべて/今日/近日中/期限切れ、**画面上部固定の検索欄**（Web
   の To‑Do 面に近い）、**リスト絞り込みチップ**（`lists` pull
@@ -61,9 +63,15 @@
   `Task.completedAt` を自動更新（完了時は現在時刻、未完了へ戻すと null）。 DB
   正本は **`001_chronograma_schema.sql`**（`tasks.end_date` /
   `tasks.completed_at`）。タスクが参照する未知の `list_id` は push 直前にスタブ
-  `lists` 行を補完。UI はフラット
-  To‑Do（サブタスク入れ子・セクション編集なし）。`habits` は `frequency` /
-  `time_mode` / タイムスタンプを含む
+  `lists` 行を補完。`habits` は `frequency` / `time_mode` / タイムスタンプを含む
+- **モバイル機能パリティ（Web 追従）**: To‑Do 詳細シート
+  （`task_detail_sheet.dart`）でサブタスク追加・予定時刻
+  `startTime`/`endTime`・繰り返し `recurrence`・セクション割当を編集。To‑Do 一覧は
+  **ツリー表示**（`todo_tree_list.dart`、リスト選択時はセクション見出しでグルーピング）。
+  リスト管理シートはリネーム・色選択（パレット）・並べ替え。**複数選択＋一括操作**
+  （`taskSelectionProvider`、長押し or ⋮「選択」→ 完了/リスト移動/優先度/期限/削除）。
+  色パレットは `lib/features/todo/data/list_color_palettes.dart`（Web 移植）、選択 ID は
+  `listColorPaletteProvider` に保存
 - **Log（第2段）**: `tasks.is_time_log` 相当の
   `Task.isTimeLog`＋`dueDate`（**開始日**）＋任意の
   **`endDate`（終了日、`yyyy-MM-dd`）**＋`startTime`/`endTime`（`HH:mm`）＋`description`。Google
@@ -75,17 +83,21 @@
   `start_time` / `end_time` / `end_date` / `description`
   を含む。モバイルのログ編集シート（`time_log_edit_sheet.dart`）も
   **開始行／終了行** に日付・時刻を横並び（既存ログは `list_id` 等を維持）
-- **Calendar/Habits（第2段）**: Calendar は Month/Week
-  切替（週列で日別ログ件数と時刻付きログプレビュー）+ 日別 Plan vs Log
-  サマリー（一致/予定のみ/ログのみ）、日別の予定/ログ一覧。Habits
-  は独立モデル（`habits_json_v1`）で作成・編集・削除・日別達成トグル、Supabase
-  `habits`（`completed_dates` / `frequency` / `time_mode` 等）と同期。PC の
-  `HabitsView`
-  はフォーカス日に該当しない習慣も一覧下部にグレー表示して編集可。More
+- **Calendar/Habits（第2段）**: Calendar は Month/Week/Day/**Plan**
+  切替。**Plan vs Actual**（`plan_vs_actual_panel.dart` + 突合ロジック
+  `plan_vs_actual_match.dart`、Web `matchEvents.ts` 移植）は選択日の予定（配置済みタスク
+  /Google/範囲習慣）とログを突き合わせ、`matched`/`time-drift`/`planned-only`/`actual-only`
+  を色分け表示、未実行の予定は「ログに記録」可。Habits
+  は独立モデル（`habits_json_v1`）で作成・編集・削除・日別達成トグル＋**頻度（毎日/毎週曜日）・
+  `time_mode`（なし/時刻/範囲）・色** 設定（`_EditHabitSheet`）と**直近28日ヒートマップ＋連続日数**。Supabase
+  `habits`（`completed_dates` / `frequency` / `time_mode` 等）と同期。Calendar/Log/Habits
+  は共有 `selectedDateProvider`（`lib/shared/selected_date_provider.dart`）で**選択日を同期**。More
   は外観・同期・テーマに加え、JSON バックアップ **schema
   v3**（`mobile/lib/core/backup_format.dart`。 Web と同型の
   `listSections`・`order` エイリアス。`habits` 無し import は `[]`）、
-  通知権限+テスト通知、統計カードを実装
+  通知権限+テスト通知、**リスト色パレット選択・活動ログのタグ候補編集
+  （`timeLogTagPresetsProvider`、ログ編集シート/タイマーで候補チップ）**、拡充した統計
+  （`stats_screen.dart`：7日棒グラフ・優先度バー・リスト別）を実装
 
 エントリ: `mobile/lib/main.dart`（`SupabaseEnv.load` → 設定時
 `Supabase.initialize` → `Hive.initFlutter` → `ProviderScope` で
@@ -311,7 +323,7 @@
 | `CalendarHubView.tsx`                                                                                      | カレンダー用ハブ（月/週タブ、**Google 風日付ナビ**（今日・前後・期間ラベル＋ミニ月ピッカー）、`monthCursor` / `weekAnchor` はローカル、**選択日は** `taskStore.selectedCalendarDateKey` を子へ受け渡し、ToDo ドック、`lg` 以上で右に「選択日パネル」、md 未満でサイドバーを開くボタン）                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `CalendarDayPanel.tsx`                                                                                     | 選択日の詳細パネル。タブで「予定 / ToDo」「ログ」を切替し、当日ログの合計時間を表示。`予定 / ToDo` は未完了の `dueDate` 一致タスク＋外部予定。下部に **`completedAt` がその日のルート ToDo** の「実行済み」一覧（件数 0 のときは `noExecuted` 文言）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `CalendarTaskDock.tsx`                                                                                     | カレンダー下部のリスト別 ToDo（**完了 ToDo は非表示**。ネイティブ DnD で月セル・週タイムラインへドロップ可）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `CalendarView.tsx`, `WeekCalendarView.tsx`                                                                 | 月グリッド（`displayMonth` 制御）・週タイムライン（`anchor` 制御）。**月セル**: `dueDate` のタスク行・Google 予定プレビュー等。完了日の緑ドット集計は表示しない。日付選択はハブの `applyPickedDate` 経由で選択日・表示月/週を同期。`googleConnected` 時は Supabase OAuth の `provider_token` で表示レンジの Google 予定を取得して描画（トークン欠落時は接続フラグを自動で false に戻す）。セル／週タイムラインのインライン ToDo 追加は **Enter は `!isComposing` のときだけ送信**（IME 確定は Quick Add と同様に 1 回目、送信は確定後の Enter）                                                                                                                                                                                                                     |
+| `CalendarView.tsx`, `WeekCalendarView.tsx`                                                                 | 月グリッド（`displayMonth` 制御）・週タイムライン（`anchor` 制御）。**月セル**: `dueDate` のタスク行・Google 予定プレビュー等。`googleConnected` 時は Edge Function `google-calendar`（`action=events`）で予定取得。セル／週タイムラインのインライン ToDo 追加は **Enter は `!isComposing` のときだけ送信**                                                                                                                                                                                                                     |
 | `CalendarDateNav.tsx`                                                                                      | ハブ専用：今日・期間前後・期間ラベル（クリックでミニ月）、外側クリック/Escape で閉じるポップオーバー                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `PlanVsActualView.tsx`                                                                                     | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸。習慣スロットも左列の色は突合のみ）。予定列の Google 取り込み予定・習慣 range はチェックで即タイムログ化（習慣は未達成日のみ達成トグル）。自分の予定タスクはタップで「完了を記録」モーダル。ヘッダのタイマー開始は `TimeLogTagField`（コンパクト）                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `ActivityLogView.tsx`                                                                                      | ログ（タイムラインのログ色は上記と同じルール）。タグ入力は `TimeLogTagField`（プリセットチップ＋datalist）。手動追加も **開始／終了の日付＋時刻** をブロック単位で近接配置                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -367,7 +379,8 @@
 ## 実装時の注意
 
 - 同期は **全体スナップショット型**（フィールド単位マージではない）
-- Google トークン（Supabase セッション由来）・`calendarEvents` は永続化されない
+- Google Calendar: **Edge Function** `google-calendar`（`provider_refresh_token` を `google_oauth` 表に保存しサーバー側で access_token リフレッシュ）。デプロイ時は Supabase secrets に `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`（Auth の Google プロバイダと同一）、`002_google_oauth.sql` 適用、Auth で **Manual linking** 有効が必要。Web は `src/lib/googleCalendar.ts` から invoke（`status` / `store` / `events` / `disconnect`）。`AuthContext` は `USER_UPDATED`（`linkIdentity` 後）でも refresh token を保存し、起動時に `status` で `googleConnected` を同期。`calendarEvents` はクライアントのみ（永続化しない）。ログアウトで `disconnect` + `googleConnected` リセット
+- モバイル: `syncNotifier` は `AppShell` で常時 watch。Google 連携・Plan タブ・ツリー To‑Do・リスト CRUD・NLP クイック追加・CSV・期限通知・TestFlight 手順は `mobile/TESTFLIGHT.md`
 - 未分類（`__inbox__`）は削除不可（リスト DnD
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左
 - README

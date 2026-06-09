@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/app_radius.dart';
 import '../../../design/app_spacing.dart';
+import '../../../shared/pickers/native_pickers.dart';
+import '../../../shared/widgets/draggable_sheet.dart';
 import '../models/task_priority.dart';
 
 Future<void> showQuickAddSheet({
@@ -12,20 +13,26 @@ Future<void> showQuickAddSheet({
     required TaskPriority priority,
   }) onSubmit,
 }) {
-  return showModalBottomSheet<void>(
+  return showDraggableBottomSheet<void>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) {
-      return _QuickAddBody(onSubmit: onSubmit);
+    initialChildSize: 0.45,
+    minChildSize: 0.35,
+    builder: (ctx, scrollController) {
+      return _QuickAddBody(
+        scrollController: scrollController,
+        onSubmit: onSubmit,
+      );
     },
   );
 }
 
 class _QuickAddBody extends StatefulWidget {
-  const _QuickAddBody({required this.onSubmit});
+  const _QuickAddBody({
+    required this.scrollController,
+    required this.onSubmit,
+  });
 
+  final ScrollController scrollController;
   final void Function({
     required String title,
     DateTime? dueDate,
@@ -49,8 +56,8 @@ class _QuickAddBodyState extends State<_QuickAddBody> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
+    final d = await pickNativeDate(
+      context,
       initialDate: now,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 3),
@@ -60,34 +67,25 @@ class _QuickAddBodyState extends State<_QuickAddBody> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppRadius.xl),
-          ),
-        ),
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'クイック追加',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            TextField(
+    return SingleChildScrollView(
+      controller: widget.scrollController,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl + bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
               controller: _title,
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'タイトル',
-                hintText: 'やることを入力',
+                hintText: 'やること #tag 今日 明日',
               ),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _submit(),
@@ -130,8 +128,7 @@ class _QuickAddBodyState extends State<_QuickAddBody> {
               onPressed: _submit,
               child: const Text('追加'),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

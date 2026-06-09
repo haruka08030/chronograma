@@ -8,6 +8,8 @@ import '../habits/models/habit.dart';
 import '../habits/providers/habits_providers.dart';
 import '../todo/models/task.dart';
 import '../todo/providers/todo_providers.dart';
+import '../google/google_calendar_service.dart';
+import '../google/google_connection_provider.dart';
 import 'supabase_sync_repository.dart';
 import 'sync_status.dart';
 
@@ -104,6 +106,28 @@ class SyncNotifier extends Notifier<SyncState> {
     _authSub = repo.authStateChanges.listen((event) {
       final user = event.session?.user;
       state = state.copyWith(userEmail: user?.email, clearError: true);
+      final session = event.session;
+      if (session != null) {
+        final refresh = session.providerRefreshToken;
+        if (refresh != null && refresh.isNotEmpty) {
+          final gcal = GoogleCalendarService.tryCreate();
+          if (gcal != null) {
+            unawaited(
+              gcal.storeRefreshToken(refresh).then((_) {
+                ref.read(googleConnectedProvider.notifier).setConnected(true);
+              }).catchError((_) {}),
+            );
+          }
+        }
+      }
+      if (event.event == AuthChangeEvent.signedOut) {
+        unawaited(ref.read(googleConnectedProvider.notifier).setConnected(false));
+        ref.read(calendarEventsProvider.notifier).state = [];
+        final gcal = GoogleCalendarService.tryCreate();
+        if (gcal != null) {
+          unawaited(gcal.disconnect().catchError((_) {}));
+        }
+      }
       if (user != null) {
         Future.microtask(pullSync);
       }
@@ -154,7 +178,7 @@ class SyncNotifier extends Notifier<SyncState> {
           stored: ref.read(taskListsProvider),
           tasks: localTasks,
         );
-        var error = await repo.pushListsUpsert(user.id, merged);
+        var error = await repo.pushListsSync(user.id, merged);
         if (error != null) {
           state = state.copyWith(
             status: SyncStatus.failed,
@@ -224,7 +248,7 @@ class SyncNotifier extends Notifier<SyncState> {
       tasks: localTasks,
     );
 
-    var error = await repo.pushListsUpsert(userId, merged);
+    var error = await repo.pushListsSync(userId, merged);
     if (error != null) {
       state = state.copyWith(status: SyncStatus.failed, lastError: error);
       return;
@@ -305,6 +329,12 @@ class SyncNotifier extends Notifier<SyncState> {
   Future<void> signOut() async {
     final repo = _repository;
     if (repo == null) return;
+    final gcal = GoogleCalendarService.tryCreate();
+    if (gcal != null) {
+      await gcal.disconnect().catchError((_) {});
+    }
+    await ref.read(googleConnectedProvider.notifier).setConnected(false);
+    ref.read(calendarEventsProvider.notifier).state = [];
     await repo.signOut();
     state = state.copyWith(
       status: SyncStatus.idle,

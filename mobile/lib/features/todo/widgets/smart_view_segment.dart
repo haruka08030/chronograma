@@ -76,7 +76,7 @@ class _Chip extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontSize: 13,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   color: selected ? cs.primary : cs.onSurfaceVariant,
                 ),
           ),

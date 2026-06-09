@@ -24,12 +24,7 @@ import {
 } from '../lib/taskTimeRange'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
-import {
-  fetchCalendarEvents,
-  initGoogleAuth,
-  isGoogleAvailable,
-  signInSilent,
-} from '../lib/googleCalendar'
+import { fetchCalendarEvents } from '../lib/googleCalendar'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import type { Task } from '../types/task'
@@ -176,7 +171,6 @@ export function WeekCalendarView({
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
-  const setGoogleAccessToken = useTaskStore((s) => s.setGoogleAccessToken)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -236,37 +230,22 @@ export function WeekCalendarView({
 
     const doFetch = async () => {
       try {
-        if (!isGoogleAvailable()) {
-          await initGoogleAuth()
-        }
-
-        let token = useTaskStore.getState().googleAccessToken
-        if (!token) {
-          try {
-            token = await signInSilent()
-          } catch {
-            if (!cancelled) {
-              setGoogleConnected(false)
-              setCalendarEvents([])
-            }
-            return
-          }
-          if (!cancelled) setGoogleAccessToken(token)
-        }
-
         const ws = startOfWeek(anchor, { weekStartsOn: 1 })
         const we = endOfWeek(anchor, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
-        const events = await fetchCalendarEvents(ws, we, token)
+        const events = await fetchCalendarEvents(ws, we)
         if (!cancelled) setCalendarEvents(events)
       } catch {
-        if (!cancelled) setCalendarEvents([])
+        if (!cancelled) {
+          setGoogleConnected(false)
+          setCalendarEvents([])
+        }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleAccessToken, setGoogleConnected])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected])
 
   useEffect(() => {
     if (scrollRef.current) {

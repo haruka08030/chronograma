@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../design/app_colors.dart';
 import '../../../design/app_radius.dart';
 import '../../../design/app_spacing.dart';
 import '../models/task.dart';
@@ -12,6 +13,9 @@ class TaskCard extends StatelessWidget {
     required this.onToggle,
     required this.onTap,
     required this.onDelete,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onSelect,
   });
 
   final Task task;
@@ -19,17 +23,25 @@ class TaskCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
+  /// 一括選択モード中か。
+  final bool selectionMode;
+
+  /// このタスクが選択済みか。
+  final bool selected;
+
+  /// 長押し（選択開始）／選択モード中のタップで呼ばれる。
+  final VoidCallback? onSelect;
+
   Color _priorityDotColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     switch (task.priority) {
       case TaskPriority.high:
-        return cs.primary;
+        return AppColors.priorityHigh;
       case TaskPriority.medium:
-        return cs.secondary;
+        return AppColors.priorityMedium;
       case TaskPriority.low:
-        return cs.tertiary;
+        return AppColors.priorityLow;
       case TaskPriority.none:
-        return cs.outline;
+        return AppColors.zinc400;
     }
   }
 
@@ -68,15 +80,18 @@ class TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final metaLine = _metaLine();
-    final bg = task.completed
-        ? cs.surfaceContainer.withValues(alpha: 0.5)
-        : cs.surfaceContainerLowest;
+    final bg = selected
+        ? cs.primary.withValues(alpha: 0.14)
+        : task.completed
+            ? cs.surfaceContainer.withValues(alpha: 0.5)
+            : cs.surfaceContainerLowest;
 
     return Material(
       color: bg,
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
-        onTap: onTap,
+        onTap: selectionMode ? onSelect : onTap,
+        onLongPress: onSelect,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -87,29 +102,36 @@ class TaskCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 child: InkWell(
-                  onTap: onToggle,
+                  onTap: selectionMode ? onSelect : onToggle,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   child: Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: task.completed
-                              ? cs.primary
-                              : cs.primary.withValues(alpha: 0.35),
-                          width: 2,
-                        ),
-                        color: task.completed
-                            ? cs.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                      ),
-                      child: task.completed
-                          ? Icon(Icons.check, size: 16, color: cs.primary)
-                          : null,
-                    ),
+                    child: selectionMode
+                        ? Icon(
+                            selected
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: selected ? cs.primary : cs.outline,
+                          )
+                        : AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: task.completed
+                                    ? cs.primary
+                                    : cs.primary.withValues(alpha: 0.35),
+                                width: 2,
+                              ),
+                              color: task.completed
+                                  ? cs.primary.withValues(alpha: 0.12)
+                                  : Colors.transparent,
+                            ),
+                            child: task.completed
+                                ? Icon(Icons.check, size: 16, color: cs.primary)
+                                : null,
+                          ),
                   ),
                 ),
               ),
@@ -119,7 +141,8 @@ class TaskCard extends StatelessWidget {
                   children: [
                     Text(
                       task.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w400,
                             decoration: task.completed
                                 ? TextDecoration.lineThrough
                                 : null,
@@ -160,19 +183,26 @@ class TaskCard extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'delete') {
-                    _confirmDelete(context);
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Text('削除'),
-                  ),
-                ],
-              ),
+              if (!selectionMode)
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'delete') {
+                      _confirmDelete(context);
+                    } else if (v == 'select') {
+                      onSelect?.call();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'select',
+                      child: Text('選択'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('削除'),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

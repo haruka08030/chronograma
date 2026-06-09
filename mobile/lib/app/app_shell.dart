@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/sync/sync_notifier.dart';
+import '../features/timer/global_timer_overlay.dart';
 import '../shared/widgets/glass_bottom_bar.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
     required this.navigationShell,
@@ -12,10 +15,16 @@ class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(syncNotifierProvider);
     return Scaffold(
       extendBody: true,
-      body: navigationShell,
+      body: Stack(
+        children: [
+          navigationShell,
+          const GlobalTimerOverlay(),
+        ],
+      ),
       bottomNavigationBar: GlassBottomBar(
         currentIndex: navigationShell.currentIndex,
         onTap: (index) => _onTap(context, index),

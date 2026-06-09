@@ -1,10 +1,8 @@
 import type { CalendarEvent } from '../types/calendarEvent'
-import { format } from 'date-fns'
+import type { Session } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
-const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
-let currentToken: string | null = null
 
 export function getClientId(): string | undefined {
   return isSupabaseConfigured ? 'supabase-oauth' : undefined
@@ -53,93 +51,68 @@ export function signIn(): Promise<string> {
   })
 }
 
-export function signInSilent(): Promise<string> {
-  const sb = getSupabase()
-  if (!sb) return Promise.reject(new Error('Supabase is not configured'))
-  return sb.auth.getSession().then(({ data: { session } }) => {
-    const token = session?.provider_token ?? null
-    if (!token) {
-      throw new Error('Google provider token is missing. Reconnect Google Calendar.')
-    }
-    currentToken = token
-    return token
-  })
-}
-
+/** @deprecated Use Edge Function; kept for disconnect local cleanup */
 export function signOut(): void {
-  currentToken = null
+  // no-op; server token cleared via disconnectGoogleCalendar
 }
 
-export function getAccessToken(): string | null {
-  return currentToken
+export async function storeGoogleRefreshToken(session: Session | null): Promise<void> {
+  const sb = getSupabase()
+  if (!sb || !session) return
+
+  const refreshToken =
+    session.provider_refresh_token ??
+    (session as Session & { provider_refresh_token?: string }).provider_refresh_token
+
+  if (!refreshToken) return
+
+  const { error } = await sb.functions.invoke('google-calendar', {
+    body: { action: 'store', refresh_token: refreshToken, scope: SCOPES },
+  })
+
+  if (error) throw error
+}
+
+export async function disconnectGoogleCalendar(): Promise<void> {
+  const sb = getSupabase()
+  if (!sb) return
+  const { error } = await sb.functions.invoke('google-calendar', {
+    body: { action: 'disconnect' },
+  })
+  if (error) throw error
+}
+
+export async function isGoogleCalendarConnected(): Promise<boolean> {
+  const sb = getSupabase()
+  if (!sb) return false
+
+  const { data, error } = await sb.functions.invoke('google-calendar', {
+    body: { action: 'status' },
+  })
+
+  if (error) return false
+  const payload = data as { connected?: boolean } | null
+  return payload?.connected === true
 }
 
 export async function fetchCalendarEvents(
   timeMin: Date,
   timeMax: Date,
-  accessToken?: string,
 ): Promise<CalendarEvent[]> {
-  const token = accessToken ?? currentToken
-  if (!token) throw new Error('Not authenticated')
+  const sb = getSupabase()
+  if (!sb) throw new Error('Supabase is not configured')
 
-  const params = new URLSearchParams({
-    timeMin: timeMin.toISOString(),
-    timeMax: timeMax.toISOString(),
-    singleEvents: 'true',
-    orderBy: 'startTime',
-    maxResults: '250',
+  const { data, error } = await sb.functions.invoke('google-calendar', {
+    body: {
+      action: 'events',
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+    },
   })
 
-  const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  if (error) throw error
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Calendar API error ${res.status}: ${body}`)
-  }
-
-  const data = await res.json() as {
-    items?: Array<{
-      id: string
-      summary?: string
-      description?: string
-      start: { dateTime?: string; date?: string }
-      end: { dateTime?: string; date?: string }
-      colorId?: string
-    }>
-  }
-
-  return (data.items ?? []).map((item): CalendarEvent => {
-    const isAllDay = !item.start.dateTime
-    const startDt = item.start.dateTime ?? item.start.date!
-    const endDt = item.end.dateTime ?? item.end.date!
-
-    let date: string
-    let startTime: string | null = null
-    let endTime: string | null = null
-
-    if (isAllDay) {
-      date = startDt
-    } else {
-      const s = new Date(startDt)
-      const e = new Date(endDt)
-      date = format(s, 'yyyy-MM-dd')
-      startTime = format(s, 'HH:mm')
-      endTime = format(e, 'HH:mm')
-    }
-
-    return {
-      id: item.id,
-      summary: item.summary ?? '(無題)',
-      description: item.description,
-      start: startDt,
-      end: endDt,
-      startTime,
-      endTime,
-      date,
-      isAllDay,
-      colorId: item.colorId,
-    }
-  })
+  const payload = data as { events?: CalendarEvent[]; error?: string } | null
+  if (payload?.error) throw new Error(payload.error)
+  return payload?.events ?? []
 }

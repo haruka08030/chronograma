@@ -1,6 +1,6 @@
 # Chronograma Mobile (Flutter)
 
-Kinetic Workspace デザイン準拠の実装: To‑Do（画面上部**固定検索バー**、スマートビュー、**リスト絞り込みチップ**（Supabase `lists` pull 後）、Hive 永続化、Undo、**円形**グラデ FAB）、ガラス風 Bottom Navigation。**Calendar** は Month / Week 切替＋日別 Plan vs Log サマリー、**Log** は日付別タイムログ＋タイマー開始/停止、**Habits** は独立モデル（作成・日別達成トグル）を実装。**More** は Supabase ログイン/同期（`lists` → `list_sections` → `tasks` → `habits` の順、リストは upsert のみ）に加え、JSON エクスポート v2（`lists` / `listSections` 含む）/インポート、通知権限＋テスト通知、統計カードを実装。
+UI は **Web 準拠**（Tailwind の accent / zinc スケール + Inter、ガラス風ボトムバー、pill 検索、accent 選択チップ）で、同一サービスと一目で分かるトーンに統一。デザイントークンは [`lib/design/app_colors.dart`](lib/design/app_colors.dart) / [`lib/design/app_theme.dart`](lib/design/app_theme.dart)、共有部品は [`lib/shared/widgets/chronograma_kit.dart`](lib/shared/widgets/chronograma_kit.dart)。**To‑Do**: ツリー表示・DnD 並べ替え・サブタスク追加・セクション グルーピング・予定時刻/繰り返し編集・リスト CRUD（リネーム/色/並べ替え）・複数選択の一括操作・NLP クイック追加・繰り返し完了時の次回生成。**Calendar**: Month / Week / Day / Plan vs Actual、ブロックのドラッグ移動・リサイズ、ToDo ドック、Google 予定（Edge Function）。**Log**: タイムログ＋**グローバルタイマー**＋タグ候補。**Habits**: 頻度/時間帯/色 設定・28日ヒートマップ。**More**: Supabase 同期（アプリ起動時から）、Google Calendar 接続、JSON/CSV、期限通知、統計画面、リスト色パレット/タグ候補、ja/en 切替。Calendar/Log/Habits は選択日を共有。TestFlight は [`TESTFLIGHT.md`](TESTFLIGHT.md)。
 
 ## Requirements
 
