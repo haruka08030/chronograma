@@ -74,7 +74,7 @@ export function SortableTaskItem({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div className="flex min-w-0 items-stretch rounded-lg overflow-hidden">
+      <div className="flex min-w-0 items-stretch rounded-lg">
         <TaskItem
           task={task}
           onClick={onClick}
