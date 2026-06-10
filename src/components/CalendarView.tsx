@@ -14,7 +14,11 @@ import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { fetchCalendarEvents } from '../lib/googleCalendar'
+import {
+  fetchCalendarEvents,
+  localizeGoogleError,
+  shouldDisconnectAfterFetchError,
+} from '../lib/googleCalendar'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
 function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void }) {
@@ -68,6 +72,7 @@ export function CalendarView({
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
+  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const updateTask = useTaskStore((s) => s.updateTask)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
@@ -105,18 +110,25 @@ export function CalendarView({
         const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
         const events = await fetchCalendarEvents(ws, we)
-        if (!cancelled) setCalendarEvents(events)
-      } catch {
         if (!cancelled) {
-          setGoogleConnected(false)
-          setCalendarEvents([])
+          setCalendarEvents(events)
+          setGoogleConnectionError(null)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const raw = e instanceof Error ? e.message : t('account.genericError')
+          setGoogleConnectionError(localizeGoogleError(raw, t))
+          if (shouldDisconnectAfterFetchError(raw)) {
+            setGoogleConnected(false)
+            setCalendarEvents([])
+          }
         }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleConnected])
+  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()

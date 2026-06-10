@@ -48,10 +48,11 @@ npm run dev
 予定の取り込みは Supabase **Edge Function** `google-calendar` 経由です（`002_google_oauth.sql` で `google_oauth` 表を作成）。
 
 1. **SQL Editor** で [`supabase/migrations/002_google_oauth.sql`](supabase/migrations/002_google_oauth.sql) を実行（未適用の場合）。
-2. **Authentication → Providers → Google** で Client ID / Secret を設定（Google Cloud Console の Web クライアントと同じもの）。
-3. **Authentication → URL Configuration** の **Redirect URLs** に、Vercel 本番 URL（例 `https://your-app.vercel.app`）と `http://localhost:5173` を追加。
-4. **Authentication → Settings** で **Manual linking** を有効化（マジックリンクログイン後に Google を紐づけるため）。
-5. Edge Function をデプロイし、シークレットを設定します（詳細は [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
+2. **Google Cloud Console** で次の2点のみ（スコープの手動追加は不要。アプリが OAuth URL に自動付与する）:
+   - **APIs & Services → Library** で **Google Calendar API** を有効化
+   - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `http://localhost:5173` と本番 URL（例 `https://your-app.vercel.app`）を追加
+3. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。
+4. Edge Function をデプロイし、シークレットを設定します（詳細は [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
@@ -61,4 +62,4 @@ supabase secrets set \
 supabase functions deploy google-calendar
 ```
 
-Vercel では `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` のみ必要です（`VITE_GOOGLE_CLIENT_ID` は Web では未使用）。
+Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。

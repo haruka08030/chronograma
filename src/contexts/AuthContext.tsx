@@ -6,12 +6,16 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
+  cacheProviderRefreshToken,
   disconnectGoogleCalendar,
+  hasOAuthCallbackInUrl,
   isGoogleCalendarConnected,
-  storeGoogleRefreshToken,
+  localizeGoogleError,
+  tryPersistGoogleRefreshToken,
 } from '../lib/googleCalendar'
+import i18n from '../i18n/config'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 
@@ -33,6 +37,92 @@ const noopAuth: AuthContextValue = {
   signOut: async () => {},
 }
 
+const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>([
+  'SIGNED_IN',
+  'USER_UPDATED',
+  'TOKEN_REFRESHED',
+  'INITIAL_SESSION',
+])
+
+const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>([
+  'INITIAL_SESSION',
+  'SIGNED_IN',
+  'USER_UPDATED',
+])
+
+function hasGoogleIdentity(user: User): boolean {
+  return user.identities?.some((identity) => identity.provider === 'google') ?? false
+}
+
+let googleSyncQueue: Promise<void> = Promise.resolve()
+
+function enqueueGoogleSync(task: () => Promise<void>) {
+  googleSyncQueue = googleSyncQueue.then(task).catch((err) => {
+    console.error('Google sync task failed:', err)
+  })
+}
+
+async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Session) {
+  const user = session.user
+  const fromOAuthCallback = hasOAuthCallbackInUrl()
+
+  if (fromOAuthCallback || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+    try {
+      const stored = await tryPersistGoogleRefreshToken(session)
+      if (stored) {
+        const verified = await isGoogleCalendarConnected()
+        useTaskStore.getState().setGoogleConnected(verified)
+        if (verified) {
+          useTaskStore.getState().setGoogleConnectionError(null)
+        }
+        return
+      }
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : 'Failed to store Google refresh token'
+      useTaskStore.getState().setGoogleConnected(false)
+      useTaskStore.getState().setGoogleConnectionError(
+        localizeGoogleError(raw, (key) => i18n.t(key)),
+      )
+      return
+    }
+  }
+
+  // TOKEN_REFRESHED では接続状態を下げない（store 完了前の status が false になりやすい）
+  if (!STATUS_SYNC_EVENTS.has(event)) {
+    return
+  }
+
+  if (user && hasGoogleIdentity(user)) {
+    try {
+      const connected = await isGoogleCalendarConnected()
+      useTaskStore.getState().setGoogleConnected(connected)
+      if (connected) {
+        useTaskStore.getState().setGoogleConnectionError(null)
+      } else if (fromOAuthCallback) {
+        useTaskStore.getState().setGoogleConnectionError(
+          localizeGoogleError(
+            'Google refresh token missing after OAuth. Reconnect after revoking app access.',
+            (key) => i18n.t(key),
+          ),
+        )
+      }
+    } catch {
+      useTaskStore.getState().setGoogleConnected(false)
+    }
+    return
+  }
+
+  try {
+    const connected = await isGoogleCalendarConnected()
+    useTaskStore.getState().setGoogleConnected(connected)
+    if (connected) {
+      useTaskStore.getState().setGoogleConnectionError(null)
+    }
+  } catch {
+    useTaskStore.getState().setGoogleConnected(false)
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(isSupabaseConfigured)
@@ -43,20 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sb = getSupabase()
     if (!sb) return
 
-    const syncGoogleConnection = async (hasSession: boolean) => {
-      if (!hasSession) return
-      try {
-        const connected = await isGoogleCalendarConnected()
-        useTaskStore.getState().setGoogleConnected(connected)
-      } catch {
-        useTaskStore.getState().setGoogleConnected(false)
-      }
-    }
-
     sb.auth.getSession()
-      .then(async ({ data: { session: s } }) => {
+      .then(({ data: { session: s } }) => {
         setSession(s)
-        await syncGoogleConnection(!!s)
+        if (s) {
+          enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION', s))
+        }
       })
       .catch((err) => {
         console.error('Failed to get session:', err)
@@ -65,36 +147,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       })
 
-    const { data: sub } = sb.auth.onAuthStateChange(async (event, s) => {
+    const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (
-        s &&
-        (event === 'SIGNED_IN' ||
-          event === 'USER_UPDATED' ||
-          event === 'TOKEN_REFRESHED' ||
-          event === 'INITIAL_SESSION')
-      ) {
-        const refresh = s.provider_refresh_token
-        if (refresh) {
-          try {
-            await storeGoogleRefreshToken(s)
-            useTaskStore.getState().setGoogleConnected(true)
-          } catch (err) {
-            console.error('Failed to store Google refresh token:', err)
-          }
-        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          await syncGoogleConnection(true)
-        }
+      if (s?.provider_refresh_token) {
+        cacheProviderRefreshToken(s.provider_refresh_token)
       }
+
+      if (s && GOOGLE_AUTH_EVENTS.has(event)) {
+        enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s))
+      }
+
       if (event === 'SIGNED_OUT') {
         useTaskStore.getState().setGoogleConnected(false)
         useTaskStore.getState().setGoogleAccessToken(null)
         useTaskStore.getState().setCalendarEvents([])
-        try {
-          await disconnectGoogleCalendar()
-        } catch {
-          /* session already gone */
-        }
+        useTaskStore.getState().setGoogleConnectionError(null)
+        void disconnectGoogleCalendar()
       }
     })
     return () => sub.subscription.unsubscribe()
@@ -125,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useTaskStore.getState().setGoogleConnected(false)
         useTaskStore.getState().setGoogleAccessToken(null)
         useTaskStore.getState().setCalendarEvents([])
+        useTaskStore.getState().setGoogleConnectionError(null)
         const sb = getSupabase()
         if (sb) await sb.auth.signOut()
       },

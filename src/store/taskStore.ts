@@ -99,6 +99,7 @@ interface TaskState {
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
   googleAccessToken: string | null
+  googleConnectionError: string | null
 
   activeTimer: ActiveTimer | null
 
@@ -153,6 +154,7 @@ interface TaskState {
   setCalendarEvents: (events: CalendarEvent[]) => void
   setGoogleConnected: (connected: boolean) => void
   setGoogleAccessToken: (token: string | null) => void
+  setGoogleConnectionError: (error: string | null) => void
 
   addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
@@ -473,6 +475,7 @@ export const useTaskStore = create<TaskState>()(
       calendarEvents: [],
       googleConnected: false,
       googleAccessToken: null,
+      googleConnectionError: null,
       activeTimer: null,
 
       habits: [],
@@ -661,6 +664,7 @@ export const useTaskStore = create<TaskState>()(
       setCalendarEvents: (events) => set({ calendarEvents: events }),
       setGoogleConnected: (connected) => set({ googleConnected: connected }),
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
+      setGoogleConnectionError: (error) => set({ googleConnectionError: error }),
 
       addHabit: (fields) => {
         pushUndo()
@@ -1437,7 +1441,9 @@ export const useTaskStore = create<TaskState>()(
           quickAddRequested,
           filterTag,
           calendarEvents,
+          googleConnected,
           googleAccessToken,
+          googleConnectionError,
           moveBannerText,
           taskDragHoverListId,
           settingsScrollTarget,
@@ -1448,7 +1454,9 @@ export const useTaskStore = create<TaskState>()(
         void quickAddRequested
         void filterTag
         void calendarEvents
+        void googleConnected
         void googleAccessToken
+        void googleConnectionError
         void moveBannerText
         void taskDragHoverListId
         void settingsScrollTarget

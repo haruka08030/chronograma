@@ -379,7 +379,7 @@
 ## 実装時の注意
 
 - 同期は **全体スナップショット型**（フィールド単位マージではない）
-- Google Calendar: **Edge Function** `google-calendar`（`provider_refresh_token` を `google_oauth` 表に保存しサーバー側で access_token リフレッシュ）。デプロイ時は Supabase secrets に `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`（Auth の Google プロバイダと同一）、`002_google_oauth.sql` 適用、Auth で **Manual linking** 有効が必要。Web は `src/lib/googleCalendar.ts` から invoke（`status` / `store` / `events` / `disconnect`）。`AuthContext` は `USER_UPDATED`（`linkIdentity` 後）でも refresh token を保存し、起動時に `status` で `googleConnected` を同期。`calendarEvents` はクライアントのみ（永続化しない）。ログアウトで `disconnect` + `googleConnected` リセット
+- Google Calendar: **Edge Function** `google-calendar`（authorization code を `exchange` で refresh token に交換し `google_oauth` 表に保存、サーバー側で access_token リフレッシュ）。Web は `VITE_GOOGLE_CLIENT_ID` で **直接 Google OAuth**（`linkIdentity` は使わない。Supabase の `provider_refresh_token` は PKCE で取れないため）。`signIn` → Google 同意 → コールバック `?code=` → `exchange` → `status` / `events`。invoke アクション: `exchange` / `store` / `status` / `events` / `disconnect`。Google Cloud の **Authorized redirect URIs** にアプリオリジン（`http://localhost:5173` 等）が必要。Supabase secrets: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。`googleConnected` は localStorage に永続化せず `status` で同期。`calendarEvents` はクライアントのみ。ログアウトで `disconnect` + リセット
 - モバイル: `syncNotifier` は `AppShell` で常時 watch。Google 連携・Plan タブ・ツリー To‑Do・リスト CRUD・NLP クイック追加・CSV・期限通知・TestFlight 手順は `mobile/TESTFLIGHT.md`
 - 未分類（`__inbox__`）は削除不可（リスト DnD
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左
