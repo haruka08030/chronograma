@@ -186,21 +186,87 @@ Deno.serve(async (req) => {
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
 
+    if (action === 'exchange') {
+      const code = body.code as string | undefined
+      const redirectUri = body.redirect_uri as string | undefined
+      if (!code?.trim() || !redirectUri?.trim()) {
+        return jsonResponse({ ok: false, error: 'code and redirect_uri are required' })
+      }
+
+      const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+      const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+      if (!clientId || !clientSecret) {
+        return jsonResponse({ ok: false, error: 'Google OAuth secrets are not configured on the server' })
+      }
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code.trim(),
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri.trim(),
+          grant_type: 'authorization_code',
+        }),
+      })
+
+      if (!tokenRes.ok) {
+        const bodyText = await tokenRes.text()
+        return jsonResponse({
+          ok: false,
+          error: `Google code exchange failed: ${tokenRes.status} ${bodyText}`,
+        })
+      }
+
+      const tokenData = (await tokenRes.json()) as {
+        refresh_token?: string
+        access_token?: string
+        scope?: string
+      }
+
+      const refreshToken = tokenData.refresh_token
+      if (!refreshToken) {
+        return jsonResponse({
+          ok: false,
+          error: 'Google did not return a refresh token. Revoke app access in your Google account, then reconnect.',
+        })
+      }
+
+      const { error } = await admin.from('google_oauth').upsert(
+        {
+          user_id: user.id,
+          refresh_token: refreshToken,
+          scope: (body.scope as string) ?? tokenData.scope ?? SCOPES,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      )
+
+      if (error) {
+        return jsonResponse({ ok: false, error: error.message })
+      }
+      return jsonResponse({ ok: true })
+    }
+
     if (action === 'store') {
       const refreshToken = body.refresh_token as string | undefined
       if (!refreshToken?.trim()) {
-        return jsonResponse({ error: 'refresh_token is required' }, 400)
+        return jsonResponse({ ok: false, error: 'refresh_token is required' })
       }
 
-      const { error } = await admin.from('google_oauth').upsert({
-        user_id: user.id,
-        refresh_token: refreshToken.trim(),
-        scope: (body.scope as string) ?? SCOPES,
-        updated_at: new Date().toISOString(),
-      })
+      const { error } = await admin.from('google_oauth').upsert(
+        {
+          user_id: user.id,
+          refresh_token: refreshToken.trim(),
+          scope: (body.scope as string) ?? SCOPES,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      )
 
       if (error) {
-        return jsonResponse({ error: error.message }, 500)
+        return jsonResponse({ ok: false, error: error.message })
       }
       return jsonResponse({ ok: true })
     }
@@ -220,21 +286,31 @@ Deno.serve(async (req) => {
     if (action === 'status') {
       const { data: row, error: fetchError } = await admin
         .from('google_oauth')
-        .select('user_id')
+        .select('refresh_token')
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (fetchError) {
         return jsonResponse({ error: fetchError.message }, 500)
       }
-      return jsonResponse({ connected: !!row })
+      if (!row?.refresh_token) {
+        return jsonResponse({ connected: false })
+      }
+
+      try {
+        await refreshGoogleAccessToken(row.refresh_token)
+        return jsonResponse({ connected: true })
+      } catch {
+        await admin.from('google_oauth').delete().eq('user_id', user.id)
+        return jsonResponse({ connected: false, stale: true })
+      }
     }
 
     if (action === 'events') {
       const timeMin = body.timeMin as string | undefined
       const timeMax = body.timeMax as string | undefined
       if (!timeMin || !timeMax) {
-        return jsonResponse({ error: 'timeMin and timeMax are required' }, 400)
+        return jsonResponse({ events: [], error: 'timeMin and timeMax are required' })
       }
 
       const { data: row, error: fetchError } = await admin
@@ -247,20 +323,40 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: fetchError.message }, 500)
       }
       if (!row?.refresh_token) {
-        return jsonResponse(
-          { error: 'Google Calendar not connected. Reconnect in settings.' },
-          404,
-        )
+        return jsonResponse({
+          events: [],
+          connected: false,
+          error: 'Google Calendar not connected. Reconnect in settings.',
+        })
       }
 
-      const accessToken = await refreshGoogleAccessToken(row.refresh_token)
-      const events = await fetchGoogleEvents(accessToken, timeMin, timeMax)
-      return jsonResponse({ events })
+      try {
+        const accessToken = await refreshGoogleAccessToken(row.refresh_token)
+        const events = await fetchGoogleEvents(accessToken, timeMin, timeMax)
+        return jsonResponse({ events, connected: true })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        const needsReconnect =
+          message.includes('invalid_grant') ||
+          message.includes('token refresh failed') ||
+          message.includes('Calendar API error 401') ||
+          message.includes('Calendar API error 403')
+        const scopeMissing = message.includes('Calendar API error 403')
+        return jsonResponse({
+          events: [],
+          connected: false,
+          error: scopeMissing
+            ? 'Google Calendar scope not granted. Reconnect and approve calendar access.'
+            : needsReconnect
+              ? 'Google Calendar authorization expired. Disconnect and reconnect.'
+              : message,
+        })
+      }
     }
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    return jsonResponse({ error: message }, 500)
+    return jsonResponse({ ok: false, error: message })
   }
 })

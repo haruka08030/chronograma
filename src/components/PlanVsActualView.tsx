@@ -34,10 +34,17 @@ import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTi
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
   disconnectGoogleCalendar,
+  handleGoogleOAuthCallback,
+  hasGoogleOAuthCallbackInUrl,
+  hasOAuthCallbackInUrl,
+  isGoogleCalendarConnected,
   initGoogleAuth,
+  localizeGoogleError,
+  shouldDisconnectAfterFetchError,
   signIn,
   fetchCalendarEvents,
   getClientId,
+  getGoogleRedirectUri,
 } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { PlannedItem } from '../types/plannedItem'
@@ -385,27 +392,87 @@ function NowIndicator() {
   )
 }
 
+const CONNECT_TIMEOUT_MS = 15_000
+
 function GoogleConnectBanner() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const googleConnected = useTaskStore((s) => s.googleConnected)
+  const googleConnectionError = useTaskStore((s) => s.googleConnectionError)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
+  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const clientId = getClientId()
+  const redirectUri = getGoogleRedirectUri()
+
+  const resolveConnectError = useCallback((e: unknown): string => {
+    if (e instanceof Error) {
+      if (e.message === 'GOOGLE_ALREADY_LINKED') return t('planVsActual.alreadyLinked')
+      return localizeGoogleError(e.message, t)
+    }
+    return t('account.genericError')
+  }, [t])
+
+  useEffect(() => {
+    if (hasOAuthCallbackInUrl() || hasGoogleOAuthCallbackInUrl()) {
+      setLoading(false)
+    }
+
+    if (hasGoogleOAuthCallbackInUrl()) {
+      setLoading(true)
+      setError(null)
+      void handleGoogleOAuthCallback()
+        .then(async (handled) => {
+          if (!handled) return
+          const connected = await isGoogleCalendarConnected()
+          setGoogleConnected(connected)
+          if (connected) {
+            setGoogleConnectionError(null)
+          }
+        })
+        .catch((e) => {
+          setGoogleConnected(false)
+          setError(resolveConnectError(e))
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+    }
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setLoading(false)
+      }
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [resolveConnectError, setGoogleConnected, setGoogleConnectionError])
 
   const handleConnect = async () => {
+    if (!user) return
+
     setLoading(true)
     setError(null)
+    setGoogleConnectionError(null)
+
+    const timeoutId = window.setTimeout(() => {
+      setLoading(false)
+      setError(t('planVsActual.connectTimeout'))
+    }, CONNECT_TIMEOUT_MS)
+
     try {
       await initGoogleAuth()
       await signIn()
-    } catch (e) {
-      setGoogleConnected(false)
-      setError(e instanceof Error ? e.message : t('account.genericError'))
-    } finally {
+      // Redirect started; page navigates away. If we reach here, already connected.
+      window.clearTimeout(timeoutId)
       setLoading(false)
+    } catch (e) {
+      window.clearTimeout(timeoutId)
+      setLoading(false)
+      setGoogleConnected(false)
+      setError(resolveConnectError(e))
     }
   }
 
@@ -416,8 +483,12 @@ function GoogleConnectBanner() {
       /* ignore */
     }
     setGoogleConnected(false)
+    setGoogleConnectionError(null)
+    setError(null)
     useTaskStore.getState().setCalendarEvents([])
   }
+
+  const displayError = error ?? googleConnectionError
 
   if (!clientId) {
     return (
@@ -451,7 +522,7 @@ function GoogleConnectBanner() {
     <div className="mx-6 mt-4">
       <button
         onClick={handleConnect}
-        disabled={loading}
+        disabled={loading || !user}
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
                    bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
                    hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-colors text-sm font-medium
@@ -466,12 +537,20 @@ function GoogleConnectBanner() {
         {loading ? t('planVsActual.connecting') : t('planVsActual.connect')}
       </button>
       {!user && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
           {t('settings.accountHelp')}
         </p>
       )}
-      {error && (
-        <p className="text-xs text-red-500 mt-1.5">{error}</p>
+      {clientId && redirectUri && (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 space-y-1">
+          <p>{t('planVsActual.redirectUriHint', { uri: redirectUri })}</p>
+          <p className="font-mono break-all">
+            {t('planVsActual.oauthClientHint', { clientId })}
+          </p>
+        </div>
+      )}
+      {displayError && (
+        <p className="text-xs text-red-500 mt-1.5">{displayError}</p>
       )}
     </div>
   )
@@ -520,6 +599,7 @@ export function PlanVsActualView() {
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
+  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
@@ -535,8 +615,6 @@ export function PlanVsActualView() {
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
     const we = endOfWeek(anchor, { weekStartsOn: 1 })
@@ -555,14 +633,16 @@ export function PlanVsActualView() {
         const events = await fetchCalendarEvents(ws, we)
         if (!cancelled) {
           setCalendarEvents(events)
-          setFetchError(null)
+          setGoogleConnectionError(null)
         }
       } catch (e) {
         if (!cancelled) {
-          const msg = e instanceof Error ? e.message : t('account.genericError')
-          setFetchError(msg)
-          if (msg.includes('not connected') || msg.includes('Reconnect')) {
+          const raw = e instanceof Error ? e.message : t('account.genericError')
+          const msg = localizeGoogleError(raw, t)
+          setGoogleConnectionError(msg)
+          if (shouldDisconnectAfterFetchError(raw)) {
             setGoogleConnected(false)
+            setCalendarEvents([])
           }
         }
       }
@@ -570,7 +650,7 @@ export function PlanVsActualView() {
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, t])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
@@ -938,10 +1018,6 @@ export function PlanVsActualView() {
         </div>
 
         <GoogleConnectBanner />
-
-        {fetchError && googleConnected && (
-          <div className="mx-6 mt-2 text-xs text-red-500">{fetchError}</div>
-        )}
 
         <Legend />
 

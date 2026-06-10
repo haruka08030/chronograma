@@ -24,7 +24,11 @@ import {
 } from '../lib/taskTimeRange'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
-import { fetchCalendarEvents } from '../lib/googleCalendar'
+import {
+  fetchCalendarEvents,
+  localizeGoogleError,
+  shouldDisconnectAfterFetchError,
+} from '../lib/googleCalendar'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import type { Task } from '../types/task'
@@ -172,6 +176,7 @@ export function WeekCalendarView({
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
+  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
@@ -234,18 +239,25 @@ export function WeekCalendarView({
         const we = endOfWeek(anchor, { weekStartsOn: 1 })
         we.setHours(23, 59, 59)
         const events = await fetchCalendarEvents(ws, we)
-        if (!cancelled) setCalendarEvents(events)
-      } catch {
         if (!cancelled) {
-          setGoogleConnected(false)
-          setCalendarEvents([])
+          setCalendarEvents(events)
+          setGoogleConnectionError(null)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const raw = e instanceof Error ? e.message : t('account.genericError')
+          setGoogleConnectionError(localizeGoogleError(raw, t))
+          if (shouldDisconnectAfterFetchError(raw)) {
+            setGoogleConnected(false)
+            setCalendarEvents([])
+          }
         }
       }
     }
 
     doFetch()
     return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected])
+  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
 
   useEffect(() => {
     if (scrollRef.current) {

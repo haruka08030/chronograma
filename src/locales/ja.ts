@@ -383,6 +383,25 @@ export default {
     disconnect: '切断',
     connect: 'Google Calendar に接続',
     connecting: '接続中…',
+    connectTimeout: '接続がタイムアウトしました。ページを再読み込みしてもう一度お試しください。',
+    alreadyLinked:
+      'Google アカウントは既にリンク済みです。Google アカウントの連携アプリから権限を削除してから再接続してください。',
+    storeTokenFailed: 'Google の認証情報を保存できませんでした。しばらくしてから再接続してください。',
+    notConnected: 'Google Calendar が未接続です。接続ボタンから再度リンクしてください。',
+    tokenExpired:
+      'Google Calendar の認証が期限切れです。一度「切断」してから再接続してください。',
+    oauthRefreshMissing:
+      'Google の認証トークンを取得できませんでした。Google アカウントの連携アプリから権限を削除してから再接続してください。',
+    scopeNotGranted:
+      'Google カレンダーへのアクセスが許可されていません。再接続してカレンダー権限を承認してください。',
+    redirectUriMismatch:
+      'Google Cloud の Authorized redirect URIs に {{uri}} が登録されていません。Credentials → OAuth Web クライアントで追加して保存してください。',
+    redirectUriHint:
+      'Google Cloud Console → Credentials → 下記 Client ID の OAuth Web クライアント → Authorized redirect URIs（JavaScript origins ではない）に {{uri}} を追加してください。',
+    oauthClientHint:
+      'Client ID: {{clientId}}（この ID のクライアントに redirect URI を登録）',
+    invalidClientSecret:
+      'Google Client Secret が無効です。Google Cloud Console で Client Secret を再確認し、Supabase の Edge Function secrets（GOOGLE_CLIENT_SECRET）と Supabase Auth の Google プロバイダ設定を同じ値に更新してください。',
     legendDone: '実行済み',
     legendDrift: '時間ズレ',
     legendMissed: '未実行',

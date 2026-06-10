@@ -382,6 +382,25 @@ export default {
     disconnect: 'Disconnect',
     connect: 'Connect Google Calendar',
     connecting: 'Connecting…',
+    connectTimeout: 'Connection timed out. Reload the page and try again.',
+    alreadyLinked:
+      'Google is already linked. Remove app access from your Google account settings, then reconnect.',
+    storeTokenFailed: 'Could not save Google credentials. Try reconnecting in a moment.',
+    notConnected: 'Google Calendar is not connected. Use the connect button to link again.',
+    tokenExpired:
+      'Google Calendar authorization expired. Disconnect and reconnect.',
+    oauthRefreshMissing:
+      'Could not obtain Google refresh token. Revoke app access in your Google account, then reconnect.',
+    scopeNotGranted:
+      'Google Calendar access was not granted. Reconnect and approve calendar permission.',
+    redirectUriMismatch:
+      'Add {{uri}} to Google Cloud Authorized redirect URIs (Credentials → OAuth Web client), then save.',
+    redirectUriHint:
+      'In Google Cloud Console → Credentials → OAuth Web client for the Client ID below, add {{uri}} to Authorized redirect URIs (not JavaScript origins).',
+    oauthClientHint:
+      'Client ID: {{clientId}} (register the redirect URI on this client)',
+    invalidClientSecret:
+      'Google Client Secret is invalid. Re-check it in Google Cloud Console and update Supabase Edge Function secrets (GOOGLE_CLIENT_SECRET) and the Supabase Auth Google provider to the same value.',
     legendDone: 'Done',
     legendDrift: 'Time drift',
     legendMissed: 'Missed',
