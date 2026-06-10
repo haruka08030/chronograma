@@ -282,6 +282,37 @@ export function localizeGoogleError(
   return message
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function formatYmdLocal(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+function formatHmLocal(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+/** Edge Function は UTC で HH:mm を算出するため、ブラウザのローカル TZ で再正規化する */
+export function normalizeCalendarEventTimes(event: CalendarEvent): CalendarEvent {
+  if (event.isAllDay) return event
+
+  const start = new Date(event.start)
+  const end = new Date(event.end)
+  return {
+    ...event,
+    date: formatYmdLocal(start),
+    startTime: formatHmLocal(start),
+    endTime: formatHmLocal(end),
+  }
+}
+
+function getClientTimeZone(): string {
+  if (typeof Intl === 'undefined') return 'UTC'
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
 export function hasOAuthCallbackInUrl(): boolean {
   if (typeof window === 'undefined') return false
   const hash = window.location.hash
@@ -309,6 +340,7 @@ export async function fetchCalendarEvents(
     action: 'events',
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
+    timeZone: getClientTimeZone(),
   })
 
   if (payload.error) {
@@ -321,5 +353,5 @@ export async function fetchCalendarEvents(
     }
     throw new Error(payload.error)
   }
-  return payload.events ?? []
+  return (payload.events ?? []).map(normalizeCalendarEventTimes)
 }

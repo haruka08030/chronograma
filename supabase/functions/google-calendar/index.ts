@@ -33,22 +33,41 @@ function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
 
-function formatYmd(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+function intlPart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
+  return parts.find((p) => p.type === type)?.value ?? '00'
 }
 
-function formatHm(d: Date) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+function formatYmdInTz(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(iso))
+  return `${intlPart(parts, 'year')}-${intlPart(parts, 'month')}-${intlPart(parts, 'day')}`
 }
 
-function normalizeEvents(items: Array<{
-  id: string
-  summary?: string
-  description?: string
-  start: { dateTime?: string; date?: string }
-  end: { dateTime?: string; date?: string }
-  colorId?: string
-}>): CalendarEvent[] {
+function formatHmInTz(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(iso))
+  return `${intlPart(parts, 'hour')}:${intlPart(parts, 'minute')}`
+}
+
+function normalizeEvents(
+  items: Array<{
+    id: string
+    summary?: string
+    description?: string
+    start: { dateTime?: string; date?: string }
+    end: { dateTime?: string; date?: string }
+    colorId?: string
+  }>,
+  timeZone: string,
+): CalendarEvent[] {
   return items.map((item) => {
     const isAllDay = !item.start.dateTime
     const startDt = item.start.dateTime ?? item.start.date!
@@ -61,11 +80,9 @@ function normalizeEvents(items: Array<{
     if (isAllDay) {
       date = startDt
     } else {
-      const s = new Date(startDt)
-      const e = new Date(endDt)
-      date = formatYmd(s)
-      startTime = formatHm(s)
-      endTime = formatHm(e)
+      date = formatYmdInTz(startDt, timeZone)
+      startTime = formatHmInTz(startDt, timeZone)
+      endTime = formatHmInTz(endDt, timeZone)
     }
 
     return {
@@ -117,6 +134,7 @@ async function fetchGoogleEvents(
   accessToken: string,
   timeMin: string,
   timeMax: string,
+  timeZone: string,
 ): Promise<CalendarEvent[]> {
   const params = new URLSearchParams({
     timeMin,
@@ -147,7 +165,7 @@ async function fetchGoogleEvents(
     }>
   }
 
-  return normalizeEvents(data.items ?? [])
+  return normalizeEvents(data.items ?? [], timeZone)
 }
 
 Deno.serve(async (req) => {
@@ -331,8 +349,9 @@ Deno.serve(async (req) => {
       }
 
       try {
+        const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
         const accessToken = await refreshGoogleAccessToken(row.refresh_token)
-        const events = await fetchGoogleEvents(accessToken, timeMin, timeMax)
+        const events = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
         return jsonResponse({ events, connected: true })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
