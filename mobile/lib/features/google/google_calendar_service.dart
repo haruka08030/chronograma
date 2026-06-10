@@ -14,6 +14,8 @@ class CalendarEventDto {
     this.endTime,
     this.isAllDay = false,
     this.colorId,
+    this.start,
+    this.end,
   });
 
   final String id;
@@ -24,20 +26,52 @@ class CalendarEventDto {
   final String? endTime;
   final bool isAllDay;
   final String? colorId;
+  final String? start;
+  final String? end;
 
   factory CalendarEventDto.fromJson(Map<String, dynamic> j) {
+    final isAllDay = j['isAllDay'] as bool? ?? false;
+    final startRaw = j['start'] as String?;
+    final endRaw = j['end'] as String?;
+
+    if (isAllDay || startRaw == null || endRaw == null) {
+      return CalendarEventDto(
+        id: j['id'] as String,
+        summary: j['summary'] as String? ?? '(無題)',
+        date: j['date'] as String,
+        description: j['description'] as String?,
+        startTime: j['startTime'] as String?,
+        endTime: j['endTime'] as String?,
+        isAllDay: isAllDay,
+        colorId: j['colorId'] as String?,
+        start: startRaw,
+        end: endRaw,
+      );
+    }
+
+    final startLocal = DateTime.parse(startRaw).toLocal();
+    final endLocal = DateTime.parse(endRaw).toLocal();
     return CalendarEventDto(
       id: j['id'] as String,
       summary: j['summary'] as String? ?? '(無題)',
-      date: j['date'] as String,
+      date: _formatYmd(startLocal),
       description: j['description'] as String?,
-      startTime: j['startTime'] as String?,
-      endTime: j['endTime'] as String?,
-      isAllDay: j['isAllDay'] as bool? ?? false,
+      startTime: _formatHm(startLocal),
+      endTime: _formatHm(endLocal),
+      isAllDay: false,
       colorId: j['colorId'] as String?,
+      start: startRaw,
+      end: endRaw,
     );
   }
 }
+
+String _pad2(int n) => n.toString().padLeft(2, '0');
+
+String _formatYmd(DateTime d) =>
+    '${d.year}-${_pad2(d.month)}-${_pad2(d.day)}';
+
+String _formatHm(DateTime d) => '${_pad2(d.hour)}:${_pad2(d.minute)}';
 
 class GoogleCalendarService {
   GoogleCalendarService(this._client);
@@ -80,6 +114,7 @@ class GoogleCalendarService {
         'action': 'events',
         'timeMin': timeMin.toUtc().toIso8601String(),
         'timeMax': timeMax.toUtc().toIso8601String(),
+        'timeZone': DateTime.now().timeZoneName,
       },
     );
     final data = res.data;
