@@ -9,6 +9,7 @@ import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
+import { DueDatePopover } from './DueDatePopover'
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
@@ -20,7 +21,8 @@ function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: 
   const d = parseISO(iso)
   if (isToday(d)) return { text: todayLabel, overdue: false }
   const overdue = isPast(d) && !isToday(d)
-  return { text: format(d, 'M/d (E)', { locale }), overdue }
+  const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
+  return { text: format(d, fmt, { locale }), overdue }
 }
 
 export type TaskItemSelection = {
@@ -92,6 +94,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   }
 
   const timeLog = isListedTimeLog(task)
+  const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   const priorityColor = PRIORITY_COLORS[task.priority]
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
@@ -249,6 +252,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           </span>
         )}
 
+        {notePreview && (
+          <span
+            className={`block truncate mt-0.5 ${isSubtask ? 'text-[11px]' : 'text-xs'}
+                        ${task.completed && !timeLog ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-400 dark:text-zinc-500'}`}
+          >
+            {notePreview}
+          </span>
+        )}
+
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
           {due && (!task.completed || timeLog) && (
             <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
@@ -278,20 +290,30 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       </div>
 
       {!hideDueDatePicker && (
-        <label
-          className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer flex-shrink-0"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input
-            type="date"
-            value={task.dueDate ?? ''}
-            onChange={(e) => updateTask(task.id, { dueDate: e.target.value || null })}
-            className="sr-only"
-          />
-          <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-          </svg>
-        </label>
+        <DueDatePopover
+          value={task.dueDate ?? null}
+          onChange={(v) => updateTask(task.id, { dueDate: v })}
+          align="right"
+          wrapperClassName="relative flex-shrink-0"
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              aria-label={t('taskItem.dueDateAria')}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggle()
+              }}
+              className={`transition-all cursor-pointer rounded-md p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700
+                ${open || task.dueDate ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            >
+              <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+            </button>
+          )}
+        />
       )}
 
       <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={rowMenuRef}>

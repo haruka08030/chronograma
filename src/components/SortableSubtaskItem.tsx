@@ -3,7 +3,7 @@ import { useDndContext } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
-import { RowNestDropTarget } from './RowNestDropTarget'
+import { NestDragGuide } from './NestDragGuide'
 import type { Task } from '../types/task'
 import { subtaskDragId } from '../lib/subtaskDnD'
 
@@ -15,6 +15,7 @@ export function SortableSubtaskItem({
   onEnterCreateSibling,
   selection,
   autoEdit,
+  showNestGuide,
   children,
 }: {
   task: Task
@@ -24,6 +25,8 @@ export function SortableSubtaskItem({
   onEnterCreateSibling?: (task: Task) => void
   selection?: TaskItemSelection
   autoEdit?: boolean
+  /** 右ドラッグでサブ化プレビュー中、この行が親候補のとき */
+  showNestGuide?: boolean
   children?: ReactNode
 }) {
   const { active } = useDndContext()
@@ -64,22 +67,20 @@ export function SortableSubtaskItem({
   )
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <div className="flex min-w-0 items-stretch rounded-lg overflow-hidden">
-        <TaskItem
-          task={task}
-          isSubtask
-          onClick={onClick}
-          onRowClick={onRowClick}
-          onCompleteRequest={onCompleteRequest}
-          onEnterCreateSibling={onEnterCreateSibling}
-          selection={selection}
-          autoEdit={autoEdit}
-          dragHandle={handle}
-          rowClassName="min-w-0 flex-1 rounded-r-none"
-        />
-        <RowNestDropTarget parentTaskId={task.id} compact />
-      </div>
+    <div ref={setNodeRef} style={style} className="relative">
+      {showNestGuide ? <NestDragGuide /> : null}
+      <TaskItem
+        task={task}
+        isSubtask
+        onClick={onClick}
+        onRowClick={onRowClick}
+        onCompleteRequest={onCompleteRequest}
+        onEnterCreateSibling={onEnterCreateSibling}
+        selection={selection}
+        autoEdit={autoEdit}
+        dragHandle={handle}
+        rowClassName="min-w-0"
+      />
       {children}
     </div>
   )

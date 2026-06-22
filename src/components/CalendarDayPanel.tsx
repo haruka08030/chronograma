@@ -183,29 +183,32 @@ export function CalendarDayPanel({
             </div>
           </>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
-            <div className="mb-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
+            <div className="mb-3 mx-0.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
               {t('calendarDayPanel.totalLogged')}: <span className="font-semibold">{formatDuration(totalLoggedMinutes)}</span>
             </div>
             {logItems.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noLogs')}</p>
+              <p className="px-2.5 py-2 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noLogs')}</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-0.5">
                 {logItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => openDetail(item.id)}
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800/70"
+                    className="flex w-full items-start gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
                   >
-                    <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.title}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {item.startTime && item.endTime
-                        ? `${item.startTime} - ${item.endTime}${
-                            isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
-                          }`
-                        : t('calendarDayPanel.timeUnset')}
-                    </div>
+                    <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{item.title}</span>
+                      <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
+                        {item.startTime && item.endTime
+                          ? `${item.startTime} - ${item.endTime}${
+                              isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
+                            }`
+                          : t('calendarDayPanel.timeUnset')}
+                      </span>
+                    </span>
                   </button>
                 ))}
               </div>
