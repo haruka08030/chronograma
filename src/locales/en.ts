@@ -237,6 +237,9 @@ export default {
   taskDetail: {
     priority: 'Priority',
     dueDate: 'Due date',
+    location: 'Location',
+    locationPlaceholder: 'Add location',
+    openInMaps: 'Open in Google Maps',
     logDate: 'Logged date',
     logEndDate: 'End date',
     time: 'Time',

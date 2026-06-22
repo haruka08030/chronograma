@@ -10,6 +10,7 @@ import { DueDatePopover } from './DueDatePopover'
 import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
+import { extractUrls, googleMapsUrl } from '../lib/linkify'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -82,6 +83,8 @@ export function TaskDetail({
       isLog ? [] : sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
     [isLog, sections, task.listId],
   )
+
+  const memoLinks = useMemo(() => extractUrls(task.description), [task.description])
 
   const logDurationLabel = useMemo(() => {
     if (!isLog || !task.startTime || !task.endTime) return null
@@ -174,6 +177,57 @@ export function TaskDetail({
                          focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
                          resize-none min-h-[4rem]"
             />
+            {memoLinks.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1">
+                {memoLinks.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-accent-600 dark:text-accent-400
+                               hover:underline break-all"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                    </svg>
+                    <span className="truncate">{url}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.location')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                value={task.location ?? ''}
+                onChange={(e) => updateTask(task.id, { location: e.target.value || null })}
+                placeholder={t('taskDetail.locationPlaceholder')}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
+              />
+              {task.location?.trim() && (
+                <a
+                  href={googleMapsUrl(task.location)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t('taskDetail.openInMaps')}
+                  aria-label={t('taskDetail.openInMaps')}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700
+                             text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-500/10
+                             transition-colors flex-shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">{t('taskDetail.openInMaps')}</span>
+                </a>
+              )}
+            </div>
           </div>
 
           {!isLog && (

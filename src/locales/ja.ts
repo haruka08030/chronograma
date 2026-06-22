@@ -238,6 +238,9 @@ export default {
   taskDetail: {
     priority: '優先度',
     dueDate: '期限日',
+    location: '場所',
+    locationPlaceholder: '場所を追加',
+    openInMaps: 'Google マップで開く',
     logDate: '記録した日',
     logEndDate: '終了日',
     time: '時間',

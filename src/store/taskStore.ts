@@ -200,6 +200,7 @@ interface TaskState {
         | 'endDate'
         | 'startTime'
         | 'endTime'
+        | 'location'
         | 'priority'
         | 'tags'
         | 'listId'
@@ -316,6 +317,7 @@ function applyTaskPatch(
       | 'endDate'
       | 'startTime'
       | 'endTime'
+      | 'location'
       | 'priority'
       | 'tags'
       | 'listId'
@@ -419,6 +421,7 @@ function makeTask(
     endDate: fields.endDate ?? null,
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
+    location: null,
     priority: 'none',
     tags: fields.tags ?? [],
     recurrence: null,
@@ -1324,6 +1327,7 @@ export const useTaskStore = create<TaskState>()(
             endDate: null,
             startTime: null,
             endTime: null,
+            location: null,
             priority: row.priority,
             tags: row.tags,
             recurrence: null,
@@ -1356,7 +1360,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 22,
+      version: 23,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1525,6 +1529,16 @@ export const useTaskStore = create<TaskState>()(
         }
         if (version < 22) {
           delete state.todayIncludeOverdue
+        }
+        if (version < 23) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => ({
+            ...t,
+            location:
+              typeof (t as Record<string, unknown>).location === 'string'
+                ? ((t as Record<string, unknown>).location as string)
+                : null,
+          }))
         }
         return state as unknown as TaskState
       },
