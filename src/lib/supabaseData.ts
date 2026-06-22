@@ -44,15 +44,13 @@ interface TaskRow {
   end_date?: string | null
   start_time: string | null
   end_time: string | null
+  location?: string | null
   priority: string
   tags: unknown
   recurrence: unknown
   is_time_log: boolean
   completed_at?: string | null
 }
-
-let tasksEndDateColumnAvailable = true
-let tasksCompletedAtColumnAvailable = true
 
 function isMissingEndDateColumnError(message: string | undefined): boolean {
   if (!message) return false
@@ -74,6 +72,18 @@ function isMissingCompletedAtColumnError(message: string | undefined): boolean {
 function stripCompletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ completed_at, ...rest }) => {
     void completed_at
+    return rest
+  })
+}
+
+function isMissingLocationColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'location' column")
+}
+
+function stripLocationFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ location, ...rest }) => {
+    void location
     return rest
   })
 }
@@ -206,6 +216,7 @@ function rowToTask(row: TaskRow): Task {
     endDate: row.end_date ?? null,
     startTime: row.start_time,
     endTime: row.end_time,
+    location: typeof row.location === 'string' ? row.location : null,
     priority,
     tags,
     recurrence,
@@ -242,6 +253,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_date: task.endDate ?? null,
     start_time: task.startTime,
     end_time: task.endTime,
+    location: task.location ?? null,
     priority: task.priority,
     tags: task.tags,
     recurrence: task.recurrence,
@@ -346,22 +358,33 @@ export async function pushListsTasksHabits(
   const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
   if (eSec) return { error: eSec.message }
 
+  // 列が無い古い DB 互換。フラグは「この push 呼び出し内」だけで持ち、
+  // 毎回フル列で送り直すので、後から列を追加すれば次回同期で自動復帰する
+  // （ページ再読み込み不要）。
+  let stripEndDate = false
+  let stripCompletedAt = false
+  let stripLocation = false
   const upsertTasksRows = async (): Promise<string | undefined> => {
     let rows: TaskRow[] = taskRows
-    if (!tasksEndDateColumnAvailable) rows = stripEndDateFromTaskRows(rows)
-    if (!tasksCompletedAtColumnAvailable) rows = stripCompletedAtFromTaskRows(rows)
+    if (stripEndDate) rows = stripEndDateFromTaskRows(rows)
+    if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
+    if (stripLocation) rows = stripLocationFromTaskRows(rows)
     const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' })
     return error?.message
   }
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
-    if (isMissingEndDateColumnError(errMsg)) {
-      tasksEndDateColumnAvailable = false
+    if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
+      stripEndDate = true
       continue
     }
-    if (isMissingCompletedAtColumnError(errMsg)) {
-      tasksCompletedAtColumnAvailable = false
+    if (isMissingCompletedAtColumnError(errMsg) && !stripCompletedAt) {
+      stripCompletedAt = true
+      continue
+    }
+    if (isMissingLocationColumnError(errMsg) && !stripLocation) {
+      stripLocation = true
       continue
     }
     return { error: errMsg }

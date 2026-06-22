@@ -24,6 +24,8 @@ export interface Task {
   endDate?: string | null
   startTime: string | null
   endTime: string | null
+  /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
+  location?: string | null
   priority: Priority
   tags: string[]
   recurrence: Recurrence | null

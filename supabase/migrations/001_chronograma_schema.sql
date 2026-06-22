@@ -51,7 +51,8 @@ create table if not exists public.tasks (
   is_time_log boolean not null default false,
   section_id text references public.list_sections (id) on delete set null,
   end_date date,
-  completed_at timestamptz
+  completed_at timestamptz,
+  location text
 );
 
 -- 古い DB（列が無い・pinned だけ残っている等）
@@ -63,6 +64,9 @@ alter table public.tasks
 
 alter table public.tasks
   add column if not exists completed_at timestamptz null;
+
+alter table public.tasks
+  add column if not exists location text;
 
 alter table public.tasks
   drop column if exists pinned;
