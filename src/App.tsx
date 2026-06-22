@@ -32,91 +32,26 @@ import {
   parseSectionReorderId,
 } from './lib/sectionReorderDnD'
 import {
-  NEST_DROP_PREFIX,
   SUBTASK_PREFIX,
-  nestDropId,
-  parseNestDropId,
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
 import { isTodoSurfaceView } from './lib/todoSurfaceView'
 import { canNestUnder } from './lib/taskDepth'
+import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
 import {
   DndContext,
   DragOverlay,
   closestCenter,
   pointerWithin,
-  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
-  useDndMonitor,
   type DragStartEvent,
   type DragEndEvent,
-  type DragCancelEvent,
   type CollisionDetection,
 } from '@dnd-kit/core'
 import type { Task } from './types/task'
-
-/** ドロップ行の右寄り＝ネスト意図（`nest::` が衝突に載らない環境向け） */
-const lastDragClientRef: { current: { x: number; y: number } | null } = { current: null }
-const NEST_BAND_RATIO = 0.42
-const NEST_LOWER_HALF_RATIO = 0.42
-
-function isPointerInNestBand(
-  clientX: number,
-  rect: { left: number; width: number },
-  ratio = NEST_BAND_RATIO,
-): boolean {
-  return clientX >= rect.left + rect.width * ratio
-}
-
-function isPointerInLowerHalf(
-  clientY: number,
-  rect: { top: number; height: number },
-  ratio = NEST_LOWER_HALF_RATIO,
-): boolean {
-  return clientY >= rect.top + rect.height * ratio
-}
-
-function isPointerInNestIntent(
-  pointer: { x: number; y: number },
-  rect: { left: number; width: number; top: number; height: number },
-): boolean {
-  return isPointerInNestBand(pointer.x, rect) && isPointerInLowerHalf(pointer.y, rect)
-}
-
-function isPointerInNestIntentForRoot(
-  pointer: { x: number; y: number },
-  rect: { left: number; width: number; top: number; height: number },
-  overHasChildren: boolean,
-): boolean {
-  const relaxedRight = pointer.x >= rect.left + 80
-  const relaxedLower = isPointerInLowerHalf(pointer.y, rect, overHasChildren ? 0.38 : 0.32)
-  return relaxedRight && relaxedLower
-}
-
-function pickNestDropCollisionId(collisions: DragEndEvent['collisions']): string | null {
-  if (!collisions?.length) return null
-  const hit = collisions.find((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
-  return hit ? String(hit.id) : null
-}
-
-/** 同一行に `task::` と `nest::` が両方載るとき、`over` が task のみでも衝突列に nest があればネストに寄せる */
-function preferNestWhenCoListed(
-  activeId: string,
-  overId: string,
-  collisions: DragEndEvent['collisions'],
-  activeData: TaskRootDragData | undefined,
-): string {
-  if (activeData?.dragGroupRootIds && activeData.dragGroupRootIds.length > 1) return overId
-  if (!collisions?.length) return overId
-  if (!(activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX))) return overId
-  if (!overId.startsWith(TASK_PREFIX)) return overId
-  const rootId = overId.slice(TASK_PREFIX.length)
-  const nestId = nestDropId(rootId)
-  return collisions.some((c) => String(c.id) === nestId) ? nestId : overId
-}
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -127,14 +62,6 @@ const taskListCollision: CollisionDetection = (args) => {
     if (fromPointer.length > 0) {
       const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
       return [...fromPointer].sort((a, b) => rank(String(a.id)) - rank(String(b.id)))
-    }
-    const fromRect = rectIntersection(args)
-    const nestHits = fromRect.filter((c) => String(c.id).startsWith(NEST_DROP_PREFIX))
-    if (nestHits.length > 0) {
-      const bestNest = nestHits[0]
-      const rank = activeId.startsWith(SUBTASK_PREFIX) ? rankForSubtaskDrag : rankForTaskDrag
-      const rest = closestCenter(args).filter((c) => c.id !== bestNest.id)
-      return [bestNest, ...rest.sort((a, b) => rank(String(a.id)) - rank(String(b.id)))]
     }
   }
 
@@ -156,7 +83,6 @@ const taskListCollision: CollisionDetection = (args) => {
 }
 
 function rankForTaskDrag(id: string): number {
-  if (id.startsWith(NEST_DROP_PREFIX)) return 0
   if (id.startsWith(TASK_PREFIX)) return 1
   if (id.startsWith(SECTION_DROP_PREFIX)) return 2
   if (id.startsWith('drop::') || id.startsWith(LIST_PREFIX) || id.startsWith('mobile-drop::')) return 3
@@ -164,9 +90,8 @@ function rankForTaskDrag(id: string): number {
   return 10
 }
 
-/** サブタスクDnD: ネスト帯・兄弟行をルート行より優先 */
+/** サブタスクDnD: 兄弟行をルート行より優先 */
 function rankForSubtaskDrag(id: string): number {
-  if (id.startsWith(NEST_DROP_PREFIX)) return 0
   if (id.startsWith(SUBTASK_PREFIX)) return 1
   if (id.startsWith(TASK_PREFIX)) return 2
   if (id.startsWith(SECTION_DROP_PREFIX)) return 3
@@ -194,34 +119,6 @@ function DragOverlayTaskRow({ task, isSubtask }: { task: Task; isSubtask: boolea
   )
 }
 
-/** `useDndMonitor` は `<DndContext>` の子ツリー内でのみ有効 */
-function DndPointerBridge({ trackDragPointer }: { trackDragPointer: (e: PointerEvent) => void }) {
-  useDndMonitor(
-    useMemo(
-      () => ({
-        onDragStart() {
-          lastDragClientRef.current = null
-          window.addEventListener('pointermove', trackDragPointer, { capture: true, passive: true })
-          window.addEventListener('pointerup', trackDragPointer, { capture: true })
-          window.addEventListener('pointercancel', trackDragPointer, { capture: true })
-        },
-        onDragEnd() {
-          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
-          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
-          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
-        },
-        onDragCancel() {
-          window.removeEventListener('pointermove', trackDragPointer, { capture: true })
-          window.removeEventListener('pointerup', trackDragPointer, { capture: true })
-          window.removeEventListener('pointercancel', trackDragPointer, { capture: true })
-        },
-      }),
-      [trackDragPointer],
-    ),
-  )
-  return null
-}
-
 export default function App() {
   const { t } = useTranslation()
   useSupabaseSync()
@@ -237,10 +134,6 @@ export default function App() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  const trackDragPointer = useCallback((e: PointerEvent) => {
-    lastDragClientRef.current = { x: e.clientX, y: e.clientY }
-  }, [])
-
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id)
     if (activeId.startsWith(TASK_PREFIX)) {
@@ -255,23 +148,61 @@ export default function App() {
     setDragOverlayTask(null)
   }, [])
 
-  const handleDragCancel = useCallback((_: DragCancelEvent) => {
+  const handleDragCancel = useCallback(() => {
     setDragOverlayTask(null)
   }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDragOverlayTask(null)
-    const { active, over, collisions } = event
+    const { active, over } = event
+    const activeId = String(active.id)
+
+    // 水平方向のドラッグでインデント/アウトデント（アウトライナー風）。
+    // over が自分自身でも成立させたいので、通常の over 判定より前に処理する。
+    if (activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX)) {
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+      const isMultiGroup = !!group && group.length > 1
+      const movedId = activeId.startsWith(SUBTASK_PREFIX)
+        ? parseSubtaskDragId(activeId)
+        : activeId.slice(TASK_PREFIX.length)
+      if (movedId && !isMultiGroup) {
+        const state = useTaskStore.getState()
+
+        // 右ドラッグ = 1 段下げる（直前の兄弟の子に）
+        if (isIndentIntent(event.delta)) {
+          if (state.indentTaskUnderPrevSibling(movedId)) return
+        }
+
+        // 左ドラッグ = 1 段上げる（サブタスクのみ）
+        if (isOutdentIntent(event.delta) && activeId.startsWith(SUBTASK_PREFIX)) {
+          const moved = state.tasks.find((t) => t.id === movedId)
+          const parent = moved?.parentId
+            ? state.tasks.find((t) => t.id === moved.parentId)
+            : null
+          if (moved?.parentId && parent) {
+            if (parent.parentId != null) {
+              // 親もサブタスク → 祖父母の直下（旧親の直後）へ
+              const gpChildren = state.tasks
+                .filter((t) => t.parentId === parent.parentId && t.id !== movedId)
+                .sort((a, b) => a.order - b.order)
+                .map((t) => t.id)
+              const parentIdx = gpChildren.indexOf(parent.id)
+              const insertBefore = parentIdx >= 0 ? gpChildren[parentIdx + 1] ?? null : null
+              state.moveSubtaskInList(movedId, parent.parentId, insertBefore)
+            } else {
+              // 親がルート → ルートへ昇格
+              state.promoteSubtaskToRoot(movedId)
+            }
+            return
+          }
+        }
+      }
+    }
+
     if (!over || active.id === over.id) {
       return
     }
-    const activeId = active.id as string
-    const overId = preferNestWhenCoListed(
-      activeId,
-      over.id as string,
-      collisions,
-      active.data.current as TaskRootDragData | undefined,
-    )
+    const overId = over.id as string
 
     if (activeId.startsWith(DRAGSEC_PREFIX) && overId.startsWith(DROPSEC_PREFIX)) {
       const a = parseSectionReorderId(activeId, DRAGSEC_PREFIX)
@@ -297,58 +228,19 @@ export default function App() {
       const moved = state.tasks.find((t) => t.id === movedTaskId)
       if (!moved?.parentId) return
 
-      if (overId.startsWith(NEST_DROP_PREFIX)) {
-        const parentId = parseNestDropId(overId)
-        if (!parentId) return
-        const parent = state.tasks.find((t) => t.id === parentId)
-        if (!parent) return
-        state.moveSubtaskInList(movedTaskId, parentId, null)
-      } else if (overId.startsWith(SUBTASK_PREFIX)) {
+      if (overId.startsWith(SUBTASK_PREFIX)) {
         const overTaskId = parseSubtaskDragId(overId)
         if (!overTaskId) return
         const overTask = state.tasks.find((t) => t.id === overTaskId)
         if (!overTask?.parentId) return
-
-        const nestCollisionId = pickNestDropCollisionId(collisions)
-        if (nestCollisionId) {
-          const collisionParentId = parseNestDropId(nestCollisionId)
-          if (
-            collisionParentId &&
-            movedTaskId !== collisionParentId &&
-            canNestUnder(state.tasks, movedTaskId, collisionParentId)
-          ) {
-            state.moveSubtaskInList(movedTaskId, collisionParentId, null)
-            return
-          }
-        }
-
-        const ptr = lastDragClientRef.current
-        if (
-          ptr &&
-          isPointerInNestIntent(ptr, over.rect) &&
-          movedTaskId !== overTaskId &&
-          canNestUnder(state.tasks, movedTaskId, overTaskId)
-        ) {
-          state.moveSubtaskInList(movedTaskId, overTaskId, null)
-        } else {
-          state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
-        }
+        // 縦の並べ替え: ドロップ先サブタスクと同じ親・同じ位置に差し込む
+        state.moveSubtaskInList(movedTaskId, overTask.parentId, overTaskId)
       } else if (overId.startsWith(TASK_PREFIX)) {
         const rootId = overId.slice(TASK_PREFIX.length)
         const root = state.tasks.find((t) => t.id === rootId)
         if (!root) return
         state.moveSubtaskInList(movedTaskId, rootId, null)
       }
-    } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(NEST_DROP_PREFIX)) {
-      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-      if (group && group.length > 1) return
-      const taskId = activeId.slice(TASK_PREFIX.length)
-      const parentId = parseNestDropId(overId)
-      if (!parentId || taskId === parentId) return
-      const state = useTaskStore.getState()
-      const moved = state.tasks.find((t) => t.id === taskId)
-      if (!moved || moved.parentId != null) return
-      state.nestRootUnderParent(taskId, parentId, null)
     } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(SUBTASK_PREFIX)) {
       const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
       if (group && group.length > 1) return
@@ -359,16 +251,7 @@ export default function App() {
       const moved = state.tasks.find((t) => t.id === taskId)
       const overTask = state.tasks.find((t) => t.id === overTaskId)
       if (!moved || moved.parentId != null || !overTask) return
-      const ptr = lastDragClientRef.current
-      if (
-        ptr &&
-        isPointerInNestIntent(ptr, over.rect) &&
-        taskId !== overTaskId &&
-        canNestUnder(state.tasks, taskId, overTaskId)
-      ) {
-        state.nestRootUnderParent(taskId, overTaskId, null)
-        return
-      }
+      // 縦の並べ替え: ルートをドロップ先サブタスクと同じ親・同じ位置の兄弟にする
       const fallbackParentId = overTask.parentId
       if (!fallbackParentId || !canNestUnder(state.tasks, taskId, fallbackParentId)) {
         return
@@ -384,29 +267,6 @@ export default function App() {
       const taskId = activeId.slice(TASK_PREFIX.length)
       const group =
         (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
-
-      if (
-        overId.startsWith(TASK_PREFIX) &&
-        activeId !== overId &&
-        group.length === 1
-      ) {
-        const overTaskId = overId.slice(TASK_PREFIX.length)
-        const moved = state.tasks.find((t) => t.id === taskId)
-        const overHasChildren = state.tasks.some((t) => t.parentId === overTaskId)
-        const ptr = lastDragClientRef.current
-        const intent = ptr ? isPointerInNestIntentForRoot(ptr, over.rect, overHasChildren) : false
-        const canNest = canNestUnder(state.tasks, taskId, overTaskId)
-        if (
-          moved?.parentId == null &&
-          ptr &&
-          intent &&
-          taskId !== overTaskId &&
-          canNest
-        ) {
-          state.nestRootUnderParent(taskId, overTaskId, null)
-          return
-        }
-      }
 
       const currentOrdered = getOrderedActiveRootTasksForDnD({
         tasks: state.tasks,
@@ -493,6 +353,12 @@ export default function App() {
         state.undoDelete()
       }
     }
+    if (isModKey(e) && (e.key === 'z' || e.key === 'Z') && e.shiftKey) {
+      if (isTextFieldUndoTarget(e.target)) return
+      if (useTaskStore.getState().redoLastOperation()) {
+        e.preventDefault()
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -543,7 +409,6 @@ export default function App() {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <DndPointerBridge trackDragPointer={trackDragPointer} />
       <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

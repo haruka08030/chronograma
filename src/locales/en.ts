@@ -275,6 +275,16 @@ export default {
     markComplete: 'Mark complete',
     deleteAria: 'Delete',
     moreMenuAria: 'Move to list menu',
+    dueDateAria: 'Set due date',
+  },
+  dueDatePicker: {
+    title: 'Choose due date',
+    prevMonth: 'Previous month',
+    nextMonth: 'Next month',
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    clear: 'No date',
+    noDate: 'No due date',
   },
   search: {
     title: 'Search results',
@@ -295,9 +305,13 @@ export default {
     emailRequired: 'Enter your email address.',
     linkSent: 'Check your inbox for the sign-in link.',
     genericError: 'Something went wrong. Please try again.',
+    networkError: 'Could not reach the server. Check your network, or whether the Supabase project is paused.',
     signOut: 'Sign out',
     signIn: 'Sign in',
     closeOverlay: 'Close',
+    checking: 'Checking sign-in status…',
+    signedIn: 'Signed in',
+    notSignedIn: 'Not signed in',
     intro: 'Sign in with a link from email to sync across devices.',
     emailPlaceholder: 'Email',
     sending: 'Sending…',
@@ -379,6 +393,8 @@ export default {
     googleBody:
       'Connect after signing in with Supabase to show external events in the left column. Habits and your tasks work without it.',
     googleConnected: 'Google Calendar connected',
+    googleNeedsLogin: 'Sign in first to connect Google Calendar.',
+    googleLoginButton: 'Sign in',
     disconnect: 'Disconnect',
     connect: 'Connect Google Calendar',
     connecting: 'Connecting…',
@@ -386,6 +402,8 @@ export default {
     alreadyLinked:
       'Google is already linked. Remove app access from your Google account settings, then reconnect.',
     storeTokenFailed: 'Could not save Google credentials. Try reconnecting in a moment.',
+    networkError: 'Could not reach the server. Check your network, or whether the Supabase project is paused.',
+    supabaseNotConfigured: 'Cloud sync is not set up. Sign in first, then connect.',
     notConnected: 'Google Calendar is not connected. Use the connect button to link again.',
     tokenExpired:
       'Google Calendar authorization expired. Disconnect and reconnect.',

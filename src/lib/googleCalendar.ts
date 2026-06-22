@@ -2,6 +2,7 @@ import type { CalendarEvent } from '../types/calendarEvent'
 import type { Session } from '@supabase/supabase-js'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
+import { isNetworkErrorMessage } from './errorMessages'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -266,6 +267,8 @@ export function localizeGoogleError(
   t: (key: string, options?: Record<string, string>) => string,
 ): string {
   const lower = message.toLowerCase()
+  if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
+  if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
   if (lower.includes('not connected')) return t('planVsActual.notConnected')
   if (lower.includes('authorization expired') || lower.includes('invalid_grant')) {
     return t('planVsActual.tokenExpired')

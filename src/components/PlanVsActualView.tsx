@@ -401,6 +401,7 @@ function GoogleConnectBanner() {
   const googleConnectionError = useTaskStore((s) => s.googleConnectionError)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
+  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -537,9 +538,19 @@ function GoogleConnectBanner() {
         {loading ? t('planVsActual.connecting') : t('planVsActual.connect')}
       </button>
       {!user && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
-          {t('settings.accountHelp')}
-        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {t('planVsActual.googleNeedsLogin')}
+          </p>
+          <button
+            type="button"
+            onClick={() => openSettingsWithScroll('account')}
+            className="text-xs px-2.5 py-1 rounded-lg border border-accent-300 dark:border-accent-600
+                       text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-500/10 transition-colors"
+          >
+            {t('planVsActual.googleLoginButton')}
+          </button>
+        </div>
       )}
       {clientId && redirectUri && (
         <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 space-y-1">

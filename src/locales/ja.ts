@@ -276,6 +276,16 @@ export default {
     markComplete: 'タスクを完了にする',
     deleteAria: '削除',
     moreMenuAria: 'リスト移動メニュー',
+    dueDateAria: '期限を設定',
+  },
+  dueDatePicker: {
+    title: '期限を選択',
+    prevMonth: '前の月',
+    nextMonth: '次の月',
+    today: '今日',
+    tomorrow: '明日',
+    clear: '期限なし',
+    noDate: '期限なし',
   },
   search: {
     title: '検索結果',
@@ -296,9 +306,13 @@ export default {
     emailRequired: 'メールアドレスを入力してください',
     linkSent: 'ログイン用のリンクをメールに送信しました。受信箱を確認してください。',
     genericError: 'エラーが発生しました。もう一度お試しください。',
+    networkError: 'サーバーに接続できませんでした。ネットワーク接続、または Supabase プロジェクトが一時停止していないかを確認してください。',
     signOut: 'ログアウト',
     signIn: 'ログイン',
     closeOverlay: '閉じる',
+    checking: 'ログイン状態を確認中…',
+    signedIn: 'ログイン中',
+    notSignedIn: '未ログイン',
     intro: 'メールに届くリンクでログインします。複数端末でデータが同期されます。',
     emailPlaceholder: 'メールアドレス',
     sending: '送信中…',
@@ -380,6 +394,8 @@ export default {
     googleBody:
       'Supabase ログイン後に接続すると、外部カレンダーの予定を左列に表示できます。未接続でも習慣・自分の予定は使えます。',
     googleConnected: 'Google Calendar 接続中',
+    googleNeedsLogin: 'Google カレンダーと連携するには、まずログインが必要です。',
+    googleLoginButton: 'ログインする',
     disconnect: '切断',
     connect: 'Google Calendar に接続',
     connecting: '接続中…',
@@ -387,6 +403,8 @@ export default {
     alreadyLinked:
       'Google アカウントは既にリンク済みです。Google アカウントの連携アプリから権限を削除してから再接続してください。',
     storeTokenFailed: 'Google の認証情報を保存できませんでした。しばらくしてから再接続してください。',
+    networkError: 'サーバーに接続できませんでした。ネットワーク接続、または Supabase プロジェクトが一時停止していないかを確認してください。',
+    supabaseNotConfigured: 'クラウド連携が未設定です。先にログインしてから接続してください。',
     notConnected: 'Google Calendar が未接続です。接続ボタンから再度リンクしてください。',
     tokenExpired:
       'Google Calendar の認証が期限切れです。一度「切断」してから再接続してください。',

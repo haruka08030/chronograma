@@ -124,28 +124,37 @@
   のメモリ上の履歴、最大約 50 段）。入力欄・`contenteditable`
   フォーカス時はブラウザのテキスト取り消しを優先。履歴が空で `deletedTasks`
   だけ残っている場合は従来どおり `undoDelete()`
+- **⌘/Ctrl+⇧Z**: 直前に ⌘Z で戻した操作をやり直す（`redoLastOperation()`、
+  redo スタックも最大約 50 段）。新しいデータ操作（`pushUndo`）が走ると redo
+  スタックはクリアされる。入力欄フォーカス時はブラウザ標準を優先
 
 ### DnD（`DndContext`）
 
 - 未完了ルートタスクの手動並べ替え・セクション間移動（`TASK_PREFIX` +
   `buildReorderedActiveRootIdsForGroup`（`SortableTaskItem` の
   `data.dragGroupRootIds`）→
-  `reorderManualRootTasks`）。複数ルート選択中にドラッグすると選択ブロックをまとめて移動（ネスト帯ドロップは複数時無効）。セクション見出しの並べ替えは
+  `reorderManualRootTasks`）。複数ルート選択中にドラッグすると選択ブロックをまとめて移動（複数選択時は水平ドラッグの階層操作は無効）。セクション見出しの並べ替えは
   `DRAGSEC_PREFIX` / `DROPSEC_PREFIX` + `reorderSections`
-- サブタスク（`SUBTASK_PREFIX` +
-  `SortableSubtaskItem`）：兄弟の並べ替え／任意の親タスクへ移動（各行右端の
-  `RowNestDropTarget` が
-  `nest::{parentId}`、ルート行・他サブタスク行へのドロップ）→
+- サブタスク（`SUBTASK_PREFIX` + `SortableSubtaskItem`）：兄弟の並べ替え／
+  ドロップ先サブタスクと同じ親・位置へ移動、ルート行へドロップでその子に →
   `moveSubtaskInList`（`src/lib/subtaskDnD.ts`）。親は多段可（最大深さは
   `src/lib/taskDepth.ts` の `MAX_TASK_TREE_DEPTH`）
-- サブタスクを他サブタスク行へドロップしたときは、衝突列に `nest::`
-  があればそれを最優先（明示ネスト）。それが無い場合のみ右寄せポインタ判定（約
-  52% 以降）で子化し、条件不成立時は兄弟並び替えへフォールバック
-- **ルートをサブ化**: `nest::{parentId}` へドロップ、または別ルート行 `task::`
-  へドロップしつつ**ポインタがその行の下＋右**（`over.rect` 基準、概ね右 42%
-  以降かつ下 42% 以降）→ `nestRootUnderParent`（`taskStore`）。TickTick
-  の「下＋右」に寄せた判定。衝突では `NEST_DROP_PREFIX`
-  を優先（`rankForTaskDrag`）
+- **階層操作はアウトライナー風の水平ドラッグで行う**（`event.delta.x`、
+  横移動が縦移動より大きいときのみ・複数選択時は無効）。`over` 判定より前に処理：
+  - **1 段下げる（サブ化）**: 右へ `NEST_DRAG_DELTA`(=24px) 以上 →
+    `indentTaskUnderPrevSibling`（`taskStore`）。**直前の表示兄弟の子**に入れる
+    （ルート→`nestRootUnderParent` / サブ→`moveSubtaskInList`）。兄弟が無ければ不可。
+    判定は `src/lib/taskDragIntent.ts`（`isIndentIntent`）と
+    `getIndentTargetId`（`taskDepth.ts`）で共有
+  - **サブ化プレビュー（ドロップ前）**: `TaskList` の `onDragMove` で
+    `isIndentIntent` 成立中は `getIndentTargetId` を親候補にし、該当行に
+    `NestDragGuide`（濃いグレーの L 字ガイド線＋親行ハイライト、`showNestGuide`）を表示。
+    `onDragEnd` / `onDragCancel` でクリア
+  - **1 段上げる（昇格）**: 左へ `UNNEST_DRAG_DELTA`(=24px) 以上（サブのみ）→
+    親もサブなら祖父母直下（旧親の直後）へ `moveSubtaskInList`、親がルートなら
+    `promoteSubtaskToRoot`（旧親の直後・同セクション）
+  - 行へ「ドロップして子にする」帯（旧 `RowNestDropTarget` / `nest::`）は**廃止**。
+    ポインタ位置によるネスト判定も廃止し、ドロップは並べ替え・親移動のみ
 - `TaskList` の手動ソートは **単一の
   `SortableContext`（`flatManualSortableIds`）**
   で、ルートとその下の**全段**の未完了サブを表示順どおり登録（`DnDSubtreeRows`）
@@ -157,13 +166,7 @@
   `moveTasksToList`）— ドラッグ元はルートの `task::` のみ
 - リスト並べ替え（`LIST_PREFIX` + `reorderLists`）
 - 衝突判定は `taskListCollision`
-  でドラッグ種別ごとに優先順を切替（`pointerWithin` が空のとき
-  `rectIntersection` で `nest::` 等）。**確定時**は `nest::` に加え、ルート同士
-  / サブタスク同士の `task::` / `subtask::` ドロップでポインタが `over.rect`
-  の下＋右（概ね右 42% 以降かつ下 42% 以降）なら子化（`nestRootUnderParent` /
-  `moveSubtaskInList`）し、それ以外は通常並び替え（`App.tsx` の
-  `lastDragClientRef` + **`DndPointerBridge` 内の
-  `useDndMonitor`**（`DndContext` の子である必要がある））
+  でドラッグ種別ごとに優先順を切替（`pointerWithin`／空なら `closestCenter`）
 
 ## 状態管理（`src/store/taskStore.ts`）
 
@@ -181,7 +184,8 @@
 - `theme`, `searchQuery`, `sortMode`, `filterTag`）
 - `timeLogTagPresets`（活動ログ用タグの候補リスト・設定で編集、`setTimeLogTagPresets`）
 - `deletedTasks`（削除トースト用）、`undoLastOperation()`（⌘Z
-  用の直前スナップショット復元・永続化しない）、`notificationsEnabled`
+  用の直前スナップショット復元・永続化しない）／`redoLastOperation()`（⌘⇧Z
+  用・redo スタックも永続化しない）、`notificationsEnabled`
 - `listColorPaletteId`（`src/lib/listColorPalettes.ts`）
 - `calendarEvents`, `googleConnected`, `googleAccessToken`
 - `activeTimer`, `habits`（`addHabit` / `updateHabit` / `deleteHabit` /
@@ -314,7 +318,7 @@
 | パス                                                                                                       | 役割                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Sidebar.tsx`                                                                                              | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビュー（**統計は除く**）のみ（**リスト節は出さない**）。「To‑Do」行を押すと To‑Do パネルを開き、表示は `all`（すべて）に切り替える。**統計**はスクロールナビの下・フッター区切り線の上に単独行。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」（このとき統計行は非表示）。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル                                                                                                                                                           |
-| `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `RowNestDropTarget.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。タイトル下には期限テキスト（今日/日付/期限超過）を表示し、期限編集はホバー時の日付アイコン／詳細（`hideDueDatePicker` で日付アイコン非表示可）。ホバーで**キュー（リスト）型 SVG**のリスト移動メニュー・削除                                                                                                                                                                                                                                                                                                                                                 |
+| `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `NestDragGuide.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等。階層変更は水平ドラッグ。右ドラッグ中は `NestDragGuide` でサブ化プレビュー）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。タイトル下には期限テキスト（今日/日付/期限超過）と**メモ（`description`）の最初の非空行を1行だけ truncate 表示**し、期限編集はホバー時の日付アイコン／詳細（`hideDueDatePicker` で日付アイコン非表示可）。ホバーで**キュー（リスト）型 SVG**のリスト移動メニュー・削除                                                                                                                                                                                                                                                                                                                                                 |
 | `SectionHeaderDnD.tsx`                                                                                     | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `TaskDetail.tsx`                                                                                           | 詳細編集。**既定は右ペイン分割**（`layout="split"`、親が `flex-row`＋`min-h-0`）。`layout="modal"` で全画面オーバーレイ。`isTimeLog` は行動ログ UI に切替え、優先度・リスト等は非表示。ログの日時は **開始／終了それぞれ「日付＋時刻」** を近接配置（Google カレンダー風）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CompleteWithLogModal.tsx`                                                                                 | 予定タスクの「完了を記録」モーダル（タイムログ作成＋完了）。`TaskList` と `PlanVsActualView` で共有。日付＋時刻は **開始ブロック／終了ブロック** の2段                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -342,7 +346,7 @@
 `durationMinutesForTaskId` / `logOverlapsDateKey` / `minutesOfLogOnCalendarDay`
 / `timeLogSegmentLayoutForDay` / `patchAfterTimelineMove` /
 `dragBlockDurationMinutes` 等）, `keyboard.ts`（`isModKey`: ⌘/Ctrl）,
-`subtaskDnD.ts`（`SUBTASK_PREFIX` / `NEST_DROP_PREFIX`）, `habitStats.ts` /
+`subtaskDnD.ts`（`SUBTASK_PREFIX`）, `habitStats.ts` /
 `habitDraft.ts`, `src/locales/ja.ts`・`en`（`displayListName` 用 `lists.inbox`
 等）,
 `tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`・**`buildTimeLogTagUniverse`（プリセット先頭）**・`parseTimeLogTagPresetLines`）,
@@ -351,7 +355,7 @@
 `pointerup` 時に行う。タップ誤判定を減らすため、ドラッグ判定は `pointerdown`
 からの移動量（6px 超）で行う）, `useTimelineDrop.ts`, `notifications.ts`,
 `googleCalendar.ts`, `matchEvents.ts`, `plannedItemUtils.ts`,
-`parseQuickAdd.ts`, `taskDepth.ts`, `id.ts` など。
+`parseQuickAdd.ts`, `taskDepth.ts`（`getIndentTargetId` 含む）, `taskDragIntent.ts`（`isIndentIntent` 等）, `id.ts` など。
 
 ## データベース（`supabase/migrations/`）
 

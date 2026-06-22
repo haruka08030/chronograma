@@ -16,7 +16,7 @@ import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { canNestUnder } from '../lib/taskDepth'
+import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 
@@ -134,6 +134,10 @@ interface TaskState {
     parentId: string,
     insertBeforeChildId: string | null,
   ) => void
+  /** ルート直下のサブタスクをルートへ昇格（左ドラッグで 1 段上へ）。旧親の直後に同セクションで挿入 */
+  promoteSubtaskToRoot: (taskId: string) => void
+  /** 右ドラッグで 1 段下げる: 直前の表示兄弟の子にする。兄弟が無ければ何もしない（戻り値 false） */
+  indentTaskUnderPrevSibling: (taskId: string) => boolean
 
   toggleTheme: () => void
   setListColorPalette: (id: ListColorPaletteId) => void
@@ -217,6 +221,8 @@ interface TaskState {
   undoDelete: () => void
   /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
   undoLastOperation: () => boolean
+  /** ⌘Z で戻した変更をやり直す（⌘⇧Z）。成功時 true */
+  redoLastOperation: () => boolean
   clearDeletedTasks: () => void
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
@@ -424,6 +430,7 @@ export const useTaskStore = create<TaskState>()(
   persist(
     (set, get) => {
       const undoStack: ChronogramaUndoSnapshot[] = []
+      const redoStack: ChronogramaUndoSnapshot[] = []
       const MAX_UNDO = 50
 
       const captureUndoSnapshot = (): ChronogramaUndoSnapshot => {
@@ -450,6 +457,7 @@ export const useTaskStore = create<TaskState>()(
       const pushUndo = () => {
         undoStack.push(captureUndoSnapshot())
         if (undoStack.length > MAX_UNDO) undoStack.shift()
+        redoStack.length = 0
       }
 
       return {
@@ -659,6 +667,81 @@ export const useTaskStore = create<TaskState>()(
             }),
           }
         })
+      },
+
+      promoteSubtaskToRoot: (taskId) => {
+        const s0 = get()
+        const moved = s0.tasks.find((t) => t.id === taskId)
+        if (!moved || moved.parentId == null) return
+        const parent = s0.tasks.find((t) => t.id === moved.parentId)
+        if (!parent) return
+        // 親自身がサブタスクの場合は moveSubtaskInList で祖父母へ動かす。ここはルート直下のみ。
+        if (parent.parentId != null) return
+        if (isListedTimeLog(moved)) return
+
+        pushUndo()
+        set((s) => {
+          const now = new Date().toISOString()
+          const targetSectionId = parent.sectionId ?? null
+
+          const rootOrder = s.tasks
+            .filter(
+              (t) =>
+                t.parentId === null &&
+                t.id !== taskId &&
+                t.listId === parent.listId &&
+                (t.sectionId ?? null) === targetSectionId,
+            )
+            .sort((a, b) => a.order - b.order)
+            .map((t) => t.id)
+          const parentIdx = rootOrder.indexOf(parent.id)
+          if (parentIdx >= 0) rootOrder.splice(parentIdx + 1, 0, taskId)
+          else rootOrder.push(taskId)
+
+          const orderAtRoot = new Map<string, number>()
+          rootOrder.forEach((id, i) => orderAtRoot.set(id, i))
+
+          const oldSiblings = siblingIdsOrdered(s.tasks, parent.id, taskId)
+          const orderAtOldParent = new Map<string, number>()
+          oldSiblings.forEach((id, i) => orderAtOldParent.set(id, i))
+
+          return {
+            tasks: s.tasks.map((t) => {
+              if (t.id === taskId) {
+                return {
+                  ...t,
+                  parentId: null,
+                  listId: parent.listId,
+                  sectionId: targetSectionId,
+                  order: orderAtRoot.get(taskId) ?? 0,
+                  updatedAt: now,
+                }
+              }
+              if (orderAtRoot.has(t.id) && t.parentId === null) {
+                const o = orderAtRoot.get(t.id)
+                if (o === undefined || o === t.order) return t
+                return { ...t, order: o, updatedAt: now }
+              }
+              if (orderAtOldParent.has(t.id) && t.parentId === parent.id) {
+                const o = orderAtOldParent.get(t.id)
+                if (o === undefined || o === t.order) return t
+                return { ...t, order: o, updatedAt: now }
+              }
+              return t
+            }),
+          }
+        })
+      },
+
+      indentTaskUnderPrevSibling: (taskId) => {
+        const s = get()
+        const task = s.tasks.find((t) => t.id === taskId)
+        const prevId = getIndentTargetId(s.tasks, taskId)
+        if (!task || !prevId) return false
+
+        if (task.parentId == null) get().nestRootUnderParent(taskId, prevId, null)
+        else get().moveSubtaskInList(taskId, prevId, null)
+        return true
       },
 
       setCalendarEvents: (events) => set({ calendarEvents: events }),
@@ -1255,6 +1338,17 @@ export const useTaskStore = create<TaskState>()(
       undoLastOperation: () => {
         const snap = undoStack.pop()
         if (!snap) return false
+        redoStack.push(captureUndoSnapshot())
+        if (redoStack.length > MAX_UNDO) redoStack.shift()
+        set({ ...snap })
+        return true
+      },
+
+      redoLastOperation: () => {
+        const snap = redoStack.pop()
+        if (!snap) return false
+        undoStack.push(captureUndoSnapshot())
+        if (undoStack.length > MAX_UNDO) undoStack.shift()
         set({ ...snap })
         return true
       },

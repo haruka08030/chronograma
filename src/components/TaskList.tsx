@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, type SortMode } from '../store/taskStore'
 import {
   getFilteredRootTasks,
@@ -12,7 +12,9 @@ import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { isModKey } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
-import { SUBTASK_PREFIX, subtaskDragId } from '../lib/subtaskDnD'
+import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
+import { isIndentIntent } from '../lib/taskDragIntent'
+import { getIndentTargetId } from '../lib/taskDepth'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
@@ -50,6 +52,7 @@ function DnDSubtreeRows({
   onEnterCreateSibling,
   pendingAutoEditTaskId,
   subtaskNestWithDrag,
+  nestPreviewParentId,
 }: {
   parentId: string
   depth: number
@@ -60,6 +63,7 @@ function DnDSubtreeRows({
   onEnterCreateSibling: (task: Task) => void
   pendingAutoEditTaskId: string | null
   subtaskNestWithDrag: string
+  nestPreviewParentId: string | null
 }): ReactNode[] {
   return incompleteSubtasks(parentId).flatMap((st): ReactNode[] => [
     <div key={st.id} className={`${subtaskNestWithDrag}${depth > 0 ? ' ml-2' : ''}`}>
@@ -70,6 +74,7 @@ function DnDSubtreeRows({
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
         autoEdit={pendingAutoEditTaskId === st.id}
+        showNestGuide={st.id === nestPreviewParentId}
       />
     </div>,
     ...DnDSubtreeRows({
@@ -82,6 +87,7 @@ function DnDSubtreeRows({
       onEnterCreateSibling,
       pendingAutoEditTaskId,
       subtaskNestWithDrag,
+      nestPreviewParentId,
     }),
   ])
 }
@@ -221,8 +227,22 @@ export function TaskList() {
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
+  const [previewParentId, setPreviewParentId] = useState<string | null>(null)
+  const previewParentIdRef = useRef<string | null>(null)
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
+
+  const clearNestPreview = useCallback(() => {
+    if (previewParentIdRef.current === null) return
+    previewParentIdRef.current = null
+    setPreviewParentId(null)
+  }, [])
+
+  const updateNestPreview = useCallback((next: string | null) => {
+    if (previewParentIdRef.current === next) return
+    previewParentIdRef.current = next
+    setPreviewParentId(next)
+  }, [])
 
   useEffect(() => {
     selectedRef.current = selected
@@ -259,6 +279,7 @@ export function TaskList() {
   const dndMonitor = useMemo(
     () => ({
       onDragStart({ active }: DragStartEvent) {
+        clearNestPreview()
         const id = String(active.id)
         if (id.startsWith(DRAGSEC_PREFIX)) {
           clearSelection()
@@ -273,16 +294,38 @@ export function TaskList() {
           if (!group || group.length <= 1) clearSelection()
         }
       },
+      onDragMove({ active, delta }: DragMoveEvent) {
+        const id = String(active.id)
+        if (!id.startsWith(TASK_PREFIX) && !id.startsWith(SUBTASK_PREFIX)) {
+          updateNestPreview(null)
+          return
+        }
+        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+        if (group && group.length > 1) {
+          updateNestPreview(null)
+          return
+        }
+        const taskId = id.startsWith(SUBTASK_PREFIX)
+          ? parseSubtaskDragId(id)
+          : id.slice(TASK_PREFIX.length)
+        if (!taskId || !isIndentIntent(delta)) {
+          updateNestPreview(null)
+          return
+        }
+        updateNestPreview(getIndentTargetId(useTaskStore.getState().tasks, taskId))
+      },
       onDragEnd({ active }: DragEndEvent) {
+        clearNestPreview()
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
         if (group && group.length > 1) clearSelection()
       },
       onDragCancel({ active }: DragCancelEvent) {
+        clearNestPreview()
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
         if (group && group.length > 1) clearSelection()
       },
     }),
-    [clearSelection],
+    [clearSelection, clearNestPreview, updateNestPreview],
   )
   useDndMonitor(dndMonitor)
 
@@ -700,6 +743,7 @@ export function TaskList() {
                   onEnterCreateSibling={handleEnterCreateSibling}
                   selection={makeSelection(t.id)}
                   autoEdit={pendingAutoEditTaskId === t.id}
+                  showNestGuide={t.id === previewParentId}
                 />,
                 ...DnDSubtreeRows({
                   parentId: t.id,
@@ -711,6 +755,7 @@ export function TaskList() {
                   onEnterCreateSibling: handleEnterCreateSibling,
                   pendingAutoEditTaskId,
                   subtaskNestWithDrag,
+                  nestPreviewParentId: previewParentId,
                 }),
               ])}
               <SectionDropZone listId={selectedListId} sectionId={block.sectionId} />
@@ -728,6 +773,7 @@ export function TaskList() {
             onEnterCreateSibling={handleEnterCreateSibling}
             selection={makeSelection(t.id)}
             autoEdit={pendingAutoEditTaskId === t.id}
+            showNestGuide={t.id === previewParentId}
           />,
           ...DnDSubtreeRows({
             parentId: t.id,
@@ -739,6 +785,7 @@ export function TaskList() {
             onEnterCreateSibling: handleEnterCreateSibling,
             pendingAutoEditTaskId,
             subtaskNestWithDrag,
+            nestPreviewParentId: previewParentId,
           }),
         ])
       )}

@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
+import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
@@ -33,7 +34,8 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         setEmail('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('account.genericError'))
+      const message = err instanceof Error ? err.message : ''
+      setError(isNetworkErrorMessage(message) ? t('account.networkError') : t('account.genericError'))
     } finally {
       setPending(false)
     }
@@ -41,8 +43,9 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
 
   if (loading) {
     return (
-      <span className="text-xs text-zinc-400 px-2" aria-hidden>
-        …
+      <span className="inline-flex items-center gap-1.5 px-2 text-xs text-zinc-400">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" aria-hidden />
+        {t('account.checking')}
       </span>
     )
   }
@@ -51,6 +54,10 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
     const label = user.email ?? user.id
     return (
       <div className={`relative flex items-center gap-3 ${isSettings ? 'flex-wrap' : ''}`}>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+          {t('account.signedIn')}
+        </span>
         <span
           className={`truncate text-xs text-zinc-600 dark:text-zinc-300 ${
             isSettings ? 'max-w-full sm:max-w-md' : 'hidden max-w-[140px] sm:inline'

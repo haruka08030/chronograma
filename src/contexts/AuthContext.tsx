@@ -16,6 +16,7 @@ import {
   tryPersistGoogleRefreshToken,
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
+import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 
@@ -176,13 +177,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithOtp: async (email: string) => {
         const sb = getSupabase()
         if (!sb) return { error: 'Supabase が設定されていません' }
-        const { error } = await sb.auth.signInWithOtp({
-          email: email.trim(),
-          options: {
-            emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-          },
-        })
-        return error ? { error: error.message } : {}
+        try {
+          const { error } = await sb.auth.signInWithOtp({
+            email: email.trim(),
+            options: {
+              emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+            },
+          })
+          if (!error) return {}
+          if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
+          return { error: error.message }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : ''
+          if (isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }
+          return { error: message || i18n.t('account.genericError') }
+        }
       },
       signOut: async () => {
         try {
