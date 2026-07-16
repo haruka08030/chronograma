@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -17,6 +18,7 @@ export function SearchResults() {
     return tasks.filter(
       (t) =>
         t.parentId === null &&
+        isActiveTask(t) &&
         (t.title.toLowerCase().includes(q) ||
           t.description.toLowerCase().includes(q) ||
           t.tags.some((tag) => tag.toLowerCase().includes(q))),

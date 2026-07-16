@@ -27,9 +27,11 @@ import {
   isOvernightTimeLog,
   logOverlapsDateKey,
   patchAfterTimelineMove,
+  taskPlacementDate,
   timeLogSegmentLayoutForDay,
 } from '../lib/taskTimeRange'
 import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
@@ -254,6 +256,7 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
         }
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
+        flex flex-col items-stretch
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${styles.borderClass} ${styles.bgClass} ${styles.textClass}
         ${task.completed ? 'line-through opacity-80' : ''}`}
@@ -314,6 +317,7 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail }
         }
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
+        flex flex-col items-stretch
         border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
         ${styles.borderClass} ${styles.bgClass} ${styles.textClass}`}
       style={{ top, height, minHeight: 18 }}
@@ -676,10 +680,12 @@ export function PlanVsActualView() {
   const scheduledTasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || t.isTimeLog) continue
-      const arr = map.get(t.dueDate) ?? []
+      if (t.parentId || !t.startTime || !t.endTime || t.isTimeLog || !isActiveTask(t)) continue
+      const placement = taskPlacementDate(t)
+      if (!placement) continue
+      const arr = map.get(placement) ?? []
       arr.push(t)
-      map.set(t.dueDate, arr)
+      map.set(placement, arr)
     }
     return map
   }, [tasks])
@@ -689,7 +695,7 @@ export function PlanVsActualView() {
     for (const day of days) {
       const key = format(day, 'yyyy-MM-dd')
       for (const t of tasks) {
-        if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || !t.isTimeLog) continue
+        if (!t.dueDate || t.parentId || !t.startTime || !t.endTime || !t.isTimeLog || !isActiveTask(t)) continue
         if (!logOverlapsDateKey(t, key)) continue
         const arr = map.get(key) ?? []
         arr.push(t)
@@ -781,12 +787,13 @@ export function PlanVsActualView() {
     onBlockTap: useCallback((taskId: string) => {
       const tapped = useTaskStore.getState().tasks.find((t) => t.id === taskId)
       if (!tapped) return
-      if (!tapped.completed && !tapped.isTimeLog && tapped.dueDate && tapped.startTime && tapped.endTime) {
+      const tappedPlacement = taskPlacementDate(tapped)
+      if (!tapped.completed && !tapped.isTimeLog && tappedPlacement && tapped.startTime && tapped.endTime) {
         setCompletionDraft({
           taskId: tapped.id,
           title: tapped.title,
-          date: tapped.dueDate,
-          endDate: tapped.endDate ?? tapped.dueDate,
+          date: tappedPlacement,
+          endDate: tapped.endDate ?? tappedPlacement,
           startTime: tapped.startTime,
           endTime: tapped.endTime,
           memo: tapped.description.trim(),
@@ -814,7 +821,7 @@ export function PlanVsActualView() {
     getRelativeY,
     getTaskDuration,
     onDrop: (taskId, dateKey, startTime, endTime) => {
-      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: false })
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, isTimeLog: false })
     },
   })
 
@@ -843,15 +850,16 @@ export function PlanVsActualView() {
   }, [addCompletedTaskWithTime])
 
   const openCompleteWithLog = useCallback((task: Task) => {
-    if (task.completed || task.isTimeLog || !task.dueDate || !task.startTime || !task.endTime) {
+    const placement = taskPlacementDate(task)
+    if (task.completed || task.isTimeLog || !placement || !task.startTime || !task.endTime) {
       openDetail(task.id)
       return
     }
     setCompletionDraft({
       taskId: task.id,
       title: task.title,
-      date: task.dueDate,
-      endDate: task.endDate ?? task.dueDate,
+      date: placement,
+      endDate: task.endDate ?? placement,
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),

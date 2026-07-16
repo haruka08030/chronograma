@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isModKey } from '../lib/keyboard'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -17,7 +18,19 @@ export function CalendarTaskDock() {
   const sections = useTaskStore((s) => s.sections)
 
   const [dockListId, setDockListId] = useState(INBOX_LIST_ID)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelected = useCallback(() => setSelected(new Set()), [])
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -35,6 +48,27 @@ export function CalendarTaskDock() {
   )
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+
+  const selectedInOrder = useMemo(
+    () => active.map((t) => t.id).filter((id) => selected.has(id)),
+    [active, selected],
+  )
+  const getDragGroupIds = useCallback(
+    (id: string): string[] =>
+      selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : [id],
+    [selected, selectedInOrder],
+  )
+  const makeRowClick = useCallback(
+    (id: string) => (e: React.MouseEvent) => {
+      if (e.shiftKey || isModKey(e) || selected.size > 0) {
+        toggleSelected(id)
+        return
+      }
+      openDetail(id)
+    },
+    [openDetail, selected.size, toggleSelected],
+  )
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
@@ -59,8 +93,32 @@ export function CalendarTaskDock() {
           {active.length === 0 && (
             <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDock.empty')}</p>
           )}
+          {selected.size > 0 && (
+            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              <span>{t('taskList.selectedCount', { count: selected.size })}</span>
+              <button
+                type="button"
+                onClick={clearSelected}
+                className="rounded px-1.5 py-0.5 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60"
+              >
+                {t('taskList.clearSelection')}
+              </button>
+            </div>
+          )}
           {active.map((t) => (
-            <TaskItem key={t.id} task={t} hideDueDatePicker onRowClick={() => openDetail(t.id)} />
+            <TaskItem
+              key={t.id}
+              task={t}
+              hideDueDatePicker
+              onRowClick={makeRowClick(t.id)}
+              selection={{
+                selected: selected.has(t.id),
+                reveal: selected.size > 0,
+                onToggle: () => toggleSelected(t.id),
+              }}
+              dragGroupIds={getDragGroupIds(t.id)}
+              onNativeDragEnd={clearSelected}
+            />
           ))}
         </div>
       </div>

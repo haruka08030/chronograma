@@ -1,6 +1,7 @@
 import type { Task } from '../types/task'
 import { isToday, parseISO } from 'date-fns'
 import i18n from '../i18n/config'
+import { isActiveTask } from './taskLifecycle'
 
 const notifiedIds = new Set<string>()
 
@@ -18,6 +19,7 @@ export function checkAndNotify(tasks: Task[]) {
   const dueTasks = tasks.filter(
     (t) =>
       !t.completed &&
+      isActiveTask(t) &&
       t.parentId === null &&
       t.dueDate &&
       isToday(parseISO(t.dueDate)) &&

@@ -20,8 +20,10 @@ import {
   durationMinutesForTaskId,
   logOverlapsDateKey,
   patchAfterTimelineMove,
+  taskPlacementDate,
   timeLogSegmentLayoutForDay,
 } from '../lib/taskTimeRange'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import {
@@ -195,25 +197,28 @@ export function WeekCalendarView({
     const timed = new Map<string, typeof tasks>()
     const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId) continue
-      if (t.startTime && t.endTime) {
-        if (t.isTimeLog) {
-          for (const day of days) {
-            const dk = format(day, 'yyyy-MM-dd')
-            if (!logOverlapsDateKey(t, dk)) continue
-            const arr = logs.get(dk) ?? []
-            arr.push(t)
-            logs.set(dk, arr)
-          }
-        } else {
-          const arr = timed.get(t.dueDate) ?? []
+      if (t.parentId || !isActiveTask(t)) continue
+      if (t.isTimeLog) {
+        if (!t.dueDate || !t.startTime || !t.endTime) continue
+        for (const day of days) {
+          const dk = format(day, 'yyyy-MM-dd')
+          if (!logOverlapsDateKey(t, dk)) continue
+          const arr = logs.get(dk) ?? []
           arr.push(t)
-          timed.set(t.dueDate, arr)
+          logs.set(dk, arr)
         }
-      } else {
-        const arr = allDay.get(t.dueDate) ?? []
+        continue
+      }
+      const placement = taskPlacementDate(t)
+      if (!placement) continue
+      if (t.startTime && t.endTime) {
+        const arr = timed.get(placement) ?? []
         arr.push(t)
-        allDay.set(t.dueDate, arr)
+        timed.set(placement, arr)
+      } else {
+        const arr = allDay.get(placement) ?? []
+        arr.push(t)
+        allDay.set(placement, arr)
       }
     }
     return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
@@ -312,7 +317,7 @@ export function WeekCalendarView({
     getRelativeY,
     getTaskDuration,
     onDrop: (taskId, dateKey, startTime, endTime) => {
-      updateTask(taskId, { dueDate: dateKey, startTime, endTime, isTimeLog: false })
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, isTimeLog: false })
     },
   })
 

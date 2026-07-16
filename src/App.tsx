@@ -12,6 +12,7 @@ import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
+import { TaskBinView } from './components/TaskBinView'
 import { SettingsView } from './components/SettingsView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
@@ -111,10 +112,25 @@ function rankForListReorderDrag(id: string): number {
   return 10
 }
 
-function DragOverlayTaskRow({ task, isSubtask }: { task: Task; isSubtask: boolean }) {
+function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask: boolean; count: number }) {
+  const { t } = useTranslation()
+  const isMulti = count > 1
   return (
-    <div className="w-[min(640px,calc(100vw-2rem))] rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70">
-      <TaskItem task={task} isSubtask={isSubtask} />
+    <div className="relative w-[min(640px,calc(100vw-2rem))]">
+      {isMulti && (
+        <>
+          <div className="absolute inset-x-2 -bottom-2 h-full rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70" />
+          <div className="absolute inset-x-1 -bottom-1 h-full rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70" />
+        </>
+      )}
+      <div className="relative rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70">
+        <TaskItem task={task} isSubtask={isSubtask} />
+        {isMulti && (
+          <span className="absolute -right-2 -top-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-semibold text-white shadow-md dark:bg-zinc-100 dark:text-zinc-900">
+            {t('taskList.dragCount', { count })}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -129,20 +145,22 @@ export default function App() {
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean } | null>(null)
+  const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id)
+    const group = (event.active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
+    const count = group && group.length > 1 ? group.length : 1
     if (activeId.startsWith(TASK_PREFIX)) {
-      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false })
+      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false, count })
       return
     }
     if (activeId.startsWith(SUBTASK_PREFIX)) {
       const taskId = parseSubtaskDragId(activeId)
-      setDragOverlayTask(taskId ? { taskId, isSubtask: true } : null)
+      setDragOverlayTask(taskId ? { taskId, isSubtask: true, count: 1 } : null)
       return
     }
     setDragOverlayTask(null)
@@ -391,6 +409,8 @@ export default function App() {
       case 'activity-log': return <ActivityLogView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
+      case 'archived': return <TaskBinView mode="archived" />
+      case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
       default: return <TaskList />
     }
@@ -409,7 +429,7 @@ export default function App() {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="h-screen min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
+      <div className="h-dvh min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
@@ -484,7 +504,11 @@ export default function App() {
 
       <DragOverlay dropAnimation={null}>
         {dragOverlayTaskEntity && dragOverlayTask ? (
-          <DragOverlayTaskRow task={dragOverlayTaskEntity} isSubtask={dragOverlayTask.isSubtask} />
+          <DragOverlayTaskRow
+            task={dragOverlayTaskEntity}
+            isSubtask={dragOverlayTask.isSubtask}
+            count={dragOverlayTask.count}
+          />
         ) : null}
       </DragOverlay>
 

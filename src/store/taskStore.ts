@@ -16,6 +16,7 @@ import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
@@ -51,6 +52,8 @@ export type SmartView =
   | 'activity-log'
   | 'stats'
   | 'habits'
+  | 'archived'
+  | 'deleted'
   | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
@@ -79,6 +82,8 @@ interface TaskState {
   lists: TaskList[]
   selectedListId: string | null
   selectedView: SmartView | null
+  /** サイドバーの To‑Do パネル展開状態（永続化。リロードで同じ画面を復元するため） */
+  todoPanelOpen: boolean
   /** 設定を開いた直後のみ使い、スクロール後にクリア */
   settingsScrollTarget: SettingsScrollTarget | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
@@ -145,6 +150,7 @@ interface TaskState {
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
+  setTodoPanelOpen: (open: boolean) => void
   openSettingsWithScroll: (target: SettingsScrollTarget) => void
   clearSettingsScrollTarget: () => void
   setCalendarMode: (mode: CalendarMode) => void
@@ -197,6 +203,8 @@ interface TaskState {
         | 'title'
         | 'description'
         | 'dueDate'
+        | 'dueTime'
+        | 'scheduledDate'
         | 'endDate'
         | 'startTime'
         | 'endTime'
@@ -217,8 +225,21 @@ interface TaskState {
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>,
   ) => void
+  /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
+  /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
+  restoreDeletedTask: (id: string) => void
+  /** ゴミ箱から完全に削除（対象と全子孫をストアから除去） */
+  permanentlyDeleteTask: (id: string) => void
+  /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
+  emptyDeleted: () => void
+  /** アーカイブする（対象と全子孫に archivedAt を付与） */
+  archiveTask: (id: string) => void
+  /** 複数タスクをアーカイブ */
+  archiveTasks: (ids: string[]) => void
+  /** アーカイブから戻す（対象と全子孫の archivedAt をクリア） */
+  unarchiveTask: (id: string) => void
   undoDelete: () => void
   /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
   undoLastOperation: () => boolean
@@ -314,6 +335,8 @@ function applyTaskPatch(
       | 'title'
       | 'description'
       | 'dueDate'
+      | 'dueTime'
+      | 'scheduledDate'
       | 'endDate'
       | 'startTime'
       | 'endTime'
@@ -346,11 +369,15 @@ function applyTaskPatch(
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
   }
+  // 期限（dueDate）を外したら締め切り時刻と繰り返しもクリア（予定の時間幅は予定日側に紐づくので残す）
   if (patch.dueDate === null) {
+    applied.dueTime = null
+    applied.recurrence = null
+  }
+  // 予定日（scheduledDate）を外したら予定の時間幅もクリア
+  if (patch.scheduledDate === null) {
     applied.startTime = null
     applied.endTime = null
-    applied.endDate = null
-    applied.recurrence = null
   }
   return applied
 }
@@ -395,6 +422,8 @@ function makeTask(
     listId: string
     sectionId?: string | null
     dueDate?: string | null
+    dueTime?: string | null
+    scheduledDate?: string | null
     endDate?: string | null
     startTime?: string | null
     endTime?: string | null
@@ -418,6 +447,8 @@ function makeTask(
     sectionId: fields.sectionId ?? null,
     parentId: null,
     dueDate: fields.dueDate ?? null,
+    dueTime: fields.dueTime ?? null,
+    scheduledDate: fields.scheduledDate ?? null,
     endDate: fields.endDate ?? null,
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
@@ -426,6 +457,8 @@ function makeTask(
     tags: fields.tags ?? [],
     recurrence: null,
     isTimeLog: fields.isTimeLog ?? false,
+    archivedAt: null,
+    deletedAt: null,
   }
 }
 
@@ -468,6 +501,7 @@ export const useTaskStore = create<TaskState>()(
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
       selectedView: null,
+      todoPanelOpen: false,
       settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'month' as CalendarMode,
       selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
@@ -808,6 +842,7 @@ export const useTaskStore = create<TaskState>()(
         set({ timeLogTagPresets: normalizeTimeLogTagPresetList(presets) })
       },
 
+      setTodoPanelOpen: (open) => set({ todoPanelOpen: open }),
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
       selectView: (view) =>
         set({
@@ -962,13 +997,15 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate }, ord)] }))
+        // カレンダーの日付セルからの追加は「予定日」として扱う
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, scheduledDate: dueDate }, ord)] }))
       },
       addTaskWithTime: (title, dueDate, startTime, endTime, listId) => {
         pushUndo()
         const targetList = listId ?? get().selectedListId ?? INBOX_ID
         const ord = orderForNewSiblingAtFront(get().tasks, targetList, null)
-        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, dueDate, startTime, endTime }, ord)] }))
+        // タイムライン上での作成は「予定日＋時間幅」
+        set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, scheduledDate: dueDate, startTime, endTime }, ord)] }))
       },
       addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
         pushUndo()
@@ -1064,6 +1101,9 @@ export const useTaskStore = create<TaskState>()(
               completed: false,
               completedAt: null,
               dueDate: nextDueDate(tsk.dueDate, tsk.recurrence),
+              scheduledDate: tsk.scheduledDate
+                ? nextDueDate(tsk.scheduledDate, tsk.recurrence)
+                : tsk.scheduledDate ?? null,
               createdAt: now,
               updatedAt: now,
             }
@@ -1103,43 +1143,117 @@ export const useTaskStore = create<TaskState>()(
         })
       },
       deleteTask: (id) => {
+        const s0 = get()
+        const del = expandDescendantIds([id], s0.tasks)
+        const toSoftDelete = s0.tasks.filter((t) => del.has(t.id) && !t.deletedAt)
+        if (toSoftDelete.length === 0) return
         pushUndo()
-        return set((s) => {
-          const del = expandDescendantIds([id], s.tasks)
-          const toDelete = s.tasks.filter((t) => del.has(t.id))
-          const deletedAt = Date.now()
-          return {
-            tasks: s.tasks.filter((t) => !del.has(t.id)),
-            deletedTasks: [
-              ...s.deletedTasks,
-              ...toDelete.map((t) => ({ task: t, deletedAt })),
-            ],
-          }
-        })
+        const nowIso = new Date().toISOString()
+        const deletedAt = Date.now()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
+          ),
+          deletedTasks: [
+            ...s.deletedTasks,
+            ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
+          ],
+        }))
       },
       deleteTasks: (ids) => {
         if (ids.length === 0) return
         const s0 = get()
         const del = expandDescendantIds(ids, s0.tasks)
-        const toDelete = s0.tasks.filter((t) => del.has(t.id))
-        if (toDelete.length === 0) return
+        const toSoftDelete = s0.tasks.filter((t) => del.has(t.id) && !t.deletedAt)
+        if (toSoftDelete.length === 0) return
         pushUndo()
+        const nowIso = new Date().toISOString()
         const deletedAt = Date.now()
         set((s) => ({
-          tasks: s.tasks.filter((t) => !del.has(t.id)),
+          tasks: s.tasks.map((t) =>
+            del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
+          ),
           deletedTasks: [
             ...s.deletedTasks,
-            ...toDelete.map((t) => ({ task: t, deletedAt })),
+            ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
           ],
+        }))
+      },
+      restoreDeletedTask: (id) => {
+        const s0 = get()
+        const ids = expandDescendantIds([id], s0.tasks)
+        if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.deletedAt)) return
+        pushUndo()
+        const nowIso = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            ids.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
+          ),
+          deletedTasks: s.deletedTasks.filter((d) => !ids.has(d.task.id)),
+        }))
+      },
+      permanentlyDeleteTask: (id) => {
+        const s0 = get()
+        const del = expandDescendantIds([id], s0.tasks)
+        if (![...del].some((tid) => s0.tasks.some((t) => t.id === tid))) return
+        pushUndo()
+        set((s) => ({
+          tasks: s.tasks.filter((t) => !del.has(t.id)),
+          deletedTasks: s.deletedTasks.filter((d) => !del.has(d.task.id)),
+        }))
+      },
+      emptyDeleted: () => {
+        const s0 = get()
+        if (!s0.tasks.some((t) => t.deletedAt)) return
+        pushUndo()
+        set((s) => ({
+          tasks: s.tasks.filter((t) => !t.deletedAt),
+          deletedTasks: [],
+        }))
+      },
+      archiveTask: (id) => {
+        get().archiveTasks([id])
+      },
+      archiveTasks: (ids) => {
+        if (ids.length === 0) return
+        const s0 = get()
+        const target = expandDescendantIds(ids, s0.tasks)
+        const toArchive = s0.tasks.filter((t) => target.has(t.id) && !t.archivedAt && !t.deletedAt)
+        if (toArchive.length === 0) return
+        pushUndo()
+        const nowIso = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            target.has(t.id) && !t.archivedAt && !t.deletedAt
+              ? { ...t, archivedAt: nowIso, updatedAt: nowIso }
+              : t,
+          ),
+        }))
+      },
+      unarchiveTask: (id) => {
+        const s0 = get()
+        const ids = expandDescendantIds([id], s0.tasks)
+        if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.archivedAt)) return
+        pushUndo()
+        const nowIso = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            ids.has(t.id) && t.archivedAt ? { ...t, archivedAt: null, updatedAt: nowIso } : t,
+          ),
         }))
       },
       undoDelete: () =>
         set((s) => {
           if (s.deletedTasks.length === 0) return s
           const lastDeletedAt = Math.max(...s.deletedTasks.map((d) => d.deletedAt))
-          const toRestore = s.deletedTasks.filter((d) => d.deletedAt === lastDeletedAt)
+          const restoreIds = new Set(
+            s.deletedTasks.filter((d) => d.deletedAt === lastDeletedAt).map((d) => d.task.id),
+          )
+          const nowIso = new Date().toISOString()
           return {
-            tasks: [...s.tasks, ...toRestore.map((d) => d.task)],
+            tasks: s.tasks.map((t) =>
+              restoreIds.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
+            ),
             deletedTasks: s.deletedTasks.filter((d) => d.deletedAt !== lastDeletedAt),
           }
         }),
@@ -1178,6 +1292,7 @@ export const useTaskStore = create<TaskState>()(
                   t.listId === listId &&
                   t.parentId === null &&
                   !t.completed &&
+                  isActiveTask(t) &&
                   !descendants.has(t.id),
               )
               .map((t) => t.order),
@@ -1223,6 +1338,7 @@ export const useTaskStore = create<TaskState>()(
                   t.listId === listId &&
                   t.parentId === null &&
                   !t.completed &&
+                  isActiveTask(t) &&
                   !descendantsUnion.has(t.id),
               )
               .map((t) => t.order),
@@ -1324,6 +1440,8 @@ export const useTaskStore = create<TaskState>()(
             sectionId: null,
             parentId: null,
             dueDate: row.dueDate,
+            dueTime: null,
+            scheduledDate: null,
             endDate: null,
             startTime: null,
             endTime: null,
@@ -1332,6 +1450,8 @@ export const useTaskStore = create<TaskState>()(
             tags: row.tags,
             recurrence: null,
             isTimeLog: false,
+            archivedAt: null,
+            deletedAt: null,
           }
         })
         pushUndo()
@@ -1360,7 +1480,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 23,
+      version: 25,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1539,6 +1659,33 @@ export const useTaskStore = create<TaskState>()(
                 ? ((t as Record<string, unknown>).location as string)
                 : null,
           }))
+        }
+        if (version < 24) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => {
+            const rec = t as Record<string, unknown>
+            const dueTime = typeof rec.dueTime === 'string' ? rec.dueTime : null
+            // 既存の「時間付き通常タスク」は期限日に予定されていたものとして予定日へ引き継ぐ
+            const isLog = rec.isTimeLog === true
+            const hasRange = typeof rec.startTime === 'string' && typeof rec.endTime === 'string'
+            let scheduledDate: string | null =
+              typeof rec.scheduledDate === 'string' ? (rec.scheduledDate as string) : null
+            if (scheduledDate === null && !isLog && hasRange && typeof rec.dueDate === 'string') {
+              scheduledDate = rec.dueDate as string
+            }
+            return { ...rec, dueTime, scheduledDate }
+          })
+        }
+        if (version < 25) {
+          const tasks = (state.tasks as Record<string, unknown>[]) ?? []
+          state.tasks = tasks.map((t) => {
+            const rec = t as Record<string, unknown>
+            return {
+              ...rec,
+              archivedAt: typeof rec.archivedAt === 'string' ? rec.archivedAt : null,
+              deletedAt: typeof rec.deletedAt === 'string' ? rec.deletedAt : null,
+            }
+          })
         }
         return state as unknown as TaskState
       },

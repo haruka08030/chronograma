@@ -52,7 +52,11 @@ create table if not exists public.tasks (
   section_id text references public.list_sections (id) on delete set null,
   end_date date,
   completed_at timestamptz,
-  location text
+  location text,
+  due_time text,
+  scheduled_date date,
+  archived_at timestamptz,
+  deleted_at timestamptz
 );
 
 -- 古い DB（列が無い・pinned だけ残っている等）
@@ -67,6 +71,18 @@ alter table public.tasks
 
 alter table public.tasks
   add column if not exists location text;
+
+alter table public.tasks
+  add column if not exists due_time text;
+
+alter table public.tasks
+  add column if not exists scheduled_date date;
+
+alter table public.tasks
+  add column if not exists archived_at timestamptz;
+
+alter table public.tasks
+  add column if not exists deleted_at timestamptz;
 
 alter table public.tasks
   drop column if exists pinned;

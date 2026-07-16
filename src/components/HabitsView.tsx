@@ -18,7 +18,7 @@ import {
   currentStreakDays,
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { TimeInput } from './TimeInput'
+import { TimeInput, addClockMinutes } from './TimeInput'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -166,6 +166,7 @@ function HabitTimeFields({
           <TimeInput
             value={endTime}
             onChange={onEndTimeChange}
+            pickerDefault={startTime ? addClockMinutes(startTime, 60) : undefined}
             className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
         </div>

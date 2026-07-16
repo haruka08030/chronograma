@@ -42,6 +42,7 @@ export default {
   },
   toast: {
     taskMovedToList: '「{{name}}」に移動しました',
+    taskArchived: 'アーカイブしました',
   },
   confirm: {
     importOverwrite: '現在のデータを上書きしますか？',
@@ -89,6 +90,8 @@ export default {
       'activity-log': 'ログ',
       stats: '統計',
       habits: '習慣',
+      archived: 'アーカイブ済み',
+      deleted: 'ゴミ箱',
     },
   },
   app: {
@@ -204,6 +207,7 @@ export default {
     addSection: '＋ セクション',
     reorderSection: 'セクションを並べ替え',
     selectedCount: '{{count}} 件選択中',
+    dragCount: '{{count}} 件',
     markComplete: '完了にする',
     bulkDelete: '削除',
     moveEllipsis: '移動…',
@@ -238,6 +242,10 @@ export default {
   taskDetail: {
     priority: '優先度',
     dueDate: '期限日',
+    deadline: '期限',
+    deadlineTime: '締め切り時刻',
+    scheduled: '予定',
+    scheduledNone: '予定日なし',
     location: '場所',
     locationPlaceholder: '場所を追加',
     openInMaps: 'Google マップで開く',
@@ -280,6 +288,19 @@ export default {
     deleteAria: '削除',
     moreMenuAria: 'リスト移動メニュー',
     dueDateAria: '期限を設定',
+    archive: 'アーカイブ',
+  },
+  taskBin: {
+    count: '{{count}} 件',
+    subtaskCount: 'サブタスク {{count}} 件',
+    restore: '復元',
+    unarchive: '戻す',
+    deleteForever: '完全に削除',
+    emptyTrash: 'ゴミ箱を空にする',
+    emptyConfirm: 'ゴミ箱を空にしますか？この操作は取り消せません。',
+    permanentConfirm: 'このタスクを完全に削除しますか？この操作は取り消せません。',
+    emptyDeleted: 'ゴミ箱は空です',
+    emptyArchived: 'アーカイブ済みのタスクはありません',
   },
   dueDatePicker: {
     title: '期限を選択',

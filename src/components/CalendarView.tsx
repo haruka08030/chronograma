@@ -12,8 +12,10 @@ import {
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isActiveTask } from '../lib/taskLifecycle'
+import { taskPlacementDate } from '../lib/taskTimeRange'
 import {
   fetchCalendarEvents,
   localizeGoogleError,
@@ -89,8 +91,9 @@ export function CalendarView({
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (!t.dueDate || t.parentId || isListedTimeLog(t)) continue
-      const key = t.dueDate
+      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t)) continue
+      const key = taskPlacementDate(t)
+      if (!key) continue
       const arr = map.get(key) ?? []
       arr.push(t)
       map.set(key, arr)
@@ -176,15 +179,13 @@ export function CalendarView({
                 onDrop={(e) => {
                   e.preventDefault()
                   setDragOverDate(null)
-                  const taskId =
-                    e.dataTransfer.getData(TASK_DND_TYPE)
-                    || e.dataTransfer.getData('text/plain')
-                    || dragTaskIdRef.current
-                  if (taskId) {
+                  const ids = readDraggedTaskIds(e.dataTransfer)
+                  const taskIds = ids.length ? ids : (dragTaskIdRef.current ? [dragTaskIdRef.current] : [])
+                  for (const taskId of taskIds) {
                     const existingTask = tasks.find((t) => t.id === taskId)
                     if (existingTask) {
                       updateTask(taskId, {
-                        dueDate: key,
+                        scheduledDate: key,
                         startTime: existingTask.startTime,
                         endTime: existingTask.endTime,
                         isTimeLog: false,
