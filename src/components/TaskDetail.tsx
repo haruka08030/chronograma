@@ -5,12 +5,12 @@ import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
-import { TimeInput } from './TimeInput'
+import { TimeInput, addClockMinutes } from './TimeInput'
 import { DueDatePopover } from './DueDatePopover'
 import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
-import { extractUrls, googleMapsUrl } from '../lib/linkify'
+import { linkifySegments, googleMapsUrl } from '../lib/linkify'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -48,6 +48,8 @@ export function TaskDetail({
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState(task.title)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const [editingMemo, setEditingMemo] = useState(false)
+  const memoTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     queueMicrotask(() => setTitleValue(task.title))
@@ -58,6 +60,13 @@ export function TaskDetail({
       titleInputRef.current?.select()
     }
   }, [editingTitle])
+  useEffect(() => {
+    if (editingMemo) {
+      const el = memoTextareaRef.current
+      el?.focus()
+      if (el) el.selectionStart = el.selectionEnd = el.value.length
+    }
+  }, [editingMemo])
 
   const commitTitle = () => {
     const trimmed = titleValue.trim()
@@ -83,8 +92,6 @@ export function TaskDetail({
       isLog ? [] : sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
     [isLog, sections, task.listId],
   )
-
-  const memoLinks = useMemo(() => extractUrls(task.description), [task.description])
 
   const logDurationLabel = useMemo(() => {
     if (!isLog || !task.startTime || !task.endTime) return null
@@ -116,8 +123,6 @@ export function TaskDetail({
     deleteTask(task.id)
     onClose()
   }
-
-  const showTaskTime = !isLog && task.dueDate
 
   const detailBody = (
         <div className="p-6 space-y-6">
@@ -167,33 +172,52 @@ export function TaskDetail({
           </div>
 
           <div>
-            <textarea
-              value={task.description}
-              onChange={(e) => updateTask(task.id, { description: e.target.value })}
-              placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
-              rows={isLog ? 4 : 2}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                         focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
-                         resize-none min-h-[4rem]"
-            />
-            {memoLinks.length > 0 && (
-              <div className="mt-2 flex flex-col gap-1">
-                {memoLinks.map((url) => (
-                  <a
-                    key={url}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-accent-600 dark:text-accent-400
-                               hover:underline break-all"
-                  >
-                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                    </svg>
-                    <span className="truncate">{url}</span>
-                  </a>
-                ))}
+            {editingMemo ? (
+              <textarea
+                ref={memoTextareaRef}
+                value={task.description}
+                onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                onBlur={() => setEditingMemo(false)}
+                placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
+                rows={isLog ? 4 : 2}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
+                           resize-none min-h-[4rem]"
+              />
+            ) : task.description.trim() ? (
+              <div
+                onClick={() => setEditingMemo(true)}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                           bg-transparent text-zinc-900 dark:text-zinc-100 min-h-[4rem]
+                           whitespace-pre-wrap break-words cursor-text
+                           hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
+              >
+                {linkifySegments(task.description).map((seg, i) =>
+                  seg.type === 'url' ? (
+                    <a
+                      key={i}
+                      href={seg.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-accent-600 dark:text-accent-400 hover:underline break-all"
+                    >
+                      {seg.value}
+                    </a>
+                  ) : (
+                    <span key={i}>{seg.value}</span>
+                  ),
+                )}
+              </div>
+            ) : (
+              <div
+                onClick={() => setEditingMemo(true)}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                           bg-transparent text-zinc-400 min-h-[4rem] cursor-text
+                           hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
+              >
+                {isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
               </div>
             )}
           </div>
@@ -253,10 +277,54 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.dueDate')}</label>
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.deadline')}</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DueDatePopover
+                    value={task.dueDate ?? null}
+                    onChange={(v) => updateTask(task.id, { dueDate: v })}
+                    align="left"
+                    wrapperClassName="relative inline-block"
+                    trigger={({ open, toggle }) => (
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-haspopup="dialog"
+                        onClick={toggle}
+                        className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors
+                          bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                          ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
+                      >
+                        <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                        </svg>
+                        <span className={task.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
+                          {task.dueDate
+                            ? format(parseISO(`${task.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                            : t('dueDatePicker.noDate')}
+                        </span>
+                      </button>
+                    )}
+                  />
+                  {task.dueDate && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('taskDetail.deadlineTime')}</span>
+                      <TimeInput
+                        value={task.dueTime ?? ''}
+                        onChange={(v) => updateTask(task.id, { dueTime: v || null })}
+                        className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                   bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                                   focus:ring-2 focus:ring-accent-500/40"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.scheduled')}</label>
                 <DueDatePopover
-                  value={task.dueDate ?? null}
-                  onChange={(v) => updateTask(task.id, { dueDate: v })}
+                  value={task.scheduledDate ?? null}
+                  onChange={(v) => updateTask(task.id, { scheduledDate: v })}
                   align="left"
                   wrapperClassName="relative inline-block"
                   trigger={({ open, toggle }) => (
@@ -269,17 +337,37 @@ export function TaskDetail({
                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                         ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                     >
-                      <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                      <svg className={`w-4 h-4 ${task.scheduledDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span className={task.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
-                        {task.dueDate
-                          ? format(parseISO(`${task.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
-                          : t('dueDatePicker.noDate')}
+                      <span className={task.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
+                        {task.scheduledDate
+                          ? format(parseISO(`${task.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                          : t('taskDetail.scheduledNone')}
                       </span>
                     </button>
                   )}
                 />
+                {task.scheduledDate && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <TimeInput
+                      value={task.startTime ?? ''}
+                      onChange={(v) => updateTask(task.id, { startTime: v || null })}
+                      className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                                 focus:ring-2 focus:ring-accent-500/40"
+                    />
+                    <span className="text-zinc-400 text-sm">〜</span>
+                    <TimeInput
+                      value={task.endTime ?? ''}
+                      onChange={(v) => updateTask(task.id, { endTime: v || null })}
+                      pickerDefault={task.startTime ? addClockMinutes(task.startTime, 60) : undefined}
+                      className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                                 focus:ring-2 focus:ring-accent-500/40"
+                    />
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -356,6 +444,7 @@ export function TaskDetail({
                     <TimeInput
                       value={task.endTime ?? ''}
                       onChange={(v) => updateTask(task.id, { endTime: v || null })}
+                      pickerDefault={task.startTime ? addClockMinutes(task.startTime, 60) : undefined}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
@@ -372,29 +461,6 @@ export function TaskDetail({
               {isOvernightTimeLog(task) && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
               )}
-            </div>
-          )}
-
-          {showTaskTime && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.time')}</label>
-              <div className="flex items-center gap-2">
-                <TimeInput
-                  value={task.startTime ?? ''}
-                  onChange={(v) => updateTask(task.id, { startTime: v || null })}
-                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
-                />
-                <span className="text-zinc-400 text-sm">〜</span>
-                <TimeInput
-                  value={task.endTime ?? ''}
-                  onChange={(v) => updateTask(task.id, { endTime: v || null })}
-                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
-                />
-              </div>
             </div>
           )}
 

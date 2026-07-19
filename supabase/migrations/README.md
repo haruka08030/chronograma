@@ -4,7 +4,7 @@
 
 | ファイル | 内容 |
 |----------|------|
-| `001_chronograma_schema.sql` | 上記すべて（`tasks.end_date` / `completed_at`、旧 `pinned` 削除、`habits.time_mode` と CHECK、方針どおり `DROP POLICY IF EXISTS` 付きで再実行しやすい） |
+| `001_chronograma_schema.sql` | 上記すべて（`tasks.end_date` / `completed_at` / `location` / `due_time`（締め切り時刻）/ `scheduled_date`（予定日）、旧 `pinned` 削除、`habits.time_mode` と CHECK、方針どおり `DROP POLICY IF EXISTS` 付きで再実行しやすい） |
 | `002_google_oauth.sql` | Google Calendar 連携用 `google_oauth` 表（Edge Function が service_role で upsert） |
 | `002_google_oauth.sql` | Google Calendar 用 `refresh_token` 保管（Edge Function が service_role で upsert） |
 

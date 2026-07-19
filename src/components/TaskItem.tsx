@@ -5,7 +5,7 @@ import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
 import { isToday, isPast, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
-import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
@@ -32,7 +32,7 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -42,6 +42,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   /** タイトル編集中 Enter で、同階層の次タスクを作成する */
   onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
+  /** ネイティブドラッグでまとめて動かす選択 ID（表示順・単体なら未指定/[task.id]） */
+  dragGroupIds?: string[]
+  /** ネイティブドラッグ終了時（成否問わず）。複数選択のクリアなどに使う */
+  onNativeDragEnd?: () => void
   /** TickTick 風一覧のインデント行 */
   isSubtask?: boolean
   selection?: TaskItemSelection
@@ -54,7 +58,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
-  const { toggleTask, updateTask, deleteTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
   const rowMenuRef = useRef<HTMLDivElement>(null)
@@ -98,18 +102,44 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const priorityColor = PRIORITY_COLORS[task.priority]
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
+  const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
+  const scheduledText = useMemo(() => {
+    if (timeLog || !task.scheduledDate) return null
+    const d = parseISO(`${task.scheduledDate}T12:00:00`)
+    const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
+    const datePart = isToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
+    const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
+    return `${datePart}${timePart}`
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, dateLocale, t])
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    const group =
+      dragGroupIds && dragGroupIds.length > 1 && dragGroupIds.includes(task.id)
+        ? dragGroupIds
+        : [task.id]
     e.dataTransfer.setData(TASK_DND_TYPE, task.id)
     e.dataTransfer.setData('text/plain', task.id)
+    if (group.length > 1) {
+      e.dataTransfer.setData(TASK_MULTI_DND_TYPE, JSON.stringify(group))
+      const ghost = document.createElement('div')
+      ghost.textContent = String(group.length)
+      ghost.style.cssText =
+        'position:fixed;top:-1000px;left:-1000px;display:flex;align-items:center;justify-content:center;' +
+        'min-width:28px;height:28px;padding:0 8px;border-radius:9999px;background:#18181b;color:#fff;' +
+        'font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.3);'
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, 14, 14)
+      setTimeout(() => ghost.remove(), 0)
+    }
     e.dataTransfer.effectAllowed = 'copy'
     setIsDragging(true)
-  }, [task.id])
+  }, [task.id, dragGroupIds])
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false)
-  }, [])
+    onNativeDragEnd?.()
+  }, [onNativeDragEnd])
 
   const rowNativeDraggable = !hasSortableHandle
 
@@ -262,9 +292,17 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         )}
 
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-          {due && (!task.completed || timeLog) && (
+          {due && dueText && (!task.completed || timeLog) && (
             <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
-              {due.text}
+              {dueText}
+            </span>
+          )}
+          {scheduledText && (!task.completed || timeLog) && (
+            <span className="inline-flex items-center gap-0.5 text-[11px] text-accent-500 dark:text-accent-400">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {scheduledText}
             </span>
           )}
           {task.recurrence && (
@@ -362,6 +400,20 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 </select>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                archiveTask(task.id)
+                setRowMenuOpen(false)
+                showMoveBanner(t('toast.taskArchived'))
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              {t('taskItem.archive')}
+            </button>
           </div>
         )}
       </div>

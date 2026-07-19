@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import type { Task } from '../types/task'
 
@@ -17,7 +18,7 @@ export function StatsView() {
   const lists = useTaskStore((s) => s.lists)
 
   const stats = useMemo(() => {
-    const countedTasks = tasks.filter((t) => t.parentId === null && !isListedTimeLog(t))
+    const countedTasks = tasks.filter((t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t))
     const completed = countedTasks.filter((t) => t.completed)
     const active = countedTasks.filter((t) => !t.completed)
     const today = startOfDay(new Date())

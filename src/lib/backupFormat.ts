@@ -83,6 +83,10 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const order = readOrder(row)
   const sectionRaw = row.sectionId ?? row.section_id
   const parentRaw = row.parentId ?? row.parent_id
+  const dueTimeRaw = row.dueTime ?? row.due_time
+  const scheduledDateRaw = row.scheduledDate ?? row.scheduled_date
+  const archivedAtRaw = row.archivedAt ?? row.archived_at
+  const deletedAtRaw = row.deletedAt ?? row.deleted_at
 
   return {
     ...t,
@@ -92,9 +96,13 @@ function normalizeTaskRow(raw: unknown): Task | null {
     order,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : (t.sectionId ?? null),
     parentId: typeof parentRaw === 'string' ? parentRaw : (t.parentId ?? null),
+    dueTime: typeof dueTimeRaw === 'string' ? dueTimeRaw : null,
+    scheduledDate: typeof scheduledDateRaw === 'string' ? scheduledDateRaw : null,
     priority: normalizePriority(t.priority ?? row.priority),
     isTimeLog: Boolean(isTimeLog),
     completedAt,
+    archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
+    deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
   }
 }
 

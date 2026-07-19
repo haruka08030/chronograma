@@ -17,12 +17,28 @@ function dateKeyToNoon(ymd: string): Date {
 }
 
 /**
- * 開始 `dueDate`+`startTime` 〜 終了 `endDate ?? dueDate`+`endTime`。
+ * タスクをカレンダー/タイムラインに置く日（`yyyy-MM-dd`）。
+ * - タイムログ: `dueDate`（開始日）
+ * - 通常タスク: `scheduledDate`（予定日）。無ければ `dueDate`（期限日）にフォールバック
+ */
+export function taskPlacementDate(task: {
+  dueDate?: string | null
+  scheduledDate?: string | null
+  isTimeLog?: boolean
+}): string | null {
+  if (task.isTimeLog === true) return task.dueDate ?? null
+  return task.scheduledDate ?? task.dueDate ?? null
+}
+
+/**
+ * 開始 `placementDate`+`startTime` 〜 終了 `endDate ?? placementDate`+`endTime`。
+ * 置く日はタイムログ=`dueDate`、通常タスク=`scheduledDate ?? dueDate`。
  * `isTimeLog` で `endDate` がなく終了時刻が開始以前のときは従来どおり翌日まで（+24h）。
  */
 export function taskTimedInterval(task: Task): { start: Date; end: Date } | null {
-  if (!task.startTime || !task.endTime || !task.dueDate) return null
-  const startYmd = task.dueDate
+  if (!task.startTime || !task.endTime) return null
+  const startYmd = taskPlacementDate(task)
+  if (!startYmd) return null
   const endYmd = task.endDate ?? startYmd
   const start = ymdHmToLocalDate(startYmd, task.startTime)
   let end = ymdHmToLocalDate(endYmd, task.endTime)
@@ -36,13 +52,14 @@ export function taskTimedInterval(task: Task): { start: Date; end: Date } | null
 /** 分換算。日付なしタスクは壁時計のみ（タイムログで負なら +24h） */
 export function durationMinutesForTaskSlot(task: {
   dueDate?: string | null
+  scheduledDate?: string | null
   endDate?: string | null
   startTime?: string | null
   endTime?: string | null
   isTimeLog?: boolean
 }): number | null {
   if (!task.startTime || !task.endTime) return null
-  if (task.dueDate) {
+  if (taskPlacementDate(task)) {
     const iv = taskTimedInterval(task as Task)
     if (!iv) return null
     return differenceInMinutes(iv.end, iv.start)
@@ -143,7 +160,7 @@ export function patchAfterTimelineMove(
   targetDueDate: string,
   newStartTime: string,
   _newEndTimeFromHook: string,
-): Partial<Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'>> {
+): Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>> {
   if (task.isTimeLog === true) {
     const dur = durationMinutesForTaskSlot(task)
     if (dur != null && dur > 0) {
@@ -161,8 +178,9 @@ export function patchAfterTimelineMove(
       }
     }
   }
+  // 通常タスクはカレンダー上で「予定日」を動かす（期限 `dueDate` は変えない）
   return {
-    dueDate: targetDueDate,
+    scheduledDate: targetDueDate,
     startTime: newStartTime,
     endTime: _newEndTimeFromHook,
   }

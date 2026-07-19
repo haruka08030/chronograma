@@ -8,6 +8,7 @@ import {
   sectionDropId,
 } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { isModKey } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
@@ -23,12 +24,13 @@ import { QuickAdd } from './QuickAdd'
 import type { Priority, Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { displayListName } from '../lib/displayListName'
-import { durationMinutesForTaskSlot } from '../lib/taskTimeRange'
+import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -221,6 +223,7 @@ export function TaskList() {
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const isDesktop = useIsDesktop()
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
@@ -360,14 +363,16 @@ export function TaskList() {
     return sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
   }, [sections, selectedListId])
 
+  // セクションはソートモードに関係なく表示する。手動以外（期限順など）は
+  // セクションを維持したまま、その中でソートモード順に並べる（DnD は手動のみ）。
   const showSectionBlocks =
-    Boolean(selectedListId) && sortMode === 'manual' && listSectionsOrdered.length > 0
+    Boolean(selectedListId) && listSectionsOrdered.length > 0
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
     const m = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (!t.parentId) continue
+      if (!t.parentId || !isActiveTask(t)) continue
       const arr = m.get(t.parentId)
       if (arr) arr.push(t)
       else m.set(t.parentId, [t])
@@ -387,7 +392,9 @@ export function TaskList() {
 
   const active = useMemo(() => {
     const incomplete = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
-    if (!showSectionBlocks) return incomplete
+    // 手動以外は filtered が既にソート済みなので、その順序を維持したまま
+    // セクションごとにバケット分けする（下の sectionBlocks で分割）。
+    if (!showSectionBlocks || sortMode !== 'manual') return incomplete
     return getOrderedActiveRootTasksForDnD({
       tasks,
       selectedView,
@@ -431,15 +438,16 @@ export function TaskList() {
   )
 
   const openCompleteWithLog = useCallback((task: Task) => {
-    if (task.completed || isListedTimeLog(task) || !task.dueDate || !task.startTime || !task.endTime) {
+    const placement = taskPlacementDate(task)
+    if (task.completed || isListedTimeLog(task) || !placement || !task.startTime || !task.endTime) {
       toggleTask(task.id)
       return
     }
     setCompletionDraft({
       taskId: task.id,
       title: task.title,
-      date: task.dueDate,
-      endDate: task.endDate ?? task.dueDate,
+      date: placement,
+      endDate: task.endDate ?? placement,
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
@@ -809,6 +817,7 @@ export function TaskList() {
               onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
               autoEdit={pendingAutoEditTaskId === t.id}
+              dragGroupIds={getDragGroupRootIds(t.id)}
             />
             {StaticSubtreeRows({
               parentId: t.id,
@@ -835,6 +844,7 @@ export function TaskList() {
           onEnterCreateSibling={handleEnterCreateSibling}
           selection={makeSelection(t.id)}
           autoEdit={pendingAutoEditTaskId === t.id}
+          dragGroupIds={getDragGroupRootIds(t.id)}
         />
         {StaticSubtreeRows({
           parentId: t.id,
@@ -1015,7 +1025,7 @@ export function TaskList() {
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
             <div className="mb-1.5">
-              <QuickAdd />
+              <QuickAdd onCreated={openDetail} />
             </div>
           )}
 
@@ -1067,9 +1077,11 @@ export function TaskList() {
       </div>
 
       {detailTask ? (
-        <TaskDetail task={detailTask} onClose={closeDetail} />
+        // モバイルでは全画面オーバーレイ、md 以上で右ペイン分割。分割ペインは一覧幅を
+        // 潰さないよう desktop のみ描画する。
+        <TaskDetail task={detailTask} onClose={closeDetail} layout={isDesktop ? 'split' : 'modal'} />
       ) : (
-        <aside className="flex h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <aside className="hidden h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white md:flex dark:border-zinc-800 dark:bg-zinc-900">
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
             <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/60 p-6 text-center dark:border-zinc-700 dark:bg-zinc-900/40">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">

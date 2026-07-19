@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
 
-export function QuickAdd() {
+export function QuickAdd({ onCreated }: { onCreated?: (taskId: string) => void } = {}) {
   const { t, i18n } = useTranslation()
   const [value, setValue] = useState('')
   const [active, setActive] = useState(false)
@@ -40,6 +40,7 @@ export function QuickAdd() {
       if (parsed.dueDate) patch.dueDate = parsed.dueDate
       if (parsed.tags.length) patch.tags = parsed.tags
       if (parsed.dueDate || parsed.tags.length) updateTask(newId, patch)
+      onCreated?.(newId)
     }
     setValue('')
     queueMicrotask(() => inputRef.current?.focus())

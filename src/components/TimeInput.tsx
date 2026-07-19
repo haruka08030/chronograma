@@ -6,10 +6,46 @@ interface TimeInputProps {
   disabled?: boolean
   className?: string
   placeholder?: string
+  /**
+   * 値が空でピッカーを開いたときに最初にハイライト／スクロールする時刻 (HH:MM)。
+   * 未指定なら現在時刻周辺を初期表示する。
+   */
+  pickerDefault?: string
 }
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
+}
+
+function toMinutes(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(hhmm.trim())
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/** `HH:MM` に分を足した `HH:MM`（24h で折り返し）。不正なら空文字。 */
+export function addClockMinutes(hhmm: string, deltaMinutes: number): string {
+  const base = toMinutes(hhmm)
+  if (base === null) return ''
+  const total = ((base + deltaMinutes) % 1440 + 1440) % 1440
+  return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`
+}
+
+function nearestOptionIndex(options: string[], target: string): number {
+  const t = toMinutes(target)
+  if (t === null) return -1
+  let best = -1
+  let bestDiff = Infinity
+  options.forEach((opt, i) => {
+    const m = toMinutes(opt)
+    if (m === null) return
+    const diff = Math.abs(m - t)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = i
+    }
+  })
+  return best
 }
 
 function normalizeTime(raw: string): string | null {
@@ -60,6 +96,7 @@ export function TimeInput({
   disabled = false,
   className = '',
   placeholder = '00:00',
+  pickerDefault,
 }: TimeInputProps) {
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
@@ -74,6 +111,17 @@ export function TimeInput({
   useEffect(() => {
     openRef.current = open
   }, [open])
+
+  // 値が空のときの初期ハイライト位置: pickerDefault があればそれ、なければ現在時刻周辺。
+  const defaultHighlightIndex = useCallback(() => {
+    if (pickerDefault) {
+      const idx = nearestOptionIndex(options, pickerDefault)
+      if (idx >= 0) return idx
+    }
+    const now = new Date()
+    const idx = nearestOptionIndex(options, `${pad2(now.getHours())}:${pad2(now.getMinutes())}`)
+    return idx >= 0 ? idx : 0
+  }, [options, pickerDefault])
 
   useEffect(() => {
     if (!open) return
@@ -118,7 +166,7 @@ export function TimeInput({
       e.preventDefault()
       if (!open) {
         const idx = options.indexOf(normalizeTime(draft) ?? '')
-        setHighlightIndex(idx >= 0 ? idx : 0)
+        setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
         setOpen(true)
       } else {
         setHighlightIndex((prev) => Math.min(prev + 1, options.length - 1))
@@ -129,7 +177,7 @@ export function TimeInput({
       e.preventDefault()
       if (!open) {
         const idx = options.indexOf(normalizeTime(draft) ?? '')
-        setHighlightIndex(idx >= 0 ? idx : options.length - 1)
+        setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
         setOpen(true)
       } else {
         setHighlightIndex((prev) => Math.max(prev - 1, 0))
@@ -177,7 +225,7 @@ export function TimeInput({
     const nextDraft = value ?? ''
     setDraft(nextDraft)
     const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
-    if (idx >= 0) setHighlightIndex(idx)
+    setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
     setOpen(true)
   }
 

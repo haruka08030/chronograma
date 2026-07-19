@@ -42,6 +42,7 @@ export default {
   },
   toast: {
     taskMovedToList: 'Moved to “{{name}}”.',
+    taskArchived: 'Archived',
   },
   confirm: {
     importOverwrite: 'Replace current data?',
@@ -89,6 +90,8 @@ export default {
       'activity-log': 'Log',
       stats: 'Stats',
       habits: 'Habits',
+      archived: 'Archived',
+      deleted: 'Trash',
     },
   },
   app: {
@@ -203,6 +206,7 @@ export default {
     addSection: '+ Section',
     reorderSection: 'Reorder section',
     selectedCount: '{{count}} selected',
+    dragCount: '{{count}} items',
     markComplete: 'Mark complete',
     bulkDelete: 'Delete',
     moveEllipsis: 'Move…',
@@ -237,6 +241,10 @@ export default {
   taskDetail: {
     priority: 'Priority',
     dueDate: 'Due date',
+    deadline: 'Deadline',
+    deadlineTime: 'Due time',
+    scheduled: 'Scheduled',
+    scheduledNone: 'No scheduled date',
     location: 'Location',
     locationPlaceholder: 'Add location',
     openInMaps: 'Open in Google Maps',
@@ -279,6 +287,19 @@ export default {
     deleteAria: 'Delete',
     moreMenuAria: 'Move to list menu',
     dueDateAria: 'Set due date',
+    archive: 'Archive',
+  },
+  taskBin: {
+    count: '{{count}} items',
+    subtaskCount: '{{count}} subtasks',
+    restore: 'Restore',
+    unarchive: 'Unarchive',
+    deleteForever: 'Delete permanently',
+    emptyTrash: 'Empty trash',
+    emptyConfirm: 'Empty the trash? This cannot be undone.',
+    permanentConfirm: 'Permanently delete this task? This cannot be undone.',
+    emptyDeleted: 'Trash is empty',
+    emptyArchived: 'No archived tasks',
   },
   dueDatePicker: {
     title: 'Choose due date',

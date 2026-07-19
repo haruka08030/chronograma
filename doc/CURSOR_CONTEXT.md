@@ -19,7 +19,7 @@
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web
   SPA**（`src/`）と、**Flutter モバイル**（`mobile/`、機能は段階実装）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 23**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 25**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -106,7 +106,7 @@
 ## エントリ
 
 - `src/main.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
-- `src/App.tsx`: レイアウト、`useSupabaseSync()`、ビュー切替（`calendar` は
+- `src/App.tsx`: レイアウト（ルートは `h-dvh`＝iOS Safari のツールバー分の見切れ回避）、`useSupabaseSync()`、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo
   面**（リスト選択 `selectedView === null` または `all` / `today` / `upcoming` /
   `overdue`）かつ検索が空のときだけ グローバルヘッダーは ToDo
@@ -161,9 +161,19 @@
 - タスク／サブタスクのドラッグ中は `DragOverlay` で `TaskItem`
   プレビューを表示し、元行は `SortableTaskItem` / `SortableSubtaskItem`
   側で非表示化（`opacity: 0`）。同時に `transition`
-  を抑えて境界付近の「押し出し」感を減らす
+  を抑えて境界付近の「押し出し」感を減らす。複数ルート選択中のドラッグでは
+  `dragGroupRootIds.length` を `handleDragStart` で拾い、オーバーレイを
+  重ねカード＋件数バッジ（`taskList.dragCount`）で表示し「まとめて移動中」を明示
 - タスクをリストへドロップ（`drop::{listId}` + `moveTaskToList` / 複数選択時は
   `moveTasksToList`）— ドラッグ元はルートの `task::` のみ
+- **ネイティブ HTML5 ドラッグ（手動以外のソート行・`CalendarTaskDock`）も複数選択対応**。
+  `TaskItem` の `dragGroupIds` があると `handleDragStart` で選択 ID 配列を
+  `TASK_MULTI_DND_TYPE`(`application/x-task-ids`, JSON) に載せ、件数バッジの
+  ドラッグ画像を出す。落とし先は `readDraggedTaskIds`（`useTimelineDrop.ts`）で
+  取り出す: 週/日タイムライン（`useTimelineDrop.handleDropEvent`）はドロップ位置から
+  各タスクを重ならないよう順に積み上げ、月カレンダー（`CalendarView`）は全件の
+  `scheduledDate` を更新。`CalendarTaskDock` は自前の選択 state（⌘/Shift/選択中クリックで
+  トグル、`onNativeDragEnd` でクリア）を持つ
 - リスト並べ替え（`LIST_PREFIX` + `reorderLists`）
 - 衝突判定は `taskListCollision`
   でドラッグ種別ごとに優先順を切替（`pointerWithin`／空なら `closestCenter`）
@@ -173,7 +183,8 @@
 ### 主要 state（抜粋）
 
 - `tasks`, `lists` — 既定リスト「未分類」ID: `__inbox__`（`INBOX_LIST_ID`）
-- `selectedListId`, `selectedView` — スマートビューとリスト選択は排他
+- `selectedListId`, `selectedView` — スマートビューとリスト選択は排他（**永続化**。リロードで同じ画面を復元）
+- `todoPanelOpen`（`setTodoPanelOpen`）— サイドバーの To‑Do パネル展開状態（**永続化**。`Sidebar` のローカル state ではなくストア管理。リロード時にメイン表示と同じく To‑Do サブナビの開閉も復元）
 - `settingsScrollTarget`（`'appearance'` | `'account'` | `null`）—
   `openSettingsWithScroll` で設定を開いた直後に `SettingsView`
   が該当セクションへスクロールし、直後にクリア（永続化しない）
@@ -194,8 +205,9 @@
 ### `SmartView`
 
 `all` | `today` | `upcoming` | `overdue` | `calendar` | `plan-vs-actual` |
-`activity-log` | `stats` | `habits` | `settings`（旧 `week-calendar` は v12
-マイグレーションで `calendar` + `calendarMode: week` に統合）
+`activity-log` | `stats` | `habits` | `archived` | `deleted` | `settings`（旧
+`week-calendar` は v12 マイグレーションで `calendar` + `calendarMode: week`
+に統合）。`archived` / `deleted` は `TaskBinView`（アーカイブ済み / ゴミ箱）
 
 検索クエリが非空のときは `SearchResults` が最優先。
 
@@ -227,16 +239,16 @@
   DnD（`moveSubtaskInList`）。`QuickAdd`
   はリスト用スクロール領域の**先頭**。追加は「追加」ボタンまたは IME 確定後の
   Enter。行タイトル編集中の Enter
-  では編集を確定し、同じ階層の**直下**へ空タイトルの次タスクを追加（サブタスクは同じ親の配下に追加）し、追加された行は自動でインライン編集に入りそのまま入力できる。右側の詳細ペインは未選択時も空状態を表示して幅を維持する（一覧幅が切り替わらない）。タイトル末尾は
+  では編集を確定し、同じ階層の**直下**へ空タイトルの次タスクを追加（サブタスクは同じ親の配下に追加）し、追加された行は自動でインライン編集に入りそのまま入力できる。右側の詳細ペインは **md(≥768px) 以上**でのみ常設で、未選択時も空状態を表示して幅を維持する（一覧幅が切り替わらない）。**md 未満（スマホ）は一覧を全幅表示**し、詳細は分割ペインではなく**全画面モーダル**（`TaskDetail` に `layout="modal"`、`src/hooks/useMediaQuery.ts` の `useIsDesktop` で切替）。これにより iPhone 等の狭幅で `shrink-0` の分割ペインに一覧が潰されて見えなくなる問題を回避。タイトル末尾は
   `parseQuickAddTitle`（`src/lib/parseQuickAdd.ts`）で
-  `#tag`・日付語などを解釈（UI の日付チップはなし）
+  `#tag`・日付語などを解釈（UI の日付チップはなし）。`QuickAdd` で新規タスクを追加すると、その詳細が自動で右ペインに開く
 
 - **`completedAt`**: ToDo の完了日時（ISO）。`toggleTask`
   で完了時に現在時刻、未完了に戻すと `null`。繰り返しタスクの次回分は
   `null`。`updateTask` で `completed` を切り替えたときも同様。`importData`
   と永続化 v21 で旧データは `completed && !completedAt` を `updatedAt`
   で埋める。`StatsView` の日別完了・ストリークは `completedAt ?? updatedAt`
-- 一覧の**予定タスク**（`dueDate` + `startTime` + `endTime`
+- 一覧の**予定タスク**（配置日 + `startTime` + `endTime`
   あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了`
   / `時間をずらして実行`
   を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする
@@ -257,8 +269,9 @@
   Backspace**（選択中・入力フォーカス以外）またはツールバーから一括完了・`deleteTasks`・`bulkUpdateTasks`（リスト移動は子孫の
   `listId` も揃える、優先度・期限は選択行のみ）。一括削除は `deleteTasks` で単一
   `deletedAt`（Undo 一括）
-- 繰り返し付きタスクを完了すると **次回分を新 ID** で追加
-- `dueDate` を `null` にすると `startTime` / `endTime` / `recurrence` もクリア
+- 繰り返し付きタスクを完了すると **次回分を新 ID** で追加（`dueDate`/`scheduledDate` とも進める）
+- `dueDate`（期限）を `null` にすると `dueTime` / `recurrence` をクリア。`scheduledDate`
+  （予定）を `null` にすると `startTime` / `endTime` をクリア（カレンダー操作は予定側を更新）
 - **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
   のまま。**ToDo
@@ -269,8 +282,17 @@
   `is_time_log` を `isTimeLog` に正規化。永続化 v13 でタスクの `is_time_log`
   をマージ。未完了件数・手動 DnD
   の未完了ルート（`getOrderedActiveRootTasksForDnD`）からは除外
-- **単体削除**（`deleteTask`）: 対象タスクと **全子孫**
-  をまとめて削除（`expandDescendantIds`）
+- **アーカイブ / ゴミ箱（ソフト削除）**: `Task.archivedAt` /
+  `Task.deletedAt`（ISO・`null` は非該当。`src/lib/taskLifecycle.ts` の
+  `isActiveTask` / `isArchivedTask` / `isDeletedTask`）。**削除は即時ハード削除ではなくソフト削除**
+  で、`deleteTask` / `deleteTasks` は対象＋全子孫に `deletedAt`
+  を付与し「ゴミ箱」へ。復元 `restoreDeletedTask`・完全削除
+  `permanentlyDeleteTask`・全消去 `emptyDeleted`。アーカイブは `archiveTask` /
+  `archiveTasks`（子孫にも `archivedAt`）・解除 `unarchiveTask`。**削除済み /
+  アーカイブ済みは通常ビュー（一覧・カレンダー・週・ログ・統計・検索・通知・予定vsログ・DnD・未完了カウント・サブタスク描画）から除外**し、`TaskBinView`
+  だけが該当タスク（親も同じ箱にあれば親のみを代表表示）を出す。⌘Z（`undoLastOperation`）や削除トースト（`undoDelete`
+  は最後のバッチの `deletedAt` をクリア）は従来どおり。アーカイブは `TaskItem`
+  の ⋮ メニューから（`toast.taskArchived`）
 - **import/export**: JSON バックアップ **schema
   v3**（`src/lib/backupFormat.ts`）。 `schemaVersion` / `exportedAt` /
   `listSections`（import は `sections`・`list_sections`
@@ -297,7 +319,8 @@
   `pushListsTasksHabits`
 - **push**: upsert のあと、ローカルにない ID を **tasks → habits → lists**
   の順で削除（FK 順序）
-- `tasks` upsert で **`end_date` / `completed_at` / `location`
+- `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
+  `scheduled_date` / `archived_at` / `deleted_at`
   カラム未適用**エラーが出た場合は、その push 呼び出し内だけで該当列なし
   payload にフォールバックして再試行する（**`tasks` に列が無い**古い DB
   の互換）。フラグはモジュールに保持せず**毎回フル列で送り直す**ため、後から
@@ -305,9 +328,14 @@
 
 ## 型（`src/types/`）
 
-- `task.ts` — `Task`（**`completedAt`**：完了日時。タイムログ用に任意の
-  **`endDate`**：`dueDate` が開始日。任意の **`location`**：場所の自由入力。Google
-  カレンダー風に Google マップへ飛べる）、`Priority`, `Recurrence`
+- `task.ts` — `Task`。**期限**＝`dueDate`（日付）＋任意の **`dueTime`**（締め切り時刻
+  `HH:mm`）。**予定**＝**`scheduledDate`**（カレンダー配置日）＋`startTime`/`endTime`
+  （時間幅）。カレンダー配置は `taskPlacementDate`（`lib/taskTimeRange.ts`）で決まり、
+  通常タスクは `scheduledDate ?? dueDate`、タイムログは `dueDate`。**`completedAt`**：
+  完了日時。タイムログ用に任意の **`endDate`**（`dueDate` が開始日）。任意の
+  **`location`**：場所の自由入力（Google マップへ飛べる）、`Priority`,
+  `Recurrence`。**`archivedAt` / `deletedAt`**：アーカイブ／ソフト削除の ISO
+  時刻（`null` は非該当。`src/lib/taskLifecycle.ts`）
 - `list.ts` — `TaskList`（`order` ↔ DB `sort_order`）
 - `habit.ts` — `Habit`, `HabitFrequency`, `HabitTimeMode`（`none` | `fixed` |
   `range`）。`completedDates` は `yyyy-MM-dd`
@@ -319,22 +347,23 @@
 
 | パス                                                                                                       | 役割                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Sidebar.tsx`                                                                                              | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビュー（**統計は除く**）のみ（**リスト節は出さない**）。「To‑Do」行を押すと To‑Do パネルを開き、表示は `all`（すべて）に切り替える。**統計**はスクロールナビの下・フッター区切り線の上に単独行。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」（このとき統計行は非表示）。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル                                                                                                                                                           |
+| `Sidebar.tsx`                                                                                              | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。折りたたみ時は「To‑Do」行＋カレンダー等の他スマートビュー（**統計は除く**）のみ（**リスト節は出さない**）。「To‑Do」行を押すと To‑Do パネルを開き、表示は `all`（すべて）に切り替える。**統計**はスクロールナビの下・フッター区切り線の上に単独行。To‑Do パネルを開いたときだけ「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし）と「リストを追加」→区切り→「アーカイブ済み／ゴミ箱」（このとき統計行は非表示）。展開時ヘッダは戻る＋「To‑Do」のみ（アカウント・Chronograma は非表示）。モバイル                                                                                                                                                           |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `NestDragGuide.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等。階層変更は水平ドラッグ。右ドラッグ中は `NestDragGuide` でサブ化プレビュー）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。タイトル下には期限テキスト（今日/日付/期限超過）と**メモ（`description`）の最初の非空行を1行だけ truncate 表示**し、期限編集はホバー時の日付アイコン／詳細（`hideDueDatePicker` で日付アイコン非表示可）。ホバーで**キュー（リスト）型 SVG**のリスト移動メニュー・削除                                                                                                                                                                                                                                                                                                                                                 |
 | `SectionHeaderDnD.tsx`                                                                                     | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `TaskDetail.tsx`                                                                                           | 詳細編集。**既定は右ペイン分割**（`layout="split"`、親が `flex-row`＋`min-h-0`）。`layout="modal"` で全画面オーバーレイ。`isTimeLog` は行動ログ UI に切替え、優先度・リスト等は非表示。ログの日時は **開始／終了それぞれ「日付＋時刻」** を近接配置（Google カレンダー風）。**場所（`location`）** 入力＋「Google マップで開く」リンク（`src/lib/linkify.ts` の `googleMapsUrl`。URL を入れたらそのまま、住所等は Maps 検索）。**メモ（`description`）内の URL** は入力欄の下にクリック可能なリンクとして列挙（`extractUrls`）                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `TaskDetail.tsx`                                                                                           | 詳細編集。**md 以上は右ペイン分割**（`layout="split"`、親が `flex-row`＋`min-h-0`）。**md 未満は全画面オーバーレイ**（`layout="modal"`）。`TaskList` は `useIsDesktop`（`src/hooks/useMediaQuery.ts`）で切替。`isTimeLog` は行動ログ UI に切替え、優先度・リスト等は非表示。通常タスクは **期限（日付＋締切時刻 `dueTime`）** と **予定（予定日 `scheduledDate` ＋時間幅 `startTime`〜`endTime`）** を別セクションで編集。ログの日時は **開始／終了それぞれ「日付＋時刻」** を近接配置（Google カレンダー風）。**場所（`location`）** 入力＋「Google マップで開く」リンク（`src/lib/linkify.ts` の `googleMapsUrl`。URL を入れたらそのまま、住所等は Maps 検索）。**メモ（`description`）** は表示／編集トグル式（クリックで `textarea` 編集、blur で表示に戻る）。表示モードでは `linkifySegments` で **URL 部分だけを色付きのクリック可能リンク**としてインライン描画                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CompleteWithLogModal.tsx`                                                                                 | 予定タスクの「完了を記録」モーダル（タイムログ作成＋完了）。`TaskList` と `PlanVsActualView` で共有。日付＋時刻は **開始ブロック／終了ブロック** の2段                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `TimeInput.tsx`                                                                                            | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供。手入力補正（例 `930`→`09:30`）を維持しつつ、上下キー移動 / Enter 確定 / Esc 取消 / Tab 確定 / 外側クリック確定の挙動を統一。`TaskDetail` / `CompleteWithLogModal` / `ActivityLogView` / `HabitsView` で利用                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `QuickAdd.tsx`                                                                                             | クイック追加                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `TimeInput.tsx`                                                                                            | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供。手入力補正（例 `930`→`09:30`）を維持しつつ、上下キー移動 / Enter 確定 / Esc 取消 / Tab 確定 / 外側クリック確定の挙動を統一。値が空でピッカーを開くと**現在時刻周辺**を初期ハイライト／スクロール。`pickerDefault` prop で初期位置を上書きでき、終了時刻入力には**開始時刻+1時間**を渡して開始時刻付近を初期表示。`TaskDetail` / `CompleteWithLogModal` / `ActivityLogView` / `HabitsView` で利用                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `QuickAdd.tsx`                                                                                             | クイック追加。任意の `onCreated(taskId)` コールバックを受け取り、`TaskList` では作成直後にその新規タスクの詳細を右ペインで開く                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `CalendarHubView.tsx`                                                                                      | カレンダー用ハブ（月/週タブ、**Google 風日付ナビ**（今日・前後・期間ラベル＋ミニ月ピッカー）、`monthCursor` / `weekAnchor` はローカル、**選択日は** `taskStore.selectedCalendarDateKey` を子へ受け渡し、ToDo ドック、`lg` 以上で右に「選択日パネル」、md 未満でサイドバーを開くボタン）                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `CalendarDayPanel.tsx`                                                                                     | 選択日の詳細パネル。タブで「予定 / ToDo」「ログ」を切替し、当日ログの合計時間を表示。`予定 / ToDo` は未完了の `dueDate` 一致タスク＋外部予定。下部に **`completedAt` がその日のルート ToDo** の「実行済み」一覧（件数 0 のときは `noExecuted` 文言）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `CalendarTaskDock.tsx`                                                                                     | カレンダー下部のリスト別 ToDo（**完了 ToDo は非表示**。ネイティブ DnD で月セル・週タイムラインへドロップ可）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `CalendarView.tsx`, `WeekCalendarView.tsx`                                                                 | 月グリッド（`displayMonth` 制御）・週タイムライン（`anchor` 制御）。**月セル**: `dueDate` のタスク行・Google 予定プレビュー等。`googleConnected` 時は Edge Function `google-calendar`（`action=events`）で予定取得。セル／週タイムラインのインライン ToDo 追加は **Enter は `!isComposing` のときだけ送信**                                                                                                                                                                                                                     |
+| `CalendarDayPanel.tsx`                                                                                     | 選択日の詳細パネル。タブで「予定 / ToDo」「ログ」を切替し、当日ログの合計時間を表示。`予定 / ToDo` は未完了の**配置日**（`taskPlacementDate`＝予定日 ?? 期限）一致タスク＋外部予定。下部に **`completedAt` がその日のルート ToDo** の「実行済み」一覧（件数 0 のときは `noExecuted` 文言）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `CalendarTaskDock.tsx`                                                                                     | カレンダー下部のリスト別 ToDo（**完了 ToDo は非表示**。複数選択可。ネイティブ DnD で月セル・週タイムラインへ**まとめて**ドロップ可）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `CalendarView.tsx`, `WeekCalendarView.tsx`                                                                 | 月グリッド（`displayMonth` 制御）・週タイムライン（`anchor` 制御）。**月セル**: 配置日（`taskPlacementDate`＝予定日 ?? 期限）のタスク行・Google 予定プレビュー等。ドラッグで日を移動すると**予定日 `scheduledDate`** を更新。`googleConnected` 時は Edge Function `google-calendar`（`action=events`）で予定取得。セル／週タイムラインのインライン ToDo 追加は **Enter は `!isComposing` のときだけ送信**                                                                                                                                                                                                                     |
 | `CalendarDateNav.tsx`                                                                                      | ハブ専用：今日・期間前後・期間ラベル（クリックでミニ月）、外側クリック/Escape で閉じるポップオーバー                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `PlanVsActualView.tsx`                                                                                     | 予定 vs ログ（予定・ログブロックの色はマッチステータス統一: 実行済み/時間ズレ/未実行/予定外/照合前。凡例も同じ軸。習慣スロットも左列の色は突合のみ）。予定列の Google 取り込み予定・習慣 range はチェックで即タイムログ化（習慣は未達成日のみ達成トグル）。自分の予定タスクはタップで「完了を記録」モーダル。ヘッダのタイマー開始は `TimeLogTagField`（コンパクト）                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `ActivityLogView.tsx`                                                                                      | ログ（タイムラインのログ色は上記と同じルール）。タグ入力は `TimeLogTagField`（プリセットチップ＋datalist）。手動追加も **開始／終了の日付＋時刻** をブロック単位で近接配置                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `StatsView.tsx`                                                                                            | 統計（ルートの通常タスクのみ集計、タイムログは除外）。完了日別指標は **`completedAt` を優先**（無い場合は `updatedAt`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `HabitsView.tsx`                                                                                           | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋**フォーカス日**（`selectedCalendarDateKey`）のカード一覧。**その日にスケジュールあり**の習慣を先に表示し、**曜日などでその日が対象外**の習慣は下部にグレー（破線枠・低彩度）で並べ、クリックで編集・7丸の閲覧・達成トグルは同様。予定ありと予定外の両方があるときだけ小見出し（`habits.offDaySectionTitle`）。一覧の上にその週の曜日一行（クリックでフォーカス日をその列に合わせる。フォーカス列はヘッダーに背景トーン＋強調、カード内はリングで列同期）。日付は前日/翌日/今日で変更可能（カレンダーハブと同期）。新規追加は「習慣を追加」で展開。時間指定は `none` / `fixed` / `range`。`fixed` は `PlanVsActual` に出さない（`range` のみ）。集計は `habitStats.ts`、フォームは `habitDraft.ts` |
+| `TaskBinView.tsx`                                                                                          | アーカイブ済み / ゴミ箱（`mode="archived" \| "deleted"`）。該当タスクを一覧（親も同じ箱なら親のみ代表表示）し、復元 / 戻す / 完全削除、ゴミ箱は「空にする」。`App.tsx` の `archived` / `deleted` ビューで描画 |
 | `SettingsView.tsx`                                                                                         | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、**活動ログのタグ候補**（`#settings-time-log-tags`・1行1タグのテキストエリア、`parseTimeLogTagPresetLines` で blur 時に保存）、リスト色パレット。`#settings-appearance` / `#settings-account` でメニューからのスクロール先                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `SearchResults.tsx`                                                                                        | 検索                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `AccountMenu.tsx`                                                                                          | ログイン / ログアウト（設定では `variant="settings"`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -362,7 +391,8 @@
 ## データベース（`supabase/migrations/`）
 
 **正本**: **`001_chronograma_schema.sql` 1 本**（`lists` / `list_sections` /
-`tasks`（`tasks.location` を含む）/ `habits`、インデックス、RLS。SQL Editor
+`tasks`（`tasks.location` / `tasks.archived_at` / `tasks.deleted_at` を含む）/
+`habits`、インデックス、RLS。SQL Editor
 で全体を流す想定。再実行しやすいよう `DROP POLICY IF EXISTS`
 あり）。一覧の短い説明は **`supabase/migrations/README.md`**。
 

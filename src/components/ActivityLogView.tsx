@@ -20,12 +20,13 @@ import {
   patchAfterTimelineMove,
   timeLogSegmentLayoutForDay,
 } from '../lib/taskTimeRange'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
 import { getTagColor, logBlockAccentFromTags, buildTimeLogTagUniverse } from '../lib/tagColors'
 import { TimeLogTagField } from './TimeLogTagField'
-import { TimeInput } from './TimeInput'
+import { TimeInput, addClockMinutes } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 
@@ -171,7 +172,7 @@ export function ActivityLogView() {
 
   const dayLogs = useMemo(() => {
     return tasks
-      .filter((t) => t.startTime && t.endTime && !t.parentId && t.isTimeLog && logOverlapsDateKey(t, dateKey))
+      .filter((t) => t.startTime && t.endTime && !t.parentId && t.isTimeLog && isActiveTask(t) && logOverlapsDateKey(t, dateKey))
       .sort((a, b) => compareLogsOnDay(a, b, dateKey))
   }, [tasks, dateKey])
 
@@ -455,6 +456,7 @@ export function ActivityLogView() {
                         <TimeInput
                           value={manualEnd}
                           onChange={setManualEnd}
+                          pickerDefault={manualStart ? addClockMinutes(manualStart, 60) : undefined}
                           className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-zinc-900
                                      border border-zinc-200 dark:border-zinc-700 outline-none
                                      focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40

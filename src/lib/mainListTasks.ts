@@ -1,6 +1,7 @@
 import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
 import type { Task } from '../types/task'
 import { isListedTimeLog } from './timeLogTask'
+import { isActiveTask } from './taskLifecycle'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
 import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
@@ -19,7 +20,7 @@ export interface MainListTasksInput {
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   const { tasks, selectedView, selectedListId, sortMode, filterTag } = input
-  let result = tasks.filter((t) => t.parentId === null)
+  let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
 
   if (selectedView === 'today') {
     result = result.filter((t) => t.dueDate && isToday(parseISO(t.dueDate)))

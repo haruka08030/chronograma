@@ -41,6 +41,8 @@ interface TaskRow {
   updated_at: string
   sort_order: number
   due_date: string | null
+  due_time?: string | null
+  scheduled_date?: string | null
   end_date?: string | null
   start_time: string | null
   end_time: string | null
@@ -50,6 +52,8 @@ interface TaskRow {
   recurrence: unknown
   is_time_log: boolean
   completed_at?: string | null
+  archived_at?: string | null
+  deleted_at?: string | null
 }
 
 function isMissingEndDateColumnError(message: string | undefined): boolean {
@@ -84,6 +88,54 @@ function isMissingLocationColumnError(message: string | undefined): boolean {
 function stripLocationFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ location, ...rest }) => {
     void location
+    return rest
+  })
+}
+
+function isMissingDueTimeColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'due_time' column")
+}
+
+function stripDueTimeFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ due_time, ...rest }) => {
+    void due_time
+    return rest
+  })
+}
+
+function isMissingScheduledDateColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'scheduled_date' column")
+}
+
+function stripScheduledDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ scheduled_date, ...rest }) => {
+    void scheduled_date
+    return rest
+  })
+}
+
+function isMissingArchivedAtColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'archived_at' column")
+}
+
+function stripArchivedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ archived_at, ...rest }) => {
+    void archived_at
+    return rest
+  })
+}
+
+function isMissingDeletedAtColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'deleted_at' column")
+}
+
+function stripDeletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ deleted_at, ...rest }) => {
+    void deleted_at
     return rest
   })
 }
@@ -213,6 +265,8 @@ function rowToTask(row: TaskRow): Task {
     sectionId: row.section_id ?? null,
     parentId: row.parent_id,
     dueDate: row.due_date,
+    dueTime: typeof row.due_time === 'string' ? row.due_time : null,
+    scheduledDate: typeof row.scheduled_date === 'string' ? row.scheduled_date : null,
     endDate: row.end_date ?? null,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -221,6 +275,8 @@ function rowToTask(row: TaskRow): Task {
     tags,
     recurrence,
     isTimeLog: row.is_time_log === true,
+    archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
+    deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
   }
 }
 
@@ -250,6 +306,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     updated_at: task.updatedAt,
     sort_order: task.order,
     due_date: task.dueDate,
+    due_time: task.dueTime ?? null,
+    scheduled_date: task.scheduledDate ?? null,
     end_date: task.endDate ?? null,
     start_time: task.startTime,
     end_time: task.endTime,
@@ -258,6 +316,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     tags: task.tags,
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
+    archived_at: task.archivedAt ?? null,
+    deleted_at: task.deletedAt ?? null,
   }
 }
 
@@ -364,15 +424,23 @@ export async function pushListsTasksHabits(
   let stripEndDate = false
   let stripCompletedAt = false
   let stripLocation = false
+  let stripDueTime = false
+  let stripScheduledDate = false
+  let stripArchivedAt = false
+  let stripDeletedAt = false
   const upsertTasksRows = async (): Promise<string | undefined> => {
     let rows: TaskRow[] = taskRows
     if (stripEndDate) rows = stripEndDateFromTaskRows(rows)
     if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
     if (stripLocation) rows = stripLocationFromTaskRows(rows)
+    if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
+    if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
+    if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
+    if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' })
     return error?.message
   }
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 9; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -385,6 +453,22 @@ export async function pushListsTasksHabits(
     }
     if (isMissingLocationColumnError(errMsg) && !stripLocation) {
       stripLocation = true
+      continue
+    }
+    if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {
+      stripDueTime = true
+      continue
+    }
+    if (isMissingScheduledDateColumnError(errMsg) && !stripScheduledDate) {
+      stripScheduledDate = true
+      continue
+    }
+    if (isMissingArchivedAtColumnError(errMsg) && !stripArchivedAt) {
+      stripArchivedAt = true
+      continue
+    }
+    if (isMissingDeletedAtColumnError(errMsg) && !stripDeletedAt) {
+      stripDeletedAt = true
       continue
     }
     return { error: errMsg }
