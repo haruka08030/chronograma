@@ -122,15 +122,33 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     e.dataTransfer.setData('text/plain', task.id)
     if (group.length > 1) {
       e.dataTransfer.setData(TASK_MULTI_DND_TYPE, JSON.stringify(group))
+      // dnd-kit のオーバーレイと見た目を揃えたドラッグ画像（カード＋件数バッジ）。
+      // 画面外要素は一部ブラウザ（Safari 等）で無視されるため、ビューポート内に置いて
+      // スナップショット後に除去する。
+      const dark = document.documentElement.classList.contains('dark')
       const ghost = document.createElement('div')
-      ghost.textContent = String(group.length)
       ghost.style.cssText =
-        'position:fixed;top:-1000px;left:-1000px;display:flex;align-items:center;justify-content:center;' +
-        'min-width:28px;height:28px;padding:0 8px;border-radius:9999px;background:#18181b;color:#fff;' +
-        'font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.3);'
+        'position:fixed;top:0;left:0;z-index:2147483647;pointer-events:none;' +
+        'display:flex;align-items:center;gap:8px;max-width:280px;padding:8px 12px;' +
+        'border-radius:12px;font-size:13px;font-weight:500;white-space:nowrap;' +
+        'box-shadow:0 10px 24px rgba(0,0,0,0.22);' +
+        (dark
+          ? 'background:#18181b;color:#fafafa;border:1px solid rgba(255,255,255,0.12);'
+          : 'background:#ffffff;color:#18181b;border:1px solid rgba(0,0,0,0.08);')
+      const label = document.createElement('span')
+      label.textContent = task.title || ''
+      label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;'
+      const badge = document.createElement('span')
+      badge.textContent = String(group.length)
+      badge.style.cssText =
+        'flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;' +
+        'padding:0 6px;border-radius:9999px;font-size:12px;font-weight:600;' +
+        (dark ? 'background:#fafafa;color:#18181b;' : 'background:#18181b;color:#fafafa;')
+      ghost.appendChild(label)
+      ghost.appendChild(badge)
       document.body.appendChild(ghost)
-      e.dataTransfer.setDragImage(ghost, 14, 14)
-      setTimeout(() => ghost.remove(), 0)
+      e.dataTransfer.setDragImage(ghost, 16, 16)
+      requestAnimationFrame(() => ghost.remove())
     }
     e.dataTransfer.effectAllowed = 'copy'
     setIsDragging(true)
