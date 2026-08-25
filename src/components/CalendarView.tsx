@@ -22,42 +22,7 @@ import {
   shouldDisconnectAfterFetchError,
 } from '../lib/googleCalendar'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
-
-function InlineDayAdd({ dateKey, onDone }: { dateKey: string; onDone: () => void }) {
-  const { t } = useTranslation()
-  const [value, setValue] = useState('')
-  const ref = useRef<HTMLInputElement>(null)
-  const addTaskWithDate = useTaskStore((s) => s.addTaskWithDate)
-
-  useEffect(() => { ref.current?.focus() }, [])
-
-  const submit = () => {
-    const trimmed = value.trim()
-    if (trimmed) addTaskWithDate(trimmed, dateKey)
-    onDone()
-  }
-
-  return (
-    <input
-      ref={ref}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          onDone()
-          return
-        }
-        const isSubmitEnter =
-          (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing
-        if (isSubmitEnter) submit()
-      }}
-      onBlur={submit}
-      placeholder={t('calendar.addTaskPlaceholder')}
-      className="w-full text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 border border-accent-400
-                 outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-    />
-  )
-}
+import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 
 export function CalendarView({
   displayMonth,
@@ -166,14 +131,12 @@ export function CalendarView({
             return (
               <div
                 key={key}
-                className={`min-h-[80px] border-t border-zinc-100 dark:border-zinc-800 p-1.5 cursor-pointer
-                            hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors
+                className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
+                            hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
                             ${!inMonth ? 'opacity-30' : ''}
                             ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
-                onClick={() => {
-                  onSelectDate?.(key)
-                  setAddingDate(key)
-                }}
+                onClick={() => onSelectDate?.(key)}
+                onDoubleClick={() => setAddingDate(key)}
                 onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
                 onDrop={(e) => {
@@ -195,14 +158,25 @@ export function CalendarView({
                   dragTaskIdRef.current = null
                 }}
               >
-                <div className={`text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full
-                  ${today
-                    ? 'bg-accent-500 text-white font-semibold'
-                    : selected
-                      ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
-                      : 'text-zinc-500 dark:text-zinc-400'}`}
-                >
-                  {format(day, 'd')}
+                <div className="mb-1 flex items-center justify-between gap-1">
+                  <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
+                    ${today
+                      ? 'bg-accent-500 text-white font-semibold'
+                      : selected
+                        ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
+                        : 'text-zinc-500 dark:text-zinc-400'}`}
+                  >
+                    {format(day, 'd')}
+                  </div>
+                  <CalendarAddTaskButton
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelectDate?.(key)
+                      setAddingDate(key)
+                    }}
+                    className={`h-4 w-4 p-px opacity-0 transition-opacity focus-visible:opacity-100
+                      group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
+                  />
                 </div>
                 <div className="space-y-0.5">
                   {dayEvents.slice(0, 2).map((e) => (
@@ -247,7 +221,7 @@ export function CalendarView({
                     </div>
                   )}
                   {addingDate === key && (
-                    <InlineDayAdd dateKey={key} onDone={() => setAddingDate(null)} />
+                    <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />
                   )}
                 </div>
               </div>

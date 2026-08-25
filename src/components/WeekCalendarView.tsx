@@ -32,7 +32,9 @@ import {
   shouldDisconnectAfterFetchError,
 } from '../lib/googleCalendar'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
@@ -182,6 +184,8 @@ export function WeekCalendarView({
   const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const isDesktop = useIsDesktop()
+  const [allDayAddDate, setAllDayAddDate] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
@@ -191,6 +195,13 @@ export function WeekCalendarView({
     const we = endOfWeek(anchor, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: ws, end: we })
   }, [anchor])
+
+  const focusKey = selectedDateKey ?? format(new Date(), 'yyyy-MM-dd')
+  const gridDays = useMemo(() => {
+    if (isDesktop) return days
+    const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
+    return [hit ?? days[0]!]
+  }, [isDesktop, days, focusKey])
 
   const { allDayByDate, timedByDate, timeLogsByDate } = useMemo(() => {
     const allDay = new Map<string, typeof tasks>()
@@ -346,32 +357,41 @@ export function WeekCalendarView({
               const key = format(day, 'yyyy-MM-dd')
               const selected = selectedDateKey ? selectedDateKey === key : false
               return (
-                <button
-                  key={day.toISOString()}
-                  type="button"
-                  onClick={() => onSelectDate?.(key)}
-                  className={`text-center py-2 transition-colors ${
-                    today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
-                  }`}
-                >
-                  <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
-                  <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                    ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
-                    {format(day, 'd')}
-                  </div>
-                </button>
+                <div key={day.toISOString()} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => onSelectDate?.(key)}
+                    className={`w-full text-center py-2 transition-colors ${
+                      today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
+                    <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
+                      ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
+                      {format(day, 'd')}
+                    </div>
+                  </button>
+                  <CalendarAddTaskButton
+                    onClick={() => {
+                      onSelectDate?.(key)
+                      setAllDayAddDate(key)
+                    }}
+                    className={`absolute right-1 top-1 h-5 w-5 p-0.5 opacity-100 transition-opacity touch-manipulation md:h-4 md:w-4 md:p-px md:opacity-0
+                      focus-visible:opacity-100 md:group-hover:opacity-100 ${selected ? 'md:opacity-60' : ''}`}
+                  />
+                </div>
               )
             })}
           </div>
         </div>
 
-        {hasAnyAllDay && (
+        {(hasAnyAllDay || allDayAddDate) && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
               {t('weekCalendar.allDay')}
             </div>
-            <div className="flex-1 grid grid-cols-7">
-              {days.map((day) => {
+            <div className={`flex-1 grid ${isDesktop ? 'grid-cols-7' : 'grid-cols-1'}`}>
+              {gridDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayAllDay = allDayByDate.get(key) ?? []
                 const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
@@ -399,6 +419,9 @@ export function WeekCalendarView({
                         {t.title}
                       </div>
                     ))}
+                    {allDayAddDate === key && (
+                      <CalendarInlineTaskAdd dateKey={key} onDone={() => setAllDayAddDate(null)} />
+                    )}
                   </div>
                 )
               })}
@@ -422,11 +445,12 @@ export function WeekCalendarView({
 
             <div
               ref={gridRef}
-              className="flex-1 grid grid-cols-7 relative"
+              className={`flex-1 grid relative ${isDesktop ? 'grid-cols-7' : 'grid-cols-1'}`}
               onPointerMove={timelineDrag.handlePointerMove}
               onPointerUp={timelineDrag.handlePointerUp}
+              onPointerCancel={timelineDrag.handlePointerCancel}
             >
-              {days.map((day) => {
+              {gridDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const dayTimed = timedByDate.get(key) ?? []
                 const dayLogs = timeLogsByDate.get(key) ?? []

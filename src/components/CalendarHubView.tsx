@@ -142,8 +142,13 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
               />
             )}
           </div>
+          {calendarMode === 'month' && (
+            <div className="flex max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
+              <CalendarDayPanel selectedDateKey={selectedDateKey} />
+            </div>
+          )}
           {dockOpen && (
-            <div className="flex max-h-[45vh] min-h-[140px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:flex-[0_0_38%]">
+            <div className="flex max-h-[28vh] min-h-[100px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:max-h-[45vh] sm:min-h-[140px] sm:flex-[0_0_38%]">
               <CalendarTaskDock />
             </div>
           )}

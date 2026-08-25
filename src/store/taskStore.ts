@@ -82,8 +82,6 @@ interface TaskState {
   lists: TaskList[]
   selectedListId: string | null
   selectedView: SmartView | null
-  /** サイドバーの To‑Do パネル展開状態（永続化。リロードで同じ画面を復元するため） */
-  todoPanelOpen: boolean
   /** 設定を開いた直後のみ使い、スクロール後にクリア */
   settingsScrollTarget: SettingsScrollTarget | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
@@ -119,10 +117,10 @@ interface TaskState {
   renameSection: (id: string, name: string) => void
   deleteSection: (id: string) => void
   reorderSections: (listId: string, orderedIds: string[]) => void
-  /** 手動ソート: 表示中のルート未完了タスクの順と order を一致させ、任意で複数ルートの sectionId を更新 */
+  /** 手動ソート: 表示中のルート未完了タスクの順と order を一致させ、任意で複数ルートの sectionId（と listId）を更新 */
   reorderManualRootTasks: (
     orderedTaskIds: string[],
-    sectionUpdate?: { taskIds: string[]; sectionId: string | null },
+    sectionUpdate?: { taskIds: string[]; sectionId: string | null; listId?: string },
   ) => void
   /**
    * サブタスクを別のルート親の下へ移動、または同一親内で順序変更。
@@ -150,7 +148,6 @@ interface TaskState {
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
-  setTodoPanelOpen: (open: boolean) => void
   openSettingsWithScroll: (target: SettingsScrollTarget) => void
   clearSettingsScrollTarget: () => void
   setCalendarMode: (mode: CalendarMode) => void
@@ -501,7 +498,6 @@ export const useTaskStore = create<TaskState>()(
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
       selectedView: null,
-      todoPanelOpen: false,
       settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'month' as CalendarMode,
       selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
@@ -573,14 +569,28 @@ export const useTaskStore = create<TaskState>()(
           sectionUpdate && sectionUpdate.taskIds.length > 0
             ? new Set(sectionUpdate.taskIds)
             : null
+        const targetListId = sectionUpdate?.listId
+        const descendantsForListMove =
+          targetListId && sectionSet
+            ? expandDescendantIds(sectionUpdate!.taskIds, get().tasks)
+            : null
         pushUndo()
         set((s) => ({
           tasks: s.tasks.map((t) => {
             const idx = orderedTaskIds.indexOf(t.id)
-            if (idx < 0) return t
-            let next: Task = { ...t, order: idx, updatedAt: now }
-            if (sectionSet?.has(t.id) && sectionUpdate) {
+            const inSectionPatch = Boolean(sectionSet?.has(t.id))
+            const inDescendantListMove = Boolean(
+              descendantsForListMove?.has(t.id) && targetListId && t.listId !== targetListId,
+            )
+            if (idx < 0 && !inDescendantListMove) return t
+
+            let next: Task = idx >= 0 ? { ...t, order: idx, updatedAt: now } : { ...t, updatedAt: now }
+            if (inSectionPatch && sectionUpdate) {
               next = { ...next, sectionId: sectionUpdate.sectionId }
+              if (targetListId) next = { ...next, listId: targetListId }
+            } else if (inDescendantListMove && targetListId) {
+              // ルートのリスト移動に子を追随（セクションはクリア）
+              next = { ...next, listId: targetListId, sectionId: null }
             }
             return next
           }),
@@ -842,7 +852,6 @@ export const useTaskStore = create<TaskState>()(
         set({ timeLogTagPresets: normalizeTimeLogTagPresetList(presets) })
       },
 
-      setTodoPanelOpen: (open) => set({ todoPanelOpen: open }),
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
       selectView: (view) =>
         set({

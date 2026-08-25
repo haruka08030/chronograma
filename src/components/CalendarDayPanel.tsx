@@ -9,6 +9,7 @@ import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
 
 function completionDateKey(t: Task): string {
@@ -27,6 +28,7 @@ export function CalendarDayPanel({
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
+  const [adding, setAdding] = useState(false)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
@@ -104,7 +106,25 @@ export function CalendarDayPanel({
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/70 dark:bg-zinc-900/70">
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>
+            {tab === 'planned' && !adding && (
+              <CalendarAddTaskButton
+                onClick={() => setAdding(true)}
+                className="h-6 w-6 shrink-0 p-1 opacity-70 hover:opacity-100"
+              />
+            )}
+          </div>
+          {tab === 'planned' && adding && (
+            <div className="mt-2">
+              <CalendarInlineTaskAdd
+                dateKey={selectedDateKey}
+                size="md"
+                keepOpenAfterSubmit
+                onDone={() => setAdding(false)}
+              />
+            </div>
+          )}
         </div>
 
         <div className="px-4 pt-3">

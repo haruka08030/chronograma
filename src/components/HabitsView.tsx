@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
@@ -195,6 +195,7 @@ export function HabitsView() {
   const [newEndTime, setNewEndTime] = useState('10:00')
   const [newColorIndex, setNewColorIndex] = useState(4)
   const newColor = listColors[Math.min(newColorIndex, listColors.length - 1)] ?? listColors[0]
+  const newTitleInputRef = useRef<HTMLInputElement>(null)
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null)
   const [showComposer, setShowComposer] = useState(false)
@@ -237,6 +238,10 @@ export function HabitsView() {
     })
   }, [habits, editingHabitId, cancelEdit])
 
+  useEffect(() => {
+    if (showComposer) newTitleInputRef.current?.focus()
+  }, [showComposer])
+
   const toggleNewWeekday = (v: HabitWeekday) => {
     setNewWeekdays((prev) => toggleHabitWeekdaySelection(prev, v))
   }
@@ -244,6 +249,11 @@ export function HabitsView() {
   const toggleEditWeekday = (v: HabitWeekday) => {
     setEditWeekdays((prev) => toggleHabitWeekdaySelection(prev, v))
   }
+
+  const closeComposer = useCallback(() => {
+    setNewTitle('')
+    setShowComposer(false)
+  }, [])
 
   const submitNew = () => {
     const draft = {
@@ -264,6 +274,7 @@ export function HabitsView() {
       frequency: habitFrequencyFromDraft(draft.freq, draft.weekdays),
     })
     setNewTitle('')
+    queueMicrotask(() => newTitleInputRef.current?.focus())
   }
 
   const saveEdit = () => {
@@ -366,7 +377,9 @@ export function HabitsView() {
     const icon = HABIT_ICONS[Math.abs(h.id.charCodeAt(0)) % HABIT_ICONS.length]
     const completedSet = new Set(h.completedDates)
     const weeklyExpected = weekDates.filter((d) => isHabitScheduledOnDate(h, d)).length
-    const weeklyDone = weekDates.filter((d) => completedSet.has(habitDateKey(d))).length
+    const weeklyDone = weekDates.filter(
+      (d) => isHabitScheduledOnDate(h, d) && completedSet.has(habitDateKey(d)),
+    ).length
     const weeklyProgress = weeklyExpected > 0 ? Math.round((weeklyDone / weeklyExpected) * 100) : 0
     const goalText =
       h.frequency.type === 'daily'
@@ -408,7 +421,12 @@ export function HabitsView() {
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !editFormDisabled) saveEdit()
+                  if (e.key === 'Enter') {
+                    if (e.nativeEvent.isComposing) return
+                    e.preventDefault()
+                    if (!editFormDisabled) saveEdit()
+                  }
+                  if (e.key === 'Escape') cancelEdit()
                 }}
                 placeholder={t('habits.nameShort')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
@@ -573,13 +591,12 @@ export function HabitsView() {
                 <button
                   key={key}
                   type="button"
-                  disabled={!isScheduled}
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (!isScheduled) return
                     toggleHabitDate(h.id, key)
                   }}
-                  className="flex justify-center disabled:cursor-default"
+                  className="flex justify-center"
+                  aria-label={key}
                 >
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
@@ -587,7 +604,7 @@ export function HabitsView() {
                         ? 'bg-accent-600 text-white'
                         : isScheduled
                           ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-                          : 'bg-zinc-200/70 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-700'
+                          : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
                     title={key}
                   >
@@ -607,15 +624,18 @@ export function HabitsView() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="px-6 pt-8 pb-4">
+      <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('habits.title')}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{t('habits.subtitle')}</p>
           </div>
           <button
             type="button"
-            onClick={() => setShowComposer((v) => !v)}
+            onClick={() => {
+              if (showComposer) closeComposer()
+              else setShowComposer(true)
+            }}
             className={
               showComposer
                 ? 'rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
@@ -627,7 +647,7 @@ export function HabitsView() {
         </div>
       </div>
 
-      <div className="space-y-4 px-6 pb-8">
+      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
         <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
           <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.heatmapTitle')}</h2>
           <div className="grid grid-cols-7 gap-2">
@@ -665,10 +685,16 @@ export function HabitsView() {
             <h2 className="mb-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.newHabit')}</h2>
             <div className="space-y-3">
               <input
+                ref={newTitleInputRef}
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !newFormDisabled) submitNew()
+                  if (e.key === 'Enter') {
+                    if (e.nativeEvent.isComposing) return
+                    e.preventDefault()
+                    submitNew()
+                  }
+                  if (e.key === 'Escape') closeComposer()
                 }}
                 placeholder={t('habits.placeholderName')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"

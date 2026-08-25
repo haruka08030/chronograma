@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
-import { LIST_PREFIX } from './Sidebar'
+import { LIST_PREFIX } from '../lib/listDnD'
 import { TASK_PREFIX } from './SortableTaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
@@ -103,7 +103,8 @@ export function DndTaskDragShell() {
     <>
       {draggingTaskId && (
         <div
-          className="md:hidden fixed bottom-0 inset-x-0 z-[52] pb-[max(0.75rem,env(safe-area-inset-bottom))]
+          className="md:hidden fixed inset-x-0 z-[52]
+                 bottom-[calc(3.5rem+env(safe-area-inset-bottom))]
                  pt-2 px-3 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm border-t border-zinc-200 dark:border-zinc-800
                  shadow-[0_-8px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_24px_rgba(0,0,0,0.35)]"
         >

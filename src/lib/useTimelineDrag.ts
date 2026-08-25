@@ -1,9 +1,16 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { dragBlockDurationMinutes } from './taskTimeRange'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
+const CREATE_MIN_PX = 5
+const CREATE_MIN_COARSE_PX = 20
+const TAP_SLOP_PX = 10
+
+function isCoarsePointer(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+}
 
 export interface CreateDrag {
   kind: 'create'
@@ -80,10 +87,17 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  /** タッチ: ブロック上はドラッグせずタップで詳細を開く（スクロールと競合しない） */
+  const onBlockTapRef = useRef(onBlockTap)
+  useEffect(() => {
+    onBlockTapRef.current = onBlockTap
+  }, [onBlockTap])
 
   const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent) => {
     if (popup) return
-    e.currentTarget.setPointerCapture(e.pointerId)
+    // タッチでは capture を遅らせず、十分なドラッグ幅が出るまで作成扱いにしない（スクロール優先）
+    const coarse = isCoarsePointer()
+    if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
@@ -106,6 +120,25 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     },
   ) => {
     if (popup) return
+
+    // タッチ主体: 移動・リサイズは詳細モーダルで行い、ここはタップのみ（スクロールと共存）
+    if (isCoarsePointer()) {
+      e.stopPropagation()
+      const startX = e.clientX
+      const startY = e.clientY
+      const id = taskId
+      const finish = (ev: PointerEvent) => {
+        window.removeEventListener('pointerup', finish)
+        window.removeEventListener('pointercancel', finish)
+        if (Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+          onBlockTapRef.current?.(id)
+        }
+      }
+      window.addEventListener('pointerup', finish)
+      window.addEventListener('pointercancel', finish)
+      return
+    }
+
     const blockEl = e.currentTarget as HTMLElement
     const rect = blockEl.getBoundingClientRect()
     const localY = e.clientY - rect.top
@@ -148,8 +181,20 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (p0 && !didMoveRef.current) {
       const dx = Math.abs(e.clientX - p0.x)
       const dy = Math.abs(e.clientY - p0.y)
-      if (dx > 6 || dy > 6) didMoveRef.current = true
+      const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
+      if (dx > threshold || dy > threshold) {
+        didMoveRef.current = true
+        if (drag.kind === 'create' && isCoarsePointer() && e.currentTarget instanceof HTMLElement) {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId)
+          } catch {
+            /* already captured or unsupported */
+          }
+        }
+      }
     }
+    if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
+
     const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX) : null) ?? drag.dateKey
     const y = getRelativeY(e.clientY, dateKey)
 
@@ -167,7 +212,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (drag.kind === 'create') {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
-      if (maxY - minY < 5) {
+      const minPx = isCoarsePointer() ? CREATE_MIN_COARSE_PX : CREATE_MIN_PX
+      if (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current)) {
         setDrag(null)
         pointerStartRef.current = null
         return
@@ -265,6 +311,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const activeCreateIntent: CreateIntent | null =
     drag?.kind === 'create' ? drag.intent : null
 
+  const handlePointerCancel = useCallback(() => {
+    setDrag(null)
+    pointerStartRef.current = null
+    didMoveRef.current = false
+  }, [])
+
   return {
     drag,
     popup,
@@ -276,11 +328,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handleBlockPointerDown,
     handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     dismissPopup,
   }
 }
 
 export function getResizeCursor(e: React.PointerEvent): string | null {
+  if (isCoarsePointer()) return null
   const el = e.currentTarget as HTMLElement
   const rect = el.getBoundingClientRect()
   const localY = e.clientY - rect.top

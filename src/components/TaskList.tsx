@@ -10,6 +10,7 @@ import {
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
+import { displayListName } from '../lib/displayListName'
 import { isModKey } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
@@ -24,12 +25,10 @@ import { QuickAdd } from './QuickAdd'
 import type { Priority, Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
-import { useIsDesktop } from '../hooks/useMediaQuery'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { displayListName } from '../lib/displayListName'
 import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
@@ -223,7 +222,6 @@ export function TaskList() {
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-  const isDesktop = useIsDesktop()
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
@@ -345,6 +343,12 @@ export function TaskList() {
     ? t(`sidebar.views.${selectedView}`)
     : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
 
+  const listOrderById = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const l of lists) m.set(l.id, l.order)
+    return m
+  }, [lists])
+
   const filtered = useMemo(
     () =>
       getFilteredRootTasks({
@@ -363,10 +367,17 @@ export function TaskList() {
     return sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
   }, [sections, selectedListId])
 
-  // セクションはソートモードに関係なく表示する。手動以外（期限順など）は
-  // セクションを維持したまま、その中でソートモード順に並べる（DnD は手動のみ）。
-  const showSectionBlocks =
-    Boolean(selectedListId) && listSectionsOrdered.length > 0
+  // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
+  // リストにセクションがあるとき、リスト横断でセクションブロックを出す。
+  const multiListSectionMode = !selectedListId && isTodoSurfaceView(selectedView)
+  const showSectionBlocks = useMemo(() => {
+    if (selectedListId) return listSectionsOrdered.length > 0
+    if (!multiListSectionMode || sections.length === 0) return false
+    const listIds = new Set(
+      filtered.filter((t) => !t.completed && !isListedTimeLog(t)).map((t) => t.listId),
+    )
+    return sections.some((s) => listIds.has(s.listId))
+  }, [selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -402,28 +413,121 @@ export function TaskList() {
       sortMode,
       filterTag,
       sections,
+      listOrderById,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections])
+  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, listOrderById])
 
-  const sectionBlocks = useMemo(() => {
-    if (!showSectionBlocks || !selectedListId) return null
-    const map = new Map<string | null, typeof active>()
-    map.set(null, [])
-    for (const s of listSectionsOrdered) map.set(s.id, [])
+  type SectionBlockRow = {
+    listId: string
+    sectionId: string | null
+    title: string
+    /** マルチリスト時、このブロックの直前に出すリスト名 */
+    listTitle: string | null
+    tasks: typeof active
+    headerKind: 'section-none' | 'section-named' | 'list-only'
+  }
+
+  const sectionBlocks = useMemo((): SectionBlockRow[] | null => {
+    if (!showSectionBlocks) return null
+
+    if (selectedListId) {
+      const map = new Map<string | null, typeof active>()
+      map.set(null, [])
+      for (const s of listSectionsOrdered) map.set(s.id, [])
+      for (const t of active) {
+        const sid = t.sectionId ?? null
+        const bucket = map.get(sid)
+        if (bucket) bucket.push(t)
+        else map.get(null)!.push(t)
+      }
+      const rows: SectionBlockRow[] = [
+        {
+          listId: selectedListId,
+          sectionId: null,
+          title: t('sections.noneTitle'),
+          listTitle: null,
+          tasks: map.get(null) ?? [],
+          headerKind: 'section-none',
+        },
+      ]
+      for (const s of listSectionsOrdered) {
+        rows.push({
+          listId: selectedListId,
+          sectionId: s.id,
+          title: s.name,
+          listTitle: null,
+          tasks: map.get(s.id) ?? [],
+          headerKind: 'section-named',
+        })
+      }
+      return rows
+    }
+
+    // スマートビュー: リスト order 順に、セクションがあるリストはセクション分割、無いリストはフラット
+    const sortedLists = [...lists].sort((a, b) => a.order - b.order)
+    const activeByList = new Map<string, typeof active>()
     for (const t of active) {
-      const sid = t.sectionId ?? null
-      const bucket = map.get(sid)
-      if (bucket) bucket.push(t)
-      else map.get(null)!.push(t)
+      const arr = activeByList.get(t.listId)
+      if (arr) arr.push(t)
+      else activeByList.set(t.listId, [t])
     }
-    const rows: { sectionId: string | null; title: string; tasks: typeof active }[] = [
-      { sectionId: null, title: t('sections.noneTitle'), tasks: map.get(null) ?? [] },
-    ]
-    for (const s of listSectionsOrdered) {
-      rows.push({ sectionId: s.id, title: s.name, tasks: map.get(s.id) ?? [] })
+
+    const rows: SectionBlockRow[] = []
+    for (const list of sortedLists) {
+      const listTasks = activeByList.get(list.id)
+      if (!listTasks || listTasks.length === 0) continue
+
+      const listSecs = sections
+        .filter((s) => s.listId === list.id)
+        .sort((a, b) => a.order - b.order)
+      const listLabel = displayListName(list.id, list.name)
+
+      if (listSecs.length === 0) {
+        rows.push({
+          listId: list.id,
+          sectionId: null,
+          title: listLabel,
+          listTitle: null,
+          tasks: listTasks,
+          headerKind: 'list-only',
+        })
+        continue
+      }
+
+      const map = new Map<string | null, typeof active>()
+      map.set(null, [])
+      for (const s of listSecs) map.set(s.id, [])
+      for (const t of listTasks) {
+        const sid = t.sectionId ?? null
+        const bucket = map.get(sid)
+        if (bucket) bucket.push(t)
+        else map.get(null)!.push(t)
+      }
+
+      let first = true
+      const pushRow = (
+        sectionId: string | null,
+        title: string,
+        tasksIn: typeof active,
+        headerKind: 'section-none' | 'section-named',
+      ) => {
+        rows.push({
+          listId: list.id,
+          sectionId,
+          title,
+          listTitle: first ? listLabel : null,
+          tasks: tasksIn,
+          headerKind,
+        })
+        first = false
+      }
+      pushRow(null, t('sections.noneTitle'), map.get(null) ?? [], 'section-none')
+      for (const s of listSecs) {
+        pushRow(s.id, s.name, map.get(s.id) ?? [], 'section-named')
+      }
     }
-    return rows
-  }, [showSectionBlocks, selectedListId, listSectionsOrdered, active, t])
+    return rows.length > 0 ? rows : null
+  }, [showSectionBlocks, selectedListId, listSectionsOrdered, active, t, lists, sections])
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
@@ -653,17 +757,25 @@ export function TaskList() {
 
   const activeContent = canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
-      {showSectionBlocks && sectionBlocks && selectedListId ? (
+      {showSectionBlocks && sectionBlocks ? (
         sectionBlocks.map((block) => {
           const sectionId = block.sectionId
+          const blockKey = `${block.listId}::${sectionId ?? 'none'}::${block.headerKind}`
+          const canQuickTarget = Boolean(selectedListId) && selectedListId === block.listId
           const isQuickTarget =
-            (sectionId === null && quickAddSectionId === '') ||
-            (sectionId !== null && quickAddSectionId === sectionId)
+            canQuickTarget &&
+            ((sectionId === null && quickAddSectionId === '') ||
+              (sectionId !== null && quickAddSectionId === sectionId))
           return (
-            <div key={sectionId ?? 'none'} className="relative pt-3 first:pt-1">
-              {sectionId !== null && selectedListId ? (
+            <div key={blockKey} className="relative pt-3 first:pt-1">
+              {block.listTitle ? (
+                <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
+                  {block.listTitle}
+                </div>
+              ) : null}
+              {block.headerKind === 'section-named' && sectionId !== null ? (
                 <SectionHeaderDnD
-                  listId={selectedListId}
+                  listId={block.listId}
                   sectionId={sectionId}
                   isQuickTarget={isQuickTarget}
                   titleButton={
@@ -692,7 +804,9 @@ export function TaskList() {
                       <button
                         type="button"
                         className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                        onClick={() => setQuickAddSectionId(sectionId)}
+                        onClick={() => {
+                          if (canQuickTarget) setQuickAddSectionId(sectionId)
+                        }}
                       >
                         {block.title}
                       </button>
@@ -730,12 +844,19 @@ export function TaskList() {
               ) : (
                 <div
                   className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
-                    ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}`}
+                    ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
+                    ${block.headerKind === 'list-only' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
                 >
                   <button
                     type="button"
-                    className="min-w-0 flex-1 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                    onClick={() => setQuickAddSectionId('')}
+                    className={`min-w-0 flex-1 text-left truncate ${
+                      block.headerKind === 'list-only'
+                        ? 'text-xs font-semibold tracking-tight'
+                        : 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+                    }`}
+                    onClick={() => {
+                      if (canQuickTarget && block.headerKind === 'section-none') setQuickAddSectionId('')
+                    }}
                   >
                     {block.title}
                   </button>
@@ -766,7 +887,9 @@ export function TaskList() {
                   nestPreviewParentId: previewParentId,
                 }),
               ])}
-              <SectionDropZone listId={selectedListId} sectionId={block.sectionId} />
+              {block.headerKind !== 'list-only' ? (
+                <SectionDropZone listId={block.listId} sectionId={block.sectionId} />
+              ) : null}
             </div>
           )
         })
@@ -798,13 +921,26 @@ export function TaskList() {
         ])
       )}
     </SortableContext>
-  ) : showSectionBlocks && sectionBlocks && selectedListId ? (
+  ) : showSectionBlocks && sectionBlocks ? (
     sectionBlocks.map((block) => (
-      <div key={block.sectionId ?? 'none'} className="relative pt-3 first:pt-1">
+      <div key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`} className="relative pt-3 first:pt-1">
+        {block.listTitle ? (
+          <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
+            {block.listTitle}
+          </div>
+        ) : null}
         <button
           type="button"
-          className="relative z-10 w-full text-left px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-          onClick={() => setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)}
+          className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
+            block.headerKind === 'list-only'
+              ? 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
+              : 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+          }`}
+          onClick={() => {
+            if (selectedListId === block.listId) {
+              setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)
+            }
+          }}
         >
           {block.title}
         </button>
@@ -1025,7 +1161,7 @@ export function TaskList() {
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
             <div className="mb-1.5">
-              <QuickAdd onCreated={openDetail} />
+              <QuickAdd />
             </div>
           )}
 
@@ -1076,21 +1212,7 @@ export function TaskList() {
         </div>
       </div>
 
-      {detailTask ? (
-        // モバイルでは全画面オーバーレイ、md 以上で右ペイン分割。分割ペインは一覧幅を
-        // 潰さないよう desktop のみ描画する。
-        <TaskDetail task={detailTask} onClose={closeDetail} layout={isDesktop ? 'split' : 'modal'} />
-      ) : (
-        <aside className="hidden h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white md:flex dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/60 p-6 text-center dark:border-zinc-700 dark:bg-zinc-900/40">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t('taskList.selectTaskForDetail')}
-              </p>
-            </div>
-          </div>
-        </aside>
-      )}
+      {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
       {completionDraft && (
         <CompleteWithLogModal
           draft={completionDraft}

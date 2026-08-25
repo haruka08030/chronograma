@@ -15,6 +15,8 @@ export interface MainListTasksInput {
   sortMode: SortMode
   filterTag: string | null
   sections: ListSection[]
+  /** スマートビューでリスト横断の手動順を決めるとき（`lists.order`） */
+  listOrderById?: Map<string, number>
 }
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
@@ -69,7 +71,9 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
 }
 
 /**
- * リスト表示かつ手動ソートかつセクションありのとき、セクション順＋タスク order で並べた未完了ルート一覧。
+ * 手動ソートかつセクションありのとき、セクション順＋タスク order で並べた未完了ルート一覧。
+ * - リスト選択時: そのリストのセクション順
+ * - スマートビュー（リスト未選択）: リスト order → 各リストのセクション順
  * それ以外は getFilteredRootTasks と同じ（未完了のみ）を返す。
  */
 export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task[] {
@@ -77,24 +81,59 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
   const { selectedListId, sortMode, sections } = input
 
-  if (!selectedListId || sortMode !== 'manual') {
+  if (sortMode !== 'manual') {
     return active
   }
 
-  const listSections = sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
-  if (listSections.length === 0) {
-    return active
+  if (selectedListId) {
+    const listSections = sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
+    if (listSections.length === 0) return active
+
+    const sectionRank = (sectionId: string | null): number => {
+      if (sectionId === null) return -1
+      const i = listSections.findIndex((s) => s.id === sectionId)
+      return i >= 0 ? i : 9999
+    }
+
+    return [...active].sort((a, b) => {
+      const ra = sectionRank(a.sectionId ?? null)
+      const rb = sectionRank(b.sectionId ?? null)
+      if (ra !== rb) return ra - rb
+      return a.order - b.order
+    })
   }
 
-  const sectionRank = (sectionId: string | null): number => {
+  // スマートビュー: 表示中タスクが属するリストにセクションが1つでもあれば、リスト＋セクション順
+  const listIdsInView = new Set(active.map((t) => t.listId))
+  const hasAnySection = sections.some((s) => listIdsInView.has(s.listId))
+  if (!hasAnySection) return active
+
+  const sectionsByList = new Map<string, ListSection[]>()
+  for (const s of sections) {
+    if (!listIdsInView.has(s.listId)) continue
+    const arr = sectionsByList.get(s.listId)
+    if (arr) arr.push(s)
+    else sectionsByList.set(s.listId, [s])
+  }
+  for (const arr of sectionsByList.values()) arr.sort((a, b) => a.order - b.order)
+
+  const listRank = (listId: string) => input.listOrderById?.get(listId) ?? Number.MAX_SAFE_INTEGER
+
+  const sectionRankInList = (listId: string, sectionId: string | null): number => {
+    const listSections = sectionsByList.get(listId)
+    if (!listSections || listSections.length === 0) return -1
     if (sectionId === null) return -1
     const i = listSections.findIndex((s) => s.id === sectionId)
     return i >= 0 ? i : 9999
   }
 
   return [...active].sort((a, b) => {
-    const ra = sectionRank(a.sectionId ?? null)
-    const rb = sectionRank(b.sectionId ?? null)
+    const la = listRank(a.listId)
+    const lb = listRank(b.listId)
+    if (la !== lb) return la - lb
+    if (a.listId !== b.listId) return a.listId.localeCompare(b.listId)
+    const ra = sectionRankInList(a.listId, a.sectionId ?? null)
+    const rb = sectionRankInList(b.listId, b.sectionId ?? null)
     if (ra !== rb) return ra - rb
     return a.order - b.order
   })
@@ -261,7 +300,12 @@ export function insertActiveRootIdsAtSectionHead(
 
 const TASK_PREFIX = 'task::'
 
-export type ManualRootReorderSectionUpdate = { taskIds: string[]; sectionId: string | null }
+export type ManualRootReorderSectionUpdate = {
+  taskIds: string[]
+  sectionId: string | null
+  /** スマートビュー等で別リストのセクションへ落としたとき */
+  listId?: string
+}
 
 /** 手動ソート一覧でのルート並べ替え（複数 ID 可）。`dragGroupRootIds` は表示順に正規化される */
 export function buildReorderedActiveRootIdsForGroup(
@@ -277,18 +321,14 @@ export function buildReorderedActiveRootIdsForGroup(
   const orderedGroup = rootIdsOrdered.filter((id) => sel.has(id))
   if (orderedGroup.length === 0 || !orderedGroup.includes(activeRootId)) return null
 
-  const listSections = selectedListId
-    ? sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
-    : []
-  const useSectionPatch = Boolean(selectedListId && listSections.length > 0)
+  const sectionsForList = (listId: string) =>
+    sections.filter((s) => s.listId === listId).sort((a, b) => a.order - b.order)
 
   const headerDrop = parseSectionReorderId(overId, DROPSEC_PREFIX)
-  if (
-    useSectionPatch &&
-    headerDrop &&
-    headerDrop.listId === selectedListId &&
-    headerDrop.sectionId
-  ) {
+  if (headerDrop?.sectionId) {
+    if (selectedListId && headerDrop.listId !== selectedListId) return null
+    const listSections = sectionsForList(headerDrop.listId)
+    if (listSections.length === 0 && selectedListId) return null
     const orderedIds = insertActiveRootIdsAtSectionHead(
       currentOrdered,
       orderedGroup,
@@ -297,36 +337,68 @@ export function buildReorderedActiveRootIdsForGroup(
     )
     return {
       orderedIds,
-      sectionUpdate: { taskIds: orderedGroup, sectionId: headerDrop.sectionId },
+      sectionUpdate: {
+        taskIds: orderedGroup,
+        sectionId: headerDrop.sectionId,
+        listId: headerDrop.listId,
+      },
     }
   }
 
   const dropParsed = parseSectionDropId(overId)
-  if (dropParsed && dropParsed.listId === selectedListId) {
+  if (dropParsed) {
+    if (selectedListId && dropParsed.listId !== selectedListId) return null
+    const listSections = sectionsForList(dropParsed.listId)
     const orderedIds = insertActiveRootIdsForSectionDrop(
       currentOrdered,
       orderedGroup,
       dropParsed.sectionId,
       listSections,
     )
-    return useSectionPatch
-      ? { orderedIds, sectionUpdate: { taskIds: orderedGroup, sectionId: dropParsed.sectionId } }
-      : { orderedIds }
+    return {
+      orderedIds,
+      sectionUpdate: {
+        taskIds: orderedGroup,
+        sectionId: dropParsed.sectionId,
+        listId: dropParsed.listId,
+      },
+    }
   }
 
   if (!overId.startsWith(TASK_PREFIX)) return null
   const overTaskId = overId.slice(TASK_PREFIX.length)
   const orderedIds = moveRootBlockInOrderedIds(rootIdsOrdered, orderedGroup, activeRootId, overTaskId)
   if (!orderedIds) return null
+
+  const overTask = currentOrdered.find((t) => t.id === overTaskId)
+  if (!overTask) return { orderedIds }
+
+  const overListSections = sectionsForList(overTask.listId)
+  const useSectionPatch = Boolean(
+    (selectedListId && overListSections.length > 0) ||
+      (!selectedListId && overListSections.length > 0),
+  )
   if (!useSectionPatch) {
+    // スマートビューでセクション無しリストへ寄せるときも listId を揃える
+    if (!selectedListId) {
+      return {
+        orderedIds,
+        sectionUpdate: {
+          taskIds: orderedGroup,
+          sectionId: overTask.sectionId ?? null,
+          listId: overTask.listId,
+        },
+      }
+    }
     return { orderedIds }
   }
-  const overTask = currentOrdered.find((t) => t.id === overTaskId)
+
   return {
     orderedIds,
     sectionUpdate: {
       taskIds: orderedGroup,
-      sectionId: overTask ? (overTask.sectionId ?? null) : null,
+      sectionId: overTask.sectionId ?? null,
+      listId: overTask.listId,
     },
   }
 }

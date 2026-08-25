@@ -52,7 +52,7 @@ export function SortableSubtaskItem({
       type="button"
       {...attributes}
       {...listeners}
-      className="opacity-70 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 touch-none"
+      className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
       tabIndex={-1}
     >
       <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">

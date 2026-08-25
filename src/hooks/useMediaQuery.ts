@@ -23,3 +23,13 @@ export function useMediaQuery(query: string): boolean {
 export function useIsDesktop(): boolean {
   return useMediaQuery('(min-width: 768px)')
 }
+
+/** Tailwind の `lg`(≥1024px) 以上か。細い To‑Do パネルを常設できる幅かの判定に使う。 */
+export function useIsLargeScreen(): boolean {
+  return useMediaQuery('(min-width: 1024px)')
+}
+
+/** タッチ主体デバイス（`(pointer: coarse)`）。DnD / タイムラインの起動閾値に使う。 */
+export function useIsCoarsePointer(): boolean {
+  return useMediaQuery('(pointer: coarse)')
+}

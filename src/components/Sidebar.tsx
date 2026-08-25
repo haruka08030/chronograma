@@ -1,22 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/config'
-import { useTaskStore, INBOX_LIST_ID, paletteColors, type SmartView } from '../store/taskStore'
+import { useTaskStore, type SmartView } from '../store/taskStore'
 import { getAppInstallUrl } from '../lib/appInstallUrl'
-import { useDroppable } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import type { TaskList } from '../types/list'
-
-export const LIST_PREFIX = 'list::'
-
-const DUE_VIEWS: { id: SmartView; icon: string }[] = [
-  { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
-  { id: 'today', icon: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' },
-  { id: 'upcoming', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' },
-  { id: 'overdue', icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
-]
+import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
+import { isTodoNavView } from '../lib/todoSurfaceView'
+import { TodoNavContent } from './TodoNavPanel'
+import { SmartViewRow } from './SmartViewRow'
 
 const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
   id: 'stats',
@@ -30,11 +20,6 @@ const OTHER_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'habits', icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z' },
 ]
 
-const BIN_VIEWS: { id: SmartView; icon: string }[] = [
-  { id: 'archived', icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z' },
-  { id: 'deleted', icon: 'M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0' },
-]
-
 const TODO_OPENER_ICON = 'M4.5 12.75l6 6 9-13.5'
 
 const MENU_ICON_SETTINGS =
@@ -44,187 +29,25 @@ const MENU_ICON_USER =
 const MENU_ICON_DOWNLOAD =
   'M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3'
 
-function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick }: {
-  list: TaskList
-  isSelected: boolean
-  onSelect: () => void
-  onStartEdit: () => void
-  onDelete: () => void
-  onColorPick: () => void
-}) {
-  const { t } = useTranslation()
-  const isInbox = list.id === INBOX_LIST_ID
-  const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
-  const sortableId = `${LIST_PREFIX}${list.id}`
-  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId, disabled: isInbox })
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
-  const dropHighlight = isOver || taskDragHoverListId === list.id
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  }
-
-  return (
-    <div
-      ref={(node) => { setSortableRef(node); setDropRef(node) }}
-      style={style}
-      className={`group flex items-center gap-2 pl-2 pr-3 py-2 rounded-lg cursor-pointer transition-colors text-sm border-l-[3px] border-l-transparent
-        ${dropHighlight
-          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-          : isSelected
-            ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
-            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-      onClick={onSelect}
-      onDoubleClick={() => { if (!isInbox) onStartEdit() }}
-    >
-      <button
-        type="button"
-        disabled={isInbox}
-        onClick={(e) => { e.stopPropagation(); onColorPick() }}
-        className="w-3 h-3 min-w-[12px] min-h-[12px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
-          touch-manipulation disabled:opacity-60 disabled:cursor-default"
-        style={{ backgroundColor: list.color }}
-        aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
-        tabIndex={-1}
-      />
-
-      <span className="min-w-0 flex-1 truncate">{list.name}</span>
-
-      {!isInbox ? (
-        <>
-          <button
-            {...attributes}
-            {...listeners}
-            type="button"
-            className="touch-none shrink-0 rounded p-0.5 opacity-0 cursor-grab group-hover:opacity-100 active:cursor-grabbing"
-            tabIndex={-1}
-            title={t('sidebar.reorderList')}
-            aria-label={t('sidebar.reorderList')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg className="h-3 w-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-            aria-label={t('sidebar.deleteList')}
-          >
-            <svg className="h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </>
-      ) : null}
-    </div>
-  )
-}
-
-function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
-  const { t } = useTranslation()
-  const listColors = useTaskStore((s) => paletteColors(s.listColorPaletteId))
-  return (
-    <div
-      className="absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
-      onClick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-label={t('sidebar.listColorDialog')}
-    >
-      <div className="grid grid-cols-5 gap-1.5">
-        {listColors.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => { onChange(c); onClose() }}
-            className={`w-6 h-6 rounded-full transition-transform hover:scale-110
-              ${c === current ? 'ring-2 ring-offset-2 ring-accent-500 dark:ring-offset-zinc-800' : 'ring-1 ring-black/10'}`}
-            style={{ backgroundColor: c }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function renderSmartViewRow(
-  v: { id: SmartView; icon: string },
-  selectedView: SmartView | null,
-  handleNav: (cb: () => void) => void,
-  selectView: (id: SmartView) => void,
-  t: TFunction,
-) {
-  const isSelected = selectedView === v.id
-  return (
-    <div
-      key={v.id}
-      onClick={() => handleNav(() => selectView(v.id))}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm
-        ${isSelected
-          ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
-          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-    >
-      <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d={v.icon} />
-      </svg>
-      <span className="flex-1">{t(`sidebar.views.${v.id}`)}</span>
-    </div>
-  )
-}
-
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const { t } = useTranslation()
-  const {
-    lists,
-    selectedListId,
-    selectedView,
-    todoPanelOpen,
-    setTodoPanelOpen,
-    selectList,
-    selectView,
-    openSettingsWithScroll,
-    addList,
-    renameList,
-    updateListColor,
-    deleteList,
-    exportData,
-    importData,
-    importTasksFromCsv,
-    notificationsEnabled,
-    toggleNotifications,
-  } = useTaskStore()
+  const selectedView = useTaskStore((s) => s.selectedView)
+  const selectView = useTaskStore((s) => s.selectView)
+  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
+  const exportData = useTaskStore((s) => s.exportData)
+  const importData = useTaskStore((s) => s.importData)
+  const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
+  const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
+  const toggleNotifications = useTaskStore((s) => s.toggleNotifications)
+  const isDesktop = useIsDesktop()
+  const isLargeScreen = useIsLargeScreen()
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-  const [adding, setAdding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
   const accountMenuRootRef = useRef<HTMLDivElement>(null)
   const accountMenuFirstItemRef = useRef<HTMLButtonElement>(null)
-  const [newName, setNewName] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [colorPickId, setColorPickId] = useState<string | null>(null)
 
-  const sorted = [...lists].sort((a, b) => a.order - b.order)
-  const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
-
-  const submitNew = () => {
-    const trimmed = newName.trim()
-    if (trimmed) addList(trimmed)
-    setNewName('')
-    setAdding(false)
-  }
-
-  const submitRename = (id: string) => {
-    const trimmed = editName.trim()
-    if (trimmed) renameList(id, trimmed)
-    setEditingId(null)
-  }
+  const onTodoView = isTodoNavView(selectedView)
 
   const handleNav = (cb: () => void) => {
     cb()
@@ -254,231 +77,139 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     if (accountMenuOpen) accountMenuFirstItemRef.current?.focus()
   }, [accountMenuOpen])
 
-  const renderListsSection = () => (
-    <>
-      <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-        {sorted.map((list) => {
-          const isSelected = selectedListId === list.id && selectedView === null
-
-          if (editingId === list.id) {
-            return (
-              <input
-                key={list.id}
-                autoFocus
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={() => submitRename(list.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitRename(list.id)
-                  if (e.key === 'Escape') setEditingId(null)
-                }}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
-                           ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100"
-              />
-            )
-          }
-
-          return (
-            <div key={list.id} className="relative">
-              <SortableListItem
-                list={list}
-                isSelected={isSelected}
-                onSelect={() => handleNav(() => selectList(list.id))}
-                onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
-                onDelete={() => deleteList(list.id)}
-                onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
-              />
-              {colorPickId === list.id && (
-                <ColorPicker
-                  current={list.color}
-                  onChange={(c) => updateListColor(list.id, c)}
-                  onClose={() => setColorPickId(null)}
-                />
-              )}
-            </div>
-          )
-        })}
-      </SortableContext>
-      <div className="px-2 pb-2 pt-2">
-        {adding ? (
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onBlur={submitNew}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitNew()
-              if (e.key === 'Escape') { setNewName(''); setAdding(false) }
-            }}
-            placeholder={t('sidebar.listPlaceholder')}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
-                       ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
-                       placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-          />
-        ) : (
+  // lg 未満は `TodoNavPanel` を置く横幅がないので、サブナビをサイドバーに畳み込む。
+  // リスト行は DnD id を持つため、常に「表示されている一枚」にだけ描画する。
+  // md 未満はドロワーの下端が `MobileBottomNav` に隠れるので、その分の余白を空ける。
+  const renderSidebarContent = (withTodoNav: boolean) => (
+    <aside className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
+                       flex flex-col h-full pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="px-4 pt-5 pb-3 flex items-center gap-2 min-w-0">
+        <div className="relative shrink-0" ref={accountMenuRootRef}>
           <button
             type="button"
-            onClick={() => setAdding(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
-                       hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80
-                       rounded-lg transition-colors"
+            onClick={() => setAccountMenuOpen((o) => !o)}
+            aria-label={t('sidebar.accountMenu')}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            title={t('sidebar.accountMenu')}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors
+              ${selectedView === 'settings' || accountMenuOpen
+                ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'
+                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
             </svg>
-            {t('sidebar.addList')}
           </button>
-        )}
-      </div>
-    </>
-  )
-
-  const sidebarContent = (
-    <aside className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
-                       flex flex-col h-full">
-      <div className="px-4 pt-5 pb-3 flex items-center gap-2 min-w-0">
-        {todoPanelOpen ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setTodoPanelOpen(false)}
-              aria-label={t('common.back')}
-              className="p-1.5 -ml-1 rounded-lg text-zinc-600 dark:text-zinc-400
-                hover:bg-zinc-200/80 dark:hover:bg-zinc-800 transition-colors shrink-0"
+          {accountMenuOpen ? (
+            <div
+              role="menu"
+              aria-label={t('sidebar.accountMenuAria')}
+              className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <span className="min-w-0 flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              {t('sidebar.todo')}
-            </span>
-          </>
-        ) : (
-          <>
-            <div className="relative shrink-0" ref={accountMenuRootRef}>
+              <button
+                ref={accountMenuFirstItemRef}
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                onClick={() => {
+                  handleNav(() => openSettingsWithScroll('appearance'))
+                  setAccountMenuOpen(false)
+                }}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
+                </svg>
+                {t('sidebar.settings')}
+              </button>
               <button
                 type="button"
-                onClick={() => setAccountMenuOpen((o) => !o)}
-                aria-label={t('sidebar.accountMenu')}
-                aria-haspopup="menu"
-                aria-expanded={accountMenuOpen}
-                title={t('sidebar.accountMenu')}
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors
-                  ${selectedView === 'settings' || accountMenuOpen
-                    ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
+                onClick={() => {
+                  handleNav(() => openSettingsWithScroll('account'))
+                  setAccountMenuOpen(false)
+                }}
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
                 </svg>
+                {t('sidebar.account')}
               </button>
-              {accountMenuOpen ? (
-                <div
-                  role="menu"
-                  aria-label={t('sidebar.accountMenuAria')}
-                  className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
-                >
-                  <button
-                    ref={accountMenuFirstItemRef}
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                    onClick={() => {
-                      handleNav(() => openSettingsWithScroll('appearance'))
-                      setAccountMenuOpen(false)
-                    }}
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
-                    </svg>
-                    {t('sidebar.settings')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                    onClick={() => {
-                      handleNav(() => openSettingsWithScroll('account'))
-                      setAccountMenuOpen(false)
-                    }}
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
-                    </svg>
-                    {t('sidebar.account')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!installUrl}
-                    title={
-                      installUrl
-                        ? t('sidebar.getAppTitleOn')
-                        : t('sidebar.getAppTitleOff')
-                    }
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
-                    onClick={() => {
-                      if (!installUrl) return
-                      window.open(installUrl, '_blank', 'noopener,noreferrer')
-                      handleNav(() => {})
-                      setAccountMenuOpen(false)
-                    }}
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
-                    </svg>
-                    {t('sidebar.getApp')}
-                  </button>
-                </div>
-              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!installUrl}
+                title={
+                  installUrl
+                    ? t('sidebar.getAppTitleOn')
+                    : t('sidebar.getAppTitleOff')
+                }
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-45 dark:text-zinc-200 dark:hover:bg-zinc-700/80 dark:disabled:hover:bg-transparent"
+                onClick={() => {
+                  if (!installUrl) return
+                  window.open(installUrl, '_blank', 'noopener,noreferrer')
+                  handleNav(() => {})
+                  setAccountMenuOpen(false)
+                }}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
+                </svg>
+                {t('sidebar.getApp')}
+              </button>
             </div>
-            <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
-              {t('sidebar.brand')}
-            </span>
-          </>
-        )}
+          ) : null}
+        </div>
+        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
+          {t('sidebar.brand')}
+        </span>
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-1 space-y-0.5">
-        {todoPanelOpen ? (
-          <>
-            {DUE_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView, t))}
-            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            {renderListsSection()}
-            <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-            {BIN_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView, t))}
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setTodoPanelOpen(true)
-                selectView('all')
-                setAccountMenuOpen(false)
-                onClose?.()
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
-                text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={TODO_OPENER_ICON} />
-              </svg>
-              <span className="flex-1">{t('sidebar.todo')}</span>
-            </button>
-            {OTHER_VIEWS.map((v) => renderSmartViewRow(v, selectedView, handleNav, selectView, t))}
-          </>
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            setAccountMenuOpen(false)
+            if (!onTodoView) selectView('all')
+          }}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
+            ${onTodoView
+              ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
+              : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+        >
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d={TODO_OPENER_ICON} />
+          </svg>
+          <span className="flex-1">{t('sidebar.todo')}</span>
+        </button>
+
+        {withTodoNav ? (
+          <div className="ml-3 space-y-0.5 border-l border-zinc-200 pl-1 dark:border-zinc-800">
+            <TodoNavContent onNavigate={onClose} />
+          </div>
+        ) : null}
+
+        {OTHER_VIEWS.map((v) => (
+          <SmartViewRow
+            key={v.id}
+            view={v.id}
+            icon={v.icon}
+            isSelected={selectedView === v.id}
+            onSelect={() => handleNav(() => selectView(v.id))}
+          />
+        ))}
       </nav>
 
-      {!todoPanelOpen
-        ? (
-            <div className="shrink-0 px-2 pb-1">
-              {renderSmartViewRow(STATS_SMART_VIEW, selectedView, handleNav, selectView, t)}
-            </div>
-          )
-        : null}
+      {/* サブナビ展開時はナビがスクロールするので、固定行との境界を線で示す */}
+      <div className="shrink-0 border-t border-zinc-200 px-2 pb-1 pt-1 dark:border-zinc-800">
+        <SmartViewRow
+          view={STATS_SMART_VIEW.id}
+          icon={STATS_SMART_VIEW.icon}
+          isSelected={selectedView === STATS_SMART_VIEW.id}
+          onSelect={() => handleNav(() => selectView(STATS_SMART_VIEW.id))}
+        />
+      </div>
 
       <div className="mx-4 mb-2 border-t border-zinc-200 dark:border-zinc-800 shrink-0" />
 
@@ -580,21 +311,32 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     </aside>
   )
 
+  // md〜lg 未満は常設サイドバー側、md 未満はドロワー側に出す（同時に描画しない）
+  const inlineTodoNavInFixed = isDesktop && !isLargeScreen && onTodoView
+  const inlineTodoNavInDrawer = !isDesktop && onTodoView
+
   if (open !== undefined) {
+    // 常設とドロワーは CSS で出し分けず片方だけマウントする（state / ref の共有を避ける）
+    if (isDesktop) {
+      return (
+        <div className="flex h-full min-h-0 shrink-0 self-stretch">
+          {renderSidebarContent(inlineTodoNavInFixed)}
+        </div>
+      )
+    }
+    if (!open) return null
     return (
-      <>
-        <div className="hidden md:flex h-full min-h-0 shrink-0 self-stretch">{sidebarContent}</div>
-        {open && (
-          <div className="fixed inset-0 z-40 flex md:hidden" onClick={onClose}>
-            <div className="absolute inset-0 bg-black/30" />
-            <div className="relative animate-slide-in-left" onClick={(e) => e.stopPropagation()}>
-              {sidebarContent}
-            </div>
-          </div>
-        )}
-      </>
+      <div className="fixed inset-0 z-40 flex" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/30" />
+        <div
+          className="relative animate-slide-in-left bg-white dark:bg-zinc-900"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {renderSidebarContent(inlineTodoNavInDrawer)}
+        </div>
+      </div>
     )
   }
 
-  return sidebarContent
+  return renderSidebarContent(inlineTodoNavInDrawer || inlineTodoNavInFixed)
 }
