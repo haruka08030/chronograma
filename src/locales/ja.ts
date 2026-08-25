@@ -98,6 +98,14 @@ export default {
     searchPlaceholder: '検索… (⌘K)',
     openMenu: 'メニューを開く',
   },
+  nav: {
+    aria: 'メインナビ',
+    todo: 'To‑Do',
+    calendar: 'カレンダー',
+    log: 'ログ',
+    habits: '習慣',
+    more: 'その他',
+  },
   habits: {
     title: '習慣',
     subtitle: '達成状況の一覧と記録',
@@ -214,7 +222,6 @@ export default {
     priorityEllipsis: '設定…',
     noDue: '期限なし',
     clearSelection: '選択解除',
-    selectTaskForDetail: 'タスクを選択すると詳細を表示します',
     allDoneTitle: 'すべて完了です！',
     allDoneSubtitle: 'お疲れさまでした',
     completedHeader: '完了済み ({{count}})',
@@ -289,6 +296,7 @@ export default {
     moreMenuAria: 'リスト移動メニュー',
     dueDateAria: '期限を設定',
     archive: 'アーカイブ',
+    archiveAria: 'アーカイブ',
   },
   taskBin: {
     count: '{{count}} 件',
@@ -347,6 +355,7 @@ export default {
   },
   calendar: {
     addTaskPlaceholder: 'タスク追加',
+    addTaskAria: 'この日に ToDo を追加',
     thisMonth: '今月',
     weekdayInitials: ['月', '火', '水', '木', '金', '土', '日'],
   },

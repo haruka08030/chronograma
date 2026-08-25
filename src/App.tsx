@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next'
 import i18n from './i18n/config'
 import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
-import { Sidebar, LIST_PREFIX } from './components/Sidebar'
+import { Sidebar } from './components/Sidebar'
+import { TodoNavPanel } from './components/TodoNavPanel'
+import { LIST_PREFIX } from './lib/listDnD'
 import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
@@ -37,7 +39,8 @@ import {
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
-import { isTodoSurfaceView } from './lib/todoSurfaceView'
+import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
+import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
 import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
 import {
@@ -45,7 +48,8 @@ import {
   DragOverlay,
   closestCenter,
   pointerWithin,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -53,6 +57,7 @@ import {
   type CollisionDetection,
 } from '@dnd-kit/core'
 import type { Task } from './types/task'
+import { MobileBottomNav } from './components/MobileBottomNav'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -144,11 +149,15 @@ export default function App() {
   const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
+  const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+  )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id)
@@ -293,6 +302,7 @@ export default function App() {
         sortMode: state.sortMode,
         filterTag: state.filterTag,
         sections: state.sections,
+        listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
       })
       const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,
@@ -398,8 +408,8 @@ export default function App() {
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
-  const showMobileChromeWhenHeaderHidden =
-    hideGlobalHeader && selectedView !== 'calendar' && !searchQuery.trim()
+  // 細い To‑Do パネルは lg 以上のみ。それ未満は置く幅がないのでサイドバー内に畳み込む
+  const showTodoNavPanel = isLargeScreen && isTodoNavView(selectedView)
 
   const mainContent = (() => {
     if (searchQuery.trim()) return <SearchResults />
@@ -432,13 +442,15 @@ export default function App() {
       <div className="h-dvh min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {showTodoNavPanel ? <TodoNavPanel /> : null}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {!hideGlobalHeader && (
             <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-2 -ml-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="md:hidden p-2.5 -ml-1 rounded-lg touch-manipulation hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -477,21 +489,6 @@ export default function App() {
             </header>
           )}
 
-          {showMobileChromeWhenHeaderHidden && (
-            <div className="flex flex-shrink-0 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 md:hidden">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="-ml-1 shrink-0 rounded-lg p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                aria-label={t('app.openMenu')}
-              >
-                <svg className="h-5 w-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
-              </button>
-            </div>
-          )}
-
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {mainContent}
           </div>
@@ -500,6 +497,10 @@ export default function App() {
         <UndoToast />
         <MoveToast />
         <FloatingTimer />
+        <MobileBottomNav
+          onOpenMore={() => setSidebarOpen(true)}
+          onNavigate={() => setSidebarOpen(false)}
+        />
       </div>
 
       <DragOverlay dropAnimation={null}>

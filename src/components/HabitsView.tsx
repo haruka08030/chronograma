@@ -624,10 +624,10 @@ export function HabitsView() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="px-6 pt-8 pb-4">
+      <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('habits.title')}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{t('habits.subtitle')}</p>
           </div>
           <button
@@ -647,7 +647,7 @@ export function HabitsView() {
         </div>
       </div>
 
-      <div className="space-y-4 px-6 pb-8">
+      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
         <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
           <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.heatmapTitle')}</h2>
           <div className="grid grid-cols-7 gap-2">

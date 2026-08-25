@@ -13,6 +13,10 @@ function formatElapsed(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/** ボトムナビ + safe-area の上に載せる共通オフセット（md 以上は従来どおり） */
+const MOBILE_FLOAT_BOTTOM =
+  'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
+
 export function FloatingTimer() {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -34,9 +38,13 @@ export function FloatingTimer() {
   if (!activeTimer) return null
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
-                    bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700
-                    px-5 py-3 flex items-center gap-4 min-w-[280px]">
+    <div
+      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
+                    rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
+                    dark:border-zinc-700 dark:bg-zinc-800
+                    flex items-center gap-3 md:min-w-[280px] md:w-auto md:gap-4 md:px-5
+                    ${MOBILE_FLOAT_BOTTOM}`}
+    >
       <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
@@ -57,7 +65,7 @@ export function FloatingTimer() {
       </span>
       <button
         onClick={stopTimer}
-        className="p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors"
+        className="rounded-xl bg-red-500 p-2.5 text-white transition-colors touch-manipulation hover:bg-red-600 md:p-2"
         title={t('floatingTimer.stopTitle')}
       >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

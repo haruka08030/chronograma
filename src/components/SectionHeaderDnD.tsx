@@ -50,8 +50,8 @@ export function SectionHeaderDnD({
           type="button"
           {...listeners}
           {...attributes}
-          className="touch-none flex-shrink-0 rounded-md p-1 cursor-grab active:cursor-grabbing
-                     text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400
+          className="touch-none flex-shrink-0 rounded-md p-1.5 cursor-grab active:cursor-grabbing
+                     text-zinc-400 md:p-1 md:text-zinc-300 hover:text-zinc-500 dark:text-zinc-500 dark:md:text-zinc-600 dark:hover:text-zinc-400
                      hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80"
           title={t('taskList.reorderSection')}
           aria-label={t('taskList.reorderSection')}

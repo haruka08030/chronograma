@@ -207,17 +207,17 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             e.stopPropagation()
             selection.onToggle(e)
           }}
-          className={`flex-shrink-0 rounded border flex items-center justify-center transition-all touch-none
-            ${isSubtask ? 'w-3.5 h-3.5' : 'w-4 h-4'}
+          className={`flex-shrink-0 rounded border flex items-center justify-center transition-all touch-manipulation
+            ${isSubtask ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
             ${selection.reveal || selection.selected
               ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100'}
+              : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}
             ${selection.selected
               ? 'border-accent-500 bg-accent-500 text-white'
               : 'border-zinc-300 dark:border-zinc-600 bg-transparent hover:border-zinc-400 dark:hover:border-zinc-500'}`}
         >
           {selection.selected && (
-            <svg className={isSubtask ? 'w-2 h-2' : 'w-2.5 h-2.5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <svg className={isSubtask ? 'w-2.5 h-2.5 md:w-2 md:h-2' : 'w-3 h-3 md:w-2.5 md:h-2.5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           )}
@@ -233,8 +233,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           }
           toggleTask(task.id)
         }}
-        className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all
-          ${isSubtask ? 'w-4 h-4' : 'w-[18px] h-[18px]'}
+        className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all touch-manipulation
+          ${isSubtask ? 'h-5 w-5 md:h-4 md:w-4' : 'h-6 w-6 md:h-[18px] md:w-[18px]'}
           ${
             task.completed
               ? timeLog
@@ -255,7 +255,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         }
       >
         {task.completed && (
-          <svg className={isSubtask ? 'w-2.5 h-2.5' : 'w-3 h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className={isSubtask ? 'w-3 h-3 md:w-2.5 md:h-2.5' : 'w-3.5 h-3.5 md:w-3 md:h-3'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
         )}
@@ -350,7 +350,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           value={task.dueDate ?? null}
           onChange={(v) => updateTask(task.id, { dueDate: v })}
           align="right"
-          wrapperClassName="relative flex-shrink-0"
+          // md 未満はタイトル幅を確保するため出さない（期限は詳細シートで編集）
+          wrapperClassName="relative hidden flex-shrink-0 md:block"
           trigger={({ open, toggle }) => (
             <button
               type="button"
@@ -361,10 +362,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700
-                ${open || task.dueDate ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+              className={`transition-all cursor-pointer rounded-md p-1.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+                ${open || task.dueDate ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
             >
-              <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
               </svg>
             </button>
@@ -372,10 +373,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         />
       )}
 
-      <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={rowMenuRef}>
+      {/* md 未満はアーカイブ・削除もこのメニューに畳む（サブタスク行では md 以上は出さない） */}
+      <div
+        className={`relative flex-shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100
+          ${task.parentId ? 'md:hidden' : ''}`}
+        ref={rowMenuRef}
+      >
         <button
           type="button"
-          className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400"
+          className="rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-1"
           aria-expanded={rowMenuOpen}
           aria-haspopup="true"
           aria-label={t('taskItem.moreMenuAria')}
@@ -384,7 +390,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             setRowMenuOpen((o) => !o)
           }}
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Z" />
           </svg>
         </button>
@@ -394,7 +400,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             onClick={(e) => e.stopPropagation()}
           >
             {!task.parentId && (
-              <div className="px-2 pb-2">
+              <div className="px-2">
                 <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">{t('taskDetail.list')}</label>
                 <select
                   className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1"
@@ -418,30 +424,63 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 </select>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                archiveTask(task.id)
-                setRowMenuOpen(false)
-                showMoveBanner(t('toast.taskArchived'))
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              {t('taskItem.archive')}
-            </button>
+            <div className={`md:hidden ${!task.parentId ? 'mt-2 border-t border-zinc-200 pt-2 dark:border-zinc-700' : ''}`}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setRowMenuOpen(false)
+                  archiveTask(task.id)
+                  showMoveBanner(t('toast.taskArchived'))
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
+              >
+                <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                {t('taskItem.archive')}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setRowMenuOpen(false)
+                  deleteTask(task.id)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
+              >
+                <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+                {t('common.delete')}
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       <button
-        onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-        aria-label={t('taskItem.deleteAria')}
+        onClick={(e) => {
+          e.stopPropagation()
+          archiveTask(task.id)
+          showMoveBanner(t('toast.taskArchived'))
+        }}
+        className="hidden rounded-md p-1 opacity-0 transition-all hover:bg-zinc-200 group-hover:opacity-100 md:block dark:hover:bg-zinc-700"
+        aria-label={t('taskItem.archiveAria')}
+        title={t('taskItem.archive')}
       >
-        <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+        </svg>
+      </button>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
+        className="hidden rounded-md p-1 opacity-0 transition-all hover:bg-zinc-200 group-hover:opacity-100 md:block dark:hover:bg-zinc-700"
+        aria-label={t('taskItem.deleteAria')}
+        title={t('taskItem.deleteAria')}
+      >
+        <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
         </svg>
       </button>

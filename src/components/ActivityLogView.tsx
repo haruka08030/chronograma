@@ -257,15 +257,15 @@ export function ActivityLogView() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center justify-between px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-8">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('activityLog.title')}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('activityLog.title')}</h1>
           <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{dateLabel}</p>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setSelectedDate((d) => subDays(d, 1))}
-            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="rounded-lg p-2.5 touch-manipulation hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors md:p-2"
           >
             <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -274,13 +274,13 @@ export function ActivityLogView() {
           <button
             onClick={() => setSelectedDate(new Date())}
             className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800
-                       text-zinc-600 dark:text-zinc-400 transition-colors"
+                       text-zinc-600 dark:text-zinc-400 transition-colors touch-manipulation"
           >
             {t('activityLog.today')}
           </button>
           <button
             onClick={() => setSelectedDate((d) => addDays(d, 1))}
-            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="rounded-lg p-2.5 touch-manipulation hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors md:p-2"
           >
             <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -289,9 +289,9 @@ export function ActivityLogView() {
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left panel: Timer + Manual entry + Summary */}
-        <div className="w-80 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto p-4 space-y-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+        {/* Timer + Manual entry + Summary（モバイルは上に縦積み） */}
+        <div className="max-h-[40vh] w-full flex-shrink-0 space-y-4 overflow-y-auto border-b border-zinc-200 p-3 dark:border-zinc-800 md:max-h-none md:w-80 md:space-y-5 md:border-b-0 md:border-r md:p-4">
           {/* Timer section */}
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
             <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
@@ -551,6 +551,7 @@ export function ActivityLogView() {
                 onPointerDown={(e) => timelineDrag.handleCreatePointerDown(e, dateKey)}
                 onPointerMove={timelineDrag.handlePointerMove}
                 onPointerUp={timelineDrag.handlePointerUp}
+                onPointerCancel={timelineDrag.handlePointerCancel}
                 onDragEnter={timelineDrop.handleDragEnter}
                 onDragOver={(e) => timelineDrop.handleDragOver(e, dateKey)}
                 onDragLeave={timelineDrop.handleDragLeave}

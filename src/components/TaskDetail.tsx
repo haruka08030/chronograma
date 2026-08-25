@@ -21,15 +21,13 @@ const PRIORITY_OPTIONS: { value: Priority; color: string }[] = [
   { value: 'high', color: 'text-red-500' },
 ]
 
+/** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
 export function TaskDetail({
   task,
   onClose,
-  layout = 'split',
 }: {
   task: Task
   onClose: () => void
-  /** `split`: 右ペインとしてメイン列と並べる。`modal`: 従来の全画面オーバーレイ */
-  layout?: 'modal' | 'split'
 }) {
   const { t, i18n } = useTranslation()
   const dueDateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
@@ -659,14 +657,6 @@ export function TaskDetail({
           )}
         </div>
   )
-
-  if (layout === 'split') {
-    return (
-      <aside className="flex h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="min-h-0 flex-1 overflow-y-auto">{detailBody}</div>
-      </aside>
-    )
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>

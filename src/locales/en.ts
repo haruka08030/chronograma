@@ -98,6 +98,14 @@ export default {
     searchPlaceholder: 'Search… (⌘K)',
     openMenu: 'Open menu',
   },
+  nav: {
+    aria: 'Main',
+    todo: 'To‑Do',
+    calendar: 'Calendar',
+    log: 'Log',
+    habits: 'Habits',
+    more: 'More',
+  },
   habits: {
     title: 'Habits',
     subtitle: 'Overview and tracking',
@@ -213,7 +221,6 @@ export default {
     priorityEllipsis: 'Set…',
     noDue: 'No due date',
     clearSelection: 'Clear selection',
-    selectTaskForDetail: 'Select a task to view details',
     allDoneTitle: 'All caught up!',
     allDoneSubtitle: 'Nice work.',
     completedHeader: 'Completed ({{count}})',
@@ -288,6 +295,7 @@ export default {
     moreMenuAria: 'Move to list menu',
     dueDateAria: 'Set due date',
     archive: 'Archive',
+    archiveAria: 'Archive',
   },
   taskBin: {
     count: '{{count}} items',
@@ -346,6 +354,7 @@ export default {
   },
   calendar: {
     addTaskPlaceholder: 'Add task',
+    addTaskAria: 'Add a to-do on this day',
     thisMonth: 'This month',
     weekdayInitials: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },

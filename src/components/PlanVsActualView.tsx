@@ -54,6 +54,7 @@ import type { Task } from '../types/task'
 import { calendarEventToPlannedItem, scheduledTaskToPlannedItem } from '../lib/plannedItemUtils'
 import { habitToPlannedItem } from '../lib/habitSlots'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -579,7 +580,7 @@ function Legend() {
   const actualOnly = blockStylesForStatus('actual-only')
   const neutral = neutralPlanStyles()
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2 text-[11px]">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] md:px-6">
       <div className="flex items-center gap-1.5">
         <div className={`w-3 h-3 rounded-sm border ${matched.bgClass} ${matched.borderClass}`} />
         <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendDone')}</span>
@@ -623,7 +624,10 @@ export function PlanVsActualView() {
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
+  const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
+  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const isDesktop = useIsDesktop()
   const [showTimerInput, setShowTimerInput] = useState(false)
   const [timerInputValue, setTimerInputValue] = useState('')
   const [timerTagValue, setTimerTagValue] = useState('')
@@ -635,6 +639,13 @@ export function PlanVsActualView() {
     const we = endOfWeek(anchor, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: ws, end: we })
   }, [anchor])
+
+  const focusKey = selectedCalendarDateKey || format(new Date(), 'yyyy-MM-dd')
+  const gridDays = useMemo(() => {
+    if (isDesktop) return days
+    const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
+    return [hit ?? days[0]!]
+  }, [isDesktop, days, focusKey])
 
   useEffect(() => {
     if (!googleConnected) return
@@ -937,9 +948,9 @@ export function PlanVsActualView() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between px-6 pt-8 pb-4 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-8">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('planVsActual.title')}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('planVsActual.title')}</h1>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{weekLabel}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -1045,19 +1056,28 @@ export function PlanVsActualView() {
           <div className="flex-1 grid grid-cols-7">
             {days.map((day) => {
               const today = isToday(day)
+              const key = format(day, 'yyyy-MM-dd')
+              const selected = key === focusKey
               return (
-                <div key={day.toISOString()} className={`text-center py-2 ${today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => setSelectedCalendarDateKey(key)}
+                  className={`text-center py-2 touch-manipulation transition-colors ${
+                    today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
+                  }`}
+                >
                   <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                   <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                    ${today ? 'bg-accent-500 text-white' : ''}`}>
+                    ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
                     {format(day, 'd')}
                   </div>
-                  <div className="flex justify-center gap-0.5 mt-0.5">
+                  <div className="mt-0.5 hidden justify-center gap-0.5 sm:flex">
                     <span className="text-[9px] text-blue-500 dark:text-blue-400">{t('common.planned')}</span>
                     <span className="text-[9px] text-zinc-300 dark:text-zinc-600">|</span>
                     <span className="text-[9px] text-emerald-500 dark:text-emerald-400">{t('common.log')}</span>
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -1079,11 +1099,12 @@ export function PlanVsActualView() {
 
             <div
               ref={gridRef}
-              className="flex-1 grid grid-cols-7 relative"
+              className={`flex-1 grid relative ${isDesktop ? 'grid-cols-7' : 'grid-cols-1'}`}
               onPointerMove={timelineDrag.handlePointerMove}
               onPointerUp={timelineDrag.handlePointerUp}
+              onPointerCancel={timelineDrag.handlePointerCancel}
             >
-              {days.map((day) => {
+              {gridDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const plannedItems = plannedListsByDate.get(key) ?? []
                 const dayLogs = logTasksByDate.get(key) ?? []
