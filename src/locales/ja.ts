@@ -43,6 +43,7 @@ export default {
   toast: {
     taskMovedToList: '「{{name}}」に移動しました',
     taskArchived: 'アーカイブしました',
+    tasksArchived: '{{count}} 件をアーカイブしました',
   },
   confirm: {
     importOverwrite: '現在のデータを上書きしますか？',
@@ -217,6 +218,7 @@ export default {
     selectedCount: '{{count}} 件選択中',
     dragCount: '{{count}} 件',
     markComplete: '完了にする',
+    bulkArchive: 'アーカイブ',
     bulkDelete: '削除',
     moveEllipsis: '移動…',
     priorityEllipsis: '設定…',

@@ -215,6 +215,8 @@ export function TaskList() {
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const archiveTasks = useTaskStore((s) => s.archiveTasks)
+  const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const sections = useTaskStore((s) => s.sections)
   const addSectionStore = useTaskStore((s) => s.addSection)
   const renameSectionStore = useTaskStore((s) => s.renameSection)
@@ -699,6 +701,14 @@ export function TaskList() {
     clearSelection()
   }, [selected, deleteTasks, clearSelection])
 
+  const bulkArchive = useCallback(() => {
+    if (selected.size === 0) return
+    const count = selected.size
+    archiveTasks([...selected])
+    showMoveBanner(t('toast.tasksArchived', { count }))
+    clearSelection()
+  }, [selected, archiveTasks, showMoveBanner, t, clearSelection])
+
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
   const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
@@ -1084,6 +1094,13 @@ export function TaskList() {
               className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
             >
               {t('taskList.markComplete')}
+            </button>
+            <button
+              type="button"
+              onClick={bulkArchive}
+              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            >
+              {t('taskList.bulkArchive')}
             </button>
             <button
               type="button"
