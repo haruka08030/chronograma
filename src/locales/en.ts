@@ -43,6 +43,7 @@ export default {
   toast: {
     taskMovedToList: 'Moved to “{{name}}”.',
     taskArchived: 'Archived',
+    tasksArchived: 'Archived {{count}} tasks',
   },
   confirm: {
     importOverwrite: 'Replace current data?',
@@ -216,6 +217,7 @@ export default {
     selectedCount: '{{count}} selected',
     dragCount: '{{count}} items',
     markComplete: 'Mark complete',
+    bulkArchive: 'Archive',
     bulkDelete: 'Delete',
     moveEllipsis: 'Move…',
     priorityEllipsis: 'Set…',
