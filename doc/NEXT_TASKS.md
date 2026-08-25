@@ -9,7 +9,7 @@
 | #   | 状態     | 内容                                                                                                                                                          |
 | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **済**   | **JSON バックアップ schema v3 統一** — `src/lib/backupFormat.ts` / `mobile/lib/core/backup_format.dart`。`listSections`・`order`/`sortOrder` エイリアス       |
-| 2   | **済**   | **Web CSV タスク取り込み（マージ）** — `importTasksFromCsv`、サイドバー「CSV からタスク追加」                                                                 |
+| 2   | **済**   | **Web CSV タスク取り込み（マージ）** — `importTasksFromCsv`、設定「データ」セクション                                                                 |
 | 3   | **済**   | **モバイル `completed_at`** — `Task.completedAt` / Supabase fetch・push（`completed_at`）を反映、完了トグルで自動更新                                        |
 | 4   | **済**   | **バックアップ import バリデーション強化** — 重複 ID・孤児 `listId` / `sectionId` / `parentId` を検出した JSON は取り込み拒否                               |
 
