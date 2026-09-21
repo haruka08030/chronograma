@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { parseTimeLogTagPresetLines } from '../lib/tagColors'
 import { LIST_COLOR_PALETTES } from '../lib/listColorPalettes'
@@ -17,6 +18,9 @@ export function SettingsView() {
   const setTimeLogTagPresets = useTaskStore((s) => s.setTimeLogTagPresets)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
   const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
+  const exportData = useTaskStore((s) => s.exportData)
+  const importData = useTaskStore((s) => s.importData)
+  const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
 
   useLayoutEffect(() => {
     if (!settingsScrollTarget) return
@@ -25,6 +29,9 @@ export function SettingsView() {
     document.getElementById(id)?.scrollIntoView({ block: 'start' })
     clearSettingsScrollTarget()
   }, [settingsScrollTarget, clearSettingsScrollTarget])
+
+  const jsonInputRef = useRef<HTMLInputElement>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
 
   const [presetText, setPresetText] = useState(() => timeLogTagPresets.join('\n'))
   const presetDirtyRef = useRef(false)
@@ -154,6 +161,95 @@ export function SettingsView() {
             )
           })}
         </div>
+      </section>
+
+      <section
+        id="settings-data"
+        className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50"
+      >
+        <h2 className="mb-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('settings.data')}</h2>
+        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.dataIntro')}</p>
+
+        <div className="space-y-4">
+          <div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={exportData} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                {t('sidebar.export')}
+              </button>
+              <button type="button" onClick={() => jsonInputRef.current?.click()} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                {t('sidebar.import')}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.backupHint')}</p>
+          </div>
+
+          <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <button type="button" onClick={() => csvInputRef.current?.click()} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c1.01.014 1.887.093 2.927.26 1.066.174 1.976 1.053 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-3.75m-9-2.25h9" />
+              </svg>
+              {t('sidebar.importCsv')}
+            </button>
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.csvHint')}</p>
+          </div>
+        </div>
+
+        <input
+          ref={jsonInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            if (!window.confirm(i18n.t('confirm.importOverwrite'))) {
+              e.target.value = ''
+              return
+            }
+            const reader = new FileReader()
+            reader.onload = () => {
+              const ok = importData(reader.result as string)
+              if (!ok) alert(i18n.t('alert.invalidImportFile'))
+            }
+            reader.readAsText(file)
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = () => {
+              const text = reader.result as string
+              const result = importTasksFromCsv(text)
+              if (result.errors.length > 0) {
+                alert(i18n.t('alert.invalidCsvFile'))
+              } else if (result.imported === 0) {
+                alert(i18n.t('alert.csvNoRows'))
+              } else {
+                alert(
+                  i18n.t('alert.csvImported', {
+                    count: result.imported,
+                    skipped: result.skipped,
+                  }),
+                )
+              }
+            }
+            reader.readAsText(file)
+            e.target.value = ''
+          }}
+        />
       </section>
     </div>
   )

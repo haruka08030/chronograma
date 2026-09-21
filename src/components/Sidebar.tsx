@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import i18n from '../i18n/config'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { getAppInstallUrl } from '../lib/appInstallUrl'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
@@ -34,16 +33,11 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const selectedView = useTaskStore((s) => s.selectedView)
   const selectView = useTaskStore((s) => s.selectView)
   const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
-  const exportData = useTaskStore((s) => s.exportData)
-  const importData = useTaskStore((s) => s.importData)
-  const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
   const toggleNotifications = useTaskStore((s) => s.toggleNotifications)
   const isDesktop = useIsDesktop()
   const isLargeScreen = useIsLargeScreen()
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const csvInputRef = useRef<HTMLInputElement>(null)
   const accountMenuRootRef = useRef<HTMLDivElement>(null)
   const accountMenuFirstItemRef = useRef<HTMLButtonElement>(null)
 
@@ -225,88 +219,6 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           </svg>
           {notificationsEnabled ? t('sidebar.notificationsOn') : t('sidebar.notificationsOff')}
         </button>
-        <button
-          onClick={exportData}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
-                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
-                     rounded-lg transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          {t('sidebar.export')}
-        </button>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
-                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
-                     rounded-lg transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-          </svg>
-          {t('sidebar.import')}
-        </button>
-        <button
-          onClick={() => csvInputRef.current?.click()}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
-                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
-                     rounded-lg transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c1.01.014 1.887.093 2.927.26 1.066.174 1.976 1.053 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-3.75m-9-2.25h9" />
-          </svg>
-          {t('sidebar.importCsv')}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
-            if (!window.confirm(i18n.t('confirm.importOverwrite'))) {
-              e.target.value = ''
-              return
-            }
-            const reader = new FileReader()
-            reader.onload = () => {
-              const ok = importData(reader.result as string)
-              if (!ok) alert(i18n.t('alert.invalidImportFile'))
-            }
-            reader.readAsText(file)
-            e.target.value = ''
-          }}
-        />
-        <input
-          ref={csvInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
-            const reader = new FileReader()
-            reader.onload = () => {
-              const text = reader.result as string
-              const result = importTasksFromCsv(text)
-              if (result.errors.length > 0) {
-                alert(i18n.t('alert.invalidCsvFile'))
-              } else if (result.imported === 0) {
-                alert(i18n.t('alert.csvNoRows'))
-              } else {
-                const msg = i18n.t('alert.csvImported', {
-                  count: result.imported,
-                  skipped: result.skipped,
-                })
-                alert(msg)
-              }
-            }
-            reader.readAsText(file)
-            e.target.value = ''
-          }}
-        />
       </div>
     </aside>
   )

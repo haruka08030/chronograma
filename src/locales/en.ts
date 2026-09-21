@@ -170,8 +170,12 @@ export default {
   },
   settings: {
     title: 'Settings',
-    intro: 'Appearance, account, activity log tag presets, and list color palette.',
+    intro: 'Change appearance, account, activity-log tag suggestions, list color palettes, and data import/export.',
     appearance: 'Appearance',
+    data: 'Data',
+    dataIntro: 'Save and restore backups, and import tasks from other apps.',
+    backupHint: 'An exported JSON file can be restored with Import. Importing replaces all current data.',
+    csvHint: 'Adds tasks from a CSV exported by another app to your current data (does not replace it). The first row needs a title column.',
     account: 'Account',
     accountHelp: 'Sign in with a magic link to sync tasks across devices.',
     supabaseOff: 'Supabase is not configured; cloud sign-in is unavailable.',
