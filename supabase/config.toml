@@ -6,3 +6,7 @@ enabled = true
 
 [functions.google-calendar]
 verify_jwt = true
+
+# cron（pg_cron + pg_net）から CRON_SECRET ヘッダー付きで呼ぶ。利用者の JWT は無い
+[functions.daily-reminders]
+verify_jwt = false
