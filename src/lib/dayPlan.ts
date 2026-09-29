@@ -1,3 +1,4 @@
+import { addDays, format, parseISO } from 'date-fns'
 import type { Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { isListedTimeLog } from './timeLogTask'
@@ -6,6 +7,8 @@ import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDat
 export interface DayPlan {
   /** 過去に置いたまま終わっていないルートタスク */
   carryOver: Task[]
+  /** まだ先の日に置いてあるが、締切（期限日）が 3 日以内に来る未完了タスク（課題・ES など） */
+  dueSoon: Task[]
   open: Task[]
   done: Task[]
   plannedMinutes: number
@@ -20,9 +23,13 @@ function compareDayTasks(a: Task, b: Task): number {
   return a.order - b.order
 }
 
+const DUE_SOON_DAYS = 3
+
 /** 「今日の計画」と日次リマインダーで共通の、その日（`yyyy-MM-dd`）の集計 */
 export function getDayPlan(tasks: readonly Task[], dateKey: string): DayPlan {
   const carryOver: Task[] = []
+  const dueSoon: Task[] = []
+  const dueSoonLimit = format(addDays(parseISO(`${dateKey}T12:00:00`), DUE_SOON_DAYS), 'yyyy-MM-dd')
   const open: Task[] = []
   const done: Task[] = []
   let plannedMinutes = 0
@@ -41,10 +48,13 @@ export function getDayPlan(tasks: readonly Task[], dateKey: string): DayPlan {
       else open.push(task)
     } else if (placed && placed < dateKey && !task.completed) {
       carryOver.push(task)
+    } else if (placed && !task.completed && task.dueDate && task.dueDate > dateKey && task.dueDate <= dueSoonLimit) {
+      dueSoon.push(task)
     }
   }
   open.sort(compareDayTasks)
   done.sort(compareDayTasks)
   carryOver.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
-  return { carryOver, open, done, plannedMinutes, loggedMinutes }
+  dueSoon.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+  return { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes }
 }

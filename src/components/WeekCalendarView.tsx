@@ -495,8 +495,8 @@ export function WeekCalendarView({
                     key={key}
                     data-datekey={key}
                     className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
-                      ${today ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}
-                      ${selectedDateKey === key ? 'ring-1 ring-inset ring-accent-400/50' : ''}`}
+                      ${today && !singleDay ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}
+                      ${selectedDateKey === key && !singleDay ? 'ring-1 ring-inset ring-accent-400/50' : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
                     onPointerDown={(e) => {
                       onSelectDate?.(key)
