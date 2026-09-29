@@ -216,9 +216,13 @@ export function CalendarView({
                     </div>
                   ))}
                   {(dayTasks.length > 3 || dayEvents.length > 2) && (
-                    <div className="text-[10px] text-zinc-400 px-1.5">
-                      +{Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0)}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onSelectDate?.(key) }}
+                      className="rounded px-1.5 text-[10px] text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    >
+                      {t('calendar.moreItems', { count: Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0) })}
+                    </button>
                   )}
                   {addingDate === key && (
                     <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />

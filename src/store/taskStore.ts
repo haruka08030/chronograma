@@ -43,6 +43,7 @@ const INBOX_ID = '__inbox__'
 export type CalendarMode = 'month' | 'week'
 
 export type SmartView =
+  | 'planner'
   | 'all'
   | 'today'
   | 'upcoming'
@@ -57,7 +58,7 @@ export type SmartView =
   | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
-export type SettingsScrollTarget = 'appearance' | 'account'
+export type SettingsScrollTarget = 'appearance' | 'account' | 'install'
 
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
@@ -75,6 +76,14 @@ export interface ActiveTimer {
   taskTitle: string
   startedAt: string
   tags: string[]
+  /** 「今日の計画」などタスクから開始したときの元タスク。停止時に完了確認を出す */
+  taskId?: string | null
+}
+
+/** 朝の計画・夕方の締めの通知時刻（`HH:mm`）。null はオフ */
+export interface DailyReminders {
+  planTime: string | null
+  wrapUpTime: string | null
 }
 
 interface TaskState {
@@ -105,6 +114,13 @@ interface TaskState {
   googleConnectionError: string | null
 
   activeTimer: ActiveTimer | null
+  /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
+  completePromptTaskId: string | null
+  dailyReminders: DailyReminders
+  /** 「今日の計画」で通知の案内を閉じたか */
+  reminderPromptDismissed: boolean
+  /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
+  dailyCapacityMinutes: number
 
   habits: Habit[]
 
@@ -189,8 +205,12 @@ interface TaskState {
     description?: string,
     endDate?: string | null,
   ) => void
-  startTimer: (title: string, tags?: string[]) => void
+  startTimer: (title: string, tags?: string[], taskId?: string | null) => void
   stopTimer: () => void
+  dismissCompletePrompt: () => void
+  setDailyReminders: (patch: Partial<DailyReminders>) => void
+  dismissReminderPrompt: () => void
+  setDailyCapacityMinutes: (minutes: number) => void
   toggleTask: (id: string) => void
   updateTask: (
     id: string,
@@ -218,6 +238,8 @@ interface TaskState {
       >
     >,
   ) => void
+  /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
+  rescheduleTasks: (ids: string[], dateKey: string) => void
   bulkUpdateTasks: (
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>,
@@ -497,9 +519,9 @@ export const useTaskStore = create<TaskState>()(
       tasks: [],
       lists: [defaultInbox],
       selectedListId: INBOX_ID,
-      selectedView: null,
+      selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
-      calendarMode: 'month' as CalendarMode,
+      calendarMode: 'week' as CalendarMode,
       selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
       theme: 'light',
       searchQuery: '',
@@ -518,6 +540,10 @@ export const useTaskStore = create<TaskState>()(
       googleAccessToken: null,
       googleConnectionError: null,
       activeTimer: null,
+      completePromptTaskId: null as string | null,
+      dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
+      reminderPromptDismissed: false,
+      dailyCapacityMinutes: 480,
 
       habits: [],
 
@@ -1050,23 +1076,38 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
-      startTimer: (title, tags) => {
-        set({ activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [] } })
+      startTimer: (title, tags, taskId) => {
+        set({
+          activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [], taskId: taskId ?? null },
+          completePromptTaskId: null,
+        })
       },
+      dismissCompletePrompt: () => set({ completePromptTaskId: null }),
+      setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
+      dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
+      setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
       stopTimer: () => {
         const timer = get().activeTimer
         if (!timer) return
         const start = new Date(timer.startedAt)
         const end = new Date()
+        // 1 分未満は誤操作とみなして記録しない。開始と終了が同じ HH:mm になると
+        // 「終了が開始以前＝翌日まで」の規則で約 24 時間のログになってしまうため
+        if (end.getTime() - start.getTime() < 60_000) {
+          set({ activeTimer: null, completePromptTaskId: null })
+          return
+        }
         const dueDate = format(start, 'yyyy-MM-dd')
         const endDay = format(end, 'yyyy-MM-dd')
         const endDate = endDay !== dueDate ? endDay : null
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
         pushUndo()
         set((s) => ({
           activeTimer: null,
+          completePromptTaskId: linked && !linked.completed ? linked.id : null,
           tasks: [
             ...s.tasks,
             makeTask({
@@ -1125,6 +1166,18 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         return set((s) => ({
           tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
+        }))
+      },
+      rescheduleTasks: (ids, dateKey) => {
+        if (ids.length === 0) return
+        pushUndo()
+        const selected = new Set(ids)
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            selected.has(t.id)
+              ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null })
+              : t,
+          ),
         }))
       },
       bulkUpdateTasks: (ids, patch) => {
@@ -1711,8 +1764,10 @@ export const useTaskStore = create<TaskState>()(
           moveBannerText,
           taskDragHoverListId,
           settingsScrollTarget,
+          completePromptTaskId,
           ...rest
         } = state
+        void completePromptTaskId
         void searchQuery
         void deletedTasks
         void quickAddRequested

@@ -10,6 +10,7 @@ import {
   subWeeks,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
@@ -71,31 +72,31 @@ function blockStylesForStatus(status: MatchStatus): {
     case 'matched':
       return {
         borderClass: 'border-emerald-400 dark:border-emerald-500/50',
-        bgClass: 'bg-emerald-50 dark:bg-emerald-500/15',
+        bgClass: 'bg-emerald-50 dark:bg-emerald-950',
         textClass: 'text-emerald-900 dark:text-emerald-100',
       }
     case 'time-drift':
       return {
         borderClass: 'border-amber-400 dark:border-amber-500/60',
-        bgClass: 'bg-amber-50 dark:bg-amber-500/10',
+        bgClass: 'bg-amber-50 dark:bg-amber-950',
         textClass: 'text-amber-800 dark:text-amber-200',
       }
     case 'planned-only':
       return {
         borderClass: 'border-red-300 dark:border-red-500/40 border-dashed',
-        bgClass: 'bg-red-50/60 dark:bg-red-500/10',
+        bgClass: 'bg-red-50 dark:bg-red-950',
         textClass: 'text-red-800 dark:text-red-200',
       }
     case 'actual-only':
       return {
         borderClass: 'border-purple-300 dark:border-purple-500/40',
-        bgClass: 'bg-purple-50 dark:bg-purple-500/15',
+        bgClass: 'bg-purple-50 dark:bg-purple-950',
         textClass: 'text-purple-800 dark:text-purple-200',
       }
     default:
       return {
         borderClass: 'border-zinc-200 dark:border-zinc-600',
-        bgClass: 'bg-zinc-50 dark:bg-zinc-800/80',
+        bgClass: 'bg-zinc-50 dark:bg-zinc-800',
         textClass: 'text-zinc-800 dark:text-zinc-200',
       }
   }
@@ -104,7 +105,7 @@ function blockStylesForStatus(status: MatchStatus): {
 function neutralPlanStyles(): { borderClass: string; bgClass: string; textClass: string } {
   return {
     borderClass: 'border-zinc-200 dark:border-zinc-600',
-    bgClass: 'bg-zinc-50 dark:bg-zinc-800/80',
+    bgClass: 'bg-zinc-50 dark:bg-zinc-800',
     textClass: 'text-zinc-800 dark:text-zinc-200',
   }
 }
@@ -131,7 +132,8 @@ function actualBlockStyles(matchStatus: MatchedPair | undefined): {
   return blockStylesForStatus(matchStatus.status)
 }
 
-function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, onOpen }: {
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, onOpen, hStyle }: {
+  hStyle?: React.CSSProperties
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
@@ -142,6 +144,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   const { t } = useTranslation()
   const top = timeToY(item.startTime)
   const height = Math.max(timeToY(item.endTime) - top, HOUR_HEIGHT / 4)
+  const tooltip = `${item.summary}  ${item.startTime} – ${item.endTime}`
 
   const isDone = matchStatus?.status === 'matched' || matchStatus?.status === 'time-drift'
   const styles = planBlockStyles(matchStatus)
@@ -156,9 +159,10 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   return (
     <div
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden
-        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned
+        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned hover:z-30!
         ${onOpen ? 'cursor-pointer' : ''}`}
-      style={{ top, height, minHeight: 18 }}
+      title={tooltip}
+      style={{ top, height, minHeight: 18, ...hStyle }}
       onPointerDown={(e) => {
         e.stopPropagation()
       }}
@@ -217,7 +221,8 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   )
 }
 
-function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail }: {
+function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail, hStyle }: {
+  hStyle?: React.CSSProperties
   task: Task
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
@@ -226,6 +231,7 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   const { t } = useTranslation()
   const top = timeToY(task.startTime!)
   const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
+  const tooltip = `${task.title}  ${task.startTime} – ${task.endTime}`
 
   const styles = planBlockStyles(matchStatus, { taskCompleted: task.completed })
   let label: string | null = null
@@ -258,10 +264,11 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         flex flex-col items-stretch
-        border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
+        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
         ${styles.borderClass} ${styles.bgClass} ${styles.textClass}
         ${task.completed ? 'line-through opacity-80' : ''}`}
-      style={{ top, height, minHeight: 18 }}
+      title={tooltip}
+      style={{ top, height, minHeight: 18, ...hStyle }}
     >
       <span className="font-medium truncate block">{task.title}</span>
       {height >= 32 && (
@@ -276,7 +283,8 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   )
 }
 
-function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail }: {
+function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, hStyle }: {
+  hStyle?: React.CSSProperties
   task: Task
   dateKey: string
   matchStatus?: MatchedPair
@@ -287,6 +295,7 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail }
   const seg = timeLogSegmentLayoutForDay(task, dateKey)
   const top = seg?.top ?? timeToY(task.startTime!)
   const height = seg?.height ?? Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
+  const tooltip = `${task.title}  ${task.startTime} – ${task.endTime}`
 
   const styles = actualBlockStyles(matchStatus)
   let label: string | null = null
@@ -319,9 +328,10 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail }
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         flex flex-col items-stretch
-        border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
+        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
         ${styles.borderClass} ${styles.bgClass} ${styles.textClass}`}
-      style={{ top, height, minHeight: 18 }}
+      title={tooltip}
+      style={{ top, height, minHeight: 18, ...hStyle }}
     >
       <span className="font-medium truncate block">{task.title}</span>
       {height >= 32 && (
@@ -497,11 +507,13 @@ function GoogleConnectBanner() {
   const displayError = error ?? googleConnectionError
 
   if (!clientId) {
+    // 環境変数の不足はデプロイ側の問題なので、エンドユーザーには何も見せない
+    if (!import.meta.env.DEV) return null
     return (
-      <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
-        <p className="font-medium">{t('planVsActual.googleHeading')}</p>
+      <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
+        <p className="font-medium">{t('planVsActual.googleUnavailableHeading')}</p>
         <p className="text-xs mt-1 opacity-80">
-          {t('planVsActual.googleBody')}
+          {t('planVsActual.googleUnavailableBody')}
         </p>
       </div>
     )
@@ -557,7 +569,7 @@ function GoogleConnectBanner() {
           </button>
         </div>
       )}
-      {clientId && redirectUri && (
+      {import.meta.env.DEV && clientId && redirectUri && (
         <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 space-y-1">
           <p>{t('planVsActual.redirectUriHint', { uri: redirectUri })}</p>
           <p className="font-mono break-all">
@@ -1109,6 +1121,22 @@ export function PlanVsActualView() {
                 const plannedItems = plannedListsByDate.get(key) ?? []
                 const dayLogs = logTasksByDate.get(key) ?? []
                 const today = isToday(day)
+                // 列内で時間が被るブロックは横に並べる（重ねると下のものが読めなくなる）。週表示は列が狭いのでずらし重ね
+                const slotMode = gridDays.length > 1 ? 'cascade' : 'columns'
+                const planSlots = layoutOverlaps(
+                  plannedItems.map((item) => {
+                    const top = timeToY(item.startTime)
+                    return { id: item.id, top, height: Math.max(timeToY(item.endTime) - top, HOUR_HEIGHT / 4, 18) }
+                  }),
+                )
+                const logSlots = layoutOverlaps(
+                  dayLogs.map((t) => {
+                    const seg = timeLogSegmentLayoutForDay(t, key)
+                    const top = seg?.top ?? timeToY(t.startTime!)
+                    const height = seg?.height ?? Math.max(timeToY(t.endTime!) - top, HOUR_HEIGHT / 4)
+                    return { id: t.id, top, height: Math.max(height, 18) }
+                  }),
+                )
 
                 return (
                   <div
@@ -1155,6 +1183,7 @@ export function PlanVsActualView() {
                           return (
                             <div key={item.id} style={{ opacity: timelineDrag.movingTaskId === task.id ? 0.3 : 1 }}>
                               <ScheduledTaskDragBlock
+                                hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                                 task={task}
                                 matchStatus={match}
                                 onPointerDown={(e) =>
@@ -1174,6 +1203,7 @@ export function PlanVsActualView() {
                           return (
                             <PlannedItemBlock
                               key={item.id}
+                              hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                               item={item}
                               matchStatus={match}
                               dateKey={key}
@@ -1187,6 +1217,7 @@ export function PlanVsActualView() {
                         return (
                           <PlannedItemBlock
                             key={item.id}
+                            hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                             item={item}
                             matchStatus={match}
                             dateKey={key}
@@ -1248,6 +1279,7 @@ export function PlanVsActualView() {
                       {dayLogs.map((t) => (
                         <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
+                            hStyle={overlapSlotStyle(logSlots.get(t.id), 0, 100, 2, slotMode)}
                             task={t}
                             dateKey={key}
                             matchStatus={getMatchForActual(key, t.id)}

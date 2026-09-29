@@ -35,7 +35,7 @@ export function FloatingTimer() {
     return () => clearInterval(id)
   }, [activeTimer])
 
-  if (!activeTimer) return null
+  if (!activeTimer) return <CompletePrompt />
 
   return (
     <div
@@ -71,6 +71,54 @@ export function FloatingTimer() {
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
           <rect x="6" y="6" width="12" height="12" rx="1" />
         </svg>
+      </button>
+    </div>
+  )
+}
+
+/** タスクから始めた記録を止めた直後に、そのタスクを完了にするか聞く（放置すると数秒で消える） */
+function CompletePrompt() {
+  const { t } = useTranslation()
+  const taskId = useTaskStore((s) => s.completePromptTaskId)
+  const task = useTaskStore((s) => (taskId ? s.tasks.find((x) => x.id === taskId) ?? null : null))
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const dismiss = useTaskStore((s) => s.dismissCompletePrompt)
+
+  useEffect(() => {
+    if (!taskId) return
+    const id = setTimeout(dismiss, 12_000)
+    return () => clearTimeout(id)
+  }, [taskId, dismiss])
+
+  if (!task || task.completed) return null
+
+  return (
+    <div
+      role="status"
+      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
+                  rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
+                  dark:border-zinc-700 dark:bg-zinc-800 flex items-center gap-3
+                  ${MOBILE_FLOAT_BOTTOM}`}
+    >
+      <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
+        {t('floatingTimer.completePrompt', { title: task.title })}
+      </p>
+      <button
+        type="button"
+        onClick={dismiss}
+        className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+      >
+        {t('floatingTimer.notYet')}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          toggleTask(task.id)
+          dismiss()
+        }}
+        className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700"
+      >
+        {t('floatingTimer.markDone')}
       </button>
     </div>
   )

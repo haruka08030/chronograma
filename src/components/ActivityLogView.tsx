@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, addDays, subDays, isToday } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
@@ -175,6 +176,17 @@ export function ActivityLogView() {
       .filter((t) => t.startTime && t.endTime && !t.parentId && t.isTimeLog && isActiveTask(t) && logOverlapsDateKey(t, dateKey))
       .sort((a, b) => compareLogsOnDay(a, b, dateKey))
   }, [tasks, dateKey])
+
+  const logSlots = useMemo(
+    () =>
+      layoutOverlaps(
+        dayLogs.flatMap((task) => {
+          const seg = timeLogSegmentLayoutForDay(task, dateKey)
+          return seg ? [{ id: task.id, top: seg.top, height: Math.max(seg.height, 24) }] : []
+        }),
+      ),
+    [dayLogs, dateKey],
+  )
 
   const tagUniverse = useMemo(
     () => buildTimeLogTagUniverse(timeLogTagPresets, tasks),
@@ -573,25 +585,28 @@ export function ActivityLogView() {
                 ))}
 
                 {isTodaySelected && <NowIndicator />}
+                {/* 時間が被ったログは横に並べる */}
 
                 {dayLogs.map((task) => {
                   if (!task.startTime || !task.endTime) return null
                   const seg = timeLogSegmentLayoutForDay(task, dateKey)
                   if (!seg) return null
                   const { top, height } = seg
+                  const hStyle = overlapSlotStyle(logSlots.get(task.id), 0, 100, 8)
                   const dur = durationMinutesForTaskSlot(task)
                   const color = logBlockAccentFromTags(task.tags, tagUniverse)
 
                   return (
                     <button
                       key={`${task.id}::${dateKey}`}
-                      className={`absolute left-2 right-2 rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
+                      className={`absolute rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
                         cursor-grab active:cursor-grabbing select-none text-left touch-none
                         border transition-shadow hover:shadow-md hover:z-10
                         ${color.border}
                         ${color.bg}
                         ${task.completed ? 'opacity-90' : ''}`}
-                      style={{ top, height, minHeight: 24, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
+                      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
+                      style={{ top, height, minHeight: 24, ...hStyle, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current, {

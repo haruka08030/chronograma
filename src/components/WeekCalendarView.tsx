@@ -36,6 +36,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
+import { layoutPlanAndLog } from '../lib/overlapLayout'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -53,7 +54,15 @@ type TimeBlockTask = {
   parentId?: string | null
 }
 
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal }: {
+/** ブロックの縦位置（重なり計算と描画で同じ値を使う） */
+function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: boolean): { top: number; height: number } {
+  const seg = isLog && dayKey ? timeLogSegmentLayoutForDay(task as Task, dayKey) : null
+  const top = seg?.top ?? timeToY(task.startTime)
+  const height = seg?.height ?? Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
+  return { top, height: Math.max(height, 18) }
+}
+
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle }: {
   task: TimeBlockTask
   /** 週グリッド上の列の日付（ログのセグメント表示用） */
   dayKey?: string
@@ -61,17 +70,11 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
   onOpenDetail: () => void
   isLog?: boolean
   isExternal?: boolean
+  /** 重なり回避の横位置（left/width） */
+  hStyle?: React.CSSProperties
 }) {
   const { t } = useTranslation()
-  const top =
-    isLog && dayKey
-      ? (timeLogSegmentLayoutForDay(task as Task, dayKey)?.top ?? timeToY(task.startTime))
-      : timeToY(task.startTime)
-  const height =
-    isLog && dayKey
-      ? (timeLogSegmentLayoutForDay(task as Task, dayKey)?.height ??
-        Math.max(timeToY(task.endTime) - timeToY(task.startTime), HOUR_HEIGHT / 4))
-      : Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
+  const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
     const cursor = getResizeCursor(e)
@@ -79,11 +82,11 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
   }
 
   const logCls = isLog
-    ? 'bg-emerald-50/90 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 border-dashed text-emerald-900 dark:text-emerald-100'
+    ? 'bg-emerald-50 dark:bg-emerald-950 border-emerald-300 dark:border-emerald-500/40 border-dashed text-emerald-900 dark:text-emerald-100'
     : ''
   const externalCls =
     !isLog && isExternal
-      ? 'bg-blue-50 dark:bg-blue-500/15 border-blue-300 dark:border-blue-500/40 text-blue-900 dark:text-blue-100'
+      ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-500/40 text-blue-900 dark:text-blue-100'
       : ''
 
   return (
@@ -97,16 +100,17 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
           onOpenDetail()
         }
       }}
-      className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
-        border transition-shadow hover:shadow-md hover:z-10 select-none text-left touch-none
+      className={`absolute rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
+        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
         ${isLog
           ? logCls
           : isExternal
             ? externalCls
           : task.completed
             ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
-            : 'bg-accent-100 dark:bg-accent-500/20 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
-      style={{ top, height, minHeight: 18 }}
+            : 'bg-accent-100 dark:bg-accent-950 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
+      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
+      style={{ top, height, left: 2, right: 2, ...hStyle }}
     >
       <span className="font-medium">{task.title}</span>
       {isLog && <span className="ml-1 text-[9px] opacity-70">{t('common.log')}</span>}
@@ -169,10 +173,13 @@ export function WeekCalendarView({
   anchor,
   selectedDateKey,
   onSelectDate,
+  singleDay = false,
 }: {
   anchor: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
+  /** true のとき `selectedDateKey` の 1 日だけを描画し、曜日ヘッダーを出さない（「今日の計画」用） */
+  singleDay?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -198,10 +205,11 @@ export function WeekCalendarView({
 
   const focusKey = selectedDateKey ?? format(new Date(), 'yyyy-MM-dd')
   const gridDays = useMemo(() => {
-    if (isDesktop) return days
+    if (isDesktop && !singleDay) return days
     const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
     return [hit ?? days[0]!]
-  }, [isDesktop, days, focusKey])
+  }, [isDesktop, singleDay, days, focusKey])
+  const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
 
   const { allDayByDate, timedByDate, timeLogsByDate } = useMemo(() => {
     const allDay = new Map<string, typeof tasks>()
@@ -276,10 +284,13 @@ export function WeekCalendarView({
   }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = HOUR_HEIGHT * 7.5
-    }
-  }, [])
+    if (!scrollRef.current) return
+    // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
+    const now = new Date()
+    const showNow = singleDay && isToday(anchor)
+    const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : 7.5
+    scrollRef.current.scrollTop = HOUR_HEIGHT * hours
+  }, [singleDay, anchor])
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
     if (!gridRef.current) return 0
@@ -340,15 +351,19 @@ export function WeekCalendarView({
   }, [timelineDrag, addTaskWithTime])
 
   const hasAnyAllDay = useMemo(() => {
-    return days.some((d) => {
+    return gridDays.some((d) => {
       const key = format(d, 'yyyy-MM-dd')
-      return (allDayByDate.get(key)?.length ?? 0) > 0
+      // 1 日表示では終日タスクは左のリストに出るので、外部の終日予定だけを数える
+      const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0)
+      const eventCount = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay).length
+      return taskCount + eventCount > 0
     })
-  }, [days, allDayByDate])
+  }, [gridDays, singleDay, allDayByDate, eventsByDate])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {!singleDay && (
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
           <div className="flex-1 grid grid-cols-7">
@@ -384,16 +399,17 @@ export function WeekCalendarView({
             })}
           </div>
         </div>
+        )}
 
         {(hasAnyAllDay || allDayAddDate) && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
               {t('weekCalendar.allDay')}
             </div>
-            <div className={`flex-1 grid ${isDesktop ? 'grid-cols-7' : 'grid-cols-1'}`}>
+            <div className={`flex-1 grid ${gridColsClass}`}>
               {gridDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
-                const dayAllDay = allDayByDate.get(key) ?? []
+                const dayAllDay = singleDay ? [] : (allDayByDate.get(key) ?? [])
                 const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
                 return (
                   <div key={key} className="min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5">
@@ -445,7 +461,7 @@ export function WeekCalendarView({
 
             <div
               ref={gridRef}
-              className={`flex-1 grid relative ${isDesktop ? 'grid-cols-7' : 'grid-cols-1'}`}
+              className={`flex-1 grid relative ${gridColsClass}`}
               onPointerMove={timelineDrag.handlePointerMove}
               onPointerUp={timelineDrag.handlePointerUp}
               onPointerCancel={timelineDrag.handlePointerCancel}
@@ -458,6 +474,21 @@ export function WeekCalendarView({
                   (e) => !e.isAllDay && e.startTime && e.endTime,
                 )
                 const today = isToday(day)
+                // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
+                const mode = gridDays.length > 1 ? 'cascade' : 'columns'
+                const blockStyles = layoutPlanAndLog(
+                  [
+                    ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
+                    ...dayTimedEvents.map((e) => ({
+                      id: `event-${e.id}`,
+                      ...blockGeometry({ id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false }, key, false),
+                    })),
+                  ],
+                  dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+                  mode,
+                )
+                const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
+                const logStyle = (id: string) => blockStyles.get(`log:${id}`)
 
                 return (
                   <div
@@ -505,6 +536,7 @@ export function WeekCalendarView({
                             })
                           }
                           onOpenDetail={() => openDetail(t.id)}
+                          hStyle={planStyle(t.id)}
                         />
                       </div>
                     ))}
@@ -514,6 +546,7 @@ export function WeekCalendarView({
                           task={t as TimeBlockTask}
                           dayKey={key}
                           isLog
+                          hStyle={logStyle(t.id)}
                           onPointerDown={(e) =>
                             timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                                 startTime: t.startTime!,
@@ -538,6 +571,7 @@ export function WeekCalendarView({
                           completed: false,
                         }}
                         isExternal
+                        hStyle={planStyle(`event-${e.id}`)}
                         onPointerDown={(evt) => {
                           evt.preventDefault()
                           evt.stopPropagation()

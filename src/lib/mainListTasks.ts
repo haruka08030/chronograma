@@ -25,7 +25,12 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
 
   if (selectedView === 'today') {
-    result = result.filter((t) => t.dueDate && isToday(parseISO(t.dueDate)))
+    // 期限が今日、または「今日やる」と予定日を置いたもの
+    result = result.filter(
+      (t) =>
+        (t.dueDate && isToday(parseISO(t.dueDate))) ||
+        (t.scheduledDate && isToday(parseISO(t.scheduledDate))),
+    )
   } else if (selectedView === 'upcoming') {
     const today = startOfDay(new Date())
     const limit = startOfDay(addDays(new Date(), 7))

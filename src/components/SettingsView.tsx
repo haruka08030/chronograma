@@ -8,6 +8,8 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AccountMenu } from './AccountMenu'
 import { ThemeToggle } from './ThemeToggle'
+import { DailyRhythmSettings } from './DailyRhythmSettings'
+import { InstallAppSection } from './InstallAppSection'
 
 export function SettingsView() {
   const { t } = useTranslation()
@@ -25,7 +27,11 @@ export function SettingsView() {
   useLayoutEffect(() => {
     if (!settingsScrollTarget) return
     const id =
-      settingsScrollTarget === 'appearance' ? 'settings-appearance' : 'settings-account'
+      settingsScrollTarget === 'appearance'
+        ? 'settings-appearance'
+        : settingsScrollTarget === 'install'
+          ? 'settings-install'
+          : 'settings-account'
     document.getElementById(id)?.scrollIntoView({ block: 'start' })
     clearSettingsScrollTarget()
   }, [settingsScrollTarget, clearSettingsScrollTarget])
@@ -70,6 +76,10 @@ export function SettingsView() {
           <ThemeToggle />
         </div>
       </section>
+
+      <DailyRhythmSettings />
+
+      <InstallAppSection />
 
       <section
         id="settings-account"

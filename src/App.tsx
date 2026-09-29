@@ -10,6 +10,7 @@ import { LIST_PREFIX } from './lib/listDnD'
 import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
+import { TodayPlannerView } from './components/TodayPlannerView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView.tsx'
@@ -23,6 +24,11 @@ import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { TaskItem } from './components/TaskItem'
 import { requestPermission, checkAndNotify } from './lib/notifications'
+import { checkDailyReminders } from './lib/dailyReminders'
+import { isWebPushActive, syncWebPush } from './lib/webPush'
+import { useAuth } from './contexts/AuthContext'
+import { getDayPlan } from './lib/dayPlan'
+import { format } from 'date-fns'
 import {
   buildReorderedActiveRootIdsForGroup,
   getOrderedActiveRootTasksForDnD,
@@ -363,7 +369,9 @@ export default function App() {
     if (isModKey(e) && e.key === 'n') {
       e.preventDefault()
       const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
-      if (quickAdd) {
+      if (quickAdd instanceof HTMLInputElement) {
+        quickAdd.focus()
+      } else if (quickAdd) {
         quickAdd.click()
       } else {
         useTaskStore.getState().requestQuickAdd()
@@ -406,6 +414,29 @@ export default function App() {
     return () => clearInterval(id)
   }, [notificationsEnabled])
 
+  // 朝の計画・夕方の締めの通知（タスク期限通知のオン/オフとは独立）
+  const dailyReminders = useTaskStore((s) => s.dailyReminders)
+  const { user } = useAuth()
+  const userId = user?.id ?? null
+  // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
+  useEffect(() => {
+    void syncWebPush(userId, dailyReminders, i18n.resolvedLanguage ?? 'ja')
+  }, [userId, dailyReminders])
+  useEffect(() => {
+    if (!dailyReminders.planTime && !dailyReminders.wrapUpTime) return
+    const tick = () => {
+      if (isWebPushActive()) return
+      const state = useTaskStore.getState()
+      checkDailyReminders(state.dailyReminders, {
+        remainingToday: getDayPlan(state.tasks, format(new Date(), 'yyyy-MM-dd')).open.length,
+        onOpen: () => useTaskStore.getState().selectView('planner'),
+      })
+    }
+    tick()
+    const id = setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [dailyReminders])
+
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
   // 細い To‑Do パネルは lg 以上のみ。それ未満は置く幅がないのでサイドバー内に畳み込む
@@ -414,6 +445,7 @@ export default function App() {
   const mainContent = (() => {
     if (searchQuery.trim()) return <SearchResults />
     switch (selectedView) {
+      case 'planner': return <TodayPlannerView />
       case 'calendar': return <CalendarHubView onOpenSidebar={() => setSidebarOpen(true)} />
       case 'plan-vs-actual': return <PlanVsActualView />
       case 'activity-log': return <ActivityLogView />

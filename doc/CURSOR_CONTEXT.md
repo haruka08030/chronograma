@@ -17,7 +17,8 @@
 ## プロダクト概要
 
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web
-  SPA**（`src/`）と、**Flutter モバイル**（`mobile/`、機能は段階実装）
+  SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
+  旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
   `chronograma-storage`、スキーマ **version 25**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
@@ -37,71 +38,16 @@
 | i18n       | `i18next` + `react-i18next`（`src/i18n/config.ts`、`react.useSuspense: false` でルートに Suspense なしでも描画可能、`ja` / `en` は `src/locales/*.ts`、言語キー `chronograma-lang`） |
 | BaaS       | `@supabase/supabase-js`                                                                                                                                                              |
 
-### モバイル（`mobile/`）
+### PWA
 
-| 領域         | 内容                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------ |
-| ランタイム   | Flutter（Dart 3.11+）、iOS / Android ターゲット                                                        |
-| 状態         | `flutter_riverpod`                                                                                     |
-| ルーティング | `go_router`（`StatefulShellRoute.indexedStack` で Bottom Tabs）                                        |
-| 永続化       | `hive` + `hive_flutter`（タスク JSON）                                                                 |
-| Supabase     | `supabase_flutter`；URL/anon は `--dart-define` または `mobile/assets/supabase.env`（`VITE_*` 互換可） |
-| 通知         | `flutter_local_notifications`（権限要求 + テスト通知）                                                 |
-| タイポ       | `google_fonts`（Inter）                                                                                |
-| UI トーン    | Web 準拠（Tailwind accent/zinc + Inter）。トークン `lib/design/app_colors.dart` / `app_theme.dart`、共有部品 `lib/shared/widgets/chronograma_kit.dart`（ScreenHeader/SearchBar/FilterChips/EmptyState/Card） |
-| カレンダー/ログ | 時間グリッド型プランナー。共有基盤 `lib/shared/time_grid/`（`TimeGrid`/`NowIndicator`/`timeToY`, hourHeight=56）。カレンダーは月(実チップ+選択日アジェンダ)/週(7日)/日(1日)/**Plan**(予定vs実績)、ログは1日タイムグリッド。ブロック色は `lib/features/calendar/calendar_blocks.dart`（予定=accent / ログ=タグ色 / Google=blue）。**ブロックは縦ドラッグで移動・下端ハンドルでリサイズ**（`TimeBlockData.onMove/onResize`）。週/日の下に**ToDo ドック**（未スケジュールタスクをタップ/長押しドラッグで配置、列は `onAcceptTask` の `DragTarget`）。サブ画面は左上見出しなし（ブランドは To-Do のみ） |
-
-- **Phase 1**: To‑Do（すべて/今日/近日中/期限切れ、**画面上部固定の検索欄**（Web
-  の To‑Do 面に近い）、**リスト絞り込みチップ**（`lists` pull
-  後）、完了、削除＋確認＋Undo
-  SnackBar、クイック追加・詳細シート）、ガラス風ナビ・**円形**グラデーション
-  FAB、**More** から Supabase ログインと同期（pull / debounce
-  push）。**同期順**: `lists`（upsert のみ）→
-  `list_sections`（upsert、空ならスキップ）→ `tasks` → `habits`。`tasks` は
-  `list_id` / `parent_id` / `section_id` / `sort_order` / `recurrence` /
-  `created_at` / `updated_at` / `completed_at` を round-trip。完了トグルで
-  `Task.completedAt` を自動更新（完了時は現在時刻、未完了へ戻すと null）。 DB
-  正本は **`001_chronograma_schema.sql`**（`tasks.end_date` /
-  `tasks.completed_at`）。タスクが参照する未知の `list_id` は push 直前にスタブ
-  `lists` 行を補完。`habits` は `frequency` / `time_mode` / タイムスタンプを含む
-- **モバイル機能パリティ（Web 追従）**: To‑Do 詳細シート
-  （`task_detail_sheet.dart`）でサブタスク追加・予定時刻
-  `startTime`/`endTime`・繰り返し `recurrence`・セクション割当を編集。To‑Do 一覧は
-  **ツリー表示**（`todo_tree_list.dart`、リスト選択時はセクション見出しでグルーピング）。
-  リスト管理シートはリネーム・色選択（パレット）・並べ替え。**複数選択＋一括操作**
-  （`taskSelectionProvider`、長押し or ⋮「選択」→ 完了/リスト移動/優先度/期限/削除）。
-  色パレットは `lib/features/todo/data/list_color_palettes.dart`（Web 移植）、選択 ID は
-  `listColorPaletteProvider` に保存
-- **Log（第2段）**: `tasks.is_time_log` 相当の
-  `Task.isTimeLog`＋`dueDate`（**開始日**）＋任意の
-  **`endDate`（終了日、`yyyy-MM-dd`）**＋`startTime`/`endTime`（`HH:mm`）＋`description`。Google
-  カレンダー風に**開始日と終了日を別に持てる**（複数日ログ）。`endDate`
-  が無く従来データのみのとき、終了時刻が開始より早い壁時計のログは従来どおり「翌朝まで」として
-  +24h。Log
-  タブで日付ナビ・一覧・FAB/シートで開始/終了日＋時刻、タイマー停止時は終了日が別日なら
-  `endDate` を付与。To‑Do 一覧からタイムログ行は除外。同期は `is_time_log` /
-  `start_time` / `end_time` / `end_date` / `description`
-  を含む。モバイルのログ編集シート（`time_log_edit_sheet.dart`）も
-  **開始行／終了行** に日付・時刻を横並び（既存ログは `list_id` 等を維持）
-- **Calendar/Habits（第2段）**: Calendar は Month/Week/Day/**Plan**
-  切替。**Plan vs Actual**（`plan_vs_actual_panel.dart` + 突合ロジック
-  `plan_vs_actual_match.dart`、Web `matchEvents.ts` 移植）は選択日の予定（配置済みタスク
-  /Google/範囲習慣）とログを突き合わせ、`matched`/`time-drift`/`planned-only`/`actual-only`
-  を色分け表示、未実行の予定は「ログに記録」可。Habits
-  は独立モデル（`habits_json_v1`）で作成・編集・削除・日別達成トグル＋**頻度（毎日/毎週曜日）・
-  `time_mode`（なし/時刻/範囲）・色** 設定（`_EditHabitSheet`）と**直近28日ヒートマップ＋連続日数**。Supabase
-  `habits`（`completed_dates` / `frequency` / `time_mode` 等）と同期。Calendar/Log/Habits
-  は共有 `selectedDateProvider`（`lib/shared/selected_date_provider.dart`）で**選択日を同期**。More
-  は外観・同期・テーマに加え、JSON バックアップ **schema
-  v3**（`mobile/lib/core/backup_format.dart`。 Web と同型の
-  `listSections`・`order` エイリアス。`habits` 無し import は `[]`）、
-  通知権限+テスト通知、**リスト色パレット選択・活動ログのタグ候補編集
-  （`timeLogTagPresetsProvider`、ログ編集シート/タイマーで候補チップ）**、拡充した統計
-  （`stats_screen.dart`：7日棒グラフ・優先度バー・リスト別）を実装
-
-エントリ: `mobile/lib/main.dart`（`SupabaseEnv.load` → 設定時
-`Supabase.initialize` → `Hive.initFlutter` → `ProviderScope` で
-`hiveBoxProvider` を override → `ChronogramaApp`）。詳細は `mobile/README.md`。
+- `public/manifest.webmanifest`（アイコンは `public/icons/`、ショートカット `/?view=planner` 等）、`index.html` の
+  apple-touch-icon / theme-color
+- `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
+  `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
+- `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
+  起動 URL の `?view=` を `consumeLaunchView` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
+  「アプリとして使う」から案内
+- スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / ログ / その他。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
 
 ## エントリ
 
@@ -121,6 +67,31 @@
   `pb-[calc(3.5rem+safe-area)]`、`FloatingTimer` / Undo・Move トースト /
   モバイルリストドロップ帯はナビの上にオフセット。viewport は
   `viewport-fit=cover`（`index.html`）
+
+- **今日の計画**（`selectedView === 'planner'`、`TodayPlannerView`）: 新規ユーザーの既定画面（既定 `calendarMode` は `week`）。
+  左＝やり残し（予定日/期限が過去の未完了、`rescheduleTasks` で今日へ）・今日やること（`scheduledDate ?? dueDate` が当日）・
+  当日の習慣・完了・「1 日を締める」（残りを明日へ）。右＝`WeekCalendarView singleDay`（1 日タイムライン）。
+  追加欄は `data-quickadd` の input（⌘N でフォーカス）で `scheduledDate` を当日に設定。タイムラインは予定とログが
+  同じ日にあると予定=左 / ログ=右のレーンに分割。To‑Do の「今日」は期限日または予定日が今日のタスク
+
+- **タイムラインの重なり**: `src/lib/overlapLayout.ts`。時間が重なるブロックは塊ごとに列を割り当てる
+  （Google カレンダー方式）。1 日表示・ログ画面は等幅で横並び（`columns`）、週表示・予定 vs ログの週は
+  列が狭いので右へずらし重ね（`cascade`、ホバーで前面・`title` で全文）。週/日タイムラインは
+  `layoutPlanAndLog` で**重なる塊の中だけ**予定=左 / ログ=右に分ける。重ねるためブロック背景は不透明色
+- **1 日のリズム**: `dailyReminders`（朝の計画 / 夕方の締めの `HH:mm`、既定オフ）を `App` が 30 秒ごとに
+  `checkDailyReminders`（`src/lib/dailyReminders.ts`）で判定し、1 日 1 回ブラウザ通知（タブが開いている間のみ）。
+  「今日の計画」でタスクが 1 件以上あるときに一度だけオプトインを案内。`dailyCapacityMinutes`（既定 8h）を
+  超えて計画すると穏やかに警告。設定は `DailyRhythmSettings`。日の集計は `getDayPlan`（`src/lib/dayPlan.ts`）
+- **タスク連動タイマー**: `startTimer(title, tags, taskId)`。停止時に元タスクが未完了なら `completePromptTaskId`
+  を立てて `FloatingTimer` が「完了にしますか？」を出す。1 分未満の停止はログを作らない
+- **クイック追加の日時解釈**（`parseQuickAddTitle`）: 空白区切りの語から 今日/明日/明後日/曜日/来週X曜/9/30/10月3日、
+  15時/15時半/午後3時/15:00/3pm、範囲 15:00-16:30・15時〜16時半、長さ 1時間/30分/1h/45m を読む。
+  時刻があれば予定（`scheduledDate`+時間幅、長さ未指定は 60 分）、日付だけなら To‑Do では期限日・「今日の計画」では予定日
+- **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
+  計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
+- **同期**: `useSupabaseSync` は毎回 取得 → `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
+  （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
+  マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
 ### グローバルショートカット（`App.tsx`）
 
@@ -318,17 +289,18 @@
 ## Supabase 同期（`src/hooks/useSupabaseSync.ts`）
 
 - ログイン済みかつ `getSupabase()` ありのときのみ
-- **初回**: `fetchListsTasksHabits` →
+- **通常**（端末にベースラインあり）: 取得 → `mergeSnapshots`（`src/lib/syncMerge.ts`）で三方向マージ →
+  ローカル反映 → push（削除はマージで決めた ID だけ）→ ベースライン保存。変更の 1.8 秒デバウンス後・
+  フォーカス復帰時・表示中 60 秒ごと。同期は常に 1 本ずつ直列
+- **この端末で初回**（ベースライン無し）: `fetchListsTasksHabits` →
   `decideHydrate`（`src/lib/supabaseData.ts`）
   - リモート完全空 → **ローカルを push**
   - リモートが
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
-- **以降**: `tasks` / `lists` / `habits` 変更を **1.8 秒デバウンス**後に
-  `pushListsTasksHabits`
-- **push**: upsert のあと、ローカルにない ID を **tasks → habits → lists**
-  の順で削除（FK 順序）
+- **push**: upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
+  未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
   `scheduled_date` / `archived_at` / `deleted_at`
   カラム未適用**エラーが出た場合は、その push 呼び出し内だけで該当列なし
@@ -410,14 +382,17 @@
 で全体を流す想定。再実行しやすいよう `DROP POLICY IF EXISTS`
 あり）。一覧の短い説明は **`supabase/migrations/README.md`**。
 
-習慣のクラウド同期に必要な **`habits.time_mode`** も同ファイル内。ルート
+習慣のクラウド同期に必要な **`habits.time_mode`** も同ファイル内。`002_google_oauth.sql`（Google 連携）、
+`003_push_subscriptions.sql`（Web Push の端末ごとの購読。送信は Edge Function `daily-reminders` を pg_cron で
+5 分ごとに `x-cron-secret` 付きで呼ぶ。各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。ルート
 `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
 ## 環境変数（`.env.example`）
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase
-- `VITE_APP_INSTALL_URL` —
-  任意。設定時のみサイドバー「アプリを入手する」が有効（`src/lib/appInstallUrl.ts`）
+- `VITE_GOOGLE_CLIENT_ID` — 任意。Google Calendar 連携
+- `VITE_VAPID_PUBLIC_KEY` — 任意。Web Push（`src/lib/webPush.ts`）。未設定・未ログイン・SW 無し（開発サーバー）
+  では、タブを開いている間だけのローカル通知（`dailyReminders.ts`）にフォールバック。購読が有効な端末ではローカル通知を出さない
 
 ## npm scripts
 
@@ -428,9 +403,8 @@
 
 ## 実装時の注意
 
-- 同期は **全体スナップショット型**（フィールド単位マージではない）
-- Google Calendar: **Edge Function** `google-calendar`（authorization code を `exchange` で refresh token に交換し `google_oauth` 表に保存、サーバー側で access_token リフレッシュ）。Web は `VITE_GOOGLE_CLIENT_ID` で **直接 Google OAuth**（`linkIdentity` は使わない。Supabase の `provider_refresh_token` は PKCE で取れないため）。`signIn` → Google 同意 → コールバック `?code=` → `exchange` → `status` / `events`。invoke アクション: `exchange` / `store` / `status` / `events` / `disconnect`。`events` は `timeZone`（IANA）を受け取り `Intl` で HH:mm を算出。Web / モバイルは取得後に `start` / `end` ISO からローカル TZ で `date` / `startTime` / `endTime` を再正規化（`normalizeCalendarEventTimes`）。Google Cloud の **Authorized redirect URIs** にアプリオリジン（`http://localhost:5173` 等）が必要。Supabase secrets: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。`googleConnected` は localStorage に永続化せず `status` で同期。`calendarEvents` はクライアントのみ。ログアウトで `disconnect` + リセット
-- モバイル: `syncNotifier` は `AppShell` で常時 watch。Google 連携・Plan タブ・ツリー To‑Do・リスト CRUD・NLP クイック追加・CSV・期限通知・TestFlight 手順は `mobile/TESTFLIGHT.md`
+- 同期は **タスク単位の三方向マージ**（フィールド単位ではない。同じタスクを両端末で編集したら `updatedAt` の新しい方）
+- Google Calendar: **Edge Function** `google-calendar`（authorization code を `exchange` で refresh token に交換し `google_oauth` 表に保存、サーバー側で access_token リフレッシュ）。Web は `VITE_GOOGLE_CLIENT_ID` で **直接 Google OAuth**（`linkIdentity` は使わない。Supabase の `provider_refresh_token` は PKCE で取れないため）。`signIn` → Google 同意 → コールバック `?code=` → `exchange` → `status` / `events`。invoke アクション: `exchange` / `store` / `status` / `events` / `disconnect`。`events` は `timeZone`（IANA）を受け取り `Intl` で HH:mm を算出。Web は取得後に `start` / `end` ISO からローカル TZ で `date` / `startTime` / `endTime` を再正規化（`normalizeCalendarEventTimes`）。Google Cloud の **Authorized redirect URIs** にアプリオリジン（`http://localhost:5173` 等）が必要。Supabase secrets: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。`googleConnected` は localStorage に永続化せず `status` で同期。`calendarEvents` はクライアントのみ。ログアウトで `disconnect` + リセット
 - 未分類（`__inbox__`）は削除不可（リスト DnD
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左
 - README

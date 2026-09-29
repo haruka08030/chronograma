@@ -7,6 +7,7 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import type { Task } from '../types/task'
+import { WeekReviewCard } from './WeekReviewCard'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -98,6 +99,8 @@ export function StatsView() {
       </div>
 
       <div className="px-6 pb-8 space-y-8">
+        <WeekReviewCard />
+
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label={t('stats.completedToday')} value={stats.completedToday} accent />
