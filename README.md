@@ -7,6 +7,7 @@
 主な機能のイメージは次のとおりです。
 
 - **今日の計画**（既定の画面）: やり残しの持ち越し・今日やること・習慣を左に、1 日のタイムラインを右に置き、ドラッグや「15時 企画書 1時間」のような入力で時間を確保。夕方に「残りを明日へ」で 1 日を締める
+- **リストの種類**: 「やること」「いつか（Wish）」「チェックリスト（買い物など）」。Wish や買い物は今日の計画・期限・統計・通知に混ざらない。クイック追加で `@買い物 牛乳` のように追加先を指定
 - **To‑Do**: リストとセクション、期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替えとリスト間の移動、複数選択と一括操作、直近削除の Undo
 - **カレンダー**: 月表示／週タイムライン、（任意で）Google カレンダー連携、日付パネルでその日の予定・ログを確認
 - **予定 vs 実績**・**活動ログ**・**統計**（通常タスク中心の集計）
@@ -42,6 +43,7 @@ npm run dev
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
 2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
+   続けて [`004_list_kind.sql`](supabase/migrations/004_list_kind.sql)（リストの種類: やること / いつか / チェックリスト）も実行します。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
 

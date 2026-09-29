@@ -33,7 +33,13 @@ export interface WeekReview {
 }
 
 /** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */
-export function getWeekReview(tasks: readonly Task[], habits: readonly Habit[], anchor: Date, now = new Date()): WeekReview {
+export function getWeekReview(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  anchor: Date,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = new Date(),
+): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = format(now, 'yyyy-MM-dd')
   const days: WeekReviewDay[] = []
@@ -47,7 +53,7 @@ export function getWeekReview(tasks: readonly Task[], habits: readonly Habit[], 
     const date = addDays(start, i)
     const key = format(date, 'yyyy-MM-dd')
     if (key > todayKey) break
-    const plan = getDayPlan(tasks, key)
+    const plan = getDayPlan(tasks, key, excludedListIds)
     days.push({
       dateKey: key,
       plannedMinutes: plan.plannedMinutes,
@@ -58,7 +64,7 @@ export function getWeekReview(tasks: readonly Task[], habits: readonly Habit[], 
 
     const planned: PlannedItem[] = []
     for (const t of tasks) {
-      if (taskPlacementDate(t) !== key) continue
+      if (taskPlacementDate(t) !== key || excludedListIds.has(t.listId)) continue
       const p = scheduledTaskToPlannedItem(t)
       if (p) planned.push(p)
     }

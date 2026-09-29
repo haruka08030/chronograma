@@ -6,6 +6,8 @@ import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
 import { getDayPlan } from '../lib/dayPlan'
+import { findListByName, unplannedListIds } from '../lib/listKind'
+import { displayListName } from '../lib/displayListName'
 import { requestPermission } from '../lib/notifications'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -35,6 +37,7 @@ export function TodayPlannerView() {
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
+  const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
@@ -56,9 +59,11 @@ export function TodayPlannerView() {
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const tomorrowKey = dayKeyOf(addDays(date, 1))
 
+  const lists = useTaskStore((s) => s.lists)
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
-    () => getDayPlan(tasks, dateKey),
-    [tasks, dateKey],
+    () => getDayPlan(tasks, dateKey, excludedListIds),
+    [tasks, dateKey, excludedListIds],
   )
   // やり残しは今日を見ているときだけ候補に出す（過去日・未来日に持ち越しは無い）
   const suggestions = useMemo(
@@ -86,7 +91,18 @@ export function TodayPlannerView() {
     const trimmed = draft.trim()
     if (!trimmed) return
     const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')))
-    const id = addTask(parsed.title, INBOX_LIST_ID)
+    const target = parsed.listName
+      ? findListByName(lists, parsed.listName, (l) => displayListName(l.id, l.name))
+      : null
+    if (target && (target.kind ?? 'tasks') !== 'tasks') {
+      // 「@買い物 牛乳」「@いつか オーロラを見る」: 今日の予定にはせず、そのリストへ入れるだけ
+      const id = addTask(parsed.title, target.id)
+      if (id && parsed.tags.length) updateTask(id, { tags: parsed.tags })
+      showMoveBanner(t('toast.addedToList', { name: displayListName(target.id, target.name) }))
+      setDraft('')
+      return
+    }
+    const id = addTask(parsed.title, target?.id ?? INBOX_LIST_ID)
     if (id) {
       // この画面で足したものは「やる日」。日付を書けばその日、時刻を書けばタイムラインに置く
       updateTask(id, {

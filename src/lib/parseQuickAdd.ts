@@ -8,6 +8,8 @@ export type ParsedQuickAdd = {
   /** 時刻指定（`HH:mm`）。あれば予定としてタイムラインに置く */
   startTime: string | null
   endTime: string | null
+  /** `@買い物` のようなリスト指定（名前そのまま。解決は呼び出し側で） */
+  listName: string | null
 }
 
 /** 時刻だけで長さの指定がないときの予定の長さ */
@@ -142,6 +144,7 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
 export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Date()): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
+  let listName: string | null = null
   let date: Date | null = null
   let start: number | null = null
   let end: number | null = null
@@ -150,6 +153,10 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Dat
   const titleParts: { text: string; durationOnly: boolean }[] = []
 
   for (const token of raw.trim().split(/\s+/).filter(Boolean)) {
+    if ((token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
+      listName = token.slice(1).trim()
+      continue
+    }
     if (token.startsWith('#') && token.length > 1) {
       const name = token.slice(1).trim()
       if (name && !tags.includes(name)) tags.push(name)
@@ -185,5 +192,6 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Dat
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
+    listName,
   }
 }

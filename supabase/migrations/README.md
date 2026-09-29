@@ -7,6 +7,7 @@
 | `001_chronograma_schema.sql` | 上記すべて（`tasks.end_date` / `completed_at` / `location` / `due_time`（締め切り時刻）/ `scheduled_date`（予定日）、旧 `pinned` 削除、`habits.time_mode` と CHECK、方針どおり `DROP POLICY IF EXISTS` 付きで再実行しやすい） |
 | `002_google_oauth.sql` | Google Calendar 連携用 `google_oauth` 表（Edge Function が service_role で upsert） |
 | `003_push_subscriptions.sql` | 朝・夕方の Web Push 用の端末ごとの購読（`push_subscriptions`、RLS は本人のみ。送信は Edge Function `daily-reminders` が service_role で読む） |
+| `004_list_kind.sql` | `lists.kind`（`tasks` / `someday` / `checklist`）。いつか・チェックリストのリストを予定・統計・通知から外すため。未適用でも Web は種類なしで同期を続ける |
 
 **メモ**
 

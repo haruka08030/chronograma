@@ -27,6 +27,8 @@ export default {
     allDay: 'All day',
   },
   lists: {
+    defaultSomeday: 'Someday',
+    defaultShopping: 'Shopping',
     inbox: 'Inbox',
     unnamedList: 'List',
   },
@@ -41,6 +43,7 @@ export default {
       'Delete this section? (Tasks move to “No section”.)',
   },
   toast: {
+    addedToList: 'Added to “{{name}}”',
     taskMovedToList: 'Moved to “{{name}}”.',
     taskArchived: 'Archived',
     tasksArchived: 'Archived {{count}} tasks',
@@ -109,7 +112,7 @@ export default {
     overCapacity: 'More than your {{capacity}} target. You do not have to do it all; consider moving a few to tomorrow.',
     overCapacityShort: '(a lot)',
     addPlaceholder: 'Add a task',
-    addHint: 'e.g. 3pm essay 1h / tomorrow assignment / 7pm gym',
+    addHint: 'e.g. 3pm essay 1h / tomorrow assignment / @Shopping milk',
     dueToday: 'Due today',
     dueOn: 'Due {{date}}',
     emptyTitle: 'Write down what you want to do today.',
@@ -173,6 +176,16 @@ export default {
     iosStep2: 'Choose “Add to Home Screen”',
     iosStep3: 'Tap “Add”. From then on, open it from your Home Screen',
     manual: 'In Chrome / Edge use the install icon at the right of the address bar; in Safari on Mac use File → Add to Dock.',
+  },
+  listKind: {
+    label: 'Kind',
+    tasks: 'Tasks',
+    someday: 'Someday (wish)',
+    checklist: 'Checklist',
+    tasksHelp: 'Things with deadlines or times. Shown in Today, due views and stats.',
+    somedayHelp: 'Things you want to do someday. Kept out of Today, due views, stats and reminders.',
+    checklistHelp: 'Shopping or packing. Just check things off; kept out of planning, stats and reminders.',
+    excludedNote: '(someday and checklist lists are not included)',
   },
   app: {
     searchPlaceholder: 'Search… (⌘K)',

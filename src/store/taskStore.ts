@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
+import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
@@ -184,7 +184,8 @@ interface TaskState {
   deleteHabit: (id: string) => void
   toggleHabitDate: (habitId: string, dateKey: string) => void
 
-  addList: (name: string) => void
+  addList: (name: string, kind?: ListKind) => void
+  setListKind: (id: string, kind: ListKind) => void
   renameList: (id: string, name: string) => void
   updateListColor: (id: string, color: string) => void
   deleteList: (id: string) => void
@@ -301,6 +302,18 @@ const defaultInbox: TaskList = {
 }
 
 export const INBOX_LIST_ID = INBOX_ID
+
+/**
+ * 新規ユーザーの初期リスト。「未分類」だけだと Wish も買い物も全部そこに入って混ざるので、
+ * 最初から「いつか」「買い物」を分けておく（既存ユーザーは永続化データが優先されるので作られない）
+ */
+function initialLists(): TaskList[] {
+  return [
+    defaultInbox,
+    { id: newId(), name: i18n.t('lists.defaultSomeday'), color: defaultPaletteColors[3] ?? defaultPaletteColors[0], order: 1, kind: 'someday' },
+    { id: newId(), name: i18n.t('lists.defaultShopping'), color: defaultPaletteColors[5] ?? defaultPaletteColors[0], order: 2, kind: 'checklist' },
+  ]
+}
 
 function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']>): string {
   const d = new Date(current + 'T00:00:00')
@@ -517,7 +530,7 @@ export const useTaskStore = create<TaskState>()(
 
       return {
       tasks: [],
-      lists: [defaultInbox],
+      lists: initialLists(),
       selectedListId: INBOX_ID,
       selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
@@ -921,13 +934,17 @@ export const useTaskStore = create<TaskState>()(
       },
       clearQuickAddRequest: () => set({ quickAddRequested: false }),
 
-      addList: (name) => {
+      setListKind: (id, kind) => {
+        pushUndo()
+        set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind } : l)) }))
+      },
+      addList: (name, kind) => {
         pushUndo()
         const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
         const cols = paletteColors(get().listColorPaletteId)
         const colorIdx = get().lists.length % cols.length
         set((s) => ({
-          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1 }],
+          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks' }],
         }))
       },
       renameList: (id, name) => {

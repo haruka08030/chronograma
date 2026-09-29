@@ -27,6 +27,8 @@ export default {
     allDay: '終日',
   },
   lists: {
+    defaultSomeday: 'いつか',
+    defaultShopping: '買い物',
     inbox: '未分類',
     unnamedList: 'リスト',
   },
@@ -41,6 +43,7 @@ export default {
       'このセクションを削除しますか？（タスクは「セクションなし」に移ります）',
   },
   toast: {
+    addedToList: '「{{name}}」に追加しました',
     taskMovedToList: '「{{name}}」に移動しました',
     taskArchived: 'アーカイブしました',
     tasksArchived: '{{count}} 件をアーカイブしました',
@@ -109,7 +112,7 @@ export default {
     overCapacity: '目安の {{capacity}} を超えています。全部やらなくて大丈夫。いくつか明日へ回しませんか？',
     overCapacityShort: '(多め)',
     addPlaceholder: 'やることを追加',
-    addHint: '例: 15時 ES 1時間 ／ 明日 課題 ／ 19時 ジム',
+    addHint: '例: 15時 ES 1時間 ／ 明日 課題 ／ @買い物 牛乳',
     dueToday: '今日まで',
     dueOn: '{{date}} まで',
     emptyTitle: '今日やることを書き出してみましょう。',
@@ -173,6 +176,16 @@ export default {
     iosStep2: '「ホーム画面に追加」を選ぶ',
     iosStep3: '右上の「追加」をタップ。以後はホーム画面のアイコンから開きます',
     manual: 'Chrome / Edge ではアドレスバー右端のインストールアイコンから、Safari（Mac）では「ファイル → Dock に追加」から追加できます。',
+  },
+  listKind: {
+    label: '種類',
+    tasks: 'やること',
+    someday: 'いつか（Wish）',
+    checklist: 'チェックリスト',
+    tasksHelp: '締切や予定のあること。今日の計画・期限・統計に出ます。',
+    somedayHelp: 'いつかやりたいこと。今日・期限・統計・通知には出ません。',
+    checklistHelp: '買い物や持ち物。チェックするだけで、予定・統計・通知には出ません。',
+    excludedNote: '（いつか・チェックリストのリストは含みません）',
   },
   app: {
     searchPlaceholder: '検索… (⌘K)',

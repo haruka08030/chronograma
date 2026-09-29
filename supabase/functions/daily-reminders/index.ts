@@ -96,8 +96,15 @@ Deno.serve(async (req) => {
     const key = `${userId}:${date}`
     const hit = remainingCache.get(key)
     if (hit !== undefined) return hit
-    // 「今日の計画」と同じ基準: 予定日（無ければ期限日）がその日の、未完了のルートタスク
-    const { count } = await admin
+    // 「今日の計画」と同じ基準: 予定日（無ければ期限日）がその日の、未完了のルートタスク。
+    // いつか / チェックリストのリストは数えない（004 未適用なら kind 列が無いので除外なし）
+    const { data: unplanned } = await admin
+      .from('lists')
+      .select('id')
+      .eq('user_id', userId)
+      .in('kind', ['someday', 'checklist'])
+    const excluded = (unplanned ?? []).map((l: { id: string }) => l.id)
+    let query = admin
       .from('tasks')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
@@ -107,6 +114,8 @@ Deno.serve(async (req) => {
       .is('deleted_at', null)
       .is('archived_at', null)
       .or(`scheduled_date.eq.${date},and(scheduled_date.is.null,due_date.eq.${date})`)
+    if (excluded.length > 0) query = query.not('list_id', 'in', `(${excluded.map((id) => `"${id}"`).join(',')})`)
+    const { count } = await query
     const n = count ?? 0
     remainingCache.set(key, n)
     return n

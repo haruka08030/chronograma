@@ -28,6 +28,7 @@ import { checkDailyReminders } from './lib/dailyReminders'
 import { isWebPushActive, syncWebPush } from './lib/webPush'
 import { useAuth } from './contexts/AuthContext'
 import { getDayPlan } from './lib/dayPlan'
+import { unplannedListIds } from './lib/listKind'
 import { format } from 'date-fns'
 import {
   buildReorderedActiveRootIdsForGroup,
@@ -309,6 +310,7 @@ export default function App() {
         filterTag: state.filterTag,
         sections: state.sections,
         listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
+        excludedListIds: unplannedListIds(state.lists),
       })
       const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,
@@ -406,10 +408,10 @@ export default function App() {
   useEffect(() => {
     if (!notificationsEnabled) return
     requestPermission().then((granted) => {
-      if (granted) checkAndNotify(useTaskStore.getState().tasks)
+      if (granted) checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
     })
     const id = setInterval(() => {
-      checkAndNotify(useTaskStore.getState().tasks)
+      checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
     }, 60_000)
     return () => clearInterval(id)
   }, [notificationsEnabled])
@@ -428,7 +430,7 @@ export default function App() {
       if (isWebPushActive()) return
       const state = useTaskStore.getState()
       checkDailyReminders(state.dailyReminders, {
-        remainingToday: getDayPlan(state.tasks, format(new Date(), 'yyyy-MM-dd')).open.length,
+        remainingToday: getDayPlan(state.tasks, format(new Date(), 'yyyy-MM-dd'), unplannedListIds(state.lists)).open.length,
         onOpen: () => useTaskStore.getState().selectView('planner'),
       })
     }

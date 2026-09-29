@@ -4,6 +4,7 @@ import { addWeeks, format, parseISO, startOfWeek } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
+import { unplannedListIds } from '../lib/listKind'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -14,7 +15,9 @@ export function WeekReviewCard() {
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
   const anchor = useMemo(() => addWeeks(new Date(), weekOffset), [weekOffset])
-  const review = useMemo(() => getWeekReview(tasks, habits, anchor), [tasks, habits, anchor])
+  const lists = useTaskStore((s) => s.lists)
+  const excluded = useMemo(() => unplannedListIds(lists), [lists])
+  const review = useMemo(() => getWeekReview(tasks, habits, anchor, excluded), [tasks, habits, anchor, excluded])
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
   const fmtMin = (m: number) => {

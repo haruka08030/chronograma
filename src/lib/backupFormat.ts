@@ -1,5 +1,5 @@
 import type { Task, Priority } from '../types/task'
-import type { TaskList } from '../types/list'
+import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
 import {
@@ -117,6 +117,7 @@ function normalizeListRow(raw: unknown): TaskList | null {
     name,
     color: typeof row.color === 'string' ? row.color : '#6366f1',
     order: readOrder(row),
+    kind: normalizeListKind(row.kind),
   }
 }
 

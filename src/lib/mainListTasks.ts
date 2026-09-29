@@ -17,12 +17,18 @@ export interface MainListTasksInput {
   sections: ListSection[]
   /** スマートビューでリスト横断の手動順を決めるとき（`lists.order`） */
   listOrderById?: Map<string, number>
+  /** いつか / チェックリストのリスト ID。スマートビュー（今日・近日中・期限切れ・すべて）から外す */
+  excludedListIds?: ReadonlySet<string>
 }
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag, excludedListIds } = input
   let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
+  // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
+  if (selectedView && excludedListIds && excludedListIds.size > 0) {
+    result = result.filter((t) => !excludedListIds.has(t.listId))
+  }
 
   if (selectedView === 'today') {
     // 期限が今日、または「今日やる」と予定日を置いたもの

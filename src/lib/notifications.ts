@@ -12,7 +12,8 @@ export async function requestPermission(): Promise<boolean> {
   return result === 'granted'
 }
 
-export function checkAndNotify(tasks: Task[]) {
+/** `excludedListIds`: いつか / チェックリストのリスト（期限があっても通知しない） */
+export function checkAndNotify(tasks: Task[], excludedListIds: ReadonlySet<string> = new Set()) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
@@ -20,6 +21,7 @@ export function checkAndNotify(tasks: Task[]) {
     (t) =>
       !t.completed &&
       isActiveTask(t) &&
+      !excludedListIds.has(t.listId) &&
       t.parentId === null &&
       t.dueDate &&
       isToday(parseISO(t.dueDate)) &&

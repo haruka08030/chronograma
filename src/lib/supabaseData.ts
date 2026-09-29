@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
+import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
@@ -12,6 +12,8 @@ interface ListRow {
   name: string
   color: string
   sort_order: number
+  /** 004 で追加。古い DB には無い */
+  kind?: string | null
   updated_at: string
 }
 
@@ -177,6 +179,7 @@ function rowToList(row: ListRow): TaskList {
     name,
     color: row.color,
     order: row.sort_order,
+    kind: normalizeListKind(row.kind),
   }
 }
 
@@ -288,6 +291,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
     name: list.name,
     color: list.color,
     sort_order: list.order,
+    kind: list.kind ?? 'tasks',
     updated_at: new Date().toISOString(),
   }
 }
@@ -418,7 +422,13 @@ export async function pushListsTasksHabits(
   const taskRows = tasks.map((t) => taskToRow(userId, t))
   const habitRows = habits.map((h) => habitToRow(userId, h))
 
-  const { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
+  let { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
+  // 004 未適用の DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
+  if (e1 && /kind/.test(e1.message)) {
+    ;({ error: e1 } = await supabase
+      .from('lists')
+      .upsert(listRows.map((row) => ({ ...row, kind: undefined })), { onConflict: 'id' }))
+  }
   if (e1) return { error: e1.message }
 
   const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })

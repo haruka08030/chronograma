@@ -6,6 +6,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
+import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
 
@@ -19,7 +20,11 @@ export function StatsView() {
   const lists = useTaskStore((s) => s.lists)
 
   const stats = useMemo(() => {
-    const countedTasks = tasks.filter((t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t))
+    // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
+    const excluded = unplannedListIds(lists)
+    const countedTasks = tasks.filter(
+      (t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t) && !excluded.has(t.listId),
+    )
     const completed = countedTasks.filter((t) => t.completed)
     const active = countedTasks.filter((t) => !t.completed)
     const today = startOfDay(new Date())
@@ -54,7 +59,7 @@ export function StatsView() {
       byPriority[t.priority]++
     }
 
-    const byList = lists.map((l) => ({
+    const byList = lists.filter((l) => !excluded.has(l.id)).map((l) => ({
       id: l.id,
       name: displayListName(l.id, l.name),
       color: l.color,

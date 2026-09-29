@@ -26,7 +26,12 @@ function compareDayTasks(a: Task, b: Task): number {
 const DUE_SOON_DAYS = 3
 
 /** 「今日の計画」と日次リマインダーで共通の、その日（`yyyy-MM-dd`）の集計 */
-export function getDayPlan(tasks: readonly Task[], dateKey: string): DayPlan {
+export function getDayPlan(
+  tasks: readonly Task[],
+  dateKey: string,
+  /** いつか / チェックリストのリスト。予定・締切の集計に入れない */
+  excludedListIds: ReadonlySet<string> = new Set(),
+): DayPlan {
   const carryOver: Task[] = []
   const dueSoon: Task[] = []
   const dueSoonLimit = format(addDays(parseISO(`${dateKey}T12:00:00`), DUE_SOON_DAYS), 'yyyy-MM-dd')
@@ -40,7 +45,7 @@ export function getDayPlan(tasks: readonly Task[], dateKey: string): DayPlan {
       loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
-    if (task.parentId) continue
+    if (task.parentId || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
     if (placed === dateKey) {
       if (task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
