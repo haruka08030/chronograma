@@ -1,3 +1,4 @@
+import { googleEventHex } from './googleColors'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Session } from '@supabase/supabase-js'
 import { FunctionsHttpError } from '@supabase/supabase-js'
@@ -337,6 +338,7 @@ export async function fetchCalendarEvents(
 
   const payload = await invokeGoogleCalendar<{
     events?: CalendarEvent[]
+    calendarColor?: string | null
     connected?: boolean
     error?: string
   }>({
@@ -356,5 +358,7 @@ export async function fetchCalendarEvents(
     }
     throw new Error(payload.error)
   }
-  return (payload.events ?? []).map(normalizeCalendarEventTimes)
+  return (payload.events ?? [])
+    .map(normalizeCalendarEventTimes)
+    .map((e) => ({ ...e, color: googleEventHex(e.colorId, payload.calendarColor) }))
 }

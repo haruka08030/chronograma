@@ -14,4 +14,6 @@ export interface CalendarEvent {
   date: string
   isAllDay: boolean
   colorId?: string
+  /** 表示・記録コピー用に解決した色（予定の色 → カレンダーの色 → ピーコック） */
+  color?: string
 }

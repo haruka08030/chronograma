@@ -13,8 +13,8 @@ import { enUS, ja } from 'date-fns/locale'
 import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
 import { planVisualState } from '../lib/planVisual'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
-import { NEUTRAL_HEX } from '../lib/googleColors'
+import { colorVars, recordHex } from '../lib/logCategoryColors'
+import { DEFAULT_GOOGLE_EVENT_HEX, NEUTRAL_HEX } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
@@ -82,7 +82,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
-  onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string) => void
+  onGoogleDone: (title: string, dateKey: string, startTime: string, endTime: string, color?: string) => void
   onHabitDone?: () => void
   onOpen?: () => void
 }) {
@@ -123,7 +123,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onGoogleDone(item.summary, dateKey, item.startTime, item.endTime)
+              onGoogleDone(item.summary, dateKey, item.startTime, item.endTime, item.color)
             }}
             className="flex-shrink-0 w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600
                        hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:border-emerald-500
@@ -778,8 +778,9 @@ export function PlanVsActualView() {
     timelineDrag.dismissPopup()
   }, [timelineDrag, addTaskWithTime, addTimeLog])
 
-  const handlePlannedDone = useCallback((title: string, dateKey: string, startTime: string, endTime: string) => {
-    addCompletedTaskWithTime(title, dateKey, startTime, endTime)
+  // Google の予定から記録にするときは、元の予定の色をそのまま写す
+  const handlePlannedDone = useCallback((title: string, dateKey: string, startTime: string, endTime: string, color?: string) => {
+    addCompletedTaskWithTime(title, dateKey, startTime, endTime, color ?? null)
   }, [addCompletedTaskWithTime])
 
   const openCompleteWithLog = useCallback((task: Task) => {
@@ -1122,7 +1123,7 @@ export function PlanVsActualView() {
                         return (
                           <PlannedItemBlock
                             key={item.id}
-                            colorHex="#039BE5"
+                            colorHex={item.color ?? DEFAULT_GOOGLE_EVENT_HEX}
                             hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                             item={item}
                             matchStatus={match}
@@ -1186,7 +1187,7 @@ export function PlanVsActualView() {
                         <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
                             hStyle={overlapSlotStyle(logSlots.get(t.id), 0, 100, 2, slotMode)}
-                            colorHex={categoryHex(t.tags[0], logCategoryColors)}
+                            colorHex={recordHex(t, logCategoryColors)}
                             task={t}
                             dateKey={key}
                             matchStatus={getMatchForActual(key, t.id)}

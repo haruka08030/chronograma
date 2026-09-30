@@ -215,7 +215,8 @@ interface TaskState {
   addTaskAfter: (afterTaskId: string, title: string) => string | undefined
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
-  addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string) => void
+  /** 予定から記録を作る。`color` は元の予定の色（Google の予定から写すとき） */
+  addCompletedTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, color?: string | null) => void
   addTimeLog: (
     title: string,
     date: string,
@@ -247,6 +248,7 @@ interface TaskState {
         | 'startTime'
         | 'endTime'
         | 'location'
+        | 'color'
         | 'priority'
         | 'tags'
         | 'listId'
@@ -409,6 +411,7 @@ function applyTaskPatch(
       | 'startTime'
       | 'endTime'
       | 'location'
+      | 'color'
       | 'priority'
       | 'tags'
       | 'listId'
@@ -500,6 +503,7 @@ function makeTask(
     isTimeLog?: boolean
     completed?: boolean
     tags?: string[]
+    color?: string | null
   },
   order: number,
 ): Task {
@@ -523,6 +527,7 @@ function makeTask(
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
     location: null,
+    color: fields.color ?? null,
     priority: 'none',
     tags: fields.tags ?? [],
     recurrence: null,
@@ -1157,7 +1162,7 @@ export const useTaskStore = create<TaskState>()(
         // タイムライン上での作成は「予定日＋時間幅」
         set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, scheduledDate: dueDate, startTime, endTime }, ord)] }))
       },
-      addCompletedTaskWithTime: (title, dueDate, startTime, endTime) => {
+      addCompletedTaskWithTime: (title, dueDate, startTime, endTime, color) => {
         pushUndo()
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         set((s) => ({
@@ -1166,6 +1171,7 @@ export const useTaskStore = create<TaskState>()(
             makeTask({
               title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true,
               tags: withInferredCategory([], s.tasks, title),
+              color: color ?? null,
             }, maxOrder + 1),
           ],
         }))

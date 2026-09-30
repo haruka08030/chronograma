@@ -21,6 +21,33 @@ export type GoogleColorKey = (typeof GOOGLE_COLORS)[number]['key']
 
 export const GOOGLE_COLOR_HEXES: readonly string[] = GOOGLE_COLORS.map((c) => c.hex)
 
+/** Google Calendar API の予定の colorId（1〜11）→ 画面に出る色 */
+const EVENT_COLOR_BY_ID: Record<string, string> = {
+  '1': '#7986CB', // Lavender
+  '2': '#33B679', // Sage
+  '3': '#8E24AA', // Grape
+  '4': '#E67C73', // Flamingo
+  '5': '#F6BF26', // Banana
+  '6': '#F4511E', // Tangerine
+  '7': '#039BE5', // Peacock
+  '8': '#616161', // Graphite
+  '9': '#3F51B5', // Blueberry
+  '10': '#0B8043', // Basil
+  '11': '#D50000', // Tomato
+}
+
+export const DEFAULT_GOOGLE_EVENT_HEX = '#039BE5'
+
+/**
+ * Google の予定の色。個別に色を付けた予定はその色、無ければカレンダーの色
+ * （API は旧パレットの値を返すので最も近い 11 色へ）、それも無ければピーコック。
+ */
+export function googleEventHex(colorId: string | undefined, calendarColor: string | null | undefined): string {
+  if (colorId && EVENT_COLOR_BY_ID[colorId]) return EVENT_COLOR_BY_ID[colorId]!
+  if (calendarColor) return nearestGoogleHex(calendarColor)
+  return DEFAULT_GOOGLE_EVENT_HEX
+}
+
 /** 分類なし・未設定 */
 export const NEUTRAL_HEX = '#9E9E9E'
 

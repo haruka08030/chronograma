@@ -7,4 +7,6 @@ export interface PlannedItem {
   startTime: string
   endTime: string
   source: PlannedSource
+  /** Google の予定の色（解決済み）。記録にするときもこの色を写す */
+  color?: string
 }

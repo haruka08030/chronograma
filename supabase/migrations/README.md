@@ -16,3 +16,4 @@
 
 ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。
 | `005_event_reminders.sql` | `push_subscriptions.event_reminder_minutes`（予定の開始何分前に通知）と `event_notified`（その日に通知済みの予定 ID）。未適用でもアプリは動き、予定前通知はタブを開いている間だけになる |
+| `006_task_color.sql` | `tasks.color`（記録の色）。Google カレンダーの予定から記録にしたとき元の予定の色を写す。null は分類の色。未適用でも同期は color なしで続く |
