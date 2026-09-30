@@ -11,6 +11,9 @@ import {
   isToday,
 } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
+import { planVisualState } from '../lib/planVisual'
+import { colorVars } from '../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -56,6 +59,7 @@ export function CalendarView({
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
@@ -206,16 +210,17 @@ export function CalendarView({
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
-                      className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-grab active:cursor-grabbing
-                        hover:ring-1 hover:ring-accent-400 transition-all
-                        ${t.completed
-                          ? 'line-through text-zinc-400 dark:text-zinc-600'
-                          : 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'}`}
+                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
+                        hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
+                        ${!t.startTime ? (planVisualState(t, key) === 'missed' ? 'gc-missed' : 'gc-solid') : ''}
+                        ${t.startTime && planVisualState(t, key) === 'missed' ? 'text-zinc-400 dark:text-zinc-500' : ''}
+                        ${t.startTime && planVisualState(t, key) !== 'missed' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
+                      style={colorVars(planVisualState(t, key) === 'missed' ? '#BDBDBD' : listColorById.get(t.listId) ?? NEUTRAL_HEX)}
                     >
-                      {t.startTime && (
-                        <span className="text-[9px] opacity-60 mr-0.5">{t.startTime}</span>
-                      )}
-                      {t.title}
+                      {/* Google と同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯 */}
+                      {t.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
+                      {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
+                      <span className="truncate">{t.completed ? '✓ ' : ''}{t.title}</span>
                     </div>
                   ))}
                   {(dayTasks.length > 3 || dayEvents.length > 2) && (

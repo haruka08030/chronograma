@@ -40,6 +40,7 @@ import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../lib/googleColors'
+import { planVisualState } from '../lib/planVisual'
 import { EventPopover } from './timeline/EventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
@@ -58,12 +59,6 @@ type TimeBlockTask = {
   endDate?: string | null
   isTimeLog?: boolean
   parentId?: string | null
-}
-
-function isPastBlock(dayKey: string, endTime: string): boolean {
-  const [y, m, d] = dayKey.split('-').map(Number)
-  const [hh, mm] = endTime.split(':').map(Number)
-  return new Date(y!, m! - 1, d!, hh, mm).getTime() < Date.now()
 }
 
 /** ブロックの縦位置（重なり計算と描画で同じ値を使う） */
@@ -99,10 +94,10 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
-  const variant = isLog ? 'gc-soft' : 'gc-solid'
-  const done = !isLog && !isExternal && task.completed
-  // 終わった予定は Google と同じく淡く（記録はもともと過去なので対象外）
-  const past = !isLog && !done && dayKey != null && isPastBlock(dayKey, task.endTime)
+  // 予定: 完了＝色のまま＋✓ / 終わったのに未完了＝グレー / これから＝色。記録は常に分類の色
+  const state = !isLog && !isExternal && dayKey ? planVisualState(task, dayKey) : 'upcoming'
+  const variant = isLog ? 'gc-soft' : state === 'missed' ? 'gc-missed' : 'gc-solid'
+  const doneMark = state === 'done' ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
 
@@ -119,7 +114,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
       }}
       className={`${variant} absolute overflow-hidden rounded-[5px] px-1.5 py-0.5 text-left text-[11px] leading-tight
         cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
-        ${done ? 'line-through opacity-50' : past ? 'opacity-60' : ''}`}
+        `}
       data-block-id={task.id}
       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
       style={{
@@ -134,12 +129,12 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
     >
       {compact ? (
         <span className="block truncate">
-          <span className="font-medium">{task.title}</span>
+          <span className="font-medium">{doneMark}{task.title}</span>
           <span className="opacity-80">、{task.startTime}</span>
         </span>
       ) : (
         <>
-          <span className="block truncate font-medium">{task.title}</span>
+          <span className="block truncate font-medium">{doneMark}{task.title}</span>
           <span className="block text-[10px] opacity-80">
             {task.startTime} – {task.endTime}
           </span>
@@ -438,13 +433,11 @@ export function WeekCalendarView({
                       <div
                         key={t.id}
                         onClick={() => openDetail(t.id)}
-                        className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer
-                          hover:ring-1 hover:ring-accent-400 transition-all
-                          ${t.completed
-                            ? 'line-through text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50'
-                            : 'bg-accent-100 dark:bg-accent-500/15 text-accent-700 dark:text-accent-300'}`}
+                        className={`${planVisualState(t, key) === 'missed' ? 'gc-missed' : 'gc-solid'} cursor-pointer truncate rounded px-1.5 py-0.5
+                          text-[10px] leading-tight transition-all hover:brightness-95`}
+                        style={colorVars(listColorById.get(t.listId) ?? NEUTRAL_HEX)}
                       >
-                        {t.title}
+                        {t.completed ? '✓ ' : ''}{t.title}
                       </div>
                     ))}
                     {allDayAddDate === key && (

@@ -104,3 +104,13 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-pop-in, .animate-sheet-in { animation: none; }
 }
+
+/* 終わったのに完了していない予定（Google カレンダーの灰色に近い落ち着いた色） */
+.gc-missed {
+  background-color: #e8eaed;
+  color: #5f6368;
+}
+.dark .gc-missed {
+  background-color: #3f3f46;
+  color: #a1a1aa;
+}
