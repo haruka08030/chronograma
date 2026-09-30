@@ -98,6 +98,7 @@ export default {
     },
   },
   planner: {
+    recordsBarAria: 'Today’s records (open timeline)',
     todayTitle: 'Today',
     titleFormat: 'EEEE, MMM d',
     shortDateFormat: 'MMM d',
@@ -269,6 +270,7 @@ export default {
     body: '{{start}} – {{end}}',
   },
   app: {
+    searchPlaceholderTouch: 'Search',
     searchPlaceholder: 'Search… (⌘K)',
     openMenu: 'Open menu',
   },
@@ -563,6 +565,7 @@ export default {
     toggleAria: 'Toggle light and dark theme',
   },
   calendar: {
+    recordedTotal: 'Logged {{time}}',
     moreItems: '+{{count}} more',
     addTaskPlaceholder: 'Add task',
     addTaskAria: 'Add a to-do on this day',
@@ -630,6 +633,9 @@ export default {
     endDate: 'End date',
   },
   planVsActual: {
+    googleOneLine: 'You can also compare with your Google Calendar events.',
+    googleConnectShort: 'Connect',
+    googleLoginFirst: 'Sign in to connect',
     title: 'Plan vs log',
     startRecording: 'Start timer',
     timerWhat: 'What are you doing?',
@@ -669,6 +675,11 @@ export default {
       'Client ID: {{clientId}} (register the redirect URI on this client)',
     invalidClientSecret:
       'Google Client Secret is invalid. Re-check it in Google Cloud Console and update Supabase Edge Function secrets (GOOGLE_CLIENT_SECRET) and the Supabase Auth Google provider to the same value.',
+    legendPlan: 'Plan',
+    legendRecord: 'Record',
+    legendPast: 'Past plan',
+    legendHint: '✓ matched the plan; “N min off” means the timing differed',
+    statusMatched: '✓ As planned',
     legendDone: 'Done',
     legendDrift: 'Time drift',
     legendMissed: 'Missed',

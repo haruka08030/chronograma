@@ -54,7 +54,6 @@ export function SomedayView({ list }: { list: TaskList }) {
         <header className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{displayListName(list.id, list.name)}</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t('someday.subtitle')}</p>
           </div>
           <ListKindPicker list={list} />
         </header>

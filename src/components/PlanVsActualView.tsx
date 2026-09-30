@@ -12,6 +12,9 @@ import {
 import { enUS, ja } from 'date-fns/locale'
 import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
+import { planVisualState } from '../lib/planVisual'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
@@ -33,7 +36,7 @@ import {
   taskPlacementDate,
   timeLogSegmentLayoutForDay,
 } from '../lib/taskTimeRange'
-import { matchPlanAndActualForDate, type MatchedPair, type MatchStatus } from '../lib/matchEvents'
+import { matchPlanAndActualForDate, type MatchedPair } from '../lib/matchEvents'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor, type CreatePopup } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
@@ -64,78 +67,18 @@ import { useAuth } from '../contexts/AuthContext'
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
 
-/** 予定 vs ログ: ソース種別ではなくマッチステータスで色を統一 */
-function blockStylesForStatus(status: MatchStatus): {
-  borderClass: string
-  bgClass: string
-  textClass: string
-} {
-  switch (status) {
-    case 'matched':
-      return {
-        borderClass: 'border-emerald-400 dark:border-emerald-500/50',
-        bgClass: 'bg-emerald-50 dark:bg-emerald-950',
-        textClass: 'text-emerald-900 dark:text-emerald-100',
-      }
-    case 'time-drift':
-      return {
-        borderClass: 'border-amber-400 dark:border-amber-500/60',
-        bgClass: 'bg-amber-50 dark:bg-amber-950',
-        textClass: 'text-amber-800 dark:text-amber-200',
-      }
-    case 'planned-only':
-      return {
-        borderClass: 'border-red-300 dark:border-red-500/40 border-dashed',
-        bgClass: 'bg-red-50 dark:bg-red-950',
-        textClass: 'text-red-800 dark:text-red-200',
-      }
-    case 'actual-only':
-      return {
-        borderClass: 'border-purple-300 dark:border-purple-500/40',
-        bgClass: 'bg-purple-50 dark:bg-purple-950',
-        textClass: 'text-purple-800 dark:text-purple-200',
-      }
-    default:
-      return {
-        borderClass: 'border-zinc-200 dark:border-zinc-600',
-        bgClass: 'bg-zinc-50 dark:bg-zinc-800',
-        textClass: 'text-zinc-800 dark:text-zinc-200',
-      }
-  }
+/**
+ * 予定 vs 記録の色は他の画面と同じルール（記録と可視化が主役）:
+ * 予定は薄く（`.gc-plan`）、時間が過ぎた予定はグレー（`.gc-missed`）、記録は分類色の塗りつぶし（`.gc-solid`）。
+ * 照合結果は色ではなく小さな文字（✓ / N分ズレ）で示す。未実行を赤くして責めない。
+ */
+function planVariant(dateKey: string, endTime: string, completed: boolean): string {
+  return planVisualState({ completed, endTime, startTime: null }, dateKey) === 'upcoming' ? 'gc-plan' : 'gc-missed'
 }
 
-function neutralPlanStyles(): { borderClass: string; bgClass: string; textClass: string } {
-  return {
-    borderClass: 'border-zinc-200 dark:border-zinc-600',
-    bgClass: 'bg-zinc-50 dark:bg-zinc-800',
-    textClass: 'text-zinc-800 dark:text-zinc-200',
-  }
-}
-
-/** 左列（予定）: マッチ結果。タスク完了のみマッチ色に寄せる（習慣はログ突合のみ。達成フラグだけでは緑にしない） */
-function planBlockStyles(
-  matchStatus: MatchedPair | undefined,
-  opts?: { taskCompleted?: boolean },
-): { borderClass: string; bgClass: string; textClass: string } {
-  if (opts?.taskCompleted) {
-    return blockStylesForStatus('matched')
-  }
-  if (!matchStatus) return neutralPlanStyles()
-  return blockStylesForStatus(matchStatus.status)
-}
-
-/** 右列（ログ）: マッチステータスのみ（タグ色は使わない） */
-function actualBlockStyles(matchStatus: MatchedPair | undefined): {
-  borderClass: string
-  bgClass: string
-  textClass: string
-} {
-  if (!matchStatus) return neutralPlanStyles()
-  return blockStylesForStatus(matchStatus.status)
-}
-
-function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, onOpen, hStyle }: {
+function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDone, onOpen, hStyle, colorHex }: {
   hStyle?: React.CSSProperties
+  colorHex: string
   item: PlannedItem
   matchStatus?: MatchedPair
   dateKey: string
@@ -149,22 +92,22 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   const tooltip = `${item.summary}  ${item.startTime} – ${item.endTime}`
 
   const isDone = matchStatus?.status === 'matched' || matchStatus?.status === 'time-drift'
-  const styles = planBlockStyles(matchStatus)
+  const variant = planVariant(dateKey, item.endTime, false)
 
   let label: string | null = null
   if (matchStatus?.status === 'time-drift') {
     label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
-  } else if (matchStatus?.status === 'planned-only') {
-    label = t('planVsActual.statusNotRun')
+  } else if (matchStatus?.status === 'matched') {
+    label = t('planVsActual.statusMatched')
   }
 
   return (
     <div
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden
-        border ${styles.borderClass} ${styles.bgClass} ${styles.textClass} select-none group/planned hover:z-30!
+        ${variant} select-none group/planned hover:z-30!
         ${onOpen ? 'cursor-pointer' : ''}`}
       title={tooltip}
-      style={{ top, height, minHeight: 18, ...hStyle }}
+      style={{ top, height, minHeight: 18, ...hStyle, ...colorVars(colorHex) }}
       onPointerDown={(e) => {
         e.stopPropagation()
       }}
@@ -215,7 +158,7 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
         </span>
       )}
       {label && (
-        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>
+        <span className="mt-0.5 block text-[9px] font-semibold opacity-90">
           {label}
         </span>
       )}
@@ -223,8 +166,10 @@ function PlannedItemBlock({ item, matchStatus, dateKey, onGoogleDone, onHabitDon
   )
 }
 
-function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail, hStyle }: {
+function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail, hStyle, dateKey, colorHex }: {
   hStyle?: React.CSSProperties
+  dateKey: string
+  colorHex: string
   task: Task
   matchStatus?: MatchedPair
   onPointerDown: (e: React.PointerEvent) => void
@@ -235,13 +180,13 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
   const height = Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
   const tooltip = `${task.title}  ${task.startTime} – ${task.endTime}`
 
-  const styles = planBlockStyles(matchStatus, { taskCompleted: task.completed })
+  const variant = planVariant(dateKey, task.endTime!, task.completed)
   let label: string | null = null
 
   if (matchStatus?.status === 'time-drift') {
     label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
-  } else if (matchStatus?.status === 'planned-only' && !task.completed) {
-    label = t('planVsActual.statusNotRun')
+  } else if (matchStatus?.status === 'matched' || task.completed) {
+    label = t('planVsActual.statusMatched')
   }
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -266,11 +211,9 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         flex flex-col items-stretch
-        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
-        ${styles.borderClass} ${styles.bgClass} ${styles.textClass}
-        ${task.completed ? 'line-through opacity-80' : ''}`}
+        transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none ${variant}`}
       title={tooltip}
-      style={{ top, height, minHeight: 18, ...hStyle }}
+      style={{ top, height, minHeight: 18, ...hStyle, ...colorVars(colorHex) }}
     >
       <span className="font-medium truncate block">{task.title}</span>
       {height >= 32 && (
@@ -279,14 +222,15 @@ function ScheduledTaskDragBlock({ task, matchStatus, onPointerDown, onOpenDetail
         </span>
       )}
       {label && (
-        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>{label}</span>
+        <span className="mt-0.5 block text-[9px] font-semibold opacity-90">{label}</span>
       )}
     </button>
   )
 }
 
-function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, hStyle }: {
+function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, hStyle, colorHex }: {
   hStyle?: React.CSSProperties
+  colorHex: string
   task: Task
   dateKey: string
   matchStatus?: MatchedPair
@@ -299,13 +243,11 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, 
   const height = seg?.height ?? Math.max(timeToY(task.endTime!) - top, HOUR_HEIGHT / 4)
   const tooltip = `${task.title}  ${task.startTime} – ${task.endTime}`
 
-  const styles = actualBlockStyles(matchStatus)
   let label: string | null = null
 
+  // 予定に無かった記録にいちいち「予定外」と付けない（記録は色だけで十分。ズレだけ知らせる）
   if (matchStatus?.status === 'time-drift') {
     label = t('planVsActual.statusDrift', { count: matchStatus.driftMinutes })
-  } else if (matchStatus?.status === 'actual-only') {
-    label = t('planVsActual.statusUnplanned')
   }
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -330,10 +272,9 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, 
       }}
       className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
         flex flex-col items-stretch
-        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
-        ${styles.borderClass} ${styles.bgClass} ${styles.textClass}`}
+        gc-solid transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none`}
       title={tooltip}
-      style={{ top, height, minHeight: 18, ...hStyle }}
+      style={{ top, height, minHeight: 18, ...hStyle, ...colorVars(colorHex), boxShadow: '0 0 0 1px var(--gc-surface)' }}
     >
       <span className="font-medium truncate block">{task.title}</span>
       {height >= 32 && (
@@ -343,7 +284,7 @@ function ActualBlock({ task, dateKey, matchStatus, onPointerDown, onOpenDetail, 
         </span>
       )}
       {label && (
-        <span className={`block text-[9px] font-semibold mt-0.5 opacity-90 ${styles.textClass}`}>
+        <span className="mt-0.5 block text-[9px] font-semibold opacity-90">
           {label}
         </span>
       )}
@@ -538,83 +479,41 @@ function GoogleConnectBanner() {
     )
   }
 
+  // 未接続: 大きなボタンや警告を並べず 1 行だけ（予定と記録のグリッドを押し下げない）
   return (
-    <div className="mx-6 mt-4">
+    <div className="mx-4 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 md:mx-6">
+      <span>{t('planVsActual.googleOneLine')}</span>
       <button
-        onClick={handleConnect}
-        disabled={loading || !user}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                   bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
-                   hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-colors text-sm font-medium
-                   text-zinc-700 dark:text-zinc-300 shadow-sm disabled:opacity-50"
+        type="button"
+        onClick={() => (user ? void handleConnect() : openSettingsWithScroll('account'))}
+        disabled={loading}
+        className="rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
       >
-        <svg className="w-4 h-4" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-        </svg>
-        {loading ? t('planVsActual.connecting') : t('planVsActual.connect')}
+        {loading ? t('planVsActual.connecting') : user ? t('planVsActual.googleConnectShort') : t('planVsActual.googleLoginFirst')}
       </button>
-      {!user && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t('planVsActual.googleNeedsLogin')}
-          </p>
-          <button
-            type="button"
-            onClick={() => openSettingsWithScroll('account')}
-            className="text-xs px-2.5 py-1 rounded-lg border border-accent-300 dark:border-accent-600
-                       text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-500/10 transition-colors"
-          >
-            {t('planVsActual.googleLoginButton')}
-          </button>
-        </div>
-      )}
       {import.meta.env.DEV && clientId && redirectUri && (
-        <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 space-y-1">
-          <p>{t('planVsActual.redirectUriHint', { uri: redirectUri })}</p>
-          <p className="font-mono break-all">
-            {t('planVsActual.oauthClientHint', { clientId })}
-          </p>
-        </div>
+        <span className="w-full font-mono text-[10px] text-zinc-400">{t('planVsActual.redirectUriHint', { uri: redirectUri })}</span>
       )}
-      {displayError && (
-        <p className="text-xs text-red-500 mt-1.5">{displayError}</p>
-      )}
+      {displayError && <span className="w-full text-red-500">{displayError}</span>}
     </div>
   )
 }
 
+/** 凡例: 他の画面と同じ 3 つだけ（予定=薄い / 記録=色 / 終わった予定=グレー） */
 function Legend() {
   const { t } = useTranslation()
-  const matched = blockStylesForStatus('matched')
-  const drift = blockStylesForStatus('time-drift')
-  const plannedOnly = blockStylesForStatus('planned-only')
-  const actualOnly = blockStylesForStatus('actual-only')
-  const neutral = neutralPlanStyles()
+  const item = (cls: string, label: string, hex = '#7986CB') => (
+    <div className="flex items-center gap-1.5">
+      <div className={`h-3 w-3 rounded-sm ${cls}`} style={colorVars(hex)} />
+      <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
+    </div>
+  )
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] md:px-6">
-      <div className="flex items-center gap-1.5">
-        <div className={`w-3 h-3 rounded-sm border ${matched.bgClass} ${matched.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendDone')}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className={`w-3 h-3 rounded-sm border ${drift.bgClass} ${drift.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendDrift')}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className={`w-3 h-3 rounded-sm border ${plannedOnly.bgClass} ${plannedOnly.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendMissed')}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className={`w-3 h-3 rounded-sm border ${actualOnly.bgClass} ${actualOnly.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendExtra')}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className={`w-3 h-3 rounded-sm border ${neutral.bgClass} ${neutral.borderClass}`} />
-        <span className="text-zinc-500 dark:text-zinc-400">{t('planVsActual.legendPending')}</span>
-      </div>
+      {item('gc-plan', t('planVsActual.legendPlan'))}
+      {item('gc-solid', t('planVsActual.legendRecord'), '#039BE5')}
+      {item('gc-missed', t('planVsActual.legendPast'))}
+      <span className="text-zinc-400 dark:text-zinc-500">{t('planVsActual.legendHint')}</span>
     </div>
   )
 }
@@ -708,6 +607,8 @@ export function PlanVsActualView() {
   }, [calendarEvents])
 
   const lists = useTaskStore((s) => s.lists)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const scheduledTasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -1092,7 +993,7 @@ export function PlanVsActualView() {
                     ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
                     {format(day, 'd')}
                   </div>
-                  <div className="mt-0.5 hidden justify-center gap-0.5 sm:flex">
+                  <div className="mt-0.5 flex justify-center gap-0.5">
                     <span className="text-[9px] text-blue-500 dark:text-blue-400">{t('common.planned')}</span>
                     <span className="text-[9px] text-zinc-300 dark:text-zinc-600">|</span>
                     <span className="text-[9px] text-emerald-500 dark:text-emerald-400">{t('common.log')}</span>
@@ -1185,6 +1086,8 @@ export function PlanVsActualView() {
                             <div key={item.id} style={{ opacity: timelineDrag.movingTaskId === task.id ? 0.3 : 1 }}>
                               <ScheduledTaskDragBlock
                                 hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
+                                dateKey={key}
+                                colorHex={listColorById.get(task.listId) ?? NEUTRAL_HEX}
                                 task={task}
                                 matchStatus={match}
                                 onPointerDown={(e) =>
@@ -1204,6 +1107,7 @@ export function PlanVsActualView() {
                           return (
                             <PlannedItemBlock
                               key={item.id}
+                              colorHex={(hid && habits.find((h) => h.id === hid)?.color) || NEUTRAL_HEX}
                               hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                               item={item}
                               matchStatus={match}
@@ -1218,6 +1122,7 @@ export function PlanVsActualView() {
                         return (
                           <PlannedItemBlock
                             key={item.id}
+                            colorHex="#039BE5"
                             hStyle={overlapSlotStyle(planSlots.get(item.id), 0, 100, 2, slotMode)}
                             item={item}
                             matchStatus={match}
@@ -1281,6 +1186,7 @@ export function PlanVsActualView() {
                         <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
                           <ActualBlock
                             hStyle={overlapSlotStyle(logSlots.get(t.id), 0, 100, 2, slotMode)}
+                            colorHex={categoryHex(t.tags[0], logCategoryColors)}
                             task={t}
                             dateKey={key}
                             matchStatus={getMatchForActual(key, t.id)}

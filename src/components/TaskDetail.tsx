@@ -354,7 +354,7 @@ export function TaskDetail({
                     <TimeInput
                       value={task.startTime ?? ''}
                       onChange={(v) => updateTask(task.id, { startTime: v || null })}
-                      className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
                     />
@@ -363,7 +363,7 @@ export function TaskDetail({
                       value={task.endTime ?? ''}
                       onChange={(v) => updateTask(task.id, { endTime: v || null })}
                       pickerDefault={task.startTime ? addClockMinutes(task.startTime, 60) : undefined}
-                      className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
                     />
@@ -665,7 +665,7 @@ export function TaskDetail({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 dark:bg-black/40" />
       <div
-        className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800
+        className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
                    h-full overflow-y-auto shadow-xl animate-slide-in"
         onClick={(e) => e.stopPropagation()}
       >

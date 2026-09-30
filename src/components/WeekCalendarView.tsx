@@ -398,8 +398,8 @@ export function WeekCalendarView({
                       onSelectDate?.(key)
                       setAllDayAddDate(key)
                     }}
-                    className={`absolute right-1 top-1 h-5 w-5 p-0.5 opacity-100 transition-opacity touch-manipulation md:h-4 md:w-4 md:p-px md:opacity-0
-                      focus-visible:opacity-100 md:group-hover:opacity-100 ${selected ? 'md:opacity-60' : ''}`}
+                    className={`absolute right-1 top-1 hidden h-4 w-4 p-px opacity-0 transition-opacity md:block
+                      focus-visible:opacity-100 group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
                   />
                 </div>
               )

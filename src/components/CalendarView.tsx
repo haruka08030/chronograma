@@ -12,7 +12,8 @@ import {
 } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import { planVisualState } from '../lib/planVisual'
-import { colorVars } from '../lib/logCategoryColors'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
@@ -27,6 +28,13 @@ import {
 } from '../lib/googleCalendar'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
+
+/** 月のマス用の短い時間表記（3h20 / 45m） */
+function formatMinutesShort(m: number): string {
+  const h = Math.floor(m / 60)
+  const min = m % 60
+  return h > 0 ? `${h}h${min ? String(min).padStart(2, '0') : ''}` : `${min}m`
+}
 
 export function CalendarView({
   displayMonth,
@@ -60,6 +68,24 @@ export function CalendarView({
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  /** 日ごとの記録（分類 → 分）。月のマスでは記録を一番上に色で見せる（記録と可視化が主役） */
+  const recordsByDate = useMemo(() => {
+    const map = new Map<string, Map<string, number>>()
+    for (const t of tasks) {
+      if (!isListedTimeLog(t) || !isActiveTask(t) || t.parentId) continue
+      for (const day of days) {
+        const key = format(day, 'yyyy-MM-dd')
+        const min = minutesOfLogOnCalendarDay(t, key)
+        if (min <= 0) continue
+        const byCat = map.get(key) ?? new Map<string, number>()
+        const cat = t.tags[0] ?? ''
+        byCat.set(cat, (byCat.get(cat) ?? 0) + min)
+        map.set(key, byCat)
+      }
+    }
+    return map
+  }, [tasks, days])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
@@ -140,7 +166,6 @@ export function CalendarView({
                 key={key}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
-                            ${!inMonth ? 'opacity-30' : ''}
                             ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
                 onClick={() => onSelectDate?.(key)}
                 onDoubleClick={() => setAddingDate(key)}
@@ -171,7 +196,9 @@ export function CalendarView({
                       ? 'bg-accent-500 text-white font-semibold'
                       : selected
                         ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
-                        : 'text-zinc-500 dark:text-zinc-400'}`}
+                        : inMonth
+                          ? 'text-zinc-500 dark:text-zinc-400'
+                          : 'text-zinc-300 dark:text-zinc-600'}`}
                   >
                     {format(day, 'd')}
                   </div>
@@ -185,7 +212,22 @@ export function CalendarView({
                       group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
                   />
                 </div>
-                <div className="space-y-0.5">
+                <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
+                  {(() => {
+                    const recs = recordsByDate.get(key)
+                    if (!recs) return null
+                    const total = [...recs.values()].reduce((a, b) => a + b, 0)
+                    return (
+                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatMinutesShort(total) })}>
+                        <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
+                          {[...recs.entries()].map(([cat, min]) => (
+                            <div key={cat} className="gc-dot" style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / total) * 100}%` }} />
+                          ))}
+                        </div>
+                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatMinutesShort(total)}</span>
+                      </div>
+                    )
+                  })()}
                   {dayEvents.slice(0, 2).map((e) => (
                     <div
                       key={`event-${e.id}`}

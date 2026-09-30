@@ -15,7 +15,8 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const selectedDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
-  const [dockOpen, setDockOpen] = useState(true)
+  // 右の日パネルと内容が重なり、グリッドを 4 割潰していたので既定は閉じる（「ToDo を表示」で開く）
+  const [dockOpen, setDockOpen] = useState(false)
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [weekAnchor, setWeekAnchor] = useState(() => new Date())
 
