@@ -212,10 +212,10 @@ export function CalendarView({
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${!t.startTime ? (planVisualState(t, key) === 'missed' ? 'gc-missed' : 'gc-solid') : ''}
-                        ${t.startTime && planVisualState(t, key) === 'missed' ? 'text-zinc-400 dark:text-zinc-500' : ''}
-                        ${t.startTime && planVisualState(t, key) !== 'missed' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
-                      style={colorVars(planVisualState(t, key) === 'missed' ? '#BDBDBD' : listColorById.get(t.listId) ?? NEUTRAL_HEX)}
+                        ${!t.startTime ? (planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed') : ''}
+                        ${t.startTime && planVisualState(t, key) !== 'upcoming' ? 'text-zinc-400 dark:text-zinc-500' : ''}
+                        ${t.startTime && planVisualState(t, key) === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
+                      style={colorVars(planVisualState(t, key) === 'upcoming' ? listColorById.get(t.listId) ?? NEUTRAL_HEX : '#BDBDBD')}
                     >
                       {/* Google と同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯 */}
                       {t.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}

@@ -635,7 +635,7 @@ export function ActivityLogView() {
                   return (
                     <button
                       key={`${task.id}::${dateKey}`}
-                      className="gc-soft absolute cursor-grab select-none overflow-hidden rounded-md px-2.5 py-1 text-left text-[12px] leading-tight
+                      className="gc-solid absolute cursor-grab select-none overflow-hidden rounded-md px-2.5 py-1 text-left text-[12px] leading-tight
                         touch-none transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing"
                       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
                       style={{ top, height, minHeight: 24, ...hStyle, ...colorVars(hex), opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}

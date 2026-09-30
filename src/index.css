@@ -71,20 +71,10 @@ body {
   --gc-surface: #18181b;
   --gc-ink: #f4f4f5;
 }
-/* 予定: 塗りつぶし＋白文字 */
+/* 記録（実績）・外部の予定: 塗りつぶし＋白文字（このアプリで色が目立つのは「やったこと」） */
 .gc-solid {
   background-color: var(--c);
   color: var(--on-c, #ffffff);
-}
-/* 記録（実績）: 薄い面＋左の色帯。予定と一目で見分けられる */
-.gc-soft {
-  background-color: color-mix(in srgb, var(--c) 16%, var(--gc-surface));
-  border-left: 3px solid var(--c);
-  color: color-mix(in srgb, var(--c) 40%, var(--gc-ink));
-}
-.dark .gc-soft {
-  background-color: color-mix(in srgb, var(--c) 26%, var(--gc-surface));
-  color: color-mix(in srgb, var(--c) 30%, var(--gc-ink));
 }
 .gc-dot {
   background-color: var(--c);
@@ -105,7 +95,19 @@ body {
   .animate-pop-in, .animate-sheet-in { animation: none; }
 }
 
-/* 終わったのに完了していない予定（Google カレンダーの灰色に近い落ち着いた色） */
+/* 予定（これから）: 薄く。色が付いて目立つのは記録（実績）だけにする */
+.gc-plan {
+  background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));
+  border: 1px solid color-mix(in srgb, var(--c) 45%, var(--gc-surface));
+  color: color-mix(in srgb, var(--c) 55%, var(--gc-ink));
+}
+.dark .gc-plan {
+  background-color: color-mix(in srgb, var(--c) 20%, var(--gc-surface));
+  border-color: color-mix(in srgb, var(--c) 45%, var(--gc-surface));
+  color: color-mix(in srgb, var(--c) 35%, var(--gc-ink));
+}
+
+/* 終わった予定（完了・未完了とも）: グレー */
 .gc-missed {
   background-color: #e8eaed;
   color: #5f6368;

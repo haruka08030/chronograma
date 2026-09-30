@@ -1,6 +1,6 @@
 /**
  * 記録の分類の色。分類ごとに Google カレンダーの色キーを保存する（並べ替えても色が変わらないように）。
- * 表示は CSS 変数 `--c` に色を渡し、`gc-solid`（塗りつぶし）/ `gc-soft`（薄い面＋左の帯）で描く（index.css）。
+ * 表示は CSS 変数 `--c` に色を渡し、`gc-solid`（記録の塗りつぶし）/ `gc-plan`（薄い予定）/ `gc-dot` で描く（index.css）。
  */
 import type { CSSProperties } from 'react'
 import { GOOGLE_COLORS, NEUTRAL_HEX, hexForGoogleKey, textOnHex, type GoogleColorKey } from './googleColors'
@@ -51,7 +51,7 @@ export function categoryHex(name: string | null | undefined, colors: Readonly<Re
   return hexForGoogleKey(categoryColorKey(name, colors)) ?? NEUTRAL_HEX
 }
 
-/** `gc-solid` / `gc-soft` / 丸に渡すスタイル */
+/** `gc-solid` / `gc-plan` / `gc-dot` に渡すスタイル */
 export function colorVars(hex: string): CSSProperties {
   return { '--c': hex, '--on-c': textOnHex(hex) } as CSSProperties
 }

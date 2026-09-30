@@ -111,8 +111,8 @@
   （`recentLogs`）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
 
 - **色**（`src/lib/googleColors.ts`）: リスト・習慣・記録の分類はすべて Google カレンダーの 11 色（パレット切り替えは廃止、
-  persist v28 で既存のリスト・習慣の色を色相の最も近い色へ、未分類はラベンダー）。タイムラインは Google 風に、予定＝リスト色の
-  塗りつぶし（`.gc-solid`）、記録＝分類色の薄い面＋左帯（`.gc-soft`）、外部予定＝ピーコック。色は style の `--c` で渡す
+  persist v28 で既存のリスト・習慣の色を色相の最も近い色へ、未分類はラベンダー）。タイムラインは、予定＝リスト色の
+  薄い面（`.gc-plan`）、記録＝分類色の塗りつぶし（`.gc-solid`）、外部予定＝ピーコック。色は style の `--c` で渡す
   （`colorVars`、index.css）。分類の色キーは `logCategoryColors`（`src/lib/logCategoryColors.ts`、旧 Tailwind キーは読み替え）。
   管理は設定の `CategoryManager`（色・名前変更＝過去の記録も書き換え、同名なら統合・並べ替え・候補から外す・直近 30 日の使用時間・
   記録にだけある分類の取り込み）。ストアは `addLogCategory` / `renameLogCategory` / `removeLogCategory` / `moveLogCategory` /
@@ -126,9 +126,10 @@
   `QuickCreatePopover`（タイトル・時間・リスト、保存 / その他のオプション、外側クリックと Esc は破棄）。クリックでの作成は
   `useTimelineDrag` の `clickCreateMinutes`（予定 vs ログでは未指定＝従来どおり）。スマホ幅ではカードが下からのシート。
   30 分の点線は廃止（1 時間線のみ）、週表示も今日を含む週なら今の時刻へスクロール
-- **予定の見せ方**（`src/lib/planVisual.ts` の `planVisualState`）: 記録と可視化が主役なので、完了した予定は色のまま＋✓、
-  終わったのに未完了の予定はグレー（`.gc-missed`）、これからの予定は色。記録（ログ）は常に分類の色。週・日タイムライン、
-  終日の行、月表示（時刻つきは「● 15:00 タイトル」、終日は塗りの帯）で共通
+- **予定と記録の見せ方**（`src/lib/planVisual.ts` の `planVisualState`）: 記録と可視化が主役なので、色で目立つのは記録（実績）だけ
+  （分類色の塗りつぶし `.gc-solid`、ログ画面も同じ）。予定は薄く（`.gc-plan`、リスト色をうっすら）、時間が過ぎたら完了・未完了とも
+  グレー（`.gc-missed`、完了は ✓）。外部の Google 予定は塗りつぶしの青。週・日タイムライン、終日の行、月表示（時刻つきは
+  「● 15:00 タイトル」、終日は帯）で共通
 - **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
   c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
   各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）

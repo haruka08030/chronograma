@@ -71,7 +71,7 @@ function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: b
 
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
- * 予定・外部の予定は塗りつぶし（`gc-solid`）、記録は薄い面＋左の帯（`gc-soft`）で、予定と実績を見分ける。
+ * 記録（実績）と外部の予定は塗りつぶし（`gc-solid`）、予定は薄く（`gc-plan`）、終わった予定は灰色（`gc-missed`）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  */
 function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle, colorHex }: {
@@ -94,9 +94,9 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
-  // 予定: 完了＝色のまま＋✓ / 終わったのに未完了＝グレー / これから＝色。記録は常に分類の色
+  // 記録（実績）は常に分類の色で塗る。予定は薄く、終わったら（完了・未完了とも）グレー。外部の予定は Google の青
   const state = !isLog && !isExternal && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = isLog ? 'gc-soft' : state === 'missed' ? 'gc-missed' : 'gc-solid'
+  const variant = isLog ? 'gc-solid' : isExternal ? 'gc-solid' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   const doneMark = state === 'done' ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
@@ -433,7 +433,7 @@ export function WeekCalendarView({
                       <div
                         key={t.id}
                         onClick={() => openDetail(t.id)}
-                        className={`${planVisualState(t, key) === 'missed' ? 'gc-missed' : 'gc-solid'} cursor-pointer truncate rounded px-1.5 py-0.5
+                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} cursor-pointer truncate rounded px-1.5 py-0.5
                           text-[10px] leading-tight transition-all hover:brightness-95`}
                         style={colorVars(listColorById.get(t.listId) ?? NEUTRAL_HEX)}
                       >
