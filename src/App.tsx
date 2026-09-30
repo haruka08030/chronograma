@@ -16,6 +16,8 @@ import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
 import { TaskBinView } from './components/TaskBinView'
+import { ChecklistView } from './components/ChecklistView'
+import { SomedayView } from './components/SomedayView'
 import { SettingsView } from './components/SettingsView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
@@ -155,6 +157,7 @@ export default function App() {
   const selectedView = useTaskStore((s) => s.selectedView)
   const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
+  const selectedList = useTaskStore((s) => (s.selectedListId ? s.lists.find((l) => l.id === s.selectedListId) ?? null : null))
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -456,7 +459,11 @@ export default function App() {
       case 'archived': return <TaskBinView mode="archived" />
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
-      default: return <TaskList />
+      default:
+        // いつか・チェックリストのリストは専用画面（日付や優先度を出さない）
+        if (selectedView == null && selectedList?.kind === 'checklist') return <ChecklistView list={selectedList} />
+        if (selectedView == null && selectedList?.kind === 'someday') return <SomedayView list={selectedList} />
+        return <TaskList />
     }
   })()
 

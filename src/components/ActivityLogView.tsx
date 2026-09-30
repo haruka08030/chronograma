@@ -230,7 +230,8 @@ export function ActivityLogView() {
   }, [])
 
   const handleStartTimer = () => {
-    const title = timerTitle.trim()
+    // 分類だけ選んで始めてもよい（「勉強」だけ記録したい、が一番多い）
+    const title = timerTitle.trim() || timerTag.trim()
     if (!title) return
     const tags = timerTag.trim() ? [timerTag.trim()] : []
     startTimer(title, tags)
@@ -345,7 +346,7 @@ export function ActivityLogView() {
                 <input
                   value={timerTitle}
                   onChange={(e) => setTimerTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleStartTimer() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleStartTimer() }}
                   placeholder={t('activityLog.timerWhat')}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                              border border-zinc-200 dark:border-zinc-700 outline-none
@@ -363,7 +364,7 @@ export function ActivityLogView() {
                 />
                 <button
                   onClick={handleStartTimer}
-                  disabled={!timerTitle.trim()}
+                  disabled={!timerTitle.trim() && !timerTag.trim()}
                   className="w-full py-2.5 rounded-xl bg-accent-500 hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed
                              text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                 >

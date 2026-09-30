@@ -37,6 +37,9 @@ export function TaskDetail({
   const addTask = useTaskStore((s) => s.addTask)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  // いつか・チェックリストには締切や予定を付けない（付けると期限のビューに戻ってきてしまう）
+  const listKind = lists.find((l) => l.id === task.listId)?.kind ?? 'tasks'
+  const plannable = listKind === 'tasks'
   const moveTaskToList = useTaskStore((s) => s.moveTaskToList)
   const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
@@ -252,7 +255,7 @@ export function TaskDetail({
             </div>
           </div>
 
-          {!isLog && (
+          {!isLog && plannable && (
             <>
               <div>
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.priority')}</label>

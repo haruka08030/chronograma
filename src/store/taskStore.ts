@@ -13,6 +13,7 @@ import {
   type ListColorPaletteId,
 } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
+import { inferLogCategory } from '../lib/logCategory'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -248,6 +249,10 @@ interface TaskState {
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
+  /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
+  uncheckTasks: (ids: string[]) => void
+  /** いつか → 「やること」（未分類）へ移して予定日を付ける。Undo は 1 段 */
+  promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
   /** ゴミ箱から完全に削除（対象と全子孫をストアから除去） */
@@ -302,6 +307,17 @@ const defaultInbox: TaskList = {
 }
 
 export const INBOX_LIST_ID = INBOX_ID
+
+function defaultLogCategories(): string[] {
+  return i18n.t('logCategories.defaults', { returnObjects: true }) as string[]
+}
+
+/** 分類が空なら、元タスクのタグ → 同じタイトルの前回の分類 の順で補う */
+function withInferredCategory(tags: string[], tasks: Task[], title: string, taskId?: string | null): string[] {
+  if (tags.length > 0) return tags
+  const inferred = inferLogCategory(tasks, title, taskId)
+  return inferred ? [inferred] : []
+}
 
 /**
  * 新規ユーザーの初期リスト。「未分類」だけだと Wish も買い物も全部そこに入って混ざるので、
@@ -546,7 +562,8 @@ export const useTaskStore = create<TaskState>()(
       filterTag: null,
       notificationsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
-      timeLogTagPresets: [] as string[],
+      // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
+      timeLogTagPresets: defaultLogCategories(),
 
       calendarEvents: [],
       googleConnected: false,
@@ -1065,7 +1082,10 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({
           tasks: [
             ...s.tasks,
-            makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true }, maxOrder + 1),
+            makeTask({
+              title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true,
+              tags: withInferredCategory([], s.tasks, title),
+            }, maxOrder + 1),
           ],
         }))
       },
@@ -1083,7 +1103,7 @@ export const useTaskStore = create<TaskState>()(
             endTime,
             isTimeLog: true,
             completed: true,
-            tags,
+            tags: withInferredCategory(tags ?? [], get().tasks, title),
           },
           maxOrder + 1,
         )
@@ -1095,7 +1115,12 @@ export const useTaskStore = create<TaskState>()(
       },
       startTimer: (title, tags, taskId) => {
         set({
-          activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [], taskId: taskId ?? null },
+          activeTimer: {
+            taskTitle: title,
+            startedAt: new Date().toISOString(),
+            tags: withInferredCategory(tags ?? [], get().tasks, title, taskId),
+            taskId: taskId ?? null,
+          },
           completePromptTaskId: null,
         })
       },
@@ -1238,6 +1263,36 @@ export const useTaskStore = create<TaskState>()(
             ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
           ],
         }))
+      },
+      uncheckTasks: (ids) => {
+        if (ids.length === 0) return
+        pushUndo()
+        const set_ = new Set(ids)
+        const now = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            set_.has(t.id) && t.completed ? { ...t, completed: false, completedAt: null, updatedAt: now } : t,
+          ),
+        }))
+      },
+      promoteToPlanned: (id, dateKey) => {
+        const s0 = get()
+        if (!s0.tasks.some((t) => t.id === id)) return
+        const family = expandDescendantIds([id], s0.tasks)
+        pushUndo()
+        const now = new Date().toISOString()
+        set((s) => {
+          const maxOrder = Math.max(0, ...s.tasks.filter((t) => t.listId === INBOX_ID && t.parentId === null).map((t) => t.order))
+          return {
+            tasks: s.tasks.map((t) => {
+              if (!family.has(t.id)) return t
+              if (t.id === id) {
+                return { ...t, listId: INBOX_ID, sectionId: null, order: maxOrder + 1, scheduledDate: dateKey, updatedAt: now }
+              }
+              return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }
+            }),
+          }
+        })
       },
       deleteTasks: (ids) => {
         if (ids.length === 0) return
@@ -1559,7 +1614,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 25,
+      version: 26,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1765,6 +1820,11 @@ export const useTaskStore = create<TaskState>()(
               deletedAt: typeof rec.deletedAt === 'string' ? rec.deletedAt : null,
             }
           })
+        }
+        if (version < 26) {
+          // 分類を 1 つも持っていないと記録がほぼ「未分類」になるので、既定の分類を入れる
+          const presets = state.timeLogTagPresets
+          if (!Array.isArray(presets) || presets.length === 0) state.timeLogTagPresets = defaultLogCategories()
         }
         return state as unknown as TaskState
       },

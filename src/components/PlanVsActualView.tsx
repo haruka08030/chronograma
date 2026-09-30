@@ -11,6 +11,7 @@ import {
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
+import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
@@ -700,10 +701,12 @@ export function PlanVsActualView() {
     return map
   }, [calendarEvents])
 
+  const lists = useTaskStore((s) => s.lists)
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const scheduledTasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
     for (const t of tasks) {
-      if (t.parentId || !t.startTime || !t.endTime || t.isTimeLog || !isActiveTask(t)) continue
+      if (t.parentId || !t.startTime || !t.endTime || t.isTimeLog || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
       const placement = taskPlacementDate(t)
       if (!placement) continue
       const arr = map.get(placement) ?? []
@@ -711,7 +714,7 @@ export function PlanVsActualView() {
       map.set(placement, arr)
     }
     return map
-  }, [tasks])
+  }, [tasks, excludedListIds])
 
   const logTasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -986,7 +989,7 @@ export function PlanVsActualView() {
                   value={timerInputValue}
                   onChange={(e) => setTimerInputValue(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && timerInputValue.trim()) {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && timerInputValue.trim()) {
                       const tags = timerTagValue.trim() ? [timerTagValue.trim()] : []
                       startTimer(timerInputValue.trim(), tags)
                       setTimerInputValue('')
@@ -995,7 +998,6 @@ export function PlanVsActualView() {
                     }
                     if (e.key === 'Escape') { setShowTimerInput(false); setTimerInputValue(''); setTimerTagValue('') }
                   }}
-                  onBlur={() => { if (!timerInputValue.trim() && !timerTagValue.trim()) setShowTimerInput(false) }}
                   placeholder={t('planVsActual.timerWhat')}
                   className="w-full px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-accent-300 dark:border-accent-500/40
                              outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
@@ -1008,7 +1010,7 @@ export function PlanVsActualView() {
                   inputClassName="w-full px-2 py-1 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
                              outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && timerInputValue.trim()) {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && timerInputValue.trim()) {
                       const tags = timerTagValue.trim() ? [timerTagValue.trim()] : []
                       startTimer(timerInputValue.trim(), tags)
                       setTimerInputValue('')

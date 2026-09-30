@@ -10,6 +10,7 @@ import {
   isSameMonth,
   isToday,
 } from 'date-fns'
+import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -53,10 +54,12 @@ export function CalendarView({
     return eachDayOfInterval({ start: calStart, end: calEnd })
   }, [displayMonth])
 
+  const lists = useTaskStore((s) => s.lists)
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t)) continue
+      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
       const key = taskPlacementDate(t)
       if (!key) continue
       const arr = map.get(key) ?? []
@@ -64,7 +67,7 @@ export function CalendarView({
       map.set(key, arr)
     }
     return map
-  }, [tasks])
+  }, [tasks, excludedListIds])
 
   useEffect(() => {
     if (!googleConnected) return

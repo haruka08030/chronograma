@@ -10,10 +10,12 @@ import { findListByName, unplannedListIds } from '../lib/listKind'
 import { displayListName } from '../lib/displayListName'
 import { requestPermission } from '../lib/notifications'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { TaskDetail } from './TaskDetail'
 import { WeekCalendarView } from './WeekCalendarView'
+import { QuickLogStarter } from './QuickLogStarter'
 import type { Task } from '../types/task'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
@@ -154,6 +156,7 @@ export function TodayPlannerView() {
           e.dataTransfer.setData(TASK_DND_TYPE, task.id)
           e.dataTransfer.setData('text/plain', task.id)
           e.dataTransfer.effectAllowed = 'move'
+          startNativeTaskDragGhost(e, task.title)
         }}
         className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
       >
@@ -310,6 +313,9 @@ export function TodayPlannerView() {
               </>
             )}
           </p>
+          <div className="mt-4">
+            <QuickLogStarter />
+          </div>
         </header>
 
         <div className="px-3">

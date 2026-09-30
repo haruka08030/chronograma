@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isToday, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
@@ -37,10 +38,21 @@ export function CalendarDayPanel({
     ? `${format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })} · ${t('activityLog.today')}`
     : format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
 
+  const lists = useTaskStore((s) => s.lists)
+  // いつか・チェックリストは日付があってもカレンダーの予定として出さない
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const plannedItems = useMemo(
     () =>
       tasks
-        .filter((t) => taskPlacementDate(t) === selectedDateKey && !t.parentId && !t.isTimeLog && !t.completed && isActiveTask(t))
+        .filter(
+          (t) =>
+            taskPlacementDate(t) === selectedDateKey &&
+            !t.parentId &&
+            !t.isTimeLog &&
+            !t.completed &&
+            isActiveTask(t) &&
+            !excludedListIds.has(t.listId),
+        )
         .sort((a, b) => {
           if (!a.startTime && b.startTime) return -1
           if (a.startTime && !b.startTime) return 1
@@ -49,7 +61,7 @@ export function CalendarDayPanel({
           }
           return a.order - b.order
         }),
-    [tasks, selectedDateKey],
+    [tasks, selectedDateKey, excludedListIds],
   )
   const externalEvents = useMemo(
     () =>
@@ -75,6 +87,7 @@ export function CalendarDayPanel({
             !t.isTimeLog &&
             t.completed &&
             isActiveTask(t) &&
+            !excludedListIds.has(t.listId) &&
             completionDateKey(t) === selectedDateKey,
         )
         .sort((a, b) => {
@@ -82,7 +95,7 @@ export function CalendarDayPanel({
           const tb = new Date(b.completedAt ?? b.updatedAt).getTime()
           return tb - ta
         }),
-    [tasks, selectedDateKey],
+    [tasks, selectedDateKey, excludedListIds],
   )
 
   const logItems = useMemo(

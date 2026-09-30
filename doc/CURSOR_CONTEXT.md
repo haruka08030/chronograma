@@ -20,7 +20,7 @@
   SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
   旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 25**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 26**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -99,6 +99,16 @@
   `ListKindPicker`、サイドバーのリスト行に種類アイコン。新規ユーザーの初期リストは 未分類 / いつか / 買い物（`initialLists`）。
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`（`004_list_kind.sql`）。未適用の DB では push 時に kind なしで送り直す
+
+- **いつか / チェックリストの専用画面**: リスト選択時に `kind` が `checklist` なら `ChecklistView`、`someday` なら `SomedayView`
+  （`App.tsx` の `mainContent`）。`uncheckTasks`（全部戻す）・`promoteToPlanned`（いつか → 未分類 + 今日の予定日）はどちらも Undo 1 段。
+  `TaskDetail` は `tasks` 以外のリストで優先度・締切・予定日の欄を出さない。カレンダー（月・週・日パネル）と予定 vs ログも除外
+- **記録の分類**: 分類は 1 つ選ぶチップ（`TimeLogTagField`、同じチップで解除、＋で追加すると設定の分類にも保存）。既定の分類
+  （`logCategories.defaults`、勉強・課題・就活…）を新規ユーザーに入れ、persist v26 で空の既存ユーザーにも入れる。分類なしで記録したら
+  `inferLogCategory`（`src/lib/logCategory.ts`: 元タスクの先頭タグ → 同じタイトルの前回の分類）を `startTimer` / `addTimeLog` /
+  `addCompletedTaskWithTime` で補う。タイトル空でも分類だけで開始可（タイトル＝分類名）
+- **今日画面から記録**: `QuickLogStarter`（「今日の計画」の見出し下）。「記録する」でタイトル（任意）＋分類、最近の記録 3 件
+  （`recentLogs`）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
 
 ### グローバルショートカット（`App.tsx`）
 

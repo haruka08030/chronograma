@@ -37,6 +37,7 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
+import { unplannedListIds } from '../lib/listKind'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -183,6 +184,8 @@ export function WeekCalendarView({
 }) {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
+  const lists = useTaskStore((s) => s.lists)
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
@@ -216,7 +219,7 @@ export function WeekCalendarView({
     const timed = new Map<string, typeof tasks>()
     const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || !isActiveTask(t)) continue
+      if (t.parentId || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
       if (t.isTimeLog) {
         if (!t.dueDate || !t.startTime || !t.endTime) continue
         for (const day of days) {
@@ -241,7 +244,7 @@ export function WeekCalendarView({
       }
     }
     return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
-  }, [tasks, days])
+  }, [tasks, days, excludedListIds])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()
