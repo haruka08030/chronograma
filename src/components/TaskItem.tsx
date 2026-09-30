@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
-import { isToday, isPast, format, parseISO } from 'date-fns'
+import { isToday, isTomorrow, isPast, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
@@ -12,18 +12,45 @@ import { isModKey } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
 import { DueDatePopover } from './DueDatePopover'
 
+const LONG_PRESS_MS = 450
+const LONG_PRESS_SLOP_PX = 8
+
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-500',
   medium: 'text-amber-500',
   low: 'text-blue-500',
 }
 
-function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; overdue: boolean } {
+/** 日付ラベルの緊急度。色は「期限切れ > 今日 > 明日 > それ以外」の順に強くする */
+type DateTone = 'overdue' | 'today' | 'tomorrow' | 'future' | 'past'
+
+const DUE_TONE_CLASS: Record<DateTone, string> = {
+  overdue: 'text-red-500 dark:text-red-400 font-medium',
+  today: 'text-amber-600 dark:text-amber-400 font-medium',
+  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
+  future: 'text-zinc-500 dark:text-zinc-400',
+  past: 'text-zinc-400 dark:text-zinc-500',
+}
+
+const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
+  overdue: 'text-zinc-400 dark:text-zinc-500',
+  today: 'text-accent-600 dark:text-accent-400 font-medium',
+  tomorrow: 'text-accent-500/90 dark:text-accent-300/80',
+  future: 'text-zinc-500 dark:text-zinc-400',
+  past: 'text-zinc-400 dark:text-zinc-500',
+}
+
+function dateTone(d: Date): DateTone {
+  if (isToday(d)) return 'today'
+  if (isTomorrow(d)) return 'tomorrow'
+  return isPast(d) ? 'overdue' : 'future'
+}
+
+function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; tone: DateTone } {
   const d = parseISO(iso)
-  if (isToday(d)) return { text: todayLabel, overdue: false }
-  const overdue = isPast(d) && !isToday(d)
+  if (isToday(d)) return { text: todayLabel, tone: 'today' }
   const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-  return { text: format(d, fmt, { locale }), overdue }
+  return { text: format(d, fmt, { locale }), tone: dateTone(d) }
 }
 
 export type TaskItemSelection = {
@@ -104,13 +131,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
-  const scheduledText = useMemo(() => {
+  // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
+  const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
+  const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = parseISO(`${task.scheduledDate}T12:00:00`)
     const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
     const datePart = isToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
     const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
-    return `${datePart}${timePart}`
+    return { text: `${datePart}${timePart}`, tone: dateTone(d) }
   }, [timeLog, task.scheduledDate, task.startTime, task.endTime, dateLocale, t])
   const [isDragging, setIsDragging] = useState(false)
 
@@ -134,6 +163,28 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
   const rowNativeDraggable = !hasSortableHandle
 
+  // スマホ: 行を長押しで一括選択を始める（ドラッグは左の ⋮⋮ だけなので競合しない）
+  const longPressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
+  const suppressClickRef = useRef(false)
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current) window.clearTimeout(longPressRef.current.timer)
+    longPressRef.current = null
+  }, [])
+  const onRowPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch' || !selection || editing) return
+    const timer = window.setTimeout(() => {
+      longPressRef.current = null
+      suppressClickRef.current = true
+      navigator.vibrate?.(15)
+      selection.onToggle(e as unknown as React.MouseEvent)
+    }, LONG_PRESS_MS)
+    longPressRef.current = { timer, x: e.clientX, y: e.clientY }
+  }
+  const onRowPointerMove = (e: React.PointerEvent) => {
+    const lp = longPressRef.current
+    if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > LONG_PRESS_SLOP_PX) cancelLongPress()
+  }
+
   const beginTitleInteraction = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
     if (e.shiftKey || isModKey(e)) {
@@ -153,12 +204,29 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       draggable={rowNativeDraggable}
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
-      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer
+      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none md:select-auto
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2.5 py-1.5' : 'px-2.5 py-2'}
-                  ${task.completed && !timeLog ? 'opacity-50' : ''}
+                  ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
+      style={{ WebkitTouchCallout: 'none' }}
+      onPointerDown={onRowPointerDown}
+      onPointerMove={onRowPointerMove}
+      onPointerUp={cancelLongPress}
+      onPointerCancel={cancelLongPress}
+      onContextMenu={(e) => {
+        // 長押しで出る OS のメニューを抑える（選択に使う）
+        if (suppressClickRef.current || longPressRef.current) e.preventDefault()
+      }}
+      onClickCapture={(e) => {
+        // 長押しで選択した直後の click で詳細・編集が開かないように
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false
+          e.stopPropagation()
+          e.preventDefault()
+        }
+      }}
       onClick={(e) => {
         if (editing) return
         if (onRowClick) onRowClick(e)
@@ -184,7 +252,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             ${isSubtask ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
             ${selection.reveal || selection.selected
               ? 'opacity-100'
-              : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}
+              : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100'}
             ${selection.selected
               ? 'border-accent-500 bg-accent-500 text-white'
               : 'border-zinc-300 dark:border-zinc-600 bg-transparent hover:border-zinc-400 dark:hover:border-zinc-500'}`}
@@ -283,17 +351,20 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         )}
 
         <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-          {due && dueText && (!task.completed || timeLog) && (
-            <span className={`text-[11px] ${due.overdue ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
+          {dueTone && dueText && (!task.completed || timeLog) && (
+            <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
               {dueText}
             </span>
           )}
-          {scheduledText && (!task.completed || timeLog) && (
-            <span className="inline-flex items-center gap-0.5 text-[11px] text-accent-500 dark:text-accent-400">
+          {scheduled && (!task.completed || timeLog) && (
+            <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {scheduledText}
+              {scheduled.text}
             </span>
           )}
           {task.recurrence && (
@@ -336,7 +407,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 toggle()
               }}
               className={`transition-all cursor-pointer rounded-md p-1.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
-                ${open || task.dueDate ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
+                ${open ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
             >
               <svg className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
