@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
-import { LIST_COLOR_PALETTES } from '../lib/listColorPalettes'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AccountMenu } from './AccountMenu'
@@ -20,8 +19,6 @@ export function SettingsView() {
   const { user, loading: authLoading } = useAuth()
   const theme = useTaskStore((s) => s.theme)
   const setTheme = useTaskStore((s) => s.setTheme)
-  const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
-  const setListColorPalette = useTaskStore((s) => s.setListColorPalette)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
   const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
   const exportData = useTaskStore((s) => s.exportData)
@@ -79,34 +76,6 @@ export function SettingsView() {
 
         <SettingsGroup id="settings-categories" title={t('categories.title')} description={t('categories.help')}>
           <CategoryManager />
-        </SettingsGroup>
-
-        <SettingsGroup id="settings-lists" title={t('settings.listsTitle')}>
-          <SettingsRow label={t('settings.paletteTitle')} help={t(`palettes.${listColorPaletteId}.description`)}>
-            <div role="radiogroup" aria-label={t('settings.paletteTitle')} className="flex flex-wrap gap-2">
-              {LIST_COLOR_PALETTES.map((p) => {
-                const selected = listColorPaletteId === p.id
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    title={t(`palettes.${p.id}.label`)}
-                    onClick={() => setListColorPalette(p.id)}
-                    className={`flex -space-x-1 rounded-full p-1 transition ${
-                      selected ? 'ring-2 ring-accent-500' : 'ring-1 ring-zinc-200 hover:ring-zinc-300 dark:ring-zinc-700'
-                    }`}
-                  >
-                    {p.colors.slice(0, 4).map((c) => (
-                      <span key={c} className="h-4 w-4 rounded-full ring-2 ring-white dark:ring-zinc-900" style={{ backgroundColor: c }} aria-hidden />
-                    ))}
-                    <span className="sr-only">{t(`palettes.${p.id}.label`)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </SettingsRow>
         </SettingsGroup>
 
         <SettingsGroup id="settings-account" title={t('settings.account')}>

@@ -25,7 +25,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
-import { categoryAccent, UNCATEGORIZED_ACCENT } from '../lib/logCategoryColors'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput, addClockMinutes } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
@@ -125,8 +125,9 @@ export function ActivityLogView() {
   const manualOpen = showManual || mobilePanel === 'manual'
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const untaggedLabel = t('tags.untagged')
-  const accentFor = (tag: string | null | undefined) =>
-    !tag || tag === untaggedLabel ? UNCATEGORIZED_ACCENT : categoryAccent(tag, logCategoryColors)
+  /** 分類の色（分類なしのまとめ行・分類なしの記録は灰色） */
+  const hexFor = (tag: string | null | undefined) =>
+    categoryHex(!tag || tag === untaggedLabel ? null : tag, logCategoryColors)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
   useEffect(() => {
@@ -310,7 +311,7 @@ export function ActivityLogView() {
             <p className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{formatDuration(summary.totalMinutes)}</p>
             <div className="flex h-2 min-w-0 flex-1 gap-0.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
               {summary.byTag.map(([tag, minutes]) => (
-                <div key={tag} className={accentFor(tag).dot} style={{ width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }} />
+                <div key={tag} className="gc-dot" style={{ ...colorVars(hexFor(tag)), width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }} />
               ))}
             </div>
           </div>
@@ -553,8 +554,8 @@ export function ActivityLogView() {
                   {summary.byTag.map(([tag, minutes]) => (
                     <div
                       key={tag}
-                      className={accentFor(tag).dot}
-                      style={{ width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }}
+                      className="gc-dot"
+                      style={{ ...colorVars(hexFor(tag)), width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }}
                       title={`${tag} ${formatDuration(minutes)}`}
                     />
                   ))}
@@ -562,7 +563,7 @@ export function ActivityLogView() {
                 <ul className="space-y-1.5">
                   {summary.byTag.map(([tag, minutes]) => (
                     <li key={tag} className="flex items-center gap-2 text-sm">
-                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${accentFor(tag).dot}`} aria-hidden />
+                      <span className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full" style={colorVars(hexFor(tag))} aria-hidden />
                       <span className="min-w-0 flex-1 truncate text-zinc-700 dark:text-zinc-300">{tag}</span>
                       <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(minutes)}</span>
                     </li>
@@ -630,19 +631,15 @@ export function ActivityLogView() {
                   const { top, height } = seg
                   const hStyle = overlapSlotStyle(logSlots.get(task.id), 0, 100, 8)
                   const dur = durationMinutesForTaskSlot(task)
-                  const color = accentFor(task.tags[0])
+                  const hex = hexFor(task.tags[0])
 
                   return (
                     <button
                       key={`${task.id}::${dateKey}`}
-                      className={`absolute rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
-                        cursor-grab active:cursor-grabbing select-none text-left touch-none
-                        border transition-shadow hover:shadow-md hover:z-10
-                        ${color.border}
-                        ${color.bg}
-                        ${task.completed ? 'opacity-90' : ''}`}
+                      className="gc-soft absolute cursor-grab select-none overflow-hidden rounded-md px-2.5 py-1 text-left text-[12px] leading-tight
+                        touch-none transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing"
                       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
-                      style={{ top, height, minHeight: 24, ...hStyle, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
+                      style={{ top, height, minHeight: 24, ...hStyle, ...colorVars(hex), opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current, {
@@ -663,7 +660,7 @@ export function ActivityLogView() {
                       }}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className={`font-medium truncate ${color.text}`}>
+                        <span className="truncate font-medium">
                           {task.title}
                         </span>
                       </div>
@@ -676,7 +673,7 @@ export function ActivityLogView() {
                       {height >= 52 && task.tags.length > 0 && (
                         <div className="flex gap-1 mt-1">
                           {task.tags.map((tag) => (
-                            <span key={tag} className={`text-[9px] px-1 py-0.5 rounded-full ${color.bg} ${color.text}`}>
+                            <span key={tag} className="text-[10px] opacity-80">
                               {tag}
                             </span>
                           ))}

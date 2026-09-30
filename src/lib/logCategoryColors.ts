@@ -1,86 +1,72 @@
 /**
- * 記録の分類の色。以前は「候補の並び順」で 6 色を回していたため、並べ替えると過去の記録の色が変わり、
- * 7 個目で 1 個目と同じ色になっていた。分類ごとに色キーを保存し、区別しやすい 10 色から選ぶ。
+ * 記録の分類の色。分類ごとに Google カレンダーの色キーを保存する（並べ替えても色が変わらないように）。
+ * 表示は CSS 変数 `--c` に色を渡し、`gc-solid`（塗りつぶし）/ `gc-soft`（薄い面＋左の帯）で描く（index.css）。
  */
+import type { CSSProperties } from 'react'
+import { GOOGLE_COLORS, NEUTRAL_HEX, hexForGoogleKey, textOnHex, type GoogleColorKey } from './googleColors'
 
-export const CATEGORY_COLOR_KEYS = [
-  'blue',
-  'emerald',
-  'violet',
-  'amber',
-  'rose',
-  'cyan',
-  'orange',
-  'lime',
-  'fuchsia',
-  'slate',
-] as const
+export const CATEGORY_COLOR_KEYS: readonly GoogleColorKey[] = GOOGLE_COLORS.map((c) => c.key)
+export type CategoryColorKey = GoogleColorKey
 
-export type CategoryColorKey = (typeof CATEGORY_COLOR_KEYS)[number]
-
-export interface CategoryAccent {
-  /** タイムラインのブロック・選択中チップ */
-  bg: string
-  text: string
-  border: string
-  /** 小さい丸・棒グラフ */
-  dot: string
+/** 以前（Tailwind の 10 色）に保存したキーの読み替え */
+const LEGACY_KEYS: Record<string, CategoryColorKey> = {
+  blue: 'blueberry',
+  emerald: 'sage',
+  violet: 'lavender',
+  amber: 'banana',
+  rose: 'flamingo',
+  cyan: 'peacock',
+  orange: 'tangerine',
+  lime: 'basil',
+  fuchsia: 'grape',
+  slate: 'graphite',
 }
 
-// Tailwind はクラス名を静的に拾うので、組み立てずに全部書く
-const ACCENTS: Record<CategoryColorKey, CategoryAccent> = {
-  blue: { bg: 'bg-blue-50 dark:bg-blue-950', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-200 dark:border-blue-800', dot: 'bg-blue-500' },
-  emerald: { bg: 'bg-emerald-50 dark:bg-emerald-950', text: 'text-emerald-800 dark:text-emerald-200', border: 'border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
-  violet: { bg: 'bg-violet-50 dark:bg-violet-950', text: 'text-violet-800 dark:text-violet-200', border: 'border-violet-200 dark:border-violet-800', dot: 'bg-violet-500' },
-  amber: { bg: 'bg-amber-50 dark:bg-amber-950', text: 'text-amber-800 dark:text-amber-200', border: 'border-amber-200 dark:border-amber-800', dot: 'bg-amber-500' },
-  rose: { bg: 'bg-rose-50 dark:bg-rose-950', text: 'text-rose-800 dark:text-rose-200', border: 'border-rose-200 dark:border-rose-800', dot: 'bg-rose-500' },
-  cyan: { bg: 'bg-cyan-50 dark:bg-cyan-950', text: 'text-cyan-800 dark:text-cyan-200', border: 'border-cyan-200 dark:border-cyan-800', dot: 'bg-cyan-500' },
-  orange: { bg: 'bg-orange-50 dark:bg-orange-950', text: 'text-orange-800 dark:text-orange-200', border: 'border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
-  lime: { bg: 'bg-lime-50 dark:bg-lime-950', text: 'text-lime-800 dark:text-lime-200', border: 'border-lime-200 dark:border-lime-800', dot: 'bg-lime-500' },
-  fuchsia: { bg: 'bg-fuchsia-50 dark:bg-fuchsia-950', text: 'text-fuchsia-800 dark:text-fuchsia-200', border: 'border-fuchsia-200 dark:border-fuchsia-800', dot: 'bg-fuchsia-500' },
-  slate: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-200', border: 'border-slate-300 dark:border-slate-600', dot: 'bg-slate-500' },
-}
-
-/** 分類なしの記録（控えめな灰色） */
-export const UNCATEGORIZED_ACCENT: CategoryAccent = {
-  bg: 'bg-zinc-50 dark:bg-zinc-800',
-  text: 'text-zinc-700 dark:text-zinc-300',
-  border: 'border-zinc-200 border-dashed dark:border-zinc-600',
-  dot: 'bg-zinc-300 dark:bg-zinc-600',
-}
+// 分類に割り当てる順番（隣り合う分類が似た色にならないよう、色相を飛ばして並べる）
+const ASSIGN_ORDER: readonly CategoryColorKey[] = [
+  'peacock', 'sage', 'tangerine', 'lavender', 'banana', 'flamingo', 'grape', 'basil', 'blueberry', 'tomato', 'graphite',
+]
 
 export function isCategoryColorKey(v: unknown): v is CategoryColorKey {
   return typeof v === 'string' && (CATEGORY_COLOR_KEYS as readonly string[]).includes(v)
 }
 
-/** 分類名から決まる色（保存色が無い古い分類・候補に無い分類用。並び順に依存しない） */
+/** 分類名から決まる色（保存色が無い分類・候補に無い分類用。並び順に依存しない） */
 function hashedKey(name: string): CategoryColorKey {
   let h = 0
   for (const ch of name) h = (h * 31 + ch.codePointAt(0)!) >>> 0
-  return CATEGORY_COLOR_KEYS[h % CATEGORY_COLOR_KEYS.length]!
+  return ASSIGN_ORDER[h % (ASSIGN_ORDER.length - 1)]!
 }
 
 export function categoryColorKey(name: string, colors: Readonly<Record<string, string>>): CategoryColorKey {
   const saved = colors[name]
-  return isCategoryColorKey(saved) ? saved : hashedKey(name)
+  if (isCategoryColorKey(saved)) return saved
+  if (saved && LEGACY_KEYS[saved]) return LEGACY_KEYS[saved]!
+  return hashedKey(name)
 }
 
-export function categoryAccent(name: string | null | undefined, colors: Readonly<Record<string, string>>): CategoryAccent {
-  if (!name) return UNCATEGORIZED_ACCENT
-  return ACCENTS[categoryColorKey(name, colors)]
+/** 分類の色（分類なしは灰色） */
+export function categoryHex(name: string | null | undefined, colors: Readonly<Record<string, string>>): string {
+  if (!name) return NEUTRAL_HEX
+  return hexForGoogleKey(categoryColorKey(name, colors)) ?? NEUTRAL_HEX
 }
 
-/** 新しい分類に付ける色: まだ使われていない色を先頭から。全部使っていれば名前から決める */
+/** `gc-solid` / `gc-soft` / 丸に渡すスタイル */
+export function colorVars(hex: string): CSSProperties {
+  return { '--c': hex, '--on-c': textOnHex(hex) } as CSSProperties
+}
+
+/** 新しい分類に付ける色: まだ使われていない色を割り当て順に。全部使っていれば名前から決める */
 export function nextCategoryColor(name: string, colors: Readonly<Record<string, string>>, names: readonly string[]): CategoryColorKey {
   const used = new Set(names.map((n) => categoryColorKey(n, colors)))
-  return CATEGORY_COLOR_KEYS.find((k) => !used.has(k)) ?? hashedKey(name)
+  return ASSIGN_ORDER.find((k) => !used.has(k)) ?? hashedKey(name)
 }
 
-/** 既存の候補に並び順で色を振る（色を保存していなかったデータの移行用） */
+/** 既存の候補に割り当て順で色を振る（色を保存していなかったデータの移行・初期値用） */
 export function assignColorsInOrder(names: readonly string[]): Record<string, CategoryColorKey> {
   const out: Record<string, CategoryColorKey> = {}
   names.forEach((n, i) => {
-    out[n] = CATEGORY_COLOR_KEYS[i % CATEGORY_COLOR_KEYS.length]!
+    out[n] = ASSIGN_ORDER[i % ASSIGN_ORDER.length]!
   })
   return out
 }

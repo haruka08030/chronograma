@@ -15,6 +15,9 @@ import {
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { inferLogCategory } from '../lib/logCategory'
 import { assignColorsInOrder, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
+import { nearestGoogleHex } from '../lib/googleColors'
+
+const INBOX_COLOR = '#7986CB'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -315,7 +318,8 @@ interface TaskState {
 const defaultInbox: TaskList = {
   id: INBOX_ID,
   name: '未分類',
-  color: defaultPaletteColors[0],
+  // 予定はリストの色で塗るので、いちばん多い未分類は落ち着いたラベンダーに
+  color: INBOX_COLOR,
   order: 0,
 }
 
@@ -339,8 +343,8 @@ function withInferredCategory(tags: string[], tasks: Task[], title: string, task
 function initialLists(): TaskList[] {
   return [
     defaultInbox,
-    { id: newId(), name: i18n.t('lists.defaultSomeday'), color: defaultPaletteColors[3] ?? defaultPaletteColors[0], order: 1, kind: 'someday' },
-    { id: newId(), name: i18n.t('lists.defaultShopping'), color: defaultPaletteColors[5] ?? defaultPaletteColors[0], order: 2, kind: 'checklist' },
+    { id: newId(), name: i18n.t('lists.defaultSomeday'), color: '#F6BF26', order: 1, kind: 'someday' },
+    { id: newId(), name: i18n.t('lists.defaultShopping'), color: '#33B679', order: 2, kind: 'checklist' },
   ]
 }
 
@@ -1689,7 +1693,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 27,
+      version: 28,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1900,6 +1904,16 @@ export const useTaskStore = create<TaskState>()(
           // 分類を 1 つも持っていないと記録がほぼ「未分類」になるので、既定の分類を入れる
           const presets = state.timeLogTagPresets
           if (!Array.isArray(presets) || presets.length === 0) state.timeLogTagPresets = defaultLogCategories()
+        }
+        if (version < 28) {
+          // パレットを Google カレンダーの 11 色に統一: 既存の色を色味の最も近い色へ
+          const lists = (state.lists as Record<string, unknown>[] | undefined) ?? []
+          state.lists = lists.map((l) => ({
+            ...l,
+            color: l.id === INBOX_ID ? INBOX_COLOR : nearestGoogleHex(String(l.color ?? '')),
+          }))
+          const habits = (state.habits as Record<string, unknown>[] | undefined) ?? []
+          state.habits = habits.map((h) => ({ ...h, color: nearestGoogleHex(String(h.color ?? '')) }))
         }
         if (version < 27) {
           // 色は並び順から決めていたので、今見えている色のまま固定する（並べ替えで変わらないように）

@@ -61,3 +61,31 @@ body {
 .animate-toast-in {
   animation: toast-in 0.25s ease-out;
 }
+
+/* Google カレンダー風の色付きブロック。色は style の --c（と --on-c）で渡す */
+:root {
+  --gc-surface: #ffffff;
+  --gc-ink: #1f1f1f;
+}
+.dark {
+  --gc-surface: #18181b;
+  --gc-ink: #f4f4f5;
+}
+/* 予定: 塗りつぶし＋白文字 */
+.gc-solid {
+  background-color: var(--c);
+  color: var(--on-c, #ffffff);
+}
+/* 記録（実績）: 薄い面＋左の色帯。予定と一目で見分けられる */
+.gc-soft {
+  background-color: color-mix(in srgb, var(--c) 16%, var(--gc-surface));
+  border-left: 3px solid var(--c);
+  color: color-mix(in srgb, var(--c) 40%, var(--gc-ink));
+}
+.dark .gc-soft {
+  background-color: color-mix(in srgb, var(--c) 26%, var(--gc-surface));
+  color: color-mix(in srgb, var(--c) 30%, var(--gc-ink));
+}
+.gc-dot {
+  background-color: var(--c);
+}

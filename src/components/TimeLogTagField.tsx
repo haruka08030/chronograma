@@ -2,7 +2,7 @@ import { useMemo, useState, type KeyboardEventHandler } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { buildTimeLogTagUniverse } from '../lib/tagColors'
-import { categoryAccent } from '../lib/logCategoryColors'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -57,7 +57,7 @@ export function TimeLogTagField({
     <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="radiogroup" aria-label={t('logCategories.label')}>
       {chips.map((name) => {
         const selected = value === name
-        const color = categoryAccent(name, colors)
+        const vars = colorVars(categoryHex(name, colors))
         return (
           <button
             key={name}
@@ -67,12 +67,13 @@ export function TimeLogTagField({
             onClick={() => onChange(selected ? '' : name)}
             className={`rounded-full border transition-colors touch-manipulation ${size} ${
               selected
-                ? `${color.bg} ${color.text} ${color.border} font-medium`
+                ? 'gc-solid border-transparent font-medium'
                 : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
             }`}
+            style={selected ? vars : undefined}
           >
             <span className="inline-flex items-center gap-1.5">
-              {!selected && <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} aria-hidden />}
+              {!selected && <span className="gc-dot h-1.5 w-1.5 rounded-full" style={vars} aria-hidden />}
               {name}
             </span>
           </button>

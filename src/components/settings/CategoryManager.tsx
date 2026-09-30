@@ -4,7 +4,8 @@ import { format, subDays } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
-import { CATEGORY_COLOR_KEYS, categoryAccent, categoryColorKey } from '../../lib/logCategoryColors'
+import { CATEGORY_COLOR_KEYS, categoryColorKey, categoryHex, colorVars } from '../../lib/logCategoryColors'
+import { hexForGoogleKey } from '../../lib/googleColors'
 
 const USAGE_DAYS = 30
 
@@ -81,7 +82,7 @@ export function CategoryManager() {
     <>
       <ul>
         {presets.map((name, i) => {
-          const accent = categoryAccent(name, colors)
+          const vars = colorVars(categoryHex(name, colors))
           const minutes = usage.get(name) ?? 0
           return (
             <li key={name} className="group relative flex min-h-12 items-center gap-3 border-b border-zinc-100 px-4 py-2 last:border-b-0 dark:border-zinc-800">
@@ -90,7 +91,8 @@ export function CategoryManager() {
                 onClick={() => setColorFor((c) => (c === name ? null : name))}
                 aria-label={t('categories.changeColor', { name })}
                 aria-expanded={colorFor === name}
-                className={`h-4 w-4 shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-zinc-300 dark:hover:ring-zinc-600 ${accent.dot}`}
+                className="gc-dot h-4 w-4 shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-zinc-300 dark:hover:ring-zinc-600"
+                style={vars}
               />
               {editing === name ? (
                 <input
@@ -166,7 +168,8 @@ export function CategoryManager() {
                         setLogCategoryColor(name, key)
                         setColorFor(null)
                       }}
-                      className={`h-6 w-6 rounded-full ${categoryAccent(key, { [key]: key }).dot} ${
+                      style={colorVars(hexForGoogleKey(key)!)}
+                      className={`gc-dot h-6 w-6 rounded-full ${
                         categoryColorKey(name, colors) === key ? 'ring-2 ring-zinc-900 ring-offset-2 dark:ring-white dark:ring-offset-zinc-800' : ''
                       }`}
                     />

@@ -38,7 +38,8 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
-import { categoryAccent, UNCATEGORIZED_ACCENT, type CategoryAccent } from '../lib/logCategoryColors'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -64,7 +65,12 @@ function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: b
   return { top, height: Math.max(height, 18) }
 }
 
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle, logAccent }: {
+/**
+ * タイムライン上の 1 ブロック（Google カレンダー風）。
+ * 予定・外部の予定は塗りつぶし（`gc-solid`）、記録は薄い面＋左の帯（`gc-soft`）で、予定と実績を見分ける。
+ * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
+ */
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle, colorHex }: {
   task: TimeBlockTask
   /** 週グリッド上の列の日付（ログのセグメント表示用） */
   dayKey?: string
@@ -74,10 +80,9 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
   isExternal?: boolean
   /** 重なり回避の横位置（left/width） */
   hStyle?: React.CSSProperties
-  /** ログの分類の色（ログ画面・ふりかえりと同じ色にする） */
-  logAccent?: CategoryAccent
+  /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
+  colorHex: string
 }) {
-  const { t } = useTranslation()
   const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -85,12 +90,10 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
-  const accent = logAccent ?? UNCATEGORIZED_ACCENT
-  const logCls = isLog ? `${accent.bg} ${accent.border} ${accent.text} border-dashed` : ''
-  const externalCls =
-    !isLog && isExternal
-      ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-500/40 text-blue-900 dark:text-blue-100'
-      : ''
+  const variant = isLog ? 'gc-soft' : 'gc-solid'
+  const done = !isLog && !isExternal && task.completed
+  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
+  const compact = height < 32
 
   return (
     <button
@@ -103,25 +106,32 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
           onOpenDetail()
         }
       }}
-      className={`absolute rounded-md px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing
-        border transition-shadow hover:shadow-md hover:z-30! select-none text-left touch-none
-        ${isLog
-          ? logCls
-          : isExternal
-            ? externalCls
-          : task.completed
-            ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 line-through'
-            : 'bg-accent-100 dark:bg-accent-950 border-accent-300 dark:border-accent-500/40 text-accent-800 dark:text-accent-200'}`}
+      className={`${variant} absolute overflow-hidden rounded-[5px] px-1.5 py-0.5 text-left text-[11px] leading-tight
+        cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
+        ${done ? 'line-through opacity-50' : ''}`}
       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
-      style={{ top, height, left: 2, right: 2, ...hStyle }}
+      style={{
+        top,
+        height,
+        left: 2,
+        right: 2,
+        ...hStyle,
+        ...colorVars(colorHex),
+        boxShadow: '0 0 0 1px var(--gc-surface)',
+      }}
     >
-      <span className="font-medium">{task.title}</span>
-      {isLog && <span className="ml-1 text-[9px] opacity-70">{t('common.log')}</span>}
-      {!isLog && isExternal && <span className="ml-1 text-[9px] opacity-70">{t('weekCalendar.external')}</span>}
-      {height >= 32 && (
-        <span className="block text-[10px] opacity-70 mt-px">
-          {task.startTime} – {task.endTime}
+      {compact ? (
+        <span className="block truncate">
+          <span className="font-medium">{task.title}</span>
+          <span className="opacity-80">、{task.startTime}</span>
         </span>
+      ) : (
+        <>
+          <span className="block truncate font-medium">{task.title}</span>
+          <span className="block text-[10px] opacity-80">
+            {task.startTime} – {task.endTime}
+          </span>
+        </>
       )}
     </button>
   )
@@ -188,6 +198,7 @@ export function WeekCalendarView({
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
@@ -543,6 +554,7 @@ export function WeekCalendarView({
                           }
                           onOpenDetail={() => openDetail(t.id)}
                           hStyle={planStyle(t.id)}
+                          colorHex={listColorById.get(t.listId) ?? NEUTRAL_HEX}
                         />
                       </div>
                     ))}
@@ -553,7 +565,7 @@ export function WeekCalendarView({
                           dayKey={key}
                           isLog
                           hStyle={logStyle(t.id)}
-                          logAccent={t.tags[0] ? categoryAccent(t.tags[0], logCategoryColors) : UNCATEGORIZED_ACCENT}
+                          colorHex={categoryHex(t.tags[0], logCategoryColors)}
                           onPointerDown={(e) =>
                             timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                                 startTime: t.startTime!,
@@ -579,6 +591,7 @@ export function WeekCalendarView({
                         }}
                         isExternal
                         hStyle={planStyle(`event-${e.id}`)}
+                        colorHex="#039BE5"
                         onPointerDown={(evt) => {
                           evt.preventDefault()
                           evt.stopPropagation()
