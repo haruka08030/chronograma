@@ -11,8 +11,8 @@ import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 
 /**
- * いつか（Wish）用の画面。期限も優先度も出さず、眺めて楽しいカードで並べる。
- * 「今日やる」で「やること」へ移して今日の計画に入れ、かなえたものは下に残して達成感にする。
+ * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
+ * 行頭の ☆ で「かなえた」（下の★一覧へ）、右の「今日やる」で今日の計画へ移す。
  */
 export function SomedayView({ list }: { list: TaskList }) {
   const { t } = useTranslation()
@@ -77,34 +77,36 @@ export function SomedayView({ list }: { list: TaskList }) {
         {wishes.length === 0 ? (
           <p className="mt-6 text-sm leading-relaxed text-zinc-400 dark:text-zinc-500">{t('someday.empty')}</p>
         ) : (
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ul className="mt-3">
             {wishes.map((item) => {
               const note = notePreview(item)
               return (
                 <li
                   key={item.id}
-                  className="group flex flex-col rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
                 >
-                  <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 text-left">
-                    <span className="block text-[15px] font-medium text-zinc-800 dark:text-zinc-100">{item.title}</span>
-                    {note && <span className="mt-1 line-clamp-2 block text-xs text-zinc-500 dark:text-zinc-400">{note}</span>}
+                  <button
+                    type="button"
+                    onClick={() => toggleTask(item.id)}
+                    title={t('someday.fulfill')}
+                    aria-label={t('someday.fulfillItem', { title: item.title })}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-lg text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
+                  >
+                    <span aria-hidden>☆</span>
                   </button>
-                  <div className="mt-3 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => doToday(item)}
-                      className="rounded-md px-2 py-1 text-xs font-medium text-accent-600 transition-colors hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
-                    >
-                      {t('someday.doToday')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleTask(item.id)}
-                      className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                    >
-                      {t('someday.fulfill')}
-                    </button>
-                  </div>
+                  <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 flex-1 py-2.5 text-left">
+                    <span className="block truncate text-[15px] text-zinc-800 dark:text-zinc-100">{item.title}</span>
+                    {note && <span className="mt-0.5 block truncate text-xs text-zinc-400 dark:text-zinc-500">{note}</span>}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => doToday(item)}
+                    className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
+                               md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100
+                               dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400"
+                  >
+                    {t('someday.doToday')}
+                  </button>
                 </li>
               )
             })}
@@ -113,16 +115,24 @@ export function SomedayView({ list }: { list: TaskList }) {
 
         {fulfilled.length > 0 && (
           <section className="mt-10">
-            <h2 className="mb-2 text-xs font-medium text-zinc-400 dark:text-zinc-500">{t('someday.fulfilledHeading', { count: fulfilled.length })}</h2>
-            <ul className="space-y-1">
+            <h2 className="mb-1 text-xs font-medium text-zinc-400 dark:text-zinc-500">{t('someday.fulfilledHeading', { count: fulfilled.length })}</h2>
+            <ul>
               {fulfilled.map((item) => (
-                <li key={item.id} className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <span className="text-amber-500" aria-hidden>★</span>
+                <li key={item.id} className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  <button
+                    type="button"
+                    onClick={() => toggleTask(item.id)}
+                    title={t('someday.unfulfill')}
+                    aria-label={t('someday.unfulfillItem', { title: item.title })}
+                    className="flex h-8 w-10 shrink-0 items-center justify-center rounded-md text-amber-500 transition-colors hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600"
+                  >
+                    <span aria-hidden>★</span>
+                  </button>
                   <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 truncate text-left">
                     {item.title}
                   </button>
                   {item.completedAt && (
-                    <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                    <span className="ml-1 shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
                       {format(new Date(item.completedAt), 'yyyy/M/d')}
                     </span>
                   )}
