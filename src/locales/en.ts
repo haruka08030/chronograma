@@ -98,6 +98,7 @@ export default {
     },
   },
   planner: {
+    overdueCount: '{{count}} overdue',
     recordsBarAria: 'Today’s records (open timeline)',
     todayTitle: 'Today',
     titleFormat: 'EEEE, MMM d',

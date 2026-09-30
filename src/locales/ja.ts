@@ -98,6 +98,7 @@ export default {
     },
   },
   planner: {
+    overdueCount: '期限切れ {{count}} 件',
     recordsBarAria: '今日の記録（タイムラインを開く）',
     todayTitle: '今日',
     titleFormat: 'M月d日 (E)',

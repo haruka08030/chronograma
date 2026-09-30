@@ -24,6 +24,13 @@ import type { Task } from '../types/task'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
+const META_TONE_CLASS = {
+  muted: 'text-zinc-400 dark:text-zinc-500',
+  overdue: 'text-red-500 dark:text-red-400 font-medium',
+  today: 'text-amber-600 dark:text-amber-400 font-medium',
+  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
+} as const
+
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
 const WRAP_UP_FROM_HOUR = 17
 
@@ -86,6 +93,10 @@ export function TodayPlannerView() {
   const { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
     () => getDayPlan(tasks, dateKey, excludedListIds),
     [tasks, dateKey, excludedListIds],
+  )
+  const overdueCount = useMemo(
+    () => (viewingToday ? carryOver.filter((x) => x.dueDate != null && x.dueDate < dateKey).length : 0),
+    [viewingToday, carryOver, dateKey],
   )
   // やり残しは今日を見ているときだけ候補に出す（過去日・未来日に持ち越しは無い）
   const suggestions = useMemo(
@@ -157,13 +168,16 @@ export function TodayPlannerView() {
   const timerBusy = activeTimer !== null
 
   /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
-  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'warn' } | null => {
+  /** 締切は焦らせてよい: 期限切れ＝赤 / 今日まで＝オレンジ / 明日まで＝薄いオレンジ（To‑Do の行と同じ段階） */
+  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (task.startTime && task.endTime && task.scheduledDate === dateKey) {
       return { text: `${task.startTime}–${task.endTime}`, tone: 'muted' }
     }
     if (!task.dueDate) return null
-    if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'warn' }
-    return { text: t('planner.dueOn', { date: shortDate(task.dueDate) }), tone: task.dueDate < dateKey ? 'warn' : 'muted' }
+    if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'today' }
+    const text = t('planner.dueOn', { date: shortDate(task.dueDate) })
+    if (task.dueDate < dateKey) return { text, tone: 'overdue' }
+    return { text, tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
   }
 
   const renderRow = (task: Task, action?: React.ReactNode) => {
@@ -213,7 +227,7 @@ export function TodayPlannerView() {
         {meta && !task.completed && (
           <span
             className={`shrink-0 text-xs tabular-nums ${
-              meta.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'
+              META_TONE_CLASS[meta.tone]
             }`}
           >
             {meta.text}
@@ -416,6 +430,12 @@ export function TodayPlannerView() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
               <span className="flex-1">{t('planner.suggestionsHeading', { count: suggestions.length })}</span>
+              {/* 畳んでいても期限切れは見えるように */}
+              {overdueCount > 0 && (
+                <span className="shrink-0 text-xs font-medium text-red-500 dark:text-red-400">
+                  {t('planner.overdueCount', { count: overdueCount })}
+                </span>
+              )}
             </button>
             {showSuggestions && (
               <>
