@@ -6,7 +6,8 @@
 |----------|------|
 | `001_chronograma_schema.sql` | 上記すべて（`tasks.end_date` / `completed_at` / `location` / `due_time`（締め切り時刻）/ `scheduled_date`（予定日）、旧 `pinned` 削除、`habits.time_mode` と CHECK、方針どおり `DROP POLICY IF EXISTS` 付きで再実行しやすい） |
 | `002_google_oauth.sql` | Google Calendar 連携用 `google_oauth` 表（Edge Function が service_role で upsert） |
-| `002_google_oauth.sql` | Google Calendar 用 `refresh_token` 保管（Edge Function が service_role で upsert） |
+| `003_push_subscriptions.sql` | 朝・夕方の Web Push 用の端末ごとの購読（`push_subscriptions`、RLS は本人のみ。送信は Edge Function `daily-reminders` が service_role で読む） |
+| `004_list_kind.sql` | `lists.kind`（`tasks` / `someday` / `checklist`）。いつか・チェックリストのリストを予定・統計・通知から外すため。未適用でも Web は種類なしで同期を続ける |
 
 **メモ**
 
@@ -14,3 +15,4 @@
 - 将来チーム化や Supabase CLI の厳密運用に切り替えるときは、この 1 本を分割して **追記のみの番号付きマイグレーション**に戻すのが無難。
 
 ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。
+| `005_event_reminders.sql` | `push_subscriptions.event_reminder_minutes`（予定の開始何分前に通知）と `event_notified`（その日に通知済みの予定 ID）。未適用でもアプリは動き、予定前通知はタブを開いている間だけになる |

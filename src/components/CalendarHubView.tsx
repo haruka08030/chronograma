@@ -7,6 +7,7 @@ import { WeekCalendarView } from './WeekCalendarView'
 import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
+import { useNavShortcut } from '../lib/shortcuts'
 
 export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   const { t } = useTranslation()
@@ -57,6 +58,8 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
       setSelectedCalendarDateKey(format(addWeeks(parseISO(`${selectedDateKey}T12:00:00`), 1), 'yyyy-MM-dd'))
     }
   }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
+
+  useNavShortcut({ today: onGoToday, prev: onPrevPeriod, next: onNextPeriod })
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">

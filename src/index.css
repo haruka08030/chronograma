@@ -12,6 +12,9 @@
   --color-accent-500: #6366f1;
   --color-accent-600: #4f46e5;
   --color-accent-700: #4338ca;
+  --color-accent-800: #3730a3;
+  --color-accent-900: #312e81;
+  --color-accent-950: #1e1b4b;
 }
 
 html {
@@ -57,4 +60,59 @@ body {
 }
 .animate-toast-in {
   animation: toast-in 0.25s ease-out;
+}
+
+/* Google カレンダー風の色付きブロック。色は style の --c（と --on-c）で渡す */
+:root {
+  --gc-surface: #ffffff;
+  --gc-ink: #1f1f1f;
+}
+.dark {
+  --gc-surface: #18181b;
+  --gc-ink: #f4f4f5;
+}
+/* 記録（実績）・外部の予定: 塗りつぶし＋白文字（このアプリで色が目立つのは「やったこと」） */
+.gc-solid {
+  background-color: var(--c);
+  color: var(--on-c, #ffffff);
+}
+.gc-dot {
+  background-color: var(--c);
+}
+
+/* ポップオーバーの出方（Google カレンダーのカードのように小さく拡大しながら出る） */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sheet-in {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.animate-pop-in { animation: pop-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-sheet-in { animation: sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop-in, .animate-sheet-in { animation: none; }
+}
+
+/* 予定（これから）: 薄く。色が付いて目立つのは記録（実績）だけにする */
+.gc-plan {
+  background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));
+  border: 1px solid color-mix(in srgb, var(--c) 45%, var(--gc-surface));
+  color: color-mix(in srgb, var(--c) 55%, var(--gc-ink));
+}
+.dark .gc-plan {
+  background-color: color-mix(in srgb, var(--c) 20%, var(--gc-surface));
+  border-color: color-mix(in srgb, var(--c) 45%, var(--gc-surface));
+  color: color-mix(in srgb, var(--c) 35%, var(--gc-ink));
+}
+
+/* 終わった予定（完了・未完了とも）: グレー */
+.gc-missed {
+  background-color: #e8eaed;
+  color: #5f6368;
+}
+.dark .gc-missed {
+  background-color: #3f3f46;
+  color: #a1a1aa;
 }

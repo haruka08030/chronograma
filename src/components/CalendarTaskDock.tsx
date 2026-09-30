@@ -1,7 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
+import { useTaskStore } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
+import { unplannedListIds } from '../lib/listKind'
+import { isActiveTask } from '../lib/taskLifecycle'
+
+const UNSCHEDULED = '__unscheduled__'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
 import { TaskItem } from './TaskItem'
@@ -17,7 +21,8 @@ export function CalendarTaskDock() {
   const filterTag = useTaskStore((s) => s.filterTag)
   const sections = useTaskStore((s) => s.sections)
 
-  const [dockListId, setDockListId] = useState(INBOX_LIST_ID)
+  // 既定は「時間が未定のタスク」（全リスト横断）。カレンダーに置く候補を探す場所なので 1 リストに絞らない
+  const [dockListId, setDockListId] = useState<string>(UNSCHEDULED)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
@@ -34,9 +39,20 @@ export function CalendarTaskDock() {
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const filtered = useMemo(
     () =>
-      getFilteredRootTasks({
+      dockListId === UNSCHEDULED
+        ? tasks
+            .filter(
+              (t) =>
+                !t.parentId &&
+                isActiveTask(t) &&
+                !excludedListIds.has(t.listId) &&
+                !(t.startTime && t.endTime),
+            )
+            .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || a.order - b.order)
+        : getFilteredRootTasks({
         tasks,
         selectedView: null,
         selectedListId: dockListId,
@@ -44,7 +60,7 @@ export function CalendarTaskDock() {
         filterTag,
         sections,
       }),
-    [tasks, dockListId, sortMode, filterTag, sections],
+    [tasks, dockListId, sortMode, filterTag, sections, excludedListIds],
   )
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
@@ -82,7 +98,8 @@ export function CalendarTaskDock() {
             onChange={(e) => setDockListId(e.target.value)}
             className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-900 outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           >
-            {sortedLists.map((l) => (
+            <option value={UNSCHEDULED}>{t('calendarDock.unscheduled')}</option>
+            {sortedLists.filter((l) => !excludedListIds.has(l.id)).map((l) => (
               <option key={l.id} value={l.id}>
                 {displayListName(l.id, l.name)}
               </option>

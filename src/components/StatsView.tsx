@@ -6,7 +6,9 @@ import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
+import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
+import { WeekReviewCard } from './WeekReviewCard'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -18,7 +20,11 @@ export function StatsView() {
   const lists = useTaskStore((s) => s.lists)
 
   const stats = useMemo(() => {
-    const countedTasks = tasks.filter((t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t))
+    // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
+    const excluded = unplannedListIds(lists)
+    const countedTasks = tasks.filter(
+      (t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t) && !excluded.has(t.listId),
+    )
     const completed = countedTasks.filter((t) => t.completed)
     const active = countedTasks.filter((t) => !t.completed)
     const today = startOfDay(new Date())
@@ -53,7 +59,7 @@ export function StatsView() {
       byPriority[t.priority]++
     }
 
-    const byList = lists.map((l) => ({
+    const byList = lists.filter((l) => !excluded.has(l.id)).map((l) => ({
       id: l.id,
       name: displayListName(l.id, l.name),
       color: l.color,
@@ -98,110 +104,46 @@ export function StatsView() {
       </div>
 
       <div className="px-6 pb-8 space-y-8">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label={t('stats.completedToday')} value={stats.completedToday} accent />
-          <StatCard label={t('stats.completedThisWeek')} value={stats.completedThisWeek} />
-          <StatCard label={t('stats.completedThisMonth')} value={stats.completedThisMonth} />
-          <StatCard label={t('stats.streakDays')} value={stats.streak} suffix={t('stats.daySuffix')} accent />
-        </div>
+        <WeekReviewCard />
 
-        {/* Active vs completed */}
-        <div className="grid grid-cols-3 gap-3">
-          <MiniCard label={t('stats.active')} value={stats.totalActive} color="text-amber-500" />
-          <MiniCard label={t('stats.done')} value={stats.totalCompleted} color="text-green-500" />
-          <MiniCard label={t('stats.overdue')} value={stats.overdue} color="text-red-500" />
-        </div>
+        {/* タスク: ふりかえりと重複しない数字だけを 1 行に */}
+        <section>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.tasksTitle')}</h2>
+          <dl className="grid grid-cols-2 divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 sm:divide-x">
+            {[
+              { label: t('stats.completedThisMonth'), value: stats.completedThisMonth },
+              { label: t('stats.activeLabel'), value: stats.totalActive },
+              { label: t('stats.overdueLabel'), value: stats.overdue, warn: stats.overdue > 0 },
+              { label: t('stats.streakLabel'), value: stats.streak, suffix: t('stats.daySuffix') },
+            ].map((x) => (
+              <div key={x.label} className="px-4 py-3">
+                <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{x.label}</dt>
+                <dd className={`mt-0.5 text-xl font-semibold tabular-nums ${x.warn ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                  {x.value}
+                  {x.suffix && <span className="ml-0.5 text-sm font-normal text-zinc-500">{x.suffix}</span>}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-        {/* 7-day chart */}
-        <div>
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">{t('stats.chartTitle')}</h2>
-          <div className="flex items-end gap-2 h-32">
-            {stats.last7Days.map((d) => {
-              const heightPct = (d.count / stats.maxDayCount) * 100
-              const isCurrentDay = isToday(d.date)
-              return (
-                <div key={d.date.toISOString()} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[11px] text-zinc-500 font-medium">{d.count}</span>
-                  <div className="w-full flex items-end" style={{ height: '80px' }}>
-                    <div
-                      className={`w-full rounded-t-md transition-all ${isCurrentDay ? 'bg-accent-500' : 'bg-accent-200 dark:bg-accent-500/30'}`}
-                      style={{ height: `${Math.max(heightPct, 4)}%` }}
-                    />
-                  </div>
-                  <span className={`text-[10px] ${isCurrentDay ? 'text-accent-600 dark:text-accent-400 font-semibold' : 'text-zinc-400'}`}>
-                    {d.label}
-                  </span>
-                  <span className={`text-[10px] ${isCurrentDay ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-400'}`}>
-                    {d.dayNum}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Priority breakdown */}
-        <div>
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{t('stats.priorityTitle')}</h2>
-          <div className="space-y-2">
-            <PriorityBar label={t('common.high')} count={stats.byPriority.high} total={stats.totalActive} color="bg-red-500" />
-            <PriorityBar label={t('common.medium')} count={stats.byPriority.medium} total={stats.totalActive} color="bg-amber-500" />
-            <PriorityBar label={t('common.low')} count={stats.byPriority.low} total={stats.totalActive} color="bg-blue-500" />
-            <PriorityBar label={t('common.none')} count={stats.byPriority.none} total={stats.totalActive} color="bg-zinc-300 dark:bg-zinc-600" />
-          </div>
-        </div>
-
-        {/* List breakdown */}
         {stats.byList.length > 0 && (
-          <div>
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{t('stats.byListTitle')}</h2>
-            <div className="space-y-2">
+          <section>
+            <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byListTitle')}</h2>
+            <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
               {stats.byList.map((l) => (
-                <div key={l.id} className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: l.color }} />
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300 flex-1 truncate">{l.name}</span>
-                  <span className="text-xs text-zinc-500 tabular-nums">{t('stats.listActive', { count: l.active })}</span>
-                  <span className="text-xs text-green-500 tabular-nums">{t('stats.listCompleted', { count: l.completed })}</span>
-                </div>
+                <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.color }} aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{l.name}</span>
+                  <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: l.active })}</span>
+                  <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: l.completed })}</span>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
         )}
       </div>
     </div>
   )
 }
 
-function StatCard({ label, value, suffix, accent }: { label: string; value: number; suffix?: string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
-      <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 mb-1">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums ${accent ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-900 dark:text-zinc-100'}`}>
-        {value}{suffix}
-      </p>
-    </div>
-  )
-}
-
-function MiniCard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 text-center">
-      <p className={`text-xl font-bold tabular-nums ${color}`}>{value}</p>
-      <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
-    </div>
-  )
-}
-
-function PriorityBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
-  const pct = total > 0 ? (count / total) * 100 : 0
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-zinc-500 w-6 text-right">{label}</span>
-      <div className="flex-1 h-4 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }} />
-      </div>
-      <span className="text-xs text-zinc-500 w-6 tabular-nums">{count}</span>
-    </div>
-  )
-}

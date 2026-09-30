@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, addDays, subDays, isToday } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
@@ -24,7 +25,8 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
-import { getTagColor, logBlockAccentFromTags, buildTimeLogTagUniverse } from '../lib/tagColors'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { useNavShortcut } from '../lib/shortcuts'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput, addClockMinutes } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
@@ -98,11 +100,15 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
 export function ActivityLogView() {
   const { t, i18n } = useTranslation()
   const [selectedDate, setSelectedDate] = useState(new Date())
+  useNavShortcut({
+    today: () => setSelectedDate(new Date()),
+    prev: () => setSelectedDate((d) => subDays(d, 1)),
+    next: () => setSelectedDate((d) => addDays(d, 1)),
+  })
   const dateKey = format(selectedDate, 'yyyy-MM-dd')
   const isTodaySelected = isToday(selectedDate)
 
   const tasks = useTaskStore((s) => s.tasks)
-  const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -120,6 +126,14 @@ export function ActivityLogView() {
   const [manualTag, setManualTag] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
+  /** モバイルで開いている入力パネル（null は閉じてタイムラインを広く） */
+  const [mobilePanel, setMobilePanel] = useState<'timer' | 'manual' | null>(null)
+  const manualOpen = showManual || mobilePanel === 'manual'
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const untaggedLabel = t('tags.untagged')
+  /** 分類の色（分類なしのまとめ行・分類なしの記録は灰色） */
+  const hexFor = (tag: string | null | undefined) =>
+    categoryHex(!tag || tag === untaggedLabel ? null : tag, logCategoryColors)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
   useEffect(() => {
@@ -176,9 +190,15 @@ export function ActivityLogView() {
       .sort((a, b) => compareLogsOnDay(a, b, dateKey))
   }, [tasks, dateKey])
 
-  const tagUniverse = useMemo(
-    () => buildTimeLogTagUniverse(timeLogTagPresets, tasks),
-    [timeLogTagPresets, tasks],
+  const logSlots = useMemo(
+    () =>
+      layoutOverlaps(
+        dayLogs.flatMap((task) => {
+          const seg = timeLogSegmentLayoutForDay(task, dateKey)
+          return seg ? [{ id: task.id, top: seg.top, height: Math.max(seg.height, 24) }] : []
+        }),
+      ),
+    [dayLogs, dateKey],
   )
 
   const summary = useMemo(() => {
@@ -218,7 +238,8 @@ export function ActivityLogView() {
   }, [])
 
   const handleStartTimer = () => {
-    const title = timerTitle.trim()
+    // 分類だけ選んで始めてもよい（「勉強」だけ記録したい、が一番多い）
+    const title = timerTitle.trim() || timerTag.trim()
     if (!title) return
     const tags = timerTag.trim() ? [timerTag.trim()] : []
     startTimer(title, tags)
@@ -290,10 +311,42 @@ export function ActivityLogView() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        {/* Timer + Manual entry + Summary（モバイルは上に縦積み） */}
-        <div className="max-h-[40vh] w-full flex-shrink-0 space-y-4 overflow-y-auto border-b border-zinc-200 p-3 dark:border-zinc-800 md:max-h-none md:w-80 md:space-y-5 md:border-b-0 md:border-r md:p-4">
+        {/* モバイル: 1 行の要約とボタンだけ。開いたパネルだけ下に出してタイムラインを押し出さない */}
+        <div className="flex-shrink-0 border-b border-zinc-100 px-4 pb-3 dark:border-zinc-800 md:hidden">
+          <div className="flex items-center gap-3">
+            <p className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{formatDuration(summary.totalMinutes)}</p>
+            <div className="flex h-2 min-w-0 flex-1 gap-0.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              {summary.byTag.map(([tag, minutes]) => (
+                <div key={tag} className="gc-dot" style={{ ...colorVars(hexFor(tag)), width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }} />
+              ))}
+            </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            {(['timer', 'manual'] as const).map((panel) => (
+              <button
+                key={panel}
+                type="button"
+                onClick={() => setMobilePanel((p) => (p === panel ? null : panel))}
+                aria-expanded={mobilePanel === panel}
+                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors touch-manipulation ${
+                  mobilePanel === panel
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
+                }`}
+              >
+                {panel === 'timer' ? (activeTimer ? t('activityLog.timerRunning') : t('activityLog.timer')) : t('activityLog.logLater')}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* 左列（md 以上は常に表示。モバイルは開いたパネルだけ） */}
+        <div
+          className={`${mobilePanel ? 'block' : 'hidden'} max-h-[55vh] w-full flex-shrink-0 space-y-8 overflow-y-auto border-b border-zinc-100 p-4 dark:border-zinc-800
+                      md:block md:max-h-none md:w-80 md:border-b-0 md:border-r md:p-6`}
+        >
+          <div className={mobilePanel === 'manual' ? 'hidden md:block' : ''}>
           {/* Timer section */}
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
+          <div className="space-y-3">
             <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -333,7 +386,7 @@ export function ActivityLogView() {
                 <input
                   value={timerTitle}
                   onChange={(e) => setTimerTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleStartTimer() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleStartTimer() }}
                   placeholder={t('activityLog.timerWhat')}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/50
                              border border-zinc-200 dark:border-zinc-700 outline-none
@@ -351,7 +404,7 @@ export function ActivityLogView() {
                 />
                 <button
                   onClick={handleStartTimer}
-                  disabled={!timerTitle.trim()}
+                  disabled={!timerTitle.trim() && !timerTag.trim()}
                   className="w-full py-2.5 rounded-xl bg-accent-500 hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed
                              text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                 >
@@ -364,8 +417,10 @@ export function ActivityLogView() {
             )}
           </div>
 
+          </div>
+          <div className={mobilePanel === 'timer' ? 'hidden md:block' : ''}>
           {/* Manual entry section */}
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
+          <div className="space-y-3">
             <button
               onClick={() => setShowManual(!showManual)}
               className="w-full flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300"
@@ -376,12 +431,12 @@ export function ActivityLogView() {
                 </svg>
                 {t('activityLog.logLater')}
               </span>
-              <svg className={`w-4 h-4 transition-transform ${showManual ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={`w-4 h-4 transition-transform ${manualOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
             </button>
 
-            {showManual && (
+            {manualOpen && (
               <div className="space-y-2 pt-1">
                 <input
                   value={manualTitle}
@@ -491,40 +546,40 @@ export function ActivityLogView() {
             )}
           </div>
 
-          {/* Summary */}
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('activityLog.summary')}</h2>
-            <div className="text-center py-2">
-              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-                {formatDuration(summary.totalMinutes)}
-              </p>
-              <p className="text-xs text-zinc-400 mt-1">{t('activityLog.totalLogged')}</p>
+          </div>
+          <div className="hidden md:block">
+          {/* Summary: 合計 + 分類ごとの積み上げ棒 + 凡例 */}
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('activityLog.summary')}</h2>
+              <p className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{formatDuration(summary.totalMinutes)}</p>
             </div>
-            {summary.byTag.length > 0 && (
-              <div className="space-y-2">
-                {summary.byTag.map(([tag, minutes], i) => {
-                  const pct = summary.totalMinutes > 0 ? (minutes / summary.totalMinutes) * 100 : 0
-                  const color = getTagColor(i)
-                  return (
-                    <div key={tag}>
-                      <div className="flex items-center justify-between text-xs mb-0.5">
-                        <span className={`px-1.5 py-0.5 rounded-full ${color.bg} ${color.text} ${color.border} border`}>{tag}</span>
-                        <span className="text-zinc-500 tabular-nums">{formatDuration(minutes)}</span>
-                      </div>
-                      <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${color.bg.replace('bg-', 'bg-').replace('/20', '/60').replace('100', '400')}`}
-                          style={{ width: `${Math.max(pct, 2)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+            {summary.byTag.length > 0 ? (
+              <>
+                <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full" role="img" aria-label={t('activityLog.summaryBarAria')}>
+                  {summary.byTag.map(([tag, minutes]) => (
+                    <div
+                      key={tag}
+                      className="gc-dot"
+                      style={{ ...colorVars(hexFor(tag)), width: `${(minutes / Math.max(1, summary.totalMinutes)) * 100}%` }}
+                      title={`${tag} ${formatDuration(minutes)}`}
+                    />
+                  ))}
+                </div>
+                <ul className="space-y-1.5">
+                  {summary.byTag.map(([tag, minutes]) => (
+                    <li key={tag} className="flex items-center gap-2 text-sm">
+                      <span className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full" style={colorVars(hexFor(tag))} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-zinc-700 dark:text-zinc-300">{tag}</span>
+                      <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(minutes)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('activityLog.noLogs')}</p>
             )}
-            {dayLogs.length === 0 && (
-              <p className="text-xs text-zinc-400 text-center py-2">{t('activityLog.noLogs')}</p>
-            )}
+          </div>
           </div>
         </div>
 
@@ -564,34 +619,26 @@ export function ActivityLogView() {
                     style={{ top: h * HOUR_HEIGHT }}
                   />
                 ))}
-                {HOURS.map((h) => (
-                  <div
-                    key={`half-${h}`}
-                    className="absolute left-0 right-0 border-t border-zinc-50 dark:border-zinc-800/30 border-dashed"
-                    style={{ top: h * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
-                  />
-                ))}
 
                 {isTodaySelected && <NowIndicator />}
+                {/* 時間が被ったログは横に並べる */}
 
                 {dayLogs.map((task) => {
                   if (!task.startTime || !task.endTime) return null
                   const seg = timeLogSegmentLayoutForDay(task, dateKey)
                   if (!seg) return null
                   const { top, height } = seg
+                  const hStyle = overlapSlotStyle(logSlots.get(task.id), 0, 100, 8)
                   const dur = durationMinutesForTaskSlot(task)
-                  const color = logBlockAccentFromTags(task.tags, tagUniverse)
+                  const hex = hexFor(task.tags[0])
 
                   return (
                     <button
                       key={`${task.id}::${dateKey}`}
-                      className={`absolute left-2 right-2 rounded-lg px-3 py-1.5 text-[12px] leading-tight overflow-hidden
-                        cursor-grab active:cursor-grabbing select-none text-left touch-none
-                        border transition-shadow hover:shadow-md hover:z-10
-                        ${color.border}
-                        ${color.bg}
-                        ${task.completed ? 'opacity-90' : ''}`}
-                      style={{ top, height, minHeight: 24, opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
+                      className="gc-solid absolute cursor-grab select-none overflow-hidden rounded-md px-2.5 py-1 text-left text-[12px] leading-tight
+                        touch-none transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing"
+                      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
+                      style={{ top, height, minHeight: 24, ...hStyle, ...colorVars(hex), opacity: timelineDrag.movingTaskId === task.id ? 0.3 : undefined }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         timelineDrag.handleBlockPointerDown(e, task.id, dateKey, task.startTime!, task.endTime!, gridRef.current, {
@@ -612,7 +659,7 @@ export function ActivityLogView() {
                       }}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className={`font-medium truncate ${color.text}`}>
+                        <span className="truncate font-medium">
                           {task.title}
                         </span>
                       </div>
@@ -625,7 +672,7 @@ export function ActivityLogView() {
                       {height >= 52 && task.tags.length > 0 && (
                         <div className="flex gap-1 mt-1">
                           {task.tags.map((tag) => (
-                            <span key={tag} className={`text-[9px] px-1 py-0.5 rounded-full ${color.bg} ${color.text}`}>
+                            <span key={tag} className="text-[10px] opacity-80">
                               {tag}
                             </span>
                           ))}

@@ -79,10 +79,15 @@ interface UseTimelineDragOptions {
   defaultCreateIntent?: CreateIntent
   /** グリッドが pointer capture するため click が届かない環境向け: 移動・リサイズなしの指離し時 */
   onBlockTap?: (taskId: string) => void
+  /**
+   * 空き時間をクリック（ドラッグなし）したときに作る予定の長さ（分）。Google カレンダーと同じく
+   * クリックだけで作成カードを出す。未指定なら従来どおりクリックでは何もしない（予定 vs ログなど）
+   */
+  clickCreateMinutes?: number
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
-  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap } = options
+  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap, clickCreateMinutes } = options
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
@@ -216,6 +221,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       if (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current)) {
         setDrag(null)
         pointerStartRef.current = null
+        if (clickCreateMinutes && !isCoarsePointer() && !didMoveRef.current) {
+          // クリックした 30 分枠の頭から既定の長さで作成カードを出す
+          const startMin = Math.floor(timeToMinutes(yToTime(minY)) / 30) * 30
+          const endMin = Math.min(startMin + clickCreateMinutes, 24 * 60 - SNAP_MINUTES)
+          setPopup({ dateKey: drag.dateKey, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin), intent: drag.intent })
+        }
         return
       }
       setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
@@ -250,7 +261,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
     setDrag(null)
     pointerStartRef.current = null
-  }, [drag, onMoveDone, onResizeDone, onBlockTap])
+  }, [drag, onMoveDone, onResizeDone, onBlockTap, clickCreateMinutes])
 
   const dismissPopup = useCallback(() => { setPopup(null) }, [])
 

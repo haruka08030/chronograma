@@ -10,6 +10,8 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
   cacheProviderRefreshToken,
   disconnectGoogleCalendar,
+  handleGoogleOAuthCallback,
+  hasGoogleOAuthCallbackInUrl,
   hasOAuthCallbackInUrl,
   isGoogleCalendarConnected,
   localizeGoogleError,
@@ -66,6 +68,29 @@ function enqueueGoogleSync(task: () => Promise<void>) {
 async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Session) {
   const user = session.user
   const fromOAuthCallback = hasOAuthCallbackInUrl()
+
+  // 直接 Google OAuth の ?code= は、どの画面に戻ってきても必ず交換する。
+  // （以前は plan-vs-actual が mount されたときだけ処理していたため取りこぼしていた）
+  if (hasGoogleOAuthCallbackInUrl()) {
+    try {
+      const handled = await handleGoogleOAuthCallback()
+      if (handled) {
+        const connected = await isGoogleCalendarConnected()
+        useTaskStore.getState().setGoogleConnected(connected)
+        useTaskStore.getState().setGoogleConnectionError(
+          connected ? null : useTaskStore.getState().googleConnectionError,
+        )
+        if (connected) return
+      }
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : 'Google OAuth callback failed'
+      useTaskStore.getState().setGoogleConnected(false)
+      useTaskStore.getState().setGoogleConnectionError(
+        localizeGoogleError(raw, (key) => i18n.t(key)),
+      )
+      return
+    }
+  }
 
   if (fromOAuthCallback || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
     try {

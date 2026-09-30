@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
+import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
@@ -13,6 +13,11 @@ import {
   type ListColorPaletteId,
 } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
+import { inferLogCategory } from '../lib/logCategory'
+import { assignColorsInOrder, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
+import { nearestGoogleHex } from '../lib/googleColors'
+
+const INBOX_COLOR = '#7986CB'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -43,6 +48,7 @@ const INBOX_ID = '__inbox__'
 export type CalendarMode = 'month' | 'week'
 
 export type SmartView =
+  | 'planner'
   | 'all'
   | 'today'
   | 'upcoming'
@@ -57,7 +63,7 @@ export type SmartView =
   | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
-export type SettingsScrollTarget = 'appearance' | 'account'
+export type SettingsScrollTarget = 'appearance' | 'account' | 'install'
 
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
@@ -75,6 +81,14 @@ export interface ActiveTimer {
   taskTitle: string
   startedAt: string
   tags: string[]
+  /** 「今日の計画」などタスクから開始したときの元タスク。停止時に完了確認を出す */
+  taskId?: string | null
+}
+
+/** 朝の計画・夕方の締めの通知時刻（`HH:mm`）。null はオフ */
+export interface DailyReminders {
+  planTime: string | null
+  wrapUpTime: string | null
 }
 
 interface TaskState {
@@ -88,7 +102,8 @@ interface TaskState {
   calendarMode: CalendarMode
   /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
   selectedCalendarDateKey: string
-  theme: 'light' | 'dark'
+  /** `system` は OS のライト/ダークに合わせる */
+  theme: 'light' | 'dark' | 'system'
   searchQuery: string
   sortMode: SortMode
   deletedTasks: { task: Task; deletedAt: number }[]
@@ -98,6 +113,8 @@ interface TaskState {
   listColorPaletteId: ListColorPaletteId
   /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
   timeLogTagPresets: string[]
+  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
+  logCategoryColors: Record<string, string>
 
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
@@ -105,6 +122,15 @@ interface TaskState {
   googleConnectionError: string | null
 
   activeTimer: ActiveTimer | null
+  /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
+  completePromptTaskId: string | null
+  dailyReminders: DailyReminders
+  /** 「今日の計画」で通知の案内を閉じたか */
+  reminderPromptDismissed: boolean
+  /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
+  dailyCapacityMinutes: number
+  /** 予定の開始何分前に通知するか（null はオフ） */
+  eventReminderMinutes: number | null
 
   habits: Habit[]
 
@@ -143,8 +169,17 @@ interface TaskState {
   indentTaskUnderPrevSibling: (taskId: string) => boolean
 
   toggleTheme: () => void
+  setTheme: (theme: 'light' | 'dark' | 'system') => void
   setListColorPalette: (id: ListColorPaletteId) => void
   setTimeLogTagPresets: (presets: string[]) => void
+  /** 分類を追加（色は空いているものを自動で）。既にあれば何もしない */
+  addLogCategory: (name: string) => void
+  /** 名前を変える。過去の記録の分類も書き換え、既にある名前なら統合する */
+  renameLogCategory: (from: string, to: string) => void
+  /** 候補から外す（過去の記録の分類はそのまま） */
+  removeLogCategory: (name: string) => void
+  moveLogCategory: (name: string, delta: -1 | 1) => void
+  setLogCategoryColor: (name: string, color: CategoryColorKey) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
@@ -168,7 +203,8 @@ interface TaskState {
   deleteHabit: (id: string) => void
   toggleHabitDate: (habitId: string, dateKey: string) => void
 
-  addList: (name: string) => void
+  addList: (name: string, kind?: ListKind) => void
+  setListKind: (id: string, kind: ListKind) => void
   renameList: (id: string, name: string) => void
   updateListColor: (id: string, color: string) => void
   deleteList: (id: string) => void
@@ -189,8 +225,13 @@ interface TaskState {
     description?: string,
     endDate?: string | null,
   ) => void
-  startTimer: (title: string, tags?: string[]) => void
+  startTimer: (title: string, tags?: string[], taskId?: string | null) => void
   stopTimer: () => void
+  dismissCompletePrompt: () => void
+  setDailyReminders: (patch: Partial<DailyReminders>) => void
+  dismissReminderPrompt: () => void
+  setDailyCapacityMinutes: (minutes: number) => void
+  setEventReminderMinutes: (minutes: number | null) => void
   toggleTask: (id: string) => void
   updateTask: (
     id: string,
@@ -218,6 +259,8 @@ interface TaskState {
       >
     >,
   ) => void
+  /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
+  rescheduleTasks: (ids: string[], dateKey: string) => void
   bulkUpdateTasks: (
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>,
@@ -225,6 +268,10 @@ interface TaskState {
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
+  /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
+  uncheckTasks: (ids: string[]) => void
+  /** いつか → 「やること」（未分類）へ移して予定日を付ける。Undo は 1 段 */
+  promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
   /** ゴミ箱から完全に削除（対象と全子孫をストアから除去） */
@@ -274,11 +321,35 @@ interface TaskState {
 const defaultInbox: TaskList = {
   id: INBOX_ID,
   name: '未分類',
-  color: defaultPaletteColors[0],
+  // 予定はリストの色で塗るので、いちばん多い未分類は落ち着いたラベンダーに
+  color: INBOX_COLOR,
   order: 0,
 }
 
 export const INBOX_LIST_ID = INBOX_ID
+
+function defaultLogCategories(): string[] {
+  return i18n.t('logCategories.defaults', { returnObjects: true }) as string[]
+}
+
+/** 分類が空なら、元タスクのタグ → 同じタイトルの前回の分類 の順で補う */
+function withInferredCategory(tags: string[], tasks: Task[], title: string, taskId?: string | null): string[] {
+  if (tags.length > 0) return tags
+  const inferred = inferLogCategory(tasks, title, taskId)
+  return inferred ? [inferred] : []
+}
+
+/**
+ * 新規ユーザーの初期リスト。「未分類」だけだと Wish も買い物も全部そこに入って混ざるので、
+ * 最初から「いつか」「買い物」を分けておく（既存ユーザーは永続化データが優先されるので作られない）
+ */
+function initialLists(): TaskList[] {
+  return [
+    defaultInbox,
+    { id: newId(), name: i18n.t('lists.defaultSomeday'), color: '#F6BF26', order: 1, kind: 'someday' },
+    { id: newId(), name: i18n.t('lists.defaultShopping'), color: '#33B679', order: 2, kind: 'checklist' },
+  ]
+}
 
 function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']>): string {
   const d = new Date(current + 'T00:00:00')
@@ -388,6 +459,8 @@ interface ChronogramaUndoSnapshot {
   deletedTasks: { task: Task; deletedAt: number }[]
   listColorPaletteId: ListColorPaletteId
   timeLogTagPresets: string[]
+  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
+  logCategoryColors: Record<string, string>
   selectedListId: string | null
   selectedView: SmartView | null
   quickAddSectionId: string | null
@@ -476,6 +549,7 @@ export const useTaskStore = create<TaskState>()(
           deletedTasks: structuredClone(s.deletedTasks),
           listColorPaletteId: s.listColorPaletteId,
           timeLogTagPresets: structuredClone(s.timeLogTagPresets),
+          logCategoryColors: structuredClone(s.logCategoryColors),
           selectedListId: s.selectedListId,
           selectedView: s.selectedView,
           quickAddSectionId: s.quickAddSectionId,
@@ -495,13 +569,13 @@ export const useTaskStore = create<TaskState>()(
 
       return {
       tasks: [],
-      lists: [defaultInbox],
+      lists: initialLists(),
       selectedListId: INBOX_ID,
-      selectedView: null,
+      selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
-      calendarMode: 'month' as CalendarMode,
+      calendarMode: 'week' as CalendarMode,
       selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
-      theme: 'light',
+      theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
@@ -511,13 +585,20 @@ export const useTaskStore = create<TaskState>()(
       filterTag: null,
       notificationsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
-      timeLogTagPresets: [] as string[],
+      // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
+      timeLogTagPresets: defaultLogCategories(),
+      logCategoryColors: assignColorsInOrder(defaultLogCategories()),
 
       calendarEvents: [],
       googleConnected: false,
       googleAccessToken: null,
       googleConnectionError: null,
       activeTimer: null,
+      completePromptTaskId: null as string | null,
+      dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
+      reminderPromptDismissed: false,
+      dailyCapacityMinutes: 480,
+      eventReminderMinutes: null as number | null,
 
       habits: [],
 
@@ -840,7 +921,8 @@ export const useTaskStore = create<TaskState>()(
       },
 
       toggleTheme: () =>
-        set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
+        set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      setTheme: (theme) => set({ theme }),
 
       setListColorPalette: (id) => {
         pushUndo()
@@ -850,6 +932,61 @@ export const useTaskStore = create<TaskState>()(
       setTimeLogTagPresets: (presets) => {
         pushUndo()
         set({ timeLogTagPresets: normalizeTimeLogTagPresetList(presets) })
+      },
+      addLogCategory: (raw) => {
+        const name = raw.trim()
+        const s0 = get()
+        if (!name || s0.timeLogTagPresets.includes(name)) return
+        pushUndo()
+        set({
+          timeLogTagPresets: [...s0.timeLogTagPresets, name],
+          logCategoryColors: {
+            ...s0.logCategoryColors,
+            [name]: s0.logCategoryColors[name] ?? nextCategoryColor(name, s0.logCategoryColors, s0.timeLogTagPresets),
+          },
+        })
+      },
+      renameLogCategory: (from, raw) => {
+        const to = raw.trim()
+        if (!to || to === from) return
+        pushUndo()
+        const now = new Date().toISOString()
+        set((s) => {
+          const merging = s.timeLogTagPresets.includes(to)
+          const presets = merging
+            ? s.timeLogTagPresets.filter((n) => n !== from)
+            : s.timeLogTagPresets.map((n) => (n === from ? to : n))
+          const colors = { ...s.logCategoryColors }
+          if (!merging && colors[from]) colors[to] = colors[from]!
+          delete colors[from]
+          return {
+            timeLogTagPresets: presets,
+            logCategoryColors: colors,
+            tasks: s.tasks.map((t) => {
+              if (!t.isTimeLog || !t.tags.includes(from)) return t
+              const tags = [...new Set(t.tags.map((x) => (x === from ? to : x)))]
+              return { ...t, tags, updatedAt: now }
+            }),
+          }
+        })
+      },
+      removeLogCategory: (name) => {
+        if (!get().timeLogTagPresets.includes(name)) return
+        pushUndo()
+        set((s) => ({ timeLogTagPresets: s.timeLogTagPresets.filter((n) => n !== name) }))
+      },
+      moveLogCategory: (name, delta) => {
+        const list = [...get().timeLogTagPresets]
+        const i = list.indexOf(name)
+        const j = i + delta
+        if (i < 0 || j < 0 || j >= list.length) return
+        pushUndo()
+        ;[list[i], list[j]] = [list[j]!, list[i]!]
+        set({ timeLogTagPresets: list })
+      },
+      setLogCategoryColor: (name, color) => {
+        pushUndo()
+        set((s) => ({ logCategoryColors: { ...s.logCategoryColors, [name]: color } }))
       },
 
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
@@ -895,13 +1032,17 @@ export const useTaskStore = create<TaskState>()(
       },
       clearQuickAddRequest: () => set({ quickAddRequested: false }),
 
-      addList: (name) => {
+      setListKind: (id, kind) => {
+        pushUndo()
+        set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind } : l)) }))
+      },
+      addList: (name, kind) => {
         pushUndo()
         const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
         const cols = paletteColors(get().listColorPaletteId)
         const colorIdx = get().lists.length % cols.length
         set((s) => ({
-          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1 }],
+          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks' }],
         }))
       },
       renameList: (id, name) => {
@@ -1022,7 +1163,10 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({
           tasks: [
             ...s.tasks,
-            makeTask({ title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true }, maxOrder + 1),
+            makeTask({
+              title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true,
+              tags: withInferredCategory([], s.tasks, title),
+            }, maxOrder + 1),
           ],
         }))
       },
@@ -1040,7 +1184,7 @@ export const useTaskStore = create<TaskState>()(
             endTime,
             isTimeLog: true,
             completed: true,
-            tags,
+            tags: withInferredCategory(tags ?? [], get().tasks, title),
           },
           maxOrder + 1,
         )
@@ -1050,23 +1194,44 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
-      startTimer: (title, tags) => {
-        set({ activeTimer: { taskTitle: title, startedAt: new Date().toISOString(), tags: tags ?? [] } })
+      startTimer: (title, tags, taskId) => {
+        set({
+          activeTimer: {
+            taskTitle: title,
+            startedAt: new Date().toISOString(),
+            tags: withInferredCategory(tags ?? [], get().tasks, title, taskId),
+            taskId: taskId ?? null,
+          },
+          completePromptTaskId: null,
+        })
       },
+      dismissCompletePrompt: () => set({ completePromptTaskId: null }),
+      setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
+      dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
+      setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
+      setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
       stopTimer: () => {
         const timer = get().activeTimer
         if (!timer) return
         const start = new Date(timer.startedAt)
         const end = new Date()
+        // 1 分未満は誤操作とみなして記録しない。開始と終了が同じ HH:mm になると
+        // 「終了が開始以前＝翌日まで」の規則で約 24 時間のログになってしまうため
+        if (end.getTime() - start.getTime() < 60_000) {
+          set({ activeTimer: null, completePromptTaskId: null })
+          return
+        }
         const dueDate = format(start, 'yyyy-MM-dd')
         const endDay = format(end, 'yyyy-MM-dd')
         const endDate = endDay !== dueDate ? endDay : null
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
         pushUndo()
         set((s) => ({
           activeTimer: null,
+          completePromptTaskId: linked && !linked.completed ? linked.id : null,
           tasks: [
             ...s.tasks,
             makeTask({
@@ -1127,6 +1292,18 @@ export const useTaskStore = create<TaskState>()(
           tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
         }))
       },
+      rescheduleTasks: (ids, dateKey) => {
+        if (ids.length === 0) return
+        pushUndo()
+        const selected = new Set(ids)
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            selected.has(t.id)
+              ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null })
+              : t,
+          ),
+        }))
+      },
       bulkUpdateTasks: (ids, patch) => {
         if (ids.length === 0) return
         pushUndo()
@@ -1168,6 +1345,36 @@ export const useTaskStore = create<TaskState>()(
             ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
           ],
         }))
+      },
+      uncheckTasks: (ids) => {
+        if (ids.length === 0) return
+        pushUndo()
+        const set_ = new Set(ids)
+        const now = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            set_.has(t.id) && t.completed ? { ...t, completed: false, completedAt: null, updatedAt: now } : t,
+          ),
+        }))
+      },
+      promoteToPlanned: (id, dateKey) => {
+        const s0 = get()
+        if (!s0.tasks.some((t) => t.id === id)) return
+        const family = expandDescendantIds([id], s0.tasks)
+        pushUndo()
+        const now = new Date().toISOString()
+        set((s) => {
+          const maxOrder = Math.max(0, ...s.tasks.filter((t) => t.listId === INBOX_ID && t.parentId === null).map((t) => t.order))
+          return {
+            tasks: s.tasks.map((t) => {
+              if (!family.has(t.id)) return t
+              if (t.id === id) {
+                return { ...t, listId: INBOX_ID, sectionId: null, order: maxOrder + 1, scheduledDate: dateKey, updatedAt: now }
+              }
+              return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }
+            }),
+          }
+        })
       },
       deleteTasks: (ids) => {
         if (ids.length === 0) return
@@ -1381,7 +1588,7 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets } = get()
+        const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
         const data = JSON.stringify(
           buildBackupPayload({
             tasks,
@@ -1390,6 +1597,7 @@ export const useTaskStore = create<TaskState>()(
             sections,
             listColorPaletteId,
             timeLogTagPresets,
+            logCategoryColors,
           }),
           null,
           2,
@@ -1414,6 +1622,7 @@ export const useTaskStore = create<TaskState>()(
           listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
           sections: parsed.sections,
           timeLogTagPresets: parsed.timeLogTagPresets ?? [],
+          logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
           quickAddSectionId: null,
         })
         return true
@@ -1489,7 +1698,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 25,
+      version: 28,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1696,6 +1905,28 @@ export const useTaskStore = create<TaskState>()(
             }
           })
         }
+        if (version < 26) {
+          // 分類を 1 つも持っていないと記録がほぼ「未分類」になるので、既定の分類を入れる
+          const presets = state.timeLogTagPresets
+          if (!Array.isArray(presets) || presets.length === 0) state.timeLogTagPresets = defaultLogCategories()
+        }
+        if (version < 28) {
+          // パレットを Google カレンダーの 11 色に統一: 既存の色を色味の最も近い色へ
+          const lists = (state.lists as Record<string, unknown>[] | undefined) ?? []
+          state.lists = lists.map((l) => ({
+            ...l,
+            color: l.id === INBOX_ID ? INBOX_COLOR : nearestGoogleHex(String(l.color ?? '')),
+          }))
+          const habits = (state.habits as Record<string, unknown>[] | undefined) ?? []
+          state.habits = habits.map((h) => ({ ...h, color: nearestGoogleHex(String(h.color ?? '')) }))
+        }
+        if (version < 27) {
+          // 色は並び順から決めていたので、今見えている色のまま固定する（並べ替えで変わらないように）
+          const presets = Array.isArray(state.timeLogTagPresets) ? (state.timeLogTagPresets as string[]) : []
+          if (!state.logCategoryColors || typeof state.logCategoryColors !== 'object') {
+            state.logCategoryColors = assignColorsInOrder(presets)
+          }
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
@@ -1711,8 +1942,10 @@ export const useTaskStore = create<TaskState>()(
           moveBannerText,
           taskDragHoverListId,
           settingsScrollTarget,
+          completePromptTaskId,
           ...rest
         } = state
+        void completePromptTaskId
         void searchQuery
         void deletedTasks
         void quickAddRequested

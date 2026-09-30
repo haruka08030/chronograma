@@ -1,5 +1,5 @@
 import type { Task, Priority } from '../types/task'
-import type { TaskList } from '../types/list'
+import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
 import {
@@ -18,6 +18,7 @@ export interface BackupExportInput {
   sections: ListSection[]
   listColorPaletteId: ListColorPaletteId
   timeLogTagPresets: string[]
+  logCategoryColors: Record<string, string>
 }
 
 export interface BackupImportResult {
@@ -27,6 +28,8 @@ export interface BackupImportResult {
   sections: ListSection[]
   listColorPaletteId: ListColorPaletteId | null
   timeLogTagPresets: string[] | null
+  /** 旧バックアップには無い */
+  logCategoryColors: Record<string, string> | null
 }
 
 function hasDuplicateIds<T extends { id: string }>(rows: T[]): boolean {
@@ -117,6 +120,7 @@ function normalizeListRow(raw: unknown): TaskList | null {
     name,
     color: typeof row.color === 'string' ? row.color : '#6366f1',
     order: readOrder(row),
+    kind: normalizeListKind(row.kind),
   }
 }
 
@@ -171,6 +175,7 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     listSections: input.sections,
     listColorPaletteId: input.listColorPaletteId,
     timeLogTagPresets: input.timeLogTagPresets,
+    logCategoryColors: input.logCategoryColors,
   }
 }
 
@@ -209,6 +214,16 @@ export function parseBackupJson(json: string): BackupImportResult | null {
       ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
       : null
 
+    const rawColors = data.logCategoryColors
+    const logCategoryColors =
+      rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
+        ? Object.fromEntries(
+            Object.entries(rawColors as Record<string, unknown>).filter(
+              (e): e is [string, string] => typeof e[1] === 'string',
+            ),
+          )
+        : null
+
     // Validation: reject structurally valid but inconsistent backups.
     if (hasDuplicateIds(tasks) || hasDuplicateIds(lists) || hasDuplicateIds(sections)) return null
 
@@ -235,6 +250,7 @@ export function parseBackupJson(json: string): BackupImportResult | null {
       sections,
       listColorPaletteId,
       timeLogTagPresets,
+      logCategoryColors,
     }
   } catch {
     return null

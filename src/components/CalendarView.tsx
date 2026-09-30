@@ -10,6 +10,10 @@ import {
   isSameMonth,
   isToday,
 } from 'date-fns'
+import { unplannedListIds } from '../lib/listKind'
+import { planVisualState } from '../lib/planVisual'
+import { colorVars } from '../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -53,10 +57,13 @@ export function CalendarView({
     return eachDayOfInterval({ start: calStart, end: calEnd })
   }, [displayMonth])
 
+  const lists = useTaskStore((s) => s.lists)
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t)) continue
+      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
       const key = taskPlacementDate(t)
       if (!key) continue
       const arr = map.get(key) ?? []
@@ -64,7 +71,7 @@ export function CalendarView({
       map.set(key, arr)
     }
     return map
-  }, [tasks])
+  }, [tasks, excludedListIds])
 
   useEffect(() => {
     if (!googleConnected) return
@@ -203,22 +210,27 @@ export function CalendarView({
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
-                      className={`text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-grab active:cursor-grabbing
-                        hover:ring-1 hover:ring-accent-400 transition-all
-                        ${t.completed
-                          ? 'line-through text-zinc-400 dark:text-zinc-600'
-                          : 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'}`}
+                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
+                        hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
+                        ${!t.startTime ? (planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed') : ''}
+                        ${t.startTime && planVisualState(t, key) !== 'upcoming' ? 'text-zinc-400 dark:text-zinc-500' : ''}
+                        ${t.startTime && planVisualState(t, key) === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
+                      style={colorVars(planVisualState(t, key) === 'upcoming' ? listColorById.get(t.listId) ?? NEUTRAL_HEX : '#BDBDBD')}
                     >
-                      {t.startTime && (
-                        <span className="text-[9px] opacity-60 mr-0.5">{t.startTime}</span>
-                      )}
-                      {t.title}
+                      {/* Google と同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯 */}
+                      {t.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
+                      {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
+                      <span className="truncate">{t.completed ? '✓ ' : ''}{t.title}</span>
                     </div>
                   ))}
                   {(dayTasks.length > 3 || dayEvents.length > 2) && (
-                    <div className="text-[10px] text-zinc-400 px-1.5">
-                      +{Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0)}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onSelectDate?.(key) }}
+                      className="rounded px-1.5 text-[10px] text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    >
+                      {t('calendar.moreItems', { count: Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0) })}
+                    </button>
                   )}
                   {addingDate === key && (
                     <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />

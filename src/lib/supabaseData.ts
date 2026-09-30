@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
+import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
+import type { SyncDeletes } from './syncMerge'
 
 interface ListRow {
   id: string
@@ -11,6 +12,8 @@ interface ListRow {
   name: string
   color: string
   sort_order: number
+  /** 004 で追加。古い DB には無い */
+  kind?: string | null
   updated_at: string
 }
 
@@ -176,6 +179,7 @@ function rowToList(row: ListRow): TaskList {
     name,
     color: row.color,
     order: row.sort_order,
+    kind: normalizeListKind(row.kind),
   }
 }
 
@@ -287,6 +291,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
     name: list.name,
     color: list.color,
     sort_order: list.order,
+    kind: list.kind ?? 'tasks',
     updated_at: new Date().toISOString(),
   }
 }
@@ -406,13 +411,24 @@ export async function pushListsTasksHabits(
   tasks: Task[],
   habits: Habit[],
   sections: ListSection[],
+  /**
+   * 三方向マージで決めた削除対象。指定時はこれだけを消す（取得〜push の間に他端末が
+   * 追加した行を消さないため）。未指定なら従来どおり「ローカルに無い行」を消す
+   */
+  deletes?: SyncDeletes,
 ): Promise<{ error?: string }> {
   const listRows = lists.map((l) => listToRow(userId, l))
   const sectionRows = sections.map((s) => sectionToRow(userId, s))
   const taskRows = tasks.map((t) => taskToRow(userId, t))
   const habitRows = habits.map((h) => habitToRow(userId, h))
 
-  const { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
+  let { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
+  // 004 未適用の DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
+  if (e1 && /kind/.test(e1.message)) {
+    ;({ error: e1 } = await supabase
+      .from('lists')
+      .upsert(listRows.map((row) => ({ ...row, kind: undefined })), { onConflict: 'id' }))
+  }
   if (e1) return { error: e1.message }
 
   const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
@@ -476,6 +492,21 @@ export async function pushListsTasksHabits(
 
   const { error: eH } = await supabase.from('habits').upsert(habitRows, { onConflict: 'id' })
   if (eH) return { error: eH.message }
+
+  if (deletes) {
+    // 子 → 親の順（tasks → habits → sections → lists）
+    for (const [table, ids] of [
+      ['tasks', deletes.tasks],
+      ['habits', deletes.habits],
+      ['list_sections', deletes.sections],
+      ['lists', deletes.lists],
+    ] as const) {
+      if (ids.length === 0) continue
+      const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
+      if (error) return { error: error.message }
+    }
+    return {}
+  }
 
   // Delete stale tasks first (child records)
   const localTaskIds = new Set(tasks.map((t) => t.id))

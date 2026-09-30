@@ -1,7 +1,9 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
-import { useTaskStore, type SortMode } from '../store/taskStore'
+import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
+import { unplannedListIds } from '../lib/listKind'
+import { ListKindPicker } from './ListKindPicker'
 import {
   getFilteredRootTasks,
   getOrderedActiveRootTasksForDnD,
@@ -350,6 +352,8 @@ export function TaskList() {
     for (const l of lists) m.set(l.id, l.order)
     return m
   }, [lists])
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const selectedList = selectedListId ? lists.find((l) => l.id === selectedListId) ?? null : null
 
   const filtered = useMemo(
     () =>
@@ -360,8 +364,9 @@ export function TaskList() {
         sortMode,
         filterTag,
         sections,
+        excludedListIds,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, sections],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, sections, excludedListIds],
   )
 
   const listSectionsOrdered = useMemo(() => {
@@ -416,8 +421,9 @@ export function TaskList() {
       filterTag,
       sections,
       listOrderById,
+      excludedListIds,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, listOrderById])
+  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, listOrderById, excludedListIds])
 
   type SectionBlockRow = {
     listId: string
@@ -1018,6 +1024,12 @@ export function TaskList() {
             <div className="flex items-center gap-2 mt-1">
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 {t('taskList.incompleteTasks', { count: incompleteCount })}
+                {selectedView && excludedListIds.size > 0 && (
+                  <span className="ml-1.5">{t('listKind.excludedNote')}</span>
+                )}
+                {selectedList && (selectedList.kind ?? 'tasks') !== 'tasks' && (
+                  <span className="ml-1.5">{t(`listKind.${selectedList.kind}Help`)}</span>
+                )}
               </p>
               {filterTag && (
                 <button
@@ -1036,6 +1048,7 @@ export function TaskList() {
           </div>
 
           <div className="flex items-center gap-2">
+            {selectedList && selectedList.id !== INBOX_LIST_ID && <ListKindPicker list={selectedList} />}
             {selectedListId && sortMode === 'manual' && (
               <button
                 type="button"

@@ -10,11 +10,14 @@ import { LIST_PREFIX } from './lib/listDnD'
 import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
+import { TodayPlannerView } from './components/TodayPlannerView'
 import { PlanVsActualView } from './components/PlanVsActualView'
 import { StatsView } from './components/StatsView'
 import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
 import { TaskBinView } from './components/TaskBinView'
+import { ChecklistView } from './components/ChecklistView'
+import { SomedayView } from './components/SomedayView'
 import { SettingsView } from './components/SettingsView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
@@ -23,6 +26,13 @@ import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { TaskItem } from './components/TaskItem'
 import { requestPermission, checkAndNotify } from './lib/notifications'
+import { checkDailyReminders } from './lib/dailyReminders'
+import { checkEventReminders } from './lib/eventReminders'
+import { isWebPushActive, syncWebPush } from './lib/webPush'
+import { useAuth } from './contexts/AuthContext'
+import { getDayPlan } from './lib/dayPlan'
+import { unplannedListIds } from './lib/listKind'
+import { format } from 'date-fns'
 import {
   buildReorderedActiveRootIdsForGroup,
   getOrderedActiveRootTasksForDnD,
@@ -39,6 +49,8 @@ import {
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
+import { dispatchNav, isTypingTarget } from './lib/shortcuts'
+import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
@@ -148,9 +160,11 @@ export default function App() {
   const selectedView = useTaskStore((s) => s.selectedView)
   const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
+  const selectedList = useTaskStore((s) => (s.selectedListId ? s.lists.find((l) => l.id === s.selectedListId) ?? null : null))
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -303,6 +317,7 @@ export default function App() {
         filterTag: state.filterTag,
         sections: state.sections,
         listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
+        excludedListIds: unplannedListIds(state.lists),
       })
       const built = buildReorderedActiveRootIdsForGroup(
         currentOrdered,
@@ -352,10 +367,56 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const apply = () =>
+      document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media?.matches === true))
+    apply()
+    if (theme !== 'system' || !media) return
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
   }, [theme])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // 1 文字ショートカット（Google カレンダー風）。入力中・修飾キー付き・ダイアログ表示中は無視
+    if (!isModKey(e) && !e.altKey && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"]')) {
+      const store = useTaskStore.getState()
+      const focusQuickAdd = () => {
+        const el = document.querySelector<HTMLElement>('[data-quickadd]')
+        if (el instanceof HTMLInputElement) el.focus()
+        else el?.click()
+        return Boolean(el)
+      }
+      const handled = (() => {
+        switch (e.key) {
+          case 't': dispatchNav('today'); return true
+          case 'j': case 'n': dispatchNav('next'); return true
+          case 'k': case 'p': dispatchNav('prev'); return true
+          case 'd': store.selectView('planner'); return true
+          case 'w': store.setCalendarMode('week'); store.selectView('calendar'); return true
+          case 'm': store.setCalendarMode('month'); store.selectView('calendar'); return true
+          case 'l': store.selectView('activity-log'); return true
+          case 'c':
+            if (!focusQuickAdd()) {
+              store.selectView('planner')
+              window.setTimeout(focusQuickAdd, 50)
+            }
+            return true
+          case '/':
+            if (searchRef.current) searchRef.current.focus()
+            else {
+              store.selectView('all')
+              window.setTimeout(() => searchRef.current?.focus(), 50)
+            }
+            return true
+          case '?': setShowShortcuts(true); return true
+          default: return false
+        }
+      })()
+      if (handled) {
+        e.preventDefault()
+        return
+      }
+    }
     if (isModKey(e) && e.key === 'k') {
       e.preventDefault()
       searchRef.current?.focus()
@@ -363,7 +424,9 @@ export default function App() {
     if (isModKey(e) && e.key === 'n') {
       e.preventDefault()
       const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
-      if (quickAdd) {
+      if (quickAdd instanceof HTMLInputElement) {
+        quickAdd.focus()
+      } else if (quickAdd) {
         quickAdd.click()
       } else {
         useTaskStore.getState().requestQuickAdd()
@@ -398,13 +461,51 @@ export default function App() {
   useEffect(() => {
     if (!notificationsEnabled) return
     requestPermission().then((granted) => {
-      if (granted) checkAndNotify(useTaskStore.getState().tasks)
+      if (granted) checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
     })
     const id = setInterval(() => {
-      checkAndNotify(useTaskStore.getState().tasks)
+      checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
     }, 60_000)
     return () => clearInterval(id)
   }, [notificationsEnabled])
+
+  // 朝の計画・夕方の締めの通知（タスク期限通知のオン/オフとは独立）
+  const dailyReminders = useTaskStore((s) => s.dailyReminders)
+  const { user } = useAuth()
+  const userId = user?.id ?? null
+  // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
+  const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
+  useEffect(() => {
+    void syncWebPush(userId, dailyReminders, eventReminderMinutes, i18n.resolvedLanguage ?? 'ja')
+  }, [userId, dailyReminders, eventReminderMinutes])
+  // 予定の開始前通知（タブが開いている間。Web Push が有効ならサーバー側が送る）
+  useEffect(() => {
+    if (eventReminderMinutes == null) return
+    const tick = () => {
+      if (isWebPushActive()) return
+      const state = useTaskStore.getState()
+      checkEventReminders(state.tasks, eventReminderMinutes, unplannedListIds(state.lists), () =>
+        useTaskStore.getState().selectView('planner'),
+      )
+    }
+    tick()
+    const id = setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [eventReminderMinutes])
+  useEffect(() => {
+    if (!dailyReminders.planTime && !dailyReminders.wrapUpTime) return
+    const tick = () => {
+      if (isWebPushActive()) return
+      const state = useTaskStore.getState()
+      checkDailyReminders(state.dailyReminders, {
+        remainingToday: getDayPlan(state.tasks, format(new Date(), 'yyyy-MM-dd'), unplannedListIds(state.lists)).open.length,
+        onOpen: () => useTaskStore.getState().selectView('planner'),
+      })
+    }
+    tick()
+    const id = setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [dailyReminders])
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
@@ -414,6 +515,7 @@ export default function App() {
   const mainContent = (() => {
     if (searchQuery.trim()) return <SearchResults />
     switch (selectedView) {
+      case 'planner': return <TodayPlannerView />
       case 'calendar': return <CalendarHubView onOpenSidebar={() => setSidebarOpen(true)} />
       case 'plan-vs-actual': return <PlanVsActualView />
       case 'activity-log': return <ActivityLogView />
@@ -422,7 +524,11 @@ export default function App() {
       case 'archived': return <TaskBinView mode="archived" />
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
-      default: return <TaskList />
+      default:
+        // いつか・チェックリストのリストは専用画面（日付や優先度を出さない）
+        if (selectedView == null && selectedList?.kind === 'checklist') return <ChecklistView list={selectedList} />
+        if (selectedView == null && selectedList?.kind === 'someday') return <SomedayView list={selectedList} />
+        return <TaskList />
     }
   })()
 
@@ -494,6 +600,7 @@ export default function App() {
           </div>
         </div>
 
+        {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
         <UndoToast />
         <MoveToast />
         <FloatingTimer />

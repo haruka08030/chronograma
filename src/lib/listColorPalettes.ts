@@ -1,4 +1,6 @@
-/** リスト／習慣の色チップ。HSL で色相を等間隔に取り、土臭くならないよう明度・彩度を設計 */
+import { GOOGLE_COLOR_HEXES } from './googleColors'
+
+/** 旧: リスト／習慣の色パレット（設定での切り替えは廃止。ID はバックアップ互換のためだけに残す） */
 
 export type ListColorPaletteId =
   | 'pastel-rainbow'
@@ -47,9 +49,13 @@ export const LIST_COLOR_PALETTES: readonly ListColorPalette[] = [
 
 export const DEFAULT_LIST_COLOR_PALETTE_ID: ListColorPaletteId = 'pastel-rainbow'
 
-export function paletteColors(paletteId: string): readonly string[] {
-  const p = LIST_COLOR_PALETTES.find((x) => x.id === paletteId)
-  return p?.colors ?? LIST_COLOR_PALETTES[0].colors
+/**
+ * リスト・習慣の色の選択肢。パレットの切り替えはやめ、Google カレンダーの 11 色に統一した
+ * （引数は旧 API 互換のため残しているが使わない）。
+ */
+export function paletteColors(_paletteId?: string): readonly string[] {
+  void _paletteId
+  return GOOGLE_COLOR_HEXES
 }
 
 export function isValidListColorPaletteId(id: string): id is ListColorPaletteId {

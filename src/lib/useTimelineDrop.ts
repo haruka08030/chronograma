@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { HOUR_HEIGHT, yToTime, timeToMinutes } from './timeGrid'
+import { markTimelineDragOver } from './nativeTaskDragGhost'
 
 export const TASK_DND_TYPE = 'application/x-task-id'
 /** 複数選択ドラッグ時に運ぶ、表示順の taskId 配列（JSON） */
@@ -58,6 +59,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
     if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
+    markTimelineDragOver(e.nativeEvent)
     const y = getRelativeY(e.clientY, dateKey)
     const startTime = yToTime(y)
     const startMin = timeToMinutes(startTime)
