@@ -27,6 +27,7 @@ import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragSh
 import { TaskItem } from './components/TaskItem'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import { checkDailyReminders } from './lib/dailyReminders'
+import { checkEventReminders } from './lib/eventReminders'
 import { isWebPushActive, syncWebPush } from './lib/webPush'
 import { useAuth } from './contexts/AuthContext'
 import { getDayPlan } from './lib/dayPlan'
@@ -48,6 +49,8 @@ import {
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
+import { dispatchNav, isTypingTarget } from './lib/shortcuts'
+import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
@@ -161,6 +164,7 @@ export default function App() {
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -373,6 +377,46 @@ export default function App() {
   }, [theme])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // 1 文字ショートカット（Google カレンダー風）。入力中・修飾キー付き・ダイアログ表示中は無視
+    if (!isModKey(e) && !e.altKey && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"]')) {
+      const store = useTaskStore.getState()
+      const focusQuickAdd = () => {
+        const el = document.querySelector<HTMLElement>('[data-quickadd]')
+        if (el instanceof HTMLInputElement) el.focus()
+        else el?.click()
+        return Boolean(el)
+      }
+      const handled = (() => {
+        switch (e.key) {
+          case 't': dispatchNav('today'); return true
+          case 'j': case 'n': dispatchNav('next'); return true
+          case 'k': case 'p': dispatchNav('prev'); return true
+          case 'd': store.selectView('planner'); return true
+          case 'w': store.setCalendarMode('week'); store.selectView('calendar'); return true
+          case 'm': store.setCalendarMode('month'); store.selectView('calendar'); return true
+          case 'l': store.selectView('activity-log'); return true
+          case 'c':
+            if (!focusQuickAdd()) {
+              store.selectView('planner')
+              window.setTimeout(focusQuickAdd, 50)
+            }
+            return true
+          case '/':
+            if (searchRef.current) searchRef.current.focus()
+            else {
+              store.selectView('all')
+              window.setTimeout(() => searchRef.current?.focus(), 50)
+            }
+            return true
+          case '?': setShowShortcuts(true); return true
+          default: return false
+        }
+      })()
+      if (handled) {
+        e.preventDefault()
+        return
+      }
+    }
     if (isModKey(e) && e.key === 'k') {
       e.preventDefault()
       searchRef.current?.focus()
@@ -430,9 +474,24 @@ export default function App() {
   const { user } = useAuth()
   const userId = user?.id ?? null
   // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
+  const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
   useEffect(() => {
-    void syncWebPush(userId, dailyReminders, i18n.resolvedLanguage ?? 'ja')
-  }, [userId, dailyReminders])
+    void syncWebPush(userId, dailyReminders, eventReminderMinutes, i18n.resolvedLanguage ?? 'ja')
+  }, [userId, dailyReminders, eventReminderMinutes])
+  // 予定の開始前通知（タブが開いている間。Web Push が有効ならサーバー側が送る）
+  useEffect(() => {
+    if (eventReminderMinutes == null) return
+    const tick = () => {
+      if (isWebPushActive()) return
+      const state = useTaskStore.getState()
+      checkEventReminders(state.tasks, eventReminderMinutes, unplannedListIds(state.lists), () =>
+        useTaskStore.getState().selectView('planner'),
+      )
+    }
+    tick()
+    const id = setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [eventReminderMinutes])
   useEffect(() => {
     if (!dailyReminders.planTime && !dailyReminders.wrapUpTime) return
     const tick = () => {
@@ -541,6 +600,7 @@ export default function App() {
           </div>
         </div>
 
+        {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
         <UndoToast />
         <MoveToast />
         <FloatingTimer />

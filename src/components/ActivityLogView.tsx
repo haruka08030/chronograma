@@ -26,6 +26,7 @@ import { useTimelineDrag, getResizeCursor } from '../lib/useTimelineDrag'
 import { useTimelineDrop } from '../lib/useTimelineDrop'
 import { TaskDetail } from './TaskDetail'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { useNavShortcut } from '../lib/shortcuts'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput, addClockMinutes } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
@@ -99,6 +100,11 @@ function InlineTimeAdd({ startTime, endTime, onDone }: { startTime: string; endT
 export function ActivityLogView() {
   const { t, i18n } = useTranslation()
   const [selectedDate, setSelectedDate] = useState(new Date())
+  useNavShortcut({
+    today: () => setSelectedDate(new Date()),
+    prev: () => setSelectedDate((d) => subDays(d, 1)),
+    next: () => setSelectedDate((d) => addDays(d, 1)),
+  })
   const dateKey = format(selectedDate, 'yyyy-MM-dd')
   const isTodaySelected = isToday(selectedDate)
 
@@ -611,13 +617,6 @@ export function ActivityLogView() {
                     key={h}
                     className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800/60"
                     style={{ top: h * HOUR_HEIGHT }}
-                  />
-                ))}
-                {HOURS.map((h) => (
-                  <div
-                    key={`half-${h}`}
-                    className="absolute left-0 right-0 border-t border-zinc-50 dark:border-zinc-800/30 border-dashed"
-                    style={{ top: h * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
                   />
                 ))}
 

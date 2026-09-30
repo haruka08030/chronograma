@@ -129,6 +129,8 @@ interface TaskState {
   reminderPromptDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
+  /** 予定の開始何分前に通知するか（null はオフ） */
+  eventReminderMinutes: number | null
 
   habits: Habit[]
 
@@ -229,6 +231,7 @@ interface TaskState {
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
   setDailyCapacityMinutes: (minutes: number) => void
+  setEventReminderMinutes: (minutes: number | null) => void
   toggleTask: (id: string) => void
   updateTask: (
     id: string,
@@ -595,6 +598,7 @@ export const useTaskStore = create<TaskState>()(
       dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
       reminderPromptDismissed: false,
       dailyCapacityMinutes: 480,
+      eventReminderMinutes: null as number | null,
 
       habits: [],
 
@@ -1205,6 +1209,7 @@ export const useTaskStore = create<TaskState>()(
       setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
       dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
       setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
+      setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
       stopTimer: () => {
         const timer = get().activeTimer
         if (!timer) return

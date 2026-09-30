@@ -121,7 +121,21 @@
   外観（テーマ: 端末に合わせる / ライト / ダーク、言語）→ 通知と 1 日のリズム（締切の通知もここ。サイドバーのトグルは廃止）→
   記録の分類 → アカウント → アプリ → データ の順。`theme` は `'light' | 'dark' | 'system'`
 
+- **Google カレンダー風の操作**（週・日タイムライン）: ブロックを押すと `EventPopover`（`src/components/timeline/`、ブロックの横に
+  出る小さなカード。完了・▶記録・削除・詳細、Esc / e / Delete）。空き時間はクリック（1 時間）かドラッグで `CreateGhost` と
+  `QuickCreatePopover`（タイトル・時間・リスト、保存 / その他のオプション、外側クリックと Esc は破棄）。クリックでの作成は
+  `useTimelineDrag` の `clickCreateMinutes`（予定 vs ログでは未指定＝従来どおり）。スマホ幅ではカードが下からのシート。
+  終わった予定は淡く、30 分の点線は廃止（1 時間線のみ）、週表示も今日を含む週なら今の時刻へスクロール
+- **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
+  c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
+  各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）
+- **予定の開始前通知**: `eventReminderMinutes`（5/10/15/30 分前、既定オフ、設定の「通知と 1 日のリズム」）。タブが開いている間は
+  `checkEventReminders`（`src/lib/eventReminders.ts`、localStorage で 1 日 1 回）、Web Push 購読中は Edge Function
+  `daily-reminders` が `push_subscriptions.event_reminder_minutes`（`005_event_reminders.sql`）を見て送る
+
 ### グローバルショートカット（`App.tsx`）
+
+- 1 文字ショートカットは上記。以下は修飾キー付き
 
 - **⌘/Ctrl+K**: 検索フォーカス
 - **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または

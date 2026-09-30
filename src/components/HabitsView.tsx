@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, paletteColors } from '../store/taskStore'
+import { useNavShortcut } from '../lib/shortcuts'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
   canSubmitHabitDraft,
@@ -364,6 +365,7 @@ export function HabitsView() {
   const goFocusToday = useCallback(() => {
     setSelectedCalendarDateKey(todayKey)
   }, [setSelectedCalendarDateKey, todayKey])
+  useNavShortcut({ today: goFocusToday, prev: () => shiftFocusDay(-1), next: () => shiftFocusDay(1) })
 
   const renderHabitRow = (h: Habit, offDay: boolean) => {
     const last7 = completionsInLast7Days(h.completedDates)

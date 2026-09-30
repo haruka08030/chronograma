@@ -12,6 +12,7 @@ import {
 import { enUS, ja } from 'date-fns/locale'
 import { layoutOverlaps, overlapSlotStyle } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
+import { useNavShortcut } from '../lib/shortcuts'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
@@ -621,6 +622,11 @@ function Legend() {
 export function PlanVsActualView() {
   const { t, i18n } = useTranslation()
   const [anchor, setAnchor] = useState(new Date())
+  useNavShortcut({
+    today: () => setAnchor(new Date()),
+    prev: () => setAnchor((a) => subWeeks(a, 1)),
+    next: () => setAnchor((a) => addWeeks(a, 1)),
+  })
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
@@ -1153,13 +1159,6 @@ export function PlanVsActualView() {
                         key={h}
                         className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800/60"
                         style={{ top: h * HOUR_HEIGHT }}
-                      />
-                    ))}
-                    {HOURS.map((h) => (
-                      <div
-                        key={`half-${h}`}
-                        className="absolute left-0 right-0 border-t border-zinc-50 dark:border-zinc-800/30 border-dashed"
-                        style={{ top: h * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
                       />
                     ))}
 

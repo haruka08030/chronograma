@@ -20,7 +20,15 @@ type Sub = {
   wrap_up_time: string | null
   last_plan_sent: string | null
   last_wrap_up_sent: string | null
+  /** 005 で追加。null はオフ */
+  event_reminder_minutes?: number | null
+  event_notified?: { date?: string; ids?: string[] } | null
 }
+
+type PlannedRow = { id: string; title: string; start_time: string; end_time: string | null; list_id: string }
+
+/** cron の間隔（分）。予定の通知はこの幅の中に入ったものを送る */
+const CRON_INTERVAL_MINUTES = 5
 
 const MESSAGES = {
   ja: {
@@ -87,7 +95,7 @@ Deno.serve(async (req) => {
   const { data, error } = await admin
     .from('push_subscriptions')
     .select('*')
-    .or('plan_time.not.is.null,wrap_up_time.not.is.null')
+    .or('plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null')
   if (error) return new Response(error.message, { status: 500 })
 
   const now = new Date()
@@ -121,12 +129,56 @@ Deno.serve(async (req) => {
     return n
   }
 
+  // いつか / チェックリストのリスト（予定の通知・残り件数から外す）
+  const excludedCache = new Map<string, string[]>()
+  const excludedLists = async (userId: string): Promise<string[]> => {
+    const hit = excludedCache.get(userId)
+    if (hit) return hit
+    const { data: unplanned } = await admin
+      .from('lists')
+      .select('id')
+      .eq('user_id', userId)
+      .in('kind', ['someday', 'checklist'])
+    const ids = (unplanned ?? []).map((l: { id: string }) => l.id)
+    excludedCache.set(userId, ids)
+    return ids
+  }
+
+  /** 開始 N 分前の時刻が、この cron の 5 分の幅に入った今日の予定 */
+  const dueEvents = async (sub: Sub, local: { date: string; minutes: number }): Promise<PlannedRow[]> => {
+    const before = sub.event_reminder_minutes
+    if (!before) return []
+    const { data: rows } = await admin
+      .from('tasks')
+      .select('id,title,start_time,end_time,list_id,scheduled_date,due_date')
+      .eq('user_id', sub.user_id)
+      .eq('completed', false)
+      .eq('is_time_log', false)
+      .is('parent_id', null)
+      .is('deleted_at', null)
+      .is('archived_at', null)
+      .not('start_time', 'is', null)
+      .or(`scheduled_date.eq.${local.date},and(scheduled_date.is.null,due_date.eq.${local.date})`)
+    const excluded = new Set(await excludedLists(sub.user_id))
+    const notified = new Set(sub.event_notified?.date === local.date ? sub.event_notified?.ids ?? [] : [])
+    return ((rows ?? []) as PlannedRow[]).filter((r) => {
+      if (excluded.has(r.list_id) || notified.has(r.id)) return false
+      const [h, m] = r.start_time.split(':').map(Number)
+      const remindAt = h * 60 + m - before
+      return remindAt <= local.minutes && remindAt > local.minutes - CRON_INTERVAL_MINUTES
+    })
+  }
+
   let sent = 0
   let removed = 0
   for (const sub of (data ?? []) as Sub[]) {
     const local = localNow(sub.timezone, now)
     const msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
-    const jobs: { column: 'last_plan_sent' | 'last_wrap_up_sent'; payload: Record<string, string> }[] = []
+    const jobs: {
+      column: 'last_plan_sent' | 'last_wrap_up_sent' | null
+      eventId?: string
+      payload: Record<string, string>
+    }[] = []
 
     if (isDue(sub.plan_time, sub.last_plan_sent, local)) {
       jobs.push({
@@ -147,6 +199,21 @@ Deno.serve(async (req) => {
       })
     }
 
+    const events = await dueEvents(sub, local)
+    for (const ev of events) {
+      jobs.push({
+        column: null,
+        eventId: ev.id,
+        payload: {
+          title: ev.title,
+          body: ev.end_time ? `${ev.start_time.slice(0, 5)} – ${ev.end_time.slice(0, 5)}` : ev.start_time.slice(0, 5),
+          tag: `chronograma-event-${ev.id}`,
+          url: '/?view=planner',
+        },
+      })
+    }
+
+    const notifiedToday = sub.event_notified?.date === local.date ? [...(sub.event_notified?.ids ?? [])] : []
     for (const job of jobs) {
       try {
         await webpush.sendNotification(
@@ -155,7 +222,15 @@ Deno.serve(async (req) => {
           { TTL: 60 * 60 },
         )
         sent++
-        await admin.from('push_subscriptions').update({ [job.column]: local.date }).eq('endpoint', sub.endpoint)
+        if (job.column) {
+          await admin.from('push_subscriptions').update({ [job.column]: local.date }).eq('endpoint', sub.endpoint)
+        } else if (job.eventId) {
+          notifiedToday.push(job.eventId)
+          await admin
+            .from('push_subscriptions')
+            .update({ event_notified: { date: local.date, ids: notifiedToday } })
+            .eq('endpoint', sub.endpoint)
+        }
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode
         // 購読が失効（アプリ削除・権限取り消し）したら消す

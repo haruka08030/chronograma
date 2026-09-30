@@ -41,14 +41,19 @@ async function readyRegistration(): Promise<ServiceWorkerRegistration | null> {
  * 通知時刻の変更をサーバーの購読に反映する。どちらもオフなら購読を解除して行を消す。
  * 権限が未許可なら何もしない（許可ダイアログはユーザー操作から出す）。
  */
-export async function syncWebPush(userId: string | null, reminders: DailyReminders, lang: string): Promise<void> {
+export async function syncWebPush(
+  userId: string | null,
+  reminders: DailyReminders,
+  eventReminderMinutes: number | null,
+  lang: string,
+): Promise<void> {
   pushActive = false
   const supabase = getSupabase()
   if (!userId || !supabase || !isWebPushSupported() || Notification.permission !== 'granted') return
   const reg = await readyRegistration()
   if (!reg) return
 
-  const wantsAny = Boolean(reminders.planTime || reminders.wrapUpTime)
+  const wantsAny = Boolean(reminders.planTime || reminders.wrapUpTime || eventReminderMinutes != null)
   let sub = await reg.pushManager.getSubscription()
 
   if (!wantsAny) {
@@ -82,6 +87,7 @@ export async function syncWebPush(userId: string | null, reminders: DailyReminde
       lang: lang.startsWith('ja') ? 'ja' : 'en',
       plan_time: reminders.planTime,
       wrap_up_time: reminders.wrapUpTime,
+      event_reminder_minutes: eventReminderMinutes,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'endpoint' },

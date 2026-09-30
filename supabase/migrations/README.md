@@ -15,3 +15,4 @@
 - 将来チーム化や Supabase CLI の厳密運用に切り替えるときは、この 1 本を分割して **追記のみの番号付きマイグレーション**に戻すのが無難。
 
 ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。
+| `005_event_reminders.sql` | `push_subscriptions.event_reminder_minutes`（予定の開始何分前に通知）と `event_notified`（その日に通知済みの予定 ID）。未適用でもアプリは動き、予定前通知はタブを開いている間だけになる |

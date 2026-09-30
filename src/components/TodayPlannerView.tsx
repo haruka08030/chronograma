@@ -6,6 +6,7 @@ import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
 import { getDayPlan } from '../lib/dayPlan'
+import { useNavShortcut } from '../lib/shortcuts'
 import { findListByName, unplannedListIds } from '../lib/listKind'
 import { displayListName } from '../lib/displayListName'
 import { requestPermission } from '../lib/notifications'
@@ -49,6 +50,11 @@ export function TodayPlannerView() {
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
   const [dateKey, setDateKey] = useState(() => dayKeyOf(new Date()))
+  useNavShortcut({
+    today: () => setDateKey(dayKeyOf(new Date())),
+    prev: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), -1))),
+    next: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), 1))),
+  })
   const [draft, setDraft] = useState('')
   const [draftFocused, setDraftFocused] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)

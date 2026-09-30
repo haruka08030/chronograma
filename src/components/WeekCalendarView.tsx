@@ -40,6 +40,9 @@ import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../lib/googleColors'
+import { EventPopover } from './timeline/EventPopover'
+import { QuickCreatePopover } from './timeline/QuickCreatePopover'
+import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -55,6 +58,12 @@ type TimeBlockTask = {
   endDate?: string | null
   isTimeLog?: boolean
   parentId?: string | null
+}
+
+function isPastBlock(dayKey: string, endTime: string): boolean {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  const [hh, mm] = endTime.split(':').map(Number)
+  return new Date(y!, m! - 1, d!, hh, mm).getTime() < Date.now()
 }
 
 /** ブロックの縦位置（重なり計算と描画で同じ値を使う） */
@@ -92,6 +101,8 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
 
   const variant = isLog ? 'gc-soft' : 'gc-solid'
   const done = !isLog && !isExternal && task.completed
+  // 終わった予定は Google と同じく淡く（記録はもともと過去なので対象外）
+  const past = !isLog && !done && dayKey != null && isPastBlock(dayKey, task.endTime)
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
 
@@ -108,7 +119,8 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
       }}
       className={`${variant} absolute overflow-hidden rounded-[5px] px-1.5 py-0.5 text-left text-[11px] leading-tight
         cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
-        ${done ? 'line-through opacity-50' : ''}`}
+        ${done ? 'line-through opacity-50' : past ? 'opacity-60' : ''}`}
+      data-block-id={task.id}
       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
       style={{
         top,
@@ -137,47 +149,19 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
   )
 }
 
-function InlineTimeAdd({ popup, onDone }: { popup: CreatePopup; onDone: (title?: string) => void }) {
+/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる） */
+function CreateGhost({ popup, onAnchor }: { popup: CreatePopup; onAnchor: (el: HTMLDivElement | null) => void }) {
   const { t } = useTranslation()
-  const [value, setValue] = useState('')
-  const ref = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { ref.current?.focus() }, [])
-
-  const submit = () => {
-    const trimmed = value.trim()
-    onDone(trimmed || undefined)
-  }
-
+  const top = timeToY(popup.startTime)
+  const height = Math.max(timeToY(popup.endTime) - top, 20)
   return (
     <div
-      className="absolute left-0.5 right-0.5 z-30 rounded-md border-2 border-accent-500
-                 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden"
-      style={{ top: timeToY(popup.startTime), height: Math.max(timeToY(popup.endTime) - timeToY(popup.startTime), 40) }}
-      onClick={(e) => e.stopPropagation()}
+      ref={onAnchor}
+      className="gc-solid pointer-events-none absolute left-0.5 right-0.5 z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg"
+      style={{ top, height, ...colorVars('#7986CB') }}
     >
-      <div className="p-1.5 flex flex-col h-full">
-        <input
-          ref={ref}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              onDone()
-              return
-            }
-            const isSubmitEnter =
-              (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing
-            if (isSubmitEnter) submit()
-          }}
-          onBlur={submit}
-          placeholder={t('weekCalendar.taskNamePlaceholder')}
-          className="w-full text-xs bg-transparent outline-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-        />
-        <span className="text-[10px] text-zinc-400 mt-auto">
-          {popup.startTime} – {popup.endTime}
-        </span>
-      </div>
+      <span className="block font-medium">{t('quickCreate.untitled')}</span>
+      <span className="block text-[10px] opacity-80">{popup.startTime} – {popup.endTime}</span>
     </div>
   )
 }
@@ -205,7 +189,6 @@ export function WeekCalendarView({
   const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
-  const addTaskWithTime = useTaskStore((s) => s.addTaskWithTime)
   const updateTask = useTaskStore((s) => s.updateTask)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const isDesktop = useIsDesktop()
@@ -304,9 +287,10 @@ export function WeekCalendarView({
     if (!scrollRef.current) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
     const now = new Date()
-    const showNow = singleDay && isToday(anchor)
+    const showNow = singleDay ? isToday(anchor) : days.some((d) => isToday(d))
     const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : 7.5
     scrollRef.current.scrollTop = HOUR_HEIGHT * hours
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 表示週が変わったときだけ合わせる
   }, [singleDay, anchor])
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
@@ -333,6 +317,23 @@ export function WeekCalendarView({
     return null
   }, [])
 
+  // 予定を押したときのカード / 空き時間の作成カード（Google カレンダー風）
+  const [eventCard, setEventCard] = useState<{ taskId: string; anchor: AnchorRect } | null>(null)
+  const [createAnchor, setCreateAnchor] = useState<AnchorRect | null>(null)
+  const openCard = useCallback((taskId: string) => {
+    const el = gridRef.current?.querySelector(`[data-block-id="${CSS.escape(taskId)}"]`) ?? null
+    const anchor = rectOf(el)
+    if (anchor) setEventCard({ taskId, anchor })
+    else openDetail(taskId)
+  }, [openDetail])
+  const closeCard = useCallback(() => setEventCard(null), [])
+  // 安定した ref コールバック（毎回作り直すと描画のたびに state が変わって無限ループになる）
+  const setCreateAnchorFromEl = useCallback((el: HTMLDivElement | null) => setCreateAnchor(el ? rectOf(el) : null), [])
+  const openDetailFromCard = useCallback((taskId: string) => {
+    setEventCard(null)
+    openDetail(taskId)
+  }, [openDetail])
+
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
@@ -343,8 +344,9 @@ export function WeekCalendarView({
     },
     onResizeDone: (taskId, startTime, endTime) => { updateTask(taskId, { startTime, endTime }) },
     onBlockTap: useCallback((taskId: string) => {
-      openDetail(taskId)
-    }, [openDetail]),
+      openCard(taskId)
+    }, [openCard]),
+    clickCreateMinutes: 60,
   })
 
   const getTaskDuration = useCallback(
@@ -359,13 +361,6 @@ export function WeekCalendarView({
       updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, isTimeLog: false })
     },
   })
-
-  const handleCreateDone = useCallback((title?: string) => {
-    if (title && timelineDrag.popup) {
-      addTaskWithTime(title, timelineDrag.popup.dateKey, timelineDrag.popup.startTime, timelineDrag.popup.endTime)
-    }
-    timelineDrag.dismissPopup()
-  }, [timelineDrag, addTaskWithTime])
 
   const hasAnyAllDay = useMemo(() => {
     return gridDays.some((d) => {
@@ -531,13 +526,6 @@ export function WeekCalendarView({
                         style={{ top: h * HOUR_HEIGHT }}
                       />
                     ))}
-                    {HOURS.map((h) => (
-                      <div
-                        key={`half-${h}`}
-                        className="absolute left-0 right-0 border-t border-zinc-50 dark:border-zinc-800/30 border-dashed"
-                        style={{ top: h * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
-                      />
-                    ))}
 
                     {today && <NowIndicator />}
 
@@ -552,7 +540,8 @@ export function WeekCalendarView({
                               isTimeLog: false,
                             })
                           }
-                          onOpenDetail={() => openDetail(t.id)}
+                          dayKey={key}
+                          onOpenDetail={() => openCard(t.id)}
                           hStyle={planStyle(t.id)}
                           colorHex={listColorById.get(t.listId) ?? NEUTRAL_HEX}
                         />
@@ -575,7 +564,7 @@ export function WeekCalendarView({
                                 endDate: t.endDate,
                               })
                           }
-                          onOpenDetail={() => openDetail(t.id)}
+                          onOpenDetail={() => openCard(t.id)}
                         />
                       </div>
                     ))}
@@ -627,7 +616,7 @@ export function WeekCalendarView({
                     )}
 
                     {timelineDrag.popup && timelineDrag.popup.dateKey === key && (
-                      <InlineTimeAdd popup={timelineDrag.popup} onDone={handleCreateDone} />
+                      <CreateGhost popup={timelineDrag.popup} onAnchor={setCreateAnchorFromEl} />
                     )}
                   </div>
                 )
@@ -637,6 +626,22 @@ export function WeekCalendarView({
         </div>
       </div>
 
+      {eventCard && (
+        <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
+      )}
+      {timelineDrag.popup && createAnchor && (
+        <QuickCreatePopover
+          anchor={createAnchor}
+          dateKey={timelineDrag.popup.dateKey}
+          startTime={timelineDrag.popup.startTime}
+          endTime={timelineDrag.popup.endTime}
+          onClose={timelineDrag.dismissPopup}
+          onCreated={(id, more) => {
+            timelineDrag.dismissPopup()
+            if (more) openDetail(id)
+          }}
+        />
+      )}
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
     </div>
   )

@@ -53,7 +53,7 @@ npm run dev
 
 アプリを閉じていても「今日を計画しましょう」「1 日を締めましょう」を届けます。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
-1. **SQL Editor** で [`supabase/migrations/003_push_subscriptions.sql`](supabase/migrations/003_push_subscriptions.sql) を実行
+1. **SQL Editor** で [`supabase/migrations/003_push_subscriptions.sql`](supabase/migrations/003_push_subscriptions.sql) と [`005_event_reminders.sql`](supabase/migrations/005_event_reminders.sql)（予定の開始前通知）を実行
 2. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 3. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
 4. Edge Function のシークレットを設定してデプロイ:

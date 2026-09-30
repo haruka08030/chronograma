@@ -14,6 +14,8 @@ export function DailyRhythmSettings() {
   const setDailyCapacityMinutes = useTaskStore((s) => s.setDailyCapacityMinutes)
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
   const toggleNotifications = useTaskStore((s) => s.toggleNotifications)
+  const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
+  const setEventReminderMinutes = useTaskStore((s) => s.setEventReminderMinutes)
   const unsupported = typeof window === 'undefined' || !('Notification' in window)
   const denied = !unsupported && Notification.permission === 'denied'
 
@@ -51,6 +53,26 @@ export function DailyRhythmSettings() {
     >
       {reminderRow('planTime', t('settings.planReminder'), t('settings.planReminderHelp'), '08:30')}
       {reminderRow('wrapUpTime', t('settings.wrapUpReminder'), t('settings.wrapUpReminderHelp'), '18:00')}
+      <SettingsRow label={t('settings.eventReminder')} help={t('settings.eventReminderHelp')} htmlFor="event-reminder">
+        <select
+          id="event-reminder"
+          value={eventReminderMinutes ?? 'off'}
+          disabled={unsupported || denied}
+          onChange={async (e) => {
+            const v = e.target.value
+            if (v === 'off') return setEventReminderMinutes(null)
+            if (await requestPermission()) setEventReminderMinutes(Number(v))
+          }}
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          <option value="off">{t('settings.eventReminderOff')}</option>
+          {[5, 10, 15, 30].map((m) => (
+            <option key={m} value={m}>
+              {t('settings.eventReminderBefore', { count: m })}
+            </option>
+          ))}
+        </select>
+      </SettingsRow>
       <SettingsRow label={t('settings.dueNotifications')} help={t('settings.dueNotificationsHelp')}>
         <Switch checked={notificationsEnabled} disabled={unsupported || denied} onChange={toggleNotifications} label={t('settings.dueNotifications')} />
       </SettingsRow>
