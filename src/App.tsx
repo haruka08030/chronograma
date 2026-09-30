@@ -363,7 +363,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const apply = () =>
+      document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media?.matches === true))
+    apply()
+    if (theme !== 'system' || !media) return
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
   }, [theme])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

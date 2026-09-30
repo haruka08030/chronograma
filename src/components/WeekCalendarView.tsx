@@ -38,6 +38,7 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
+import { categoryAccent, UNCATEGORIZED_ACCENT, type CategoryAccent } from '../lib/logCategoryColors'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
@@ -63,7 +64,7 @@ function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: b
   return { top, height: Math.max(height, 18) }
 }
 
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle }: {
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExternal, hStyle, logAccent }: {
   task: TimeBlockTask
   /** 週グリッド上の列の日付（ログのセグメント表示用） */
   dayKey?: string
@@ -73,6 +74,8 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
   isExternal?: boolean
   /** 重なり回避の横位置（left/width） */
   hStyle?: React.CSSProperties
+  /** ログの分類の色（ログ画面・ふりかえりと同じ色にする） */
+  logAccent?: CategoryAccent
 }) {
   const { t } = useTranslation()
   const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
@@ -82,9 +85,8 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, isLog, isExterna
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
-  const logCls = isLog
-    ? 'bg-emerald-50 dark:bg-emerald-950 border-emerald-300 dark:border-emerald-500/40 border-dashed text-emerald-900 dark:text-emerald-100'
-    : ''
+  const accent = logAccent ?? UNCATEGORIZED_ACCENT
+  const logCls = isLog ? `${accent.bg} ${accent.border} ${accent.text} border-dashed` : ''
   const externalCls =
     !isLog && isExternal
       ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-500/40 text-blue-900 dark:text-blue-100'
@@ -185,6 +187,7 @@ export function WeekCalendarView({
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleConnected = useTaskStore((s) => s.googleConnected)
@@ -550,6 +553,7 @@ export function WeekCalendarView({
                           dayKey={key}
                           isLog
                           hStyle={logStyle(t.id)}
+                          logAccent={t.tags[0] ? categoryAccent(t.tags[0], logCategoryColors) : UNCATEGORIZED_ACCENT}
                           onPointerDown={(e) =>
                             timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                                 startTime: t.startTime!,

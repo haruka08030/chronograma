@@ -1,7 +1,8 @@
 import { useMemo, useState, type KeyboardEventHandler } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { buildTimeLogTagUniverse, getTagColor } from '../lib/tagColors'
+import { buildTimeLogTagUniverse } from '../lib/tagColors'
+import { categoryAccent } from '../lib/logCategoryColors'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -27,7 +28,8 @@ export function TimeLogTagField({
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const presets = useTaskStore((s) => s.timeLogTagPresets)
-  const setPresets = useTaskStore((s) => s.setTimeLogTagPresets)
+  const addLogCategory = useTaskStore((s) => s.addLogCategory)
+  const colors = useTaskStore((s) => s.logCategoryColors)
   const universe = useMemo(() => buildTimeLogTagUniverse(presets, tasks), [presets, tasks])
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
@@ -42,7 +44,7 @@ export function TimeLogTagField({
   const commitDraft = () => {
     const name = draft.trim()
     if (name) {
-      if (!presets.includes(name)) setPresets([...presets, name])
+      addLogCategory(name)
       onChange(name)
     }
     setDraft('')
@@ -55,7 +57,7 @@ export function TimeLogTagField({
     <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="radiogroup" aria-label={t('logCategories.label')}>
       {chips.map((name) => {
         const selected = value === name
-        const color = getTagColor(Math.max(0, universe.indexOf(name)))
+        const color = categoryAccent(name, colors)
         return (
           <button
             key={name}
@@ -69,7 +71,10 @@ export function TimeLogTagField({
                 : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
             }`}
           >
-            {name}
+            <span className="inline-flex items-center gap-1.5">
+              {!selected && <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} aria-hidden />}
+              {name}
+            </span>
           </button>
         )
       })}

@@ -5,6 +5,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
+import { categoryAccent } from '../lib/logCategoryColors'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -16,6 +17,7 @@ export function WeekReviewCard() {
 
   const anchor = useMemo(() => addWeeks(new Date(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
   const review = useMemo(() => getWeekReview(tasks, habits, anchor, excluded), [tasks, habits, anchor, excluded])
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -155,7 +157,10 @@ export function WeekReviewCard() {
             <ul className="space-y-1.5">
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${categoryAccent(x.tag || null, logCategoryColors).dot}`} aria-hidden />
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
+                  </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{fmtMin(x.minutes)}</span>
                 </li>
               ))}

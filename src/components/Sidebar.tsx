@@ -38,8 +38,6 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const selectedView = useTaskStore((s) => s.selectedView)
   const selectView = useTaskStore((s) => s.selectView)
   const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
-  const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
-  const toggleNotifications = useTaskStore((s) => s.toggleNotifications)
   const isDesktop = useIsDesktop()
   const isLargeScreen = useIsLargeScreen()
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
@@ -212,21 +210,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         />
       </div>
 
-      <div className="mx-4 mb-2 border-t border-zinc-200 dark:border-zinc-800 shrink-0" />
-
-      <div className="px-2 pb-4 space-y-0.5">
-        <button
-          onClick={toggleNotifications}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500
-                     hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800
-                     rounded-lg transition-colors"
-        >
-          <svg className={`w-4 h-4 ${notificationsEnabled ? 'text-accent-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-          </svg>
-          {notificationsEnabled ? t('sidebar.notificationsOn') : t('sidebar.notificationsOff')}
-        </button>
-      </div>
+      <div className="pb-3" />
     </aside>
   )
 

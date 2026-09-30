@@ -14,6 +14,7 @@ import {
 } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { inferLogCategory } from '../lib/logCategory'
+import { assignColorsInOrder, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
 import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns'
 import i18n from '../i18n/config'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -98,7 +99,8 @@ interface TaskState {
   calendarMode: CalendarMode
   /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
   selectedCalendarDateKey: string
-  theme: 'light' | 'dark'
+  /** `system` は OS のライト/ダークに合わせる */
+  theme: 'light' | 'dark' | 'system'
   searchQuery: string
   sortMode: SortMode
   deletedTasks: { task: Task; deletedAt: number }[]
@@ -108,6 +110,8 @@ interface TaskState {
   listColorPaletteId: ListColorPaletteId
   /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
   timeLogTagPresets: string[]
+  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
+  logCategoryColors: Record<string, string>
 
   calendarEvents: CalendarEvent[]
   googleConnected: boolean
@@ -160,8 +164,17 @@ interface TaskState {
   indentTaskUnderPrevSibling: (taskId: string) => boolean
 
   toggleTheme: () => void
+  setTheme: (theme: 'light' | 'dark' | 'system') => void
   setListColorPalette: (id: ListColorPaletteId) => void
   setTimeLogTagPresets: (presets: string[]) => void
+  /** 分類を追加（色は空いているものを自動で）。既にあれば何もしない */
+  addLogCategory: (name: string) => void
+  /** 名前を変える。過去の記録の分類も書き換え、既にある名前なら統合する */
+  renameLogCategory: (from: string, to: string) => void
+  /** 候補から外す（過去の記録の分類はそのまま） */
+  removeLogCategory: (name: string) => void
+  moveLogCategory: (name: string, delta: -1 | 1) => void
+  setLogCategoryColor: (name: string, color: CategoryColorKey) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
@@ -439,6 +452,8 @@ interface ChronogramaUndoSnapshot {
   deletedTasks: { task: Task; deletedAt: number }[]
   listColorPaletteId: ListColorPaletteId
   timeLogTagPresets: string[]
+  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
+  logCategoryColors: Record<string, string>
   selectedListId: string | null
   selectedView: SmartView | null
   quickAddSectionId: string | null
@@ -527,6 +542,7 @@ export const useTaskStore = create<TaskState>()(
           deletedTasks: structuredClone(s.deletedTasks),
           listColorPaletteId: s.listColorPaletteId,
           timeLogTagPresets: structuredClone(s.timeLogTagPresets),
+          logCategoryColors: structuredClone(s.logCategoryColors),
           selectedListId: s.selectedListId,
           selectedView: s.selectedView,
           quickAddSectionId: s.quickAddSectionId,
@@ -552,7 +568,7 @@ export const useTaskStore = create<TaskState>()(
       settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'week' as CalendarMode,
       selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
-      theme: 'light',
+      theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
@@ -564,6 +580,7 @@ export const useTaskStore = create<TaskState>()(
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
+      logCategoryColors: assignColorsInOrder(defaultLogCategories()),
 
       calendarEvents: [],
       googleConnected: false,
@@ -896,7 +913,8 @@ export const useTaskStore = create<TaskState>()(
       },
 
       toggleTheme: () =>
-        set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
+        set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      setTheme: (theme) => set({ theme }),
 
       setListColorPalette: (id) => {
         pushUndo()
@@ -906,6 +924,61 @@ export const useTaskStore = create<TaskState>()(
       setTimeLogTagPresets: (presets) => {
         pushUndo()
         set({ timeLogTagPresets: normalizeTimeLogTagPresetList(presets) })
+      },
+      addLogCategory: (raw) => {
+        const name = raw.trim()
+        const s0 = get()
+        if (!name || s0.timeLogTagPresets.includes(name)) return
+        pushUndo()
+        set({
+          timeLogTagPresets: [...s0.timeLogTagPresets, name],
+          logCategoryColors: {
+            ...s0.logCategoryColors,
+            [name]: s0.logCategoryColors[name] ?? nextCategoryColor(name, s0.logCategoryColors, s0.timeLogTagPresets),
+          },
+        })
+      },
+      renameLogCategory: (from, raw) => {
+        const to = raw.trim()
+        if (!to || to === from) return
+        pushUndo()
+        const now = new Date().toISOString()
+        set((s) => {
+          const merging = s.timeLogTagPresets.includes(to)
+          const presets = merging
+            ? s.timeLogTagPresets.filter((n) => n !== from)
+            : s.timeLogTagPresets.map((n) => (n === from ? to : n))
+          const colors = { ...s.logCategoryColors }
+          if (!merging && colors[from]) colors[to] = colors[from]!
+          delete colors[from]
+          return {
+            timeLogTagPresets: presets,
+            logCategoryColors: colors,
+            tasks: s.tasks.map((t) => {
+              if (!t.isTimeLog || !t.tags.includes(from)) return t
+              const tags = [...new Set(t.tags.map((x) => (x === from ? to : x)))]
+              return { ...t, tags, updatedAt: now }
+            }),
+          }
+        })
+      },
+      removeLogCategory: (name) => {
+        if (!get().timeLogTagPresets.includes(name)) return
+        pushUndo()
+        set((s) => ({ timeLogTagPresets: s.timeLogTagPresets.filter((n) => n !== name) }))
+      },
+      moveLogCategory: (name, delta) => {
+        const list = [...get().timeLogTagPresets]
+        const i = list.indexOf(name)
+        const j = i + delta
+        if (i < 0 || j < 0 || j >= list.length) return
+        pushUndo()
+        ;[list[i], list[j]] = [list[j]!, list[i]!]
+        set({ timeLogTagPresets: list })
+      },
+      setLogCategoryColor: (name, color) => {
+        pushUndo()
+        set((s) => ({ logCategoryColors: { ...s.logCategoryColors, [name]: color } }))
       },
 
       selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
@@ -1506,7 +1579,7 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
       exportData: () => {
-        const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets } = get()
+        const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
         const data = JSON.stringify(
           buildBackupPayload({
             tasks,
@@ -1515,6 +1588,7 @@ export const useTaskStore = create<TaskState>()(
             sections,
             listColorPaletteId,
             timeLogTagPresets,
+            logCategoryColors,
           }),
           null,
           2,
@@ -1539,6 +1613,7 @@ export const useTaskStore = create<TaskState>()(
           listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
           sections: parsed.sections,
           timeLogTagPresets: parsed.timeLogTagPresets ?? [],
+          logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
           quickAddSectionId: null,
         })
         return true
@@ -1614,7 +1689,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 26,
+      version: 27,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -1825,6 +1900,13 @@ export const useTaskStore = create<TaskState>()(
           // 分類を 1 つも持っていないと記録がほぼ「未分類」になるので、既定の分類を入れる
           const presets = state.timeLogTagPresets
           if (!Array.isArray(presets) || presets.length === 0) state.timeLogTagPresets = defaultLogCategories()
+        }
+        if (version < 27) {
+          // 色は並び順から決めていたので、今見えている色のまま固定する（並べ替えで変わらないように）
+          const presets = Array.isArray(state.timeLogTagPresets) ? (state.timeLogTagPresets as string[]) : []
+          if (!state.logCategoryColors || typeof state.logCategoryColors !== 'object') {
+            state.logCategoryColors = assignColorsInOrder(presets)
+          }
         }
         return state as unknown as TaskState
       },

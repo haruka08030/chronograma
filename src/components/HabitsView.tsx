@@ -23,13 +23,7 @@ import { TimeInput, addClockMinutes } from './TimeInput'
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
-const HABIT_ICONS = [
-  'M12 2.25c3.176 0 5.75 2.574 5.75 5.75 0 4.313-4.448 8.033-5.75 11.75C10.698 16.033 6.25 12.313 6.25 8c0-3.176 2.574-5.75 5.75-5.75zm0 3.5a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z',
-  'M15.182 3.318a.75.75 0 011.06 0l4.44 4.44a.75.75 0 010 1.06l-8.03 8.03a3 3 0 01-1.289.744l-3.35.96a.75.75 0 01-.928-.928l.96-3.35a3 3 0 01.744-1.288l8.03-8.03zM5.25 19.5A1.5 1.5 0 006.75 21h10.5a1.5 1.5 0 000-3h-10.5a1.5 1.5 0 00-1.5 1.5z',
-  'M4.5 4.5h6v6h-6v-6zm9 0h6v6h-6v-6zm-9 9h6v6h-6v-6zm9 1.5h6M16.5 12v6',
-]
 
-const iconPencil = 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10'
 const iconTrash = 'M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0'
 
 function ColorPicker({
@@ -374,7 +368,6 @@ export function HabitsView() {
   const renderHabitRow = (h: Habit, offDay: boolean) => {
     const last7 = completionsInLast7Days(h.completedDates)
     const isEditing = editingHabitId === h.id
-    const icon = HABIT_ICONS[Math.abs(h.id.charCodeAt(0)) % HABIT_ICONS.length]
     const completedSet = new Set(h.completedDates)
     const weeklyExpected = weekDates.filter((d) => isHabitScheduledOnDate(h, d)).length
     const weeklyDone = weekDates.filter(
@@ -511,72 +504,37 @@ export function HabitsView() {
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div
-                className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                  offDay ? 'bg-zinc-200/80 dark:bg-zinc-800/80' : 'bg-zinc-100 dark:bg-zinc-800'
-                }`}
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke={offDay ? '#71717a' : h.color} strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-                </svg>
-              </div>
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: offDay ? '#a1a1aa' : h.color }} aria-hidden />
               <div className="min-w-0">
                 <p
-                  className={`truncate text-lg font-semibold tracking-tight ${
+                  className={`truncate text-base font-semibold tracking-tight ${
                     offDay ? 'text-zinc-600 dark:text-zinc-400' : 'text-zinc-900 dark:text-zinc-100'
                   }`}
                 >
                   {h.title}
                 </p>
-                <p className={`text-sm font-medium ${offDay ? 'text-zinc-500 dark:text-zinc-500' : 'text-zinc-600 dark:text-zinc-300'}`}>
+                <p className={`text-xs ${offDay ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
                   {goalText}
+                  {timeText ? ` · ${timeText}` : ''}
                 </p>
-                {timeText ? (
-                  <p className={`text-xs ${offDay ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>{timeText}</p>
-                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div
-                className="grid h-12 w-12 place-items-center rounded-full bg-zinc-100 dark:bg-zinc-800"
+                className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100 dark:bg-zinc-800"
                 style={{
                   background: `conic-gradient(${offDay ? '#a1a1aa' : h.color} ${weeklyProgress * 3.6}deg, rgba(148,163,184,0.25) 0deg)`,
                 }}
               >
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                <div className="grid h-7 w-7 place-items-center rounded-full bg-white text-[10px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
                   {weeklyProgress}%
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  beginEdit(h)
-                }}
-                className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                title={t('common.edit')}
-                aria-label={t('common.edit')}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d={iconPencil} />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleDelete(h.id, e)}
-                className="p-2 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                title={t('common.delete')}
-                aria-label={t('common.delete')}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d={iconTrash} />
-                </svg>
-              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-7 gap-1.5">
-            {weekDates.map((d) => {
+            {weekDates.map((d, di) => {
               const key = habitDateKey(d)
               const isCellToday = key === todayKey
               const isCellFocus = key === selectedCalendarDateKey
@@ -601,14 +559,15 @@ export function HabitsView() {
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
-                        ? 'bg-accent-600 text-white'
+                        ? 'text-white'
                         : isScheduled
                           ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                           : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
+                    style={isDone ? { backgroundColor: h.color } : undefined}
                     title={key}
                   >
-                    {isDone ? '✓' : ''}
+                    {isDone ? '✓' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )
@@ -648,37 +607,37 @@ export function HabitsView() {
       </div>
 
       <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-          <h2 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.heatmapTitle')}</h2>
-          <div className="grid grid-cols-7 gap-2">
-            {heatmapDays.map((d) => {
-              const intensity = d.ratio === 0 ? 0.12 : 0.35 + d.ratio * 0.6
-              return (
-                <div
-                  key={d.key}
-                  className="h-9 w-full rounded-md border border-zinc-100 dark:border-zinc-800 sm:h-10"
-                  style={{ backgroundColor: `rgba(99, 102, 241, ${intensity})` }}
-                  title={t('habits.heatmapTooltip', { date: d.key, pct: Math.round(d.ratio * 100) })}
-                />
-              )
-            })}
-          </div>
-          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{t('habits.heatmapHint')}</p>
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-            <p className="mb-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">{t('habits.score7d')}</p>
-            <p className="text-3xl font-bold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100">{consistency}%</p>
-          </div>
-          <div className="rounded-xl border border-accent-300/60 bg-accent-500 p-4 text-white dark:border-accent-500/40 dark:bg-accent-600">
-            <p className="mb-1 text-[11px] font-medium text-white/80">{t('habits.streakDays')}</p>
-            <p className="text-3xl font-bold tabular-nums tracking-tight">
-              {streak}
-              <span className="ml-0.5 text-lg font-medium">{t('habits.daySuffix')}</span>
-            </p>
-          </div>
-        </section>
+        {/* 要約: 数字 2 つと直近 28 日の小さなヒートマップを 1 枚に（以前は画面の半分を占めていた） */}
+        {habits.length > 0 && (
+          <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:gap-6">
+            <dl className="flex shrink-0 gap-6">
+              <div>
+                <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('habits.score7d')}</dt>
+                <dd className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{consistency}%</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('habits.streakDays')}</dt>
+                <dd className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {streak}
+                  <span className="ml-0.5 text-sm font-normal text-zinc-500">{t('habits.daySuffix')}</span>
+                </dd>
+              </div>
+            </dl>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">{t('habits.heatmapTitle')}</p>
+              <div className="grid grid-cols-14 gap-1 sm:grid-cols-28" role="img" aria-label={t('habits.heatmapHint')}>
+                {heatmapDays.map((d) => (
+                  <div
+                    key={d.key}
+                    className={`h-4 rounded-sm ${d.ratio === 0 ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
+                    style={d.ratio === 0 ? undefined : { backgroundColor: `rgba(99, 102, 241, ${0.3 + d.ratio * 0.7})` }}
+                    title={t('habits.heatmapTooltip', { date: d.key, pct: Math.round(d.ratio * 100) })}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {showComposer ? (
           <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">

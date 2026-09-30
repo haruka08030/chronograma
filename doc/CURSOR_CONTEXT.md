@@ -20,7 +20,7 @@
   SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
   旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 26**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマ **version 27**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
   / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
@@ -109,6 +109,15 @@
   `addCompletedTaskWithTime` で補う。タイトル空でも分類だけで開始可（タイトル＝分類名）
 - **今日画面から記録**: `QuickLogStarter`（「今日の計画」の見出し下）。「記録する」でタイトル（任意）＋分類、最近の記録 3 件
   （`recentLogs`）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
+
+- **分類の色**（`src/lib/logCategoryColors.ts`）: 10 色の色キーを分類名ごとに `logCategoryColors` に保存（persist v27 で既存の
+  並び順の色のまま固定、バックアップにも含む）。候補に無い分類は名前のハッシュで色を決める。ログ画面・今日/週のタイムライン・
+  週のふりかえり・分類チップが同じ色。管理は設定の `CategoryManager`（色・名前変更＝過去の記録も書き換え、同名なら統合・並べ替え・
+  候補から外す・直近 30 日の使用時間・記録にだけある分類の取り込み）。ストアは `addLogCategory` / `renameLogCategory` /
+  `removeLogCategory` / `moveLogCategory` / `setLogCategoryColor`（どれも Undo 1 段）
+- **設定画面**: `SettingsGroup` / `SettingsRow` / `Segmented` / `Switch`（`src/components/settings/SettingsPrimitives.tsx`）で
+  外観（テーマ: 端末に合わせる / ライト / ダーク、言語）→ 通知と 1 日のリズム（締切の通知もここ。サイドバーのトグルは廃止）→
+  記録の分類 → リスト → アカウント → アプリ → データ の順。`theme` は `'light' | 'dark' | 'system'`
 
 ### グローバルショートカット（`App.tsx`）
 
