@@ -463,26 +463,36 @@ export default function App() {
   }, [handleKeyDown])
 
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
+  // 締切の通知（タブが開いている間。Web Push が有効ならサーバー側が締切時刻に送る）
   useEffect(() => {
     if (!notificationsEnabled) return
-    requestPermission().then((granted) => {
-      if (granted) checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
-    })
-    const id = setInterval(() => {
+    const notifyIfLocal = () => {
+      if (isWebPushActive()) return
       checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
-    }, 60_000)
+    }
+    requestPermission().then((granted) => {
+      if (granted) notifyIfLocal()
+    })
+    const id = setInterval(notifyIfLocal, 60_000)
     return () => clearInterval(id)
   }, [notificationsEnabled])
 
-  // 朝の計画・夕方の締めの通知（タスク期限通知のオン/オフとは独立）
+  // 朝の計画・夕方の締めの通知。締切の通知（notificationsEnabled）も
+  // 同じ購読に乗せてサーバーから送るので、ここで一緒に同期する
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const { user } = useAuth()
   const userId = user?.id ?? null
   // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
   const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
   useEffect(() => {
-    void syncWebPush(userId, dailyReminders, eventReminderMinutes, i18n.resolvedLanguage ?? 'ja')
-  }, [userId, dailyReminders, eventReminderMinutes])
+    void syncWebPush({
+      userId,
+      reminders: dailyReminders,
+      eventReminderMinutes,
+      dueReminders: notificationsEnabled,
+      lang: i18n.resolvedLanguage ?? 'ja',
+    })
+  }, [userId, dailyReminders, eventReminderMinutes, notificationsEnabled])
   // 予定の開始前通知（タブが開いている間。Web Push が有効ならサーバー側が送る）
   useEffect(() => {
     if (eventReminderMinutes == null) return

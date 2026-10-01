@@ -41,19 +41,29 @@ async function readyRegistration(): Promise<ServiceWorkerRegistration | null> {
  * 通知時刻の変更をサーバーの購読に反映する。どちらもオフなら購読を解除して行を消す。
  * 権限が未許可なら何もしない（許可ダイアログはユーザー操作から出す）。
  */
-export async function syncWebPush(
-  userId: string | null,
-  reminders: DailyReminders,
-  eventReminderMinutes: number | null,
-  lang: string,
-): Promise<void> {
+export async function syncWebPush({
+  userId,
+  reminders,
+  eventReminderMinutes,
+  dueReminders,
+  lang,
+}: {
+  userId: string | null
+  reminders: DailyReminders
+  eventReminderMinutes: number | null
+  /** 締切の通知も push で送るか（アプリを閉じていても届く） */
+  dueReminders: boolean
+  lang: string
+}): Promise<void> {
   pushActive = false
   const supabase = getSupabase()
   if (!userId || !supabase || !isWebPushSupported() || Notification.permission !== 'granted') return
   const reg = await readyRegistration()
   if (!reg) return
 
-  const wantsAny = Boolean(reminders.planTime || reminders.wrapUpTime || eventReminderMinutes != null)
+  const wantsAny = Boolean(
+    reminders.planTime || reminders.wrapUpTime || eventReminderMinutes != null || dueReminders,
+  )
   let sub = await reg.pushManager.getSubscription()
 
   if (!wantsAny) {
@@ -88,6 +98,7 @@ export async function syncWebPush(
       plan_time: reminders.planTime,
       wrap_up_time: reminders.wrapUpTime,
       event_reminder_minutes: eventReminderMinutes,
+      due_reminders: dueReminders,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'endpoint' },
