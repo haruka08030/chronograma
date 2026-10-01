@@ -218,7 +218,6 @@ export function TaskList() {
   const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const archiveTasks = useTaskStore((s) => s.archiveTasks)
-  const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const sections = useTaskStore((s) => s.sections)
   const addSectionStore = useTaskStore((s) => s.addSection)
   const renameSectionStore = useTaskStore((s) => s.renameSection)
@@ -709,11 +708,10 @@ export function TaskList() {
 
   const bulkArchive = useCallback(() => {
     if (selected.size === 0) return
-    const count = selected.size
+    // 件数の知らせは `archiveTasks` が「元に戻す」付きのトーストで出す（二重に出さない）
     archiveTasks([...selected])
-    showMoveBanner(t('toast.tasksArchived', { count }))
     clearSelection()
-  }, [selected, archiveTasks, showMoveBanner, t, clearSelection])
+  }, [selected, archiveTasks, clearSelection])
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 

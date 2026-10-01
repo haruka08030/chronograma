@@ -556,6 +556,8 @@ export default {
     placeholder: 'タスク名を入力',
   },
   undo: {
+    sectionDeleted: 'セクションを削除しました',
+    tasksArchived: '{{count}} 件をアーカイブしました',
     message: 'タスクを削除しました',
     button: '元に戻す',
     shortcutMac: '⌘Z',

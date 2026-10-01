@@ -315,6 +315,14 @@ interface TaskState {
   showMoveBanner: (text: string) => void
   clearMoveBanner: () => void
 
+  /**
+   * 「元に戻す」を出す操作の説明（永続化しない）。削除以外の取り消せる操作
+   * （一括アーカイブ・セクション削除など）でどれが戻せるのかを示す。
+   * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
+   */
+  undoBanner: { text: string; at: number } | null
+  clearUndoBanner: () => void
+
   /** タスクドラッグ中のドロップ先リスト（ホバー風ハイライト用・永続化しない） */
   taskDragHoverListId: string | null
   setTaskDragHoverListId: (id: string | null) => void
@@ -582,10 +590,16 @@ export const useTaskStore = create<TaskState>()(
         }
       }
 
-      const pushUndo = () => {
+      /**
+       * 直前の状態を控える。`label` を渡した操作だけ「元に戻す」トーストを出す。
+       * 削除は従来どおり `deletedTasks` 由来のトーストが出るので渡さない
+       * （二重に出さないため）。
+       */
+      const pushUndo = (label?: string) => {
         undoStack.push(captureUndoSnapshot())
         if (undoStack.length > MAX_UNDO) undoStack.shift()
         redoStack.length = 0
+        if (label) set({ undoBanner: { text: label, at: Date.now() } })
       }
 
       return {
@@ -601,6 +615,7 @@ export const useTaskStore = create<TaskState>()(
       sortMode: 'manual' as SortMode,
       deletedTasks: [],
       moveBannerText: null as string | null,
+      undoBanner: null as { text: string; at: number } | null,
       taskDragHoverListId: null as string | null,
       syncState: 'idle' as 'idle' | 'syncing' | 'error',
       lastSyncedAt: null as string | null,
@@ -650,7 +665,7 @@ export const useTaskStore = create<TaskState>()(
         }))
       },
       deleteSection: (id) => {
-        pushUndo()
+        pushUndo(i18n.t('undo.sectionDeleted'))
         return set((s) => ({
           sections: s.sections.filter((sec) => sec.id !== id),
           tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),
@@ -1484,7 +1499,7 @@ export const useTaskStore = create<TaskState>()(
         const target = expandDescendantIds(ids, s0.tasks)
         const toArchive = s0.tasks.filter((t) => target.has(t.id) && !t.archivedAt && !t.deletedAt)
         if (toArchive.length === 0) return
-        pushUndo()
+        pushUndo(i18n.t('undo.tasksArchived', { count: toArchive.length }))
         const nowIso = new Date().toISOString()
         set((s) => ({
           tasks: s.tasks.map((t) =>
@@ -1629,6 +1644,8 @@ export const useTaskStore = create<TaskState>()(
 
       showMoveBanner: (text) => set({ moveBannerText: text }),
       clearMoveBanner: () => set({ moveBannerText: null }),
+
+      clearUndoBanner: () => set({ undoBanner: null }),
 
       setTaskDragHoverListId: (id) => set({ taskDragHoverListId: id }),
 
@@ -1991,6 +2008,7 @@ export const useTaskStore = create<TaskState>()(
           googleAccessToken,
           googleConnectionError,
           moveBannerText,
+          undoBanner,
           taskDragHoverListId,
           syncState,
           lastSyncedAt,
@@ -2008,6 +2026,7 @@ export const useTaskStore = create<TaskState>()(
         void googleAccessToken
         void googleConnectionError
         void moveBannerText
+        void undoBanner
         void taskDragHoverListId
         void syncState
         void lastSyncedAt

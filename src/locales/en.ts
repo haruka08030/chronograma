@@ -556,6 +556,8 @@ export default {
     placeholder: 'Task title',
   },
   undo: {
+    sectionDeleted: 'Section deleted',
+    tasksArchived: 'Archived {{count}} tasks',
     message: 'Task deleted',
     button: 'Undo',
     shortcutMac: '⌘Z',
