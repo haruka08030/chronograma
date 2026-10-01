@@ -262,8 +262,10 @@ export function TaskList() {
   }, [selectedListId, selectedView, filterTag, sortMode, clearSelection])
 
   useEffect(() => {
-    setEditingSectionId(null)
-    setEditingSectionName('')
+    queueMicrotask(() => {
+      setEditingSectionId(null)
+      setEditingSectionName('')
+    })
   }, [selectedListId, selectedView])
 
   useEffect(() => {

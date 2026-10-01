@@ -29,10 +29,6 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-
 function intlPart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
   return parts.find((p) => p.type === type)?.value ?? '00'
 }

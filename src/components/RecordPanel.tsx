@@ -7,7 +7,8 @@ import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
-import { TimeInput, addClockMinutes } from './TimeInput'
+import { TimeInput } from './TimeInput'
+import { addClockMinutes } from '../lib/clockTime'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'

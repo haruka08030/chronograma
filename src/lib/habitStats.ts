@@ -3,10 +3,10 @@ import type { Habit } from '../types/habit'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 
-export function colorIndexForPalette(habitColor: string, listColors: readonly string[]): number {
+export function colorIndexForPalette(habitColor: string, listColors: readonly string[], fallback = 4): number {
   const normalized = habitColor.trim().toLowerCase()
   const i = listColors.findIndex((c) => c.trim().toLowerCase() === normalized)
-  return i >= 0 ? i : Math.min(4, listColors.length - 1)
+  return i >= 0 ? i : Math.min(fallback, listColors.length - 1)
 }
 
 export function habitDateKey(date: Date): string {

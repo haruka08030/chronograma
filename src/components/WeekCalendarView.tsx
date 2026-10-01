@@ -28,7 +28,7 @@ import {
 } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor, type CreateIntent, type CreatePopup } from '../lib/useTimelineDrag'
-import { useTimelineDrop } from '../lib/useTimelineDrop'
+import { useTimelineDrop, readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import {
   fetchCalendarEvents,
   localizeGoogleError,
@@ -231,6 +231,8 @@ export function WeekCalendarView({
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const isDesktop = useIsDesktop()
   const [allDayAddDate, setAllDayAddDate] = useState<string | null>(null)
+  /** 終日の行で ToDo を別の日へドラッグ中に、落とし先の日を光らせる */
+  const [allDayDragOver, setAllDayDragOver] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
@@ -535,7 +537,34 @@ export function WeekCalendarView({
                 const dayAllDay = singleDay ? [] : (allDayByDate.get(key) ?? [])
                 const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
                 return (
-                  <div key={key} className="min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5">
+                  <div
+                    key={key}
+                    className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
+                      ${allDayDragOver === key ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10' : ''}`}
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      setAllDayDragOver(key)
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                      setAllDayDragOver((prev) => (prev === key ? null : prev))
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setAllDayAddDate(null)
+                      setAllDayDragOver(null)
+                      const ids = readDraggedTaskIds(e.dataTransfer)
+                      if (!ids.length) return
+                      // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
+                      asOneUndo(() => {
+                        for (const id of ids) {
+                          updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false })
+                        }
+                      })
+                    }}
+                  >
                     {dayAllDayEvents.map((e) => (
                       <div
                         key={`event-all-day-${e.id}`}
@@ -548,8 +577,15 @@ export function WeekCalendarView({
                     {dayAllDay.map((t) => (
                       <div
                         key={t.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(TASK_DND_TYPE, t.id)
+                          e.dataTransfer.setData('text/plain', t.id)
+                          e.dataTransfer.effectAllowed = 'copyMove'
+                        }}
+                        onDragEnd={() => setAllDayDragOver(null)}
                         onClick={() => openDetail(t.id)}
-                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} cursor-pointer truncate rounded px-1.5 py-0.5
+                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} cursor-grab active:cursor-grabbing truncate rounded px-1.5 py-0.5
                           text-[10px] leading-tight transition-all hover:brightness-95`}
                         style={colorVars(listColorById.get(t.listId) ?? NEUTRAL_HEX)}
                       >

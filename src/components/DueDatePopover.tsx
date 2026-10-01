@@ -67,7 +67,8 @@ export function DueDatePopover({
     startOfMonth(value ? parseDateKey(value) : new Date()),
   )
 
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  // ref ではなく state で持つ（描画中に渡す toggle から読むため）
+  const [wrapperEl, setWrapperEl] = useState<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
 
@@ -85,17 +86,17 @@ export function DueDatePopover({
     const onPointerDown = (e: PointerEvent) => {
       const node = e.target as Node
       if (panelRef.current?.contains(node)) return
-      if (wrapperRef.current?.contains(node)) return
+      if (wrapperEl?.contains(node)) return
       setOpen(false)
     }
     window.addEventListener('pointerdown', onPointerDown, true)
     return () => window.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open])
+  }, [open, wrapperEl])
 
   const toggle = () => {
     if (!open) {
       setViewMonth(startOfMonth(value ? parseDateKey(value) : new Date()))
-      const rect = wrapperRef.current?.getBoundingClientRect()
+      const rect = wrapperEl?.getBoundingClientRect()
       // 下方向に十分な余白がなければ上向きに開く。
       setDropUp(Boolean(rect && window.innerHeight - rect.bottom < 380))
     }
@@ -114,7 +115,7 @@ export function DueDatePopover({
 
   return (
     <div
-      ref={wrapperRef}
+      ref={setWrapperEl}
       className={wrapperClassName}
       onClick={(e) => e.stopPropagation()}
     >
