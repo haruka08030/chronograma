@@ -630,7 +630,7 @@ export function ActivityLogView() {
                   const { top, height } = seg
                   const hStyle = overlapSlotStyle(logSlots.get(task.id), 0, 100, 8)
                   const dur = durationMinutesForTaskSlot(task)
-                  const hex = hexFor(task.tags[0])
+                  const hex = task.color || hexFor(task.tags[0])
 
                   return (
                     <button

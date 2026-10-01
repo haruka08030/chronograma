@@ -371,11 +371,8 @@ export function HabitsView() {
     const last7 = completionsInLast7Days(h.completedDates)
     const isEditing = editingHabitId === h.id
     const completedSet = new Set(h.completedDates)
-    const weeklyExpected = weekDates.filter((d) => isHabitScheduledOnDate(h, d)).length
-    const weeklyDone = weekDates.filter(
-      (d) => isHabitScheduledOnDate(h, d) && completedSet.has(habitDateKey(d)),
-    ).length
-    const weeklyProgress = weeklyExpected > 0 ? Math.round((weeklyDone / weeklyExpected) * 100) : 0
+    // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
+    const weeklyProgress = consistencyForLast7Days([h])
     const goalText =
       h.frequency.type === 'daily'
         ? t('habits.goalDaily')
@@ -575,9 +572,6 @@ export function HabitsView() {
               )
             })}
           </div>
-          <p className={`mt-2 text-xs ${offDay ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
-            {t('habits.weekProgress', { count: last7 })}
-          </p>
         </div>
       </li>
     )

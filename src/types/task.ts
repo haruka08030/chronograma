@@ -32,6 +32,8 @@ export interface Task {
   endTime: string | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
   location?: string | null
+  /** 記録の色（`#RRGGBB`）。Google カレンダーの予定から記録にしたとき元の色を引き継ぐ。null は分類の色 */
+  color?: string | null
   priority: Priority
   tags: string[]
   recurrence: Recurrence | null

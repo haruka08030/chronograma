@@ -352,7 +352,17 @@ Deno.serve(async (req) => {
         const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
         const accessToken = await refreshGoogleAccessToken(row.refresh_token)
         const events = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
-        return jsonResponse({ events, connected: true })
+        // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
+        let calendarColor: string | null = null
+        try {
+          const res = await fetch(`${CALENDAR_API}/users/me/calendarList/primary`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (res.ok) calendarColor = ((await res.json()) as { backgroundColor?: string }).backgroundColor ?? null
+        } catch {
+          /* ignore */
+        }
+        return jsonResponse({ events, calendarColor, connected: true })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
         const needsReconnect =

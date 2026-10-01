@@ -44,6 +44,7 @@ npm run dev
 2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    続けて [`004_list_kind.sql`](supabase/migrations/004_list_kind.sql)（リストの種類: やること / いつか / チェックリスト）も実行します。
+   [`006_task_color.sql`](supabase/migrations/006_task_color.sql)（記録の色。Google の予定から写した記録の色を端末間で同期）も実行します。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
 

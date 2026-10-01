@@ -35,7 +35,7 @@ export function QuickLogStarter() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-zinc-700
+          className="inline-flex min-h-9 items-center gap-1 rounded-full bg-zinc-900 px-3 py-1 text-xs md:min-h-0 font-medium text-white transition-colors hover:bg-zinc-700
                      dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
           <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -49,7 +49,7 @@ export function QuickLogStarter() {
             type="button"
             onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
             title={t('quickLog.resume', { title: r.title })}
-            className="max-w-[10rem] truncate rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50
+            className="min-h-9 max-w-[10rem] truncate rounded-full border border-zinc-200 px-2.5 py-1 text-xs md:min-h-0 text-zinc-600 transition-colors hover:bg-zinc-50
                        dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             {r.title}

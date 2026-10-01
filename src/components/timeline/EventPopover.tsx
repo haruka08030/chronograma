@@ -5,7 +5,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { categoryHex, colorVars } from '../../lib/logCategoryColors'
+import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 
@@ -71,7 +71,7 @@ export function EventPopover({
 
   const isLog = task.isTimeLog === true
   const list = lists.find((l) => l.id === task.listId)
-  const hex = isLog ? categoryHex(task.tags[0], logCategoryColors) : list?.color ?? NEUTRAL_HEX
+  const hex = isLog ? recordHex(task, logCategoryColors) : list?.color ?? NEUTRAL_HEX
   const dateKey = taskPlacementDate(task)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const dateText = dateKey ? format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale }) : ''

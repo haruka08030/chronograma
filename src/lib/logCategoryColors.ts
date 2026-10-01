@@ -70,3 +70,8 @@ export function assignColorsInOrder(names: readonly string[]): Record<string, Ca
   })
   return out
 }
+
+/** 記録（ログ）の色: 記録自体の色（Google の予定から写した色など）があればそれ、無ければ分類の色 */
+export function recordHex(task: { color?: string | null; tags: string[] }, colors: Readonly<Record<string, string>>): string {
+  return task.color || categoryHex(task.tags[0], colors)
+}

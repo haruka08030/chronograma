@@ -50,6 +50,8 @@ interface TaskRow {
   start_time: string | null
   end_time: string | null
   location?: string | null
+  /** 006 で追加。古い DB には無い */
+  color?: string | null
   priority: string
   tags: unknown
   recurrence: unknown
@@ -91,6 +93,18 @@ function isMissingLocationColumnError(message: string | undefined): boolean {
 function stripLocationFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ location, ...rest }) => {
     void location
+    return rest
+  })
+}
+
+function isMissingColorColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'color' column")
+}
+
+function stripColorFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ color, ...rest }) => {
+    void color
     return rest
   })
 }
@@ -275,6 +289,7 @@ function rowToTask(row: TaskRow): Task {
     startTime: row.start_time,
     endTime: row.end_time,
     location: typeof row.location === 'string' ? row.location : null,
+    color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
     recurrence,
@@ -317,6 +332,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     start_time: task.startTime,
     end_time: task.endTime,
     location: task.location ?? null,
+    color: task.color ?? null,
     priority: task.priority,
     tags: task.tags,
     recurrence: task.recurrence,
@@ -440,6 +456,7 @@ export async function pushListsTasksHabits(
   let stripEndDate = false
   let stripCompletedAt = false
   let stripLocation = false
+  let stripColor = false
   let stripDueTime = false
   let stripScheduledDate = false
   let stripArchivedAt = false
@@ -449,6 +466,7 @@ export async function pushListsTasksHabits(
     if (stripEndDate) rows = stripEndDateFromTaskRows(rows)
     if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
     if (stripLocation) rows = stripLocationFromTaskRows(rows)
+    if (stripColor) rows = stripColorFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
     if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
     if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
@@ -456,7 +474,7 @@ export async function pushListsTasksHabits(
     const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' })
     return error?.message
   }
-  for (let attempt = 0; attempt < 9; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -469,6 +487,10 @@ export async function pushListsTasksHabits(
     }
     if (isMissingLocationColumnError(errMsg) && !stripLocation) {
       stripLocation = true
+      continue
+    }
+    if (isMissingColorColumnError(errMsg) && !stripColor) {
+      stripColor = true
       continue
     }
     if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {

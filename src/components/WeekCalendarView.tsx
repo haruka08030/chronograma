@@ -38,8 +38,8 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
-import { NEUTRAL_HEX } from '../lib/googleColors'
+import { colorVars, recordHex } from '../lib/logCategoryColors'
+import { DEFAULT_GOOGLE_EVENT_HEX, NEUTRAL_HEX } from '../lib/googleColors'
 import { planVisualState } from '../lib/planVisual'
 import { EventPopover } from './timeline/EventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
@@ -398,8 +398,8 @@ export function WeekCalendarView({
                       onSelectDate?.(key)
                       setAllDayAddDate(key)
                     }}
-                    className={`absolute right-1 top-1 h-5 w-5 p-0.5 opacity-100 transition-opacity touch-manipulation md:h-4 md:w-4 md:p-px md:opacity-0
-                      focus-visible:opacity-100 md:group-hover:opacity-100 ${selected ? 'md:opacity-60' : ''}`}
+                    className={`absolute right-1 top-1 hidden h-4 w-4 p-px opacity-0 transition-opacity md:block
+                      focus-visible:opacity-100 group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
                   />
                 </div>
               )
@@ -547,7 +547,7 @@ export function WeekCalendarView({
                           dayKey={key}
                           isLog
                           hStyle={logStyle(t.id)}
-                          colorHex={categoryHex(t.tags[0], logCategoryColors)}
+                          colorHex={recordHex(t, logCategoryColors)}
                           onPointerDown={(e) =>
                             timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                                 startTime: t.startTime!,
@@ -573,7 +573,7 @@ export function WeekCalendarView({
                         }}
                         isExternal
                         hStyle={planStyle(`event-${e.id}`)}
-                        colorHex="#039BE5"
+                        colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
                         onPointerDown={(evt) => {
                           evt.preventDefault()
                           evt.stopPropagation()

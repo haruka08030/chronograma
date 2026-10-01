@@ -12,6 +12,7 @@ export function calendarEventToPlannedItem(e: CalendarEvent): PlannedItem | null
     startTime: e.startTime,
     endTime: e.endTime,
     source: 'google',
+    color: e.color,
   }
 }
 

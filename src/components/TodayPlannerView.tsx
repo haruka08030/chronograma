@@ -6,6 +6,9 @@ import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
 import { getDayPlan } from '../lib/dayPlan'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { isActiveTask } from '../lib/taskLifecycle'
+import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { findListByName, unplannedListIds } from '../lib/listKind'
 import { displayListName } from '../lib/displayListName'
@@ -21,6 +24,13 @@ import type { Task } from '../types/task'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
+const META_TONE_CLASS = {
+  muted: 'text-zinc-400 dark:text-zinc-500',
+  overdue: 'text-red-500 dark:text-red-400 font-medium',
+  today: 'text-amber-600 dark:text-amber-400 font-medium',
+  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
+} as const
+
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
 const WRAP_UP_FROM_HOUR = 17
 
@@ -69,9 +79,24 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  /** 今日の記録を分類ごとに（スマホの色の帯用） */
+  const recordSlices = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const task of tasks) {
+      if (!task.isTimeLog || !isActiveTask(task)) continue
+      const min = minutesOfLogOnCalendarDay(task, dateKey)
+      if (min > 0) m.set(task.tags[0] ?? '', (m.get(task.tags[0] ?? '') ?? 0) + min)
+    }
+    return [...m.entries()]
+  }, [tasks, dateKey])
   const { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
     () => getDayPlan(tasks, dateKey, excludedListIds),
     [tasks, dateKey, excludedListIds],
+  )
+  const overdueCount = useMemo(
+    () => (viewingToday ? carryOver.filter((x) => x.dueDate != null && x.dueDate < dateKey).length : 0),
+    [viewingToday, carryOver, dateKey],
   )
   // やり残しは今日を見ているときだけ候補に出す（過去日・未来日に持ち越しは無い）
   const suggestions = useMemo(
@@ -143,13 +168,16 @@ export function TodayPlannerView() {
   const timerBusy = activeTimer !== null
 
   /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
-  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'warn' } | null => {
+  /** 締切は焦らせてよい: 期限切れ＝赤 / 今日まで＝オレンジ / 明日まで＝薄いオレンジ（To‑Do の行と同じ段階） */
+  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (task.startTime && task.endTime && task.scheduledDate === dateKey) {
       return { text: `${task.startTime}–${task.endTime}`, tone: 'muted' }
     }
     if (!task.dueDate) return null
-    if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'warn' }
-    return { text: t('planner.dueOn', { date: shortDate(task.dueDate) }), tone: task.dueDate < dateKey ? 'warn' : 'muted' }
+    if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'today' }
+    const text = t('planner.dueOn', { date: shortDate(task.dueDate) })
+    if (task.dueDate < dateKey) return { text, tone: 'overdue' }
+    return { text, tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
   }
 
   const renderRow = (task: Task, action?: React.ReactNode) => {
@@ -170,17 +198,22 @@ export function TodayPlannerView() {
           type="button"
           onClick={() => toggleTask(task.id)}
           aria-label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors touch-manipulation ${
-            task.completed
-              ? 'border-accent-500 bg-accent-500 text-white'
-              : 'border-zinc-300 hover:border-accent-500 dark:border-zinc-600'
-          }`}
+          className="group/check -m-2.5 shrink-0 p-2.5 touch-manipulation"
         >
-          {task.completed && (
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-          )}
+          {/* 見た目の丸は 20px のまま、押せる範囲は周り 10px ずつ広げて 40px */}
+          <span
+            className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] transition-colors ${
+              task.completed
+                ? 'border-accent-500 bg-accent-500 text-white'
+                : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
+            }`}
+          >
+            {task.completed && (
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            )}
+          </span>
         </button>
         <button
           type="button"
@@ -194,7 +227,7 @@ export function TodayPlannerView() {
         {meta && !task.completed && (
           <span
             className={`shrink-0 text-xs tabular-nums ${
-              meta.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'
+              META_TONE_CLASS[meta.tone]
             }`}
           >
             {meta.text}
@@ -212,7 +245,7 @@ export function TodayPlannerView() {
       onClick={() => startTimer(task.title, task.tags, task.id)}
       title={timerBusy ? t('planner.timerBusy') : t('planner.startTimer')}
       aria-label={t('planner.startTimer')}
-      className="-mr-1 shrink-0 rounded-full p-1.5 text-zinc-300 transition-opacity touch-manipulation hover:text-accent-600
+      className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-opacity touch-manipulation hover:text-accent-600 md:p-1.5
                  md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100 disabled:cursor-not-allowed disabled:opacity-0
                  dark:text-zinc-600 dark:hover:text-accent-300"
     >
@@ -319,6 +352,19 @@ export function TodayPlannerView() {
               </>
             )}
           </p>
+          {/* スマホではタイムラインが別タブなので、今日の記録を色の帯で見せる（記録が主役）。押すとタイムラインへ */}
+          {recordSlices.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMobilePane('timeline')}
+              aria-label={t('planner.recordsBarAria')}
+              className="mt-3 flex h-2 w-full gap-px overflow-hidden rounded-full md:hidden"
+            >
+              {recordSlices.map(([cat, min]) => (
+                <span key={cat} className="gc-dot h-full" style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / loggedMinutes) * 100}%` }} />
+              ))}
+            </button>
+          )}
           <div className="mt-4">
             <QuickLogStarter />
           </div>
@@ -384,6 +430,12 @@ export function TodayPlannerView() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
               <span className="flex-1">{t('planner.suggestionsHeading', { count: suggestions.length })}</span>
+              {/* 畳んでいても期限切れは見えるように */}
+              {overdueCount > 0 && (
+                <span className="shrink-0 text-xs font-medium text-red-500 dark:text-red-400">
+                  {t('planner.overdueCount', { count: overdueCount })}
+                </span>
+              )}
             </button>
             {showSuggestions && (
               <>

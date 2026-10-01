@@ -61,7 +61,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         disabled={isInbox}
         onClick={(e) => { e.stopPropagation(); onColorPick() }}
         className="h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
-          touch-manipulation disabled:opacity-60 disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
+          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
         style={{ backgroundColor: list.color }}
         aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
         tabIndex={-1}
