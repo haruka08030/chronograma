@@ -5,6 +5,7 @@ import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { habitToPlannedItem } from './habitSlots'
 import { isHabitScheduledOnDate } from './habitSchedule'
+import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
@@ -48,6 +49,7 @@ export function getWeekReview(
   let followed = 0
   let habitDue = 0
   let habitDone = 0
+  const habitRecords = buildHabitRecordIndex(tasks)
 
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i)
@@ -71,7 +73,7 @@ export function getWeekReview(
     for (const h of habits) {
       if (isHabitScheduledOnDate(h, date)) {
         habitDue++
-        if (h.completedDates.includes(key)) habitDone++
+        if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }
       const p = habitToPlannedItem(h, key)
       if (p) planned.push(p)

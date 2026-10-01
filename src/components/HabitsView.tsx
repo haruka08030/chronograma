@@ -19,6 +19,7 @@ import {
   currentStreakDays,
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
+import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
 import { TimeInput, addClockMinutes } from './TimeInput'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
@@ -166,6 +167,12 @@ function HabitTimeFields({
           />
         </div>
       ) : null}
+
+      {mode !== 'none' ? (
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          {t(mode === 'range' ? 'habits.onTimeHintRange' : 'habits.onTimeHintFixed', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -173,6 +180,8 @@ function HabitTimeFields({
 export function HabitsView() {
   const { t, i18n } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
+  const tasks = useTaskStore((s) => s.tasks)
+  const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const addHabit = useTaskStore((s) => s.addHabit)
@@ -322,12 +331,12 @@ export function HabitsView() {
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(new Date(), 27 - i)
-        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d) }
+        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
-    [habits],
+    [habits, habitRecords],
   )
-  const consistency = useMemo(() => consistencyForLast7Days(habits), [habits])
-  const streak = useMemo(() => currentStreakDays(habits), [habits])
+  const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
+  const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
   const focusDate = useMemo(
     () => parseISO(`${selectedCalendarDateKey}T12:00:00`),
     [selectedCalendarDateKey],
@@ -368,11 +377,10 @@ export function HabitsView() {
   useNavShortcut({ today: goFocusToday, prev: () => shiftFocusDay(-1), next: () => shiftFocusDay(1) })
 
   const renderHabitRow = (h: Habit, offDay: boolean) => {
-    const last7 = completionsInLast7Days(h.completedDates)
+    const last7 = completionsInLast7Days(h, habitRecords)
     const isEditing = editingHabitId === h.id
-    const completedSet = new Set(h.completedDates)
     // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
-    const weeklyProgress = consistencyForLast7Days([h])
+    const weeklyProgress = consistencyForLast7Days([h], habitRecords)
     const goalText =
       h.frequency.type === 'daily'
         ? t('habits.goalDaily')
@@ -538,7 +546,13 @@ export function HabitsView() {
               const isCellToday = key === todayKey
               const isCellFocus = key === selectedCalendarDateKey
               const isScheduled = isHabitScheduledOnDate(h, d)
-              const isDone = completedSet.has(key)
+              const status = habitDayStatus(h, key, habitRecords)
+              const isDone = status === 'done'
+              const isOffTime = status === 'offTime'
+              const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
+              const cellTitle = record
+                ? t('habits.offTimeTooltip', { date: key, start: record.startTime, end: record.endTime })
+                : key
               const ringClass = isCellToday
                 ? 'ring-2 ring-accent-400 dark:ring-accent-500/70'
                 : isCellFocus
@@ -553,20 +567,22 @@ export function HabitsView() {
                     toggleHabitDate(h.id, key)
                   }}
                   className="flex justify-center"
-                  aria-label={key}
+                  aria-label={cellTitle}
                 >
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
                         ? 'text-white'
-                        : isScheduled
-                          ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-                          : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
+                        : isOffTime
+                          ? 'border-2 bg-white font-semibold dark:bg-zinc-900'
+                          : isScheduled
+                            ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+                            : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
-                    style={isDone ? { backgroundColor: h.color } : undefined}
-                    title={key}
+                    style={isDone ? { backgroundColor: h.color } : isOffTime ? { borderColor: h.color, color: h.color } : undefined}
+                    title={cellTitle}
                   >
-                    {isDone ? '✓' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
+                    {isDone ? '✓' : isOffTime ? '△' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )

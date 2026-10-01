@@ -90,6 +90,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const scheduledDateRaw = row.scheduledDate ?? row.scheduled_date
   const archivedAtRaw = row.archivedAt ?? row.archived_at
   const deletedAtRaw = row.deletedAt ?? row.deleted_at
+  const habitIdRaw = row.habitId ?? row.habit_id
 
   return {
     ...t,
@@ -103,6 +104,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
     scheduledDate: typeof scheduledDateRaw === 'string' ? scheduledDateRaw : null,
     priority: normalizePriority(t.priority ?? row.priority),
     isTimeLog: Boolean(isTimeLog),
+    habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
