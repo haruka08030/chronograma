@@ -50,6 +50,9 @@ export default {
   },
   confirm: {
     importOverwrite: 'Replace current data?',
+    importOverwriteCounts:
+      'Importing replaces everything you have now.\n\nTasks: {{currentTasks}} → {{nextTasks}}\nLists: {{currentLists}} → {{nextLists}}\n\nYou can undo with Ctrl+Z (⌘Z) right after. Continue?',
+    restoreBeforeImport: 'Go back to before the import ({{count}} tasks)? This replaces what you have now.',
     deleteHabit: 'Delete this habit?',
     deleteTimeLog: 'Delete this time entry?',
   },
@@ -382,6 +385,9 @@ export default {
     listsTitle: 'Lists',
     appTitle: 'App',
     backupTitle: 'Backup (JSON)',
+    restoreImportTitle: 'Undo the last import',
+    restoreImportHint: 'Go back to what you had before the import ({{count}} tasks).',
+    restoreImportAction: 'Restore',
     csvTitle: 'Import from CSV',
     dailyRhythmTitle: 'Notifications & daily rhythm',
     dailyRhythmHelp: 'Delivered while the app is open, or even when closed if it is installed and you are signed in.',
@@ -556,6 +562,7 @@ export default {
     placeholder: 'Task title',
   },
   undo: {
+    imported: 'Imported a backup ({{count}} tasks)',
     sectionDeleted: 'Section deleted',
     tasksArchived: 'Archived {{count}} tasks',
     message: 'Task deleted',

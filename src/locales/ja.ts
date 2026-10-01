@@ -50,6 +50,9 @@ export default {
   },
   confirm: {
     importOverwrite: '現在のデータを上書きしますか？',
+    importOverwriteCounts:
+      '取り込むと、いまのデータは全て置き換わります。\n\nタスク: {{currentTasks}} 件 → {{nextTasks}} 件\nリスト: {{currentLists}} 件 → {{nextLists}} 件\n\n取り込んだ直後なら ⌘Z（Ctrl+Z）で元に戻せます。続けますか？',
+    restoreBeforeImport: '取り込み前（タスク {{count}} 件）に戻しますか？いまのデータは置き換わります。',
     deleteHabit: 'この習慣を削除しますか？',
     deleteTimeLog: 'この記録を削除しますか？',
   },
@@ -381,6 +384,9 @@ export default {
     listsTitle: 'リスト',
     appTitle: 'アプリ',
     backupTitle: 'バックアップ（JSON）',
+    restoreImportTitle: '取り込む前に戻す',
+    restoreImportHint: '直前の取り込みを取り消して、置き換える前（タスク {{count}} 件）に戻します。',
+    restoreImportAction: '取り込み前に戻す',
     csvTitle: 'CSV から取り込み',
     dailyRhythmTitle: '通知と 1 日のリズム',
     dailyRhythmHelp: 'アプリを開いている間に届きます。ホーム画面に追加してログインしていれば、閉じていても届きます。',
@@ -556,6 +562,7 @@ export default {
     placeholder: 'タスク名を入力',
   },
   undo: {
+    imported: 'バックアップを取り込みました（タスク {{count}} 件）',
     sectionDeleted: 'セクションを削除しました',
     tasksArchived: '{{count}} 件をアーカイブしました',
     message: 'タスクを削除しました',

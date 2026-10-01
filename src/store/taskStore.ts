@@ -26,6 +26,7 @@ import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 import { timerRecordTimes } from '../lib/timerRecord'
+import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -340,6 +341,11 @@ interface TaskState {
   toggleNotifications: () => void
   exportData: () => void
   importData: (json: string) => boolean
+  /**
+   * 直前の取り込みを取り消して、置き換える前の状態に戻す。
+   * ⌘Z と違い、ページを再読み込みしたあとでも使える。控えが無ければ false
+   */
+  restoreBeforeImport: () => boolean
   /** CSV からタスクを追加（既存データは保持） */
   importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
@@ -1682,7 +1688,25 @@ export const useTaskStore = create<TaskState>()(
       importData: (json) => {
         const parsed = parseBackupJson(json)
         if (!parsed) return false
-        pushUndo()
+        // ⌘Z はメモリ上だけなので、再読み込みをまたげる控えも別に残す
+        const before = get()
+        saveImportRollback({
+          json: JSON.stringify(
+            buildBackupPayload({
+              tasks: before.tasks,
+              lists: before.lists,
+              habits: before.habits,
+              sections: before.sections,
+              listColorPaletteId: before.listColorPaletteId,
+              timeLogTagPresets: before.timeLogTagPresets,
+              logCategoryColors: before.logCategoryColors,
+            }),
+          ),
+          savedAt: new Date().toISOString(),
+          taskCount: before.tasks.length,
+        })
+        // 取り込みは全置換なので、戻せることを画面に出す
+        pushUndo(i18n.t('undo.imported', { count: parsed.tasks.length }))
         set({
           tasks: parsed.tasks,
           lists: parsed.lists,
@@ -1696,6 +1720,28 @@ export const useTaskStore = create<TaskState>()(
         return true
       },
 
+      restoreBeforeImport: () => {
+        const saved = loadImportRollback()
+        if (!saved) return false
+        const parsed = parseBackupJson(saved.json)
+        if (!parsed) {
+          clearImportRollback()
+          return false
+        }
+        pushUndo()
+        set({
+          tasks: parsed.tasks,
+          lists: parsed.lists,
+          habits: parsed.habits,
+          listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
+          sections: parsed.sections,
+          timeLogTagPresets: parsed.timeLogTagPresets ?? [],
+          logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
+          quickAddSectionId: null,
+        })
+        clearImportRollback()
+        return true
+      },
       importTasksFromCsv: (csv) => {
         const { rows, skipped, errors } = parseTasksCsv(csv)
         if (errors.length > 0 || rows.length === 0) {

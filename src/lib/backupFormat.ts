@@ -256,3 +256,14 @@ export function parseBackupJson(json: string): BackupImportResult | null {
     return null
   }
 }
+
+/**
+ * 取り込み前の下見。件数だけを返す。
+ * 取り込みは現在のデータを全て置き換えるので、「何件が何件になるか」を
+ * 確認ダイアログに出せるようにする。壊れたファイルなら null（= 取り込めない）。
+ */
+export function previewBackupJson(json: string): { tasks: number; lists: number } | null {
+  const parsed = parseBackupJson(json)
+  if (!parsed) return null
+  return { tasks: parsed.tasks.length, lists: parsed.lists.length }
+}
