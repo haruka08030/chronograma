@@ -17,6 +17,12 @@ function formatElapsed(ms: number): string {
 const MOBILE_FLOAT_BOTTOM =
   'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 
+/**
+ * これを超えたら「止め忘れ」とみなして確認を出す。
+ * 1 コマ 90 分・バイト 1 本を通しで測ることはあるので、8 時間は超えない想定。
+ */
+const STALE_TIMER_MS = 8 * 60 * 60 * 1000
+
 export function FloatingTimer() {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -36,6 +42,11 @@ export function FloatingTimer() {
   }, [activeTimer])
 
   if (!activeTimer) return <CompletePrompt />
+
+  // 止め忘れ（タブを閉じたまま日付が変わった等）。走り続けた時間を記録に混ぜない
+  if (elapsed > STALE_TIMER_MS) {
+    return <StaleTimerPrompt startedAt={activeTimer.startedAt} taskTitle={activeTimer.taskTitle} />
+  }
 
   return (
     <div
@@ -122,4 +133,97 @@ function CompletePrompt() {
       </button>
     </div>
   )
+}
+
+/**
+ * 8 時間を超えて走っているタイマーの後始末。
+ * 止め忘れたまま「今」まで記録すると、その日の記録が丸ごと歪むので、
+ * 終了時刻を選べるようにする（原則 3: 閾値を超えたときだけ出す）。
+ */
+function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTitle: string }) {
+  const { t } = useTranslation()
+  const resolveStaleTimer = useTaskStore((s) => s.resolveStaleTimer)
+  const discardActiveTimer = useTaskStore((s) => s.discardActiveTimer)
+  const stopTimer = useTaskStore((s) => s.stopTimer)
+  const [endValue, setEndValue] = useState(() => toLocalInputValue(new Date(startedAt)))
+  const [editing, setEditing] = useState(false)
+
+  const started = new Date(startedAt)
+
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t('staleTimer.title')}
+      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
+                  rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl
+                  dark:border-amber-500/40 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
+    >
+      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        {t('staleTimer.title')}
+      </p>
+      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        {t('staleTimer.body', { title: taskTitle, since: formatStarted(started) })}
+      </p>
+
+      {editing ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            type="datetime-local"
+            value={endValue}
+            min={toLocalInputValue(started)}
+            onChange={(e) => setEndValue(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm
+                       text-zinc-900 outline-none focus:border-accent-500
+                       dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+          />
+          <button
+            type="button"
+            onClick={() => resolveStaleTimer(new Date(endValue).toISOString())}
+            disabled={!endValue || new Date(endValue) <= started}
+            className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white
+                       transition-colors hover:bg-accent-700 disabled:opacity-40"
+          >
+            {t('staleTimer.saveAt')}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => stopTimer()}
+            className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700"
+          >
+            {t('staleTimer.stopNow')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs text-zinc-700 transition-colors
+                       hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+          >
+            {t('staleTimer.chooseEnd')}
+          </button>
+          <button
+            type="button"
+            onClick={discardActiveTimer}
+            className="rounded-lg px-3 py-1.5 text-xs text-zinc-500 transition-colors
+                       hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          >
+            {t('staleTimer.discard')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** `datetime-local` が受け取るローカル時刻の文字列 */
+function toLocalInputValue(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function formatStarted(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }

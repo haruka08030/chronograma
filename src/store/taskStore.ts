@@ -25,6 +25,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
+import { timerRecordTimes } from '../lib/timerRecord'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -226,8 +227,13 @@ interface TaskState {
     description?: string,
     endDate?: string | null,
   ) => void
+  /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
   startTimer: (title: string, tags?: string[], taskId?: string | null) => void
   stopTimer: () => void
+  /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
+  resolveStaleTimer: (endedAt: string) => void
+  /** 止め忘れたタイマーを記録にせず捨てる */
+  discardActiveTimer: () => void
   dismissCompletePrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
@@ -1213,6 +1219,8 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
       startTimer: (title, tags, taskId) => {
+        // 走っているものを黙って捨てると記録が消える。先に閉じてから始める
+        if (get().activeTimer) get().stopTimer()
         set({
           activeTimer: {
             taskTitle: title,
@@ -1223,6 +1231,34 @@ export const useTaskStore = create<TaskState>()(
           completePromptTaskId: null,
         })
       },
+      /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
+      resolveStaleTimer: (endedAt) => {
+        const timer = get().activeTimer
+        if (!timer) return
+        const times = timerRecordTimes(timer.startedAt, endedAt)
+        if (!times) {
+          set({ activeTimer: null, completePromptTaskId: null })
+          return
+        }
+        const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        pushUndo()
+        set((s) => ({
+          activeTimer: null,
+          completePromptTaskId: null,
+          tasks: [
+            ...s.tasks,
+            makeTask({
+              title: timer.taskTitle,
+              listId: INBOX_ID,
+              ...times,
+              isTimeLog: true,
+              completed: true,
+              tags: timer.tags,
+            }, maxOrder + 1),
+          ],
+        }))
+      },
+      discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),
       dismissCompletePrompt: () => set({ completePromptTaskId: null }),
       setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
       dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
@@ -1231,19 +1267,13 @@ export const useTaskStore = create<TaskState>()(
       stopTimer: () => {
         const timer = get().activeTimer
         if (!timer) return
-        const start = new Date(timer.startedAt)
-        const end = new Date()
-        // 1 分未満は誤操作とみなして記録しない。開始と終了が同じ HH:mm になると
-        // 「終了が開始以前＝翌日まで」の規則で約 24 時間のログになってしまうため
-        if (end.getTime() - start.getTime() < 60_000) {
+        // 1 分未満は誤操作とみなして記録しない（`timerRecordTimes` が null を返す）
+        const times = timerRecordTimes(timer.startedAt, new Date().toISOString())
+        if (!times) {
           set({ activeTimer: null, completePromptTaskId: null })
           return
         }
-        const dueDate = format(start, 'yyyy-MM-dd')
-        const endDay = format(end, 'yyyy-MM-dd')
-        const endDate = endDay !== dueDate ? endDay : null
-        const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
-        const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+        const { dueDate, endDate, startTime, endTime } = times
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
         pushUndo()

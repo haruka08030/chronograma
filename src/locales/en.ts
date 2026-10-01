@@ -714,6 +714,14 @@ export default {
   tags: {
     untagged: 'Uncategorized',
   },
+  staleTimer: {
+    title: 'A timer is still running',
+    body: "“{{title}}” has been running since {{since}}. Pick when it ended and we'll keep the record up to that time.",
+    stopNow: 'Record up to now',
+    chooseEnd: 'Pick end time',
+    saveAt: 'Record to this time',
+    discard: 'Discard it',
+  },
   floatingTimer: {
     completePrompt: 'Mark “{{title}}” as done?',
     notYet: 'Not yet',

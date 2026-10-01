@@ -1,0 +1,44 @@
+/**
+ * タイマーを記録（タイムログ）に変換するときの日付・時刻の計算。
+ *
+ * 止め忘れたタイマーをそのまま「今」で閉じるとその日の記録が歪むため、
+ * 終了時刻を選べるようにしている。1 分未満は誤操作として記録しない
+ * （開始と終了が同じ `HH:mm` になると「終了が開始以前＝翌日まで」の規則で
+ * 約 24 時間のログになってしまう）。
+ */
+
+/** 記録として成立する最小の長さ */
+export const MIN_RECORD_MS = 60_000
+
+export interface TimerRecordTimes {
+  /** 開始日（`yyyy-MM-dd`） */
+  dueDate: string
+  /** 日をまたぐときだけ終了日。同日は null */
+  endDate: string | null
+  startTime: string
+  endTime: string
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0')
+const dayKey = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+const hhmm = (d: Date) => `${p2(d.getHours())}:${p2(d.getMinutes())}`
+
+/**
+ * 開始・終了から記録の日付と時刻を作る。
+ * 記録として短すぎる / 終了が開始より前 / 日付が壊れている場合は null。
+ */
+export function timerRecordTimes(startedAt: string, endedAt: string): TimerRecordTimes | null {
+  const start = new Date(startedAt)
+  const end = new Date(endedAt)
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return null
+  if (end.getTime() - start.getTime() < MIN_RECORD_MS) return null
+
+  const dueDate = dayKey(start)
+  const endDay = dayKey(end)
+  return {
+    dueDate,
+    endDate: endDay !== dueDate ? endDay : null,
+    startTime: hhmm(start),
+    endTime: hhmm(end),
+  }
+}

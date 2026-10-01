@@ -714,6 +714,14 @@ export default {
   tags: {
     untagged: '未分類',
   },
+  staleTimer: {
+    title: 'まだ記録中になっています',
+    body: '「{{title}}」を {{since}} から計測したままです。終了時刻を選ぶと、その時間までの記録として残します。',
+    stopNow: '今ここまでを記録',
+    chooseEnd: '終了時刻を選ぶ',
+    saveAt: 'この時刻で記録',
+    discard: '記録せず捨てる',
+  },
   floatingTimer: {
     completePrompt: '「{{title}}」を完了にしますか？',
     notYet: 'まだ',
