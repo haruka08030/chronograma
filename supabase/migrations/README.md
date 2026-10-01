@@ -18,3 +18,4 @@
 | `005_event_reminders.sql` | `push_subscriptions.event_reminder_minutes`（予定の開始何分前に通知）と `event_notified`（その日に通知済みの予定 ID）。未適用でもアプリは動き、予定前通知はタブを開いている間だけになる |
 | `006_task_color.sql` | `tasks.color`（記録の色）。Google カレンダーの予定から記録にしたとき元の予定の色を写す。null は分類の色。未適用でも同期は color なしで続く |
 | `007_task_habit_id.sql` | `tasks.habit_id`（習慣から作った記録の習慣 ID）。時間を決めた習慣は、この記録の時刻で「時間どおり（±15 分）」かを判定する。未適用でも同期は habit_id なしで続く（その場合、他の端末では時間外の判定が出ない） |
+| `008_sort_order_fractional.sql` | `lists` / `list_sections` / `tasks` の `sort_order` を `double precision` に。タスクの間に挿入すると中間値（例 62.5）になり、integer のままだと同期全体が失敗する。**未適用だと同期が止まる**ので必ず適用する |
