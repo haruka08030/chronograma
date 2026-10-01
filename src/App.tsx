@@ -11,9 +11,8 @@ import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
 import { TodayPlannerView } from './components/TodayPlannerView'
-import { PlanVsActualView } from './components/PlanVsActualView'
+import { OPEN_TIMER_EVENT } from './components/RecordPanel'
 import { StatsView } from './components/StatsView'
-import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
 import { TaskBinView } from './components/TaskBinView'
 import { ChecklistView } from './components/ChecklistView'
@@ -394,7 +393,11 @@ export default function App() {
           case 'd': store.selectView('planner'); return true
           case 'w': store.setCalendarMode('week'); store.selectView('calendar'); return true
           case 'm': store.setCalendarMode('month'); store.selectView('calendar'); return true
-          case 'l': store.selectView('activity-log'); return true
+          case 'l':
+            // 記録は「今日」に統合。今日を開いて「記録する」を開く
+            store.selectView('planner')
+            window.setTimeout(() => window.dispatchEvent(new Event(OPEN_TIMER_EVENT)), 50)
+            return true
           case 'c':
             if (!focusQuickAdd()) {
               store.selectView('planner')
@@ -517,8 +520,6 @@ export default function App() {
     switch (selectedView) {
       case 'planner': return <TodayPlannerView />
       case 'calendar': return <CalendarHubView onOpenSidebar={() => setSidebarOpen(true)} />
-      case 'plan-vs-actual': return <PlanVsActualView />
-      case 'activity-log': return <ActivityLogView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
       case 'archived': return <TaskBinView mode="archived" />

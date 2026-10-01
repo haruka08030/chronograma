@@ -7,6 +7,7 @@ import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 import { TimeInput, addClockMinutes } from './TimeInput'
 import { DueDatePopover } from './DueDatePopover'
+import { ColorLabelPicker } from './labels/ColorLabelPicker'
 import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
@@ -121,6 +122,12 @@ export function TaskDetail({
 
   const handleDeleteLog = () => {
     if (!confirm(t('confirm.deleteTimeLog'))) return
+    deleteTask(task.id)
+    onClose()
+  }
+
+  // ゴミ箱行き + ⌘Z で戻せるので、一覧の削除と同じく確認は出さない
+  const handleDeleteTask = () => {
     deleteTask(task.id)
     onClose()
   }
@@ -326,6 +333,7 @@ export function TaskDetail({
                 <DueDatePopover
                   value={task.scheduledDate ?? null}
                   onChange={(v) => updateTask(task.id, { scheduledDate: v })}
+                  kind="scheduled"
                   align="left"
                   wrapperClassName="relative inline-block"
                   trigger={({ open, toggle }) => (
@@ -514,6 +522,12 @@ export function TaskDetail({
             </div>
           )}
 
+          {isLog ? (
+            <div>
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
+              <ColorLabelPicker task={task} />
+            </div>
+          ) : (
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.tags')}</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
@@ -554,6 +568,7 @@ export function TaskDetail({
               </button>
             </div>
           </div>
+          )}
 
           {!isLog && (
             <>
@@ -645,19 +660,17 @@ export function TaskDetail({
             </>
           )}
 
-          {isLog && (
-            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={handleDeleteLog}
-                className="w-full py-2.5 rounded-xl border border-red-200 dark:border-red-500/40
-                           text-sm font-medium text-red-600 dark:text-red-400
-                           hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-              >
-                {t('taskDetail.deleteLog')}
-              </button>
-            </div>
-          )}
+          <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={isLog ? handleDeleteLog : handleDeleteTask}
+              className="w-full py-2.5 rounded-xl border border-red-200 dark:border-red-500/40
+                         text-sm font-medium text-red-600 dark:text-red-400
+                         hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              {t(isLog ? 'taskDetail.deleteLog' : 'taskDetail.deleteTask')}
+            </button>
+          </div>
         </div>
   )
 

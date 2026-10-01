@@ -65,6 +65,7 @@ function normalizeEvents(
     start: { dateTime?: string; date?: string }
     end: { dateTime?: string; date?: string }
     colorId?: string
+    recurringEventId?: string
   }>,
   timeZone: string,
 ): CalendarEvent[] {
@@ -96,6 +97,7 @@ function normalizeEvents(
       date,
       isAllDay,
       colorId: item.colorId,
+      recurringEventId: item.recurringEventId,
     }
   })
 }
@@ -162,6 +164,7 @@ async function fetchGoogleEvents(
       start: { dateTime?: string; date?: string }
       end: { dateTime?: string; date?: string }
       colorId?: string
+      recurringEventId?: string
     }>
   }
 
@@ -353,16 +356,22 @@ Deno.serve(async (req) => {
         const accessToken = await refreshGoogleAccessToken(row.refresh_token)
         const events = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
         // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
+        // colorId（1〜24）の方が確実に色を特定できるので両方返す
         let calendarColor: string | null = null
+        let calendarColorId: string | null = null
         try {
           const res = await fetch(`${CALENDAR_API}/users/me/calendarList/primary`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
-          if (res.ok) calendarColor = ((await res.json()) as { backgroundColor?: string }).backgroundColor ?? null
+          if (res.ok) {
+            const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
+            calendarColor = entry.backgroundColor ?? null
+            calendarColorId = entry.colorId ?? null
+          }
         } catch {
           /* ignore */
         }
-        return jsonResponse({ events, calendarColor, connected: true })
+        return jsonResponse({ events, calendarColor, calendarColorId, connected: true })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
         const needsReconnect =

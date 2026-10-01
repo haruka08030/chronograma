@@ -95,6 +95,34 @@ body {
   .animate-pop-in, .animate-sheet-in { animation: none; }
 }
 
+/* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */
+.hue-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  outline: none;
+}
+.hue-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.hue-slider::-moz-range-thumb {
+  width: 18px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
 /* 予定（これから）: 薄く。色が付いて目立つのは記録（実績）だけにする */
 .gc-plan {
   background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));

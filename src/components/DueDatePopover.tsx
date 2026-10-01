@@ -44,6 +44,8 @@ type DueDatePopoverProps = {
   /** トリガー部分のラッパー（`position: relative` の親）に付与する class。 */
   wrapperClassName?: string
   trigger: (args: TriggerArgs) => ReactNode
+  /** 期限（due）か予定日（scheduled）か。見出しと「〜なし」ボタンの文言が変わる。 */
+  kind?: 'due' | 'scheduled'
 }
 
 /** Google カレンダー（Web）風の期限ピッカー・ポップオーバー。 */
@@ -53,6 +55,7 @@ export function DueDatePopover({
   align = 'right',
   wrapperClassName = 'relative',
   trigger,
+  kind = 'due',
 }: DueDatePopoverProps) {
   const { t, i18n } = useTranslation()
   const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
@@ -122,7 +125,7 @@ export function DueDatePopover({
           ref={panelRef}
           id={dialogId}
           role="dialog"
-          aria-label={t('dueDatePicker.title')}
+          aria-label={t(kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : 'dueDatePicker.title')}
           className={`absolute z-50 w-[272px] rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl
             dark:border-zinc-700 dark:bg-zinc-900
             ${align === 'right' ? 'right-0' : 'left-0'}
@@ -220,7 +223,7 @@ export function DueDatePopover({
                 onClick={() => pick(null)}
                 className="rounded-md px-2 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
               >
-                {t('dueDatePicker.clear')}
+                {t(kind === 'scheduled' ? 'dueDatePicker.clearScheduled' : 'dueDatePicker.clear')}
               </button>
             )}
           </div>

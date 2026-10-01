@@ -53,12 +53,14 @@ export async function promptInstall(): Promise<boolean> {
   return outcome === 'accepted'
 }
 
-const VIEWS: readonly SmartView[] = ['planner', 'all', 'today', 'upcoming', 'overdue', 'calendar', 'plan-vs-actual', 'activity-log', 'stats', 'habits']
+const VIEWS: readonly SmartView[] = ['planner', 'all', 'today', 'upcoming', 'overdue', 'calendar', 'stats', 'habits']
 
 /** `?view=planner` のような起動 URL（ショートカット・通知タップ）から開く画面 */
 export function consumeLaunchView(): SmartView | null {
   const url = new URL(window.location.href)
-  const view = url.searchParams.get('view') as SmartView | null
+  const raw = url.searchParams.get('view')
+  // 統合した旧画面へのショートカットは統合先で開く（記録→今日、予定と記録→カレンダー）
+  const view = (raw === 'activity-log' ? 'planner' : raw === 'plan-vs-actual' ? 'calendar' : raw) as SmartView | null
   const hadParams = url.searchParams.has('view') || url.searchParams.has('source')
   url.searchParams.delete('view')
   url.searchParams.delete('source')

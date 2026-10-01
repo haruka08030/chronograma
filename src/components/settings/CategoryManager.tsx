@@ -5,6 +5,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { CATEGORY_COLOR_KEYS, categoryColorKey, categoryHex, colorVars } from '../../lib/logCategoryColors'
+import { LabelsDialog } from '../labels/LabelsDialog'
 import { hexForGoogleKey } from '../../lib/googleColors'
 
 const USAGE_DAYS = 30
@@ -77,6 +78,7 @@ export function CategoryManager() {
   }
 
   const uncategorized = usage.get('') ?? 0
+  const [editingLabels, setEditingLabels] = useState(false)
 
   return (
     <>
@@ -155,7 +157,7 @@ export function CategoryManager() {
                 <div
                   role="radiogroup"
                   aria-label={t('categories.changeColor', { name })}
-                  className="absolute left-2 top-full z-20 mt-1 flex gap-1.5 rounded-xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+                  className="absolute left-2 top-full z-20 mt-1 grid grid-cols-12 gap-1.5 rounded-xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
                 >
                   {CATEGORY_COLOR_KEYS.map((key) => (
                     <button
@@ -163,7 +165,8 @@ export function CategoryManager() {
                       type="button"
                       role="radio"
                       aria-checked={categoryColorKey(name, colors) === key}
-                      aria-label={key}
+                      aria-label={t(`googleColors.${key}`)}
+                      title={t(`googleColors.${key}`)}
                       onClick={() => {
                         setLogCategoryColor(name, key)
                         setColorFor(null)
@@ -198,6 +201,17 @@ export function CategoryManager() {
           </button>
         )}
       </div>
+
+      <div className="px-4 pb-2">
+        <button
+          type="button"
+          onClick={() => setEditingLabels(true)}
+          className="text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"
+        >
+          {t('categories.editLabels')}
+        </button>
+      </div>
+      {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
 
       {(unlisted.length > 0 || uncategorized > 0) && (
         <div className="space-y-2 px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400">

@@ -91,11 +91,13 @@ export function overlapSlotStyle(
  * 予定とログを一緒に並べるときの横位置。時間が重なる塊ごとに、
  * 予定とログが混ざっていれば 予定=左半分 / ログ=右半分、片方だけなら全幅を使う
  * （1 日のどこかにログがあるだけで全体を半分にすると、空いた右半分が無駄になる）。
+ * `fixedLanes` なら常に 予定=左半分 / ログ=右半分（「今日」の 2 列表示）。
  */
 export function layoutPlanAndLog(
   plans: readonly OverlapInput[],
   logs: readonly OverlapInput[],
   mode: 'columns' | 'cascade',
+  fixedLanes = false,
 ): Map<string, CSSProperties> {
   const all = [
     ...plans.map((p) => ({ ...p, isLog: false })),
@@ -117,7 +119,7 @@ export function layoutPlanAndLog(
   for (const cluster of clusters) {
     const p = cluster.filter((x) => !x.isLog)
     const l = cluster.filter((x) => x.isLog)
-    const split = p.length > 0 && l.length > 0
+    const split = fixedLanes || (p.length > 0 && l.length > 0)
     const place = (items: typeof cluster, start: number, width: number) => {
       const slots = layoutOverlaps(items)
       for (const it of items) styles.set(`${it.isLog ? 'log' : 'plan'}:${it.id}`, overlapSlotStyle(slots.get(it.id), start, width, 2, mode))

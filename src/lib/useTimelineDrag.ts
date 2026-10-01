@@ -18,6 +18,8 @@ export interface CreateDrag {
   startY: number
   currentY: number
   intent: CreateIntent
+  /** これより下（後の時刻）には伸ばせない（記録は今より先に作れない） */
+  maxY?: number
 }
 
 export interface MoveDrag {
@@ -98,15 +100,16 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     onBlockTapRef.current = onBlockTap
   }, [onBlockTap])
 
-  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent) => {
+  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number) => {
     if (popup) return
+    if (maxY !== undefined && getRelativeY(e.clientY, dateKey) >= maxY) return
     // タッチでは capture を遅らせず、十分なドラッグ幅が出るまで作成扱いにしない（スクロール優先）
     const coarse = isCoarsePointer()
     if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
-    setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent })
+    setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
   }, [getRelativeY, popup, defaultCreateIntent])
 
   const handleBlockPointerDown = useCallback((
@@ -204,7 +207,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     const y = getRelativeY(e.clientY, dateKey)
 
     if (drag.kind === 'create') {
-      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: y, dateKey } : prev)
+      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(y, prev.maxY) : y, dateKey } : prev)
     } else if (drag.kind === 'move') {
       setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
     } else {
@@ -224,12 +227,24 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         if (clickCreateMinutes && !isCoarsePointer() && !didMoveRef.current) {
           // クリックした 30 分枠の頭から既定の長さで作成カードを出す
           const startMin = Math.floor(timeToMinutes(yToTime(minY)) / 30) * 30
-          const endMin = Math.min(startMin + clickCreateMinutes, 24 * 60 - SNAP_MINUTES)
+          const limitMin = drag.maxY !== undefined ? Math.floor((drag.maxY / HOUR_HEIGHT) * 60) : 24 * 60 - SNAP_MINUTES
+          const endMin = Math.min(startMin + clickCreateMinutes, 24 * 60 - SNAP_MINUTES, limitMin)
+          if (endMin - startMin < SNAP_MINUTES) return
           setPopup({ dateKey: drag.dateKey, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin), intent: drag.intent })
         }
         return
       }
-      setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
+      if (drag.maxY !== undefined) {
+        // 15 分に丸めると今より先にはみ出すので、終わりは「今」で止める
+        const limitMin = Math.floor((drag.maxY / HOUR_HEIGHT) * 60)
+        const startMin = timeToMinutes(yToTime(minY))
+        const endMin = Math.min(timeToMinutes(yToTime(maxY)), limitMin)
+        if (endMin - startMin >= 5) {
+          setPopup({ dateKey: drag.dateKey, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin), intent: drag.intent })
+        }
+      } else {
+        setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
+      }
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
         const durationMin = drag.blockDurationMinutes

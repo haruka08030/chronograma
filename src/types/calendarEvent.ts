@@ -14,6 +14,12 @@ export interface CalendarEvent {
   date: string
   isAllDay: boolean
   colorId?: string
-  /** 表示・記録コピー用に解決した色（予定の色 → カレンダーの色 → ピーコック） */
+  /** 繰り返し予定のシリーズ ID（色を「すべての繰り返し」に付けるとき用） */
+  recurringEventId?: string
+  /** Google から分かる色（予定の色 → カレンダーの色 → ピーコック） */
+  baseColor?: string
+  /** 予定に自分の色（colorId 1〜11）が付いているか。無いものは「色なし」か、API に出ない新しい色 */
+  ownColor?: boolean
+  /** 表示・記録コピー用に解決した色（アプリで付けた色 → 似た予定から推定 → Google から分かる色） */
   color?: string
 }

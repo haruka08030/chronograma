@@ -21,6 +21,70 @@ export type GoogleColorKey = (typeof GOOGLE_COLORS)[number]['key']
 
 export const GOOGLE_COLOR_HEXES: readonly string[] = GOOGLE_COLORS.map((c) => c.hex)
 
+/**
+ * Google カレンダーの色選択（24 色、画面の並び順）。予定の 11 色はこの一部。
+ * 記録のラベル（分類）はこの 24 色＋自由な色から選ぶ。リスト・習慣は 11 色のまま。
+ */
+export const CALENDAR_COLORS = [
+  { key: 'radicchio', hex: '#AD1457' },
+  { key: 'cherryBlossom', hex: '#D81B60' },
+  { key: 'flamingo', hex: '#E67C73' },
+  { key: 'tomato', hex: '#D50000' },
+  { key: 'tangerine', hex: '#F4511E' },
+  { key: 'pumpkin', hex: '#EF6C00' },
+  { key: 'mango', hex: '#F09300' },
+  { key: 'banana', hex: '#F6BF26' },
+  { key: 'citron', hex: '#E4C441' },
+  { key: 'avocado', hex: '#C0CA33' },
+  { key: 'pistachio', hex: '#7CB342' },
+  { key: 'basil', hex: '#0B8043' },
+  { key: 'sage', hex: '#33B679' },
+  { key: 'eucalyptus', hex: '#009688' },
+  { key: 'peacock', hex: '#039BE5' },
+  { key: 'cobalt', hex: '#4285F4' },
+  { key: 'lavender', hex: '#7986CB' },
+  { key: 'blueberry', hex: '#3F51B5' },
+  { key: 'wisteria', hex: '#B39DDB' },
+  { key: 'amethyst', hex: '#9E69AF' },
+  { key: 'grape', hex: '#8E24AA' },
+  { key: 'cocoa', hex: '#795548' },
+  { key: 'graphite', hex: '#616161' },
+  { key: 'birch', hex: '#A79B8E' },
+] as const
+
+export type CalendarColorKey = (typeof CALENDAR_COLORS)[number]['key']
+
+/**
+ * calendarList の色は旧パレット（colorId 1〜24 と、その旧い backgroundColor）で返るので、今の 24 色へ読み替える。
+ * 並びは Calendar API の colors.calendar（colorId 順）。
+ */
+const LEGACY_CALENDAR: ReadonlyArray<readonly [hex: string, key: CalendarColorKey]> = [
+  ['#ac725e', 'cocoa'],
+  ['#d06b64', 'flamingo'],
+  ['#f83a22', 'tomato'],
+  ['#fa573c', 'tangerine'],
+  ['#ff7537', 'pumpkin'],
+  ['#ffad46', 'mango'],
+  ['#42d692', 'eucalyptus'],
+  ['#16a765', 'basil'],
+  ['#7bd148', 'pistachio'],
+  ['#b3dc6c', 'avocado'],
+  ['#fbe983', 'citron'],
+  ['#fad165', 'banana'],
+  ['#92e1c0', 'sage'],
+  ['#9fe1e7', 'peacock'],
+  ['#9fc6e7', 'cobalt'],
+  ['#4986e7', 'blueberry'],
+  ['#9a9cff', 'lavender'],
+  ['#b99aff', 'wisteria'],
+  ['#c2c2c2', 'graphite'],
+  ['#cabdbf', 'birch'],
+  ['#cca6ac', 'radicchio'],
+  ['#f691b2', 'cherryBlossom'],
+  ['#cd74e6', 'grape'],
+  ['#a47ae2', 'amethyst'],
+]
+
 /** Google Calendar API の予定の colorId（1〜11）→ 画面に出る色 */
 const EVENT_COLOR_BY_ID: Record<string, string> = {
   '1': '#7986CB', // Lavender
@@ -38,21 +102,44 @@ const EVENT_COLOR_BY_ID: Record<string, string> = {
 
 export const DEFAULT_GOOGLE_EVENT_HEX = '#039BE5'
 
+/** 予定に自分の色（colorId 1〜11）が付いているか */
+export function hasOwnEventColor(colorId: string | undefined): boolean {
+  return !!colorId && !!EVENT_COLOR_BY_ID[colorId]
+}
+
 /**
- * Google の予定の色。個別に色を付けた予定はその色、無ければカレンダーの色
- * （API は旧パレットの値を返すので最も近い 11 色へ）、それも無ければピーコック。
+ * Google の予定の色。個別に色を付けた予定はその色、無ければカレンダーの色（`calendarHex`、解決済み）、
+ * それも無ければピーコック。
+ * 注意: API の colorId は昔からの 11 色（1〜11）だけ。Google の画面で増えた色（アボカドなど）を付けた予定は
+ * colorId が返らず、カレンダーの色と区別できない。
  */
-export function googleEventHex(colorId: string | undefined, calendarColor: string | null | undefined): string {
+export function googleEventHex(colorId: string | undefined, calendarHex: string | null | undefined): string {
   if (colorId && EVENT_COLOR_BY_ID[colorId]) return EVENT_COLOR_BY_ID[colorId]!
-  if (calendarColor) return nearestGoogleHex(calendarColor)
-  return DEFAULT_GOOGLE_EVENT_HEX
+  return calendarHex || DEFAULT_GOOGLE_EVENT_HEX
 }
 
 /** 分類なし・未設定 */
 export const NEUTRAL_HEX = '#9E9E9E'
 
+/** 11 色・24 色どちらのキーでも */
 export function hexForGoogleKey(key: string): string | null {
-  return GOOGLE_COLORS.find((c) => c.key === key)?.hex ?? null
+  return CALENDAR_COLORS.find((c) => c.key === key)?.hex ?? null
+}
+
+/**
+ * カレンダーの色 → 表示する hex。colorId（1〜24）があればそれで、無ければ旧パレットの値・今の 24 色の値で引く。
+ * どれでもない値（自分で作った色）は近い色に寄せず、そのまま使う（Google の画面もその色で出す）。
+ */
+export function calendarColorHex(hex: string | null | undefined, colorId?: string | null): string | null {
+  const byId = colorId ? LEGACY_CALENDAR[Number(colorId) - 1] : undefined
+  if (byId) return hexForGoogleKey(byId[1])
+  if (!hex) return null
+  const h = hex.trim().toLowerCase()
+  const legacy = LEGACY_CALENDAR.find(([lh]) => lh === h)
+  if (legacy) return hexForGoogleKey(legacy[1])
+  const exact = CALENDAR_COLORS.find((c) => c.hex.toLowerCase() === h)
+  if (exact) return exact.hex
+  return /^#[0-9a-f]{6}$/.test(h) ? h.toUpperCase() : null
 }
 
 function rgb(hex: string): [number, number, number] | null {

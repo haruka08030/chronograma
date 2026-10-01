@@ -8,6 +8,7 @@ import { taskPlacementDate } from '../../lib/taskTimeRange'
 import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 
 const WIDTH = 320
 
@@ -35,6 +36,8 @@ export function EventPopover({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const startTimer = useTaskStore((s) => s.startTimer)
   const deleteTask = useTaskStore((s) => s.deleteTask)
+  const addTimeLog = useTaskStore((s) => s.addTimeLog)
+  const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export function EventPopover({
       }
     }
     const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('[data-popover-keep]')) onClose()
     }
     window.addEventListener('keydown', onKey)
     // 開いたクリック自体で閉じないよう、次のタイミングから外側クリックを拾う
@@ -75,7 +78,24 @@ export function EventPopover({
   const dateKey = taskPlacementDate(task)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const dateText = dateKey ? format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 220)
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 220)
+  // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
+  const now = new Date()
+  const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const todayKey = format(now, 'yyyy-MM-dd')
+  const canLogAsPlanned =
+    !isLog && !task.completed && Boolean(dateKey && task.startTime && task.endTime) &&
+    (dateKey! < todayKey || (dateKey === todayKey && task.startTime! < nowHm))
+  /** 終わった予定は記録を始めても意味がないので、記録開始は出さない */
+  const planEnded = Boolean(dateKey && task.endTime) && (dateKey! < todayKey || (dateKey === todayKey && task.endTime! <= nowHm))
+  const logAsPlanned = () => {
+    const end = dateKey === todayKey && task.endTime! > nowHm ? nowHm : task.endTime!
+    asOneUndo(() => {
+      addTimeLog(task.title, dateKey!, task.startTime!, end, task.tags)
+      toggleTask(task.id)
+    })
+    onClose()
+  }
 
   const iconButton =
     'rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100'
@@ -126,7 +146,7 @@ export function EventPopover({
         <span />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {isLog
-            ? `${t('eventCard.log')}${task.tags[0] ? ` · ${task.tags[0]}` : ''}`
+            ? t('eventCard.log')
             : list
               ? displayListName(list.id, list.name)
               : ''}
@@ -138,6 +158,12 @@ export function EventPopover({
           </>
         )}
       </div>
+
+      {isLog && (
+        <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+          <ColorLabelPicker task={task} compact />
+        </div>
+      )}
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
@@ -151,7 +177,16 @@ export function EventPopover({
           >
             {task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone')}
           </button>
-          {!task.completed && (
+          {canLogAsPlanned && (
+            <button
+              type="button"
+              onClick={logAsPlanned}
+              className="rounded-full border border-zinc-200 px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              {t('eventCard.logAsPlanned')}
+            </button>
+          )}
+          {!task.completed && !planEnded && (
             <button
               type="button"
               disabled={activeTimer !== null}
