@@ -62,6 +62,18 @@ export default {
     csvImported: 'Added {{count}} tasks (skipped {{skipped}} rows).',
     endAfterStart: 'End time must be after start time.',
   },
+  sync: {
+    syncing: 'Syncing to the cloud',
+    syncingWithLast: 'Syncing to the cloud (last synced {{when}})',
+    errorShort: 'Not synced',
+    error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
+    errorWithLast:
+      "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
+    justNow: 'just now',
+    minutesAgo: '{{count}} min ago',
+    hoursAgo: '{{count}} h ago',
+    daysAgo: '{{count}} d ago',
+  },
   sidebar: {
     brand: 'Chronograma',
     todo: 'To‑Do',

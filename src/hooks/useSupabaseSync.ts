@@ -26,7 +26,11 @@ export function useSupabaseSync() {
   const applyingRef = useRef(false)
 
   useEffect(() => {
-    if (!userId || loading) return
+    if (!userId || loading) {
+      // ログアウト時やロード中に「同期エラー」の表示が残らないようにする
+      useTaskStore.getState().setSyncState('idle')
+      return
+    }
     const supabase = getSupabase()
     if (!supabase) return
 
@@ -34,6 +38,9 @@ export function useSupabaseSync() {
     let running = false
     let rerun = false
     let debounce: ReturnType<typeof setTimeout> | undefined
+    /** 失敗後の再送タイマーと現在の待ち時間（0 = 失敗していない） */
+    let retry: ReturnType<typeof setTimeout> | undefined
+    let retryMs = 0
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -57,12 +64,13 @@ export function useSupabaseSync() {
       }
     }
 
-    const syncOnce = async () => {
+    /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
+    const syncOnce = async (): Promise<boolean> => {
       const remote = await fetchListsTasksHabits(supabase, userId)
-      if (cancelled) return
+      if (cancelled) return true
       if ('error' in remote) {
         console.error('[sync]', remote.error)
-        return
+        return false
       }
 
       const baseline = loadBaseline(userId)
@@ -79,7 +87,7 @@ export function useSupabaseSync() {
         if (decision.kind === 'use_remote') {
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           saveBaseline(userId, baselineFrom(localSnapshot()))
-          return
+          return true
         }
         toPush = local
       } else {
@@ -103,29 +111,51 @@ export function useSupabaseSync() {
       const res = await pushListsTasksHabits(
         supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes,
       )
-      if (cancelled) return
+      if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)
-        return
+        return false
       }
       saveBaseline(userId, baselineFrom(toPush))
+      return true
     }
 
-    /** 同期は常に 1 本ずつ。実行中に要求が来たら終わってからもう 1 回だけ回す */
+    /**
+     * 同期は常に 1 本ずつ。実行中に要求が来たら終わってからもう 1 回だけ回す。
+     * 失敗したら未送信の変更が残るので、バックオフで自力再送する（オフライン対策）。
+     */
     const sync = async () => {
       if (running) {
         rerun = true
         return
       }
       running = true
+      const { setSyncState } = useTaskStore.getState()
+      // 60 秒ごとのポーリングでドットが点滅しないよう、
+      // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
+      if (retryMs > 0) setSyncState('syncing')
+      let ok = false
       try {
         do {
           rerun = false
-          await syncOnce()
-        } while (rerun && !cancelled)
+          ok = await syncOnce()
+        } while (ok && rerun && !cancelled)
       } finally {
         running = false
       }
+      if (cancelled) return
+
+      if (ok) {
+        retryMs = 0
+        clearTimeout(retry)
+        setSyncState('idle', new Date().toISOString())
+        return
+      }
+      setSyncState('error')
+      // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
+      retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
+      clearTimeout(retry)
+      retry = setTimeout(() => void sync(), retryMs)
     }
 
     void sync()
@@ -146,8 +176,14 @@ export function useSupabaseSync() {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void sync()
     }
+    /** 回線が戻ったら待たずに送る（地下鉄で編集 → 浮上してそのまま、を防ぐ） */
+    const onOnline = () => {
+      retryMs = 0
+      void sync()
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
+    window.addEventListener('online', onOnline)
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible') void sync()
     }, POLL_MS)
@@ -155,9 +191,11 @@ export function useSupabaseSync() {
     return () => {
       cancelled = true
       clearTimeout(debounce)
+      clearTimeout(retry)
       clearInterval(poll)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
+      window.removeEventListener('online', onOnline)
       unsub()
     }
   }, [userId, loading])

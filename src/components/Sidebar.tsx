@@ -6,6 +6,7 @@ import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
 import { isTodoNavView } from '../lib/todoSurfaceView'
 import { TodoNavContent } from './TodoNavPanel'
 import { SmartViewRow } from './SmartViewRow'
+import { SyncIndicator } from './SyncIndicator'
 
 const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
   id: 'stats',
@@ -154,6 +155,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
           {t('sidebar.brand')}
         </span>
+        <SyncIndicator />
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-1 space-y-0.5">

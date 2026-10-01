@@ -62,6 +62,17 @@ export default {
     csvImported: '{{count}} 件のタスクを追加しました（スキップ {{skipped}} 行）',
     endAfterStart: '終了時刻は開始時刻より後にしてください',
   },
+  sync: {
+    syncing: 'クラウドに同期しています',
+    syncingWithLast: 'クラウドに同期しています（最後の同期: {{when}}）',
+    errorShort: '未同期',
+    error: 'クラウドに同期できていません。接続が戻ると自動で送信します。',
+    errorWithLast: 'クラウドに同期できていません（最後の同期: {{when}}）。接続が戻ると自動で送信します。',
+    justNow: 'たった今',
+    minutesAgo: '{{count}} 分前',
+    hoursAgo: '{{count}} 時間前',
+    daysAgo: '{{count}} 日前',
+  },
   sidebar: {
     brand: 'Chronograma',
     todo: 'To‑Do',

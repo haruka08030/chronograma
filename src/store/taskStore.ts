@@ -313,6 +313,16 @@ interface TaskState {
   taskDragHoverListId: string | null
   setTaskDragHoverListId: (id: string | null) => void
 
+  /**
+   * クラウド同期の状態（永続化しない）。以前は失敗が console にしか出ず、
+   * 預けたデータが届いているのか利用者から分からなかった。
+   * `error` は「最後の同期が失敗して未送信の変更がある」という意味。
+   */
+  syncState: 'idle' | 'syncing' | 'error'
+  /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
+  lastSyncedAt: string | null
+  setSyncState: (state: 'idle' | 'syncing' | 'error', lastSyncedAt?: string) => void
+
   toggleNotifications: () => void
   exportData: () => void
   importData: (json: string) => boolean
@@ -586,6 +596,8 @@ export const useTaskStore = create<TaskState>()(
       deletedTasks: [],
       moveBannerText: null as string | null,
       taskDragHoverListId: null as string | null,
+      syncState: 'idle' as 'idle' | 'syncing' | 'error',
+      lastSyncedAt: null as string | null,
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
@@ -1590,6 +1602,9 @@ export const useTaskStore = create<TaskState>()(
 
       setTaskDragHoverListId: (id) => set({ taskDragHoverListId: id }),
 
+      setSyncState: (state, lastSyncedAt) =>
+        set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
+
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
@@ -1947,6 +1962,8 @@ export const useTaskStore = create<TaskState>()(
           googleConnectionError,
           moveBannerText,
           taskDragHoverListId,
+          syncState,
+          lastSyncedAt,
           settingsScrollTarget,
           completePromptTaskId,
           ...rest
@@ -1962,6 +1979,8 @@ export const useTaskStore = create<TaskState>()(
         void googleConnectionError
         void moveBannerText
         void taskDragHoverListId
+        void syncState
+        void lastSyncedAt
         void settingsScrollTarget
         return rest as unknown as TaskState
       },
