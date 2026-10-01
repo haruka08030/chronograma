@@ -379,7 +379,8 @@ export default {
     planReminderHelp: '今日やることを決める時間に知らせます',
     wrapUpReminderHelp: '残りを明日に回して 1 日を終える時間に知らせます',
     dueNotifications: '締切の通知',
-    dueNotificationsHelp: '締切が今日のタスクをお知らせします',
+    dueNotificationsHelp:
+      '締切が今日のタスクをお知らせします。これはアプリを開いている間だけ届きます（朝と夕方の通知と違い、閉じていると届きません）。',
     dailyCapacityHelp: '予定がこれを超えると「今日」で控えめに知らせます',
     listsTitle: 'リスト',
     appTitle: 'アプリ',

@@ -380,7 +380,8 @@ export default {
     planReminderHelp: 'A nudge when it is time to decide what to do today',
     wrapUpReminderHelp: 'A nudge to move leftovers to tomorrow and end the day',
     dueNotifications: 'Due-date alerts',
-    dueNotificationsHelp: 'Notify me about tasks due today',
+    dueNotificationsHelp:
+      'Notify me about tasks due today. These only arrive while the app is open — unlike the morning and evening reminders, they stop when you close it.',
     dailyCapacityHelp: 'Today gently warns you when plans go over this',
     listsTitle: 'Lists',
     appTitle: 'App',
