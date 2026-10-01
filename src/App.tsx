@@ -169,7 +169,9 @@ export default function App() {
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+    // ドラッグはどれも専用のつまみ（`touch-none` の ⋮⋮ ボタン）からしか始まらないので、
+    // タップとの判別に長い待ちは要らない。長押しの一括選択は行側（450ms）で別に拾う
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
