@@ -28,3 +28,6 @@ dist-ssr
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# UI 撮影の出力（scripts/shots）
+.shots/
