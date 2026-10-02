@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { PlusIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 export function QuickAdd() {
   const { t } = useTranslation()
@@ -79,8 +80,7 @@ export function QuickAdd() {
         type="button"
         onClick={() => submit()}
         disabled={!value.trim()}
-        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent-500 text-on-accent flex-shrink-0
-                   hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className={buttonClass({ variant: 'primary', size: 'sm' }, 'shrink-0')}
       >
         {t('common.add')}
       </button>
@@ -90,7 +90,7 @@ export function QuickAdd() {
           setValue('')
           setActive(false)
         }}
-        className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex-shrink-0"
+        className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}
       >
         {t('common.cancel')}
       </button>

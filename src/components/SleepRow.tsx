@@ -6,6 +6,7 @@ import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -137,7 +138,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
           type="button"
           onClick={save}
           disabled={!canSave}
-          className="rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-40 dark:text-accent-400 dark:hover:bg-accent-500/10"
+          className={buttonClass({ variant: 'link', size: 'xs' })}
         >
           {t('sleep.save')}
         </button>

@@ -6,6 +6,7 @@ import { categoryHex, colorKeyForHex, unnamedColorKeys } from '../../lib/logCate
 import { ModalLayer } from './ModalLayer'
 import { SelectColorDialog } from './SelectColorDialog'
 import { CaretDownIcon, PlusIcon, TrashIcon } from '../icons'
+import { buttonClass } from '../ui/buttonClass'
 
 let nextRowId = 0
 
@@ -116,14 +117,14 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full px-5 py-2.5 text-sm font-medium text-accent-700 transition-colors hover:bg-accent-50 dark:text-accent-300 dark:hover:bg-accent-500/10"
+              className={buttonClass({ variant: 'ghost', size: 'md' })}
             >
               {t('common.cancel')}
             </button>
             <button
               type="button"
               onClick={save}
-              className="rounded-full bg-accent-600 px-6 py-2.5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700"
+              className={buttonClass({ variant: 'primary', size: 'md' })}
             >
               {t('common.save')}
             </button>

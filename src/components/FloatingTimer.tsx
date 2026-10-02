@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
+import { buttonClass } from './ui/buttonClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -118,7 +119,7 @@ function CompletePrompt() {
       <button
         type="button"
         onClick={dismiss}
-        className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+        className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}
       >
         {t('floatingTimer.notYet')}
       </button>
@@ -128,7 +129,7 @@ function CompletePrompt() {
           toggleTask(task.id)
           dismiss()
         }}
-        className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
+        className={buttonClass({ variant: 'primary', size: 'sm' }, 'shrink-0')}
       >
         {t('floatingTimer.markDone')}
       </button>
@@ -182,8 +183,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
             type="button"
             onClick={() => resolveStaleTimer(fromAppWall(new Date(endValue)).toISOString())}
             disabled={!endValue || new Date(endValue) <= started}
-            className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent
-                       transition-colors hover:bg-accent-700 disabled:opacity-40"
+            className={buttonClass({ variant: 'primary', size: 'sm' }, 'shrink-0')}
           >
             {t('staleTimer.saveAt')}
           </button>
@@ -193,23 +193,21 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
           <button
             type="button"
             onClick={() => stopTimer()}
-            className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
+            className={buttonClass({ variant: 'primary', size: 'sm' })}
           >
             {t('staleTimer.stopNow')}
           </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs text-zinc-700 transition-colors
-                       hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            className={buttonClass({ variant: 'secondary', size: 'sm' })}
           >
             {t('staleTimer.chooseEnd')}
           </button>
           <button
             type="button"
             onClick={discardActiveTimer}
-            className="rounded-lg px-3 py-1.5 text-xs text-zinc-500 transition-colors
-                       hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+            className={buttonClass({ variant: 'ghost', size: 'sm' })}
           >
             {t('staleTimer.discard')}
           </button>

@@ -9,6 +9,7 @@ import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { CheckIcon, PlusIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 /**
  * チェックリスト（買い物・持ち物）用の画面。店の中で片手で使う前提で、
@@ -125,14 +126,14 @@ export function ChecklistView({ list }: { list: TaskList }) {
                 <button
                   type="button"
                   onClick={() => uncheckTasks(checked.map((x) => x.id))}
-                  className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className={buttonClass({ variant: 'ghost', size: 'xs' })}
                 >
                   {t('checklist.uncheckAll')}
                 </button>
                 <button
                   type="button"
                   onClick={() => deleteTasks(checked.map((x) => x.id))}
-                  className="rounded-md px-2 py-1 text-xs font-medium text-accent-600 transition-colors hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
+                  className={buttonClass({ variant: 'link', size: 'xs' })}
                 >
                   {t('checklist.clearChecked')}
                 </button>

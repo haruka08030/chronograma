@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { installAvailability, promptInstall, subscribeInstallAvailability } from '../lib/pwa'
-import { SettingsRow, settingsButton } from './settings/SettingsPrimitives'
+import { SettingsRow } from './settings/SettingsPrimitives'
+import { buttonClass } from './ui/buttonClass'
 
 /** 設定の 1 行: ホーム画面 / Dock に追加して「アプリとして」使う案内 */
 export function InstallAppSection() {
@@ -14,7 +15,7 @@ export function InstallAppSection() {
   if (availability === 'prompt') {
     return (
       <SettingsRow label={t('install.title')}>
-        <button type="button" onClick={() => void promptInstall()} className={settingsButton}>
+        <button type="button" onClick={() => void promptInstall()} className={buttonClass({ variant: 'secondary', size: 'md' })}>
           {t('install.button')}
         </button>
       </SettingsRow>

@@ -10,6 +10,7 @@ import {
   getClientId,
   getGoogleRedirectUri,
 } from '../lib/googleCalendar'
+import { buttonClass } from './ui/buttonClass'
 
 /**
  * Google カレンダー連携の 1 行（旧「予定と記録」画面から移した）。
@@ -128,7 +129,7 @@ export function GoogleConnectLine() {
         type="button"
         onClick={() => (user ? void handleConnect() : openSettingsWithScroll('account'))}
         disabled={loading}
-        className="rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
+        className={buttonClass({ variant: 'link', size: 'xs' })}
       >
         {loading ? t('planVsActual.connecting') : user ? t('planVsActual.googleConnectShort') : t('planVsActual.googleLoginFirst')}
       </button>

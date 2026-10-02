@@ -12,6 +12,7 @@ import { addClockMinutes } from '../lib/clockTime'
 import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -212,7 +213,7 @@ export function RecordPanel({
             <button
               type="button"
               onClick={close}
-              className="rounded-lg px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className={buttonClass({ variant: 'ghost', size: 'sm' })}
             >
               {t('common.cancel')}
             </button>
@@ -220,7 +221,7 @@ export function RecordPanel({
               type="button"
               onClick={submit}
               disabled={mode === 'timer' ? !name : !canSaveManual}
-              className="rounded-lg bg-accent-600 px-3 py-1 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700 disabled:opacity-40"
+              className={buttonClass({ variant: 'primary', size: 'sm' })}
             >
               {mode === 'timer' ? t('quickLog.go') : t('records.save')}
             </button>
@@ -241,8 +242,7 @@ export function RecordPanel({
           <button
             type="button"
             onClick={() => setMode('timer')}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-medium text-on-accent shadow-sm transition-colors hover:bg-accent-700
-                       dark:bg-accent-500 dark:hover:bg-accent-400"
+            className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
           >
             <PlayIcon className="h-4 w-4" />
             {t('quickLog.start')}
@@ -252,8 +252,7 @@ export function RecordPanel({
           <button
             type="button"
             onClick={openManual}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50
-                       dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            className={buttonClass({ variant: 'secondary', size: 'lg' }, 'flex-1')}
           >
             <PlusIcon className="h-4 w-4" strokeWidth={2.5} />
             {t('records.later')}

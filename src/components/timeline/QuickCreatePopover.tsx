@@ -13,6 +13,7 @@ import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } fr
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
+import { buttonClass } from '../ui/buttonClass'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -212,7 +213,7 @@ export function QuickCreatePopover({
         <button
           type="button"
           onClick={() => save(true)}
-          className="rounded-full px-3 py-1.5 text-sm text-accent-700 transition-colors hover:bg-accent-50 dark:text-accent-300 dark:hover:bg-accent-500/10"
+          className={buttonClass({ variant: 'ghost', size: 'md' })}
         >
           {t('quickCreate.more')}
         </button>
@@ -220,7 +221,7 @@ export function QuickCreatePopover({
         <button
           type="button"
           onClick={() => save(false)}
-          className="rounded-full bg-accent-600 px-4 py-1.5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700"
+          className={buttonClass({ variant: 'primary', size: 'md' })}
         >
           {t('common.save')}
         </button>

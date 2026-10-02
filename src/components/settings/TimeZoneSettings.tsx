@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next'
 import { MAX_EXTRA_TIME_ZONES, useTaskStore } from '../../store/taskStore'
 import { deviceTimeZone, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
-import { SettingsGroup, SettingsRow, settingsButton } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { CloseIcon } from '../icons'
+import { buttonClass } from '../ui/buttonClass'
 
 /** 設定「日付と時刻」: アプリのタイムゾーンと、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
 export function TimeZoneSettings() {
@@ -33,7 +34,7 @@ export function TimeZoneSettings() {
             exclude={[...extra, zone ?? device]}
             onChange={(tz) => tz && setExtra([...extra, tz])}
             trigger={({ open, toggle }) => (
-              <button type="button" aria-expanded={open} onClick={toggle} className={settingsButton}>
+              <button type="button" aria-expanded={open} onClick={toggle} className={buttonClass({ variant: 'secondary', size: 'md' })}>
                 {t('timeZone.add')}
               </button>
             )}

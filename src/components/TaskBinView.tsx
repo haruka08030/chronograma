@@ -8,6 +8,7 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { displayListName } from '../lib/displayListName'
 import type { Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
+import { buttonClass } from './ui/buttonClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -71,7 +72,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             onClick={() => {
               if (window.confirm(t('taskBin.emptyConfirm'))) emptyDeleted()
             }}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-950/40"
+            className={buttonClass({ variant: 'danger', size: 'sm' })}
           >
             {t('taskBin.emptyTrash')}
           </button>

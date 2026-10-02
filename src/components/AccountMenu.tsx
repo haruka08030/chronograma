@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
+import { buttonClass } from './ui/buttonClass'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
@@ -93,7 +94,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         <button
           type="button"
           onClick={handleSignOut}
-          className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className={buttonClass({ variant: 'secondary', size: 'sm' })}
         >
           {t('account.signOut')}
         </button>
@@ -104,7 +105,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
               type="button"
               onClick={() => void handleDeleteAccount()}
               disabled={pending}
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+              className={buttonClass({ variant: 'danger', size: 'sm' })}
             >
               {pending ? t('account.deleting') : t('account.delete')}
             </button>
@@ -120,7 +121,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="text-xs px-2.5 py-1.5 rounded-lg border border-accent-300 dark:border-accent-600 text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-500/10 transition-colors"
+        className={buttonClass({ variant: 'secondary', size: 'sm' })}
       >
         {t('account.signIn')}
       </button>
@@ -162,7 +163,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
               <button
                 type="submit"
                 disabled={pending}
-                className="text-sm py-2 rounded-lg bg-accent-500 text-on-accent font-medium hover:bg-accent-600 disabled:opacity-50"
+                className={buttonClass({ variant: 'primary', size: 'md' })}
               >
                 {pending ? t('account.sending') : t('account.sendLink')}
               </button>

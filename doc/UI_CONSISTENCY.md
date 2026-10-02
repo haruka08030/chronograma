@@ -55,7 +55,7 @@
 
 | 部品 | 今の状態 | 切り出し先の案 |
 | --- | --- | --- |
-| ボタン | ダイアログ・カードの主ボタンが `rounded-full`（QuickCreate・Event・Labels・SelectColor）と `rounded-lg`（Habits・FloatingTimer・CompleteWithLog・AccountMenu・QuickAdd）に分かれ、濃さも 500/600 が混在。キャンセル・削除・リンク風ボタンもばらばら。共有は `settingsButton` だけ | `Button`（primary / secondary / ghost / danger / link、sm / md） |
+| ボタン | **済（2026-10-02）**: `components/ui/buttonClass.ts` の `buttonClass({ variant, size })` に統一。形はすべてピル（ユーザー決定）。primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link、大きさ xs〜lg。ダイアログ・予定カード・タイマー・習慣・設定（`settingsButton` は廃止）・アカウント・一括操作バーなど約 50 か所。残り: アイコンだけのボタン（下の行） | `Button`（primary / secondary / ghost / danger / link、sm / md） |
 | アイコンボタン | `iconButton` を EventPopover と GoogleEventPopover が別々に定義 | `IconButton` |
 | アイコン SVG | **済（2026-10-02）**: 12 種 63 か所を `components/icons.tsx`（`CheckIcon` など）に、ナビの一覧などが持っていた形は `lib/iconPaths.ts` の `ICON_PATHS` に寄せた。鉛筆は 2 種類あったのを 1 つに。残り: EventPopover の文字の ▶、FloatingTimer の停止の四角 | `components/icons.tsx` |
 | 切り替えタブ | `SettingsPrimitives` の `Segmented` は設定画面だけ。月/週（`CalendarHubView`）、予定/記録（`CalendarDayPanel`）、やること/タイムライン（`TodayPlannerView`）は手書きで見た目も違う | `Segmented` を `components/ui/` へ移して使い回す |

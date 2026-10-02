@@ -13,7 +13,8 @@ import {
   type NotionStatus,
 } from '../../lib/notion'
 import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync'
-import { SettingsGroup, SettingsRow, settingsButton } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { buttonClass } from '../ui/buttonClass'
 
 const field =
   'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
@@ -123,7 +124,7 @@ export function NotionSettings() {
                   : undefined
           }
         >
-          <button type="button" className={settingsButton} disabled={sync.syncing} onClick={() => requestNotionSync()}>
+          <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={sync.syncing} onClick={() => requestNotionSync()}>
             {t('notion.syncNowAction')}
           </button>
         </SettingsRow>
@@ -183,7 +184,7 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         />
       </label>
       <div className="flex justify-end">
-        <button type="submit" disabled={busy || !token.trim() || !database.trim()} className={`${settingsButton} disabled:opacity-50`}>
+        <button type="submit" disabled={busy || !token.trim() || !database.trim()} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
           {busy ? t('notion.connecting') : t('notion.connect')}
         </button>
       </div>
@@ -227,7 +228,7 @@ function ConnectedRows({
   return (
     <>
       <SettingsRow label={t('notion.connectedTo', { name: status.databaseTitle })}>
-        <button type="button" className={settingsButton} disabled={busy} onClick={onDisconnect}>
+        <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={onDisconnect}>
           {t('notion.disconnect')}
         </button>
       </SettingsRow>

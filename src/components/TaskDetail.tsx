@@ -19,6 +19,7 @@ import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/ta
 import { TaskTimeZoneField } from './TaskTimeZoneField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -569,9 +570,7 @@ export function TaskDetail({
                 type="button"
                 onClick={addTag}
                 disabled={!tagInput.trim()}
-                className="px-3 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800
-                           hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors
-                           disabled:opacity-40 disabled:cursor-not-allowed"
+                className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
               >
                 {t('common.add')}
               </button>
@@ -666,9 +665,7 @@ export function TaskDetail({
                     type="button"
                     onClick={addSubtask}
                     disabled={!subInput.trim()}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800
-                           hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors
-                           disabled:opacity-40 disabled:cursor-not-allowed"
+                    className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
                   >
                     {t('common.add')}
                   </button>
@@ -681,9 +678,7 @@ export function TaskDetail({
             <button
               type="button"
               onClick={isLog ? handleDeleteLog : handleDeleteTask}
-              className="w-full py-2.5 rounded-xl border border-red-200 dark:border-red-500/40
-                         text-sm font-medium text-red-600 dark:text-red-400
-                         hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+              className={buttonClass({ variant: 'danger', size: 'md' }, 'w-full')}
             >
               {t(isLog ? 'taskDetail.deleteLog' : 'taskDetail.deleteTask')}
             </button>

@@ -17,6 +17,7 @@ import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -113,7 +114,7 @@ export function CalendarDateNav({
       <button
         type="button"
         onClick={onGoToday}
-        className="shrink-0 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+        className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
       >
         {t('calendarHub.today')}
       </button>

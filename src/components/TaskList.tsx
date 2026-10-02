@@ -33,6 +33,7 @@ import {
 } from '@dnd-kit/sortable'
 import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 import { CloseIcon, PencilIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -1045,8 +1046,7 @@ export function TaskList() {
                   const sectionId = addSectionStore(selectedListId)
                   beginSectionRename(sectionId, '')
                 }}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-600
-                           text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className={buttonClass({ variant: 'secondary', size: 'sm' })}
               >
                 {t('taskList.addSection')}
               </button>
@@ -1093,21 +1093,21 @@ export function TaskList() {
             <button
               type="button"
               onClick={bulkComplete}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+              className={buttonClass({ variant: 'secondary', size: 'xs' })}
             >
               {t('taskList.markComplete')}
             </button>
             <button
               type="button"
               onClick={bulkArchive}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+              className={buttonClass({ variant: 'secondary', size: 'xs' })}
             >
               {t('taskList.bulkArchive')}
             </button>
             <button
               type="button"
               onClick={bulkDelete}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400"
+              className={buttonClass({ variant: 'danger', size: 'xs' })}
             >
               {t('taskList.bulkDelete')}
             </button>
@@ -1163,7 +1163,7 @@ export function TaskList() {
             <button
               type="button"
               onClick={() => bulkUpdateTasks(selectedIds, { dueDate: null })}
-              className="px-2 py-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+              className={buttonClass({ variant: 'secondary', size: 'xs' })}
             >
               {t('taskList.noDue')}
             </button>

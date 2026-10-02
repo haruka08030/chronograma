@@ -27,6 +27,7 @@ import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, zonedNow } from '../lib/timeZone'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
+import { buttonClass } from './ui/buttonClass'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -260,8 +261,7 @@ export function TodayPlannerView() {
     </button>
   )
 
-  const textButton =
-    'rounded-md px-1.5 py-0.5 text-xs font-medium text-accent-600 transition-colors hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10'
+  const textButton = buttonClass({ variant: 'link', size: 'xs' })
   const sectionLabel = 'px-3 pb-1 text-xs font-medium text-zinc-400 dark:text-zinc-500'
 
   return (

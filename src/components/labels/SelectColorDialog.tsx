@@ -4,6 +4,7 @@ import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { hexToHsv, hsvToHex } from '../../lib/colorMath'
 import { ModalLayer } from './ModalLayer'
 import { CheckIcon } from '../icons'
+import { buttonClass } from '../ui/buttonClass'
 
 const CHECK = (
   <CheckIcon className="h-4 w-4" strokeWidth={3} />
@@ -164,14 +165,14 @@ export function SelectColorDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full px-5 py-2 text-sm font-medium text-accent-700 transition-colors hover:bg-accent-50 dark:text-accent-300 dark:hover:bg-accent-500/10"
+            className={buttonClass({ variant: 'ghost', size: 'md' })}
           >
             {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={() => onSelect(hex)}
-            className="rounded-full bg-accent-600 px-5 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700"
+            className={buttonClass({ variant: 'primary', size: 'md' })}
           >
             {t('labels.select')}
           </button>

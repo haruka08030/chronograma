@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { buttonClass } from './ui/buttonClass'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -148,14 +149,14 @@ export function CompleteWithLogModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className={buttonClass({ variant: 'ghost', size: 'md' })}
           >
             {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-600"
+            className={buttonClass({ variant: 'primary', size: 'md' })}
           >
             {t('task.completeModal.saveComplete')}
           </button>

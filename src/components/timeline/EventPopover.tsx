@@ -12,7 +12,8 @@ import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useEscapeLayer } from '../../hooks/useEscapeLayer'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { zonedNow } from '../../lib/timeZone'
-import { CloseIcon, PencilIcon, TrashIcon } from '../icons'
+import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
+import { buttonClass } from '../ui/buttonClass'
 
 const WIDTH = 320
 
@@ -183,7 +184,7 @@ export function EventPopover({
               toggleTask(task.id)
               onClose()
             }}
-            className="rounded-full bg-accent-600 px-3.5 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
+            className={buttonClass({ variant: 'primary', size: 'sm' })}
           >
             {task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone')}
           </button>
@@ -191,7 +192,7 @@ export function EventPopover({
             <button
               type="button"
               onClick={logAsPlanned}
-              className="rounded-full border border-zinc-200 px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              className={buttonClass({ variant: 'secondary', size: 'sm' })}
             >
               {t('eventCard.logAsPlanned')}
             </button>
@@ -204,9 +205,10 @@ export function EventPopover({
               onClick={() => {
                 if (startTimerForTask(task.id)) onClose()
               }}
-              className="rounded-full border border-zinc-200 px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              className={buttonClass({ variant: 'secondary', size: 'sm' })}
             >
-              ▶ {t('eventCard.startLog')}
+              <PlayIcon className="h-3 w-3" />
+              {t('eventCard.startLog')}
             </button>
           )}
         </div>

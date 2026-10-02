@@ -29,6 +29,7 @@ import { zonedNow } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
+import { buttonClass } from './ui/buttonClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -493,16 +494,14 @@ export function HabitsView() {
                   type="button"
                   onClick={saveEdit}
                   disabled={editFormDisabled}
-                  className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700
-                             disabled:cursor-not-allowed disabled:opacity-40"
+                  className={buttonClass({ variant: 'primary', size: 'md' })}
                 >
                   {t('common.save')}
                 </button>
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50
-                             dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  className={buttonClass({ variant: 'secondary', size: 'md' })}
                 >
                   {t('common.cancel')}
                 </button>
@@ -625,8 +624,8 @@ export function HabitsView() {
             }}
             className={
               showComposer
-                ? 'rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                : 'rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700'
+                ? buttonClass({ variant: 'secondary', size: 'sm' })
+                : buttonClass({ variant: 'primary', size: 'sm' })
             }
           >
             {showComposer ? t('common.close') : t('habits.addHabitCta')}
@@ -723,7 +722,7 @@ export function HabitsView() {
                 type="button"
                 onClick={submitNew}
                 disabled={newFormDisabled}
-                className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className={buttonClass({ variant: 'primary', size: 'md' })}
               >
                 {t('common.add')}
               </button>
@@ -760,7 +759,7 @@ export function HabitsView() {
                 type="button"
                 onClick={goFocusToday}
                 disabled={isFocusToday}
-                className="shrink-0 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
               >
                 {t('common.today')}
               </button>

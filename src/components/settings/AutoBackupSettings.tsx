@@ -4,7 +4,8 @@ import i18n from '../../i18n/config'
 import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
 import { useTaskStore } from '../../store/taskStore'
-import { SettingsRow, settingsButton } from './SettingsPrimitives'
+import { SettingsRow } from './SettingsPrimitives'
+import { buttonClass } from '../ui/buttonClass'
 
 const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
@@ -86,10 +87,10 @@ export function AutoBackupSettings() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" className={settingsButton} onClick={() => void restore(b)}>
+                    <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restore(b)}>
                       {t('autoBackup.restoreMissing')}
                     </button>
-                    <button type="button" className={settingsButton} onClick={() => void download(b)}>
+                    <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void download(b)}>
                       {t('autoBackup.download')}
                     </button>
                   </div>

@@ -100,5 +100,3 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
   )
 }
 
-export const settingsButton =
-  'rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800'

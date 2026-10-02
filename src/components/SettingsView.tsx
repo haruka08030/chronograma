@@ -12,7 +12,8 @@ import { CategoryManager } from './settings/CategoryManager'
 import { NotionSettings } from './settings/NotionSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { Segmented, SettingsGroup, SettingsRow, settingsButton } from './settings/SettingsPrimitives'
+import { Segmented, SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { buttonClass } from './ui/buttonClass'
 
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
@@ -98,20 +99,20 @@ export function SettingsView() {
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
           <InstallAppSection />
           <SettingsRow label={t('settings.legalTitle')}>
-            <a href="/privacy.html" target="_blank" rel="noopener" className={settingsButton}>{t('settings.privacyPolicy')}</a>
-            <a href="/terms.html" target="_blank" rel="noopener" className={settingsButton}>{t('settings.terms')}</a>
+            <a href="/privacy.html" target="_blank" rel="noopener" className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('settings.privacyPolicy')}</a>
+            <a href="/terms.html" target="_blank" rel="noopener" className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('settings.terms')}</a>
           </SettingsRow>
         </SettingsGroup>
 
         <SettingsGroup id="settings-data" title={t('settings.data')}>
           <SettingsRow label={t('settings.backupTitle')}>
-            <button type="button" onClick={exportData} className={settingsButton}>{t('sidebar.export')}</button>
-            <button type="button" onClick={() => jsonInputRef.current?.click()} className={settingsButton}>{t('sidebar.import')}</button>
+            <button type="button" onClick={exportData} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.export')}</button>
+            <button type="button" onClick={() => jsonInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.import')}</button>
           </SettingsRow>
           <AutoBackupSettings />
           <RestoreBeforeImportRow />
           <SettingsRow label={t('settings.csvTitle')}>
-            <button type="button" onClick={() => csvInputRef.current?.click()} className={settingsButton}>{t('sidebar.importCsv')}</button>
+            <button type="button" onClick={() => csvInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.importCsv')}</button>
           </SettingsRow>
         <input
           ref={jsonInputRef}
@@ -208,7 +209,7 @@ function RestoreBeforeImportRow() {
     >
       <button
         type="button"
-        className={settingsButton}
+        className={buttonClass({ variant: 'secondary', size: 'md' })}
         onClick={() => {
           if (!window.confirm(i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }))) return
           if (restoreBeforeImport()) {
