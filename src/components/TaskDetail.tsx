@@ -16,10 +16,10 @@ import { linkifySegments, googleMapsUrl } from '../lib/linkify'
 import { isSubmitEnter } from '../lib/keyboard'
 import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
-import { TaskTimeZoneField } from './TaskTimeZoneField'
+import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
-import { CalendarIcon, ClockIcon, CloseIcon } from './icons'
+import { CalendarIcon, ClockIcon, CloseIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
@@ -50,6 +50,11 @@ export function TaskDetail({
   // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）
   const zone = foreignTimeZone(task)
   const tv = zone ? convertTaskTimes(task, appTimeZone(), zone) : task
+  // タイムゾーンは時刻の行の末尾に置く（予定の時刻があれば予定の行、なければ締切の行）
+  const showTimeZone = !!(task.startTime || task.dueTime || zone)
+  const tzOnScheduled = showTimeZone && !!tv.scheduledDate && (!!task.startTime || !task.dueTime)
+  const tzOnDeadline = showTimeZone && !tzOnScheduled && !!tv.dueDate
+  const tzLoose = showTimeZone && !tzOnScheduled && !tzOnDeadline
   const updateTimes = (patch: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>>) =>
     updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
   const deleteTask = useTaskStore((s) => s.deleteTask)
@@ -338,7 +343,57 @@ export function TaskDetail({
                       />
                     </div>
                   )}
+                  {tzOnDeadline && <TaskTimeZoneButton task={task} view={tv} />}
                 </div>
+                {tzOnDeadline && <TaskTimeZoneNote task={task} />}
+                {/* 繰り返し（締切のあるタスクだけ。完了すると次の締切で作り直す）。習慣とは別の「毎週の課題」など */}
+                {task.dueDate && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    <RepeatIcon className={`h-3.5 w-3.5 shrink-0 ${task.recurrence ? 'text-zinc-600 dark:text-zinc-300' : ''}`} />
+                    <select
+                      aria-label={t('taskDetail.recurrence')}
+                      value={task.recurrence?.type ?? 'none'}
+                      onChange={(e) => {
+                        const val = e.target.value as Recurrence['type'] | 'none'
+                        if (val === 'none') {
+                          updateTask(task.id, { recurrence: null })
+                        } else {
+                          updateTask(task.id, {
+                            recurrence: { type: val, interval: task.recurrence?.interval ?? 1 },
+                          })
+                        }
+                      }}
+                      className={`rounded-md bg-transparent py-1 pl-1.5 text-xs [field-sizing:content] outline-none transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:ring-2 focus:ring-accent-500/40 ${
+                        task.recurrence ? 'text-zinc-800 dark:text-zinc-100' : ''
+                      }`}
+                    >
+                      {RECURRENCE_TYPES.map((r) => (
+                        <option key={r} value={r}>
+                          {r === 'none' ? t('taskDetail.recurrenceNone') : t(`taskDetail.recurrenceIntervals.${r}`)}
+                        </option>
+                      ))}
+                    </select>
+                    {task.recurrence && (
+                      <>
+                        <input
+                          type="number"
+                          min={1}
+                          aria-label={t('taskDetail.recurrenceEvery')}
+                          value={task.recurrence.interval}
+                          onChange={(e) => {
+                            const interval = Math.max(1, parseInt(e.target.value) || 1)
+                            updateTask(task.id, {
+                              recurrence: { ...task.recurrence!, type: task.recurrence!.type, interval },
+                            })
+                          }}
+                          className="w-12 rounded-md border border-zinc-200 px-1.5 py-1 text-center text-xs text-zinc-900 outline-none
+                                     bg-transparent dark:border-zinc-700 dark:text-zinc-100 focus:ring-2 focus:ring-accent-500/40"
+                        />
+                        <span>{t(`taskDetail.recurrenceTypes.${task.recurrence.type}`)}</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -386,10 +441,17 @@ export function TaskDetail({
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
                     />
+                    {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
                   </div>
                 )}
+                {tzOnScheduled && <TaskTimeZoneNote task={task} />}
               </div>
-              {(task.startTime || task.dueTime || zone) && <TaskTimeZoneField task={task} view={tv} />}
+              {tzLoose && (
+                <div>
+                  <TaskTimeZoneButton task={task} view={tv} />
+                  <TaskTimeZoneNote task={task} />
+                </div>
+              )}
               <TaskRemindersField task={task} />
             </>
           )}
@@ -400,7 +462,10 @@ export function TaskDetail({
                 className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/30
                            p-3 space-y-2"
               >
-                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                  {(task.startTime || zone) && <TaskTimeZoneButton task={task} view={tv} compact />}
+                </div>
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -483,56 +548,7 @@ export function TaskDetail({
               {isOvernightTimeLog(task) && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
               )}
-              {(task.startTime || zone) && <TaskTimeZoneField task={task} view={tv} />}
-            </div>
-          )}
-
-          {!isLog && task.dueDate && (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.recurrence')}</label>
-              <div className="flex items-center gap-2">
-                <select
-                  value={task.recurrence?.type ?? 'none'}
-                  onChange={(e) => {
-                    const val = e.target.value as Recurrence['type'] | 'none'
-                    if (val === 'none') {
-                      updateTask(task.id, { recurrence: null })
-                    } else {
-                      updateTask(task.id, {
-                        recurrence: { type: val, interval: task.recurrence?.interval ?? 1 },
-                      })
-                    }
-                  }}
-                  className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
-                >
-                  {RECURRENCE_TYPES.map((r) => (
-                    <option key={r} value={r}>{t(`taskDetail.recurrenceIntervals.${r}`)}</option>
-                  ))}
-                </select>
-                {task.recurrence && (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={1}
-                      value={task.recurrence.interval}
-                      onChange={(e) => {
-                        const interval = Math.max(1, parseInt(e.target.value) || 1)
-                        updateTask(task.id, {
-                          recurrence: { ...task.recurrence!, type: task.recurrence!.type, interval },
-                        })
-                      }}
-                      className="w-16 px-2 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40 text-center"
-                    />
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {t(`taskDetail.recurrenceTypes.${task.recurrence.type}`)}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <TaskTimeZoneNote task={task} />
             </div>
           )}
 

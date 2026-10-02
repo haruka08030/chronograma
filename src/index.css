@@ -44,6 +44,21 @@
   --color-on-accent: #202124;
 }
 
+/*
+ * プルダウン（select）の矢印。ブラウザ標準の矢印は枠の右端に張り付いて、枠からはみ出して見えるので、
+ * どの画面の select も同じ形の矢印を枠の内側に描く。@layer の外に置いて、各所の px-* より優先する
+ * （右の余白は矢印のぶん。大きさは文字に合わせて em で）
+ */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55em center;
+  background-size: 1em 1em;
+  padding-right: 2em;
+}
+
 html {
   scroll-behavior: smooth;
   height: 100%;

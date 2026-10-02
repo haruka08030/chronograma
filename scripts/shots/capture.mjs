@@ -35,6 +35,10 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
+  // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
+  // タイトルを押すと編集になるので、行の左の余白を押して開く
+  { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
+  { name: 'task-detail-scheduled', view: 'all', click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))', clickAt: { x: 4, y: 12 } },
   { name: 'habits', view: 'habits' },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
@@ -211,7 +215,7 @@ async function main() {
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
             if (screen.click) {
-              await page.click(screen.click)
+              await page.click(screen.click, screen.clickAt ? { position: screen.clickAt } : undefined)
               await page.waitForTimeout(300)
             }
 

@@ -603,6 +603,8 @@ export default {
       monthly: 'ヶ月ごと',
       yearly: '年ごと',
     },
+    recurrenceNone: '繰り返さない',
+    recurrenceEvery: '間隔',
     recurrenceIntervals: {
       none: 'なし',
       daily: '毎日',

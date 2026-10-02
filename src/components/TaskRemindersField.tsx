@@ -111,7 +111,7 @@ export function TaskRemindersField({ task }: { task: Task }) {
               const hit = addable.find((p) => keyOf(p) === e.target.value)
               if (hit) save([...current, hit])
             }}
-            className="rounded-full bg-transparent px-2 py-0.5 text-xs text-accent-700 outline-none transition-colors hover:bg-accent-50 dark:text-accent-300 dark:hover:bg-accent-500/10"
+            className="rounded-full bg-transparent px-2 py-0.5 text-xs [field-sizing:content] text-accent-700 outline-none transition-colors hover:bg-accent-50 dark:text-accent-300 dark:hover:bg-accent-500/10"
           >
             <option value="" disabled>
               {t('taskReminders.add')}

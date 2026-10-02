@@ -603,6 +603,8 @@ export default {
       monthly: 'Monthly',
       yearly: 'Yearly',
     },
+    recurrenceNone: 'Does not repeat',
+    recurrenceEvery: 'Every',
     recurrenceIntervals: {
       none: 'None',
       daily: 'Every day',
