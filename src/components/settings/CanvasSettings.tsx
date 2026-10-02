@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import {
   canvasExpiryWarning,
+  canvasFeedUrlProblem,
   CanvasRequestError,
   connectCanvas,
   connectCanvasFeed,
@@ -220,7 +221,8 @@ function NewConnectionForm({
 function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feedUrl: string) => void; onCancel?: () => void }) {
   const { t } = useTranslation()
   const [url, setUrl] = useState('')
-  const ready = url.trim() !== ''
+  const problem = canvasFeedUrlProblem(url)
+  const ready = url.trim() !== '' && !problem
   return (
     <form
       className="space-y-3 px-4 py-3"
@@ -243,8 +245,10 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://canvas.ucsc.edu/feeds/calendars/user_….ics"
           className={field}
+          aria-invalid={problem ? true : undefined}
         />
       </label>
+      {problem && <p className="text-xs text-red-600 dark:text-red-400">{t(`canvas.feedProblem.${problem}`)}</p>}
       <FormButtons busy={busy} ready={ready} submitLabel={t('canvas.connect')} onCancel={onCancel} />
     </form>
   )

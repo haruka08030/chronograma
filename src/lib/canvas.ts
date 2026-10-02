@@ -115,6 +115,23 @@ export const fetchCanvasStatus = () => invokeConnections<CanvasStatus>({ action:
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
 export const connectCanvas = (token: string, baseUrl: string) =>
   invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
+/**
+ * 貼られた URL がカレンダーフィード（`https://<学校>/feeds/calendars/….ics`）か。違えば理由を返す。
+ * カレンダー画面そのもの（`/calendar#view_name=…`）を貼る間違いが多いので、それは分けて案内する
+ */
+export function canvasFeedUrlProblem(input: string): 'calendarPage' | 'notFeed' | null {
+  const raw = input.trim()
+  if (!raw) return null
+  let url: URL
+  try {
+    url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+  } catch {
+    return 'notFeed'
+  }
+  if (/^\/feeds\/calendars\/[\w.-]+\.ics$/.test(url.pathname)) return null
+  return url.pathname.startsWith('/calendar') ? 'calendarPage' : 'notFeed'
+}
+
 /** トークンを作れない学校は、カレンダーフィードの URL でつなぐ */
 export const connectCanvasFeed = (feedUrl: string) => invokeConnections<CanvasStatus>({ action: 'connect', feedUrl })
 /** つないであった学校のトークンだけ貼り直す */

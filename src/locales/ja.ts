@@ -951,6 +951,10 @@ export default {
     feedStep1: 'Canvas の「カレンダー」を開き、右下の「カレンダーフィード」から URL をコピーする（トークンを作れない学校向け）',
     feedStep2: 'URL を下に貼る。読むだけなので、提出しても自動では完了にならず、ここで完了にしても Canvas には反映されません',
     feedLabel: 'カレンダーフィードの URL',
+    feedProblem: {
+      calendarPage: 'これはカレンダー画面の URL です。その画面の右下にある「カレンダーフィード」を押すと出る URL（…/feeds/calendars/….ics）を貼ってください',
+      notFeed: 'カレンダーフィードの URL ではありません。…/feeds/calendars/….ics で終わる URL を貼ってください',
+    },
     feedHelp: 'カレンダーフィード（読むだけ）',
     urlLabel: 'Canvas の URL',
     tokenLabel: 'アクセストークン',

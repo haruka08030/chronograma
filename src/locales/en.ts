@@ -951,6 +951,10 @@ export default {
     feedStep1: 'Open Canvas Calendar and copy the URL from “Calendar Feed” at the bottom right (for schools that don’t allow tokens)',
     feedStep2: 'Paste the URL below. It’s read-only: submitting doesn’t complete the task, and completing it here doesn’t update Canvas',
     feedLabel: 'Calendar feed URL',
+    feedProblem: {
+      calendarPage: 'This is the Calendar page itself. Click “Calendar Feed” at the bottom right of that page and paste the URL it shows (…/feeds/calendars/….ics)',
+      notFeed: 'This isn’t a calendar feed URL. Paste the one ending in …/feeds/calendars/….ics',
+    },
     feedHelp: 'Calendar feed (read-only)',
     urlLabel: 'Canvas URL',
     tokenLabel: 'Access token',

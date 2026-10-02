@@ -3,6 +3,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import {
   canvasDue,
+  canvasFeedUrlProblem,
   canvasExpiryWarning,
   canvasListId,
   canvasListName,
@@ -165,5 +166,14 @@ describe('withConnections', () => {
   it('一覧があればそのまま', () => {
     const c = { id: CONN, baseUrl: `https://${CONN}` } as CanvasStatus['connections'][number]
     expect(withConnections({ connections: [c] }).connections).toEqual([c])
+  })
+})
+
+describe('canvasFeedUrlProblem', () => {
+  it('accepts the feed URL and tells the calendar page apart from other URLs', () => {
+    expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/feeds/calendars/user_AbC123xyz.ics')).toBeNull()
+    expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/calendar#view_name=month&view_start=2026-10-02')).toBe('calendarPage')
+    expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/courses/77')).toBe('notFeed')
+    expect(canvasFeedUrlProblem('')).toBeNull()
   })
 })
