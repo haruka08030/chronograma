@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { hexToHsv, hsvToHex } from '../../lib/colorMath'
-import { ModalLayer } from './ModalLayer'
+import { Modal, ModalTitle } from '../ui/Modal'
 import { CheckIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 
@@ -57,9 +57,8 @@ export function SelectColorDialog({
   const hueHex = hsvToHex(h, 1, 1)
 
   return (
-    <ModalLayer onDismiss={onCancel} labelledBy="select-color-title">
-      <div className="w-[min(92vw,380px)] rounded-3xl bg-white p-6 shadow-2xl dark:bg-zinc-800">
-        <h2 id="select-color-title" className="text-xl text-zinc-900 dark:text-zinc-100">{t('labels.selectColor')}</h2>
+    <Modal onClose={onCancel} labelledBy="select-color-title" width="sm" className="p-6">
+        <ModalTitle id="select-color-title">{t('labels.selectColor')}</ModalTitle>
 
         <div role="radiogroup" aria-label={t('labels.selectColor')} className="mt-5 grid grid-cols-8 gap-2">
           {CALENDAR_COLORS.map((c) => {
@@ -177,7 +176,6 @@ export function SelectColorDialog({
             {t('labels.select')}
           </button>
         </div>
-      </div>
-    </ModalLayer>
+    </Modal>
   )
 }

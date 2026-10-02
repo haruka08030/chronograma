@@ -374,7 +374,7 @@ export default {
     weekView: 'カレンダー（週）',
     monthView: 'カレンダー（月）',
     logView: '記録を始める（今日）',
-    create: 'やることを追加',
+    create: 'To-Do を追加',
     search: '検索',
     edit: '開いている予定の詳細',
     delete: '開いている予定を削除',

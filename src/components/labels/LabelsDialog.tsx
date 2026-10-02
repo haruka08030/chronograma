@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { CALENDAR_COLORS } from '../../lib/googleColors'
 import { categoryHex, colorKeyForHex, unnamedColorKeys } from '../../lib/logCategoryColors'
-import { ModalLayer } from './ModalLayer'
+import { Modal, ModalTitle } from '../ui/Modal'
 import { SelectColorDialog } from './SelectColorDialog'
 import { CaretDownIcon, PlusIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
@@ -62,10 +62,9 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <ModalLayer onDismiss={onClose} labelledBy="labels-title">
-        <div className="flex max-h-[min(86vh,720px)] w-[min(92vw,440px)] flex-col rounded-3xl bg-white shadow-2xl dark:bg-zinc-800">
-          <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-700">
-            <h2 id="labels-title" className="text-2xl text-zinc-900 dark:text-zinc-100">{t('labels.title')}</h2>
+      <Modal onClose={onClose} labelledBy="labels-title" className="flex max-h-[min(86vh,720px)] flex-col overflow-hidden">
+          <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-800">
+            <ModalTitle id="labels-title">{t('labels.title')}</ModalTitle>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <ul ref={listRef} className="space-y-2">
@@ -129,8 +128,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
               {t('common.save')}
             </button>
           </div>
-        </div>
-      </ModalLayer>
+      </Modal>
       {editing && (
         <SelectColorDialog
           initial={editing.hex}
