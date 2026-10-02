@@ -7,7 +7,8 @@
  *   npm run shots -- --out=/tmp/shots
  *
  * 保存先の既定は `.shots/`（git 管理外）。
- * 既に起きている dev サーバーがあればそれを使い、無ければ自分で起こして最後に止める。
+ * 毎回この作業ツリーをビルドし、空いているポートで自分のサーバーを起こして最後に止める。
+ * （既に開いている 5173 を使い回すと、別の worktree や別の作業の画面を撮ってしまう）
  */
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
@@ -16,8 +17,8 @@ import { createServer } from 'node:net'
 import path from 'node:path'
 import { buildSeedState, PERSIST_KEY } from './seed.mjs'
 
-const DEV_PORT = 5173
-const BASE_URL = `http://localhost:${DEV_PORT}`
+/** ここから順に空いているポートを探す（5173 は普段の dev サーバー用に空けておく） */
+const FIRST_PORT = 5180
 
 /**
  * 撮影するブラウザのタイムゾーン。種データの日付もこれで組み立てる
@@ -71,13 +72,21 @@ function parseArgs(argv) {
   return out
 }
 
-function portInUse(port) {
+function portFreeOn(port, host) {
   return new Promise((resolve) => {
     const s = createServer()
-    s.once('error', () => resolve(true))
-    s.once('listening', () => s.close(() => resolve(false)))
-    s.listen(port, '127.0.0.1')
+    s.once('error', () => resolve(false))
+    s.once('listening', () => s.close(() => resolve(true)))
+    s.listen(port, host)
   })
+}
+
+/** IPv4・IPv6 のどちらでも空いているポート（Vite は localhost＝::1 で待ち受けることがある） */
+async function findFreePort() {
+  for (let port = FIRST_PORT; port < FIRST_PORT + 50; port++) {
+    if ((await portFreeOn(port, '127.0.0.1')) && (await portFreeOn(port, '::1'))) return port
+  }
+  throw new Error(`${FIRST_PORT} 以降に空いているポートがありません`)
 }
 
 async function waitForServer(url, timeoutMs = 60_000) {
@@ -108,23 +117,21 @@ function run(cmd, args) {
  * 利用者が見る画面と違ってしまう。
  */
 async function startServer() {
-  if (await portInUse(DEV_PORT)) {
-    console.log(`→ 既に ${BASE_URL} が開いているのでそれを使います（開発者向け表示が写るかもしれません）`)
-    return null
-  }
   console.log('→ ビルドします')
   await run('npm', ['run', 'build'])
-  console.log('→ プレビューサーバーを起動します')
-  const child = spawn('npm', ['run', 'preview', '--', '--port', String(DEV_PORT)], {
+  const port = await findFreePort()
+  const baseUrl = `http://localhost:${port}`
+  console.log(`→ プレビューサーバーを起動します（${baseUrl}）`)
+  const child = spawn('npm', ['run', 'preview', '--', '--port', String(port), '--strictPort'], {
     cwd: process.cwd(),
     stdio: 'ignore',
     detached: false,
   })
-  if (!(await waitForServer(BASE_URL))) {
+  if (!(await waitForServer(baseUrl))) {
     child.kill('SIGTERM')
     throw new Error('プレビューサーバーが起動しませんでした')
   }
-  return child
+  return { child, baseUrl }
 }
 
 async function main() {
@@ -193,7 +200,7 @@ async function main() {
           page.on('pageerror', (e) => consoleErrors.push(String(e.message ?? e)))
 
           try {
-            await page.goto(BASE_URL, { waitUntil: 'networkidle' })
+            await page.goto(server.baseUrl, { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
             if (screen.click) {
@@ -225,10 +232,8 @@ async function main() {
     }
   } finally {
     await browser.close()
-    if (server) {
-      server.kill('SIGTERM')
-      console.log('→ サーバーを止めました')
-    }
+    server.child.kill('SIGTERM')
+    console.log('→ サーバーを止めました')
   }
 
   console.log(`\n${shot} 枚を ${path.relative(process.cwd(), outDir)}/ に保存しました`)
