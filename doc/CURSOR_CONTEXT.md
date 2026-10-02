@@ -98,7 +98,7 @@
   統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。切り替えはリスト見出しの
   `ListKindPicker`、サイドバーのリスト行に種類アイコン。新規ユーザーの初期リストは 未分類 / いつか / 買い物（`initialLists`）。
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
-  DB は `lists.kind`（`004_list_kind.sql`）。未適用の DB では push 時に kind なしで送り直す
+  DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す
 
 - **いつか / チェックリストの専用画面**: リスト選択時に `kind` が `checklist` なら `ChecklistView`、`someday` なら `SomedayView`
   （`App.tsx` の `mainContent`）。`uncheckTasks`（全部戻す）・`promoteToPlanned`（いつか → 未分類 + 今日の予定日）はどちらも Undo 1 段。
@@ -129,7 +129,7 @@
 - **予定と記録（旧 予定 vs ログ）**: 照合結果で色を塗らず、他の画面と同じ（予定＝`.gc-plan` のリスト色 / 習慣色 / Google 青、
   時間が過ぎた予定＝`.gc-missed`、記録＝分類色の `.gc-solid`）。照合は小さな文字だけ（✓ 予定どおり / N分ズレ）。未実行を赤くしない、
   「予定外」も付けない。Google 連携は未接続なら 1 行（ボタンや警告を並べない）。凡例は 予定 / 記録 / 終わった予定 の 3 つ
-- **記録の色**: `Task.color`（`#RRGGBB`、`tasks.color` は `006_task_color.sql`）があれば分類の色より優先（`recordHex`）。
+- **記録の色**: `Task.color`（`#RRGGBB`、`tasks.color`）があれば分類の色より優先（`recordHex`）。
   予定と記録で Google の予定を「記録にする」と、その予定の色を写す（`addCompletedTaskWithTime(..., color)`）。Google の予定の色は
   `googleEventHex`（予定の colorId 1〜11 → 画面の 11 色、無ければ Edge Function `google-calendar` の `events` が返す
   `calendarColor`（カレンダー自体の色、旧パレットなので最も近い 11 色へ）、それも無ければピーコック）で `CalendarEvent.color` に解決
@@ -146,7 +146,7 @@
   各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）
 - **予定の開始前通知**: `eventReminderMinutes`（5/10/15/30 分前、既定オフ、設定の「通知と 1 日のリズム」）。タブが開いている間は
   `checkEventReminders`（`src/lib/eventReminders.ts`、localStorage で 1 日 1 回）、Web Push 購読中は Edge Function
-  `daily-reminders` が `push_subscriptions.event_reminder_minutes`（`005_event_reminders.sql`）を見て送る
+  `daily-reminders` が `push_subscriptions.event_reminder_minutes`を見て送る
 
 ### グローバルショートカット（`App.tsx`）
 
@@ -433,16 +433,12 @@
 
 ## データベース（`supabase/migrations/`）
 
-**正本**: **`001_chronograma_schema.sql` 1 本**（`lists` / `list_sections` /
-`tasks`（`tasks.location` / `tasks.archived_at` / `tasks.deleted_at` を含む）/
-`habits`、インデックス、RLS。SQL Editor
-で全体を流す想定。再実行しやすいよう `DROP POLICY IF EXISTS`
-あり）。一覧の短い説明は **`supabase/migrations/README.md`**。
-
-習慣のクラウド同期に必要な **`habits.time_mode`** も同ファイル内。`002_google_oauth.sql`（Google 連携）、
-`003_push_subscriptions.sql`（Web Push の端末ごとの購読。送信は Edge Function `daily-reminders` を pg_cron で
-5 分ごとに `x-cron-secret` 付きで呼ぶ。各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。ルート
-`README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
+**正本**: **`001_chronograma_schema.sql` 1 本**（`lists` / `list_sections` / `tasks` / `habits` /
+`push_subscriptions` / `google_oauth` / `notion_connection`、インデックス、RLS）。SQL Editor で全体を 1 回流す想定。
+利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` はクライアント向けポリシーなし（Edge Function が
+service_role で読み書き）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。一覧の短い説明は **`supabase/migrations/README.md`**。
+ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
 ## 環境変数（`.env.example`）
 
