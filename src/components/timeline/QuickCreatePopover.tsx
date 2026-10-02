@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDismiss } from '../../hooks/useDismiss'
+import { anchoredCardClass } from '../ui/surface'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
@@ -64,17 +66,10 @@ export function QuickCreatePopover({
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  useDismiss({ open: true, onClose, inside: [ref] })
   useEffect(() => {
     inputRef.current?.focus()
-    const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    const id = window.setTimeout(() => window.addEventListener('pointerdown', onDown), 0)
-    return () => {
-      window.clearTimeout(id)
-      window.removeEventListener('pointerdown', onDown)
-    }
-  }, [onClose])
+  }, [])
 
   const save = (openDetail: boolean) => {
     if (asLog) {
@@ -114,9 +109,7 @@ export function QuickCreatePopover({
       ref={ref}
       role="dialog"
       aria-label={asLog ? t('quickCreate.logAria') : t('quickCreate.aria')}
-      className={`fixed z-[60] border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-700 dark:bg-zinc-800 ${
-        sheet ? 'animate-sheet-in rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'animate-pop-in rounded-2xl'
-      }`}
+      className={`${anchoredCardClass(sheet)} p-4`}
       style={style}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose()

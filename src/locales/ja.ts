@@ -684,7 +684,6 @@ export default {
     signOut: 'ログアウト',
     signOutUnsynced: 'まだクラウドに送れていない変更があります。ログアウトするとこの端末からは消えます（設定 → データ の自動バックアップ「ログアウトの直前」から戻せます）。ログアウトしますか？',
     signIn: 'ログイン',
-    closeOverlay: '閉じる',
     checking: 'ログイン状態を確認中…',
     signedIn: 'ログイン中',
     notSignedIn: '未ログイン',

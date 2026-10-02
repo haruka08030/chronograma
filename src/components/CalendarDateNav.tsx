@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   addMonths,
@@ -13,7 +13,8 @@ import {
   subMonths,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
-import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -80,19 +81,7 @@ export function CalendarDateNav({
   const panelRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
-  useEscapeLayer(() => setOpen(false), open)
-
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node
-      if (panelRef.current?.contains(t)) return
-      if (triggerRef.current?.contains(t)) return
-      setOpen(false)
-    }
-    window.addEventListener('pointerdown', onPointerDown, true)
-    return () => window.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open])
+  useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, triggerRef] })
 
   const periodLabel =
     mode === 'month'
@@ -171,14 +160,14 @@ export function CalendarDateNav({
             id={listId}
             role="dialog"
             aria-label={t('calendarHub.miniPickerTitle')}
-            className="absolute left-0 top-full z-50 mt-1 w-[min(100vw-1.5rem,280px)] rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+            className={`absolute left-0 top-full z-50 mt-1 w-[min(100vw-1.5rem,280px)] p-2 ${POPOVER_PANEL}`}
           >
             <div className="mb-2 flex items-center justify-between gap-1 px-0.5">
               <button
                 type="button"
                 aria-label={t('calendarHub.miniPickerPrevMonthAria')}
                 onClick={() => setPickerMonth((m) => subMonths(m, 1))}
-                className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
@@ -189,7 +178,7 @@ export function CalendarDateNav({
                 type="button"
                 aria-label={t('calendarHub.miniPickerNextMonthAria')}
                 onClick={() => setPickerMonth((m) => addMonths(m, 1))}
-                className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 <ChevronRightIcon className="h-4 w-4" />
               </button>
@@ -215,7 +204,7 @@ export function CalendarDateNav({
                     className={`flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors
                       ${!inMonth ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-800 dark:text-zinc-100'}
                       ${dayMarkerClass({ today, selected })}
-                      ${!today && !selected ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : ''}`}
+                      ${!today && !selected ? 'hover:bg-zinc-100 dark:hover:bg-zinc-700' : ''}`}
                   >
                     {format(day, 'd')}
                   </button>

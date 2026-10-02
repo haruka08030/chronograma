@@ -10,7 +10,8 @@ import { TimeInput } from '../TimeInput'
 import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, confirmRemoveGoogleEvent, moveGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
-import { useEscapeLayer } from '../../hooks/useEscapeLayer'
+import { useDismiss } from '../../hooks/useDismiss'
+import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, TrashIcon } from '../icons'
 
 const WIDTH = 320
@@ -38,7 +39,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }, [eventId])
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
-  useEscapeLayer(onClose)
+  useDismiss({ open: true, onClose, inside: [ref] })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -55,16 +56,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         }
       }
     }
-    const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('[data-popover-keep]')) onClose()
-    }
     window.addEventListener('keydown', onKey)
-    const id = window.setTimeout(() => window.addEventListener('pointerdown', onDown), 0)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.clearTimeout(id)
-      window.removeEventListener('pointerdown', onDown)
-    }
+    return () => window.removeEventListener('keydown', onKey)
   }, [onClose, eventId])
 
   useEffect(() => {
@@ -120,9 +113,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       role="dialog"
       aria-label={event.summary}
       tabIndex={-1}
-      className={`fixed z-[60] border border-zinc-200 bg-white shadow-2xl outline-none dark:border-zinc-700 dark:bg-zinc-800 ${
-        sheet ? 'animate-sheet-in rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'animate-pop-in rounded-2xl'
-      }`}
+      className={anchoredCardClass(sheet)}
       style={style}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">

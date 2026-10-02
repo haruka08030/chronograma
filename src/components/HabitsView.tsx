@@ -573,7 +573,7 @@ export function HabitsView() {
                 : key
               // 丸の塗りは達成の色なので、今日は曜日の文字で、選んだ日は枠で示す（カレンダーと同じ藍）
               const ringClass = isCellFocus
-                ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900'
+                ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-transparent'
                 : ''
               return (
                 <button

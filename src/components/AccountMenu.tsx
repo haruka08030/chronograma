@@ -1,5 +1,7 @@
 import type { FormEvent } from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
@@ -16,6 +18,8 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  useDismiss({ open, onClose: () => setOpen(false), inside: [wrapRef] })
 
   if (!isSupabaseConfigured) return null
 
@@ -117,24 +121,19 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   }
 
   return (
-    <div className="relative">
+    <div ref={wrapRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className={buttonClass({ variant: 'secondary', size: 'sm' })}
       >
         {t('account.signIn')}
       </button>
       {open && (
         <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            aria-label={t('account.closeOverlay')}
-            onClick={() => setOpen(false)}
-          />
           <div
-            className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 ${
+            className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
               isSettings ? 'left-0' : 'right-0'
             }`}
             onClick={(e) => e.stopPropagation()}

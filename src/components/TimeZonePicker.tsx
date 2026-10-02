@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
 
 const LIST_HEIGHT = 280
@@ -90,19 +92,12 @@ export function TimeZonePicker({
     listRef.current?.querySelector<HTMLElement>(`[data-index="${highlight}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [highlight, open])
 
+  useDismiss({ open, onClose: close, inside: [popRef, wrapRef] })
   useEffect(() => {
     if (!open) return
-    const onDown = (e: PointerEvent) => {
-      const target = e.target as Node
-      if (popRef.current?.contains(target) || wrapRef.current?.contains(target)) return
-      close()
-    }
-    window.addEventListener('pointerdown', onDown, true)
+    // 開いた位置を固定しているので、画面の大きさが変わったら閉じる
     window.addEventListener('resize', close)
-    return () => {
-      window.removeEventListener('pointerdown', onDown, true)
-      window.removeEventListener('resize', close)
-    }
+    return () => window.removeEventListener('resize', close)
   }, [open])
 
   const pick = (tz: string | null) => {
@@ -131,7 +126,7 @@ export function TimeZonePicker({
           ref={popRef}
           role="dialog"
           aria-label={ariaLabel}
-          className="fixed z-[80] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-800"
+          className={`fixed z-[80] overflow-hidden ${POPOVER_PANEL}`}
           style={{ left: pos.left, top: pos.top, width: Math.min(WIDTH, window.innerWidth - 16) }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {

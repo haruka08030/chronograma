@@ -1,4 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
@@ -228,6 +230,8 @@ export function TaskList() {
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
+  useDismiss({ open: showSort, onClose: () => setShowSort(false), inside: [sortMenuRef] })
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
@@ -1015,8 +1019,10 @@ export function TaskList() {
                 {t('taskList.addSection')}
               </button>
             )}
-            <div className="relative">
+            <div ref={sortMenuRef} className="relative">
             <button
+              type="button"
+              aria-expanded={showSort}
               onClick={() => setShowSort(!showSort)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg
                          text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -1028,9 +1034,7 @@ export function TaskList() {
             </button>
             {showSort && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowSort(false)} />
-                <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-800 rounded-lg shadow-lg
-                                border border-zinc-200 dark:border-zinc-700 py-1 min-w-[120px]">
+                <div className={`absolute right-0 top-full z-20 mt-1 min-w-[120px] py-1 ${POPOVER_PANEL}`}>
                   {sortOptions.map((opt) => (
                     <button
                       key={opt.value}

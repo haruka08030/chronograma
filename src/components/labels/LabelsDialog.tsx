@@ -63,7 +63,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <Modal onClose={onClose} labelledBy="labels-title" className="flex max-h-[min(86vh,720px)] flex-col overflow-hidden">
-          <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-800">
+          <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-700">
             <ModalTitle id="labels-title">{t('labels.title')}</ModalTitle>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">

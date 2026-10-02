@@ -61,7 +61,7 @@
 | 切り替えタブ | **済（2026-10-02）**: `components/ui/Segmented.tsx` に移し、設定（テーマ・言語）・月/週・予定/記録・スマホのやること/タイムラインで共通に（`role` tab/radio・`size`・`fullWidth`）。予定/記録に読み上げ名を足し、日本語の「ToDo」表記を「To-Do」にそろえた | `Segmented` を `components/ui/` へ移して使い回す |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
 | モーダル | **済（2026-10-02）**: `components/ui/Modal.tsx`（`Modal`・`ModalTitle`）に統一し `labels/ModalLayer` は廃止。ラベル・色を選択・完了＋記録・ショートカット一覧の 4 つが、同じ背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す、になった。完了＋記録のラジオもブラウザの青から墨色に | `ModalLayer` を共通の `Modal` に |
-| ポップオーバー | 予定カード 3 種が同じ外枠 class と「外を押す・Esc で閉じる」effect を重複。ドロップダウン 7 種で角・影・ダークの背景が違う | `AnchoredCard`・`popoverPanel` 定数・`useDismiss` |
+| ポップオーバー | **済（2026-10-02）**: 浮く面は `components/ui/surface.ts`（`FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`）、閉じ方は `hooks/useDismiss.ts`（外側を押す・Esc は一番上だけ・`data-popover-keep` は内側）に統一。予定カード 3 種、日付ピッカー、ミニカレンダー、タイムゾーン、色とラベル、行メニュー、並べ替え、リストの色、分類の色、アカウント。ダークの背景はダイアログも含めて zinc-800（下の画面より一段明るく）。全面の透明ボタンで閉じていたもの（アカウント・並べ替え）も同じ仕組みに | `AnchoredCard`・`popoverPanel` 定数・`useDismiss` |
 | 月カレンダー | `DueDatePopover` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。見た目（大きさ・見出し・＜＞の位置）も違う | `lib/monthGrid.ts`・`MiniMonthCalendar` |
 | 日付の移動（＜ 今日 ＞） | 今日画面・週のふりかえり・習慣・カレンダーで 4 通り | `DayNav` |
 | 色選択 | 5 か所（`ColorPalette`、`HabitsView` の `ColorPicker`、`SelectColorDialog`、`TodoNavPanel` の `ColorPicker`、`CategoryManager`）で列数・大きさ・選択中の印が違う | `SwatchGrid` |
@@ -102,7 +102,7 @@
 
 ### ポップオーバー・モーダルの閉じ方
 - 外を押す・Esc の扱いが部品ごとに違う（Esc が入力中も効くもの・効かないもの、`data-popover-keep` を見るもの・見ないもの、`mousedown` と `pointerdown`、全面の透明ボタン）
-- Esc が無い: `ColorLabelPicker`、`TaskItem` の行メニュー、`TodoNavPanel` の色選択、`AccountMenu`
+- ~~Esc が無い: `ColorLabelPicker`、`TaskItem` の行メニュー、`TodoNavPanel` の色選択、`AccountMenu`~~ → `useDismiss` で済。リストの色・分類の色は外側を押しても閉じなかったのも直した
 - `ModalLayer` がいちばん整っている（`aria-modal`・Esc・背景クリック・フォーカスを戻す）。フォーカスの閉じ込めはどこにも無い
 - → `useDismiss(ref, onClose, { escape, outside, keepSelector })`
 
