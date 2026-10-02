@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { paletteColors } from '../lib/listColorPalettes'
 import { appTimeZone } from '../lib/timeZone'
 import {
+  canvasListName,
   CanvasRequestError,
   fetchCanvasItems,
   markCanvasComplete,
@@ -21,15 +22,15 @@ const WRITE_DELAY_MS = 5_000
 const FIRST_SYNC_WAIT_MS = 10_000
 
 export type CanvasSyncState = {
-  /** null はまだ確認していない */
-  connected: boolean | null
   syncing: boolean
   lastSyncedAt: string | null
-  /** サーバーのエラーコード（`canvas_unauthorized` など）か、その他のメッセージ */
+  /** 全体のエラー。サーバーのエラーコード（`canvas_api` など）か、その他のメッセージ */
   error: string | null
+  /** 学校ごとのエラーコード（`canvas_unauthorized` など）。キーは接続 ID */
+  connectionErrors: Record<string, string>
 }
 
-let syncState: CanvasSyncState = { connected: null, syncing: false, lastSyncedAt: null, error: null }
+let syncState: CanvasSyncState = { syncing: false, lastSyncedAt: null, error: null, connectionErrors: {} }
 const listeners = new Set<() => void>()
 let requestSync: (() => void) | null = null
 
@@ -54,7 +55,7 @@ export function useCanvasSyncState(): CanvasSyncState {
 }
 
 /**
- * Canvas の課題を Canvas 用リストに取り込み、そのリストのタスクの完了を Canvas の To Do に書き戻す。
+ * つないだ学校ごとに Canvas の課題をその学校のリストに取り込み、タスクの完了を Canvas の To Do に書き戻す。
  */
 export function useCanvasSync() {
   const { user, loading } = useAuth()
@@ -62,7 +63,7 @@ export function useCanvasSync() {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !userId || loading) {
-      setSyncState({ connected: null, lastSyncedAt: null, error: null })
+      setSyncState({ lastSyncedAt: null, error: null, connectionErrors: {} })
       return
     }
 
@@ -85,29 +86,34 @@ export function useCanvasSync() {
           rerun = false
           const res = await fetchCanvasItems()
           if (cancelled) return
-          if (!res.connected) {
-            setSyncState({ connected: false, error: null })
-            continue
-          }
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
           const cols = paletteColors(s.listColorPaletteId)
-          const result = reconcileCanvasItems(
-            { lists: s.lists, sections: s.sections, tasks: s.tasks },
-            res,
-            {
+          let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
+          let changed = false
+          const connectionErrors: Record<string, string> = {}
+          for (const conn of res.connections) {
+            if ('error' in conn) {
+              connectionErrors[conn.id] = conn.error
+              continue
+            }
+            const result = reconcileCanvasItems(next, conn, {
               now: new Date().toISOString(),
-              listName: 'Canvas',
-              listColor: cols[s.lists.length % cols.length],
+              listName: canvasListName(conn.id, next.lists),
+              listColor: cols[next.lists.length % cols.length],
               timeZone: appTimeZone(),
               untitled: i18n.t('canvas.untitled'),
               // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
               skipIds: new Set(pendingWrite.keys()),
-            },
-          )
-          result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
-          if (result.changed) useTaskStore.setState({ lists: result.lists, sections: result.sections, tasks: result.tasks })
-          setSyncState({ connected: true, lastSyncedAt: new Date().toISOString(), error: null })
+            })
+            result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
+            if (result.changed) {
+              next = { lists: result.lists, sections: result.sections, tasks: result.tasks }
+              changed = true
+            }
+          }
+          if (changed) useTaskStore.setState(next)
+          setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {
         if (cancelled) return
@@ -119,7 +125,7 @@ export function useCanvasSync() {
       }
     }
 
-    const write = (taskId: string, type: string, id: string) => {
+    const write = (taskId: string, connectionId: string, type: string, id: string) => {
       clearTimeout(pendingWrite.get(taskId))
       pendingWrite.set(
         taskId,
@@ -130,7 +136,7 @@ export function useCanvasSync() {
             return
           }
           // 猶予のあいだに付け外しを繰り返しても、最後の状態だけを書く
-          markCanvasComplete(type, id, task.completed)
+          markCanvasComplete(connectionId, type, id, task.completed)
             .catch((e) => {
               console.error('[canvas] complete', e)
               if (!cancelled) setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : String(e) })
@@ -152,7 +158,7 @@ export function useCanvasSync() {
         // 新しく現れたタスク（取り込み・他の端末からの同期）や、完了が変わっていないものは対象外
         if (before === undefined || before === t.completed) continue
         if (t.completed && autoCompleted.delete(t.id)) continue
-        write(t.id, parsed.type, parsed.id)
+        write(t.id, parsed.connectionId, parsed.type, parsed.id)
       }
     })
 

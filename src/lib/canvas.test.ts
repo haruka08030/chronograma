@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import {
-  CANVAS_LIST_ID,
   canvasDue,
+  canvasListId,
+  canvasListName,
   canvasSectionId,
   canvasTaskId,
   parseCanvasTaskId,
@@ -12,7 +13,8 @@ import {
 } from './canvas'
 
 const NOW = '2026-10-02T00:00:00.000Z'
-const WINDOW = { windowStart: '2026-09-02', windowEnd: '2027-01-30' }
+const CONN = 'school.instructure.com'
+const WINDOW = { id: CONN, windowStart: '2026-09-02', windowEnd: '2027-01-30' }
 const inbox: TaskList = { id: 'inbox', name: 'Inbox', color: '#000000', order: 0 }
 const opts = { now: NOW, listName: 'Canvas', listColor: '#123456', timeZone: 'Asia/Tokyo', untitled: '（無題）' }
 
@@ -41,9 +43,13 @@ function imported(items: CanvasItem[]) {
 
 describe('canvasTaskId', () => {
   it('round-trips and ignores ordinary ids', () => {
-    expect(parseCanvasTaskId(canvasTaskId('discussion_topic', '42'))).toEqual({ type: 'discussion_topic', id: '42' })
-    expect(parseCanvasTaskId('canvas-list')).toBeNull()
-    expect(parseCanvasTaskId('canvas-course-101')).toBeNull()
+    expect(parseCanvasTaskId(canvasTaskId('my-school.instructure.com', 'discussion_topic', '42'))).toEqual({
+      connectionId: 'my-school.instructure.com',
+      type: 'discussion_topic',
+      id: '42',
+    })
+    expect(parseCanvasTaskId(canvasListId(CONN))).toBeNull()
+    expect(parseCanvasTaskId(canvasSectionId(CONN, '101'))).toBeNull()
   })
 })
 
@@ -57,11 +63,11 @@ describe('canvasDue', () => {
 describe('reconcileCanvasItems', () => {
   it('creates the list, a section per course, and open assignments', () => {
     const r = reconcile([], [item('1'), item('2', { courseId: '202', courseName: '統計学' }), item('3', { done: true })])
-    expect(r.lists.find((l) => l.id === CANVAS_LIST_ID)?.name).toBe('Canvas')
+    expect(r.lists.find((l) => l.id === canvasListId(CONN))?.name).toBe('Canvas')
     expect(r.sections.map((s) => s.name)).toEqual(['経済学入門', '統計学'])
-    expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId('assignment', '1'), canvasTaskId('assignment', '2')])
+    expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(CONN, 'assignment', '2')])
     const first = r.tasks[0]
-    expect(first).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: canvasSectionId('101'), dueDate: '2026-10-05', dueTime: '23:59' })
+    expect(first).toMatchObject({ listId: canvasListId(CONN), sectionId: canvasSectionId(CONN, '101'), dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')
   })
 
@@ -75,7 +81,7 @@ describe('reconcileCanvasItems', () => {
     const tasks = imported([item('1')])
     const r = reconcile(tasks, [item('1', { done: true })])
     expect(r.tasks[0].completed).toBe(true)
-    expect(r.autoCompletedIds).toEqual([canvasTaskId('assignment', '1')])
+    expect(r.autoCompletedIds).toEqual([canvasTaskId(CONN, 'assignment', '1')])
   })
 
   it('does not reopen a task the user completed', () => {
@@ -93,8 +99,8 @@ describe('reconcileCanvasItems', () => {
   it('completes assignments that vanished inside the window, but keeps old overdue ones', () => {
     const tasks = imported([item('1'), item('2', { dueAt: '2026-08-01T14:59:59Z' })])
     const r = reconcile(tasks, [])
-    expect(r.tasks.find((t) => t.id === canvasTaskId('assignment', '1'))?.completed).toBe(true)
-    expect(r.tasks.find((t) => t.id === canvasTaskId('assignment', '2'))?.completed).toBe(false)
+    expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '1'))?.completed).toBe(true)
+    expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
   it('reuses an existing course section instead of adding another', () => {
@@ -106,5 +112,20 @@ describe('reconcileCanvasItems', () => {
     )
     expect(r.sections).toHaveLength(1)
     expect(r.tasks).toHaveLength(2)
+  })
+
+  it('keeps two schools apart: separate lists, and one school never completes the other’s tasks', () => {
+    const OTHER = 'other.instructure.com'
+    const a = reconcile([], [item('1')])
+    const b = reconcileCanvasItems(
+      { lists: a.lists, sections: a.sections, tasks: a.tasks },
+      { id: OTHER, windowStart: WINDOW.windowStart, windowEnd: WINDOW.windowEnd, items: [item('1')] },
+      { ...opts, listName: canvasListName(OTHER, a.lists) },
+    )
+    expect(b.lists.filter((l) => l.id.startsWith('canvas-list-')).map((l) => l.name)).toEqual(['Canvas', 'Canvas（other）'])
+    expect(b.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(OTHER, 'assignment', '1')])
+    // 1 校目が空で返っても、2 校目のタスクは完了にしない
+    const c = reconcileCanvasItems({ lists: b.lists, sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
+    expect(c.tasks.map((t) => t.completed)).toEqual([true, false])
   })
 })

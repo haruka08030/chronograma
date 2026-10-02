@@ -190,14 +190,16 @@ create table if not exists public.notion_connection (
 
 
 -- ===========================================================================
--- canvas_connection（Canvas LMS のアクセストークンと学校の URL。サーバー専用）
+-- canvas_connection（Canvas LMS のアクセストークンと学校の URL。学校ごとに 1 行。サーバー専用）
 -- ===========================================================================
 create table if not exists public.canvas_connection (
-  user_id    uuid primary key references auth.users (id) on delete cascade,
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  id         text not null,  -- 学校の Canvas のホスト名 'xxx.instructure.com'
   base_url   text not null,  -- 'https://xxx.instructure.com'
   token      text not null,
   user_name  text,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id)
 );
 
 

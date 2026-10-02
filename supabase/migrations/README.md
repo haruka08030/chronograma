@@ -11,7 +11,7 @@
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders` |
 | `google_oauth` | Google カレンダーのリフレッシュトークン。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |
 | `notion_connection` | Notion の統合トークンと対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |
-| `canvas_connection` | Canvas LMS のアクセストークンと学校の URL。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
+| `canvas_connection` | Canvas LMS のアクセストークンと学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 
 **メモ**
 

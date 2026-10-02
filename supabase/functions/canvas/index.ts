@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
- * アクセストークン（最長 90 日）は canvas_connection に置き、ブラウザには返さない。
+ * 学校（ホスト名）ごとに 1 つつなげる。アクセストークン（最長 90 日）は canvas_connection に置き、ブラウザには返さない。
  */
 
 /** タスクにする種類。お知らせ・カレンダーの予定は「やること」ではないので外す */
@@ -199,57 +199,83 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey)
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
+    const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
 
-    const loadRow = async () => {
+    type Row = { id: string; base_url: string; token: string; user_name: string | null }
+    const loadRows = async (): Promise<Row[]> => {
       const { data, error } = await admin
         .from('canvas_connection')
-        .select('base_url, token, user_name')
+        .select('id, base_url, token, user_name')
         .eq('user_id', user.id)
-        .maybeSingle()
+        .order('updated_at')
       if (error) throw new Error(error.message)
-      return data as { base_url: string; token: string; user_name: string | null } | null
+      return (data ?? []) as Row[]
     }
+    /** 設定画面に返す形。トークンは含めない */
+    const describe = (rows: Row[]) => ({
+      ok: true,
+      connections: rows.map((r) => ({ id: r.id, baseUrl: r.base_url, userName: r.user_name })),
+    })
 
     if (action === 'connect') {
       const token = (body.token as string | undefined)?.trim()
-      // トークンだけ貼り直すときは、つないであった URL を使う
-      const prev = body.baseUrl ? null : await loadRow()
+      // connectionId があれば、その学校のトークンだけ貼り直す
+      const prev = connectionId ? (await loadRows()).find((r) => r.id === connectionId) : null
+      if (connectionId && !prev) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
       const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
       if (!baseUrl) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
       if (!token) return jsonResponse({ ok: false, code: 'canvas_unauthorized' })
       const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
-      const userName = self.name ?? null
       const { error } = await admin.from('canvas_connection').upsert(
-        { user_id: user.id, base_url: baseUrl, token, user_name: userName, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
+        {
+          user_id: user.id,
+          id: new URL(baseUrl).host,
+          base_url: baseUrl,
+          token,
+          user_name: self.name ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,id' },
       )
       if (error) throw new Error(error.message)
-      return jsonResponse({ ok: true, connected: true, baseUrl, userName })
+      return jsonResponse(describe(await loadRows()))
     }
 
     if (action === 'disconnect') {
-      const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id)
+      if (!connectionId) return jsonResponse({ ok: false, error: 'connectionId is required' }, 400)
+      const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
       if (error) return jsonResponse({ ok: false, error: error.message }, 500)
-      return jsonResponse({ ok: true })
+      return jsonResponse(describe(await loadRows()))
     }
 
-    const row = await loadRow()
-    if (!row) return jsonResponse({ ok: true, connected: false })
+    const rows = await loadRows()
 
     if (action === 'status') {
       // トークンの期限切れは同期のエラーで分かるので、ここでは Canvas を呼ばない
-      return jsonResponse({ ok: true, connected: true, baseUrl: row.base_url, userName: row.user_name })
+      return jsonResponse(describe(rows))
     }
 
     if (action === 'items') {
-      return jsonResponse({ ok: true, connected: true, ...(await plannerItems(row.base_url, row.token)) })
+      // 1 校のトークンが切れていても、ほかの学校は取り込む
+      const connections = await Promise.all(
+        rows.map(async (r) => {
+          try {
+            return { id: r.id, ...(await plannerItems(r.base_url, r.token)) }
+          } catch (e) {
+            if (!(e instanceof CanvasError)) throw e
+            return { id: r.id, error: e.code }
+          }
+        }),
+      )
+      return jsonResponse({ ok: true, connections })
     }
 
     if (action === 'complete') {
+      const row = rows.find((r) => r.id === connectionId)
       const type = body.type as string | undefined
       const id = String(body.id ?? '')
-      if (!type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
-        return jsonResponse({ ok: false, error: 'type, id and complete are required' }, 400)
+      if (!row || !type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
+        return jsonResponse({ ok: false, error: 'connectionId, type, id and complete are required' }, 400)
       }
       await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
       return jsonResponse({ ok: true })

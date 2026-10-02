@@ -8,15 +8,19 @@ import {
   connectCanvas,
   disconnectCanvas,
   fetchCanvasStatus,
+  renewCanvasToken,
+  type CanvasConnection,
   type CanvasStatus,
 } from '../../lib/canvas'
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
 import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 
+const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
+
 /**
- * Canvas LMS 連携。学校の Canvas の URL とアクセストークンを貼ってつなぐ。
- * トークンは最長 90 日で切れるので、切れたら同じ場所でトークンだけ貼り直せるようにする。
+ * Canvas LMS 連携。学校の Canvas の URL とアクセストークンを貼ってつなぐ。学校ごとに 1 つ、いくつでもつなげる。
+ * トークンは最長 90 日で切れるので、切れた学校の下でトークンだけ貼り直せるようにする。
  * 取り込み自体は useCanvasSync が行う。
  */
 export function CanvasSettings() {
@@ -24,8 +28,10 @@ export function CanvasSettings() {
   const { user } = useAuth()
   const sync = useCanvasSyncState()
   const [status, setStatus] = useState<CanvasStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  /** 接続・解除・貼り直しのエラー。キーは接続 ID、新しくつなぐときは 'new' */
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   const errorText = (code: string | null | undefined) =>
     code ? t(`canvas.errors.${code}`, { defaultValue: t('canvas.errors.generic') }) : null
@@ -38,8 +44,8 @@ export function CanvasSettings() {
       .then((s) => !cancelled && setStatus(s))
       .catch((e) => {
         if (cancelled) return
-        setStatus({ connected: false })
-        setError(toMessage(e))
+        setStatus({ connections: [] })
+        setErrors({ new: toMessage(e) })
       })
     return () => {
       cancelled = true
@@ -48,99 +54,135 @@ export function CanvasSettings() {
 
   if (!isSupabaseConfigured) return null
 
-  const connect = async (token: string, baseUrl?: string) => {
+  /** key: エラーを出す場所（接続 ID か 'new'） */
+  const act = async (key: string, fn: () => Promise<CanvasStatus>) => {
     setBusy(true)
-    setError(null)
+    setErrors({})
     try {
-      setStatus(await connectCanvas(token, baseUrl))
+      setStatus(await fn())
+      setAdding(false)
       requestCanvasSync()
     } catch (e) {
-      setError(toMessage(e))
+      setErrors({ [key]: toMessage(e) })
     } finally {
       setBusy(false)
     }
   }
 
-  const disconnect = async () => {
-    if (!window.confirm(t('canvas.disconnectConfirm'))) return
-    setBusy(true)
-    try {
-      await disconnectCanvas()
-      setStatus({ connected: false })
-      requestCanvasSync()
-    } catch (e) {
-      setError(toMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const syncError = status?.connected ? sync.error : null
-  // 期限切れ（つないだあとに切れた）ときは、トークンだけ貼り直す欄を出す
-  const expired = syncError === 'canvas_unauthorized' || (status?.connected && error === 'canvas_unauthorized')
-  const shownError = errorText(error) ?? errorText(syncError)
+  const connections = status?.connections ?? []
+  const syncCell = (
+    <SettingsRow
+      label={t('canvas.syncNow')}
+      help={
+        sync.syncing
+          ? t('canvas.syncing')
+          : sync.lastSyncedAt
+            ? t('canvas.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
+            : undefined
+      }
+    >
+      <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={sync.syncing} onClick={() => requestCanvasSync()}>
+        {t('canvas.syncNowAction')}
+      </button>
+    </SettingsRow>
+  )
 
   const body = !user ? (
     <SettingsRow label={t('canvas.needsLogin')} />
   ) : status === null ? (
     <SettingsRow label={t('common.loading')} />
-  ) : status.connected ? (
+  ) : connections.length === 0 ? (
     <>
-      <SettingsRow
-        label={
-          status.userName
-            ? t('canvas.connectedAs', { name: status.userName, host: new URL(status.baseUrl).host })
-            : t('canvas.connectedTo', { host: new URL(status.baseUrl).host })
-        }
-      >
-        <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={disconnect}>
-          {t('canvas.disconnect')}
-        </button>
-      </SettingsRow>
-      {expired ? (
-        <TokenForm busy={busy} baseUrl={status.baseUrl} renew onSubmit={(token) => connect(token)} />
+      <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} />
+      {errorText(errors.new) && <p className={errorClass}>{errorText(errors.new)}</p>}
+    </>
+  ) : (
+    <>
+      {connections.map((c) => (
+        <ConnectionRows
+          key={c.id}
+          connection={c}
+          busy={busy}
+          // 貼り直しに失敗したときは、その失敗を優先して出す
+          error={errors[c.id] ?? sync.connectionErrors[c.id] ?? null}
+          errorText={errorText}
+          onRenew={(token) => act(c.id, () => renewCanvasToken(c.id, token))}
+          onDisconnect={() => {
+            if (window.confirm(t('canvas.disconnectConfirm', { host: new URL(c.baseUrl).host }))) void act(c.id, () => disconnectCanvas(c.id))
+          }}
+        />
+      ))}
+      {adding ? (
+        <>
+          <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} onCancel={() => setAdding(false)} />
+          {errorText(errors.new) && <p className={errorClass}>{errorText(errors.new)}</p>}
+        </>
       ) : (
-        <SettingsRow
-          label={t('canvas.syncNow')}
-          help={
-            sync.syncing
-              ? t('canvas.syncing')
-              : sync.lastSyncedAt
-                ? t('canvas.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
-                : undefined
-          }
-        >
-          <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={sync.syncing} onClick={() => requestCanvasSync()}>
-            {t('canvas.syncNowAction')}
+        <SettingsRow label={t('canvas.addAnother')}>
+          <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => setAdding(true)}>
+            {t('canvas.add')}
           </button>
         </SettingsRow>
       )}
+      {syncCell}
     </>
-  ) : (
-    <TokenForm busy={busy} onSubmit={connect} />
   )
+
+  const syncError = connections.length > 0 ? errorText(sync.error) : null
 
   return (
     <SettingsGroup id="settings-canvas" title={t('canvas.title')}>
       {body}
-      {shownError && <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{shownError}</p>}
+      {syncError && <p className={errorClass}>{syncError}</p>}
     </SettingsGroup>
   )
 }
 
-/** 初めてつなぐときは URL とトークン、貼り直す（renew）ときはトークンだけ */
+function ConnectionRows({
+  connection,
+  busy,
+  error,
+  errorText,
+  onRenew,
+  onDisconnect,
+}: {
+  connection: CanvasConnection
+  busy: boolean
+  error: string | null
+  errorText: (code: string | null) => string | null
+  onRenew: (token: string) => void
+  onDisconnect: () => void
+}) {
+  const { t } = useTranslation()
+  const host = new URL(connection.baseUrl).host
+  return (
+    <>
+      <SettingsRow label={host} help={connection.userName ?? undefined}>
+        <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={onDisconnect}>
+          {t('canvas.disconnect')}
+        </button>
+      </SettingsRow>
+      {/* 期限切れ（つないだあとに切れた）ときは、トークンだけ貼り直す欄を出す */}
+      {error === 'canvas_unauthorized' && <TokenForm busy={busy} baseUrl={connection.baseUrl} onSubmit={(token) => onRenew(token)} />}
+      {errorText(error) && <p className={errorClass}>{errorText(error)}</p>}
+    </>
+  )
+}
+
+/** 新しくつなぐときは URL とトークン、つないだ学校の貼り直し（baseUrl あり）はトークンだけ */
 function TokenForm({
   busy,
   baseUrl,
-  renew = false,
   onSubmit,
+  onCancel,
 }: {
   busy: boolean
   baseUrl?: string
-  renew?: boolean
-  onSubmit: (token: string, baseUrl?: string) => void
+  onSubmit: (token: string, baseUrl: string) => void
+  onCancel?: () => void
 }) {
   const { t } = useTranslation()
+  const renew = baseUrl !== undefined
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
   const ready = token.trim() !== '' && (renew || url.trim() !== '')
@@ -161,7 +203,7 @@ function TokenForm({
       className="space-y-3 px-4 py-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (ready) onSubmit(token.trim(), renew ? undefined : url.trim())
+        if (ready) onSubmit(token.trim(), baseUrl ?? url.trim())
       }}
     >
       <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
@@ -201,7 +243,12 @@ function TokenForm({
           className={field}
         />
       </label>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+            {t('common.cancel')}
+          </button>
+        )}
         <button type="submit" disabled={busy || !ready} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
           {busy ? t('canvas.connecting') : t(renew ? 'canvas.renew' : 'canvas.connect')}
         </button>

@@ -9,17 +9,16 @@ import { wallInZone } from './timeZone'
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
- * タスクの id は `canvas-<種類>-<ID>`、コースのセクションは `canvas-course-<コースID>` に決め打ちする。
+ * 学校（ホスト名）ごとに 1 つつなぎ、リストも学校ごとに分ける。id は接続 ID（ホスト名）を入れて決め打ちする:
+ * リスト `canvas-list-<接続>`、セクション `canvas-course-<接続>-<コースID>`、タスク `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
 
-export const CANVAS_LIST_ID = 'canvas-list'
+const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
 
-const TASK_ID_RE = /^canvas-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
+export type CanvasConnection = { id: string; baseUrl: string; userName: string | null }
 
-export type CanvasStatus =
-  | { connected: false }
-  | { connected: true; baseUrl: string; userName: string | null }
+export type CanvasStatus = { connections: CanvasConnection[] }
 
 export type CanvasItem = {
   type: string
@@ -34,9 +33,12 @@ export type CanvasItem = {
   done: boolean
 }
 
-export type CanvasItemsPayload =
-  | { connected: false }
-  | { connected: true; windowStart: string; windowEnd: string; items: CanvasItem[] }
+export type CanvasConnectionItems = { id: string; windowStart: string; windowEnd: string; items: CanvasItem[] }
+
+/** 学校ごとの結果。取れなかった学校は `error`（`canvas_unauthorized` など）だけ */
+export type CanvasItemsPayload = {
+  connections: Array<CanvasConnectionItems | { id: string; error: string }>
+}
 
 /** サーバーが返すエラーコード。画面ではこれを訳して出す */
 export class CanvasRequestError extends Error {
@@ -72,25 +74,38 @@ async function invokeCanvas<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export const fetchCanvasStatus = () => invokeCanvas<CanvasStatus>({ action: 'status' })
-/** `baseUrl` を省くと、つないであった URL のままトークンだけ貼り直す */
-export const connectCanvas = (token: string, baseUrl?: string) =>
-  invokeCanvas<CanvasStatus>({ action: 'connect', token, ...(baseUrl ? { baseUrl } : {}) })
-export const disconnectCanvas = () => invokeCanvas<{ ok: true }>({ action: 'disconnect' })
+/** 新しくつなぐ（同じ学校ならつなぎ直し） */
+export const connectCanvas = (token: string, baseUrl: string) =>
+  invokeCanvas<CanvasStatus>({ action: 'connect', token, baseUrl })
+/** つないであった学校のトークンだけ貼り直す */
+export const renewCanvasToken = (connectionId: string, token: string) =>
+  invokeCanvas<CanvasStatus>({ action: 'connect', token, connectionId })
+export const disconnectCanvas = (connectionId: string) => invokeCanvas<CanvasStatus>({ action: 'disconnect', connectionId })
 export const fetchCanvasItems = () => invokeCanvas<CanvasItemsPayload>({ action: 'items' })
-export const markCanvasComplete = (type: string, id: string, complete: boolean) =>
-  invokeCanvas<{ ok: true }>({ action: 'complete', type, id, complete })
+export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
+  invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })
 
-export function canvasTaskId(type: string, id: string): string {
-  return `canvas-${type}-${id}`
+export function canvasListId(connectionId: string): string {
+  return `canvas-list-${connectionId}`
 }
 
-export function parseCanvasTaskId(id: string): { type: string; id: string } | null {
+export function canvasTaskId(connectionId: string, type: string, id: string): string {
+  return `canvas-${connectionId}-${type}-${id}`
+}
+
+export function parseCanvasTaskId(id: string): { connectionId: string; type: string; id: string } | null {
   const m = TASK_ID_RE.exec(id)
-  return m ? { type: m[1], id: m[2] } : null
+  return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
 }
 
-export function canvasSectionId(courseId: string): string {
-  return `canvas-course-${courseId}`
+export function canvasSectionId(connectionId: string, courseId: string): string {
+  return `canvas-course-${connectionId}-${courseId}`
+}
+
+/** リスト名。1 校目は「Canvas」、2 校目からは学校が分かるようにホスト名の頭を添える */
+export function canvasListName(connectionId: string, lists: { id: string }[]): string {
+  const others = lists.some((l) => l.id.startsWith('canvas-list-') && l.id !== canvasListId(connectionId))
+  return others ? `Canvas（${connectionId.split('.')[0]}）` : 'Canvas'
 }
 
 /** Canvas の締切（UTC の瞬間）を、アプリのタイムゾーンの期限日と締め切り時刻に */
@@ -111,7 +126,7 @@ export type CanvasReconcileResult = {
 }
 
 /**
- * Canvas の課題を、Canvas 用リストのタスクに合わせる。
+ * 1 校ぶんの Canvas の課題を、その学校のリストのタスクに合わせる。
  * - 未提出で無いものは作る（コースごとのセクションに入れる）。未完了のものはタイトル・期限を Canvas に合わせる
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
@@ -119,23 +134,25 @@ export type CanvasReconcileResult = {
  */
 export function reconcileCanvasItems(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
-  payload: { windowStart: string; windowEnd: string; items: CanvasItem[] },
+  payload: CanvasConnectionItems,
   opts: { now: string; listName: string; listColor: string; timeZone: string; untitled: string; skipIds?: ReadonlySet<string> },
 ): CanvasReconcileResult {
+  const conn = payload.id
+  const listId = canvasListId(conn)
   let changed = false
   let lists = state.lists
-  if (!lists.some((l) => l.id === CANVAS_LIST_ID)) {
+  if (!lists.some((l) => l.id === listId)) {
     const maxOrder = Math.max(0, ...lists.map((l) => l.order))
-    lists = [...lists, { id: CANVAS_LIST_ID, name: opts.listName, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now }]
+    lists = [...lists, { id: listId, name: opts.listName, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now }]
     changed = true
   }
 
   let sections = state.sections
   const ensureSection = (courseId: string, name: string | null): string => {
-    const id = canvasSectionId(courseId)
+    const id = canvasSectionId(conn, courseId)
     if (!sections.some((s) => s.id === id)) {
-      const maxOrder = Math.max(-1, ...sections.filter((s) => s.listId === CANVAS_LIST_ID).map((s) => s.order))
-      sections = [...sections, { id, listId: CANVAS_LIST_ID, name: name || opts.untitled, order: maxOrder + 1, updatedAt: opts.now }]
+      const maxOrder = Math.max(-1, ...sections.filter((s) => s.listId === listId).map((s) => s.order))
+      sections = [...sections, { id, listId, name: name || opts.untitled, order: maxOrder + 1, updatedAt: opts.now }]
     }
     return id
   }
@@ -146,7 +163,7 @@ export function reconcileCanvasItems(
   const updates = new Map<string, Task>()
   const additions: Task[] = []
   const autoCompletedIds: string[] = []
-  let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === CANVAS_LIST_ID).map((t) => t.order)) + 1
+  let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === listId).map((t) => t.order)) + 1
 
   const complete = (t: Task) => {
     updates.set(t.id, { ...t, completed: true, completedAt: opts.now, updatedAt: opts.now })
@@ -154,7 +171,7 @@ export function reconcileCanvasItems(
   }
 
   for (const item of payload.items) {
-    const id = canvasTaskId(item.type, item.id)
+    const id = canvasTaskId(conn, item.type, item.id)
     if (seen.has(id)) continue
     seen.add(id)
     const existing = byId.get(id)
@@ -178,7 +195,7 @@ export function reconcileCanvasItems(
         createdAt: opts.now,
         updatedAt: opts.now,
         order: nextOrder++,
-        listId: CANVAS_LIST_ID,
+        listId,
         sectionId: item.courseId ? ensureSection(item.courseId, item.courseName) : null,
         parentId: null,
         dueDate,
@@ -211,7 +228,7 @@ export function reconcileCanvasItems(
 
   for (const t of state.tasks) {
     if (t.completed || t.archivedAt || t.deletedAt || seen.has(t.id) || skip.has(t.id)) continue
-    if (!parseCanvasTaskId(t.id)) continue
+    if (parseCanvasTaskId(t.id)?.connectionId !== conn) continue
     // 期間の外に出ただけのもの（出し忘れたまま 30 日たった課題など）は残す
     if (!t.dueDate || t.dueDate < payload.windowStart || t.dueDate > payload.windowEnd) continue
     complete(t)
