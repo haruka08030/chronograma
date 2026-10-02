@@ -794,13 +794,18 @@ export function TaskList() {
                         onClick={() => {
                           if (canQuickTarget) setQuickAddSectionId(sectionId)
                         }}
+                        // 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（リストと同じ）
+                        onDoubleClick={() => beginSectionRename(sectionId, block.title)}
                       >
                         {block.title}
                       </button>
                     )
                   }
                   actions={
-                    <span className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <span
+                      className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { buildTimeLogTagUniverse } from '../lib/tagColors'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -86,7 +87,7 @@ export function TimeLogTagField({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitDraft}
           onKeyDown={(e) => {
-            if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+            if (isSubmitEnter(e)) {
               e.preventDefault()
               commitDraft()
               return

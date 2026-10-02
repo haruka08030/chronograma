@@ -29,6 +29,7 @@ import { isAppToday, zonedNow } from '../lib/timeZone'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
+import { isSubmitEnter } from '../lib/keyboard'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -362,7 +363,7 @@ export function TodayPlannerView() {
               onFocus={() => setDraftFocused(true)}
               onBlur={() => setDraftFocused(false)}
               onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+                if (isSubmitEnter(e)) {
                   e.preventDefault()
                   submitDraft()
                 }

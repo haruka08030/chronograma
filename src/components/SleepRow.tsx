@@ -7,6 +7,7 @@ import { TimeInput } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -102,7 +103,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     <div
       className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400"
       onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) save()
+        if (isSubmitEnter(e)) save()
         if (e.key === 'Escape' && record) setEditing(false)
       }}
     >

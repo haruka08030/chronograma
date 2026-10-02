@@ -13,6 +13,7 @@ import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -142,7 +143,7 @@ export function RecordPanel({
   const labelOf = (cat: string) => cat || t('labels.none')
 
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+    if (isSubmitEnter(e)) {
       e.preventDefault()
       submit()
     }

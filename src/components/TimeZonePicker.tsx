@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
+import { isSubmitEnter } from '../lib/keyboard'
 
 const LIST_HEIGHT = 280
 const WIDTH = 320
@@ -138,7 +139,7 @@ export function TimeZonePicker({
             } else if (e.key === 'ArrowUp') {
               e.preventDefault()
               setHighlight((h) => Math.max(0, h - 1))
-            } else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            } else if (isSubmitEnter(e)) {
               e.preventDefault()
               const row = filtered[highlight]
               if (row) pick(row.tz)

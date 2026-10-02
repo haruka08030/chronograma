@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { isSubmitEnter } from '../lib/keyboard'
 
 export function QuickAdd() {
   const { t } = useTranslation()
@@ -68,7 +69,7 @@ export function QuickAdd() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+          if (isSubmitEnter(e)) {
             e.preventDefault()
             submit()
           }

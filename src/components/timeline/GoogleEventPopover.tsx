@@ -13,6 +13,7 @@ import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEve
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, TrashIcon } from '../icons'
+import { isSubmitEnter } from '../../lib/keyboard'
 
 const WIDTH = 320
 
@@ -156,7 +157,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               onChange={(e) => setTitleDraft(e.target.value)}
               onBlur={commitTitle}
               onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+                if (isSubmitEnter(e)) {
                   e.preventDefault()
                   commitTitle()
                   ;(e.target as HTMLInputElement).blur()

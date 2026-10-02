@@ -10,6 +10,7 @@ import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { CheckIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /**
  * チェックリスト（買い物・持ち物）用の画面。店の中で片手で使う前提で、
@@ -105,7 +106,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+              if (isSubmitEnter(e)) {
                 e.preventDefault()
                 submit()
               }

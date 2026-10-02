@@ -30,6 +30,7 @@ import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { isSubmitEnter } from '../lib/keyboard'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -445,8 +446,7 @@ export function HabitsView() {
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (e.nativeEvent.isComposing) return
+                  if (isSubmitEnter(e)) {
                     e.preventDefault()
                     if (!editFormDisabled) saveEdit()
                   }
@@ -674,8 +674,7 @@ export function HabitsView() {
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (e.nativeEvent.isComposing) return
+                  if (isSubmitEnter(e)) {
                     e.preventDefault()
                     submitNew()
                   }

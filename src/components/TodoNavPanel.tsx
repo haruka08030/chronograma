@@ -14,6 +14,7 @@ import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels } from '../lib/todoColorLabels'
+import { isSubmitEnter } from '../lib/keyboard'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -106,11 +107,11 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
               <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
             </svg>
           </button>
-          {/* スマホにはダブルクリックが無いので、名前の変更はこのボタンから */}
+          {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onStartEdit() }}
-            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:hidden"
+            className="shrink-0 rounded p-1.5 opacity-100 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
             aria-label={t('sidebar.renameList')}
           >
             <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
@@ -259,7 +260,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                 onChange={(e) => setEditName(e.target.value)}
                 onBlur={() => submitRename(list.id)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitRename(list.id)
+                  if (isSubmitEnter(e)) submitRename(list.id)
                   if (e.key === 'Escape') setEditingId(null)
                 }}
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
@@ -316,7 +317,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             onChange={(e) => setNewName(e.target.value)}
             onBlur={submitNew}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitNew()
+              if (isSubmitEnter(e)) submitNew()
               if (e.key === 'Escape') { setNewName(''); setAdding(false) }
             }}
             placeholder={t('sidebar.listPlaceholder')}

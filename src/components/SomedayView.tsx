@@ -10,6 +10,7 @@ import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { zonedNow } from '../lib/timeZone'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -65,7 +66,7 @@ export function SomedayView({ list }: { list: TaskList }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+              if (isSubmitEnter(e)) {
                 e.preventDefault()
                 submit()
               }

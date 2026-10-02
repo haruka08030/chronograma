@@ -30,7 +30,7 @@ export function Modal({
   className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  useEscapeLayer(onClose)
+  const isTopLayer = useEscapeLayer(onClose)
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     ref.current?.focus()
@@ -41,7 +41,14 @@ export function Modal({
     <div
       data-popover-keep
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 dark:bg-black/50"
-      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        // 入力欄の Esc は層の仕組みでは拾わない（欄の取り消しを優先）。欄が使わなかった Esc でダイアログを閉じる
+        if (e.key === 'Escape' && !e.defaultPrevented && !e.nativeEvent.isComposing && isTopLayer()) {
+          e.preventDefault()
+          onClose()
+        }
+      }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation()

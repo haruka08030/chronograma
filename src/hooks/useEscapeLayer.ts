@@ -19,21 +19,25 @@ function onKeyDown(e: KeyboardEvent) {
   top.close()
 }
 
-/** 開いている間、この層を Esc で閉じられるようにする */
-export function useEscapeLayer(onClose: () => void, active = true) {
+/** 開いている間、この層を Esc で閉じられるようにする。返す関数は「いま一番上の層か」 */
+export function useEscapeLayer(onClose: () => void, active = true): () => boolean {
   const closeRef = useRef(onClose)
+  const layerRef = useRef<{ close: () => void } | null>(null)
   useEffect(() => {
     closeRef.current = onClose
   })
   useEffect(() => {
     if (!active) return
     const layer = { close: () => closeRef.current() }
+    layerRef.current = layer
     layers.push(layer)
     if (layers.length === 1) window.addEventListener('keydown', onKeyDown, true)
     return () => {
       const i = layers.indexOf(layer)
       if (i >= 0) layers.splice(i, 1)
       if (layers.length === 0) window.removeEventListener('keydown', onKeyDown, true)
+      layerRef.current = null
     }
   }, [active])
+  return () => layerRef.current !== null && layers.at(-1) === layerRef.current
 }

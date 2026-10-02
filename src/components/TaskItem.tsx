@@ -13,7 +13,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { isModKey } from '../lib/keyboard'
+import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
@@ -316,8 +316,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             onBlur={commitEdit}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (e.nativeEvent.isComposing) return
+              if (isSubmitEnter(e)) {
                 e.preventDefault()
                 if (discardIfBlank()) return
                 commitEdit()

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -76,9 +77,7 @@ export function CalendarInlineTaskAdd({
           onDone()
           return
         }
-        const isSubmitEnter =
-          (e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing
-        if (!isSubmitEnter) return
+        if (!isSubmitEnter(e)) return
         const added = commit()
         if (!keepOpenAfterSubmit || !added) onDone()
       }}

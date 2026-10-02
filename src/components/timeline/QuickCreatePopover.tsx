@@ -16,6 +16,7 @@ import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { isSubmitEnter } from '../../lib/keyboard'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -143,7 +144,7 @@ export function QuickCreatePopover({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
-          if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
+          if (isSubmitEnter(e)) {
             e.preventDefault()
             save(false)
           }
