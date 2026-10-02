@@ -217,7 +217,7 @@ export default {
     laterPlaceholder: 'What did you do? (optional)',
     nextDay: 'until next day',
     noFuture: 'Can’t log future time',
-    save: 'Save',
+    save: 'Log',
   },
   sleepStats: {
     title: 'Sleep',
@@ -235,7 +235,7 @@ export default {
     prompt: 'Log your sleep?',
     bedAria: 'Went to bed',
     wakeAria: 'Woke up',
-    save: 'Save',
+    save: 'Log',
     edit: 'Edit sleep times',
     noFuture: 'Wake time is in the future',
   },
@@ -556,7 +556,7 @@ export default {
       endDate: 'End date',
       memo: 'Notes (optional)',
       memoPlaceholder: 'What you did',
-      saveComplete: 'Save and complete',
+      saveComplete: 'Log and complete',
     },
   },
   taskDetail: {

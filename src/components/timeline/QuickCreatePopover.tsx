@@ -217,7 +217,8 @@ export function QuickCreatePopover({
           onClick={() => save(false)}
           className={buttonClass({ variant: 'primary', size: 'md' })}
         >
-          {t('common.save')}
+          {/* 記録を作るボタンはどこでも「記録する」 */}
+          {asLog ? t('records.save') : t('common.save')}
         </button>
       </div>
     </div>

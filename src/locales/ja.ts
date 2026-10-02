@@ -234,7 +234,7 @@ export default {
     prompt: '睡眠を記録しますか？',
     bedAria: '寝た時刻',
     wakeAria: '起きた時刻',
-    save: '記録',
+    save: '記録する',
     edit: '睡眠の時刻を直す',
     noFuture: '起きた時刻が今より先です',
   },
@@ -556,7 +556,7 @@ export default {
       endDate: '終了日',
       memo: 'メモ（任意）',
       memoPlaceholder: '実行内容のメモを入力',
-      saveComplete: '保存して完了',
+      saveComplete: '記録して完了',
     },
   },
   taskDetail: {
