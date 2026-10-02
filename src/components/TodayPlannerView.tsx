@@ -58,8 +58,6 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
-  const selectView = useTaskStore((s) => s.selectView)
-  const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
   const anyNotification = useTaskStore((s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled)
@@ -527,11 +525,11 @@ export function TodayPlannerView() {
         )}
 
         <footer className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
-          {showWrapUp && (
+          {showWrapUp && (open.length > 0 || untaggedLogs.length > 0) && (
             <div className="space-y-2">
-              <p className="text-zinc-600 dark:text-zinc-300">
-                {open.length > 0 ? t('planner.wrapUpRemaining', { count: open.length }) : t('planner.wrapUpClear')}
-              </p>
+              {open.length > 0 && (
+                <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpRemaining', { count: open.length })}</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {open.length > 0 && (
                   <button type="button" onClick={() => rescheduleTasks(open.map((x) => x.id), tomorrowKey)} className={wrapUpButton}>
@@ -541,14 +539,6 @@ export function TodayPlannerView() {
                 {untaggedLogs.length > 0 && (
                   <button type="button" onClick={() => openDetail(untaggedLogs[0]!.id)} className={wrapUpButton}>
                     {t('planner.categorizeLogs', { count: untaggedLogs.length })}
-                  </button>
-                )}
-                <button type="button" onClick={() => { setCalendarMode('week'); selectView('calendar') }} className={wrapUpButton}>
-                  {t('planner.reviewPlanVsLog')}
-                </button>
-                {[5, 6, 0].includes(date.getDay()) && (
-                  <button type="button" onClick={() => selectView('stats')} className={wrapUpButton}>
-                    {t('planner.reviewWeek')}
                   </button>
                 )}
               </div>
