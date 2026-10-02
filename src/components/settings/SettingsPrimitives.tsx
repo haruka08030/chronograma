@@ -38,11 +38,12 @@ export function SettingsRow({
   const Label = htmlFor ? 'label' : 'div'
   return (
     <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-      <Label {...(htmlFor ? { htmlFor } : {})} className="min-w-0 flex-1">
+      {/* 見出しは 4rem より細くしない。操作が入りきらなければ、見出しを潰さず操作を次の行へ回す */}
+      <Label {...(htmlFor ? { htmlFor } : {})} className="min-w-0 flex-1 basis-16">
         <span className="block text-sm text-zinc-800 dark:text-zinc-200">{label}</span>
         {help && <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{help}</span>}
       </Label>
-      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+      {children && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div>}
     </div>
   )
 }
