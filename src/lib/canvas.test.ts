@@ -10,7 +10,9 @@ import {
   canvasTaskId,
   parseCanvasTaskId,
   reconcileCanvasItems,
+  withConnections,
   type CanvasItem,
+  type CanvasStatus,
 } from './canvas'
 
 const NOW = '2026-10-02T00:00:00.000Z'
@@ -151,5 +153,17 @@ describe('reconcileCanvasItems', () => {
     // 1 校目が空で返っても、2 校目のタスクは完了にしない
     const c = reconcileCanvasItems({ lists: b.lists, sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
     expect(c.tasks.map((t) => t.completed)).toEqual([true, false])
+  })
+})
+
+describe('withConnections', () => {
+  it('古い 1 校だけの応答でも、学校の一覧は空の配列になる', () => {
+    const old = { ok: true, connected: true, baseUrl: 'https://school.instructure.com' } as unknown as CanvasStatus
+    expect(withConnections(old).connections).toEqual([])
+  })
+
+  it('一覧があればそのまま', () => {
+    const c = { id: CONN, baseUrl: `https://${CONN}` } as CanvasStatus['connections'][number]
+    expect(withConnections({ connections: [c] }).connections).toEqual([c])
   })
 })

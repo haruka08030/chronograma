@@ -100,17 +100,29 @@ async function invokeCanvas<T>(body: Record<string, unknown>): Promise<T> {
   return payload
 }
 
-export const fetchCanvasStatus = () => invokeCanvas<CanvasStatus>({ action: 'status' })
+/**
+ * 学校ごとの一覧を必ず配列にする。古い関数（1 校だけの形 `{ connected, baseUrl }`）や
+ * 空の応答でも、画面が `connections.length` で落ちないように
+ */
+export function withConnections<T extends { connections: unknown[] }>(payload: T): T {
+  return { ...payload, connections: Array.isArray(payload?.connections) ? payload.connections : [] }
+}
+
+const invokeConnections = <T extends { connections: unknown[] }>(body: Record<string, unknown>) =>
+  invokeCanvas<T>(body).then(withConnections)
+
+export const fetchCanvasStatus = () => invokeConnections<CanvasStatus>({ action: 'status' })
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
 export const connectCanvas = (token: string, baseUrl: string) =>
-  invokeCanvas<CanvasStatus>({ action: 'connect', token, baseUrl })
+  invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
 /** トークンを作れない学校は、カレンダーフィードの URL でつなぐ */
-export const connectCanvasFeed = (feedUrl: string) => invokeCanvas<CanvasStatus>({ action: 'connect', feedUrl })
+export const connectCanvasFeed = (feedUrl: string) => invokeConnections<CanvasStatus>({ action: 'connect', feedUrl })
 /** つないであった学校のトークンだけ貼り直す */
 export const renewCanvasToken = (connectionId: string, token: string) =>
-  invokeCanvas<CanvasStatus>({ action: 'connect', token, connectionId })
-export const disconnectCanvas = (connectionId: string) => invokeCanvas<CanvasStatus>({ action: 'disconnect', connectionId })
-export const fetchCanvasItems = () => invokeCanvas<CanvasItemsPayload>({ action: 'items' })
+  invokeConnections<CanvasStatus>({ action: 'connect', token, connectionId })
+export const disconnectCanvas = (connectionId: string) =>
+  invokeConnections<CanvasStatus>({ action: 'disconnect', connectionId })
+export const fetchCanvasItems = () => invokeConnections<CanvasItemsPayload>({ action: 'items' })
 export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
   invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })
 
