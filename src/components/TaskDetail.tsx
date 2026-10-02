@@ -553,10 +553,8 @@ export function TaskDetail({
           )}
 
           {isLog ? (
-            <div>
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
-              <ColorLabelPicker task={task} />
-            </div>
+            // 見出しは付けない（ボタンに色とラベル名が出るので重ねない）
+            <ColorLabelPicker task={task} />
           ) : tagsEnabled && (
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.tags')}</label>
@@ -630,9 +628,9 @@ export function TaskDetail({
                       ))}
                   </select>
                 </div>
-                {/* 色＝ラベル（記録と同じ）。カレンダーの色と To‑Do の色ラベルに使う。既定はリストの色 */}
+                {/* 色＝ラベル（記録と同じ）。カレンダーの色と To‑Do の色ラベルに使う。既定はリストの色。
+                    見出しは付けない（ボタンに色とラベル名が出るので重ねない） */}
                 <div className="mt-3">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
                   <ColorLabelPicker
                     task={task}
                     planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}
