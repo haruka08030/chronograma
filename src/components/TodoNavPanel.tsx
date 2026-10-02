@@ -11,7 +11,7 @@ import type { TaskList } from '../types/list'
 import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
-import { todoLabels } from '../lib/todoLabels'
+import { colorLabelText, todoColorLabels } from '../lib/todoColorLabels'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -155,7 +155,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 /**
- * To‑Do のサブナビ本体（期限別ビュー / リスト / ラベル / アーカイブ・ゴミ箱）。
+ * To‑Do のサブナビ本体（期限別ビュー / リスト / 色ラベル / アーカイブ・ゴミ箱）。
  * md 以上は `TodoNavPanel` として独立パネルに、md 未満はサイドバードロワー内に描画する。
  * リスト行は DnD id を持つため、同時に二箇所へマウントしないこと。
  */
@@ -174,9 +174,14 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
-  const filterTag = useTaskStore((s) => s.filterTag)
-  const selectTag = useTaskStore((s) => s.selectTag)
-  const labels = useMemo(() => todoLabels(tasks, unplannedListIds(lists)), [tasks, lists])
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
+  const filterColor = useTaskStore((s) => s.filterColor)
+  const selectColor = useTaskStore((s) => s.selectColor)
+  const colorLabels = useMemo(
+    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors),
+    [tasks, lists, presets, categoryColors],
+  )
 
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -225,8 +230,8 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           key={v.id}
           view={v.id}
           icon={v.icon}
-          // ラベルを開いている間は「すべて」ではなくラベルの行を選択中にする
-          isSelected={selectedView === v.id && !(v.id === 'all' && filterTag)}
+          // 色ラベルを開いている間は「すべて」ではなくラベルの行を選択中にする
+          isSelected={selectedView === v.id && !(v.id === 'all' && filterColor)}
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
@@ -326,30 +331,29 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
       </div>
 
-      {/* ラベルは付けたタスクがあるときだけ出す（付け方は詳細の「ラベル」かクイック追加の #課題） */}
-      {labels.length > 0 && (
+      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」 */}
+      {colorLabels.length > 0 && (
         <>
           <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
           <div className="px-3 pb-1 pt-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-            {t('sidebar.labels')}
+            {t('labels.title')}
           </div>
-          {labels.map((label) => {
-            const isSelected = selectedView === 'all' && filterTag === label.name
+          {colorLabels.map((label) => {
+            const isSelected = selectedView === 'all' && filterColor === label.hex
+            const name = colorLabelText(label.hex, presets, categoryColors, t)
             return (
               <button
-                key={label.name}
+                key={label.hex}
                 type="button"
-                onClick={() => handleNav(() => selectTag(label.name))}
+                onClick={() => handleNav(() => selectColor(label.hex))}
                 aria-current={isSelected ? 'page' : undefined}
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
                   ${isSelected
                     ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
                     : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
               >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PATHS.tag} />
-                </svg>
-                <span className="min-w-0 flex-1 truncate">{label.name}</span>
+                <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{name}</span>
                 {label.count > 0 && (
                   <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
                 )}

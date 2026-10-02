@@ -21,8 +21,6 @@ import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
-import { unplannedListIds } from '../lib/listKind'
-import { todoLabels } from '../lib/todoLabels'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -65,11 +63,6 @@ export function TaskDetail({
   const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const sections = useTaskStore((s) => s.sections)
   const [tagInput, setTagInput] = useState('')
-  // 入力中に既存のラベルを候補に出す（表記ゆれで別のラベルが増えないように）
-  const labelSuggestions = useMemo(
-    () => todoLabels(tasks, unplannedListIds(lists)).map((l) => l.name).filter((name) => !task.tags.includes(name)),
-    [tasks, lists, task.tags],
-  )
   const [subInput, setSubInput] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState(task.title)
@@ -567,7 +560,6 @@ export function TaskDetail({
             <div className="flex gap-2">
               <input
                 value={tagInput}
-                list="task-label-suggestions"
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (isSubmitEnter(e)) addTag() }}
                 placeholder={t('taskDetail.tagPlaceholder')}
@@ -575,9 +567,6 @@ export function TaskDetail({
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                            focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
               />
-              <datalist id="task-label-suggestions">
-                {labelSuggestions.map((name) => <option key={name} value={name} />)}
-              </datalist>
               <button
                 type="button"
                 onClick={addTag}
@@ -624,9 +613,9 @@ export function TaskDetail({
                       ))}
                   </select>
                 </div>
-                {/* カレンダーでの色。既定はリストの色 */}
+                {/* 色＝ラベル（記録と同じ）。カレンダーの色と To‑Do の色ラベルに使う。既定はリストの色 */}
                 <div className="mt-3">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.color')}</label>
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
                   <ColorLabelPicker
                     task={task}
                     planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}

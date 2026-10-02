@@ -90,7 +90,6 @@ export default {
     reorderList: 'Reorder list',
     deleteList: 'Delete list',
     renameList: 'Rename list',
-    labels: 'Labels',
     views: {
       planner: 'Plan today',
       all: 'All',
@@ -578,8 +577,8 @@ export default {
     time: 'Time',
     logDuration: 'Duration: {{label}}',
     recurrence: 'Repeat',
-    tags: 'Labels',
-    tagPlaceholder: 'Add label',
+    tags: 'Tags',
+    tagPlaceholder: 'Add tag',
     color: 'Color',
     list: 'List',
     section: 'Section',

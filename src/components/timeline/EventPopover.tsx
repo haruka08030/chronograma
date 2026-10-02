@@ -166,7 +166,7 @@ export function EventPopover({
         <ColorLabelPicker
           task={task}
           compact
-          label={isLog ? t('labels.pickerAria') : t('taskDetail.color')}
+          label={t('labels.pickerAria')}
           planDefaultHex={isLog ? undefined : list?.color ?? NEUTRAL_HEX}
         />
       </div>

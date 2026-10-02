@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
+import { labelForHex } from '../lib/logCategoryColors'
+import { colorLabelText } from '../lib/todoColorLabels'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
@@ -85,7 +87,13 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, selectTag, selectedView, lists, moveTaskToList, showMoveBanner } = useTaskStore()
+  const selectColor = useTaskStore((s) => s.selectColor)
+  const selectedView = useTaskStore((s) => s.selectedView)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
+  // 記録の色は分類で決まるので、ここで出すのは予定・タスクに付けた色（ラベル）だけ
+  const colorLabel = !isListedTimeLog(task) && task.color ? labelForHex(task.color, presets, categoryColors) : null
+  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
   const rowMenuRef = useRef<HTMLDivElement>(null)
@@ -375,13 +383,25 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
             </svg>
           )}
+          {!timeLog && task.color && (
+            <button
+              type="button"
+              // To‑Do ではその色ラベルを開く（カレンダー横の一覧などでは何もしない）
+              onClick={(e) => { e.stopPropagation(); if (isTodoSurfaceView(selectedView)) selectColor(task.color!) }}
+              title={colorLabelText(task.color, presets, categoryColors, t)}
+              aria-label={colorLabelText(task.color, presets, categoryColors, t)}
+              className="inline-flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.color }} aria-hidden />
+              {colorLabel}
+            </button>
+          )}
           {task.tags.length > 0 && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
                 <button
                   key={tag}
-                  // To‑Do ではそのラベルを開く。カレンダー横の一覧などでは画面を移らずその場で絞る
-                  onClick={(e) => { e.stopPropagation(); if (isTodoSurfaceView(selectedView)) selectTag(tag); else setFilterTag(tag) }}
+                  onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}
                   className="text-[10px] px-1.5 py-0.5 rounded bg-accent-50 dark:bg-accent-500/10
                              text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
                 >

@@ -65,10 +65,10 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
 
   const tasks = [
     // 期限切れ（赤）と今日（オレンジ）が並ぶように置く
-    task({ id: 's1', title: '統計学レポート 提出', dueDate: yesterday, priority: 'high', order: 0, tags: ['授業'] }, now),
-    task({ id: 's2', title: 'ES 書く（第一志望）', dueDate: today, dueTime: '18:00', priority: 'high', order: 1, tags: ['就活'] }, now),
-    task({ id: 's3', title: 'バイトのシフト提出', dueDate: today, order: 2, tags: ['バイト'] }, now),
-    task({ id: 's4', title: 'TOEIC 申し込み', dueDate: inTwoDays, order: 3, tags: ['就活'] }, now),
+    task({ id: 's1', title: '統計学レポート 提出', dueDate: yesterday, priority: 'high', order: 0, color: '#33B679' }, now),
+    task({ id: 's2', title: 'ES 書く（第一志望）', dueDate: today, dueTime: '18:00', priority: 'high', order: 1, color: '#F6BF26' }, now),
+    task({ id: 's3', title: 'バイトのシフト提出', dueDate: today, order: 2, color: '#7986CB' }, now),
+    task({ id: 's4', title: 'TOEIC 申し込み', dueDate: inTwoDays, order: 3, color: '#F6BF26' }, now),
     task({ id: 's5', title: '研究室のゼミ資料を読む', order: 4 }, now),
     // 予定（タイムラインに出る薄い枠）
     task({ id: 's6', title: 'ゼミ', scheduledDate: today, startTime: '15:00', endTime: '16:30', order: 5 }, now),
@@ -132,7 +132,8 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       sortMode: 'manual',
       notificationsEnabled: false,
       timeLogTagPresets: ['睡眠', '授業', '課題', 'バイト', '就活'],
-      logCategoryColors: {},
+      // 新規ユーザーと同じ割り当て順（assignColorsInOrder）。To‑Do の色ラベル（color）もこの色で名前が付く
+      logCategoryColors: { 睡眠: 'peacock', 授業: 'sage', 課題: 'tangerine', バイト: 'lavender', 就活: 'banana' },
     },
     version: PERSIST_VERSION,
   }

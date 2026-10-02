@@ -18,8 +18,8 @@ npm run shots -- --out=/tmp/shots
 
 ## 撮る画面
 
-`capture.mjs` の `SCREENS`。今は 今日の計画 / To-Do / To-Do のラベル / カレンダー / 習慣 /
-統計 / 設定 / いつか / 買い物 の 9 つと、カレンダーの一覧を開いた状態。
+`capture.mjs` の `SCREENS`。今は 今日の計画 / To-Do / To-Do の色ラベル / カレンダー / 習慣 /
+統計 / 設定 / いつか / 買い物 など（`SCREENS` を参照）。
 
 ## 種データ
 

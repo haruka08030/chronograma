@@ -1,0 +1,60 @@
+import type { Task } from '../types/task'
+import { CALENDAR_COLORS } from './googleColors'
+import { colorKeyForHex, labelForHex } from './logCategoryColors'
+import { isActiveTask } from './taskLifecycle'
+
+export interface TodoColorLabel {
+  /** `#RRGGBB`（大文字） */
+  hex: string
+  /** その色に付けたラベル名（記録と同じラベル）。名前の無い色は null */
+  name: string | null
+  /** 未完了のルートタスク数（開いたときの「未完了 n 件」と揃える） */
+  count: number
+}
+
+const GOOGLE_ORDER = new Map(CALENDAR_COLORS.map((c, i) => [c.hex.toUpperCase(), i]))
+
+/**
+ * To‑Do のナビに出す色ラベル（タスクに色を付けたものだけ）。
+ * Google と同じく、ラベルは色に付けた名前。並びは ラベルの順 → 名前の無い Google の色 → 自分で作った色。
+ * 開くと「すべて」をその色で絞るので、範囲も「すべて」と同じ（記録・いつか・チェックリストは入れない）。
+ * 完了済みしか残っていない色も、開いている途中で消えないよう 0 件で残す。
+ */
+export function todoColorLabels(
+  tasks: Task[],
+  excludedListIds: ReadonlySet<string>,
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+): TodoColorLabel[] {
+  const counts = new Map<string, number>()
+  for (const t of tasks) {
+    if (!t.color || t.isTimeLog || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+    const hex = t.color.toUpperCase()
+    counts.set(hex, (counts.get(hex) ?? 0) + (t.completed ? 0 : 1))
+  }
+  const rank = (l: TodoColorLabel): [number, number, string] => {
+    if (l.name) return [0, presets.indexOf(l.name), '']
+    const g = GOOGLE_ORDER.get(l.hex)
+    return g !== undefined ? [1, g, ''] : [2, 0, l.hex]
+  }
+  return [...counts]
+    .map(([hex, count]) => ({ hex, name: labelForHex(hex, presets, colors), count }))
+    .sort((a, b) => {
+      const [ga, ia, ha] = rank(a)
+      const [gb, ib, hb] = rank(b)
+      return ga - gb || ia - ib || ha.localeCompare(hb)
+    })
+}
+
+/** 色ラベルの表示名: ラベル名 → Google の色名（「セージ」など）→ 自分で作った色は `#RRGGBB` */
+export function colorLabelText(
+  hex: string,
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+  t: (key: string) => string,
+): string {
+  const name = labelForHex(hex, presets, colors)
+  if (name) return name
+  const key = colorKeyForHex(hex)
+  return key ? t(`googleColors.${key}`) : hex.toUpperCase()
+}
