@@ -35,19 +35,18 @@ export function CalendarAddTaskButton({
 /**
  * カレンダー各面（月セル / 週の終日行 / 選択日パネル）で共有するインライン ToDo 追加入力。
  * 追加はその日の「予定日」として扱われる（`addTaskWithDate`）。
+ * タスクの追加欄はどこでも、Enter で追加したあとも開いたまま続けて書ける（空の Enter・Esc・外を押すと閉じる）。
+ * 入れ物（リスト・セクション）を作る欄は 1 つ作ったら閉じる。
  */
 export function CalendarInlineTaskAdd({
   dateKey,
   onDone,
   size = 'sm',
-  keepOpenAfterSubmit = false,
   autoFocus = true,
 }: {
   dateKey: string
   onDone: () => void
   size?: 'sm' | 'md'
-  /** Enter 確定後も入力欄を開いたままにして連続追加できるようにする */
-  keepOpenAfterSubmit?: boolean
   autoFocus?: boolean
 }) {
   const { t } = useTranslation()
@@ -78,8 +77,7 @@ export function CalendarInlineTaskAdd({
           return
         }
         if (!isSubmitEnter(e)) return
-        const added = commit()
-        if (!keepOpenAfterSubmit || !added) onDone()
+        if (!commit()) onDone()
       }}
       onBlur={() => {
         commit()
