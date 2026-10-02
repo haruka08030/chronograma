@@ -263,6 +263,8 @@ export function TodayPlannerView() {
   )
 
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
+  /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
+  const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
   const sectionLabel = 'px-3 pb-1 text-xs font-medium text-zinc-400 dark:text-zinc-500'
 
   return (
@@ -526,27 +528,31 @@ export function TodayPlannerView() {
 
         <footer className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
           {showWrapUp && (
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {open.length > 0 ? t('planner.wrapUpRemaining', { count: open.length }) : t('planner.wrapUpClear')}{' '}
-              {open.length > 0 && (
-                <button type="button" onClick={() => rescheduleTasks(open.map((x) => x.id), tomorrowKey)} className={textButton}>
-                  {t('planner.moveRestToTomorrow')}
+            <div className="space-y-2">
+              <p className="text-zinc-600 dark:text-zinc-300">
+                {open.length > 0 ? t('planner.wrapUpRemaining', { count: open.length }) : t('planner.wrapUpClear')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {open.length > 0 && (
+                  <button type="button" onClick={() => rescheduleTasks(open.map((x) => x.id), tomorrowKey)} className={wrapUpButton}>
+                    {t('planner.moveRestToTomorrow')}
+                  </button>
+                )}
+                {untaggedLogs.length > 0 && (
+                  <button type="button" onClick={() => openDetail(untaggedLogs[0]!.id)} className={wrapUpButton}>
+                    {t('planner.categorizeLogs', { count: untaggedLogs.length })}
+                  </button>
+                )}
+                <button type="button" onClick={() => { setCalendarMode('week'); selectView('calendar') }} className={wrapUpButton}>
+                  {t('planner.reviewPlanVsLog')}
                 </button>
-              )}
-              {untaggedLogs.length > 0 && (
-                <button type="button" onClick={() => openDetail(untaggedLogs[0]!.id)} className={textButton}>
-                  {t('planner.categorizeLogs', { count: untaggedLogs.length })}
-                </button>
-              )}
-              <button type="button" onClick={() => { setCalendarMode('week'); selectView('calendar') }} className={textButton}>
-                {t('planner.reviewPlanVsLog')}
-              </button>
-              {[5, 6, 0].includes(date.getDay()) && (
-                <button type="button" onClick={() => selectView('stats')} className={textButton}>
-                  {t('planner.reviewWeek')}
-                </button>
-              )}
-            </p>
+                {[5, 6, 0].includes(date.getDay()) && (
+                  <button type="button" onClick={() => selectView('stats')} className={wrapUpButton}>
+                    {t('planner.reviewWeek')}
+                  </button>
+                )}
+              </div>
+            </div>
           )}
           {showReminderPrompt && (
             <p className="text-zinc-400 dark:text-zinc-500">

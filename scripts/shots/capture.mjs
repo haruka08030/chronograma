@@ -26,9 +26,13 @@ const FIRST_PORT = 5180
  */
 const TIMEZONE = 'Asia/Tokyo'
 
-/** 撮る画面。`view` は store の selectedView、`nav` は撮る前に押すもの */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
+  // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
+  { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
+  // 全部終わった日の締め（おつかれさまでした）
+  { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
@@ -56,15 +60,25 @@ const VIEWPORTS = [
  * 種データは `getFullYear()` などローカル時刻の API で日付を作るので、
  * ブラウザ側と同じ暦日にそろえないと予定・記録が別の日に置かれる。
  */
-function nowInTimeZone(timeZone) {
+function nowInTimeZone(timeZone, instant = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
     hour12: false,
-  }).formatToParts(new Date())
+  }).formatToParts(instant)
   const get = (t) => Number(parts.find((p) => p.type === t).value)
   return new Date(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'))
+}
+
+/** TIMEZONE で今日の `at`（'HH:MM'）にあたる実時刻 */
+function instantAt(at, timeZone) {
+  const now = new Date()
+  const local = nowInTimeZone(timeZone, now)
+  const [h, m] = at.split(':').map(Number)
+  const target = new Date(local)
+  target.setHours(h, m, 0, 0)
+  return new Date(now.getTime() + (target.getTime() - local.getTime()))
 }
 
 function parseArgs(argv) {
@@ -178,11 +192,15 @@ async function main() {
             reducedMotion: 'reduce',
           })
 
-          const seed = buildSeedState({ theme, now: nowInTimeZone(TIMEZONE) })
+          const instant = screen.at ? instantAt(screen.at, TIMEZONE) : new Date()
+          const seed = buildSeedState({ theme, now: nowInTimeZone(TIMEZONE, instant) })
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
             seed.state.selectedView = screen.view
             seed.state.selectedListId = null
+          }
+          if (screen.allDone) {
+            for (const x of seed.state.tasks) if (!['seed-someday', 'seed-shopping'].includes(x.listId)) x.completed = true
           }
           if (screen.filterColor) seed.state.filterColor = screen.filterColor
           if (screen.list) {
@@ -204,6 +222,7 @@ async function main() {
           )
 
           const page = await context.newPage()
+          if (screen.at) await page.clock.setFixedTime(instant)
           const consoleErrors = []
           page.on('console', (m) => {
             if (m.type() === 'error') consoleErrors.push(m.text())
@@ -217,6 +236,16 @@ async function main() {
             if (screen.click) {
               await page.click(screen.click, screen.clickAt ? { position: screen.clickAt } : undefined)
               await page.waitForTimeout(300)
+            }
+
+            if (screen.scrollToBottom) {
+              // 内側のペインがスクロールするので、スクロールできる要素をすべて下まで送る
+              await page.evaluate(() => {
+                for (const el of document.querySelectorAll('*')) {
+                  if (el.scrollHeight > el.clientHeight + 1 && getComputedStyle(el).overflowY !== 'visible') el.scrollTop = el.scrollHeight
+                }
+              })
+              await page.waitForTimeout(200)
             }
 
             const file = path.join(outDir, `${screen.name}-${vp.name}-${theme}.png`)
