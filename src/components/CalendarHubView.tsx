@@ -9,8 +9,15 @@ import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
 import { useNavShortcut } from '../lib/shortcuts'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
+import {
+  setUnscheduleHover,
+  UNSCHEDULE_DROP_ATTR,
+  UNSCHEDULE_PATCH,
+  useCalendarItemDrag,
+} from '../lib/calendarItemDrag'
 
-export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }) {
+export function CalendarHubView() {
   const { t } = useTranslation()
   const calendarMode = useTaskStore((s) => s.calendarMode)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
@@ -63,20 +70,42 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
 
   useNavShortcut({ today: onGoToday, prev: onPrevPeriod, next: onNextPeriod })
 
+  // カレンダーの ToDo を下（ToDo 一覧 / 閉じているときの帯）に落とす = 日付と時刻をはずして ToDo に戻す
+  const itemDrag = useCalendarItemDrag()
+  const unscheduleDropProps = {
+    [UNSCHEDULE_DROP_ATTR]: '',
+    onDragOver: (e: React.DragEvent) => {
+      if (!itemDrag.active) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setUnscheduleHover(true)
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+      setUnscheduleHover(false)
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!itemDrag.active) return
+      e.preventDefault()
+      setUnscheduleHover(false)
+      const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
+      const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
+        const task = tasks.find((x) => x.id === id)
+        return !!task && !task.isTimeLog
+      })
+      asOneUndo(() => {
+        for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)
+      })
+    },
+  }
+  const unscheduleHighlight = itemDrag.overUnschedule
+    ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+    : ''
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenSidebar}
-            className="shrink-0 rounded-lg p-2 -ml-1 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 md:hidden"
-            aria-label={t('app.openMenu')}
-          >
-            <svg className="h-5 w-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-          </button>
           <div
             role="tablist"
             aria-label={t('calendarHub.calendarTabsAria')}
@@ -147,6 +176,7 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
                 anchor={weekAnchor}
                 selectedDateKey={selectedDateKey}
                 onSelectDate={applyPickedDate}
+                onNavigateWeek={(dir) => (dir < 0 ? onPrevPeriod() : onNextPeriod())}
               />
             )}
           </div>
@@ -155,9 +185,20 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
               <CalendarDayPanel selectedDateKey={selectedDateKey} />
             </div>
           )}
-          {dockOpen && (
-            <div className="flex max-h-[28vh] min-h-[100px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:max-h-[45vh] sm:min-h-[140px] sm:flex-[0_0_38%]">
+          {dockOpen ? (
+            <div
+              {...unscheduleDropProps}
+              className={`flex max-h-[28vh] min-h-[100px] w-full shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 sm:max-h-[45vh] sm:min-h-[140px] sm:flex-[0_0_38%] ${unscheduleHighlight}`}
+            >
               <CalendarTaskDock />
+            </div>
+          ) : itemDrag.active && (
+            <div
+              {...unscheduleDropProps}
+              className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors
+                dark:border-zinc-700 dark:text-zinc-400 ${unscheduleHighlight}`}
+            >
+              {t('calendarHub.dropToUnschedule')}
             </div>
           )}
         </div>

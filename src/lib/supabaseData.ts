@@ -57,6 +57,8 @@ interface TaskRow {
   color?: string | null
   /** 007 で追加。古い DB には無い */
   habit_id?: string | null
+  /** 010 で追加。古い DB には無い */
+  is_sleep?: boolean | null
   priority: string
   tags: unknown
   recurrence: unknown
@@ -122,6 +124,18 @@ function isMissingHabitIdColumnError(message: string | undefined): boolean {
 function stripHabitIdFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ habit_id, ...rest }) => {
     void habit_id
+    return rest
+  })
+}
+
+function isMissingIsSleepColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'is_sleep' column")
+}
+
+function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ is_sleep, ...rest }) => {
+    void is_sleep
     return rest
   })
 }
@@ -315,6 +329,7 @@ function rowToTask(row: TaskRow): Task {
     recurrence,
     isTimeLog: row.is_time_log === true,
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
+    isSleep: row.is_sleep === true,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
   }
@@ -359,9 +374,46 @@ function taskToRow(userId: string, task: Task): TaskRow {
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
     habit_id: task.habitId ?? null,
+    is_sleep: task.isSleep ?? false,
     archived_at: task.archivedAt ?? null,
     deleted_at: task.deletedAt ?? null,
   }
+}
+
+/** 1 回の取得の行数。Supabase の API は既定で 1,000 行までしか返さない */
+const PAGE_SIZE = 1000
+
+/**
+ * 利用者の行を全部取る。1 回で取ると上限（既定 1,000 行）で切れ、返ってこなかった行が
+ * 三方向マージで「他端末で消された」扱いになって手元から消えていた。
+ * 件数も一緒に受け取り、全部そろうまでページを送る。毎回の push で行の並びが変わるので id 順に固定する
+ */
+async function fetchAllRows<T>(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+): Promise<{ rows: T[] } | { error: string }> {
+  const rows: T[] = []
+  let total: number | null = null
+  do {
+    const { data, count, error } = await supabase
+      .from(table)
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('id')
+      .range(rows.length, rows.length + PAGE_SIZE - 1)
+    if (error) return { error: error.message }
+    const page = (data ?? []) as T[]
+    total = count
+    // 取得中に行が減ると最後のページが空になる。途中までの結果でマージすると足りない行が
+    // 「消された」扱いになるので、次の同期でやり直す
+    if (page.length === 0) {
+      if (total !== null && rows.length < total) return { error: `${table}: fetched ${rows.length} of ${total} rows` }
+      break
+    }
+    rows.push(...page)
+  } while (total !== null && rows.length < total)
+  return { rows }
 }
 
 export async function fetchListsTasksHabits(
@@ -370,35 +422,21 @@ export async function fetchListsTasksHabits(
 ): Promise<
   { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }
 > {
-  const { data: listRows, error: e1 } = await supabase
-    .from('lists')
-    .select('*')
-    .eq('user_id', userId)
-  if (e1) return { error: e1.message }
+  const listRows = await fetchAllRows<ListRow>(supabase, 'lists', userId)
+  if ('error' in listRows) return listRows
+  const sectionRows = await fetchAllRows<SectionRow>(supabase, 'list_sections', userId)
+  if ('error' in sectionRows) return sectionRows
+  const taskRows = await fetchAllRows<TaskRow>(supabase, 'tasks', userId)
+  if ('error' in taskRows) return taskRows
+  const habitRows = await fetchAllRows<HabitRow>(supabase, 'habits', userId)
+  if ('error' in habitRows) return habitRows
 
-  const { data: sectionRows, error: eSec } = await supabase
-    .from('list_sections')
-    .select('*')
-    .eq('user_id', userId)
-  if (eSec) return { error: eSec.message }
-
-  const { data: taskRows, error: e2 } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('user_id', userId)
-  if (e2) return { error: e2.message }
-
-  const { data: habitRows, error: e3 } = await supabase
-    .from('habits')
-    .select('*')
-    .eq('user_id', userId)
-  if (e3) return { error: e3.message }
-
-  const lists = ((listRows ?? []) as ListRow[]).map(rowToList)
-  const sections = ((sectionRows ?? []) as SectionRow[]).map(rowToSection)
-  const tasks = ((taskRows ?? []) as TaskRow[]).map(rowToTask)
-  const habits = ((habitRows ?? []) as HabitRow[]).map(rowToHabit)
-  return { lists, tasks, habits, sections }
+  return {
+    lists: listRows.rows.map(rowToList),
+    sections: sectionRows.rows.map(rowToSection),
+    tasks: taskRows.rows.map(rowToTask),
+    habits: habitRows.rows.map(rowToHabit),
+  }
 }
 
 /** Remote is only default inbox and no tasks (and no extra lists / habits). */
@@ -450,27 +488,37 @@ export async function pushListsTasksHabits(
   habits: Habit[],
   sections: ListSection[],
   /**
-   * 三方向マージで決めた削除対象。指定時はこれだけを消す（取得〜push の間に他端末が
-   * 追加した行を消さないため）。未指定なら従来どおり「ローカルに無い行」を消す
+   * 三方向マージで決めた削除対象。これだけを消す。以前の「ローカルに無い行を全部消す」は、
+   * 取得〜push の間に他端末が追加した行や、ゲストのデータでログインした端末からアカウントの行を消していた
    */
-  deletes?: SyncDeletes,
+  deletes: SyncDeletes,
 ): Promise<{ error?: string }> {
   const listRows = lists.map((l) => listToRow(userId, l))
   const sectionRows = sections.map((s) => sectionToRow(userId, s))
   const taskRows = tasks.map((t) => taskToRow(userId, t))
   const habitRows = habits.map((h) => habitToRow(userId, h))
 
-  let { error: e1 } = await supabase.from('lists').upsert(listRows, { onConflict: 'id' })
-  // 004 未適用の DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
-  if (e1 && /kind/.test(e1.message)) {
-    ;({ error: e1 } = await supabase
-      .from('lists')
-      .upsert(listRows.map((row) => ({ ...row, kind: undefined })), { onConflict: 'id' }))
+  // 012 で主キーが (user_id, id) になった。未適用の DB には一致する一意制約が無いので id で送り直す
+  // （その DB では 2 人目以降の利用者は同期できない。012 を必ず適用する）
+  let onConflict = 'user_id,id'
+  const upsert = async (table: string, rows: object[]) => {
+    let { error } = await supabase.from(table).upsert(rows, { onConflict })
+    if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
+      onConflict = 'id'
+      ;({ error } = await supabase.from(table).upsert(rows, { onConflict }))
+    }
+    return error?.message
   }
-  if (e1) return { error: e1.message }
 
-  const { error: eSec } = await supabase.from('list_sections').upsert(sectionRows, { onConflict: 'id' })
-  if (eSec) return { error: eSec.message }
+  let e1 = await upsert('lists', listRows)
+  // 004 未適用の DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
+  if (e1 && /kind/.test(e1)) {
+    e1 = await upsert('lists', listRows.map((row) => ({ ...row, kind: undefined })))
+  }
+  if (e1) return { error: e1 }
+
+  const eSec = await upsert('list_sections', sectionRows)
+  if (eSec) return { error: eSec }
 
   // 列が無い古い DB 互換。フラグは「この push 呼び出し内」だけで持ち、
   // 毎回フル列で送り直すので、後から列を追加すれば次回同期で自動復帰する
@@ -480,6 +528,7 @@ export async function pushListsTasksHabits(
   let stripLocation = false
   let stripColor = false
   let stripHabitId = false
+  let stripIsSleep = false
   let stripDueTime = false
   let stripScheduledDate = false
   let stripArchivedAt = false
@@ -491,14 +540,14 @@ export async function pushListsTasksHabits(
     if (stripLocation) rows = stripLocationFromTaskRows(rows)
     if (stripColor) rows = stripColorFromTaskRows(rows)
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
+    if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
     if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
     if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
-    const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' })
-    return error?.message
+    return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 11; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -521,6 +570,10 @@ export async function pushListsTasksHabits(
       stripHabitId = true
       continue
     }
+    if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
+      stripIsSleep = true
+      continue
+    }
     if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {
       stripDueTime = true
       continue
@@ -540,69 +593,19 @@ export async function pushListsTasksHabits(
     return { error: errMsg }
   }
 
-  const { error: eH } = await supabase.from('habits').upsert(habitRows, { onConflict: 'id' })
-  if (eH) return { error: eH.message }
+  const eH = await upsert('habits', habitRows)
+  if (eH) return { error: eH }
 
-  if (deletes) {
-    // 子 → 親の順（tasks → habits → sections → lists）
-    for (const [table, ids] of [
-      ['tasks', deletes.tasks],
-      ['habits', deletes.habits],
-      ['list_sections', deletes.sections],
-      ['lists', deletes.lists],
-    ] as const) {
-      if (ids.length === 0) continue
-      const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
-      if (error) return { error: error.message }
-    }
-    return {}
+  // 子 → 親の順（tasks → habits → sections → lists）
+  for (const [table, ids] of [
+    ['tasks', deletes.tasks],
+    ['habits', deletes.habits],
+    ['list_sections', deletes.sections],
+    ['lists', deletes.lists],
+  ] as const) {
+    if (ids.length === 0) continue
+    const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
+    if (error) return { error: error.message }
   }
-
-  // Delete stale tasks first (child records)
-  const localTaskIds = new Set(tasks.map((t) => t.id))
-  const { data: remoteTaskIds, error: e5 } = await supabase.from('tasks').select('id').eq('user_id', userId)
-  if (e5) return { error: e5.message }
-  const toDeleteTasks =
-    remoteTaskIds?.map((r) => r.id as string).filter((id) => !localTaskIds.has(id)) ?? []
-  if (toDeleteTasks.length > 0) {
-    const { error: e6 } = await supabase.from('tasks').delete().in('id', toDeleteTasks)
-    if (e6) return { error: e6.message }
-  }
-
-  // Delete stale habits
-  const localHabitIds = new Set(habits.map((h) => h.id))
-  const { data: remoteHabitIds, error: e7 } = await supabase.from('habits').select('id').eq('user_id', userId)
-  if (e7) return { error: e7.message }
-  const toDeleteHabits =
-    remoteHabitIds?.map((r) => r.id as string).filter((id) => !localHabitIds.has(id)) ?? []
-  if (toDeleteHabits.length > 0) {
-    const { error: e8 } = await supabase.from('habits').delete().in('id', toDeleteHabits)
-    if (e8) return { error: e8.message }
-  }
-
-  const localSectionIds = new Set(sections.map((s) => s.id))
-  const { data: remoteSectionIds, error: eSecDel } = await supabase
-    .from('list_sections')
-    .select('id')
-    .eq('user_id', userId)
-  if (eSecDel) return { error: eSecDel.message }
-  const toDeleteSections =
-    remoteSectionIds?.map((r) => r.id as string).filter((id) => !localSectionIds.has(id)) ?? []
-  if (toDeleteSections.length > 0) {
-    const { error: eSecDel2 } = await supabase.from('list_sections').delete().in('id', toDeleteSections)
-    if (eSecDel2) return { error: eSecDel2.message }
-  }
-
-  // Delete stale lists last (parent records)
-  const localListIds = new Set(lists.map((l) => l.id))
-  const { data: remoteListIds, error: e3 } = await supabase.from('lists').select('id').eq('user_id', userId)
-  if (e3) return { error: e3.message }
-  const toDeleteLists =
-    remoteListIds?.map((r) => r.id as string).filter((id) => !localListIds.has(id)) ?? []
-  if (toDeleteLists.length > 0) {
-    const { error: e4 } = await supabase.from('lists').delete().in('id', toDeleteLists)
-    if (e4) return { error: e4.message }
-  }
-
   return {}
 }

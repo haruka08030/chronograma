@@ -10,16 +10,11 @@ import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
+import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: 'text-red-500',
-  medium: 'text-amber-500',
-  low: 'text-blue-500',
-}
 
 /** 日付ラベルの緊急度。色は「期限切れ > 今日 > 明日 > それ以外」の順に強くする */
 type DateTone = 'overdue' | 'today' | 'tomorrow' | 'future' | 'past'
@@ -127,7 +122,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
   const timeLog = isListedTimeLog(task)
   const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
-  const priorityColor = PRIORITY_COLORS[task.priority]
+  const priorityColor = PRIORITY_RING_CLASS[task.priority]
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
@@ -254,7 +249,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               ? 'opacity-100'
               : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100'}
             ${selection.selected
-              ? 'border-accent-500 bg-accent-500 text-white'
+              ? 'border-accent-500 bg-accent-500 text-on-accent'
               : 'border-zinc-300 dark:border-zinc-600 bg-transparent hover:border-zinc-400 dark:hover:border-zinc-500'}`}
         >
           {selection.selected && (
@@ -280,7 +275,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             task.completed
               ? timeLog
                 ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'bg-accent-500 border-accent-500 text-white'
+                : 'bg-accent-500 border-accent-500 text-on-accent'
               : priorityColor
                 ? `border-current ${priorityColor}`
                 : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'
@@ -417,12 +412,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         />
       )}
 
-      {/* md 未満はアーカイブ・削除もこのメニューに畳む（サブタスク行では md 以上は出さない） */}
-      <div
-        className={`relative flex-shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100
-          ${task.parentId ? 'md:hidden' : ''}`}
-        ref={rowMenuRef}
-      >
+      {/* スマホだけ: アーカイブ・削除・リストの移動をこのメニューに畳む。PC は行の横のボタン・詳細・サイドバーへのドラッグで足りる */}
+      <div className="relative flex-shrink-0 md:hidden" ref={rowMenuRef}>
         <button
           type="button"
           className="rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-1"

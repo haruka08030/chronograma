@@ -74,11 +74,12 @@ export function EventPopover({
 
   const isLog = task.isTimeLog === true
   const list = lists.find((l) => l.id === task.listId)
-  const hex = isLog ? recordHex(task, logCategoryColors) : list?.color ?? NEUTRAL_HEX
+  // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
+  const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
   const dateKey = taskPlacementDate(task)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const dateText = dateKey ? format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 220)
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
   const now = new Date()
   const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -109,7 +110,9 @@ export function EventPopover({
       className={`fixed z-[60] border border-zinc-200 bg-white shadow-2xl outline-none dark:border-zinc-700 dark:bg-zinc-800 ${
         sheet ? 'animate-sheet-in rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'animate-pop-in rounded-2xl'
       }`}
-      style={style}
+      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール
+      // （時刻の候補リストのような中の絶対配置が無いのでここだけ。新規作成・Google の予定のカードには付けない）
+      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButton} aria-label={t('eventCard.edit')} title={`${t('eventCard.edit')} (e)`}>
@@ -159,11 +162,15 @@ export function EventPopover({
         )}
       </div>
 
-      {isLog && (
-        <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-          <ColorLabelPicker task={task} compact />
-        </div>
-      )}
+      {/* 記録は色＝分類、予定は色だけ（既定はリストの色） */}
+      <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+        <ColorLabelPicker
+          task={task}
+          compact
+          label={isLog ? t('labels.pickerAria') : t('taskDetail.color')}
+          planDefaultHex={isLog ? undefined : list?.color ?? NEUTRAL_HEX}
+        />
+      </div>
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
@@ -173,7 +180,7 @@ export function EventPopover({
               toggleTask(task.id)
               onClose()
             }}
-            className="rounded-full bg-accent-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700"
+            className="rounded-full bg-accent-600 px-3.5 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
           >
             {task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone')}
           </button>

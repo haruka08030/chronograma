@@ -45,6 +45,8 @@ npm run dev
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    続けて [`004_list_kind.sql`](supabase/migrations/004_list_kind.sql)（リストの種類: やること / いつか / チェックリスト）も実行します。
    [`006_task_color.sql`](supabase/migrations/006_task_color.sql)（記録の色。Google の予定から写した記録の色を端末間で同期）も実行します。
+   続けて [`007`](supabase/migrations/007_task_habit_id.sql)・[`010`](supabase/migrations/010_task_is_sleep.sql) と、**必須の** [`008_sort_order_fractional.sql`](supabase/migrations/008_sort_order_fractional.sql)（未適用だと同期が止まる）・[`012_per_user_keys.sql`](supabase/migrations/012_per_user_keys.sql)（主キーを利用者ごとにする。未適用だと 2 人目以降の利用者が同期できない）を番号順に実行します。
+   アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
 
@@ -88,8 +90,8 @@ select cron.schedule(
 
 予定の取り込みは Supabase **Edge Function** `google-calendar` 経由です（`002_google_oauth.sql` で `google_oauth` 表を作成）。
 
-1. **SQL Editor** で [`supabase/migrations/002_google_oauth.sql`](supabase/migrations/002_google_oauth.sql) を実行（未適用の場合）。
-2. **Google Cloud Console** で次の2点のみ（スコープの手動追加は不要。アプリが OAuth URL に自動付与する）:
+1. **SQL Editor** で [`supabase/migrations/002_google_oauth.sql`](supabase/migrations/002_google_oauth.sql) と [`013_google_oauth_server_only.sql`](supabase/migrations/013_google_oauth_server_only.sql)（トークンをブラウザから読めなくする）を実行（未適用の場合）。
+2. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.readonly`・`calendar.events` を登録し、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
    - **APIs & Services → Library** で **Google Calendar API** を有効化
    - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `http://localhost:5173` と本番 URL（例 `https://your-app.vercel.app`）を追加
 3. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。

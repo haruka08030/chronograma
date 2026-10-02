@@ -157,6 +157,14 @@ export function loadBaseline(userId: string): SyncBaseline | null {
   }
 }
 
+export function clearBaseline(userId: string) {
+  try {
+    localStorage.removeItem(baselineKey(userId))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function saveBaseline(userId: string, baseline: SyncBaseline) {
   try {
     localStorage.setItem(baselineKey(userId), JSON.stringify(baseline))

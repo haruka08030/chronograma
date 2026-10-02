@@ -5,10 +5,11 @@ import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseI
 import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { displayListName } from '../lib/displayListName'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
+import { SleepStatsCard } from './SleepStatsCard'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -18,6 +19,7 @@ export function StatsView() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
 
   const stats = useMemo(() => {
     // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
@@ -59,13 +61,21 @@ export function StatsView() {
       byPriority[t.priority]++
     }
 
-    const byList = lists.filter((l) => !excluded.has(l.id)).map((l) => ({
-      id: l.id,
-      name: displayListName(l.id, l.name),
-      color: l.color,
-      active: active.filter((t) => t.listId === l.id).length,
-      completed: completed.filter((t) => t.listId === l.id).length,
-    })).filter((l) => l.active > 0 || l.completed > 0)
+    // 想定ユーザーはリストよりタグ（授業・就活・バイト）で分けるので、タグごとに数える。
+    // 複数タグのタスクはそれぞれに数え、タグ無しは最後に 1 行
+    const tagCounts = new Map<string, { active: number; completed: number }>()
+    const bump = (task: Task, key: 'active' | 'completed') => {
+      for (const tag of task.tags.length > 0 ? task.tags : ['']) {
+        const c = tagCounts.get(tag) ?? { active: 0, completed: 0 }
+        c[key]++
+        tagCounts.set(tag, c)
+      }
+    }
+    for (const x of active) bump(x, 'active')
+    for (const x of completed) bump(x, 'completed')
+    const byTag = [...tagCounts.entries()]
+      .map(([tag, c]) => ({ tag, ...c }))
+      .sort((a, b) => (a.tag === '' ? 1 : b.tag === '' ? -1 : b.active - a.active || b.completed - a.completed))
 
     const overdue = active.filter((t) => {
       if (!t.dueDate) return false
@@ -90,7 +100,7 @@ export function StatsView() {
       last7Days,
       maxDayCount,
       byPriority,
-      byList,
+      byTag,
       overdue,
       streak,
     }
@@ -100,11 +110,11 @@ export function StatsView() {
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('stats.title')}</h1>
-        <p className="text-xs text-zinc-400 mt-1">{t('stats.subtitle')}</p>
       </div>
 
       <div className="px-6 pb-8 space-y-8">
         <WeekReviewCard />
+        <SleepStatsCard />
 
         {/* タスク: ふりかえりと重複しない数字だけを 1 行に */}
         <section>
@@ -118,7 +128,7 @@ export function StatsView() {
             ].map((x) => (
               <div key={x.label} className="px-4 py-3">
                 <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{x.label}</dt>
-                <dd className={`mt-0.5 text-xl font-semibold tabular-nums ${x.warn ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                <dd className={`mt-0.5 text-xl font-semibold tabular-nums ${x.warn ? 'text-red-500 dark:text-red-400' : 'text-zinc-900 dark:text-zinc-100'}`}>
                   {x.value}
                   {x.suffix && <span className="ml-0.5 text-sm font-normal text-zinc-500">{x.suffix}</span>}
                 </dd>
@@ -127,16 +137,21 @@ export function StatsView() {
           </dl>
         </section>
 
-        {stats.byList.length > 0 && (
+        {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
+        {stats.byTag.some((x) => x.tag !== '') && (
           <section>
-            <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byListTitle')}</h2>
+            <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byTagTitle')}</h2>
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-              {stats.byList.map((l) => (
-                <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.color }} aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{l.name}</span>
-                  <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: l.active })}</span>
-                  <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: l.completed })}</span>
+              {stats.byTag.map((x) => (
+                <li key={x.tag} className="flex items-center gap-3 px-4 py-2.5">
+                  <span
+                    className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={colorVars(categoryHex(x.tag || null, logCategoryColors))}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
+                  <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: x.active })}</span>
+                  <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: x.completed })}</span>
                 </li>
               ))}
             </ul>

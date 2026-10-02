@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
+// 予定の読み書き（events）＋カレンダーの色の取得（readonly）
+const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
+const WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
 
 const corsHeaders = {
@@ -20,6 +22,24 @@ type CalendarEvent = {
   date: string
   isAllDay: boolean
   colorId?: string
+  recurringEventId?: string
+  /** 自分が主催者、またはゲストに変更が許されている（= このアプリから動かせる） */
+  editable: boolean
+  htmlLink?: string
+}
+
+type GoogleEventItem = {
+  id: string
+  summary?: string
+  description?: string
+  start: { dateTime?: string; date?: string }
+  end: { dateTime?: string; date?: string }
+  colorId?: string
+  recurringEventId?: string
+  htmlLink?: string
+  organizer?: { self?: boolean }
+  guestsCanModify?: boolean
+  locked?: boolean
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -53,18 +73,7 @@ function formatHmInTz(iso: string, timeZone: string): string {
   return `${intlPart(parts, 'hour')}:${intlPart(parts, 'minute')}`
 }
 
-function normalizeEvents(
-  items: Array<{
-    id: string
-    summary?: string
-    description?: string
-    start: { dateTime?: string; date?: string }
-    end: { dateTime?: string; date?: string }
-    colorId?: string
-    recurringEventId?: string
-  }>,
-  timeZone: string,
-): CalendarEvent[] {
+function normalizeEvents(items: GoogleEventItem[], timeZone: string): CalendarEvent[] {
   return items.map((item) => {
     const isAllDay = !item.start.dateTime
     const startDt = item.start.dateTime ?? item.start.date!
@@ -94,6 +103,9 @@ function normalizeEvents(
       isAllDay,
       colorId: item.colorId,
       recurringEventId: item.recurringEventId,
+      // 主催者でなくても guestsCanModify なら動かせる。organizer が無い（自分だけの予定）も自分のもの
+      editable: !item.locked && (item.organizer?.self !== false || item.guestsCanModify === true),
+      htmlLink: item.htmlLink,
     }
   })
 }
@@ -152,19 +164,55 @@ async function fetchGoogleEvents(
     throw new Error(`Calendar API error ${res.status}: ${body}`)
   }
 
-  const data = (await res.json()) as {
-    items?: Array<{
-      id: string
-      summary?: string
-      description?: string
-      start: { dateTime?: string; date?: string }
-      end: { dateTime?: string; date?: string }
-      colorId?: string
-      recurringEventId?: string
-    }>
-  }
+  const data = (await res.json()) as { items?: GoogleEventItem[] }
 
   return normalizeEvents(data.items ?? [], timeZone)
+}
+
+type EventTime = { date?: string; dateTime?: string; timeZone?: string }
+
+/** 書き込みで受け付ける項目だけを取り出す（任意のフィールドを Google に流さない） */
+function pickEventFields(raw: unknown): Record<string, unknown> {
+  const src = (raw ?? {}) as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  if (typeof src.summary === 'string') out.summary = src.summary
+  if (typeof src.description === 'string') out.description = src.description
+  for (const key of ['start', 'end'] as const) {
+    const v = src[key] as EventTime | undefined
+    if (!v) continue
+    // 終日 ⇄ 時刻つきを切り替えるとき、もう片方は明示的に消す必要がある
+    if (typeof v.date === 'string') out[key] = { date: v.date, dateTime: null }
+    else if (typeof v.dateTime === 'string') out[key] = { dateTime: v.dateTime, timeZone: v.timeZone, date: null }
+  }
+  return out
+}
+
+async function writeGoogleEvent(
+  accessToken: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  eventId: string | null,
+  fields: Record<string, unknown> | null,
+): Promise<GoogleEventItem | null> {
+  const path = eventId
+    ? `${CALENDAR_API}/calendars/primary/events/${encodeURIComponent(eventId)}`
+    : `${CALENDAR_API}/calendars/primary/events`
+  const res = await fetch(path, {
+    method,
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: fields ? JSON.stringify(fields) : undefined,
+  })
+  // 既に消えている予定の削除は成功扱い
+  if (method === 'DELETE' && (res.status === 404 || res.status === 410)) return null
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Calendar API error ${res.status}: ${body}`)
+  }
+  if (method === 'DELETE') return null
+  return (await res.json()) as GoogleEventItem
+}
+
+function hasWriteScope(scope: string | null | undefined): boolean {
+  return (scope ?? '').split(/\s+/).includes(WRITE_SCOPE)
 }
 
 Deno.serve(async (req) => {
@@ -254,29 +302,8 @@ Deno.serve(async (req) => {
         {
           user_id: user.id,
           refresh_token: refreshToken,
-          scope: (body.scope as string) ?? tokenData.scope ?? SCOPES,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' },
-      )
-
-      if (error) {
-        return jsonResponse({ ok: false, error: error.message })
-      }
-      return jsonResponse({ ok: true })
-    }
-
-    if (action === 'store') {
-      const refreshToken = body.refresh_token as string | undefined
-      if (!refreshToken?.trim()) {
-        return jsonResponse({ ok: false, error: 'refresh_token is required' })
-      }
-
-      const { error } = await admin.from('google_oauth').upsert(
-        {
-          user_id: user.id,
-          refresh_token: refreshToken.trim(),
-          scope: (body.scope as string) ?? SCOPES,
+          // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
+          scope: tokenData.scope ?? (body.scope as string) ?? SCOPES,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' },
@@ -332,7 +359,7 @@ Deno.serve(async (req) => {
 
       const { data: row, error: fetchError } = await admin
         .from('google_oauth')
-        .select('refresh_token')
+        .select('refresh_token, scope')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -367,7 +394,7 @@ Deno.serve(async (req) => {
         } catch {
           /* ignore */
         }
-        return jsonResponse({ events, calendarColor, calendarColorId, connected: true })
+        return jsonResponse({ events, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
         const needsReconnect =
@@ -385,6 +412,51 @@ Deno.serve(async (req) => {
               ? 'Google Calendar authorization expired. Disconnect and reconnect.'
               : message,
         })
+      }
+    }
+
+    if (action === 'create' || action === 'update' || action === 'delete') {
+      const { data: row, error: fetchError } = await admin
+        .from('google_oauth')
+        .select('refresh_token, scope')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 500)
+      if (!row?.refresh_token) {
+        return jsonResponse({ ok: false, error: 'Google Calendar not connected. Reconnect in settings.' })
+      }
+      if (!hasWriteScope(row.scope)) {
+        return jsonResponse({ ok: false, error: 'Google Calendar write scope not granted. Reconnect and approve calendar access.' })
+      }
+      const eventId = (body.eventId as string | undefined)?.trim() || null
+      if (action !== 'create' && !eventId) return jsonResponse({ ok: false, error: 'eventId is required' })
+      try {
+        const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
+        const accessToken = await refreshGoogleAccessToken(row.refresh_token)
+        const fields = action === 'delete' ? null : pickEventFields(body.fields)
+        const item = await writeGoogleEvent(
+          accessToken,
+          action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
+          action === 'create' ? null : eventId,
+          fields,
+        )
+        return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        if (message.includes('Calendar API error 403')) {
+          // 権限（scope）不足と、他人の予定で変更できないのを分ける
+          const scopeIssue = /insufficient|scope/i.test(message)
+          return jsonResponse({
+            ok: false,
+            error: scopeIssue
+              ? 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
+              : 'Google Calendar event is read-only for you.',
+          })
+        }
+        if (message.includes('invalid_grant') || message.includes('Calendar API error 401')) {
+          return jsonResponse({ ok: false, error: 'Google Calendar authorization expired. Disconnect and reconnect.' })
+        }
+        return jsonResponse({ ok: false, error: message })
       }
     }
 

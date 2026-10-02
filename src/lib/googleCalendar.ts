@@ -1,6 +1,5 @@
 import { calendarColorHex, googleEventHex, hasOwnEventColor } from './googleColors'
 import type { CalendarEvent } from '../types/calendarEvent'
-import type { Session } from '@supabase/supabase-js'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
@@ -45,32 +44,10 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
   return payload
 }
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
-const GCAL_REFRESH_KEY = 'chronograma_gcal_provider_refresh'
+// 予定の読み書き（events）＋カレンダーの色の取得（readonly）
+const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
 const GCAL_OAUTH_STATE_KEY = 'chronograma_gcal_oauth_state'
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-
-function parseProviderRefreshTokenFromUrl(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const hash = window.location.hash.replace(/^#/, '')
-  if (!hash) return undefined
-  return new URLSearchParams(hash).get('provider_refresh_token') ?? undefined
-}
-
-export function cacheProviderRefreshToken(token: string | null | undefined): void {
-  if (typeof window === 'undefined' || !token) return
-  sessionStorage.setItem(GCAL_REFRESH_KEY, token)
-}
-
-function readCachedProviderRefreshToken(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  return sessionStorage.getItem(GCAL_REFRESH_KEY) ?? undefined
-}
-
-function clearCachedProviderRefreshToken(): void {
-  if (typeof window === 'undefined') return
-  sessionStorage.removeItem(GCAL_REFRESH_KEY)
-}
 
 export function getClientId(): string | undefined {
   return import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
@@ -114,6 +91,11 @@ function startDirectGoogleOAuth(): void {
   })
 
   window.location.assign(`${GOOGLE_AUTH_URL}?${params}`)
+}
+
+/** 読み取りだけでつないでいる人が、書き込みを許可し直す（同意画面を出し直す） */
+export function requestGoogleWriteAccess(): void {
+  startDirectGoogleOAuth()
 }
 
 export async function signIn(): Promise<string> {
@@ -172,66 +154,6 @@ export function signOut(): void {
   // no-op; server token cleared via disconnectGoogleCalendar
 }
 
-function getProviderRefreshToken(session: Session | null): string | undefined {
-  const fromUrl = parseProviderRefreshTokenFromUrl()
-  if (fromUrl) {
-    cacheProviderRefreshToken(fromUrl)
-    return fromUrl
-  }
-  const cached = readCachedProviderRefreshToken()
-  if (cached) return cached
-  if (!session) return undefined
-  const fromSession =
-    session.provider_refresh_token ??
-    (session as Session & { provider_refresh_token?: string }).provider_refresh_token
-  if (fromSession) cacheProviderRefreshToken(fromSession)
-  return fromSession ?? undefined
-}
-
-export async function storeGoogleRefreshToken(session: Session | null): Promise<void> {
-  const sb = getSupabase()
-  if (!sb || !session) return
-
-  const refreshToken = getProviderRefreshToken(session)
-  if (!refreshToken) return
-
-  const payload = await invokeGoogleCalendar<{ ok?: boolean; error?: string }>({
-    action: 'store',
-    refresh_token: refreshToken,
-    scope: SCOPES,
-  })
-
-  if (payload.ok === false) {
-    throw new Error(payload.error ?? 'Failed to store Google refresh token')
-  }
-  clearCachedProviderRefreshToken()
-}
-
-/** OAuth 直後は provider_refresh_token が遅れて載ることがあるためリトライする */
-export async function tryPersistGoogleRefreshToken(
-  initialSession: Session | null,
-): Promise<boolean> {
-  const sb = getSupabase()
-  if (!sb || !initialSession) return false
-
-  let session = initialSession
-  for (const delayMs of [0, 400, 1200, 2500]) {
-    if (delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
-      const { data: { session: fresh } } = await sb.auth.getSession()
-      if (fresh) session = fresh
-    }
-
-    const refreshToken = getProviderRefreshToken(session)
-    if (!refreshToken) continue
-
-    await storeGoogleRefreshToken(session)
-    return true
-  }
-
-  return false
-}
-
 export function shouldDisconnectAfterFetchError(message: string): boolean {
   const lower = message.toLowerCase()
   return (
@@ -245,7 +167,6 @@ export function shouldDisconnectAfterFetchError(message: string): boolean {
 export async function disconnectGoogleCalendar(): Promise<void> {
   const sb = getSupabase()
   if (!sb) return
-  clearCachedProviderRefreshToken()
   await invokeGoogleCalendar({ action: 'disconnect' })
 }
 
@@ -276,6 +197,8 @@ export function localizeGoogleError(
   }
   if (lower.includes('non-2xx')) return t('planVsActual.storeTokenFailed')
   if (lower.includes('refresh token missing')) return t('planVsActual.oauthRefreshMissing')
+  if (lower.includes('write scope not granted')) return t('googleEdit.needWriteAccess')
+  if (lower.includes('read-only for you')) return t('googleEdit.readOnlyEvent')
   if (lower.includes('scope not granted')) return t('planVsActual.scopeNotGranted')
   if (lower.includes('redirect_uri_mismatch')) {
     return t('planVsActual.redirectUriMismatch', { uri: getGoogleRedirectUri() })
@@ -329,10 +252,28 @@ export function hasOAuthCallbackInUrl(): boolean {
   )
 }
 
+/** 最後に取れたカレンダーの色（色の付いていない新しい予定に使う） */
+let lastCalendarHex: string | null | undefined
+
+function withColors(e: CalendarEvent): CalendarEvent {
+  const baseColor = googleEventHex(e.colorId, lastCalendarHex)
+  return { ...e, baseColor, ownColor: hasOwnEventColor(e.colorId), color: baseColor }
+}
+
+/**
+ * 書き込み中・書き込み直後に始まった取得の結果で、楽観的に動かした予定を巻き戻さないための世代。
+ * 取得は開始時の世代を覚え、結果が来たときに世代が変わっていたら捨てる（次の取得で正しくなる）
+ */
+let writeGeneration = 0
+let writesInFlight = 0
+export function googleWriteGeneration(): number {
+  return writesInFlight > 0 ? -1 : writeGeneration
+}
+
 export async function fetchCalendarEvents(
   timeMin: Date,
   timeMax: Date,
-): Promise<CalendarEvent[]> {
+): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
@@ -341,6 +282,7 @@ export async function fetchCalendarEvents(
     calendarColor?: string | null
     calendarColorId?: string | null
     connected?: boolean
+    canWrite?: boolean
     error?: string
   }>({
     action: 'events',
@@ -360,11 +302,93 @@ export async function fetchCalendarEvents(
     throw new Error(payload.error)
   }
   // 自分で色を付けていない予定はカレンダーの色
-  const calendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)
-  return (payload.events ?? [])
-    .map(normalizeCalendarEventTimes)
-    .map((e) => {
-      const baseColor = googleEventHex(e.colorId, calendarHex)
-      return { ...e, baseColor, ownColor: hasOwnEventColor(e.colorId), color: baseColor }
+  lastCalendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)
+  return {
+    events: (payload.events ?? []).map(normalizeCalendarEventTimes).map(withColors),
+    canWrite: payload.canWrite === true,
+  }
+}
+
+/** アプリ内の日付・時刻（終日なら時刻 null）。`endDate` は最終日（含む）。省略時は日をまたぐなら翌日 */
+export interface GoogleEventTiming {
+  date: string
+  endDate?: string | null
+  startTime: string | null
+  endTime: string | null
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return formatYmdLocal(d)
+}
+
+type GoogleTimes =
+  | { start: { date: string }; end: { date: string } }
+  | { start: { dateTime: string; timeZone: string }; end: { dateTime: string; timeZone: string } }
+
+function toGoogleTimes(t: GoogleEventTiming): GoogleTimes {
+  if (!t.startTime || !t.endTime) {
+    // Google の終日は終わりの日を含まない
+    return { start: { date: t.date }, end: { date: addDaysYmd(t.endDate ?? t.date, 1) } }
+  }
+  const timeZone = getClientTimeZone()
+  const endDate = t.endDate ?? (t.endTime <= t.startTime ? addDaysYmd(t.date, 1) : t.date)
+  return {
+    start: { dateTime: `${t.date}T${t.startTime}:00`, timeZone },
+    end: { dateTime: `${endDate}T${t.endTime}:00`, timeZone },
+  }
+}
+
+/** 予定の今の日付・時刻（終日の複数日は最終日つき） */
+export function googleEventTiming(e: CalendarEvent): GoogleEventTiming {
+  if (e.isAllDay) {
+    const last = addDaysYmd(e.end.slice(0, 10), -1)
+    return { date: e.date, endDate: last > e.date ? last : null, startTime: null, endTime: null }
+  }
+  const end = new Date(e.end)
+  return { date: e.date, endDate: formatYmdLocal(end), startTime: e.startTime, endTime: e.endTime }
+}
+
+/** 楽観表示用に、Google から返る形をローカルで組み立てる */
+export function applyTimingLocally(e: CalendarEvent, t: GoogleEventTiming): CalendarEvent {
+  const g = toGoogleTimes(t)
+  const isAllDay = !('dateTime' in g.start)
+  const start = 'dateTime' in g.start ? new Date(g.start.dateTime).toISOString() : g.start.date
+  const end = 'dateTime' in g.end ? new Date(g.end.dateTime).toISOString() : g.end.date
+  return { ...e, isAllDay, date: t.date, startTime: isAllDay ? null : t.startTime, endTime: isAllDay ? null : t.endTime, start, end }
+}
+
+async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent | null> {
+  writesInFlight++
+  writeGeneration++
+  try {
+    const payload = await invokeGoogleCalendar<{ ok?: boolean; event?: CalendarEvent | null; error?: string }>({
+      ...body,
+      timeZone: getClientTimeZone(),
     })
+    if (payload.ok === false) throw new Error(payload.error ?? 'Google Calendar write failed')
+    return payload.event ? withColors(normalizeCalendarEventTimes(payload.event)) : null
+  } finally {
+    writesInFlight--
+    writeGeneration++
+  }
+}
+
+export async function createGoogleEvent(summary: string, timing: GoogleEventTiming): Promise<CalendarEvent | null> {
+  return writeGoogle({ action: 'create', fields: { summary, ...toGoogleTimes(timing) } })
+}
+
+export async function updateGoogleEvent(
+  eventId: string,
+  change: { summary?: string; timing?: GoogleEventTiming },
+): Promise<CalendarEvent | null> {
+  const fields: Record<string, unknown> = {}
+  if (change.summary !== undefined) fields.summary = change.summary
+  if (change.timing) Object.assign(fields, toGoogleTimes(change.timing))
+  return writeGoogle({ action: 'update', eventId, fields })
+}
+
+export async function deleteGoogleEvent(eventId: string): Promise<void> {
+  await writeGoogle({ action: 'delete', eventId })
 }

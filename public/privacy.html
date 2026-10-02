@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>プライバシーポリシー | Chronograma</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root { --bg: #ffffff; --fg: #18181b; --muted: #52525b; --line: #e4e4e7; --accent: #4f46e5; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #18181b; --fg: #f4f4f5; --muted: #a1a1aa; --line: #3f3f46; --accent: #a5b4fc; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.8 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 40px 16px 80px; }
+    h1 { font-size: 1.6rem; line-height: 1.4; margin: 0 0 4px; }
+    h2 { font-size: 1.1rem; margin: 2.2em 0 .4em; padding-top: 1em; border-top: 1px solid var(--line); }
+    h3 { font-size: 1rem; margin: 1.4em 0 .2em; }
+    p, li { color: var(--fg); }
+    .meta, .note { color: var(--muted); font-size: .9rem; }
+    a { color: var(--accent); }
+    ul { padding-left: 1.3em; }
+    nav { display: flex; gap: 16px; margin-bottom: 32px; font-size: .9rem; }
+    .lang { margin-top: 64px; }
+  </style>
+</head>
+<body>
+<main>
+  <nav><a href="/">← Chronograma に戻る</a><a href="/terms.html">利用規約</a><a href="#en">English</a></nav>
+
+  <h1>プライバシーポリシー</h1>
+  <p class="meta">制定日：【公開日】　運営者：【運営者名】</p>
+
+  <p>Chronograma（以下「本サービス」）は、計画と記録のためのアプリです。本サービスがどの情報を扱い、どこに置き、どう使うかを説明します。広告は表示せず、アクセス解析のツールも使っていません。利用者の情報を売ることはありません。</p>
+
+  <h2>1. 扱う情報</h2>
+  <h3>ログインせずに使う場合</h3>
+  <p>入力したタスク・記録・習慣・設定は、お使いのブラウザの中（localStorage と IndexedDB）にだけ保存され、運営者には送られません。自動バックアップも同じ端末の中に保存されます。</p>
+
+  <h3>ログインして同期する場合</h3>
+  <ul>
+    <li><strong>メールアドレス</strong>：ログイン用のリンクを送り、アカウントを識別するため。</li>
+    <li><strong>入力した内容</strong>：リスト、タスク（タイトル・メモ・日付・時刻・場所・タグ・色など）、時間の記録、睡眠の記録、習慣とその達成日。複数の端末で同じデータを使うため。</li>
+    <li><strong>通知の設定</strong>：通知を有効にした端末のプッシュ通知の宛先（ブラウザが発行する購読情報）、タイムゾーン、表示言語、通知の時刻、その日に通知済みのタスクの ID。通知を送るため。</li>
+  </ul>
+
+  <h3>Google カレンダーと連携する場合</h3>
+  <ul>
+    <li>Google が発行するリフレッシュトークンと、許可された範囲（スコープ）をサーバーに保存します。ブラウザからは読み出せないようにしています。</li>
+    <li>予定は、画面に表示するときにその都度 Google から取得し、サーバーには保存しません。</li>
+    <li>利用者が本サービスの画面で予定を作成・変更・削除したときだけ、Google カレンダーに書き込みます。</li>
+  </ul>
+
+  <h3>Notion と連携する場合</h3>
+  <ul>
+    <li>利用者が入力した Notion の統合トークン、データベースの ID、ステータスの設定をサーバーに保存します。トークンはブラウザに返しません。</li>
+    <li>設定したデータベースから「要アクション」の行を読み取り、タスクを完了にしたときにその行のステータスを更新します。</li>
+  </ul>
+
+  <h2>2. Google ユーザーデータの扱い</h2>
+  <p>本サービスが Google API から受け取った情報の使用と他のアプリへの転送は、<a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>（Limited Use の要件を含む）に従います。Google カレンダーの情報は、利用者に予定を表示し、利用者の操作どおりに予定を書き込むためだけに使います。広告に使ったり、第三者に提供・販売したり、人が読んだりすることはありません（利用者の同意がある場合、セキュリティ上の目的、法令に基づく場合を除く）。AI モデルの学習にも使いません。</p>
+
+  <h2>3. 外部のサービス</h2>
+  <p>本サービスは次のサービスを使います。それぞれのサービスに必要な範囲で情報が送られます。</p>
+  <ul>
+    <li><strong>Supabase</strong>（データベース・ログイン・サーバー処理）：保存先リージョンは【Supabase のリージョン】です。</li>
+    <li><strong>【ホスティング事業者】</strong>（本サービスの配信）</li>
+    <li><strong>Google</strong>：Google カレンダー API（連携した場合）、Google Fonts（文字の表示。読み込み時に IP アドレスなどが Google に送られます）。</li>
+    <li><strong>Notion</strong>（連携した場合）</li>
+    <li><strong>ブラウザのプッシュ通知サービス</strong>（Apple、Google、Mozilla、Microsoft など。通知を有効にした場合。通知の文面が経由します）</li>
+  </ul>
+
+  <h2>4. 保存期間と削除</h2>
+  <ul>
+    <li>クラウドのデータは、利用者が削除するかアカウントを削除するまで保存します。</li>
+    <li><strong>アカウントの削除</strong>：設定 → アカウント の「アカウントを削除」から、アカウントとクラウドのデータ（連携の情報を含む）をすべて削除できます。Google のトークンはそのときに無効にします。</li>
+    <li>Google カレンダー・Notion の連携は設定からいつでも解除できます。Google のアクセス権は <a href="https://myaccount.google.com/permissions" rel="noopener">Google アカウントの設定</a> からも取り消せます。</li>
+    <li>ログアウトすると、その端末のデータは消えます（送れていなかった変更に備えて、端末内に自動バックアップを残します）。</li>
+    <li>データは設定 → データ からいつでも JSON で書き出せます。</li>
+  </ul>
+
+  <h2>5. 安全管理</h2>
+  <p>通信は HTTPS で暗号化します。データベースは行単位のアクセス制御で、本人以外は読み書きできません。連携のトークンはサーバー側だけで扱います。</p>
+
+  <h2>6. 開示・訂正・削除のご依頼、お問い合わせ</h2>
+  <p>保有する個人データの開示・訂正・利用停止・削除のご依頼や、このポリシーについてのお問い合わせは、【連絡先メールアドレス】までご連絡ください。</p>
+
+  <h2>7. 改定</h2>
+  <p>このポリシーを改定するときは、このページで改定日と内容をお知らせします。重要な変更は、本サービスの画面でもお知らせします。</p>
+
+  <section class="lang" id="en" lang="en">
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective: [launch date] · Operator: [operator name]</p>
+    <p>Chronograma ("the Service") is an app for planning and logging your time. This page explains what information it handles, where it is kept and how it is used. The Service shows no ads, uses no analytics tools and never sells your information. If this English text and the Japanese text differ, the Japanese text prevails.</p>
+
+    <h2>1. Information we handle</h2>
+    <p><strong>Without signing in</strong>, everything you enter stays in your browser (localStorage and IndexedDB) and is never sent to us. Automatic backups also stay on the device.</p>
+    <p><strong>When you sign in to sync</strong>, we store: your email address (to send sign-in links and identify your account); the content you enter (lists, tasks with their notes, dates, times, places, tags and colors, time records, sleep records, habits and the dates you completed them); and, if you turn on notifications, the device's push subscription, time zone, language, reminder times and the IDs of tasks already notified that day.</p>
+    <p><strong>Google Calendar (optional)</strong>: we store the refresh token Google issues and the granted scopes on the server; the browser cannot read them. Events are fetched from Google each time they are shown and are not stored on our server. We write to your calendar only when you create, edit or delete an event in the Service.</p>
+    <p><strong>Notion (optional)</strong>: we store the integration token, database ID and status settings you enter, server-side only. We read the rows that need action and update a row's status when you complete its task.</p>
+
+    <h2>2. Google user data</h2>
+    <p>The Service's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Calendar data is used only to show your events and to write the changes you make. It is not used for advertising, not sold or shared with third parties, not read by humans (except with your consent, for security purposes or as required by law), and not used to train AI models.</p>
+
+    <h2>3. Third-party services</h2>
+    <p>Supabase (database, sign-in and server functions; region: [Supabase region]), [hosting provider] (serving the app), Google (Calendar API if connected; Google Fonts, which receives your IP address when fonts load), Notion (if connected), and your browser's push service (Apple, Google, Mozilla, Microsoft and others, if notifications are on).</p>
+
+    <h2>4. Retention and deletion</h2>
+    <p>Cloud data is kept until you delete it or your account. You can delete your account and all cloud data, including connections, from Settings → Account → Delete account; the Google token is revoked at that time. You can disconnect Google Calendar or Notion at any time, and revoke Google access from your <a href="https://myaccount.google.com/permissions" rel="noopener">Google Account</a>. Signing out removes the data from that device, keeping an automatic backup on the device in case some changes were not yet synced. You can export your data as JSON from Settings → Data.</p>
+
+    <h2>5. Security</h2>
+    <p>Traffic is encrypted with HTTPS. Row-level access control means only you can read or write your data. Connection tokens are handled only on the server.</p>
+
+    <h2>6. Requests and contact</h2>
+    <p>For requests to access, correct, stop using or delete your personal data, or questions about this policy, contact [contact email].</p>
+
+    <h2>7. Changes</h2>
+    <p>We will post changes on this page with the date. Important changes will also be announced in the app.</p>
+  </section>
+</main>
+</body>
+</html>

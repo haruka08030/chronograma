@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n/config'
-import { DAILY_KEEP, listAutoBackups, loadAutoBackup, type AutoBackupMeta } from '../../lib/autoBackup'
+import { DAILY_KEEP, listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
 import { useTaskStore } from '../../store/taskStore'
 import { SettingsRow, settingsButton } from './SettingsPrimitives'
+
+const KIND_LABEL: Record<AutoBackupKind, string> = {
+  daily: 'kindDaily',
+  beforeSync: 'kindBeforeSync',
+  beforeSignOut: 'kindBeforeSignOut',
+}
 
 /**
  * 自動バックアップの一覧。いまのデータは置き換えず「控えにあって今は無いもの」だけを戻すので、
@@ -72,7 +78,7 @@ export function AutoBackupSettings() {
                     <p className="text-sm text-zinc-800 dark:text-zinc-200">
                       {when(b.savedAt)}
                       <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        {t(b.kind === 'daily' ? 'autoBackup.kindDaily' : 'autoBackup.kindBeforeSync')}
+                        {t(`autoBackup.${KIND_LABEL[b.kind]}`)}
                       </span>
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">

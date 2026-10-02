@@ -91,6 +91,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const archivedAtRaw = row.archivedAt ?? row.archived_at
   const deletedAtRaw = row.deletedAt ?? row.deleted_at
   const habitIdRaw = row.habitId ?? row.habit_id
+  const isSleepRaw = row.isSleep ?? row.is_sleep
 
   return {
     ...t,
@@ -105,6 +106,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
     priority: normalizePriority(t.priority ?? row.priority),
     isTimeLog: Boolean(isTimeLog),
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
+    isSleep: isSleepRaw === true,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,

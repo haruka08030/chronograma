@@ -1,4 +1,5 @@
 import type { Task } from '../types/task'
+import { NEUTRAL_HEX } from './googleColors'
 
 /**
  * カレンダー上の予定の見せ方。このアプリは「記録と可視化」が主役なので、色で目立つのは記録（実績）だけ。
@@ -19,4 +20,9 @@ export function planVisualState(
     ? new Date(y!, m! - 1, d!, ...task.endTime.split(':').map(Number) as [number, number])
     : new Date(y!, m! - 1, d! + 1)
   return end.getTime() < now.getTime() ? 'missed' : 'upcoming'
+}
+
+/** カレンダーでの予定の色: タスク自身の色（Google の予定から作ったものなど）→ リストの色 */
+export function planHex(task: Pick<Task, 'color' | 'listId'>, listColorById: ReadonlyMap<string, string>): string {
+  return task.color || listColorById.get(task.listId) || NEUTRAL_HEX
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   startOfMonth,
@@ -11,21 +11,26 @@ import {
   isToday,
 } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
-import { planVisualState } from '../lib/planVisual'
+import type { CalendarEvent } from '../types/calendarEvent'
+import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
-import { NEUTRAL_HEX } from '../lib/googleColors'
+import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
-import { readDraggedTaskIds } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
+import {
+  canEditGoogleEvent,
+  getDraggedGoogleEvent,
+  GOOGLE_EVENT_DND_TYPE,
+  moveGoogleEvent,
+  setDraggedGoogleEvent,
+} from '../lib/googleEventEdit'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { taskPlacementDate } from '../lib/taskTimeRange'
-import {
-  fetchCalendarEvents,
-  localizeGoogleError,
-  shouldDisconnectAfterFetchError,
-} from '../lib/googleCalendar'
+import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 
@@ -34,6 +39,17 @@ function formatMinutesShort(m: number): string {
   const h = Math.floor(m / 60)
   const min = m % 60
   return h > 0 ? `${h}h${min ? String(min).padStart(2, '0') : ''}` : `${min}m`
+}
+
+/** Google の予定も、タスクと同じく終わったら灰色にする */
+function eventState(e: CalendarEvent, key: string): PlanVisualState {
+  return planVisualState({ completed: false, startTime: e.startTime, endTime: e.endTime }, key)
+}
+
+/** 月のマスの 1 行: 終日は薄い塗りの帯、時刻つきは「● 時刻 タイトル」の文字だけ */
+function itemClass(allDay: boolean, state: PlanVisualState): string {
+  if (allDay) return state === 'upcoming' ? 'gc-plan' : 'gc-missed'
+  return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'
 }
 
 export function CalendarView({
@@ -48,11 +64,9 @@ export function CalendarView({
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
-  const googleConnected = useTaskStore((s) => s.googleConnected)
-  const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
-  const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
-  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
+  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
+  const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
@@ -99,37 +113,13 @@ export function CalendarView({
     return map
   }, [tasks, excludedListIds])
 
-  useEffect(() => {
-    if (!googleConnected) return
-    let cancelled = false
-
-    const doFetch = async () => {
-      try {
-        const monthStart = startOfMonth(displayMonth)
-        const monthEnd = endOfMonth(displayMonth)
-        const ws = startOfWeek(monthStart, { weekStartsOn: 1 })
-        const we = endOfWeek(monthEnd, { weekStartsOn: 1 })
-        we.setHours(23, 59, 59)
-        const events = await fetchCalendarEvents(ws, we)
-        if (!cancelled) {
-          setCalendarEvents(events)
-          setGoogleConnectionError(null)
-        }
-      } catch (e) {
-        if (!cancelled) {
-          const raw = e instanceof Error ? e.message : t('account.genericError')
-          setGoogleConnectionError(localizeGoogleError(raw, t))
-          if (shouldDisconnectAfterFetchError(raw)) {
-            setGoogleConnected(false)
-            setCalendarEvents([])
-          }
-        }
-      }
-    }
-
-    doFetch()
-    return () => { cancelled = true }
-  }, [displayMonth, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
+  const fetchRange = useMemo(() => {
+    const ws = startOfWeek(startOfMonth(displayMonth), { weekStartsOn: 1 })
+    const we = endOfWeek(endOfMonth(displayMonth), { weekStartsOn: 1 })
+    we.setHours(23, 59, 59)
+    return { ws, we }
+  }, [displayMonth])
+  useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()
@@ -174,26 +164,34 @@ export function CalendarView({
                 onDrop={(e) => {
                   e.preventDefault()
                   setDragOverDate(null)
+                  const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
+                  if (gev) {
+                    // Google の予定は時刻を保ったまま日だけ動かす
+                    if (gev.date !== key) void moveGoogleEvent(gev, { date: key, startTime: gev.startTime, endTime: gev.endTime })
+                    return
+                  }
                   const ids = readDraggedTaskIds(e.dataTransfer)
                   const taskIds = ids.length ? ids : (dragTaskIdRef.current ? [dragTaskIdRef.current] : [])
-                  for (const taskId of taskIds) {
-                    const existingTask = tasks.find((t) => t.id === taskId)
-                    if (existingTask) {
-                      updateTask(taskId, {
-                        scheduledDate: key,
-                        startTime: existingTask.startTime,
-                        endTime: existingTask.endTime,
-                        isTimeLog: false,
-                      })
+                  asOneUndo(() => {
+                    for (const taskId of taskIds) {
+                      const existingTask = tasks.find((t) => t.id === taskId)
+                      if (existingTask) {
+                        updateTask(taskId, {
+                          scheduledDate: key,
+                          startTime: existingTask.startTime,
+                          endTime: existingTask.endTime,
+                          isTimeLog: false,
+                        })
+                      }
                     }
-                  }
+                  })
                   dragTaskIdRef.current = null
                 }}
               >
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
                     ${today
-                      ? 'bg-accent-500 text-white font-semibold'
+                      ? 'bg-accent-500 text-on-accent font-semibold'
                       : selected
                         ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
                         : inMonth
@@ -232,12 +230,23 @@ export function CalendarView({
                     <div
                       key={`event-${e.id}`}
                       title={e.summary}
-                      className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300"
+                      draggable={canEditGoogleEvent(e, googleCanWrite)}
+                      onDragStart={(ev) => {
+                        ev.stopPropagation()
+                        setDraggedGoogleEvent(e)
+                        ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
+                        ev.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => { setDraggedGoogleEvent(null); setDragOverDate(null) }}
+                      className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
+                        ${itemClass(!e.startTime, eventState(e, key))}
+                        ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                      style={colorVars(eventState(e, key) === 'upcoming' ? e.color ?? DEFAULT_GOOGLE_EVENT_HEX : '#BDBDBD')}
                     >
-                      {e.startTime && (
-                        <span className="text-[9px] opacity-60 mr-0.5">{e.startTime}</span>
-                      )}
-                      {e.summary}
+                      {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯。色は予定ごと */}
+                      {e.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
+                      {e.startTime && <span className="shrink-0 opacity-70">{e.startTime}</span>}
+                      <span className="truncate">{e.summary}</span>
                     </div>
                   ))}
                   {dayTasks.slice(0, 3).map((t) => (
@@ -247,17 +256,17 @@ export function CalendarView({
                       onDragStart={(e) => {
                         e.stopPropagation()
                         dragTaskIdRef.current = t.id
+                        e.dataTransfer.setData(TASK_DND_TYPE, t.id)
                         e.dataTransfer.setData('text/plain', t.id)
                         e.dataTransfer.effectAllowed = 'move'
+                        beginCalendarItemNativeDrag()
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${!t.startTime ? (planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed') : ''}
-                        ${t.startTime && planVisualState(t, key) !== 'upcoming' ? 'text-zinc-400 dark:text-zinc-500' : ''}
-                        ${t.startTime && planVisualState(t, key) === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
-                      style={colorVars(planVisualState(t, key) === 'upcoming' ? listColorById.get(t.listId) ?? NEUTRAL_HEX : '#BDBDBD')}
+                        ${itemClass(!t.startTime, planVisualState(t, key))}`}
+                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t, listColorById) : '#BDBDBD')}
                     >
                       {/* Google と同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯 */}
                       {t.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
@@ -266,13 +275,10 @@ export function CalendarView({
                     </div>
                   ))}
                   {(dayTasks.length > 3 || dayEvents.length > 2) && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onSelectDate?.(key) }}
-                      className="rounded px-1.5 text-[10px] text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    >
+                    // 件数だけ。押すとマス全体と同じくその日が開く
+                    <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
                       {t('calendar.moreItems', { count: Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0) })}
-                    </button>
+                    </span>
                   )}
                   {addingDate === key && (
                     <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />

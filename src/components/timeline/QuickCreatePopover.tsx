@@ -8,9 +8,12 @@ import { unplannedListIds } from '../../lib/listKind'
 import { colorVars } from '../../lib/logCategoryColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
+import { addGoogleEvent } from '../../lib/googleEventEdit'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
+/** 作成先（Google カレンダーのクイック作成の「予定 / タスク」と同じ切り替え）。前回の選択を覚える */
+let lastDestination: 'todo' | 'google' = 'todo'
 
 /**
  * 空き時間をクリック / ドラッグしたときの作成カード（Google カレンダーのクイック作成相当）。
@@ -42,6 +45,9 @@ export function QuickCreatePopover({
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [title, setTitle] = useState('')
+  const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
+  const [destination, setDestination] = useState<'todo' | 'google'>(lastDestination)
+  const toGoogle = !asLog && googleWritable && destination === 'google'
   const [category, setCategory] = useState('')
   const plannable = useMemo(() => {
     const excluded = unplannedListIds(lists)
@@ -72,6 +78,13 @@ export function QuickCreatePopover({
       return
     }
     const name = title.trim() || t('quickCreate.untitled')
+    if (toGoogle) {
+      lastDestination = 'google'
+      void addGoogleEvent(name, { date: dateKey, startTime, endTime })
+      onClose()
+      return
+    }
+    if (googleWritable) lastDestination = 'todo'
     const id = addTask(name, listId)
     if (!id) return
     updateTask(id, { scheduledDate: dateKey, startTime, endTime })
@@ -80,7 +93,7 @@ export function QuickCreatePopover({
   }
 
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 230)
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, googleWritable && !asLog ? 270 : 230)
   const listColor = plannable.find((l) => l.id === listId)?.color ?? '#7986CB'
 
   return (
@@ -96,6 +109,29 @@ export function QuickCreatePopover({
         if (e.key === 'Escape') onClose()
       }}
     >
+      {googleWritable && !asLog && (
+        <div role="tablist" aria-label={t('googleEdit.destination')} className="mb-3 flex gap-1 text-xs">
+          {(['todo', 'google'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={destination === d}
+              onClick={() => {
+                setDestination(d)
+                inputRef.current?.focus()
+              }}
+              className={`rounded-full px-3 py-1 transition-colors ${
+                destination === d
+                  ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700'
+              }`}
+            >
+              {t(d === 'todo' ? 'googleEdit.destTodo' : 'googleEdit.destGoogle')}
+            </button>
+          ))}
+        </div>
+      )}
       <input
         ref={inputRef}
         value={title}
@@ -117,7 +153,7 @@ export function QuickCreatePopover({
         <div className="mt-3">
           <TimeLogTagField value={category} onChange={setCategory} compact />
         </div>
-      ) : (
+      ) : toGoogle ? null : (
       <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
         <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(listColor)} aria-hidden />
         <span className="sr-only">{t('quickCreate.list')}</span>
@@ -135,7 +171,7 @@ export function QuickCreatePopover({
       </label>
       )}
       <div className="mt-4 flex items-center justify-end gap-2">
-        {!asLog && (
+        {!asLog && !toGoogle && (
         <button
           type="button"
           onClick={() => save(true)}
@@ -147,7 +183,7 @@ export function QuickCreatePopover({
         <button
           type="button"
           onClick={() => save(false)}
-          className="rounded-full bg-accent-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-700"
+          className="rounded-full bg-accent-600 px-4 py-1.5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700"
         >
           {t('common.save')}
         </button>

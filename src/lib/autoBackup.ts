@@ -8,12 +8,13 @@ import { SYNC_INBOX_LIST_ID } from './syncMerge'
  * 自動バックアップ。この端末の IndexedDB に控えを残す。
  * - 毎日: その日はじめて開いたときの状態（同期が反映される前）。14 日分
  * - 同期の直前: 同期で手元のタスクが減るときの、減る前の状態。5 件分
+ * - ログアウトの直前: ログアウトで手元のデータを消す前の状態（送れていなかった変更を戻せるように）。5 件分
  *
  * 送信に失敗している間に、サーバーの古い内容で手元が置き換わって 9 日分のタスクが
  * 消えたことがある。サーバーにも手元にも無くなったものを戻せるのはこれだけ。
  */
 
-export type AutoBackupKind = 'daily' | 'beforeSync'
+export type AutoBackupKind = 'daily' | 'beforeSync' | 'beforeSignOut'
 
 export interface AutoBackupMeta {
   id: string
@@ -94,7 +95,8 @@ export function idsToPrune(all: readonly AutoBackupMeta[]): string[] {
   const sorted = [...all].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
   const daily = sorted.filter((b) => b.kind === 'daily').slice(DAILY_KEEP)
   const beforeSync = sorted.filter((b) => b.kind === 'beforeSync').slice(BEFORE_SYNC_KEEP)
-  return [...daily, ...beforeSync].map((b) => b.id)
+  const beforeSignOut = sorted.filter((b) => b.kind === 'beforeSignOut').slice(BEFORE_SYNC_KEEP)
+  return [...daily, ...beforeSync, ...beforeSignOut].map((b) => b.id)
 }
 
 export function countTasks(tasks: readonly Task[]): { todoCount: number; logCount: number } {
@@ -133,6 +135,17 @@ export async function saveAutoBackup(
   } catch (e) {
     console.error('[backup]', e)
     return false
+  }
+}
+
+/** アカウントを削除したときに、この端末の控えも全部消す */
+export async function clearAutoBackups(): Promise<void> {
+  try {
+    await withStore('readwrite', (s) => {
+      s.clear()
+    })
+  } catch {
+    /* 開けなければ消すものも無い */
   }
 }
 

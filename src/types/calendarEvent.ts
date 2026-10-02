@@ -14,6 +14,10 @@ export interface CalendarEvent {
   date: string
   isAllDay: boolean
   colorId?: string
+  /** 自分が主催者、またはゲストに変更が許されている（このアプリから動かせる） */
+  editable?: boolean
+  /** Google カレンダーで開くリンク */
+  htmlLink?: string
   /** 繰り返し予定のシリーズ ID（色を「すべての繰り返し」に付けるとき用） */
   recurringEventId?: string
   /** Google から分かる色（予定の色 → カレンダーの色 → ピーコック） */

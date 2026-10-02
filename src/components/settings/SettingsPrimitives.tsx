@@ -95,7 +95,7 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
         checked ? 'bg-accent-600' : 'bg-zinc-300 dark:bg-zinc-600'
       }`}
     >
-      <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+      <span className={`inline-block h-5 w-5 rounded-full shadow transition-transform ${checked ? 'translate-x-[18px] bg-on-accent' : 'translate-x-0.5 bg-white'}`} />
     </button>
   )
 }

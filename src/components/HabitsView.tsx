@@ -22,6 +22,9 @@ import {
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
 import { TimeInput } from './TimeInput'
+
+/** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
+const ISO_MONDAY = new Date(2024, 0, 1)
 import { addClockMinutes } from '../lib/clockTime'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
@@ -95,7 +98,7 @@ function WeekdayPicker({
           onClick={() => onToggle(v)}
           className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
             ${weekdays.includes(v)
-              ? 'bg-accent-500 text-white'
+              ? 'bg-accent-500 text-on-accent'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
         >
           {labels[v - 1]}
@@ -398,10 +401,14 @@ export function HabitsView() {
     const isEditing = editingHabitId === h.id
     // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
     const weeklyProgress = consistencyForLast7Days([h], habitRecords)
+    // 「週に3日」だと回数で数える習慣に読めるので、決めた曜日をそのまま出す（月・水・金）
     const goalText =
       h.frequency.type === 'daily'
         ? t('habits.goalDaily')
-        : t('habits.goalWeekly', { count: h.frequency.weekdays.length })
+        : [...h.frequency.weekdays]
+            .sort((a, b) => a - b)
+            .map((d) => format(addDays(ISO_MONDAY, d - 1), 'E', { locale: dateLocale }))
+            .join(t('habits.weekdaySeparator'))
     const timeText = h.timeMode === 'range' && h.startTime && h.endTime
       ? t('habits.timeRange', { start: h.startTime, end: h.endTime })
       : h.timeMode === 'fixed' && h.startTime
@@ -489,7 +496,7 @@ export function HabitsView() {
                   type="button"
                   onClick={saveEdit}
                   disabled={editFormDisabled}
-                  className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700
+                  className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700
                              disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {t('common.save')}
@@ -514,7 +521,6 @@ export function HabitsView() {
         <div
           role="button"
           tabIndex={0}
-          title={t('habits.cardEditHint')}
           onClick={() => beginEdit(h)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -614,10 +620,7 @@ export function HabitsView() {
     <div className="flex-1 overflow-y-auto">
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
-            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{t('habits.subtitle')}</p>
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
           <button
             type="button"
             onClick={() => {
@@ -627,7 +630,7 @@ export function HabitsView() {
             className={
               showComposer
                 ? 'rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                : 'rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700'
+                : 'rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700'
             }
           >
             {showComposer ? t('common.close') : t('habits.addHabitCta')}
@@ -724,7 +727,7 @@ export function HabitsView() {
                 type="button"
                 onClick={submitNew}
                 disabled={newFormDisabled}
-                className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {t('common.add')}
               </button>
@@ -778,7 +781,7 @@ export function HabitsView() {
                 const colBand =
                   isColFocus ? 'bg-accent-500/10 dark:bg-accent-400/10' : ''
                 const labelTone = isColFocus
-                  ? 'text-accent-700 dark:text-accent-200 font-semibold'
+                  ? 'text-accent-700 dark:text-accent-300 font-semibold'
                   : isColToday
                     ? 'text-accent-600/90 dark:text-accent-400/90'
                     : 'text-zinc-400 dark:text-zinc-500'
@@ -824,7 +827,6 @@ export function HabitsView() {
           <li className="list-none">
             <div className="pt-4 pb-1">
               <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{t('habits.offDaySectionTitle')}</h3>
-              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{t('habits.offDaySectionHint')}</p>
             </div>
           </li>
         ) : null}

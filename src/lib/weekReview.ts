@@ -9,6 +9,7 @@ import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
+import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 
 export interface WeekReviewDay {
@@ -17,6 +18,8 @@ export interface WeekReviewDay {
   loggedMinutes: number
   done: number
   total: number
+  /** 分類ごとの記録時間（多い順、タグ無しは空文字）。日ごとの棒を分類の色で積む */
+  tagMinutes: { tag: string; minutes: number }[]
 }
 
 export interface WeekReview {
@@ -25,7 +28,10 @@ export interface WeekReview {
   loggedMinutes: number
   done: number
   total: number
-  /** 時刻つきの予定（タスク・習慣）のうち、ログと突き合わせて実行できたものの割合。予定が無ければ null */
+  /**
+   * 時刻つきの予定（タスク・習慣）のうち、ログと突き合わせて実行できたものの割合。予定が無ければ null。
+   * 今日はまだ終わっていない予定を数えない（これから行う予定で「ずれた」と言わない）
+   */
   followRate: number | null
   timedPlanned: number
   habitRate: number | null
@@ -43,6 +49,7 @@ export function getWeekReview(
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = format(now, 'yyyy-MM-dd')
+  const nowHm = format(now, 'HH:mm')
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
   let timedPlanned = 0
@@ -56,13 +63,15 @@ export function getWeekReview(
     const key = format(date, 'yyyy-MM-dd')
     if (key > todayKey) break
     const plan = getDayPlan(tasks, key, excludedListIds)
-    days.push({
+    const day: WeekReviewDay = {
       dateKey: key,
       plannedMinutes: plan.plannedMinutes,
       loggedMinutes: plan.loggedMinutes,
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
-    })
+      tagMinutes: [],
+    }
+    days.push(day)
 
     const planned: PlannedItem[] = []
     for (const t of tasks) {
@@ -79,17 +88,26 @@ export function getWeekReview(
       if (p) planned.push(p)
     }
     const logs = tasks.filter(
-      (t) => t.isTimeLog && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && logOverlapsDateKey(t, key),
+      (t) =>
+        t.isTimeLog && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepRecord(t) && logOverlapsDateKey(t, key),
     )
+    const dayTagMinutes = new Map<string, number>()
     for (const log of logs) {
       const min = minutesOfLogOnCalendarDay(log, key)
       const tags = log.tags.length > 0 ? log.tags : ['']
       for (const tag of tags) tagMinutes.set(tag, (tagMinutes.get(tag) ?? 0) + min)
+      // 棒は 1 本の記録を 1 回だけ積む（複数タグなら先頭のタグの色）
+      dayTagMinutes.set(tags[0], (dayTagMinutes.get(tags[0]) ?? 0) + min)
     }
+    day.tagMinutes = sortedTagMinutes(dayTagMinutes)
     for (const pair of matchPlanAndActualForDate(planned, logs)) {
       if (!pair.planned) continue
+      const followedPair = pair.status === 'matched' || pair.status === 'time-drift'
+      // 今日の、まだ終わっていない予定（日をまたぐものも含む）は、先に記録できていなければ数えない
+      const ended = key < todayKey || (pair.planned.endTime > pair.planned.startTime && pair.planned.endTime <= nowHm)
+      if (!ended && !followedPair) continue
       timedPlanned++
-      if (pair.status === 'matched' || pair.status === 'time-drift') followed++
+      if (followedPair) followed++
     }
   }
 
@@ -103,10 +121,13 @@ export function getWeekReview(
     followRate: timedPlanned > 0 ? followed / timedPlanned : null,
     timedPlanned,
     habitRate: habitDue > 0 ? habitDone / habitDue : null,
-    topTags: [...tagMinutes.entries()]
-      .map(([tag, minutes]) => ({ tag, minutes }))
-      .filter((x) => x.minutes > 0)
-      .sort((a, b) => b.minutes - a.minutes)
-      .slice(0, 5),
+    topTags: sortedTagMinutes(tagMinutes).slice(0, 5),
   }
+}
+
+function sortedTagMinutes(m: ReadonlyMap<string, number>): { tag: string; minutes: number }[] {
+  return [...m.entries()]
+    .map(([tag, minutes]) => ({ tag, minutes }))
+    .filter((x) => x.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes)
 }

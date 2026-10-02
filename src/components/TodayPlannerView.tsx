@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, isToday, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
-import { getDayPlan } from '../lib/dayPlan'
+import { getDayPlan, getMoreSuggestions } from '../lib/dayPlan'
+import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -19,8 +20,11 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { TaskDetail } from './TaskDetail'
 import { WeekCalendarView } from './WeekCalendarView'
 import { RecordPanel } from './RecordPanel'
+import { SleepRow } from './SleepRow'
 import type { Task } from '../types/task'
-import { buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
+import { colorVars } from '../lib/logCategoryColors'
+import { isSleepRecord } from '../lib/sleep'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -38,6 +42,8 @@ const WRAP_UP_FROM_HOUR = 17
  * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
  */
+const MORE_SUGGESTIONS_PAGE = 10
+
 export function TodayPlannerView() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -84,23 +90,46 @@ export function TodayPlannerView() {
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter((x) => x.isTimeLog && isActiveTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
+        .filter((x) => x.isTimeLog && isActiveTask(x) && !isSleepRecord(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
-  const { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
+  const { overdue: overdueAll, carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
     () => getDayPlan(tasks, dateKey, excludedListIds),
     [tasks, dateKey, excludedListIds],
   )
-  const overdueCount = useMemo(
-    () => (viewingToday ? carryOver.filter((x) => x.dueDate != null && x.dueDate < dateKey).length : 0),
-    [viewingToday, carryOver, dateKey],
-  )
+  // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
+  const overdue = viewingToday ? overdueAll : []
   // やり残しは今日を見ているときだけ候補に出す（過去日・未来日に持ち越しは無い）
   const suggestions = useMemo(
     () => [...(viewingToday ? carryOver : []), ...dueSoon],
     [viewingToday, carryOver, dueSoon],
   )
+  // その下に、締切が先のもの・日付なしなどを 10 件ずつスクロールで足していく
+  const moreSuggestions = useMemo(
+    () => getMoreSuggestions(tasks, dateKey, excludedListIds),
+    [tasks, dateKey, excludedListIds],
+  )
+  const [moreShown, setMoreShown] = useState(MORE_SUGGESTIONS_PAGE)
+  const [moreShownFor, setMoreShownFor] = useState(dateKey)
+  if (moreShownFor !== dateKey) {
+    setMoreShownFor(dateKey)
+    setMoreShown(MORE_SUGGESTIONS_PAGE)
+  }
+  const moreSentinelRef = useRef<HTMLLIElement>(null)
+  const hasMoreToShow = moreShown < moreSuggestions.length
+  useEffect(() => {
+    const el = moreSentinelRef.current
+    if (!el || !showSuggestions || !hasMoreToShow) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setMoreShown((n) => n + MORE_SUGGESTIONS_PAGE)
+      },
+      { rootMargin: '0px 0px 200px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showSuggestions, hasMoreToShow, moreShown])
 
   const dayHabits = useMemo(
     () => habits.filter((h) => isHabitScheduledOnDate(h, date)),
@@ -150,7 +179,7 @@ export function TodayPlannerView() {
   const totalCount = open.length + done.length
   const overCapacity = dateKey >= dayKeyOf(new Date()) && plannedMinutes > dailyCapacityMinutes
   const showWrapUp =
-    viewingToday && totalCount > 0 && (open.length === 0 || now.getHours() >= WRAP_UP_FROM_HOUR)
+    viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
   const showReminderPrompt =
     totalCount > 0 &&
     !reminderPromptDismissed &&
@@ -204,8 +233,10 @@ export function TodayPlannerView() {
           <span
             className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] transition-colors ${
               task.completed
-                ? 'border-accent-500 bg-accent-500 text-white'
-                : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
+                ? 'border-accent-500 bg-accent-500 text-on-accent'
+                : PRIORITY_RING_CLASS[task.priority]
+                  ? `border-current ${PRIORITY_RING_CLASS[task.priority]}`
+                  : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
             }`}
           >
             {task.completed && (
@@ -328,6 +359,10 @@ export function TodayPlannerView() {
           {viewingToday && (
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{format(date, t('planner.titleFormat'), { locale: dateLocale })}</p>
           )}
+          {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
+          <div className="mt-3">
+            <SleepRow key={dateKey} dateKey={dateKey} />
+          </div>
           {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
           {(loggedMinutes > 0 || plannedMinutes > 0) && (
             <div className="mt-5 flex items-baseline justify-between gap-3">
@@ -349,11 +384,12 @@ export function TodayPlannerView() {
           )}
           {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すとタイムラインへ */}
           <div className={loggedMinutes > 0 || plannedMinutes > 0 ? 'mt-2' : 'mt-4'}>
-            <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} onBarClick={() => setMobilePane('timeline')} />
+            <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} />
           </div>
         </header>
 
         <div className="px-3">
+          <h2 className={sectionLabel}>{t('planner.todoHeading')}</h2>
           <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
             <svg className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -388,20 +424,15 @@ export function TodayPlannerView() {
         </div>
 
         <ul className="mt-2 px-3">
+          {overdue.map((task) => renderRow(task, timerButton(task)))}
           {open.map((task) => renderRow(task, timerButton(task)))}
         </ul>
 
-        {totalCount === 0 && (
-          <div className="px-6 pt-4">
-            <p className="text-sm text-zinc-600 dark:text-zinc-300">{t('planner.emptyTitle')}</p>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-400 dark:text-zinc-500">{t('planner.emptyBody')}</p>
-          </div>
-        )}
-        {totalCount > 0 && open.length === 0 && (
+        {totalCount > 0 && open.length === 0 && overdue.length === 0 && (
           <p className="px-6 pt-2 text-sm text-zinc-500 dark:text-zinc-400">{t('planner.allDone')}</p>
         )}
 
-        {suggestions.length > 0 && (
+        {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <div className="mt-6 px-3">
             <button
               type="button"
@@ -412,13 +443,9 @@ export function TodayPlannerView() {
               <svg className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
-              <span className="flex-1">{t('planner.suggestionsHeading', { count: suggestions.length })}</span>
-              {/* 畳んでいても期限切れは見えるように */}
-              {overdueCount > 0 && (
-                <span className="shrink-0 text-xs font-medium text-red-500 dark:text-red-400">
-                  {t('planner.overdueCount', { count: overdueCount })}
-                </span>
-              )}
+              <span className="flex-1">
+                {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
+              </span>
             </button>
             {showSuggestions && (
               <>
@@ -441,6 +468,22 @@ export function TodayPlannerView() {
                     {t('planner.addAllSuggestions')}
                   </button>
                 )}
+                {moreSuggestions.length > 0 && (
+                  <>
+                    <p className="ml-11 mt-4 text-xs text-zinc-400 dark:text-zinc-500">{t('planner.moreSuggestionsHeading')}</p>
+                    <ul>
+                      {moreSuggestions.slice(0, moreShown).map((task) => (
+                        renderRow(
+                          task,
+                          <button type="button" onClick={() => rescheduleTasks([task.id], dateKey)} className={`shrink-0 ${textButton}`}>
+                            {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
+                          </button>,
+                        )
+                      ))}
+                      {hasMoreToShow && <li ref={moreSentinelRef} aria-hidden className="h-px" />}
+                    </ul>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -449,37 +492,60 @@ export function TodayPlannerView() {
         {dayHabits.length > 0 && (
           <div className="mt-6 px-3">
             <h2 className={sectionLabel}>{t('planner.habitsHeading')}</h2>
-            <div className="flex flex-wrap gap-2 px-3">
+            {/* 習慣はリング: 押すと達成（もう一度押すと外す）。▶ でその名前のタイマーを始める */}
+            <ul className="flex flex-wrap gap-x-2 gap-y-3 px-1 pt-1">
               {dayHabits.map((h) => {
                 const status = habitDayStatus(h, dateKey, habitRecords)
-                const checked = status !== 'missed'
                 const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
+                const canTime = viewingToday && !activeTimer && status === 'missed'
                 return (
-                  <button
-                    key={h.id}
-                    type="button"
-                    aria-pressed={checked}
-                    title={record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined}
-                    onClick={() => toggleHabitDate(h.id, dateKey)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors touch-manipulation ${
-                      record
-                        ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-                        : checked
-                        ? 'bg-zinc-100 text-zinc-400 line-through dark:bg-zinc-800 dark:text-zinc-500'
-                        : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
-                    }`}
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: h.color, opacity: checked ? 0.4 : 1 }} />
-                    {h.title}
-                    {record && (
-                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                        {t('planner.habitOffTime')}
-                      </span>
+                  <li key={h.id} className="relative flex w-20 flex-col items-center gap-1.5" style={colorVars(h.color)}>
+                    <button
+                      type="button"
+                      aria-pressed={status !== 'missed'}
+                      aria-label={h.title}
+                      title={record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined}
+                      onClick={() => toggleHabitDate(h.id, dateKey)}
+                      className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-[var(--c)] transition-colors touch-manipulation ${
+                        status === 'done'
+                          ? 'bg-[var(--c)] text-[var(--on-c)]'
+                          : status === 'offTime'
+                          ? 'bg-[color-mix(in_srgb,var(--c)_35%,transparent)] text-[var(--on-c)]'
+                          : 'hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]'
+                      }`}
+                    >
+                      {status !== 'missed' && (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                    {canTime && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          startTimer(h.title)
+                          // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする
+                          if (!isTimedHabit(h)) toggleHabitDate(h.id, dateKey)
+                        }}
+                        aria-label={t('quickLog.resume', { title: h.title })}
+                        title={t('quickLog.resume', { title: h.title })}
+                        className="absolute left-1/2 top-7 ml-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
+                                   before:absolute before:-inset-2 before:content-[''] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                      >
+                        <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
+                        </svg>
+                      </button>
                     )}
-                  </button>
+                    <span className="line-clamp-2 w-full text-center text-xs leading-snug text-zinc-600 dark:text-zinc-300">{h.title}</span>
+                    {record && (
+                      <span className="-mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">{t('planner.habitOffTime')}</span>
+                    )}
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           </div>
         )}
 

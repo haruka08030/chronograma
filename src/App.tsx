@@ -1,5 +1,6 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
+import { useNotionSync } from './hooks/useNotionSync'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from './i18n/config'
@@ -25,6 +26,8 @@ import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { TaskItem } from './components/TaskItem'
+import { TimerDropZone } from './components/TimerDropZone'
+import { TIMER_DROP_ID, canStartTimerFor, setTimerDragActive, startTimerForTask } from './lib/timerDrop'
 import { requestPermission, checkAndNotify } from './lib/notifications'
 import { checkDailyReminders } from './lib/dailyReminders'
 import { checkEventReminders } from './lib/eventReminders'
@@ -157,6 +160,7 @@ export default function App() {
   // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
   useAutoBackup()
   useSupabaseSync()
+  useNotionSync()
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
@@ -181,6 +185,12 @@ export default function App() {
     const activeId = String(event.active.id)
     const group = (event.active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
     const count = group && group.length > 1 ? group.length : 1
+    const draggedId = activeId.startsWith(TASK_PREFIX)
+      ? activeId.slice(TASK_PREFIX.length)
+      : activeId.startsWith(SUBTASK_PREFIX) ? parseSubtaskDragId(activeId) : null
+    if (draggedId && canStartTimerFor(useTaskStore.getState().tasks.find((t) => t.id === draggedId))) {
+      setTimerDragActive(true)
+    }
     if (activeId.startsWith(TASK_PREFIX)) {
       setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false, count })
       return
@@ -195,12 +205,23 @@ export default function App() {
 
   const handleDragCancel = useCallback(() => {
     setDragOverlayTask(null)
+    setTimerDragActive(false)
   }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDragOverlayTask(null)
+    setTimerDragActive(false)
     const { active, over } = event
     const activeId = String(active.id)
+
+    // 上の「ここに落として計測開始」。横に動いてもインデント扱いにしないよう先に見る
+    if (over?.id === TIMER_DROP_ID) {
+      const taskId = activeId.startsWith(SUBTASK_PREFIX)
+        ? parseSubtaskDragId(activeId)
+        : activeId.startsWith(TASK_PREFIX) ? activeId.slice(TASK_PREFIX.length) : null
+      if (taskId) startTimerForTask(taskId)
+      return
+    }
 
     // 水平方向のドラッグでインデント/アウトデント（アウトライナー風）。
     // over が自分自身でも成立させたいので、通常の over 判定より前に処理する。
@@ -534,7 +555,7 @@ export default function App() {
     if (searchQuery.trim()) return <SearchResults />
     switch (selectedView) {
       case 'planner': return <TodayPlannerView />
-      case 'calendar': return <CalendarHubView onOpenSidebar={() => setSidebarOpen(true)} />
+      case 'calendar': return <CalendarHubView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
       case 'archived': return <TaskBinView mode="archived" />
@@ -569,15 +590,6 @@ export default function App() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {!hideGlobalHeader && (
             <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-2.5 -ml-1 rounded-lg touch-manipulation hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
-              </button>
 
               <div className="relative min-w-0 flex-1 max-w-2xl">
                 <svg
@@ -637,6 +649,7 @@ export default function App() {
       </DragOverlay>
 
       <DndTaskDragShell />
+      <TimerDropZone />
     </DndContext>
   )
 }

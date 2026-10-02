@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { dragBlockDurationMinutes } from './taskTimeRange'
+import { addDays, format, parseISO } from 'date-fns'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -70,6 +71,25 @@ function minutesToTime(min: number): string {
   const h = Math.floor(min / 60)
   const m = min % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/**
+ * ドラッグ作成の範囲（分）。Google カレンダーと同じく、押した 15 分枠の頭から始め、
+ * 指している 15 分枠の終わりまでを覆う（四捨五入だと押した位置より下から始まってしまう）
+ */
+function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: number } {
+  const DAY = 24 * 60
+  const toMin = (y: number) => (y / HOUR_HEIGHT) * 60
+  const top = toMin(Math.min(drag.startY, drag.currentY))
+  const bottom = toMin(Math.max(drag.startY, drag.currentY))
+  let startMin = Math.min(Math.floor(top / SNAP_MINUTES) * SNAP_MINUTES, DAY - 2 * SNAP_MINUTES)
+  let endMin = Math.min(Math.max(Math.ceil(bottom / SNAP_MINUTES) * SNAP_MINUTES, startMin + SNAP_MINUTES), DAY - SNAP_MINUTES)
+  if (drag.maxY !== undefined) {
+    // 15 分に丸めると今より先にはみ出すので、終わりは「今」で止める
+    endMin = Math.min(endMin, Math.floor(toMin(drag.maxY)))
+  }
+  startMin = Math.max(0, startMin)
+  return { startMin, endMin }
 }
 
 interface UseTimelineDragOptions {
@@ -234,16 +254,9 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         }
         return
       }
-      if (drag.maxY !== undefined) {
-        // 15 分に丸めると今より先にはみ出すので、終わりは「今」で止める
-        const limitMin = Math.floor((drag.maxY / HOUR_HEIGHT) * 60)
-        const startMin = timeToMinutes(yToTime(minY))
-        const endMin = Math.min(timeToMinutes(yToTime(maxY)), limitMin)
-        if (endMin - startMin >= 5) {
-          setPopup({ dateKey: drag.dateKey, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin), intent: drag.intent })
-        }
-      } else {
-        setPopup({ dateKey: drag.dateKey, startTime: yToTime(minY), endTime: yToTime(maxY), intent: drag.intent })
+      const { startMin, endMin } = createRangeMinutes(drag)
+      if (endMin - startMin >= 5) {
+        setPopup({ dateKey: drag.dateKey, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin), intent: drag.intent })
       }
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
@@ -280,13 +293,29 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
 
   const dismissPopup = useCallback(() => { setPopup(null) }, [])
 
+  /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
+  const shiftMoveDragDate = useCallback((days: number) => {
+    setDrag((prev) => prev && prev.kind === 'move'
+      ? { ...prev, dateKey: format(addDays(parseISO(`${prev.dateKey}T12:00:00`), days), 'yyyy-MM-dd') }
+      : prev)
+  }, [])
+
   const dragPreview = useMemo((): DragPreview | null => {
     if (!drag) return null
     if (drag.kind === 'create') {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
       if (maxY - minY < 2) return null
-      return { kind: 'create', dateKey: drag.dateKey, top: minY, height: maxY - minY, label: `${yToTime(minY)} – ${yToTime(maxY)}` }
+      const { startMin, endMin } = createRangeMinutes(drag)
+      if (endMin <= startMin) return null
+      const top = (startMin / 60) * HOUR_HEIGHT
+      return {
+        kind: 'create',
+        dateKey: drag.dateKey,
+        top,
+        height: (endMin / 60) * HOUR_HEIGHT - top,
+        label: `${minutesToTime(startMin)} – ${minutesToTime(endMin)}`,
+      }
     } else if (drag.kind === 'move') {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current) return null
@@ -356,6 +385,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handlePointerUp,
     handlePointerCancel,
     dismissPopup,
+    shiftMoveDragDate,
   }
 }
 

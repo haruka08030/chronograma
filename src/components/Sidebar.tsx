@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
-import { installAvailability, promptInstall } from '../lib/pwa'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
 import { isTodoNavView } from '../lib/todoSurfaceView'
 import { TodoNavContent } from './TodoNavPanel'
@@ -25,24 +23,15 @@ const OTHER_VIEWS: { id: SmartView; icon: string }[] = [
 
 const TODO_OPENER_ICON = 'M4.5 12.75l6 6 9-13.5'
 
-const MENU_ICON_SETTINGS =
+const SETTINGS_ICON =
   'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'
-const MENU_ICON_USER =
-  'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'
-const MENU_ICON_DOWNLOAD =
-  'M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3'
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const { t } = useTranslation()
   const selectedView = useTaskStore((s) => s.selectedView)
   const selectView = useTaskStore((s) => s.selectView)
-  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
   const isDesktop = useIsDesktop()
   const isLargeScreen = useIsLargeScreen()
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-  const accountMenuRootRef = useRef<HTMLDivElement>(null)
-  const accountMenuFirstItemRef = useRef<HTMLButtonElement>(null)
-
   const onTodoView = isTodoNavView(selectedView)
 
   const handleNav = (cb: () => void) => {
@@ -51,105 +40,13 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   }
 
 
-  useEffect(() => {
-    if (!accountMenuOpen) return
-    const onDocMouseDown = (e: MouseEvent) => {
-      const root = accountMenuRootRef.current
-      if (root && !root.contains(e.target as Node)) setAccountMenuOpen(false)
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAccountMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDocMouseDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [accountMenuOpen])
-
-  useEffect(() => {
-    if (accountMenuOpen) accountMenuFirstItemRef.current?.focus()
-  }, [accountMenuOpen])
-
   // lg 未満は `TodoNavPanel` を置く横幅がないので、サブナビをサイドバーに畳み込む。
   // リスト行は DnD id を持つため、常に「表示されている一枚」にだけ描画する。
   // md 未満はドロワーの下端が `MobileBottomNav` に隠れるので、その分の余白を空ける。
   const renderSidebarContent = (withTodoNav: boolean) => (
-    <aside className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
+    <aside className="w-[min(20rem,85vw)] md:w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
                        flex flex-col h-full pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
-      <div className="px-4 pt-5 pb-3 flex items-center gap-2 min-w-0">
-        <div className="relative shrink-0" ref={accountMenuRootRef}>
-          <button
-            type="button"
-            onClick={() => setAccountMenuOpen((o) => !o)}
-            aria-label={t('sidebar.accountMenu')}
-            aria-haspopup="menu"
-            aria-expanded={accountMenuOpen}
-            title={t('sidebar.accountMenu')}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors
-              ${selectedView === 'settings' || accountMenuOpen
-                ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-          >
-            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
-            </svg>
-          </button>
-          {accountMenuOpen ? (
-            <div
-              role="menu"
-              aria-label={t('sidebar.accountMenuAria')}
-              className="absolute left-0 top-full z-[100] mt-1.5 min-w-[12rem] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              <button
-                ref={accountMenuFirstItemRef}
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                onClick={() => {
-                  handleNav(() => openSettingsWithScroll('appearance'))
-                  setAccountMenuOpen(false)
-                }}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_SETTINGS} />
-                </svg>
-                {t('sidebar.settings')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                onClick={() => {
-                  handleNav(() => openSettingsWithScroll('account'))
-                  setAccountMenuOpen(false)
-                }}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_USER} />
-                </svg>
-                {t('sidebar.account')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700/80"
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  // ブラウザがその場で入れられるならダイアログ、無理なら設定の手順へ
-                  if (installAvailability() === 'prompt') void promptInstall()
-                  else handleNav(() => openSettingsWithScroll('install'))
-                }}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={MENU_ICON_DOWNLOAD} />
-                </svg>
-                {t('sidebar.getApp')}
-              </button>
-            </div>
-          ) : null}
-        </div>
+      <div className="px-5 pt-5 pb-3 flex items-center gap-2 min-w-0">
         <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
           {t('sidebar.brand')}
         </span>
@@ -161,15 +58,11 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           view={PLANNER_VIEW.id}
           icon={PLANNER_VIEW.icon}
           isSelected={selectedView === PLANNER_VIEW.id}
-          onSelect={() => handleNav(() => {
-            setAccountMenuOpen(false)
-            selectView(PLANNER_VIEW.id)
-          })}
+          onSelect={() => handleNav(() => selectView(PLANNER_VIEW.id))}
         />
         <button
           type="button"
           onClick={() => {
-            setAccountMenuOpen(false)
             if (!onTodoView) selectView('all')
           }}
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
@@ -207,6 +100,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           icon={STATS_SMART_VIEW.icon}
           isSelected={selectedView === STATS_SMART_VIEW.id}
           onSelect={() => handleNav(() => selectView(STATS_SMART_VIEW.id))}
+        />
+        <SmartViewRow
+          view="settings"
+          icon={SETTINGS_ICON}
+          isSelected={selectedView === 'settings'}
+          onSelect={() => handleNav(() => selectView('settings'))}
         />
       </div>
 

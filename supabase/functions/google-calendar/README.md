@@ -20,7 +20,6 @@ Use the **same** Google OAuth Client ID/Secret as Supabase Auth → Google provi
 
 | action | body |
 |--------|------|
-| `store` | `{ "refresh_token": "..." }` |
 | `status` | `{}` → `{ "connected": true/false }` |
 | `events` | `{ "timeMin": ISO, "timeMax": ISO }` |
 | `disconnect` | `{}` |

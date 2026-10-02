@@ -150,7 +150,7 @@ export function CompleteWithLogModal({
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600"
+            className="rounded-lg bg-accent-500 px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-600"
           >
             {t('task.completeModal.saveComplete')}
           </button>

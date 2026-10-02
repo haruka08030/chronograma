@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { useTaskStore } from '../store/taskStore'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
-  const { user, loading, signInWithOtp, signOut } = useAuth()
+  const { user, loading, signInWithOtp, signOut, deleteAccount } = useAuth()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [pending, setPending] = useState(false)
@@ -16,6 +17,29 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const [error, setError] = useState<string | null>(null)
 
   if (!isSupabaseConfigured) return null
+
+  /** ログアウトするとこの端末のデータは消える（クラウドから戻る）。送れていない変更があるときだけ確かめる */
+  const handleSignOut = () => {
+    if (useTaskStore.getState().syncState !== 'idle' && !window.confirm(t('account.signOutUnsynced'))) return
+    void signOut()
+  }
+
+  /** 取り消せないので 2 回確かめる。2 回目はメールアドレスの入力で、押し間違いでは消えないようにする */
+  const handleDeleteAccount = async () => {
+    if (!user) return
+    if (!window.confirm(t('account.deleteConfirm'))) return
+    const typed = window.prompt(t('account.deleteTypeEmail', { email: user.email ?? '' }))
+    if (typed === null) return
+    if (user.email && typed.trim().toLowerCase() !== user.email.toLowerCase()) {
+      setError(t('account.deleteEmailMismatch'))
+      return
+    }
+    setError(null)
+    setPending(true)
+    const res = await deleteAccount()
+    setPending(false)
+    if (res.error) setError(res.error)
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -68,11 +92,25 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         </span>
         <button
           type="button"
-          onClick={() => void signOut()}
+          onClick={handleSignOut}
           className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           {t('account.signOut')}
         </button>
+        {isSettings && (
+          <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t('account.deleteHelp')}</p>
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={pending}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+            >
+              {pending ? t('account.deleting') : t('account.delete')}
+            </button>
+            {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+          </div>
+        )}
       </div>
     )
   }
@@ -103,6 +141,13 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
               {t('account.intro')}
             </p>
+            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
+              {t('account.agreePrefix')}
+              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.terms')}</a>
+              {t('account.agreeAnd')}
+              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.privacyPolicy')}</a>
+              {t('account.agreeSuffix')}
+            </p>
             <form onSubmit={handleSubmit} className="flex flex-col gap-2">
               <input
                 type="email"
@@ -117,7 +162,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
               <button
                 type="submit"
                 disabled={pending}
-                className="text-sm py-2 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 disabled:opacity-50"
+                className="text-sm py-2 rounded-lg bg-accent-500 text-on-accent font-medium hover:bg-accent-600 disabled:opacity-50"
               >
                 {pending ? t('account.sending') : t('account.sendLink')}
               </button>

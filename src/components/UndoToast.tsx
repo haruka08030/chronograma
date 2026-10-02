@@ -67,7 +67,7 @@ export function UndoToast() {
             }
             setVisible(false)
           }}
-          className="shrink-0 font-medium text-accent-300 touch-manipulation dark:text-accent-600 hover:underline"
+          className="shrink-0 font-semibold text-white underline-offset-2 touch-manipulation dark:text-zinc-900 hover:underline"
         >
           {t('undo.button')}
         </button>

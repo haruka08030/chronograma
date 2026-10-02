@@ -9,8 +9,10 @@ import { TaskDetail } from './TaskDetail'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
+import { isSleepRecord } from '../lib/sleep'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
+import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
 
 function completionDateKey(t: Task): string {
@@ -30,6 +32,9 @@ export function CalendarDayPanel({
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
   const [adding, setAdding] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const updateTask = useTaskStore((s) => s.updateTask)
+  const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
@@ -111,13 +116,44 @@ export function CalendarDayPanel({
 
   const totalLoggedMinutes = useMemo(
     () =>
-      logItems.reduce((acc, item) => acc + minutesOfLogOnCalendarDay(item, selectedDateKey), 0),
+      logItems.reduce((acc, item) => (isSleepRecord(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
     [logItems, selectedDateKey],
   )
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/70 dark:bg-zinc-900/70">
+      <div
+        className={`flex h-full min-h-0 min-w-0 flex-1 flex-col transition-colors ${
+          dragOver
+            ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+            : 'bg-zinc-50/70 dark:bg-zinc-900/70'
+        }`}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+          setDragOver(true)
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+          setDragOver(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          const ids = readDraggedTaskIds(e.dataTransfer)
+          const all = useTaskStore.getState().tasks
+          const moving = ids
+            .map((id) => all.find((x) => x.id === id))
+            .filter((x): x is Task => !!x && !x.isTimeLog && taskPlacementDate(x) !== selectedDateKey)
+          if (!moving.length) return
+          // この日の予定に入れる（時刻があれば保つ。期限 dueDate は変えない）
+          asOneUndo(() => {
+            for (const x of moving) updateTask(x.id, { scheduledDate: selectedDateKey })
+          })
+          setTab('planned')
+        }}
+      >
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <div className="flex items-center justify-between gap-2">
             <h2 className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>

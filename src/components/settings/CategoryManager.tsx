@@ -5,7 +5,6 @@ import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { CATEGORY_COLOR_KEYS, categoryColorKey, categoryHex, colorVars } from '../../lib/logCategoryColors'
-import { LabelsDialog } from '../labels/LabelsDialog'
 import { hexForGoogleKey } from '../../lib/googleColors'
 
 const USAGE_DAYS = 30
@@ -78,7 +77,6 @@ export function CategoryManager() {
   }
 
   const uncategorized = usage.get('') ?? 0
-  const [editingLabels, setEditingLabels] = useState(false)
 
   return (
     <>
@@ -115,7 +113,6 @@ export function CategoryManager() {
                     setEditing(name)
                     setEditValue(name)
                   }}
-                  title={t('categories.rename')}
                   className="min-w-0 flex-1 truncate text-left text-sm text-zinc-800 dark:text-zinc-200"
                 >
                   {name}
@@ -202,16 +199,6 @@ export function CategoryManager() {
         )}
       </div>
 
-      <div className="px-4 pb-2">
-        <button
-          type="button"
-          onClick={() => setEditingLabels(true)}
-          className="text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"
-        >
-          {t('categories.editLabels')}
-        </button>
-      </div>
-      {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
 
       {(unlisted.length > 0 || uncategorized > 0) && (
         <div className="space-y-2 px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400">

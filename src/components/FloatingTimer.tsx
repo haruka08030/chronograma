@@ -127,7 +127,7 @@ function CompletePrompt() {
           toggleTask(task.id)
           dismiss()
         }}
-        className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700"
+        className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
       >
         {t('floatingTimer.markDone')}
       </button>
@@ -180,7 +180,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
             type="button"
             onClick={() => resolveStaleTimer(new Date(endValue).toISOString())}
             disabled={!endValue || new Date(endValue) <= started}
-            className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white
+            className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent
                        transition-colors hover:bg-accent-700 disabled:opacity-40"
           >
             {t('staleTimer.saveAt')}
@@ -191,7 +191,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
           <button
             type="button"
             onClick={() => stopTimer()}
-            className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-700"
+            className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700"
           >
             {t('staleTimer.stopNow')}
           </button>

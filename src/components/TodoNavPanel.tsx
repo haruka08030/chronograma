@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, INBOX_LIST_ID, paletteColors, type SmartView } from '../store/taskStore'
+import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
+import { CALENDAR_COLORS } from '../lib/googleColors'
 import { LIST_PREFIX } from '../lib/listDnD'
 import { SmartViewRow } from './SmartViewRow'
 import { useDroppable } from '@dnd-kit/core'
@@ -97,6 +98,17 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
               <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
             </svg>
           </button>
+          {/* スマホにはダブルクリックが無いので、名前の変更はこのボタンから */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onStartEdit() }}
+            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:hidden"
+            aria-label={t('sidebar.renameList')}
+          >
+            <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
@@ -115,7 +127,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
-  const listColors = useTaskStore((s) => paletteColors(s.listColorPaletteId))
+  const selected = current.toUpperCase()
   return (
     <div
       className="absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
@@ -123,15 +135,18 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
       role="dialog"
       aria-label={t('sidebar.listColorDialog')}
     >
-      <div className="grid grid-cols-5 gap-1.5">
-        {listColors.map((c) => (
+      {/* 記録のラベルと同じ Google カレンダーの 24 色 */}
+      <div className="grid grid-cols-6 gap-1.5">
+        {CALENDAR_COLORS.map(({ key, hex }) => (
           <button
-            key={c}
+            key={hex}
             type="button"
-            onClick={() => { onChange(c); onClose() }}
+            onClick={() => { onChange(hex); onClose() }}
+            title={t(`googleColors.${key}`)}
+            aria-label={t(`googleColors.${key}`)}
             className={`w-6 h-6 rounded-full transition-transform hover:scale-110
-              ${c === current ? 'ring-2 ring-offset-2 ring-accent-500 dark:ring-offset-zinc-800' : 'ring-1 ring-black/10'}`}
-            style={{ backgroundColor: c }}
+              ${hex === selected ? 'ring-2 ring-offset-2 ring-accent-500 dark:ring-offset-zinc-800' : 'ring-1 ring-black/10'}`}
+            style={{ backgroundColor: hex }}
           />
         ))}
       </div>

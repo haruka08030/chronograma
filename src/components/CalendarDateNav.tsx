@@ -223,7 +223,7 @@ export function CalendarDateNav({
                     onClick={() => handlePickDay(key)}
                     className={`flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors
                       ${!inMonth ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-800 dark:text-zinc-100'}
-                      ${today ? 'bg-accent-500 text-white hover:bg-accent-600' : ''}
+                      ${today ? 'bg-accent-500 text-on-accent hover:bg-accent-600' : ''}
                       ${selected && !today ? 'bg-zinc-200 dark:bg-zinc-700' : ''}
                       ${!today && !selected ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : ''}`}
                   >

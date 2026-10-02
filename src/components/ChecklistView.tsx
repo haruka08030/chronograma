@@ -85,7 +85,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-xl px-4 pb-24 pt-6 md:px-6 md:pt-8">
+      <div className="w-full px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <header className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{displayListName(list.id, list.name)}</h1>

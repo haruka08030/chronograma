@@ -1,11 +1,14 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  addDays,
+  differenceInCalendarDays,
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
   format,
   isToday,
+  parseISO,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
@@ -28,12 +31,34 @@ import {
 } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { useTimelineDrag, getResizeCursor, type CreateIntent, type CreatePopup } from '../lib/useTimelineDrag'
-import { useTimelineDrop, readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import {
-  fetchCalendarEvents,
-  localizeGoogleError,
-  shouldDisconnectAfterFetchError,
-} from '../lib/googleCalendar'
+  canStartTimerFor,
+  getTimerDrop,
+  isOverTimerDrop,
+  setTimerDragActive,
+  setTimerDropHover,
+  startTimerForTask,
+} from '../lib/timerDrop'
+import { useTimelineDrop, readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
+import {
+  beginCalendarItemNativeDrag,
+  getCalendarItemDrag,
+  isOverUnscheduleDrop,
+  setCalendarItemDragActive,
+  setUnscheduleHover,
+  UNSCHEDULE_PATCH,
+  useCalendarItemDrag,
+} from '../lib/calendarItemDrag'
+import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
+import {
+  canEditGoogleEvent,
+  getDraggedGoogleEvent,
+  GOOGLE_EVENT_DND_TYPE,
+  moveGoogleEvent,
+  setDraggedGoogleEvent,
+} from '../lib/googleEventEdit'
+import { googleEventTiming } from '../lib/googleCalendar'
+import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -43,16 +68,21 @@ import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
 import { colorVars, recordHex } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX, NEUTRAL_HEX } from '../lib/googleColors'
-import { planVisualState } from '../lib/planVisual'
+import { planHex, planVisualState } from '../lib/planVisual'
 import { habitToPlannedItem } from '../lib/habitSlots'
 import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
 import { EventPopover } from './timeline/EventPopover'
 import { GoogleEventPopover } from './timeline/GoogleEventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
+import { isSleepRecord } from '../lib/sleep'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 const GUTTER_WIDTH = 56
+/** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
+const EDGE_FLIP_PX = 16
+const EDGE_FLIP_DELAY_MS = 600
+const EDGE_FLIP_REPEAT_MS = 1000
 
 /** 週タイムラインのブロック用（列上では開始・終了時刻が必須。Google 等の外部ブロックは最小形） */
 type TimeBlockTask = {
@@ -77,10 +107,11 @@ function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: b
 
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
- * 記録（実績）だけ塗りつぶし（`gc-solid`）。予定（Google の予定も）は薄く（`gc-plan`）、終わった・完了した予定は灰色（`gc-missed`）。
+ * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
+ * 終わった・完了した予定は灰色（`gc-missed`）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  */
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, hStyle, colorHex }: {
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sleep, hStyle, colorHex }: {
   task: TimeBlockTask
   /** クリック・タップで開く（ドラッグしない Google の予定用） */
   onTap?: () => void
@@ -89,6 +120,8 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, hS
   onPointerDown: (e: React.PointerEvent) => void
   onOpenDetail: () => void
   isLog?: boolean
+  /** 睡眠の記録。色の付いた記録と並べても目立たない、落ち着いた帯にする */
+  sleep?: boolean
   /** 重なり回避の横位置（left/width） */
   hStyle?: React.CSSProperties
   /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
@@ -97,14 +130,24 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, hS
   const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
+    if (onTap) {
+      // 押すとカードが開くだけ（動かせない）
+      ;(e.currentTarget as HTMLElement).style.cursor = 'pointer'
+      return
+    }
     const cursor = getResizeCursor(e)
     ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
   }
 
-  // 記録（実績）は常に分類の色で塗る。予定は薄く、終わったら（完了・未完了とも）グレー。外部の予定は Google の青
-  // Google の予定（外部）も予定と同じ見せ方。塗りつぶしは記録だけ
+  // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
+  // Google の予定（外部）も予定と同じ見せ方
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = isLog ? 'gc-solid' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
+  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
+  const moon = sleep && (
+    <svg className="mr-0.5 inline h-2.5 w-2.5 -translate-y-px" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+    </svg>
+  )
   const doneMark = state === 'done' ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
@@ -138,12 +181,12 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, hS
     >
       {compact ? (
         <span className="block truncate">
-          <span className="font-medium">{doneMark}{task.title}</span>
+          <span className="font-medium">{moon}{doneMark}{task.title}</span>
           <span className="opacity-80">、{task.startTime}</span>
         </span>
       ) : (
         <>
-          <span className="block truncate font-medium">{doneMark}{task.title}</span>
+          <span className="block truncate font-medium">{moon}{doneMark}{task.title}</span>
           <span className="block text-[10px] opacity-80">
             {task.startTime} – {task.endTime}
           </span>
@@ -201,12 +244,15 @@ export function WeekCalendarView({
   selectedDateKey,
   onSelectDate,
   singleDay = false,
+  onNavigateWeek,
 }: {
   anchor: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
   /** true のとき `selectedDateKey` の 1 日だけを描画し、曜日ヘッダーを出さない（「今日の計画」用） */
   singleDay?: boolean
+  /** ドラッグ中に左右の端で止めたとき前後の週へめくる（未指定ならめくらない） */
+  onNavigateWeek?: (dir: -1 | 1) => void
 }) {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -215,10 +261,9 @@ export function WeekCalendarView({
   const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
-  const googleConnected = useTaskStore((s) => s.googleConnected)
-  const setCalendarEvents = useTaskStore((s) => s.setCalendarEvents)
-  const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
-  const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
+  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
+  /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
+  const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const toggleTask = useTaskStore((s) => s.toggleTask)
@@ -233,7 +278,11 @@ export function WeekCalendarView({
   const [allDayAddDate, setAllDayAddDate] = useState<string | null>(null)
   /** 終日の行で ToDo を別の日へドラッグ中に、落とし先の日を光らせる */
   const [allDayDragOver, setAllDayDragOver] = useState<string | null>(null)
+  /** ToDo 一覧などから ToDo をドラッグしている間は、終日の行を空でも出して落とせるようにする */
+  const taskDragActive = useTaskNativeDragActive()
+  const { overUnschedule: unscheduleHover } = useCalendarItemDrag()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
@@ -311,45 +360,33 @@ export function WeekCalendarView({
     return map
   }, [calendarEvents])
 
-  useEffect(() => {
-    if (!googleConnected) return
-    let cancelled = false
+  const fetchRange = useMemo(() => {
+    const ws = startOfWeek(anchor, { weekStartsOn: 1 })
+    const we = endOfWeek(anchor, { weekStartsOn: 1 })
+    we.setHours(23, 59, 59)
+    return { ws, we }
+  }, [anchor])
+  useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
-    const doFetch = async () => {
-      try {
-        const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-        const we = endOfWeek(anchor, { weekStartsOn: 1 })
-        we.setHours(23, 59, 59)
-        const events = await fetchCalendarEvents(ws, we)
-        if (!cancelled) {
-          setCalendarEvents(events)
-          setGoogleConnectionError(null)
-        }
-      } catch (e) {
-        if (!cancelled) {
-          const raw = e instanceof Error ? e.message : t('account.genericError')
-          setGoogleConnectionError(localizeGoogleError(raw, t))
-          if (shouldDisconnectAfterFetchError(raw)) {
-            setGoogleConnected(false)
-            setCalendarEvents([])
-          }
-        }
-      }
-    }
-
-    doFetch()
-    return () => { cancelled = true }
-  }, [anchor, googleConnected, setCalendarEvents, setGoogleConnected, setGoogleConnectionError, t])
-
+  /**
+   * 日を押すと親が anchor を作り直すので、anchor そのものではなく「表示している週（1 日表示なら日）」が
+   * 変わったときだけスクロールを合わせる。でないと朝や夜で押した瞬間に今の時刻へ戻されてしまう
+   */
+  const scrollKey = format(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }), 'yyyy-MM-dd')
   useEffect(() => {
     if (!scrollRef.current) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
     const now = new Date()
     const showNow = singleDay ? isToday(anchor) : days.some((d) => isToday(d))
     const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : 7.5
+    // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
+    if (keepScrollOnFlipRef.current) {
+      keepScrollOnFlipRef.current = false
+      return
+    }
     scrollRef.current.scrollTop = HOUR_HEIGHT * hours
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 表示週が変わったときだけ合わせる
-  }, [singleDay, anchor])
+  }, [singleDay, scrollKey])
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
     if (!gridRef.current) return 0
@@ -387,7 +424,8 @@ export function WeekCalendarView({
   const closeCard = useCallback(() => setEventCard(null), [])
   const [googleCard, setGoogleCard] = useState<{ eventId: string; anchor: AnchorRect } | null>(null)
   const openGoogleCard = useCallback((eventId: string) => {
-    const anchor = rectOf(gridRef.current?.querySelector(`[data-block-id="${CSS.escape(`event-${eventId}`)}"]`) ?? null)
+    // 終日の行のチップはグリッドの外にあるので、画面全体から探す
+    const anchor = rectOf(document.querySelector(`[data-block-id="${CSS.escape(`event-${eventId}`)}"]`))
     if (anchor) setGoogleCard({ eventId, anchor })
   }, [])
   const closeGoogleCard = useCallback(() => setGoogleCard(null), [])
@@ -402,6 +440,11 @@ export function WeekCalendarView({
     getRelativeY,
     getDateKeyFromX,
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
+      if (taskId.startsWith('event-')) {
+        const ev = googleDragRef.current
+        if (ev) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
+        return
+      }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
       if (!prev) return
       const patch = patchAfterTimelineMove(prev, dateKey, startTime, endTime)
@@ -414,6 +457,11 @@ export function WeekCalendarView({
       updateTask(taskId, patch)
     },
     onResizeDone: (taskId, startTime, endTime) => {
+      if (taskId.startsWith('event-')) {
+        const ev = googleDragRef.current
+        if (ev) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
+        return
+      }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
       if (prev?.isTimeLog && prev.dueDate && !prev.endDate) {
         const limit = logLimitRef.current(prev.dueDate)
@@ -425,8 +473,9 @@ export function WeekCalendarView({
       updateTask(taskId, { startTime, endTime })
     },
     onBlockTap: useCallback((taskId: string) => {
-      openCard(taskId)
-    }, [openCard]),
+      if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
+      else openCard(taskId)
+    }, [openCard, openGoogleCard]),
     clickCreateMinutes: 60,
   })
 
@@ -434,6 +483,94 @@ export function WeekCalendarView({
     (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
     [tasks],
   )
+
+  /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
+  const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
+  const [edgeDir, setEdgeDir] = useState<-1 | 1 | null>(null)
+  const edgeDirAt = (clientX: number, clientY: number): -1 | 1 | null => {
+    if (!onNavigateWeek || gridDays.length !== 7 || !gridRef.current || !scrollRef.current) return null
+    const area = scrollRef.current.getBoundingClientRect()
+    if (clientY < area.top || clientY > area.bottom) return null
+    const grid = gridRef.current.getBoundingClientRect()
+    if (clientX < grid.left + EDGE_FLIP_PX) return -1
+    if (clientX > grid.right - EDGE_FLIP_PX) return 1
+    return null
+  }
+  const flipWeekRef = useRef<(dir: -1 | 1) => void>(() => {})
+  flipWeekRef.current = (dir) => {
+    keepScrollOnFlipRef.current = true
+    onNavigateWeek?.(dir)
+    timelineDrag.shiftMoveDragDate(dir * 7)
+  }
+  const pointerMoving = timelineDrag.drag?.kind === 'move'
+  const activeEdge = edgeDir && (taskDragActive || pointerMoving) ? edgeDir : null
+  useEffect(() => {
+    if (!activeEdge) return
+    let id = window.setTimeout(function tick() {
+      flipWeekRef.current(activeEdge)
+      id = window.setTimeout(tick, EDGE_FLIP_REPEAT_MS)
+    }, EDGE_FLIP_DELAY_MS)
+    return () => window.clearTimeout(id)
+  }, [activeEdge])
+
+  const endMoveExtras = () => {
+    setAllDayMoveKey(null)
+    setEdgeDir(null)
+    setCalendarItemDragActive(false)
+    setTimerDragActive(false)
+  }
+  const handleGridPointerMove = (e: React.PointerEvent) => {
+    timelineDrag.handlePointerMove(e)
+    const d = timelineDrag.drag
+    if (!d || d.kind !== 'move' || !timelineDrag.didMove.current) return
+    setEdgeDir(edgeDirAt(e.clientX, e.clientY))
+    // 記録は「やったこと」なので終日・ToDo には戻さない
+    const task = tasks.find((x) => x.id === d.taskId)
+    if (!task || task.isTimeLog) return
+    setCalendarItemDragActive(true)
+    if (canStartTimerFor(task)) {
+      setTimerDragActive(true)
+      const overTimer = isOverTimerDrop(e.clientX, e.clientY)
+      setTimerDropHover(overTimer)
+      if (overTimer) {
+        setAllDayMoveKey(null)
+        setUnscheduleHover(false)
+        return
+      }
+    }
+    const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+    if (e.clientY < gridTop && !singleDay) {
+      setAllDayMoveKey(getDateKeyFromX(e.clientX))
+      setUnscheduleHover(false)
+    } else {
+      setAllDayMoveKey(null)
+      setUnscheduleHover(isOverUnscheduleDrop(e.clientX, e.clientY))
+    }
+  }
+  const handleGridPointerUp = () => {
+    const d = timelineDrag.drag
+    const toUnschedule = getCalendarItemDrag().overUnschedule
+    if (d?.kind === 'move' && timelineDrag.didMove.current && getTimerDrop().over) {
+      // 上の「ここに落として計測開始」。予定の時刻はそのまま
+      startTimerForTask(d.taskId)
+      timelineDrag.handlePointerCancel()
+    } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
+      const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
+      if (task && !task.isTimeLog) {
+        updateTask(d.taskId, allDayMoveKey
+          ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null }
+          : UNSCHEDULE_PATCH)
+      }
+      timelineDrag.handlePointerCancel()
+    } else {
+      timelineDrag.handlePointerUp()
+    }
+    endMoveExtras()
+  }
+  const handleGridPointerCancel = () => {
+    timelineDrag.handlePointerCancel()
+    endMoveExtras()
+  }
 
   const timelineDrop = useTimelineDrop({
     getRelativeY,
@@ -477,10 +614,12 @@ export function WeekCalendarView({
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
           <div className="flex-1 grid grid-cols-7">
-            {days.map((day) => {
+            {days.map((day, i) => {
               const today = isToday(day)
               const key = format(day, 'yyyy-MM-dd')
               const selected = selectedDateKey ? selectedDateKey === key : false
+              // 「予定 / 記録」は 7 日すべてに並べるとうるさいので 1 か所だけ（今日、無ければ先頭の日）
+              const showLaneLabels = today || (i === 0 && !days.some((d) => isToday(d)))
               return (
                 <div key={day.toISOString()} className="group relative">
                   <button
@@ -492,10 +631,10 @@ export function WeekCalendarView({
                   >
                     <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                     <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                      ${today ? 'bg-accent-500 text-white' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
+                      ${today ? 'bg-accent-500 text-on-accent' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
                       {format(day, 'd')}
                     </div>
-                    <div className="mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 md:grid">
+                    <div className={`mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 ${showLaneLabels ? 'md:grid' : ''}`}>
                       <span>{t('weekCalendar.lanePlan')}</span>
                       <span>{t('weekCalendar.laneLog')}</span>
                     </div>
@@ -526,7 +665,7 @@ export function WeekCalendarView({
           </div>
         )}
 
-        {(hasAnyAllDay || allDayAddDate) && (
+        {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
               {t('weekCalendar.allDay')}
@@ -540,11 +679,12 @@ export function WeekCalendarView({
                   <div
                     key={key}
                     className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
-                      ${allDayDragOver === key ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10' : ''}`}
+                      ${allDayDragOver === key || allDayMoveKey === key ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10' : ''}`}
                     onDragOver={(e) => {
-                      if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+                      if (!e.dataTransfer.types.includes(TASK_DND_TYPE) && !e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE)) return
                       e.preventDefault()
-                      e.dataTransfer.dropEffect = 'move'
+                      // ToDo 一覧の行は effectAllowed が copy、Google の予定は move。合わないと落とせない
+                      e.dataTransfer.dropEffect = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? 'move' : 'copy'
                       setAllDayDragOver(key)
                     }}
                     onDragLeave={(e) => {
@@ -555,6 +695,19 @@ export function WeekCalendarView({
                       e.preventDefault()
                       setAllDayAddDate(null)
                       setAllDayDragOver(null)
+                      const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
+                      if (gev) {
+                        // 終日の Google の予定は日数を保ったまま動かす
+                        const cur = googleEventTiming(gev)
+                        const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
+                        void moveGoogleEvent(gev, {
+                          date: key,
+                          endDate: span > 0 ? format(addDays(parseISO(key), span), 'yyyy-MM-dd') : null,
+                          startTime: null,
+                          endTime: null,
+                        })
+                        return
+                      }
                       const ids = readDraggedTaskIds(e.dataTransfer)
                       if (!ids.length) return
                       // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
@@ -569,7 +722,22 @@ export function WeekCalendarView({
                       <div
                         key={`event-all-day-${e.id}`}
                         title={e.summary}
-                        className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300"
+                        data-block-id={`event-${e.id}`}
+                        draggable={canEditGoogleEvent(e, googleCanWrite)}
+                        onDragStart={(ev) => {
+                          setDraggedGoogleEvent(e)
+                          ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
+                          ev.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragEnd={() => {
+                          setDraggedGoogleEvent(null)
+                          setAllDayDragOver(null)
+                        }}
+                        onClick={() => openGoogleCard(e.id)}
+                        className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
+                          text-[10px] leading-tight transition-all hover:brightness-95
+                          ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                        style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                       >
                         {e.summary}
                       </div>
@@ -582,12 +750,13 @@ export function WeekCalendarView({
                           e.dataTransfer.setData(TASK_DND_TYPE, t.id)
                           e.dataTransfer.setData('text/plain', t.id)
                           e.dataTransfer.effectAllowed = 'copyMove'
+                          beginCalendarItemNativeDrag()
                         }}
                         onDragEnd={() => setAllDayDragOver(null)}
                         onClick={() => openDetail(t.id)}
                         className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} cursor-grab active:cursor-grabbing truncate rounded px-1.5 py-0.5
                           text-[10px] leading-tight transition-all hover:brightness-95`}
-                        style={colorVars(listColorById.get(t.listId) ?? NEUTRAL_HEX)}
+                        style={colorVars(planHex(t, listColorById))}
                       >
                         {t.completed ? '✓ ' : ''}{t.title}
                       </div>
@@ -602,7 +771,29 @@ export function WeekCalendarView({
           </div>
         )}
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-2">
+        <div className="relative flex min-h-0 flex-1 flex-col">
+        {activeEdge && (
+          <div
+            className={`pointer-events-none absolute inset-y-0 z-30 flex w-10 items-center justify-center bg-accent-500/10
+              ${activeEdge < 0 ? 'left-0' : 'right-0'}`}
+            aria-hidden
+          >
+            <svg className="h-5 w-5 text-accent-600 dark:text-accent-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={activeEdge < 0 ? 'M15.75 19.5 8.25 12l7.5-7.5' : 'm8.25 4.5 7.5 7.5-7.5 7.5'} />
+            </svg>
+          </div>
+        )}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden px-2"
+          onDragOver={(e) => {
+            if (taskDragActive) setEdgeDir(edgeDirAt(e.clientX, e.clientY))
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEdgeDir(null)
+          }}
+          onDropCapture={() => setEdgeDir(null)}
+        >
           <div className="flex" style={{ height: GRID_TOTAL_HEIGHT }}>
             <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 relative">
               {HOURS.map((h) => (
@@ -619,9 +810,9 @@ export function WeekCalendarView({
             <div
               ref={gridRef}
               className={`flex-1 grid relative ${gridColsClass}`}
-              onPointerMove={timelineDrag.handlePointerMove}
-              onPointerUp={timelineDrag.handlePointerUp}
-              onPointerCancel={timelineDrag.handlePointerCancel}
+              onPointerMove={handleGridPointerMove}
+              onPointerUp={handleGridPointerUp}
+              onPointerCancel={handleGridPointerCancel}
             >
               {gridDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
@@ -724,7 +915,7 @@ export function WeekCalendarView({
                           dayKey={key}
                           onOpenDetail={() => openCard(t.id)}
                           hStyle={planStyle(t.id)}
-                          colorHex={listColorById.get(t.listId) ?? NEUTRAL_HEX}
+                          colorHex={planHex(t, listColorById)}
                         />
                       </div>
                     ))}
@@ -734,6 +925,7 @@ export function WeekCalendarView({
                           task={t as TimeBlockTask}
                           dayKey={key}
                           isLog
+                          sleep={isSleepRecord(t)}
                           hStyle={logStyle(t.id)}
                           colorHex={recordHex(t, logCategoryColors)}
                           onPointerDown={(e) =>
@@ -775,8 +967,9 @@ export function WeekCalendarView({
                     {dayTimedEvents.map((e) => {
                       // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
                       const recorded = dayLogs.some((l) => l.title === e.summary)
+                      const editable = canEditGoogleEvent(e, googleCanWrite)
                       return (
-                      <div key={`event-${e.id}`}>
+                      <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
                       <TimeBlock
                         task={{
                           id: `event-${e.id}`,
@@ -789,10 +982,16 @@ export function WeekCalendarView({
                         hStyle={planStyle(`event-${e.id}`)}
                         colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
                         onPointerDown={(evt) => {
-                          evt.preventDefault()
-                          evt.stopPropagation()
+                          if (!editable) {
+                            evt.preventDefault()
+                            evt.stopPropagation()
+                            return
+                          }
+                          // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
+                          googleDragRef.current = e
+                          timelineDrag.handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
                         }}
-                        onTap={() => openGoogleCard(e.id)}
+                        onTap={editable ? undefined : () => openGoogleCard(e.id)}
                         onOpenDetail={() => openGoogleCard(e.id)}
                       />
                       {hasStarted(e.startTime!) && !recorded && (
@@ -813,7 +1012,7 @@ export function WeekCalendarView({
                       )
                     })}
 
-                    {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && (
+                    {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && !allDayMoveKey && !unscheduleHover && (
                       <div
                         className={`absolute ${laneClass(
                           timelineDrag.dragPreview.kind === 'create'
@@ -851,6 +1050,7 @@ export function WeekCalendarView({
               })}
             </div>
           </div>
+        </div>
         </div>
       </div>
 

@@ -605,6 +605,14 @@ export function TaskDetail({
                       ))}
                   </select>
                 </div>
+                {/* カレンダーでの色。既定はリストの色 */}
+                <div className="mt-3">
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.color')}</label>
+                  <ColorLabelPicker
+                    task={task}
+                    planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}
+                  />
+                </div>
                 {!task.parentId && sectionsForTaskList.length > 0 && (
                   <div className="mt-3">
                     <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.section')}</label>

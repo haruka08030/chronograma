@@ -27,14 +27,19 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
 
   if (req.mode === 'navigate') {
+    // アプリの画面だけを '/' に控える。/privacy.html などの別ページやエラー応答を控えると、
+    // オフラインで開いたときにアプリの代わりにそれが出てしまう
+    const isAppShell = !url.pathname.endsWith('.html')
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone()
-          caches.open(CACHE).then((c) => c.put('/', copy))
+          if (res.ok && isAppShell) {
+            const copy = res.clone()
+            caches.open(CACHE).then((c) => c.put('/', copy))
+          }
           return res
         })
-        .catch(() => caches.match('/')),
+        .catch(() => (isAppShell ? caches.match('/') : caches.match(req))),
     )
     return
   }

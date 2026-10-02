@@ -28,6 +28,7 @@ import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 import { timerRecordTimes } from '../lib/timerRecord'
+import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../lib/sleep'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { restoreMissing } from '../lib/autoBackup'
 
@@ -49,6 +50,12 @@ function migrateLegacyPersistKey(): void {
 migrateLegacyPersistKey()
 
 const INBOX_ID = '__inbox__'
+
+/**
+ * `dataOwner` の値。この印を付ける前の版から引き継いだデータで、誰のものか記録が無い。
+ * その端末でこれまでどおり同期していた本人のものとして扱う
+ */
+export const LEGACY_DATA_OWNER = '*legacy*'
 
 export type CalendarMode = 'month' | 'week'
 
@@ -125,6 +132,8 @@ interface TaskState {
   googleConnected: boolean
   googleAccessToken: string | null
   googleConnectionError: string | null
+  /** Google の予定を書き換えられる権限（calendar.events）があるか。古い接続は読み取りのみ */
+  googleCanWrite: boolean
 
   activeTimer: ActiveTimer | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
@@ -215,6 +224,7 @@ interface TaskState {
   setGoogleConnected: (connected: boolean) => void
   setGoogleAccessToken: (token: string | null) => void
   setGoogleConnectionError: (error: string | null) => void
+  setGoogleCanWrite: (canWrite: boolean) => void
 
   addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
@@ -247,6 +257,8 @@ interface TaskState {
     description?: string,
     endDate?: string | null,
   ) => void
+  /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
+  logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
   startTimer: (title: string, tags?: string[], taskId?: string | null) => void
   stopTimer: () => void
@@ -358,6 +370,14 @@ interface TaskState {
   /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
   lastSyncedAt: string | null
   setSyncState: (state: 'idle' | 'syncing' | 'error', lastSyncedAt?: string) => void
+  /**
+   * 手元のタスク・リスト・習慣が誰のものか（ユーザー ID）。null はログインせずに作ったデータ。
+   * 以前は記録が無く、ログアウト後に別の人がログインすると前の人のデータがその人のアカウントに混ざった
+   */
+  dataOwner: string | null
+  setDataOwner: (userId: string | null) => void
+  /** ログアウト時に、手元のタスク・リスト・習慣を消して初期状態に戻す（表示などの設定は残す） */
+  resetLocalData: () => void
 
   toggleNotifications: () => void
   exportData: () => void
@@ -574,11 +594,12 @@ function makeTask(
     tags?: string[]
     color?: string | null
     habitId?: string | null
+    isSleep?: boolean
   },
   order: number,
 ): Task {
   const now = new Date().toISOString()
-  return {
+  const task: Task = {
     id: newId(),
     title: fields.title,
     description: '',
@@ -603,9 +624,13 @@ function makeTask(
     recurrence: null,
     isTimeLog: fields.isTimeLog ?? false,
     habitId: fields.habitId ?? null,
+    isSleep: fields.isSleep ?? false,
     archivedAt: null,
     deletedAt: null,
   }
+  // 「睡眠」と付けた記録（後から記録・タイマー）も睡眠として扱う
+  if (looksLikeSleep(task)) task.isSleep = true
+  return task
 }
 
 /** 予定から作る記録（完了した時間ログ） */
@@ -695,6 +720,7 @@ export const useTaskStore = create<TaskState>()(
       taskDragHoverListId: null as string | null,
       syncState: 'idle' as 'idle' | 'syncing' | 'error',
       lastSyncedAt: null as string | null,
+      dataOwner: null as string | null,
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
@@ -708,6 +734,7 @@ export const useTaskStore = create<TaskState>()(
       googleConnected: false,
       googleAccessToken: null,
       googleConnectionError: null,
+      googleCanWrite: false,
       activeTimer: null,
       completePromptTaskId: null as string | null,
       dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
@@ -1011,6 +1038,7 @@ export const useTaskStore = create<TaskState>()(
       setGoogleConnected: (connected) => set({ googleConnected: connected }),
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
       setGoogleConnectionError: (error) => set({ googleConnectionError: error }),
+      setGoogleCanWrite: (canWrite) => set({ googleCanWrite: canWrite }),
 
       addHabit: (fields) => {
         pushUndo()
@@ -1393,6 +1421,37 @@ export const useTaskStore = create<TaskState>()(
           log.description = description
         }
         pushUndo()
+        set((s) => ({ tasks: [...s.tasks, log] }))
+      },
+      logSleep: (wakeDateKey, bedTime, wakeTime) => {
+        if (bedTime === wakeTime) return
+        const { dueDate, endDate } = sleepSpan(wakeDateKey, bedTime, wakeTime)
+        const existing = sleepEndingOn(get().tasks, wakeDateKey)
+        pushUndo()
+        if (existing) {
+          const now = new Date().toISOString()
+          set((s) => ({
+            tasks: s.tasks.map((t) =>
+              t.id === existing.id ? { ...t, dueDate, endDate, startTime: bedTime, endTime: wakeTime, updatedAt: now } : t,
+            ),
+          }))
+          return
+        }
+        const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+        const log = makeTask(
+          {
+            title: i18n.t('sleep.title'),
+            listId: INBOX_ID,
+            dueDate,
+            endDate,
+            startTime: bedTime,
+            endTime: wakeTime,
+            isTimeLog: true,
+            completed: true,
+            isSleep: true,
+          },
+          maxOrder + 1,
+        )
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
       startTimer: (title, tags, taskId) => {
@@ -1815,6 +1874,31 @@ export const useTaskStore = create<TaskState>()(
       setSyncState: (state, lastSyncedAt) =>
         set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
 
+      setDataOwner: (userId) => set({ dataOwner: userId }),
+
+      resetLocalData: () => {
+        // 取り消しの履歴や取り込み前の控えにも前の人のデータが残っている
+        undoStack.length = 0
+        redoStack.length = 0
+        clearImportRollback()
+        set({
+          tasks: [],
+          lists: initialLists(),
+          sections: [],
+          habits: [],
+          deletedTasks: [],
+          activeTimer: null,
+          selectedListId: INBOX_ID,
+          quickAddSectionId: null,
+          completePromptTaskId: null,
+          undoBanner: null,
+          moveBannerText: null,
+          syncState: 'idle',
+          lastSyncedAt: null,
+          dataOwner: null,
+        })
+      },
+
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
@@ -1995,7 +2079,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 31,
+      version: 33,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -2247,6 +2331,16 @@ export const useTaskStore = create<TaskState>()(
             state.calendarMode = 'week'
           }
         }
+        if (version < 32) {
+          // 睡眠は専用の記録にした: 「睡眠」で付けていた記録に印を付ける
+          const now = new Date().toISOString()
+          const tasks = (state.tasks as Task[] | undefined) ?? []
+          state.tasks = tasks.map((t) => (looksLikeSleep(t) ? { ...t, isSleep: true, updatedAt: now } : t))
+        }
+        if (version < 33) {
+          // 持ち主の記録はこの版から。それまでのデータは、この端末で同期していた本人のものとみなす
+          state.dataOwner = LEGACY_DATA_OWNER
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
@@ -2259,6 +2353,7 @@ export const useTaskStore = create<TaskState>()(
           googleConnected,
           googleAccessToken,
           googleConnectionError,
+          googleCanWrite,
           moveBannerText,
           undoBanner,
           taskDragHoverListId,
@@ -2277,6 +2372,7 @@ export const useTaskStore = create<TaskState>()(
         void googleConnected
         void googleAccessToken
         void googleConnectionError
+        void googleCanWrite
         void moveBannerText
         void undoBanner
         void taskDragHoverListId

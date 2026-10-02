@@ -10,7 +10,7 @@ import {
   saveBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
-import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
+import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 
 const DEBOUNCE_MS = 1800
@@ -86,9 +86,22 @@ export function useSupabaseSync() {
         return false
       }
 
-      const baseline = loadBaseline(userId)
+      const owner = useTaskStore.getState().dataOwner
+      if (owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) {
+        // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
+        // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
+        backupNow('beforeSignOut')
+        useTaskStore.getState().resetLocalData()
+      }
+      // ログインせずに作ったデータは、前回同期の控え（baseline）と比べると、この人のクラウドの行が
+      // 全部「この端末で消された」に見える。初回同期と同じく、両方を残して取り込む
+      const baseline = useTaskStore.getState().dataOwner === null ? null : loadBaseline(userId)
       let toPush: SyncSnapshot
-      let deletes = undefined as Parameters<typeof pushListsTasksHabits>[6]
+      let deletes: Parameters<typeof pushListsTasksHabits>[6] = { lists: [], tasks: [], habits: [], sections: [] }
+      const done = (synced: SyncSnapshot) => {
+        saveBaseline(userId, baselineFrom(synced))
+        useTaskStore.getState().setDataOwner(userId)
+      }
 
       if (!baseline) {
         // この端末で初めての同期
@@ -100,7 +113,7 @@ export function useSupabaseSync() {
         if (decision.kind === 'use_remote' && local.tasks.length === 0 && local.habits.length === 0) {
           // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
-          saveBaseline(userId, baselineFrom(localSnapshot()))
+          done(localSnapshot())
           return true
         }
         if (decision.kind === 'use_remote') {
@@ -108,7 +121,6 @@ export function useSupabaseSync() {
           const merged = mergeWithoutBaseline(local, remote)
           apply(merged)
           toPush = merged
-          deletes = { lists: [], tasks: [], habits: [], sections: [] }
         } else {
           toPush = local
         }
@@ -138,7 +150,7 @@ export function useSupabaseSync() {
         console.error('[sync]', res.error)
         return false
       }
-      saveBaseline(userId, baselineFrom(toPush))
+      done(toPush)
       return true
     }
 

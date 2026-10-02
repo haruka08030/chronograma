@@ -186,7 +186,7 @@ export function DueDatePopover({
                     className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors
                       ${
                         selected
-                          ? 'bg-accent-500 font-semibold text-white hover:bg-accent-600'
+                          ? 'bg-accent-500 font-semibold text-on-accent hover:bg-accent-600'
                           : today
                             ? 'font-semibold text-accent-600 ring-1 ring-inset ring-accent-400 hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10'
                             : inMonth

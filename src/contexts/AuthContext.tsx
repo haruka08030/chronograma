@@ -8,19 +8,20 @@ import {
 } from 'react'
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
-  cacheProviderRefreshToken,
-  disconnectGoogleCalendar,
   handleGoogleOAuthCallback,
   hasGoogleOAuthCallbackInUrl,
   hasOAuthCallbackInUrl,
   isGoogleCalendarConnected,
   localizeGoogleError,
-  tryPersistGoogleRefreshToken,
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
+import { backupNow } from '../hooks/useAutoBackup'
+import { clearAutoBackups } from '../lib/autoBackup'
+import { clearBaseline } from '../lib/syncMerge'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 
 export type AuthContextValue = {
   session: Session | null
@@ -28,6 +29,8 @@ export type AuthContextValue = {
   loading: boolean
   signInWithOtp: (email: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
+  /** アカウントとクラウドのデータを全部消し、この端末のデータと自動バックアップも消す */
+  deleteAccount: () => Promise<{ error?: string }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -38,6 +41,7 @@ const noopAuth: AuthContextValue = {
   loading: false,
   signInWithOtp: async () => ({ error: 'Supabase が設定されていません' }),
   signOut: async () => {},
+  deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
 }
 
 const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>([
@@ -92,27 +96,6 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Sess
     }
   }
 
-  if (fromOAuthCallback || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-    try {
-      const stored = await tryPersistGoogleRefreshToken(session)
-      if (stored) {
-        const verified = await isGoogleCalendarConnected()
-        useTaskStore.getState().setGoogleConnected(verified)
-        if (verified) {
-          useTaskStore.getState().setGoogleConnectionError(null)
-        }
-        return
-      }
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : 'Failed to store Google refresh token'
-      useTaskStore.getState().setGoogleConnected(false)
-      useTaskStore.getState().setGoogleConnectionError(
-        localizeGoogleError(raw, (key) => i18n.t(key)),
-      )
-      return
-    }
-  }
-
   // TOKEN_REFRESHED では接続状態を下げない（store 完了前の status が false になりやすい）
   if (!STATUS_SYNC_EVENTS.has(event)) {
     return
@@ -149,6 +132,24 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Sess
   }
 }
 
+/**
+ * ログアウト後の端末から、そのアカウントのデータを消す。消さないと次にログインした人に見え、
+ * その人のアカウントにも送られていた。送れていなかった変更が消えないよう、先に端末内に控えを取る。
+ * Google の連携はサーバー側のアカウントに付いているので切らない（以前はここで切っていて、
+ * 1 台でログアウトすると全端末の連携が外れた）
+ */
+function clearLocalAccountState() {
+  const store = useTaskStore.getState()
+  store.setGoogleConnected(false)
+  store.setGoogleAccessToken(null)
+  store.setCalendarEvents([])
+  store.setGoogleConnectionError(null)
+  // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
+  if (store.dataOwner === null && store.tasks.length === 0 && store.habits.length === 0) return
+  backupNow('beforeSignOut')
+  store.resetLocalData()
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(isSupabaseConfigured)
@@ -175,21 +176,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (s?.provider_refresh_token) {
-        cacheProviderRefreshToken(s.provider_refresh_token)
-      }
 
       if (s && GOOGLE_AUTH_EVENTS.has(event)) {
         enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s))
       }
 
-      if (event === 'SIGNED_OUT') {
-        useTaskStore.getState().setGoogleConnected(false)
-        useTaskStore.getState().setGoogleAccessToken(null)
-        useTaskStore.getState().setCalendarEvents([])
-        useTaskStore.getState().setGoogleConnectionError(null)
-        void disconnectGoogleCalendar()
-      }
+      if (event === 'SIGNED_OUT') clearLocalAccountState()
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -219,17 +211,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       signOut: async () => {
-        try {
-          await disconnectGoogleCalendar()
-        } catch {
-          /* ignore */
-        }
-        useTaskStore.getState().setGoogleConnected(false)
-        useTaskStore.getState().setGoogleAccessToken(null)
-        useTaskStore.getState().setCalendarEvents([])
-        useTaskStore.getState().setGoogleConnectionError(null)
         const sb = getSupabase()
         if (sb) await sb.auth.signOut()
+        // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
+        clearLocalAccountState()
+      },
+      deleteAccount: async () => {
+        const sb = getSupabase()
+        const userId = session?.user.id
+        if (!sb || !userId) return { error: i18n.t('account.genericError') }
+        try {
+          const { data, error } = await sb.functions.invoke('account', { body: { action: 'delete' } })
+          if (error || (data as { ok?: boolean } | null)?.ok !== true) {
+            const message = error instanceof FunctionsHttpError
+              ? ((await error.context.json().catch(() => null)) as { error?: string } | null)?.error
+              : error?.message
+            if (message && isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }
+            return { error: i18n.t('account.deleteFailed') }
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : ''
+          return { error: i18n.t(isNetworkErrorMessage(message) ? 'account.networkError' : 'account.deleteFailed') }
+        }
+        // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
+        useTaskStore.getState().resetLocalData()
+        clearBaseline(userId)
+        await clearAutoBackups()
+        // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
+        await sb.auth.signOut({ scope: 'local' })
+        clearLocalAccountState()
+        return {}
       },
     }),
     [session, loading],

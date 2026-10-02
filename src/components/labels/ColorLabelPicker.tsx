@@ -10,8 +10,22 @@ import { ColorPalette } from './ColorPalette'
  * 記録の色＝ラベル（Google カレンダーの予定の色選択と同じ）。
  * 押すと ✎（ラベルを編集）・24 色＋自分で作った色・「分類なし」が開く。
  * 名前の付いた色を選ぶとその分類に、名前の無い色は色だけ付く（名前を付ければ後からまとめて分類になる）。
+ *
+ * 予定（`planDefaultHex` あり）は色だけを付ける。ToDo のタグは分類とは別物なので書き換えない。
+ * 「既定」はリストの色（Google の予定の色の既定＝カレンダーの色と同じ考え方）。
  */
-export function ColorLabelPicker({ task, compact }: { task: Task; compact?: boolean }) {
+export function ColorLabelPicker({
+  task,
+  compact,
+  planDefaultHex,
+  label: rowLabel,
+}: {
+  task: Task
+  compact?: boolean
+  planDefaultHex?: string
+  /** 行の頭に出す見出し（カードの中で、上のリスト名と続いて見えないように） */
+  label?: string
+}) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)
@@ -21,6 +35,8 @@ export function ColorLabelPicker({ task, compact }: { task: Task; compact?: bool
 
   useEffect(() => {
     if (!open) return
+    // カードの下のほうで開いたとき、色の一覧が隠れないように見える位置まで送る
+    ref.current?.scrollIntoView({ block: 'nearest' })
     const onDown = (e: PointerEvent) => {
       // ラベル編集・色選択のダイアログ（body 直下）の中は「内側」
       if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('[data-popover-keep]')) setOpen(false)
@@ -29,13 +45,17 @@ export function ColorLabelPicker({ task, compact }: { task: Task; compact?: bool
     return () => window.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  const current = task.tags[0] || task.color ? recordHex(task, colors).toUpperCase() : null
-  const label = task.tags[0] ?? null
+  const isPlan = planDefaultHex !== undefined
+  const current = isPlan
+    ? task.color?.toUpperCase() ?? null
+    : task.tags[0] || task.color ? recordHex(task, colors).toUpperCase() : null
+  const label = isPlan ? null : task.tags[0] ?? null
   const currentKey = colorKeyForHex(current)
-  const triggerText = label ?? (currentKey ? t(`googleColors.${currentKey}`) : current ?? t('labels.none'))
+  const triggerText = label ?? (currentKey ? t(`googleColors.${currentKey}`) : current ?? t(isPlan ? 'labels.listColor' : 'labels.none'))
 
   const choose = (hex: string | null) => {
-    if (hex === null) updateTask(task.id, { tags: [], color: null })
+    if (isPlan) updateTask(task.id, { color: hex })
+    else if (hex === null) updateTask(task.id, { tags: [], color: null })
     else {
       const name = labelForHex(hex, presets, colors)
       updateTask(task.id, name ? { tags: [name], color: null } : { tags: [], color: hex })
@@ -45,19 +65,23 @@ export function ColorLabelPicker({ task, compact }: { task: Task; compact?: bool
 
   return (
     <div ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={t('labels.pickerAria')}
-        className={`inline-flex items-center gap-2 rounded-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700/60 ${compact ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-sm'}`}
-      >
-        <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: current ?? NEUTRAL_HEX }} aria-hidden />
-        <span className={label ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400'}>{triggerText}</span>
-        <svg className="h-3 w-3 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <path d="M7 10l5 5 5-5z" />
-        </svg>
-      </button>
+      <div className="flex items-center gap-3">
+        {rowLabel && <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">{rowLabel}</span>}
+        {/* 縁つきのチップにして、押せることが一目で分かるようにする */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={t('labels.pickerAria')}
+          className={`inline-flex items-center gap-2 rounded-full border border-zinc-200 text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/60 ${compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
+        >
+          <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: current ?? planDefaultHex ?? NEUTRAL_HEX }} aria-hidden />
+          <span>{triggerText}</span>
+          <svg className="h-3 w-3 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        </button>
+      </div>
 
       {open && (
         <div className="mt-2">
@@ -65,8 +89,8 @@ export function ColorLabelPicker({ task, compact }: { task: Task; compact?: bool
             selectedHex={current}
             onChoose={choose}
             onDefault={() => choose(null)}
-            defaultLabel={t('labels.none')}
-            defaultHex={NEUTRAL_HEX}
+            defaultLabel={t(isPlan ? 'labels.listColor' : 'labels.none')}
+            defaultHex={planDefaultHex ?? NEUTRAL_HEX}
           />
         </div>
       )}

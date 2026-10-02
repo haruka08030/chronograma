@@ -1,8 +1,10 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { HOUR_HEIGHT, yToTime, timeToMinutes } from './timeGrid'
 import { markTimelineDragOver } from './nativeTaskDragGhost'
 
 export const TASK_DND_TYPE = 'application/x-task-id'
+/** Google の予定をつかんでいるときの型（中身は予定 ID。本体は googleEventEdit が持つ） */
+export const GOOGLE_EVENT_DND_TYPE = 'application/x-gcal-event'
 /** 複数選択ドラッグ時に運ぶ、表示順の taskId 配列（JSON） */
 export const TASK_MULTI_DND_TYPE = 'application/x-task-ids'
 const DEFAULT_DURATION_MIN = 60
@@ -23,6 +25,30 @@ export function readDraggedTaskIds(dataTransfer: DataTransfer): string[] {
   const text = dataTransfer.getData('text/plain')
   if (text) return text.split(',').map((s) => s.trim()).filter(Boolean)
   return []
+}
+
+/** 画面のどこかで ToDo のネイティブドラッグが進行中か（落とし先をドラッグ中だけ出すため） */
+export function useTaskNativeDragActive(): boolean {
+  const [active, setActive] = useState(false)
+  useEffect(() => {
+    // React のハンドラ（setData 済み）の後に window で拾う
+    const onStart = (e: DragEvent) => {
+      const types = e.dataTransfer?.types ?? []
+      if (types.includes(TASK_DND_TYPE) || types.includes(GOOGLE_EVENT_DND_TYPE)) setActive(true)
+    }
+    // 落とし先の drop ハンドラより先に消すと、ドラッグ中だけ出した落とし先ごと外れて drop が届かない。
+    // バブリングで拾い、さらに次のタスクへ回してから閉じる
+    const onEnd = () => { window.setTimeout(() => setActive(false), 0) }
+    window.addEventListener('dragstart', onStart)
+    window.addEventListener('dragend', onEnd)
+    window.addEventListener('drop', onEnd)
+    return () => {
+      window.removeEventListener('dragstart', onStart)
+      window.removeEventListener('dragend', onEnd)
+      window.removeEventListener('drop', onEnd)
+    }
+  }, [])
+  return active
 }
 
 export interface DropPreview {

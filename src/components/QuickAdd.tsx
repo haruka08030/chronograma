@@ -119,7 +119,7 @@ export function QuickAdd() {
         type="button"
         onClick={() => submit()}
         disabled={!value.trim()}
-        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent-500 text-white flex-shrink-0
+        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent-500 text-on-accent flex-shrink-0
                    hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {t('common.add')}

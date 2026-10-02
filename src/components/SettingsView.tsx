@@ -10,6 +10,7 @@ import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
+import { NotionSettings } from './settings/NotionSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { Segmented, SettingsGroup, SettingsRow, settingsButton } from './settings/SettingsPrimitives'
 
@@ -92,8 +93,14 @@ export function SettingsView() {
           )}
         </SettingsGroup>
 
+        <NotionSettings />
+
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
           <InstallAppSection />
+          <SettingsRow label={t('settings.legalTitle')}>
+            <a href="/privacy.html" target="_blank" rel="noopener" className={settingsButton}>{t('settings.privacyPolicy')}</a>
+            <a href="/terms.html" target="_blank" rel="noopener" className={settingsButton}>{t('settings.terms')}</a>
+          </SettingsRow>
         </SettingsGroup>
 
         <SettingsGroup id="settings-data" title={t('settings.data')} description={t('settings.dataIntro')}>

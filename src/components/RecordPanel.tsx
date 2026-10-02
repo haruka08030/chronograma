@@ -9,6 +9,7 @@ import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
+import { isSleepRecord } from '../lib/sleep'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -34,12 +35,9 @@ function nowRounded(): string {
 export function RecordPanel({
   dateKey,
   viewingToday,
-  onBarClick,
 }: {
   dateKey: string
   viewingToday: boolean
-  /** 色の帯を押したとき（スマホではタイムラインへ切り替える） */
-  onBarClick?: () => void
 }) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -63,6 +61,8 @@ export function RecordPanel({
     const m = new Map<string, number>()
     let total = 0
     for (const log of dayLogs) {
+      // 睡眠は分類の帯に入れない（上の「睡眠」の行で見る）
+      if (isSleepRecord(log)) continue
       const min = minutesOfLogOnCalendarDay(log, dateKey)
       total += min
       const cat = log.tags[0] ?? ''
@@ -148,12 +148,8 @@ export function RecordPanel({
 
   const summary = totalMinutes > 0 && (
     <div>
-      <button
-        type="button"
-        onClick={onBarClick}
-        aria-label={t('records.barAria')}
-        className="flex h-2 w-full gap-px overflow-hidden rounded-full md:cursor-default"
-      >
+      {/* 見るだけの帯。スマホでタイムラインへ行くのは上の「タイムライン」タブ */}
+      <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
         {byCategory.map(([cat, min]) => (
           <span
             key={cat}
@@ -162,7 +158,7 @@ export function RecordPanel({
             style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
           />
         ))}
-      </button>
+      </div>
       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
         {byCategory.map(([cat, min]) => (
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -222,7 +218,7 @@ export function RecordPanel({
               type="button"
               onClick={submit}
               disabled={mode === 'timer' ? !name : !canSaveManual}
-              className="rounded-lg bg-accent-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-40"
+              className="rounded-lg bg-accent-600 px-3 py-1 text-xs font-medium text-on-accent transition-colors hover:bg-accent-700 disabled:opacity-40"
             >
               {mode === 'timer' ? t('quickLog.go') : t('records.save')}
             </button>
@@ -237,48 +233,62 @@ export function RecordPanel({
   return (
     <div className="space-y-3">
       {summary}
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* 始める操作（記録する・後から）は大きく横並び。最近の記録はその下に小さく */}
+      <div className="flex gap-2">
         {canStartTimer && (
-          <>
-            <button
-              type="button"
-              onClick={() => setMode('timer')}
-              className="inline-flex min-h-9 items-center gap-1 rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-zinc-700 md:min-h-0
-                         dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
-              </svg>
-              {t('quickLog.start')}
-            </button>
-            {recent.map((r) => (
-              <button
-                key={r.title}
-                type="button"
-                onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
-                title={t('quickLog.resume', { title: r.title })}
-                className="min-h-9 max-w-[9rem] truncate rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 md:min-h-0
-                           dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                {r.title}
-              </button>
-            ))}
-          </>
+          <button
+            type="button"
+            onClick={() => setMode('timer')}
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-medium text-on-accent shadow-sm transition-colors hover:bg-accent-700
+                       dark:bg-accent-500 dark:hover:bg-accent-400"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
+            </svg>
+            {t('quickLog.start')}
+          </button>
         )}
         {canLogLater && (
           <button
             type="button"
             onClick={openManual}
-            className="inline-flex min-h-9 items-center gap-1 rounded-full px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 md:min-h-0
-                       dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50
+                       dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             {t('records.later')}
           </button>
         )}
       </div>
+      {canStartTimer && recent.length > 0 && (
+        <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+          {recent.map((r) => (
+            <button
+              key={r.title}
+              type="button"
+              onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
+              title={t('quickLog.resume', { title: r.title })}
+              aria-label={t('quickLog.resume', { title: r.title })}
+              className="inline-flex min-h-9 max-w-[10rem] items-center gap-1.5 rounded-full border border-zinc-200 py-1 pl-2 pr-2.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 md:min-h-7
+                         dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
+              <svg
+                className="h-2.5 w-2.5 shrink-0 text-[var(--c)]"
+                style={colorVars(categoryHex(r.category, logCategoryColors))}
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
+              </svg>
+              <span className="truncate">{r.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -30,7 +30,9 @@ export function WeekReviewCard() {
     return t('planner.hoursMinutes', { h, m: min })
   }
   const pct = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`)
-  const maxLogged = Math.max(60, ...review.days.map((d) => d.loggedMinutes))
+  // 棒は分類ごとの記録を積んだ高さ（ツールチップの合計は記録時間そのもの）
+  const barMinutes = (d: { tagMinutes: { minutes: number }[] }) => d.tagMinutes.reduce((a, x) => a + x.minutes, 0)
+  const maxLogged = Math.max(60, ...review.days.map(barMinutes))
 
   const insight = (() => {
     if (review.total === 0 && review.loggedMinutes === 0) return t('weekReview.insightEmpty')
@@ -103,7 +105,7 @@ export function WeekReviewCard() {
         </p>
       )}
 
-      <p className="mt-4 rounded-lg bg-accent-50/70 px-3 py-2 text-xs leading-relaxed text-accent-800 dark:bg-accent-500/10 dark:text-accent-200">
+      <p className="mt-4 rounded-lg bg-accent-50/70 px-3 py-2 text-xs leading-relaxed text-accent-800 dark:bg-accent-500/10 dark:text-accent-300">
         {insight}
       </p>
 
@@ -116,7 +118,8 @@ export function WeekReviewCard() {
               const date = parseISO(`${format(weekStart, 'yyyy-MM-dd')}T12:00:00`)
               date.setDate(date.getDate() + i)
               const label = format(date, 'E', { locale: dateLocale })
-              const h = day ? Math.round((day.loggedMinutes / maxLogged) * 100) : 0
+              const dayBar = day ? barMinutes(day) : 0
+              const h = Math.round((dayBar / maxLogged) * 100)
               const tip = day
                 ? t('weekReview.dayTooltip', {
                     day: label,
@@ -128,10 +131,19 @@ export function WeekReviewCard() {
                 : label
               return (
                 <div key={i} role="listitem" title={tip} aria-label={tip} className="group flex h-full flex-1 flex-col justify-end">
+                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色） */}
                   <div
-                    className="w-full rounded-t bg-accent-500 transition-colors group-hover:bg-accent-600 dark:bg-accent-400 dark:group-hover:bg-accent-300"
-                    style={{ height: `${h}%`, minHeight: day && day.loggedMinutes > 0 ? 2 : 0 }}
-                  />
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
+                    style={{ height: `${h}%`, minHeight: dayBar > 0 ? 2 : 0 }}
+                  >
+                    {day?.tagMinutes.map((x) => (
+                      <div
+                        key={x.tag}
+                        className="gc-dot w-full shrink-0"
+                        style={{ ...colorVars(categoryHex(x.tag || null, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
+                      />
+                    ))}
+                  </div>
                 </div>
               )
             })}
