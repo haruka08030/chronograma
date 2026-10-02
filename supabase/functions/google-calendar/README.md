@@ -7,7 +7,7 @@ Stores Google OAuth refresh tokens and fetches Calendar events server-side.
 ```bash
 supabase login
 supabase link --project-ref YOUR_PROJECT_REF
-supabase db push   # or run 002_google_oauth.sql in SQL Editor
+# google_oauth table: supabase/migrations/001_chronograma_schema.sql
 supabase secrets set \
   GOOGLE_CLIENT_ID=your_web_oauth_client_id \
   GOOGLE_CLIENT_SECRET=your_web_oauth_client_secret

@@ -41,11 +41,8 @@ npm run dev
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
+2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（通知・Google・Notion 用の表も含む）（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
-   続けて [`004_list_kind.sql`](supabase/migrations/004_list_kind.sql)（リストの種類: やること / いつか / チェックリスト）も実行します。
-   [`006_task_color.sql`](supabase/migrations/006_task_color.sql)（記録の色。Google の予定から写した記録の色を端末間で同期）も実行します。
-   続けて [`007`](supabase/migrations/007_task_habit_id.sql)・[`010`](supabase/migrations/010_task_is_sleep.sql) と、**必須の** [`008_sort_order_fractional.sql`](supabase/migrations/008_sort_order_fractional.sql)（未適用だと同期が止まる）・[`012_per_user_keys.sql`](supabase/migrations/012_per_user_keys.sql)（主キーを利用者ごとにする。未適用だと 2 人目以降の利用者が同期できない）を番号順に実行します。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
@@ -56,10 +53,9 @@ npm run dev
 
 アプリを閉じていても「今日を計画しましょう」「1 日を締めましょう」と、締切の通知を届けます。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
-1. **SQL Editor** で [`supabase/migrations/003_push_subscriptions.sql`](supabase/migrations/003_push_subscriptions.sql)、[`005_event_reminders.sql`](supabase/migrations/005_event_reminders.sql)（予定の開始前通知）、[`011_due_reminders.sql`](supabase/migrations/011_due_reminders.sql)（締切の通知）を**この順で**実行。005 と 011 は 003 のテーブルに列を足すので、まとめて貼ると途中で止まったときに気づきにくい
-2. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
-3. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
-4. Edge Function のシークレットを設定してデプロイ:
+1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
+2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
+3. Edge Function のシークレットを設定してデプロイ:
 
 ```bash
 supabase secrets set \
@@ -69,7 +65,7 @@ supabase secrets set \
 supabase functions deploy daily-reminders
 ```
 
-5. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で 5 分ごとの呼び出しを登録（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）:
+4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で 5 分ごとの呼び出しを登録（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）:
 
 ```sql
 select cron.schedule(
@@ -88,14 +84,13 @@ select cron.schedule(
 
 ### Google Calendar 連携（任意）
 
-予定の取り込みは Supabase **Edge Function** `google-calendar` 経由です（`002_google_oauth.sql` で `google_oauth` 表を作成）。
+予定の取り込みは Supabase **Edge Function** `google-calendar` 経由です（リフレッシュトークンは `google_oauth` 表に保存）。
 
-1. **SQL Editor** で [`supabase/migrations/002_google_oauth.sql`](supabase/migrations/002_google_oauth.sql) と [`013_google_oauth_server_only.sql`](supabase/migrations/013_google_oauth_server_only.sql)（トークンをブラウザから読めなくする）を実行（未適用の場合）。
-2. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.readonly`・`calendar.events` を登録し、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
+1. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.readonly`・`calendar.events` を登録し、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
    - **APIs & Services → Library** で **Google Calendar API** を有効化
    - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `http://localhost:5173` と本番 URL（例 `https://your-app.vercel.app`）を追加
-3. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。
-4. Edge Function をデプロイし、シークレットを設定します（詳細は [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
+2. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。
+3. Edge Function をデプロイし、シークレットを設定します（詳細は [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF

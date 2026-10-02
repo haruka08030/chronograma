@@ -6,8 +6,9 @@ The integration secret is stored in `notion_connection` and never returned to th
 
 ## Deploy
 
+The `notion_connection` table is in `supabase/migrations/001_chronograma_schema.sql`.
+
 ```bash
-supabase db push   # or run 009_notion.sql in SQL Editor
 supabase functions deploy notion
 ```
 
