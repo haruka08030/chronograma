@@ -10,6 +10,7 @@ import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
+import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { Segmented, SettingsGroup, SettingsRow, settingsButton } from './settings/SettingsPrimitives'
 
 /**
@@ -100,6 +101,7 @@ export function SettingsView() {
             <button type="button" onClick={exportData} className={settingsButton}>{t('sidebar.export')}</button>
             <button type="button" onClick={() => jsonInputRef.current?.click()} className={settingsButton}>{t('sidebar.import')}</button>
           </SettingsRow>
+          <AutoBackupSettings />
           <RestoreBeforeImportRow />
           <SettingsRow label={t('settings.csvTitle')} help={t('settings.csvHint')}>
             <button type="button" onClick={() => csvInputRef.current?.click()} className={settingsButton}>{t('sidebar.importCsv')}</button>

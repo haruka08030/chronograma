@@ -6,6 +6,9 @@ import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habi
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 
+/** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
+const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
+
 interface ListRow {
   id: string
   user_id: string
@@ -186,6 +189,7 @@ function rowToSection(row: SectionRow): ListSection {
     listId: row.list_id,
     name: row.name,
     order: row.sort_order,
+    updatedAt: row.updated_at,
   }
 }
 
@@ -196,7 +200,8 @@ function sectionToRow(userId: string, sec: ListSection): SectionRow {
     list_id: sec.listId,
     name: sec.name,
     sort_order: sec.order,
-    updated_at: new Date().toISOString(),
+    // 送った時刻にすると、手元で変えていない端末の送信が「新しい変更」に見えて他端末の変更を上書きする
+    updated_at: sec.updatedAt ?? UNKNOWN_UPDATED_AT,
   }
 }
 
@@ -208,6 +213,7 @@ function rowToList(row: ListRow): TaskList {
     color: row.color,
     order: row.sort_order,
     kind: normalizeListKind(row.kind),
+    updatedAt: row.updated_at,
   }
 }
 
@@ -322,7 +328,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
     color: list.color,
     sort_order: list.order,
     kind: list.kind ?? 'tasks',
-    updated_at: new Date().toISOString(),
+    updated_at: list.updatedAt ?? UNKNOWN_UPDATED_AT,
   }
 }
 

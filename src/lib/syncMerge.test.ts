@@ -6,6 +6,7 @@ import type { Task } from '../types/task'
 import {
   baselineFrom,
   mergeSnapshots,
+  mergeWithoutBaseline,
   SYNC_INBOX_LIST_ID,
   type SyncSnapshot,
 } from './syncMerge'
@@ -271,5 +272,42 @@ describe('mergeSnapshots の参照整合性', () => {
 
     expect(deletes.lists).toEqual([])
     expect(merged.lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID])
+  })
+})
+
+describe('mergeWithoutBaseline（前回同期が無い端末の初回同期）', () => {
+  it('送れていなかった手元のタスクを、古いサーバーで上書きして消さない', () => {
+    const local = snapshot({ tasks: [task('old', { updatedAt: T1 }), task('unsynced-es', { createdAt: T2, updatedAt: T2 })] })
+    const remote = snapshot({ tasks: [task('old'), task('from-phone')] })
+    const merged = mergeWithoutBaseline(local, remote)
+    expect(merged.tasks.map((t) => t.id).sort()).toEqual(['from-phone', 'old', 'unsynced-es'])
+    expect(merged.tasks.find((t) => t.id === 'old')?.updatedAt).toBe(T1)
+  })
+})
+
+describe('リスト・セクションの変更（更新時刻で新しい方を残す）', () => {
+  it('他端末で変えたリストの種類を、変えていない端末が送り返して戻さない', () => {
+    const before = list('wish', { kind: 'someday', updatedAt: T0 })
+    const base = baselineFrom(snapshot({ lists: [inbox, before] }))
+    const local = snapshot({ lists: [inbox, before] })
+    const remote = snapshot({ lists: [inbox, list('wish', { kind: 'tasks', updatedAt: T1 })] })
+    const { merged } = mergeSnapshots(local, remote, base)
+    expect(merged.lists.find((l) => l.id === 'wish')?.kind).toBe('tasks')
+  })
+
+  it('他端末で消したセクションを、変えていない端末が生き返らせない', () => {
+    const sec = { ...section('old'), updatedAt: T0 }
+    const base = baselineFrom(snapshot({ sections: [sec] }))
+    const { merged, deletes } = mergeSnapshots(snapshot({ sections: [sec] }), snapshot(), base)
+    expect(merged.sections).toEqual([])
+    expect(deletes.sections).toEqual([])
+  })
+
+  it('時刻を持つ前の控え（0）にあるセクションをこの端末で消したら、サーバーからも消す', () => {
+    const base = baselineFrom(snapshot({ sections: [section('old')] }))
+    const remote = snapshot({ sections: [{ ...section('old'), updatedAt: T2 }] })
+    const { merged, deletes } = mergeSnapshots(snapshot(), remote, base)
+    expect(merged.sections).toEqual([])
+    expect(deletes.sections).toEqual(['old'])
   })
 })

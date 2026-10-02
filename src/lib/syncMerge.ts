@@ -12,7 +12,7 @@ export interface SyncSnapshot {
   sections: ListSection[]
 }
 
-/** 前回同期した時点の ID → updatedAt の epoch ms（updatedAt を持たない種類は 0） */
+/** 前回同期した時点の ID → updatedAt の epoch ms（updatedAt が無いものは 0） */
 export interface SyncBaseline {
   lists: Record<string, number>
   tasks: Record<string, number>
@@ -71,7 +71,8 @@ function mergeKind<T extends { id: string }>(
   for (const r of remote) {
     if (localIds.has(r.id)) continue
     const base = baseline[r.id]
-    if (base === undefined || stamp(r) > base) merged.push(r)
+    // base 0 は「前回同期にあったが時刻が分からない」（更新時刻を持つ前の控え）。編集されたとはみなさず、この端末の削除を通す
+    if (base === undefined || (base > 0 && stamp(r) > base)) merged.push(r)
     else deleteRemote.push(r.id)
   }
   return { merged, deleteRemote }
@@ -83,9 +84,8 @@ export function mergeSnapshots(
   remote: SyncSnapshot,
   baseline: SyncBaseline,
 ): { merged: SyncSnapshot; deletes: SyncDeletes } {
-  const noStamp = () => 0
-  const lists = mergeKind(local.lists, remote.lists, baseline.lists, noStamp)
-  const sections = mergeKind(local.sections, remote.sections, baseline.sections, noStamp)
+  const lists = mergeKind(local.lists, remote.lists, baseline.lists, (l) => stampMs(l.updatedAt))
+  const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt))
   const tasks = mergeKind(local.tasks, remote.tasks, baseline.tasks, (t) => stampMs(t.updatedAt))
   const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt))
 
@@ -125,12 +125,22 @@ export function mergeSnapshots(
   }
 }
 
+/**
+ * 前回同期が無いとき（この端末で初めて・前回同期の保存に失敗した）のマージ。
+ * どちらで消したかは分からないので、両方にあるものを残す（同じ id は新しい方）。
+ * サーバーで丸ごと置き換えると、push できずに手元にだけあった変更が消える
+ */
+export function mergeWithoutBaseline(local: SyncSnapshot, remote: SyncSnapshot): SyncSnapshot {
+  const empty: SyncBaseline = { lists: {}, sections: {}, tasks: {}, habits: {} }
+  return mergeSnapshots(local, remote, empty).merged
+}
+
 export function baselineFrom(s: SyncSnapshot): SyncBaseline {
   const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) =>
     Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
   return {
-    lists: ids(s.lists, () => 0),
-    sections: ids(s.sections, () => 0),
+    lists: ids(s.lists, (l) => stampMs(l.updatedAt)),
+    sections: ids(s.sections, (sec) => stampMs(sec.updatedAt)),
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
   }
@@ -151,6 +161,6 @@ export function saveBaseline(userId: string, baseline: SyncBaseline) {
   try {
     localStorage.setItem(baselineKey(userId), JSON.stringify(baseline))
   } catch {
-    /* 保存できなければ次回は初回同期扱い（サーバー優先）になるだけ */
+    /* 保存できなければ次回は初回同期扱い（両方を残すマージ）になるだけ */
   }
 }
