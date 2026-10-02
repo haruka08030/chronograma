@@ -1,4 +1,4 @@
-import { googleEventHex } from './googleColors'
+import { calendarColorHex, googleEventHex, hasOwnEventColor } from './googleColors'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Session } from '@supabase/supabase-js'
 import { FunctionsHttpError } from '@supabase/supabase-js'
@@ -339,6 +339,7 @@ export async function fetchCalendarEvents(
   const payload = await invokeGoogleCalendar<{
     events?: CalendarEvent[]
     calendarColor?: string | null
+    calendarColorId?: string | null
     connected?: boolean
     error?: string
   }>({
@@ -358,7 +359,12 @@ export async function fetchCalendarEvents(
     }
     throw new Error(payload.error)
   }
+  // 自分で色を付けていない予定はカレンダーの色
+  const calendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)
   return (payload.events ?? [])
     .map(normalizeCalendarEventTimes)
-    .map((e) => ({ ...e, color: googleEventHex(e.colorId, payload.calendarColor) }))
+    .map((e) => {
+      const baseColor = googleEventHex(e.colorId, calendarHex)
+      return { ...e, baseColor, ownColor: hasOwnEventColor(e.colorId), color: baseColor }
+    })
 }

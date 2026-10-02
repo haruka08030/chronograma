@@ -5,6 +5,7 @@
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import webpush from 'npm:web-push@3.6.7'
+import { isWithinTick, minutesOfClock, selectDueToNotify } from './schedule.ts'
 
 /** 指定時刻からこの分数を過ぎたら、その日は送らない（cron が止まっていた後に朝の通知を夜に出さない） */
 const GRACE_MINUTES = 60
@@ -23,12 +24,12 @@ type Sub = {
   /** 005 で追加。null はオフ */
   event_reminder_minutes?: number | null
   event_notified?: { date?: string; ids?: string[] } | null
+  /** 011 で追加。締切の通知を push でも送るか */
+  due_reminders?: boolean | null
+  due_notified?: { date?: string; ids?: string[] } | null
 }
 
 type PlannedRow = { id: string; title: string; start_time: string; end_time: string | null; list_id: string }
-
-/** cron の間隔（分）。予定の通知はこの幅の中に入ったものを送る */
-const CRON_INTERVAL_MINUTES = 5
 
 const MESSAGES = {
   ja: {
@@ -37,6 +38,9 @@ const MESSAGES = {
     wrapUpTitle: '1 日を締めましょう',
     wrapUpRemaining: (n: number) => `残り ${n} 件。明日に回すものを決めて、今日はおしまいにしましょう。`,
     wrapUpClear: '今日の分はすべて完了です。おつかれさまでした。',
+    dueTitle: '今日が締切です',
+    dueOne: (title: string, time: string | null) => (time ? `${title}（${time} まで）` : title),
+    joinTitles: (titles: string[]) => titles.join('、'),
   },
   en: {
     planTitle: 'Plan your day',
@@ -44,6 +48,9 @@ const MESSAGES = {
     wrapUpTitle: 'Wrap up your day',
     wrapUpRemaining: (n: number) => `${n} left. Decide what moves to tomorrow and call it a day.`,
     wrapUpClear: 'Everything for today is done. Nice work.',
+    dueTitle: 'Due today',
+    dueOne: (title: string, time: string | null) => (time ? `${title} (by ${time})` : title),
+    joinTitles: (titles: string[]) => titles.join(', '),
   },
 } as const
 
@@ -95,7 +102,7 @@ Deno.serve(async (req) => {
   const { data, error } = await admin
     .from('push_subscriptions')
     .select('*')
-    .or('plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null')
+    .or('plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true')
   if (error) return new Response(error.message, { status: 500 })
 
   const now = new Date()
@@ -163,10 +170,44 @@ Deno.serve(async (req) => {
     const notified = new Set(sub.event_notified?.date === local.date ? sub.event_notified?.ids ?? [] : [])
     return ((rows ?? []) as PlannedRow[]).filter((r) => {
       if (excluded.has(r.list_id) || notified.has(r.id)) return false
-      const [h, m] = r.start_time.split(':').map(Number)
-      const remindAt = h * 60 + m - before
-      return remindAt <= local.minutes && remindAt > local.minutes - CRON_INTERVAL_MINUTES
+      const start = minutesOfClock(r.start_time)
+      if (start == null) return false
+      return isWithinTick(start - before, local.minutes)
     })
+  }
+
+  /**
+   * 今日が締切のタスクのうち、通知する時刻がこの cron の 5 分の幅に入ったもの。
+   *
+   * 締切時刻（due_time）があればその時刻、無ければ朝の計画の時刻
+   * （未設定なら 9:00）にまとめて 1 通。アプリを開いた瞬間に 1 件ずつ出していた
+   * 従来のローカル通知と違い、締切の時間に届く。
+   */
+  const dueTasks = async (
+    sub: Sub,
+    local: { date: string; minutes: number },
+  ): Promise<{ id: string; title: string; due_time: string | null }[]> => {
+    if (!sub.due_reminders) return []
+    const { data: rows } = await admin
+      .from('tasks')
+      .select('id,title,due_time,list_id')
+      .eq('user_id', sub.user_id)
+      .eq('completed', false)
+      .eq('is_time_log', false)
+      .is('parent_id', null)
+      .is('deleted_at', null)
+      .is('archived_at', null)
+      .eq('due_date', local.date)
+    return selectDueToNotify(
+      (rows ?? []) as { id: string; title: string; due_time: string | null; list_id: string }[],
+      {
+        nowMinutes: local.minutes,
+        excludedListIds: new Set(await excludedLists(sub.user_id)),
+        notifiedIds: new Set(sub.due_notified?.date === local.date ? sub.due_notified?.ids ?? [] : []),
+        // 締切時刻の無いものは朝の計画の時刻にまとめる（二重に気づかせない）
+        planTime: sub.plan_time,
+      },
+    ).map(({ id, title, due_time }) => ({ id, title, due_time }))
   }
 
   let sent = 0
@@ -177,6 +218,8 @@ Deno.serve(async (req) => {
     const jobs: {
       column: 'last_plan_sent' | 'last_wrap_up_sent' | null
       eventId?: string
+      /** この通知でまとめて知らせた締切タスク（通知済みとして控える） */
+      dueIds?: string[]
       payload: Record<string, string>
     }[] = []
 
@@ -213,7 +256,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    // 同じ時刻に重なった締切は 1 通にまとめる（1 件ずつ出すと通知が洪水になる）
+    const due = await dueTasks(sub, local)
+    if (due.length > 0) {
+      const first = due[0]
+      const time = first.due_time ? first.due_time.slice(0, 5) : null
+      jobs.push({
+        column: null,
+        dueIds: due.map((d) => d.id),
+        payload: {
+          title: msg.dueTitle,
+          body:
+            due.length === 1
+              ? msg.dueOne(first.title, time)
+              : msg.joinTitles(due.map((d) => d.title)),
+          tag: 'chronograma-due',
+          url: '/?view=planner',
+        },
+      })
+    }
+
     const notifiedToday = sub.event_notified?.date === local.date ? [...(sub.event_notified?.ids ?? [])] : []
+    const dueNotifiedToday = sub.due_notified?.date === local.date ? [...(sub.due_notified?.ids ?? [])] : []
     for (const job of jobs) {
       try {
         await webpush.sendNotification(
@@ -229,6 +293,12 @@ Deno.serve(async (req) => {
           await admin
             .from('push_subscriptions')
             .update({ event_notified: { date: local.date, ids: notifiedToday } })
+            .eq('endpoint', sub.endpoint)
+        } else if (job.dueIds) {
+          dueNotifiedToday.push(...job.dueIds)
+          await admin
+            .from('push_subscriptions')
+            .update({ due_notified: { date: local.date, ids: dueNotifiedToday } })
             .eq('endpoint', sub.endpoint)
         }
       } catch (err) {

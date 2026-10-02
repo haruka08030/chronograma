@@ -50,11 +50,11 @@ npm run dev
 
 ヘッダーの「ログイン」からメールアドレスを送信し、届いたリンクでサインインすると、約 1.8 秒のデバウンス後に変更がサーバーへ同期されます。同期は端末ごとの前回同期状態との**三方向マージ**なので、複数端末で編集しても他端末の追加を消しません（アプリに戻ったときと表示中 1 分ごとにも取り込みます）。
 
-### 朝・夕方の通知（Web Push、任意）
+### 朝・夕方・締切の通知（Web Push、任意）
 
-アプリを閉じていても「今日を計画しましょう」「1 日を締めましょう」を届けます。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても「今日を計画しましょう」「1 日を締めましょう」と、締切の通知を届けます。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
-1. **SQL Editor** で [`supabase/migrations/003_push_subscriptions.sql`](supabase/migrations/003_push_subscriptions.sql) と [`005_event_reminders.sql`](supabase/migrations/005_event_reminders.sql)（予定の開始前通知）を実行
+1. **SQL Editor** で [`supabase/migrations/003_push_subscriptions.sql`](supabase/migrations/003_push_subscriptions.sql)、[`005_event_reminders.sql`](supabase/migrations/005_event_reminders.sql)（予定の開始前通知）、[`011_due_reminders.sql`](supabase/migrations/011_due_reminders.sql)（締切の通知）を**この順で**実行。005 と 011 は 003 のテーブルに列を足すので、まとめて貼ると途中で止まったときに気づきにくい
 2. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 3. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
 4. Edge Function のシークレットを設定してデプロイ:

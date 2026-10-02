@@ -34,12 +34,12 @@ export function TimeLogTagField({
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
 
-  // 候補: 設定の分類 + 記録にだけある分類（多すぎると選べないので最大 10）
+  // 候補: 設定の分類（すべて）+ 記録にだけある分類（多すぎると選べないので合わせて 12 まで）
   const chips = useMemo(() => {
-    const list = universe.slice(0, 10)
+    const list = universe.slice(0, Math.max(12, presets.length))
     if (value && !list.includes(value)) list.push(value)
     return list
-  }, [universe, value])
+  }, [universe, presets.length, value])
 
   const commitDraft = () => {
     const name = draft.trim()

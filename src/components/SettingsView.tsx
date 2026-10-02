@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { previewBackupJson } from '../lib/backupFormat'
+import { loadImportRollback } from '../lib/importRollback'
 import { useAuth } from '../contexts/AuthContext'
 import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
@@ -98,6 +100,7 @@ export function SettingsView() {
             <button type="button" onClick={exportData} className={settingsButton}>{t('sidebar.export')}</button>
             <button type="button" onClick={() => jsonInputRef.current?.click()} className={settingsButton}>{t('sidebar.import')}</button>
           </SettingsRow>
+          <RestoreBeforeImportRow />
           <SettingsRow label={t('settings.csvTitle')} help={t('settings.csvHint')}>
             <button type="button" onClick={() => csvInputRef.current?.click()} className={settingsButton}>{t('sidebar.importCsv')}</button>
           </SettingsRow>
@@ -109,14 +112,28 @@ export function SettingsView() {
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
-            if (!window.confirm(i18n.t('confirm.importOverwrite'))) {
-              e.target.value = ''
-              return
-            }
             const reader = new FileReader()
             reader.onload = () => {
-              const ok = importData(reader.result as string)
-              if (!ok) alert(i18n.t('alert.invalidImportFile'))
+              // 先に中身を読んでから確認する。件数が分からないまま
+              // 「上書きしますか？」だけ出しても判断できない
+              const preview = previewBackupJson(reader.result as string)
+              if (!preview) {
+                alert(i18n.t('alert.invalidImportFile'))
+                return
+              }
+              const current = useTaskStore.getState()
+              const ok = window.confirm(
+                i18n.t('confirm.importOverwriteCounts', {
+                  currentTasks: current.tasks.length,
+                  nextTasks: preview.tasks,
+                  currentLists: current.lists.length,
+                  nextLists: preview.lists,
+                }),
+              )
+              if (!ok) return
+              if (!importData(reader.result as string)) {
+                alert(i18n.t('alert.invalidImportFile'))
+              }
             }
             reader.readAsText(file)
             e.target.value = ''
@@ -154,5 +171,46 @@ export function SettingsView() {
         </SettingsGroup>
       </div>
     </div>
+  )
+}
+
+/**
+ * 直前の取り込みを取り消す行。控えがあるときだけ出す
+ * （原則 3: 必要なときだけ出す）。⌘Z と違い再読み込み後でも使える。
+ */
+function RestoreBeforeImportRow() {
+  const { t } = useTranslation()
+  const restoreBeforeImport = useTaskStore((s) => s.restoreBeforeImport)
+  const tasksLength = useTaskStore((s) => s.tasks.length)
+  const [reloadKey, setReloadKey] = useState(0)
+  /** localStorage を読むのは副作用なので render では呼ばず、件数が動いたときに読み直す */
+  const [saved, setSaved] = useState(() => loadImportRollback())
+
+  useEffect(() => {
+    const id = setTimeout(() => setSaved(loadImportRollback()), 0)
+    return () => clearTimeout(id)
+  }, [tasksLength, reloadKey])
+
+  if (!saved) return null
+
+  return (
+    <SettingsRow
+      label={t('settings.restoreImportTitle')}
+      help={t('settings.restoreImportHint', { count: saved.taskCount })}
+    >
+      <button
+        type="button"
+        className={settingsButton}
+        onClick={() => {
+          if (!window.confirm(i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }))) return
+          if (restoreBeforeImport()) {
+            setSaved(null)
+            setReloadKey((n) => n + 1)
+          }
+        }}
+      >
+        {t('settings.restoreImportAction')}
+      </button>
+    </SettingsRow>
   )
 }

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { TimeInput, addClockMinutes } from './TimeInput'
+import { TimeInput } from './TimeInput'
+import { addClockMinutes } from '../lib/clockTime'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 

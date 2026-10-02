@@ -6,7 +6,6 @@ import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { parseQuickAddTitle } from '../lib/parseQuickAdd'
 import { getDayPlan } from '../lib/dayPlan'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -19,8 +18,9 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { TaskDetail } from './TaskDetail'
 import { WeekCalendarView } from './WeekCalendarView'
-import { QuickLogStarter } from './QuickLogStarter'
+import { RecordPanel } from './RecordPanel'
 import type { Task } from '../types/task'
+import { buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -50,6 +50,7 @@ export function TodayPlannerView() {
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
+  const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
@@ -79,17 +80,14 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  /** 今日の記録を分類ごとに（スマホの色の帯用） */
-  const recordSlices = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const task of tasks) {
-      if (!task.isTimeLog || !isActiveTask(task)) continue
-      const min = minutesOfLogOnCalendarDay(task, dateKey)
-      if (min > 0) m.set(task.tags[0] ?? '', (m.get(task.tags[0] ?? '') ?? 0) + min)
-    }
-    return [...m.entries()]
-  }, [tasks, dateKey])
+  /** 推定でも分類が決まらなかった今日の記録（1 日を締めるときにまとめて付ける） */
+  const untaggedLogs = useMemo(
+    () =>
+      tasks
+        .filter((x) => x.isTimeLog && isActiveTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
+        .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
+    [tasks, dateKey],
+  )
   const { carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
     () => getDayPlan(tasks, dateKey, excludedListIds),
     [tasks, dateKey, excludedListIds],
@@ -110,6 +108,8 @@ export function TodayPlannerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [habits, dateKey],
   )
+
+  const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
 
   const formatMinutes = (m: number) => {
     const h = Math.floor(m / 60)
@@ -325,48 +325,31 @@ export function TodayPlannerView() {
               </button>
             </div>
           </div>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 [&>span]:whitespace-nowrap">
-            {viewingToday && <span>{format(date, t('planner.titleFormat'), { locale: dateLocale })}</span>}
-            {totalCount > 0 && (
-              <>
-                {viewingToday && <i className="mx-1.5 not-italic text-zinc-300 dark:text-zinc-600">·</i>}
-                <span>{t('planner.summaryDone', { done: done.length, total: totalCount })}</span>
-                {plannedMinutes > 0 && (
-                  <>
-                    <i className="mx-1.5 not-italic text-zinc-300 dark:text-zinc-600">·</i>
-                    <span
-                      className={overCapacity ? 'text-amber-600 dark:text-amber-400' : undefined}
-                      title={overCapacity ? t('planner.overCapacity', { capacity: formatMinutes(dailyCapacityMinutes) }) : undefined}
-                    >
-                      {t('planner.summaryPlanned', { time: formatMinutes(plannedMinutes) })}
-                      {overCapacity && ` ${t('planner.overCapacityShort')}`}
-                    </span>
-                  </>
-                )}
-                {loggedMinutes > 0 && (
-                  <>
-                    <i className="mx-1.5 not-italic text-zinc-300 dark:text-zinc-600">·</i>
-                    <span>{t('planner.summaryLogged', { time: formatMinutes(loggedMinutes) })}</span>
-                  </>
-                )}
-              </>
-            )}
-          </p>
-          {/* スマホではタイムラインが別タブなので、今日の記録を色の帯で見せる（記録が主役）。押すとタイムラインへ */}
-          {recordSlices.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setMobilePane('timeline')}
-              aria-label={t('planner.recordsBarAria')}
-              className="mt-3 flex h-2 w-full gap-px overflow-hidden rounded-full md:hidden"
-            >
-              {recordSlices.map(([cat, min]) => (
-                <span key={cat} className="gc-dot h-full" style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / loggedMinutes) * 100}%` }} />
-              ))}
-            </button>
+          {viewingToday && (
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{format(date, t('planner.titleFormat'), { locale: dateLocale })}</p>
           )}
-          <div className="mt-4">
-            <QuickLogStarter />
+          {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
+          {(loggedMinutes > 0 || plannedMinutes > 0) && (
+            <div className="mt-5 flex items-baseline justify-between gap-3">
+              {loggedMinutes > 0 ? (
+                <span className="text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
+                  {t('planner.summaryLogged', { time: formatMinutes(loggedMinutes) })}
+                </span>
+              ) : <span />}
+              {plannedMinutes > 0 && (
+                <span
+                  className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'}`}
+                  title={overCapacity ? t('planner.overCapacity', { capacity: formatMinutes(dailyCapacityMinutes) }) : undefined}
+                >
+                  {t('planner.summaryPlanned', { time: formatMinutes(plannedMinutes) })}
+                  {overCapacity && ` ${t('planner.overCapacityShort')}`}
+                </span>
+              )}
+            </div>
+          )}
+          {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すとタイムラインへ */}
+          <div className={loggedMinutes > 0 || plannedMinutes > 0 ? 'mt-2' : 'mt-4'}>
+            <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} onBarClick={() => setMobilePane('timeline')} />
           </div>
         </header>
 
@@ -468,21 +451,31 @@ export function TodayPlannerView() {
             <h2 className={sectionLabel}>{t('planner.habitsHeading')}</h2>
             <div className="flex flex-wrap gap-2 px-3">
               {dayHabits.map((h) => {
-                const checked = h.completedDates.includes(dateKey)
+                const status = habitDayStatus(h, dateKey, habitRecords)
+                const checked = status !== 'missed'
+                const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
                 return (
                   <button
                     key={h.id}
                     type="button"
                     aria-pressed={checked}
+                    title={record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined}
                     onClick={() => toggleHabitDate(h.id, dateKey)}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors touch-manipulation ${
-                      checked
+                      record
+                        ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                        : checked
                         ? 'bg-zinc-100 text-zinc-400 line-through dark:bg-zinc-800 dark:text-zinc-500'
                         : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: h.color, opacity: checked ? 0.4 : 1 }} />
                     {h.title}
+                    {record && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t('planner.habitOffTime')}
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -520,7 +513,12 @@ export function TodayPlannerView() {
                   {t('planner.moveRestToTomorrow')}
                 </button>
               )}
-              <button type="button" onClick={() => selectView('plan-vs-actual')} className={textButton}>
+              {untaggedLogs.length > 0 && (
+                <button type="button" onClick={() => openDetail(untaggedLogs[0]!.id)} className={textButton}>
+                  {t('planner.categorizeLogs', { count: untaggedLogs.length })}
+                </button>
+              )}
+              <button type="button" onClick={() => { setCalendarMode('week'); selectView('calendar') }} className={textButton}>
                 {t('planner.reviewPlanVsLog')}
               </button>
               {[5, 6, 0].includes(date.getDay()) && (

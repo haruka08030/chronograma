@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
-import { useTaskStore, paletteColors } from '../store/taskStore'
+import { useTaskStore } from '../store/taskStore'
+import { CALENDAR_COLORS, textOnHex } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
@@ -19,37 +20,56 @@ import {
   currentStreakDays,
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { TimeInput, addClockMinutes } from './TimeInput'
+import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
+import { TimeInput } from './TimeInput'
+import { addClockMinutes } from '../lib/clockTime'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 
+/** 習慣の色は記録のラベルと同じ Google カレンダーの 24 色（以前の 11 色はすべてこの中にある） */
+const HABIT_COLORS: readonly string[] = CALENDAR_COLORS.map((c) => c.hex)
+const DEFAULT_HABIT_COLOR_INDEX = CALENDAR_COLORS.findIndex((c) => c.key === 'sage')
+
 const iconTrash = 'M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0'
 
 function ColorPicker({
-  listColors,
   colorIndex,
   onPick,
 }: {
-  listColors: readonly string[]
   colorIndex: number
   onPick: (i: number) => void
 }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap gap-2 items-center">
+    <div className="flex flex-col gap-2">
       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
-      {listColors.map((c, i) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onPick(i)}
-          className={`w-7 h-7 rounded-full ring-2 transition-shadow ${colorIndex === i ? 'ring-accent-500 ring-offset-2 dark:ring-offset-zinc-900' : 'ring-transparent hover:ring-zinc-300 dark:hover:ring-zinc-600'}`}
-          style={{ backgroundColor: c }}
-          aria-label={t('habits.colorSwatch', { n: i + 1 })}
-        />
-      ))}
+      <div role="radiogroup" aria-label={t('habits.color')} className="grid max-w-sm gap-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+        {CALENDAR_COLORS.map((c, i) => {
+          const name = t(`googleColors.${c.key}`)
+          const isSelected = colorIndex === i
+          return (
+            <button
+              key={c.hex}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              aria-label={name}
+              title={name}
+              onClick={() => onPick(i)}
+              className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
+              style={{ backgroundColor: c.hex, color: textOnHex(c.hex) }}
+            >
+              {isSelected && (
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -166,6 +186,12 @@ function HabitTimeFields({
           />
         </div>
       ) : null}
+
+      {mode !== 'none' ? (
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          {t(mode === 'range' ? 'habits.onTimeHintRange' : 'habits.onTimeHintFixed', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -173,14 +199,14 @@ function HabitTimeFields({
 export function HabitsView() {
   const { t, i18n } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
+  const tasks = useTaskStore((s) => s.tasks)
+  const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const addHabit = useTaskStore((s) => s.addHabit)
   const updateHabit = useTaskStore((s) => s.updateHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
-  const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
-  const listColors = useMemo(() => paletteColors(listColorPaletteId), [listColorPaletteId])
 
   const [newTitle, setNewTitle] = useState('')
   const [newFreq, setNewFreq] = useState<'daily' | 'weekly'>('daily')
@@ -188,8 +214,8 @@ export function HabitsView() {
   const [newTimeMode, setNewTimeMode] = useState<HabitTimeMode>('range')
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
-  const [newColorIndex, setNewColorIndex] = useState(4)
-  const newColor = listColors[Math.min(newColorIndex, listColors.length - 1)] ?? listColors[0]
+  const [newColorIndex, setNewColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
+  const newColor = HABIT_COLORS[newColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
   const newTitleInputRef = useRef<HTMLInputElement>(null)
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null)
@@ -200,8 +226,8 @@ export function HabitsView() {
   const [editTimeMode, setEditTimeMode] = useState<HabitTimeMode>('range')
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
-  const [editColorIndex, setEditColorIndex] = useState(4)
-  const editColor = listColors[Math.min(editColorIndex, listColors.length - 1)] ?? listColors[0]
+  const [editColorIndex, setEditColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
+  const editColor = HABIT_COLORS[editColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
 
   const cancelEdit = useCallback(() => {
     setEditingHabitId(null)
@@ -221,9 +247,9 @@ export function HabitsView() {
       setEditTimeMode(h.timeMode)
       setEditStartTime(h.startTime ?? '09:00')
       setEditEndTime(h.endTime ?? '10:00')
-      setEditColorIndex(colorIndexForPalette(h.color, listColors))
+      setEditColorIndex(colorIndexForPalette(h.color, HABIT_COLORS, DEFAULT_HABIT_COLOR_INDEX))
     },
-    [listColors],
+    [],
   )
 
   useEffect(() => {
@@ -322,12 +348,12 @@ export function HabitsView() {
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(new Date(), 27 - i)
-        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d) }
+        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
-    [habits],
+    [habits, habitRecords],
   )
-  const consistency = useMemo(() => consistencyForLast7Days(habits), [habits])
-  const streak = useMemo(() => currentStreakDays(habits), [habits])
+  const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
+  const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
   const focusDate = useMemo(
     () => parseISO(`${selectedCalendarDateKey}T12:00:00`),
     [selectedCalendarDateKey],
@@ -368,11 +394,10 @@ export function HabitsView() {
   useNavShortcut({ today: goFocusToday, prev: () => shiftFocusDay(-1), next: () => shiftFocusDay(1) })
 
   const renderHabitRow = (h: Habit, offDay: boolean) => {
-    const last7 = completionsInLast7Days(h.completedDates)
+    const last7 = completionsInLast7Days(h, habitRecords)
     const isEditing = editingHabitId === h.id
-    const completedSet = new Set(h.completedDates)
     // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
-    const weeklyProgress = consistencyForLast7Days([h])
+    const weeklyProgress = consistencyForLast7Days([h], habitRecords)
     const goalText =
       h.frequency.type === 'daily'
         ? t('habits.goalDaily')
@@ -423,7 +448,7 @@ export function HabitsView() {
                 placeholder={t('habits.nameShort')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
               />
-              <ColorPicker listColors={listColors} colorIndex={editColorIndex} onPick={setEditColorIndex} />
+              <ColorPicker colorIndex={editColorIndex} onPick={setEditColorIndex} />
               <div className="flex gap-6 text-sm">
                 <label className="flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300">
                   <input
@@ -538,7 +563,13 @@ export function HabitsView() {
               const isCellToday = key === todayKey
               const isCellFocus = key === selectedCalendarDateKey
               const isScheduled = isHabitScheduledOnDate(h, d)
-              const isDone = completedSet.has(key)
+              const status = habitDayStatus(h, key, habitRecords)
+              const isDone = status === 'done'
+              const isOffTime = status === 'offTime'
+              const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
+              const cellTitle = record
+                ? t('habits.offTimeTooltip', { date: key, start: record.startTime, end: record.endTime })
+                : key
               const ringClass = isCellToday
                 ? 'ring-2 ring-accent-400 dark:ring-accent-500/70'
                 : isCellFocus
@@ -553,20 +584,22 @@ export function HabitsView() {
                     toggleHabitDate(h.id, key)
                   }}
                   className="flex justify-center"
-                  aria-label={key}
+                  aria-label={cellTitle}
                 >
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
                         ? 'text-white'
-                        : isScheduled
-                          ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-                          : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
+                        : isOffTime
+                          ? 'border-2 bg-white font-semibold dark:bg-zinc-900'
+                          : isScheduled
+                            ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+                            : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
-                    style={isDone ? { backgroundColor: h.color } : undefined}
-                    title={key}
+                    style={isDone ? { backgroundColor: h.color } : isOffTime ? { borderColor: h.color, color: h.color } : undefined}
+                    title={cellTitle}
                   >
-                    {isDone ? '✓' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
+                    {isDone ? '✓' : isOffTime ? '△' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )
@@ -654,7 +687,7 @@ export function HabitsView() {
                 placeholder={t('habits.placeholderName')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
-              <ColorPicker listColors={listColors} colorIndex={newColorIndex} onPick={setNewColorIndex} />
+              <ColorPicker colorIndex={newColorIndex} onPick={setNewColorIndex} />
               <div className="flex gap-6 text-sm">
                 <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
                   <input

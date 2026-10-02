@@ -52,6 +52,8 @@ interface TaskRow {
   location?: string | null
   /** 006 で追加。古い DB には無い */
   color?: string | null
+  /** 007 で追加。古い DB には無い */
+  habit_id?: string | null
   priority: string
   tags: unknown
   recurrence: unknown
@@ -105,6 +107,18 @@ function isMissingColorColumnError(message: string | undefined): boolean {
 function stripColorFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ color, ...rest }) => {
     void color
+    return rest
+  })
+}
+
+function isMissingHabitIdColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'habit_id' column")
+}
+
+function stripHabitIdFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ habit_id, ...rest }) => {
+    void habit_id
     return rest
   })
 }
@@ -294,6 +308,7 @@ function rowToTask(row: TaskRow): Task {
     tags,
     recurrence,
     isTimeLog: row.is_time_log === true,
+    habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
   }
@@ -337,6 +352,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     tags: task.tags,
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
+    habit_id: task.habitId ?? null,
     archived_at: task.archivedAt ?? null,
     deleted_at: task.deletedAt ?? null,
   }
@@ -457,6 +473,7 @@ export async function pushListsTasksHabits(
   let stripCompletedAt = false
   let stripLocation = false
   let stripColor = false
+  let stripHabitId = false
   let stripDueTime = false
   let stripScheduledDate = false
   let stripArchivedAt = false
@@ -467,6 +484,7 @@ export async function pushListsTasksHabits(
     if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
     if (stripLocation) rows = stripLocationFromTaskRows(rows)
     if (stripColor) rows = stripColorFromTaskRows(rows)
+    if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
     if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
     if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
@@ -491,6 +509,10 @@ export async function pushListsTasksHabits(
     }
     if (isMissingColorColumnError(errMsg) && !stripColor) {
       stripColor = true
+      continue
+    }
+    if (isMissingHabitIdColumnError(errMsg) && !stripHabitId) {
+      stripHabitId = true
       continue
     }
     if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {

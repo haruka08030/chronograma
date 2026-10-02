@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
 import { WeekCalendarView } from './WeekCalendarView'
+import { GoogleConnectLine } from './GoogleConnectLine'
 import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
@@ -128,6 +129,9 @@ export function CalendarHubView({ onOpenSidebar }: { onOpenSidebar: () => void }
         onNextPeriod={onNextPeriod}
         onPickDate={applyPickedDate}
       />
+      <div className="shrink-0 pb-2 [&>div]:mt-0">
+        <GoogleConnectLine />
+      </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

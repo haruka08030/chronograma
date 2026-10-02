@@ -3,13 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 
-type TabId = 'planner' | 'todo' | 'calendar' | 'log' | 'more'
+type TabId = 'planner' | 'todo' | 'calendar' | 'more'
 
-/** 1 日の計画アプリなので先頭は「今日」。習慣の日々のチェックは「今日」にあり、一覧は「その他」から */
+/** 1 日の計画アプリなので先頭は「今日」。記録と習慣の日々のチェックも「今日」にあり、習慣の一覧は「その他」から */
 const TAB_VIEWS: Record<Exclude<TabId, 'todo' | 'more'>, SmartView> = {
   planner: 'planner',
   calendar: 'calendar',
-  log: 'activity-log',
 }
 
 export function MobileBottomNav({
@@ -28,8 +27,7 @@ export function MobileBottomNav({
   const selectedListId = useTaskStore((s) => s.selectedListId)
 
   const active: TabId = (() => {
-    if (selectedView === 'calendar' || selectedView === 'plan-vs-actual') return 'calendar'
-    if (selectedView === 'activity-log') return 'log'
+    if (selectedView === 'calendar') return 'calendar'
     if (selectedView === 'planner') return 'planner'
     if (isTodoSurfaceView(selectedView)) return 'todo'
     return 'more'
@@ -75,15 +73,6 @@ export function MobileBottomNav({
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-        </svg>
-      ),
-    },
-    {
-      id: 'log',
-      label: t('nav.log'),
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
     },

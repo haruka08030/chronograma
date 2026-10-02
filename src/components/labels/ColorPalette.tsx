@@ -1,0 +1,92 @@
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useTaskStore } from '../../store/taskStore'
+import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
+import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
+import { LabelsDialog } from './LabelsDialog'
+
+/**
+ * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
+ * 色の丸のツールチップは「ラベル名（色名）」。記録の色と Google の予定の色の両方で使う。
+ */
+export function ColorPalette({
+  selectedHex,
+  onChoose,
+  onDefault,
+  defaultLabel,
+  defaultHex,
+}: {
+  selectedHex: string | null
+  onChoose: (hex: string) => void
+  onDefault: () => void
+  defaultLabel: string
+  /** 既定ボタンの輪の色 */
+  defaultHex: string
+}) {
+  const { t } = useTranslation()
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  const [editingLabels, setEditingLabels] = useState(false)
+
+  // 24 色の後ろに、24 色に無い色のラベル（自分で作った色）
+  const swatches = useMemo(() => {
+    const base = CALENDAR_COLORS.map((c) => ({ hex: c.hex, colorName: t(`googleColors.${c.key}`) }))
+    const extra = presets
+      .map((n) => categoryHex(n, colors))
+      .filter((hex, i, arr) => !colorKeyForHex(hex) && arr.indexOf(hex) === i)
+      .map((hex) => ({ hex, colorName: hex }))
+    return [...base, ...extra]
+  }, [presets, colors, t])
+  const selected = selectedHex?.toUpperCase() ?? null
+
+  return (
+    <div className="rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700">
+      <button
+        type="button"
+        onClick={() => setEditingLabels(true)}
+        aria-label={t('labels.edit')}
+        title={t('labels.edit')}
+        className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-700 shadow ring-1 ring-zinc-200 transition-colors hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600 dark:hover:bg-zinc-700"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+        </svg>
+      </button>
+      <div role="radiogroup" aria-label={t('labels.pickerAria')} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+        {swatches.map((sw) => {
+          const name = labelForHex(sw.hex, presets, colors)
+          const isSelected = selected === sw.hex.toUpperCase()
+          const tip = name ? `${name}（${sw.colorName}）` : sw.colorName
+          return (
+            <button
+              key={sw.hex}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              aria-label={tip}
+              title={tip}
+              onClick={() => onChoose(sw.hex)}
+              className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
+              style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}
+            >
+              {isSelected && (
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={onDefault}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-200/70 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-700"
+      >
+        <span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: defaultHex }} aria-hidden />
+        {defaultLabel}
+      </button>
+      {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
+    </div>
+  )
+}

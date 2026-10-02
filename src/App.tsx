@@ -11,9 +11,8 @@ import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
 import { TodayPlannerView } from './components/TodayPlannerView'
-import { PlanVsActualView } from './components/PlanVsActualView'
+import { OPEN_TIMER_EVENT } from './components/RecordPanel'
 import { StatsView } from './components/StatsView'
-import { ActivityLogView } from './components/ActivityLogView.tsx'
 import { HabitsView } from './components/HabitsView'
 import { TaskBinView } from './components/TaskBinView'
 import { ChecklistView } from './components/ChecklistView'
@@ -170,7 +169,9 @@ export default function App() {
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+    // ドラッグはどれも専用のつまみ（`touch-none` の ⋮⋮ ボタン）からしか始まらないので、
+    // タップとの判別に長い待ちは要らない。長押しの一括選択は行側（450ms）で別に拾う
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -394,7 +395,11 @@ export default function App() {
           case 'd': store.selectView('planner'); return true
           case 'w': store.setCalendarMode('week'); store.selectView('calendar'); return true
           case 'm': store.setCalendarMode('month'); store.selectView('calendar'); return true
-          case 'l': store.selectView('activity-log'); return true
+          case 'l':
+            // 記録は「今日」に統合。今日を開いて「記録する」を開く
+            store.selectView('planner')
+            window.setTimeout(() => window.dispatchEvent(new Event(OPEN_TIMER_EVENT)), 50)
+            return true
           case 'c':
             if (!focusQuickAdd()) {
               store.selectView('planner')
@@ -458,26 +463,36 @@ export default function App() {
   }, [handleKeyDown])
 
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
+  // 締切の通知（タブが開いている間。Web Push が有効ならサーバー側が締切時刻に送る）
   useEffect(() => {
     if (!notificationsEnabled) return
-    requestPermission().then((granted) => {
-      if (granted) checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
-    })
-    const id = setInterval(() => {
+    const notifyIfLocal = () => {
+      if (isWebPushActive()) return
       checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
-    }, 60_000)
+    }
+    requestPermission().then((granted) => {
+      if (granted) notifyIfLocal()
+    })
+    const id = setInterval(notifyIfLocal, 60_000)
     return () => clearInterval(id)
   }, [notificationsEnabled])
 
-  // 朝の計画・夕方の締めの通知（タスク期限通知のオン/オフとは独立）
+  // 朝の計画・夕方の締めの通知。締切の通知（notificationsEnabled）も
+  // 同じ購読に乗せてサーバーから送るので、ここで一緒に同期する
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const { user } = useAuth()
   const userId = user?.id ?? null
   // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
   const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
   useEffect(() => {
-    void syncWebPush(userId, dailyReminders, eventReminderMinutes, i18n.resolvedLanguage ?? 'ja')
-  }, [userId, dailyReminders, eventReminderMinutes])
+    void syncWebPush({
+      userId,
+      reminders: dailyReminders,
+      eventReminderMinutes,
+      dueReminders: notificationsEnabled,
+      lang: i18n.resolvedLanguage ?? 'ja',
+    })
+  }, [userId, dailyReminders, eventReminderMinutes, notificationsEnabled])
   // 予定の開始前通知（タブが開いている間。Web Push が有効ならサーバー側が送る）
   useEffect(() => {
     if (eventReminderMinutes == null) return
@@ -517,8 +532,6 @@ export default function App() {
     switch (selectedView) {
       case 'planner': return <TodayPlannerView />
       case 'calendar': return <CalendarHubView onOpenSidebar={() => setSidebarOpen(true)} />
-      case 'plan-vs-actual': return <PlanVsActualView />
-      case 'activity-log': return <ActivityLogView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
       case 'archived': return <TaskBinView mode="archived" />
