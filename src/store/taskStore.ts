@@ -78,7 +78,7 @@ export type SmartView =
   | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
-export type SettingsScrollTarget = 'appearance' | 'account' | 'install'
+export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google'
 
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 

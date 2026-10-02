@@ -18,6 +18,7 @@ import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { GoogleStatusDot } from './GoogleStatusDot'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -223,6 +224,8 @@ export function CalendarDateNav({
           </div>
         )}
       </div>
+
+      <GoogleStatusDot />
     </div>
   )
 }

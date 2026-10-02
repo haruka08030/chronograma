@@ -866,6 +866,10 @@ export default {
     markDone: '完了にする',
     stopTitle: '記録を停止',
   },
+  googleSettings: {
+    title: 'Google カレンダー',
+    notConnected: '未接続',
+  },
   notion: {
     title: 'Notion 連携',
     needsLogin: 'Notion と連携するには、まずログインが必要です。',

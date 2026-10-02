@@ -166,9 +166,7 @@ export function CalendarHubView() {
         onNextPeriod={onNextPeriod}
         onPickDate={applyPickedDate}
       />
-      <div className="shrink-0 pb-2 [&>div]:mt-0">
-        <GoogleConnectLine />
-      </div>
+      <GoogleConnectLine />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
