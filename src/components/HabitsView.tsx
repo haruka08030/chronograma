@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
-import { CALENDAR_COLORS, textOnHex } from '../lib/googleColors'
+import { CALENDAR_COLORS } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
@@ -27,10 +27,11 @@ const ISO_MONDAY = new Date(2024, 0, 1)
 import { addClockMinutes } from '../lib/clockTime'
 import { zonedNow } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { ColorSwatches } from './ui/ColorSwatches'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -53,29 +54,12 @@ function ColorPicker({
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
-      <div role="radiogroup" aria-label={t('habits.color')} className="grid max-w-sm gap-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
-        {CALENDAR_COLORS.map((c, i) => {
-          const name = t(`googleColors.${c.key}`)
-          const isSelected = colorIndex === i
-          return (
-            <button
-              key={c.hex}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              aria-label={name}
-              title={name}
-              onClick={() => onPick(i)}
-              className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
-              style={{ backgroundColor: c.hex, color: textOnHex(c.hex) }}
-            >
-              {isSelected && (
-                <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
-              )}
-            </button>
-          )
-        })}
-      </div>
+      <ColorSwatches
+        ariaLabel={t('habits.color')}
+        className="max-w-sm"
+        selectedHex={CALENDAR_COLORS[colorIndex]?.hex ?? null}
+        onChoose={(hex) => onPick(CALENDAR_COLORS.findIndex((c) => c.hex === hex))}
+      />
     </div>
   )
 }

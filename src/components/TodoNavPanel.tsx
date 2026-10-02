@@ -3,7 +3,6 @@ import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
-import { CALENDAR_COLORS } from '../lib/googleColors'
 import { LIST_PREFIX } from '../lib/listDnD'
 import { SmartViewRow } from './SmartViewRow'
 import { useDroppable } from '@dnd-kit/core'
@@ -15,6 +14,7 @@ import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels } from '../lib/todoColorLabels'
 import { isSubmitEnter } from '../lib/keyboard'
+import { ColorSwatches } from './ui/ColorSwatches'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -132,7 +132,6 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
-  const selected = current.toUpperCase()
   const ref = useRef<HTMLDivElement>(null)
   useDismiss({ open: true, onClose, inside: [ref] })
   return (
@@ -143,21 +142,14 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
       role="dialog"
       aria-label={t('sidebar.listColorDialog')}
     >
-      {/* 記録のラベルと同じ Google カレンダーの 24 色 */}
-      <div className="grid grid-cols-6 gap-1.5">
-        {CALENDAR_COLORS.map(({ key, hex }) => (
-          <button
-            key={hex}
-            type="button"
-            onClick={() => { onChange(hex); onClose() }}
-            title={t(`googleColors.${key}`)}
-            aria-label={t(`googleColors.${key}`)}
-            className={`w-6 h-6 rounded-full transition-transform hover:scale-110
-              ${hex === selected ? 'ring-2 ring-offset-2 ring-accent-500 dark:ring-offset-zinc-800' : 'ring-1 ring-black/10'}`}
-            style={{ backgroundColor: hex }}
-          />
-        ))}
-      </div>
+      {/* 記録のラベルと同じ Google カレンダーの 24 色（色選びはどこでも同じ部品） */}
+      <ColorSwatches
+        ariaLabel={t('sidebar.listColorDialog')}
+        columns={6}
+        className="w-44"
+        selectedHex={current}
+        onChoose={(hex) => { onChange(hex); onClose() }}
+      />
     </div>
   )
 }
