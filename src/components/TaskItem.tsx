@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { labelForHex } from '../lib/logCategoryColors'
@@ -111,15 +113,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     }
   }, [editing])
 
-  useEffect(() => {
-    if (!rowMenuOpen) return
-    const close = (e: Event) => {
-      const t = e.target
-      if (rowMenuRef.current && t instanceof Node && !rowMenuRef.current.contains(t)) setRowMenuOpen(false)
-    }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [rowMenuOpen])
+  useDismiss({ open: rowMenuOpen, onClose: () => setRowMenuOpen(false), inside: [rowMenuRef] })
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -458,7 +452,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         </button>
         {rowMenuOpen && (
           <div
-            className="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-zinc-200 bg-white py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+            className={`absolute right-0 top-full z-30 mt-1 w-52 py-2 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
             {!task.parentId && (

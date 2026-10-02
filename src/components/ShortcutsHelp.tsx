@@ -17,13 +17,13 @@ export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   return (
     <Modal onClose={onClose} labelledBy="shortcuts-title" className="p-5">
       <ModalTitle id="shortcuts-title">{t('shortcuts.title')}</ModalTitle>
-      <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+      <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-700">
         {SHORTCUT_LIST.map((s) => (
           <li key={s.label} className="flex items-center justify-between py-2 text-sm">
             <span className="text-zinc-700 dark:text-zinc-300">{t(s.label)}</span>
             <span className="flex gap-1">
               {s.keys.map((k) => (
-                <kbd key={k} className="min-w-6 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-center font-mono text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <kbd key={k} className="min-w-6 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-center font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
                   {k}
                 </kbd>
               ))}

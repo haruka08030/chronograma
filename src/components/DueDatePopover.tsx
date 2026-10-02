@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   addDays,
@@ -14,7 +14,8 @@ import {
   subMonths,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
-import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { zonedNow } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -76,19 +77,7 @@ export function DueDatePopover({
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
 
-  useEscapeLayer(() => setOpen(false), open)
-
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent) => {
-      const node = e.target as Node
-      if (panelRef.current?.contains(node)) return
-      if (wrapperEl?.contains(node)) return
-      setOpen(false)
-    }
-    window.addEventListener('pointerdown', onPointerDown, true)
-    return () => window.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open, wrapperEl])
+  useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, wrapperEl] })
 
   const toggle = () => {
     if (!open) {
@@ -124,8 +113,7 @@ export function DueDatePopover({
           id={dialogId}
           role="dialog"
           aria-label={t(kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : 'dueDatePicker.title')}
-          className={`absolute z-50 w-[272px] rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl
-            dark:border-zinc-700 dark:bg-zinc-900
+          className={`absolute z-50 w-[272px] p-3 ${POPOVER_PANEL}
             ${align === 'right' ? 'right-0' : 'left-0'}
             ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
         >
@@ -138,7 +126,7 @@ export function DueDatePopover({
                 type="button"
                 aria-label={t('dueDatePicker.prevMonth')}
                 onClick={() => setViewMonth((m) => subMonths(m, 1))}
-                className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
@@ -146,7 +134,7 @@ export function DueDatePopover({
                 type="button"
                 aria-label={t('dueDatePicker.nextMonth')}
                 onClick={() => setViewMonth((m) => addMonths(m, 1))}
-                className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 <ChevronRightIcon className="h-4 w-4" />
               </button>
@@ -181,8 +169,8 @@ export function DueDatePopover({
                         today || selected
                           ? dayMarkerClass({ today, selected })
                           : inMonth
-                              ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                              : 'text-zinc-300 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-800'
+                              ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                              : 'text-zinc-300 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-700'
                       }`}
                   >
                     {format(day, 'd')}
@@ -197,14 +185,14 @@ export function DueDatePopover({
               <button
                 type="button"
                 onClick={() => pick(todayKey)}
-                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 {t('dueDatePicker.today')}
               </button>
               <button
                 type="button"
                 onClick={() => pick(tomorrowKey)}
-                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 {t('dueDatePicker.tomorrow')}
               </button>

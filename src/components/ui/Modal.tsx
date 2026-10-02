@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useEscapeLayer } from '../../hooks/useEscapeLayer'
+import { FLOATING_SURFACE } from './surface'
 
 /**
  * 画面の中央に出すダイアログ（ラベル・色選択・完了＋記録・ショートカット一覧）。どれも同じ見た目にする。
@@ -54,7 +55,7 @@ export function Modal({
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
         tabIndex={-1}
-        className={`animate-pop-in max-h-full w-full overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-2xl outline-none dark:border-zinc-700 dark:bg-zinc-900 ${
+        className={`animate-pop-in max-h-full w-full overflow-y-auto rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
           width === 'sm' ? 'max-w-[380px]' : 'max-w-md'
         } ${className}`}
       >

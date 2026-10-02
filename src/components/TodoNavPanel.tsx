@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useDismiss } from '../hooks/useDismiss'
+import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
 import { CALENDAR_COLORS } from '../lib/googleColors'
@@ -64,6 +66,8 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       <button
         type="button"
         disabled={isInbox}
+        // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
+        data-popover-keep
         onClick={(e) => { e.stopPropagation(); onColorPick() }}
         className="h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
           touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
@@ -128,9 +132,12 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const selected = current.toUpperCase()
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss({ open: true, onClose, inside: [ref] })
   return (
     <div
-      className="absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-2"
+      ref={ref}
+      className={`absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-label={t('sidebar.listColorDialog')}

@@ -683,7 +683,6 @@ export default {
     signOut: 'Sign out',
     signOutUnsynced: 'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
     signIn: 'Sign in',
-    closeOverlay: 'Close',
     checking: 'Checking sign-in status…',
     signedIn: 'Signed in',
     notSignedIn: 'Not signed in',

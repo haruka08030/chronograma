@@ -7,7 +7,7 @@
 
 /** 日付の丸（数字や曜日）に付ける。今日かつ選んだ日なら、塗りの外側に枠を重ねる */
 export function dayMarkerClass({ today, selected }: { today: boolean; selected: boolean }): string {
-  if (today && selected) return `${TODAY_FILL} ring-2 ring-date-400 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900`
+  if (today && selected) return `${TODAY_FILL} ring-2 ring-date-400 ring-offset-2 ring-offset-transparent`
   if (today) return TODAY_FILL
   if (selected) return SELECTED_RING
   return ''

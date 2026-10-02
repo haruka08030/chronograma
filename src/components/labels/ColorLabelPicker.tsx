@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDismiss } from '../../hooks/useDismiss'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
@@ -34,16 +35,11 @@ export function ColorLabelPicker({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // ラベル編集・色選択のダイアログ（body 直下・data-popover-keep）の中は「内側」
+  useDismiss({ open, onClose: () => setOpen(false), inside: [ref] })
   useEffect(() => {
-    if (!open) return
     // カードの下のほうで開いたとき、色の一覧が隠れないように見える位置まで送る
-    ref.current?.scrollIntoView({ block: 'nearest' })
-    const onDown = (e: PointerEvent) => {
-      // ラベル編集・色選択のダイアログ（body 直下）の中は「内側」
-      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('[data-popover-keep]')) setOpen(false)
-    }
-    window.addEventListener('pointerdown', onDown)
-    return () => window.removeEventListener('pointerdown', onDown)
+    if (open) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [open])
 
   const isPlan = planDefaultHex !== undefined
