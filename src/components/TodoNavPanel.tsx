@@ -91,12 +91,14 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       )}
 
       {!isInbox ? (
-        <>
+        // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
+        // スマホはホバーが無いので常に出す
+        <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
           <button
             {...attributes}
             {...listeners}
             type="button"
-            className="touch-none shrink-0 cursor-grab rounded p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
+            className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
             tabIndex={-1}
             title={t('sidebar.reorderList')}
             aria-label={t('sidebar.reorderList')}
@@ -112,7 +114,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onStartEdit() }}
-            className="shrink-0 rounded p-1.5 opacity-100 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
+            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
             aria-label={t('sidebar.renameList')}
           >
             <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
@@ -120,12 +122,12 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="shrink-0 rounded p-1.5 opacity-100 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
+            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
             aria-label={t('sidebar.deleteList')}
           >
             <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
           </button>
-        </>
+        </div>
       ) : null}
     </div>
   )
