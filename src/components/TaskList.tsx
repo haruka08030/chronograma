@@ -1028,7 +1028,8 @@ export function TaskList() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-4 pb-2 pt-6 md:px-6 md:pt-8">
+        {/* 見出しは下のリスト（「タスクを追加」の＋・行の頭）と同じ 32px にそろえる */}
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-8 pb-2 pt-6 md:pt-8">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
               {colorView && (
