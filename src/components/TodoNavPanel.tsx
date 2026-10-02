@@ -3,16 +3,17 @@ import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
-import { LIST_PREFIX } from '../lib/listDnD'
+import { LABEL_DROP_PREFIX, LIST_PREFIX } from '../lib/listDnD'
+import { TASK_PREFIX } from './SortableTaskItem'
 import { SmartViewRow } from './SmartViewRow'
-import { useDroppable } from '@dnd-kit/core'
+import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
 import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
-import { colorLabelText, todoColorLabels } from '../lib/todoColorLabels'
+import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
 
@@ -130,6 +131,36 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   )
 }
 
+/** 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける */
+function ColorLabelRow({ label, name, isSelected, onSelect }: {
+  label: TodoColorLabel
+  name: string
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `${LABEL_DROP_PREFIX}${label.hex}` })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onSelect}
+      aria-current={isSelected ? 'page' : undefined}
+      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
+        ${isOver
+          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+          : isSelected
+            ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+            : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+    >
+      <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {label.count > 0 && (
+        <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
+      )}
+    </button>
+  )
+}
+
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -178,9 +209,12 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
   const selectColor = useTaskStore((s) => s.selectColor)
+  // タスクをドラッグしている間は、まだ使っていないラベルもドロップ先として出す
+  const { active } = useDndContext()
+  const draggingTask = active != null && String(active.id).startsWith(TASK_PREFIX)
   const colorLabels = useMemo(
-    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors),
-    [tasks, lists, presets, categoryColors],
+    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors, draggingTask),
+    [tasks, lists, presets, categoryColors, draggingTask],
   )
 
   const [adding, setAdding] = useState(false)
@@ -325,35 +359,22 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
       </div>
 
-      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」 */}
+      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」か、タスクをここへドラッグ */}
       {colorLabels.length > 0 && (
         <>
           <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
           <div className="px-3 pb-1 pt-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
             {t('labels.title')}
           </div>
-          {colorLabels.map((label) => {
-            const isSelected = selectedView === 'all' && filterColor === label.hex
-            const name = colorLabelText(label.hex, presets, categoryColors, t)
-            return (
-              <button
-                key={label.hex}
-                type="button"
-                onClick={() => handleNav(() => selectColor(label.hex))}
-                aria-current={isSelected ? 'page' : undefined}
-                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
-                  ${isSelected
-                    ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
-                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
-              >
-                <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
-                <span className="min-w-0 flex-1 truncate">{name}</span>
-                {label.count > 0 && (
-                  <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
-                )}
-              </button>
-            )
-          })}
+          {colorLabels.map((label) => (
+            <ColorLabelRow
+              key={label.hex}
+              label={label}
+              name={colorLabelText(label.hex, presets, categoryColors, t)}
+              isSelected={selectedView === 'all' && filterColor === label.hex}
+              onSelect={() => handleNav(() => selectColor(label.hex))}
+            />
+          ))}
         </>
       )}
 

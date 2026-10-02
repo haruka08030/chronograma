@@ -1,6 +1,6 @@
 import type { Task } from '../types/task'
 import { CALENDAR_COLORS } from './googleColors'
-import { colorKeyForHex, labelForHex } from './logCategoryColors'
+import { categoryHex, colorKeyForHex, labelForHex } from './logCategoryColors'
 import { isActiveTask } from './taskLifecycle'
 
 export interface TodoColorLabel {
@@ -19,18 +19,26 @@ const GOOGLE_ORDER = new Map(CALENDAR_COLORS.map((c, i) => [c.hex.toUpperCase(),
  * Google と同じく、ラベルは色に付けた名前。並びは ラベルの順 → 名前の無い Google の色 → 自分で作った色。
  * 開くと「すべて」をその色で絞るので、範囲も「すべて」と同じ（記録・いつか・チェックリストは入れない）。
  * 完了済みしか残っていない色も、開いている途中で消えないよう 0 件で残す。
+ * `withNamed` のときは、まだどのタスクにも付けていないラベル（名前を付けた色）も 0 件で入れる（タスクをドラッグ中のドロップ先）。
  */
 export function todoColorLabels(
   tasks: Task[],
   excludedListIds: ReadonlySet<string>,
   presets: readonly string[],
   colors: Readonly<Record<string, string>>,
+  withNamed = false,
 ): TodoColorLabel[] {
   const counts = new Map<string, number>()
   for (const t of tasks) {
     if (!t.color || t.isTimeLog || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
     const hex = t.color.toUpperCase()
     counts.set(hex, (counts.get(hex) ?? 0) + (t.completed ? 0 : 1))
+  }
+  if (withNamed) {
+    for (const name of presets) {
+      const hex = categoryHex(name, colors)
+      if (!counts.has(hex)) counts.set(hex, 0)
+    }
   }
   const rank = (l: TodoColorLabel): [number, number, string] => {
     if (l.name) return [0, presets.indexOf(l.name), '']

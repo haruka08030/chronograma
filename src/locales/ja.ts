@@ -43,6 +43,7 @@ export default {
   toast: {
     addedToList: '「{{name}}」に追加しました',
     taskMovedToList: '「{{name}}」に移動しました',
+    taskLabeled: '「{{name}}」のラベルを付けました',
     taskArchived: 'アーカイブしました',
     tasksArchived: '{{count}} 件をアーカイブしました',
   },

@@ -339,7 +339,7 @@ interface TaskState {
   rescheduleTasks: (ids: string[], dateKey: string) => void
   bulkUpdateTasks: (
     ids: string[],
-    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>>,
+    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
   ) => void
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
   deleteTask: (id: string) => void
@@ -1701,12 +1701,14 @@ export const useTaskStore = create<TaskState>()(
               const prioHit = patch.priority !== undefined && selected.has(t.id)
               const dueHit = patch.dueDate !== undefined && selected.has(t.id)
               const secHit = patch.sectionId !== undefined && selected.has(t.id)
-              if (!listHit && !prioHit && !dueHit && !secHit) return t
-              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId'>> = {}
+              const colorHit = patch.color !== undefined && selected.has(t.id)
+              if (!listHit && !prioHit && !dueHit && !secHit && !colorHit) return t
+              const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>> = {}
               if (listHit && patch.listId !== undefined) piece.listId = patch.listId
               if (prioHit) piece.priority = patch.priority
               if (dueHit) piece.dueDate = patch.dueDate
               if (secHit) piece.sectionId = patch.sectionId
+              if (colorHit) piece.color = patch.color
               return applyTaskPatch(t, piece)
             }),
           }
