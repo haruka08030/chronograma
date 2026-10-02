@@ -748,6 +748,7 @@ export default {
   },
   calendarDayPanel: {
     plannedTab: 'Planned / To-do',
+    tabsAria: 'Switch between plans and records',
     noPlanned: 'No planned to-dos, tasks completed this day, or calendar events.',
     executedSection: 'Completed ({{count}})',
     noExecuted: 'No to-dos were completed on this day.',

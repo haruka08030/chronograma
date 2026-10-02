@@ -47,40 +47,6 @@ export function SettingsRow({
   )
 }
 
-/** 2〜3 択の切り替え（テーマ・言語など） */
-export function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (v: T) => void
-  ariaLabel: string
-}) {
-  return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-            value === o.value
-              ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100'
-              : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 /** オン/オフ */
 export function Switch({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
   return (

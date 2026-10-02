@@ -8,6 +8,7 @@ import { GoogleConnectLine } from './GoogleConnectLine'
 import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
+import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import {
@@ -107,38 +108,17 @@ export function CalendarHubView() {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         <div className="flex min-w-0 items-center gap-2">
-          <div
-            role="tablist"
-            aria-label={t('calendarHub.calendarTabsAria')}
-            className="inline-flex shrink-0 rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={calendarMode === 'month'}
-              onClick={() => setMode('month')}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                calendarMode === 'month'
-                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-              }`}
-            >
-              {t('common.month')}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={calendarMode === 'week'}
-              onClick={() => setMode('week')}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                calendarMode === 'week'
-                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-              }`}
-            >
-              {t('common.week')}
-            </button>
-          </div>
+          <Segmented
+            role="tab"
+            ariaLabel={t('calendarHub.calendarTabsAria')}
+            value={calendarMode}
+            onChange={setMode}
+            options={[
+              { value: 'month', label: t('common.month') },
+              { value: 'week', label: t('common.week') },
+            ]}
+            className="shrink-0"
+          />
         </div>
         <button
           type="button"

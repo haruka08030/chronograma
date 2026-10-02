@@ -14,7 +14,8 @@ import { CanvasSettings } from './settings/CanvasSettings'
 import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { Segmented, SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 
 /**
