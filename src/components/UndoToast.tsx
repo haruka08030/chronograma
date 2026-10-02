@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { undoGoogleDelete } from '../lib/googleEventEdit'
+import { UNDO_WINDOW_MS } from '../lib/undoWindow'
 
 const MOBILE_FLOAT_BOTTOM =
   'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 
-const VISIBLE_MS = 5000
 
 /**
  * 取り消せる操作のトースト。
@@ -18,6 +19,8 @@ export function UndoToast() {
   const { t } = useTranslation()
   const deletedTasks = useTaskStore((s) => s.deletedTasks)
   const undoBanner = useTaskStore((s) => s.undoBanner)
+  const googleUndo = useTaskStore((s) => s.googleUndo)
+  const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
   const undoLastOperation = useTaskStore((s) => s.undoLastOperation)
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
@@ -27,8 +30,9 @@ export function UndoToast() {
 
   const deletedCount = deletedTasks.length
   /** 削除のトーストを優先する（ゴミ箱からの復元という別の戻し方があるため） */
-  const kind = deletedCount > 0 ? 'deleted' : undoBanner ? 'operation' : null
-  const bannerAt = undoBanner?.at ?? 0
+  // 消したばかりの Google の予定を最優先（トーストが消えると Google に送られ、戻せなくなる）
+  const kind = googleUndo ? 'google' : deletedCount > 0 ? 'deleted' : undoBanner ? 'operation' : null
+  const bannerAt = googleUndo?.at ?? undoBanner?.at ?? 0
 
   useEffect(() => {
     if (!kind) {
@@ -38,15 +42,17 @@ export function UndoToast() {
     queueMicrotask(() => setVisible(true))
     const timer = setTimeout(() => {
       setVisible(false)
-      if (kind === 'deleted') clearDeletedTasks()
+      if (kind === 'google') setGoogleUndo(null)
+      else if (kind === 'deleted') clearDeletedTasks()
       else clearUndoBanner()
-    }, VISIBLE_MS)
+    }, UNDO_WINDOW_MS)
     return () => clearTimeout(timer)
-  }, [kind, deletedCount, bannerAt, clearDeletedTasks, clearUndoBanner])
+  }, [kind, deletedCount, bannerAt, clearDeletedTasks, clearUndoBanner, setGoogleUndo])
 
   if (!visible || !kind) return null
 
-  const message = kind === 'deleted' ? t('undo.message') : (undoBanner?.text ?? '')
+  const message =
+    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? t('undo.message') : (undoBanner?.text ?? '')
 
   // タイマー表示中は一段上へずらして重なりを避ける
   const stacked = activeTimer
@@ -59,7 +65,9 @@ export function UndoToast() {
         <span className="min-w-0 truncate">{message}</span>
         <button
           onClick={() => {
-            if (kind === 'deleted') {
+            if (kind === 'google') {
+              undoGoogleDelete()
+            } else if (kind === 'deleted') {
               if (!undoLastOperation()) undoDelete()
             } else {
               undoLastOperation()

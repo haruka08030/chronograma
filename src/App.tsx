@@ -72,6 +72,7 @@ import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
+import { undoGoogleDelete } from './lib/googleEventEdit'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -465,6 +466,11 @@ export default function App() {
     if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
       if (isTextFieldUndoTarget(e.target)) return
       const state = useTaskStore.getState()
+      // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
+      if (state.googleUndo && undoGoogleDelete()) {
+        e.preventDefault()
+        return
+      }
       if (state.undoLastOperation()) {
         e.preventDefault()
         return

@@ -386,6 +386,9 @@ interface TaskState {
    */
   undoBanner: { text: string; at: number } | null
   clearUndoBanner: () => void
+  /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
+  googleUndo: { id: string; text: string; at: number } | null
+  setGoogleUndo: (next: { id: string; text: string } | null) => void
 
   /** タスクドラッグ中のドロップ先リスト（ホバー風ハイライト用・永続化しない） */
   taskDragHoverListId: string | null
@@ -771,6 +774,7 @@ export const useTaskStore = create<TaskState>()(
       deletedTasks: [],
       moveBannerText: null as string | null,
       undoBanner: null as { text: string; at: number } | null,
+      googleUndo: null as { id: string; text: string; at: number } | null,
       taskDragHoverListId: null as string | null,
       syncState: 'idle' as 'idle' | 'syncing' | 'error',
       lastSyncedAt: null as string | null,
@@ -1985,6 +1989,7 @@ export const useTaskStore = create<TaskState>()(
       clearMoveBanner: () => set({ moveBannerText: null }),
 
       clearUndoBanner: () => set({ undoBanner: null }),
+      setGoogleUndo: (next) => set({ googleUndo: next ? { ...next, at: Date.now() } : null }),
 
       setTaskDragHoverListId: (id) => set({ taskDragHoverListId: id }),
 
@@ -2504,6 +2509,7 @@ export const useTaskStore = create<TaskState>()(
           googleCanWrite,
           moveBannerText,
           undoBanner,
+          googleUndo,
           taskDragHoverListId,
           syncState,
           lastSyncedAt,
@@ -2525,6 +2531,7 @@ export const useTaskStore = create<TaskState>()(
         void googleCanWrite
         void moveBannerText
         void undoBanner
+        void googleUndo
         void taskDragHoverListId
         void syncState
         void lastSyncedAt

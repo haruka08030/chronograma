@@ -51,7 +51,6 @@ export default {
     importOverwriteCounts:
       '取り込むと、いまのデータは全て置き換わります。\n\nタスク: {{currentTasks}} 件 → {{nextTasks}} 件\nリスト: {{currentLists}} 件 → {{nextLists}} 件\n\n取り込んだ直後なら ⌘Z（Ctrl+Z）で元に戻せます。続けますか？',
     restoreBeforeImport: '取り込み前（タスク {{count}} 件）に戻しますか？いまのデータは置き換わります。',
-    deleteGoogleEvent: '「{{title}}」を Google カレンダーから削除しますか？元に戻せません。',
   },
   alert: {
     invalidImportFile: '無効なファイルです',
@@ -326,7 +325,6 @@ export default {
   },
   googleEdit: {
     failed: 'Google に反映できませんでした',
-    deleted: 'Google の予定を削除しました',
     needWriteAccess: 'Google の予定を変えるには、Google とつなぎ直して変更を許可してください',
     readOnlyEvent: '主催者ではないため、この予定は変更できません',
     reconnectHint: 'Google とつなぎ直すと、ここで編集できます',
@@ -670,6 +668,7 @@ export default {
     listDeleted: '「{{name}}」を削除しました',
     habitDeleted: '「{{name}}」を削除しました',
     labelDeleted: '「{{name}}」を削除しました',
+    googleDeleted: '「{{name}}」を削除しました',
     tasksArchived: '{{count}} 件をアーカイブしました',
     message: 'タスクを削除しました',
     button: '元に戻す',

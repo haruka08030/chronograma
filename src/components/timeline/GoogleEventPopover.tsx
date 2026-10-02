@@ -9,7 +9,7 @@ import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { TimeInput } from '../TimeInput'
 import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
-import { canEditGoogleEvent, confirmRemoveGoogleEvent, moveGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
+import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, TrashIcon } from '../icons'
@@ -52,7 +52,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
         if (ev && canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) {
           e.preventDefault()
-          if (confirmRemoveGoogleEvent(ev)) onClose()
+          removeGoogleEvent(ev)
+          onClose()
         }
       }
     }
@@ -126,7 +127,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           <button
             type="button"
             onClick={() => {
-              if (confirmRemoveGoogleEvent(event)) onClose()
+              removeGoogleEvent(event)
+              onClose()
             }}
             className={iconButton}
             aria-label={t('common.delete')}

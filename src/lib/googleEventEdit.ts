@@ -9,6 +9,7 @@ import {
   updateGoogleEvent,
   type GoogleEventTiming,
 } from './googleCalendar'
+import { UNDO_WINDOW_MS } from './undoWindow'
 
 /**
  * Google の予定をアプリから書き換える操作。画面は先に変え（楽観的）、Google に送って返ってきた形で置き換える。
@@ -76,24 +77,63 @@ export async function renameGoogleEvent(event: CalendarEvent, summary: string) {
 }
 
 /**
- * 確認してから消す。Google の予定は Google 側から消え、⌘Z でも戻せないので、
- * ボタンでも Delete キーでも必ず聞く。消したら true
+ * 消したばかりで、まだ Google に送っていない予定。Google 側の削除は戻せないので、
+ * 画面からはすぐ消し、「元に戻す」のトーストが消えるまで送るのを待つ（Gmail の送信取り消しと同じ）
  */
-export function confirmRemoveGoogleEvent(event: CalendarEvent): boolean {
-  if (!window.confirm(i18n.t('confirm.deleteGoogleEvent', { title: event.summary || i18n.t('quickCreate.untitled') }))) return false
-  void removeGoogleEvent(event)
+const pendingDeletes = new Map<string, { event: CalendarEvent; timer: ReturnType<typeof setTimeout> }>()
+
+/** 取り直した一覧に、送る前の削除を生き返らせない */
+export function withoutPendingDeletes(events: CalendarEvent[]): CalendarEvent[] {
+  return pendingDeletes.size === 0 ? events : events.filter((e) => !pendingDeletes.has(e.id))
+}
+
+export function removeGoogleEvent(event: CalendarEvent) {
+  remove(event.id)
+  const timer = setTimeout(() => void sendDelete(event.id), UNDO_WINDOW_MS)
+  pendingDeletes.set(event.id, { event, timer })
+  useTaskStore.getState().setGoogleUndo({
+    id: event.id,
+    text: i18n.t('undo.googleDeleted', { name: event.summary || i18n.t('quickCreate.untitled') }),
+  })
+  ensureFlushOnLeave()
+}
+
+/** トーストの「元に戻す」・⌘Z。まだ送っていなければ予定を戻す。戻したら true */
+export function undoGoogleDelete(): boolean {
+  const s = useTaskStore.getState()
+  const id = s.googleUndo?.id
+  s.setGoogleUndo(null)
+  const pending = id ? pendingDeletes.get(id) : undefined
+  if (!id || !pending) return false
+  clearTimeout(pending.timer)
+  pendingDeletes.delete(id)
+  upsert(pending.event)
   return true
 }
 
-export async function removeGoogleEvent(event: CalendarEvent) {
-  remove(event.id)
+async function sendDelete(id: string) {
+  const pending = pendingDeletes.get(id)
+  if (!pending) return
+  pendingDeletes.delete(id)
+  clearTimeout(pending.timer)
+  const s = useTaskStore.getState()
+  if (s.googleUndo?.id === id) s.setGoogleUndo(null)
   try {
-    await deleteGoogleEvent(event.id)
-    useTaskStore.getState().showMoveBanner(i18n.t('googleEdit.deleted'))
+    await deleteGoogleEvent(id)
   } catch (e) {
-    upsert(event)
+    upsert(pending.event)
     report(e)
   }
+}
+
+/** タブを閉じるときは待たずに送る（届かなければ予定は残る。消えるより安全な側） */
+let flushListening = false
+function ensureFlushOnLeave() {
+  if (flushListening || typeof window === 'undefined') return
+  flushListening = true
+  window.addEventListener('pagehide', () => {
+    for (const id of [...pendingDeletes.keys()]) void sendDelete(id)
+  })
 }
 
 export async function addGoogleEvent(summary: string, timing: GoogleEventTiming) {

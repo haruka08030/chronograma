@@ -51,7 +51,6 @@ export default {
     importOverwriteCounts:
       'Importing replaces everything you have now.\n\nTasks: {{currentTasks}} → {{nextTasks}}\nLists: {{currentLists}} → {{nextLists}}\n\nYou can undo with Ctrl+Z (⌘Z) right after. Continue?',
     restoreBeforeImport: 'Go back to before the import ({{count}} tasks)? This replaces what you have now.',
-    deleteGoogleEvent: 'Delete “{{title}}” from Google Calendar? This can’t be undone.',
   },
   alert: {
     invalidImportFile: 'Invalid file.',
@@ -327,7 +326,6 @@ export default {
   },
   googleEdit: {
     failed: "Couldn't update Google Calendar",
-    deleted: 'Google event deleted',
     needWriteAccess: 'To change Google events, reconnect Google and allow editing',
     readOnlyEvent: "You're not the organizer, so this event can't be changed",
     reconnectHint: 'Reconnect Google to edit events here',
@@ -670,6 +668,7 @@ export default {
     listDeleted: 'Deleted “{{name}}”',
     habitDeleted: 'Deleted “{{name}}”',
     labelDeleted: 'Deleted “{{name}}”',
+    googleDeleted: 'Deleted “{{name}}”',
     tasksArchived: 'Archived {{count}} tasks',
     message: 'Task deleted',
     button: 'Undo',
