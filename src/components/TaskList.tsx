@@ -756,6 +756,54 @@ export function TaskList() {
     return out
   }, [showSectionBlocks, sectionBlocks, active, incompleteSubtasks])
 
+  /** セクション名。押すとそこへ追加、ダブルクリックか鉛筆で名前を変える。手動でも並べ替え中でも同じ */
+  const sectionTitle = (sectionId: string, title: string, canQuickTarget: boolean) =>
+    editingSectionId === sectionId ? (
+      <SectionNameInput
+        value={editingSectionName}
+        onChange={setEditingSectionName}
+        onCommit={() => finishSectionRename(sectionId, title)}
+        onCancel={() => cancelSectionRename(sectionId)}
+      />
+    ) : (
+      <button
+        type="button"
+        className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
+        onClick={() => {
+          if (canQuickTarget) setQuickAddSectionId(sectionId)
+        }}
+        // 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（リストと同じ）
+        onDoubleClick={() => beginSectionRename(sectionId, title)}
+      >
+        {title}
+      </button>
+    )
+
+  /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す */
+  const sectionActions = (sectionId: string, title: string) => (
+    <span
+      className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        title={t('sections.renameTitle')}
+        onClick={() => beginSectionRename(sectionId, title)}
+      >
+        <PencilIcon className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        className="p-1 rounded text-zinc-400 hover:text-red-500"
+        title={t('common.delete')}
+        onClick={() => deleteSectionStore(sectionId)}
+      >
+        <CloseIcon className="w-3.5 h-3.5" />
+      </button>
+    </span>
+  )
+
   const activeContent = canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
       {showSectionBlocks && sectionBlocks ? (
@@ -779,51 +827,8 @@ export function TaskList() {
                   listId={block.listId}
                   sectionId={sectionId}
                   isQuickTarget={isQuickTarget}
-                  titleButton={
-                    editingSectionId === sectionId ? (
-                      <SectionNameInput
-                        value={editingSectionName}
-                        onChange={setEditingSectionName}
-                        onCommit={() => finishSectionRename(sectionId, block.title)}
-                        onCancel={() => cancelSectionRename(sectionId)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
-                        onClick={() => {
-                          if (canQuickTarget) setQuickAddSectionId(sectionId)
-                        }}
-                        // 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（リストと同じ）
-                        onDoubleClick={() => beginSectionRename(sectionId, block.title)}
-                      >
-                        {block.title}
-                      </button>
-                    )
-                  }
-                  actions={
-                    <span
-                      className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                        title={t('sections.renameTitle')}
-                        onClick={() => beginSectionRename(sectionId, block.title)}
-                      >
-                        <PencilIcon className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 rounded text-zinc-400 hover:text-red-500"
-                        title={t('common.delete')}
-                        onClick={() => deleteSectionStore(sectionId)}
-                      >
-                        <CloseIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </span>
-                  }
+                  titleButton={sectionTitle(sectionId, block.title, canQuickTarget)}
+                  actions={sectionActions(sectionId, block.title)}
                 />
               ) : (
                 <div
@@ -906,13 +911,23 @@ export function TaskList() {
       )}
     </SortableContext>
   ) : showSectionBlocks && sectionBlocks ? (
-    sectionBlocks.map((block) => (
+    // 並べ替え中もセクションはそのまま。並び順は各セクションの中だけに効かせ、名前の変更・削除もできる。
+    // 空の「セクションなし」は手動のときのドロップ先なので、並べ替え中は出さない
+    sectionBlocks.filter((block) => block.headerKind !== 'section-none' || block.tasks.length > 0).map((block) => (
       <div key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`} className="relative pt-3 first:pt-1">
         {block.listTitle ? (
           <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
             {block.listTitle}
           </div>
         ) : null}
+        {block.headerKind === 'section-named' && block.sectionId !== null ? (
+          <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+            <div className="min-w-0 flex-1">
+              {sectionTitle(block.sectionId, block.title, Boolean(selectedListId) && selectedListId === block.listId)}
+            </div>
+            {sectionActions(block.sectionId, block.title)}
+          </div>
+        ) : (
         <button
           type="button"
           className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
@@ -928,6 +943,7 @@ export function TaskList() {
         >
           {block.title}
         </button>
+        )}
         {block.tasks.map((t) => (
           <div key={t.id}>
             <TaskItem
@@ -1012,7 +1028,7 @@ export function TaskList() {
 
           <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
             {selectedList && selectedList.id !== INBOX_LIST_ID && <ListKindPicker list={selectedList} />}
-            {selectedListId && sortMode === 'manual' && (
+            {selectedListId && (
               <button
                 type="button"
                 onClick={() => {

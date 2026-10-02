@@ -117,6 +117,12 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   useDismiss({ open: rowMenuOpen, onClose: () => setRowMenuOpen(false), inside: [rowMenuRef] })
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
+  const sections = useTaskStore((s) => s.sections)
+  /** このタスクのリストのセクション（メニューで移す先） */
+  const sectionsForTaskList = useMemo(
+    () => sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
+    [sections, task.listId],
+  )
 
   /** 名前のないまま離れたら作らなかったことにする（Enter で増やした行など） */
   const discardIfBlank = () => {
@@ -476,6 +482,25 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                     <option key={l.id} value={l.id}>{displayListName(l.id, l.name)}</option>
                   ))}
                 </select>
+                {/* ドラッグできない並べ替え中やスマホでも、セクションを移せるように */}
+                {sectionsForTaskList.length > 0 && (
+                  <>
+                    <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mt-2 mb-1">{t('taskDetail.section')}</label>
+                    <select
+                      className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1"
+                      value={task.sectionId ?? ''}
+                      onChange={(e) => {
+                        updateTask(task.id, { sectionId: e.target.value || null })
+                        setRowMenuOpen(false)
+                      }}
+                    >
+                      <option value="">{t('taskDetail.sectionNone')}</option>
+                      {sectionsForTaskList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             )}
             <div className={`md:hidden ${!task.parentId ? 'mt-2 border-t border-zinc-200 pt-2 dark:border-zinc-700' : ''}`}>

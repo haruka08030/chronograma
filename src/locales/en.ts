@@ -610,7 +610,7 @@ export default {
     markIncomplete: 'Mark incomplete',
     markComplete: 'Mark complete',
     deleteAria: 'Delete',
-    moreMenuAria: 'Move to list menu',
+    moreMenuAria: 'Task menu',
     dueDateAria: 'Set due date',
     archive: 'Archive',
     archiveAria: 'Archive',
