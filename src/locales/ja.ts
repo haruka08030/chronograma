@@ -486,6 +486,7 @@ export default {
     title: '設定',
     intro: '外観・通知・記録の分類・アカウント・データの入出力を変更できます。',
     appearance: '外観',
+    tagsEnabled: 'To-Do でタグを使う',
     data: 'データ',
     account: 'アカウント',
     supabaseOff: 'Supabase が未設定のため、クラウドログインは利用できません。',

@@ -16,7 +16,7 @@ import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 
@@ -85,6 +85,8 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const { t } = useTranslation()
   const theme = useTaskStore((s) => s.theme)
   const setTheme = useTaskStore((s) => s.setTheme)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
+  const setTagsEnabled = useTaskStore((s) => s.setTagsEnabled)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
   const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
   const exportData = useTaskStore((s) => s.exportData)
@@ -136,6 +138,9 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
                 { value: 'en', label: 'English' },
               ]}
             />
+          </SettingsRow>
+          <SettingsRow label={t('settings.tagsEnabled')}>
+            <Switch checked={tagsEnabled} onChange={setTagsEnabled} label={t('settings.tagsEnabled')} />
           </SettingsRow>
         </SettingsGroup>
 

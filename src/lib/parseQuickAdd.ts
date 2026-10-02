@@ -148,7 +148,13 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
  * 日時表現は空白で区切られた語として書く（例: 「明日15時 企画会議 1時間 #仕事」「mtg fri 3pm-4pm」）。
  * 日付は「やる日」。締切にしたいときは「明日まで 課題」「essay by fri」と書く。
  */
-export function parseQuickAddTitle(raw: string, localeJa: boolean, now = zonedNow()): ParsedQuickAdd {
+export function parseQuickAddTitle(
+  raw: string,
+  localeJa: boolean,
+  now = zonedNow(),
+  /** タグを使わない設定なら `#…` も題名のまま残す */
+  opts: { tags?: boolean } = {},
+): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
   let listName: string | null = null
@@ -178,7 +184,7 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = zonedNo
       listName = token.slice(1).trim()
       continue
     }
-    if (token.startsWith('#') && token.length > 1) {
+    if (opts.tags !== false && token.startsWith('#') && token.length > 1) {
       const name = token.slice(1).trim()
       if (name && !tags.includes(name)) tags.push(name)
       continue
