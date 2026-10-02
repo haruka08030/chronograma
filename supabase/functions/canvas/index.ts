@@ -1,8 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { parseCanvasFeed } from './ical.ts'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
  * 学校（ホスト名）ごとに 1 つつなげる。アクセストークン（最長 90 日）は canvas_connection に置き、ブラウザには返さない。
+ * トークンを作れない学校は、カレンダーフィード（.ics）の URL でつなぐ（kind = 'ical'。読むだけで、完了は書き戻せない）。
  */
 
 /** タスクにする種類。お知らせ・カレンダーの予定は「やること」ではないので外す */
@@ -67,6 +69,37 @@ function parseBaseUrl(input: string): string | null {
   if (url.protocol !== 'https:' || url.port || !host.includes('.')) return null
   if (/^[\d.]+$/.test(host) || host.startsWith('[') || host === 'localhost' || host.endsWith('.local')) return null
   return `https://${host}`
+}
+
+/** カレンダーフィードの URL（`https://<学校>/feeds/calendars/user_….ics`）。それ以外の宛先は読まない */
+function parseFeedUrl(input: string): { baseUrl: string; feedUrl: string } | null {
+  const baseUrl = parseBaseUrl(input)
+  if (!baseUrl) return null
+  let path: string
+  try {
+    path = new URL(input.trim()).pathname
+  } catch {
+    return null
+  }
+  if (!/^\/feeds\/calendars\/[\w.-]+\.ics$/.test(path)) return null
+  return { baseUrl, feedUrl: `${baseUrl}${path}` }
+}
+
+/** フィードを読む。締切が昨日〜120 日後の課題だけ（済んだか分からない過去の課題は取り込まない） */
+async function feedItems(baseUrl: string, feedUrl: string) {
+  let res: Response
+  try {
+    res = await fetch(feedUrl, { headers: { Accept: 'text/calendar' } })
+  } catch (e) {
+    throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
+  }
+  const text = res.ok ? await res.text() : ''
+  // URL を作り直すと古い URL は 404 になる
+  if (!text.includes('BEGIN:VCALENDAR')) throw new CanvasError('canvas_feed_invalid', `HTTP ${res.status}`)
+  const now = Date.now()
+  const windowStart = ymd(new Date(now - 86_400_000))
+  const windowEnd = ymd(new Date(now + WINDOW_FUTURE_DAYS * 86_400_000))
+  return { windowStart, windowEnd, readOnly: true, items: parseCanvasFeed(text, baseUrl, windowStart, windowEnd) }
 }
 
 async function canvasRequest(baseUrl: string, token: string, url: string, init: RequestInit = {}): Promise<Response> {
@@ -236,7 +269,9 @@ Deno.serve(async (req) => {
     type Row = {
       id: string
       base_url: string
-      token: string
+      kind: 'token' | 'ical'
+      token: string | null
+      feed_url: string | null
       user_name: string | null
       token_expires_at: string | null
       token_checked_at: string | null
@@ -244,7 +279,7 @@ Deno.serve(async (req) => {
     const loadRows = async (): Promise<Row[]> => {
       const { data, error } = await admin
         .from('canvas_connection')
-        .select('id, base_url, token, user_name, token_expires_at, token_checked_at')
+        .select('id, base_url, kind, token, feed_url, user_name, token_expires_at, token_checked_at')
         .eq('user_id', user.id)
         .order('updated_at')
       if (error) throw new Error(error.message)
@@ -253,11 +288,17 @@ Deno.serve(async (req) => {
     /** 設定画面に返す形。トークンは含めない */
     const describe = (rows: Row[]) => ({
       ok: true,
-      connections: rows.map((r) => ({ id: r.id, baseUrl: r.base_url, userName: r.user_name, expiresAt: r.token_expires_at })),
+      connections: rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        baseUrl: r.base_url,
+        userName: r.user_name,
+        expiresAt: r.kind === 'token' ? r.token_expires_at : null,
+      })),
     })
 
     /** 期限の確認と延長。失敗しても同期は止めない */
-    const refreshExpiry = async (r: Pick<Row, 'id' | 'base_url' | 'token'>) => {
+    const refreshExpiry = async (r: { id: string; base_url: string; token: string }) => {
       try {
         const expiresAt = await checkTokenExpiry(r.base_url, r.token)
         await admin
@@ -268,6 +309,30 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn('[canvas] token check failed', e instanceof Error ? e.message : e)
       }
+    }
+
+    if (action === 'connect' && typeof body.feedUrl === 'string') {
+      const feed = parseFeedUrl(body.feedUrl)
+      if (!feed) return jsonResponse({ ok: false, code: 'canvas_feed_invalid' })
+      // 読めるか確かめてから保存する
+      await feedItems(feed.baseUrl, feed.feedUrl)
+      const { error } = await admin.from('canvas_connection').upsert(
+        {
+          user_id: user.id,
+          id: new URL(feed.baseUrl).host,
+          base_url: feed.baseUrl,
+          kind: 'ical',
+          token: null,
+          feed_url: feed.feedUrl,
+          user_name: null,
+          token_expires_at: null,
+          token_checked_at: null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,id' },
+      )
+      if (error) throw new Error(error.message)
+      return jsonResponse(describe(await loadRows()))
     }
 
     if (action === 'connect') {
@@ -284,7 +349,9 @@ Deno.serve(async (req) => {
           user_id: user.id,
           id: new URL(baseUrl).host,
           base_url: baseUrl,
+          kind: 'token',
           token,
+          feed_url: null,
           user_name: self.name ?? null,
           updated_at: new Date().toISOString(),
         },
@@ -315,8 +382,12 @@ Deno.serve(async (req) => {
       const connections = await Promise.all(
         rows.map(async (r) => {
           try {
-            const result = { id: r.id, ...(await plannerItems(r.base_url, r.token)) }
-            if (!r.token_checked_at || Date.now() - Date.parse(r.token_checked_at) > CHECK_EVERY_MS) await refreshExpiry(r)
+            if (r.kind === 'ical') return { id: r.id, ...(await feedItems(r.base_url, r.feed_url ?? '')) }
+            const token = r.token ?? ''
+            const result = { id: r.id, ...(await plannerItems(r.base_url, token)) }
+            if (!r.token_checked_at || Date.now() - Date.parse(r.token_checked_at) > CHECK_EVERY_MS) {
+              await refreshExpiry({ id: r.id, base_url: r.base_url, token })
+            }
             return result
           } catch (e) {
             if (!(e instanceof CanvasError)) throw e
@@ -334,7 +405,8 @@ Deno.serve(async (req) => {
       if (!row || !type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
         return jsonResponse({ ok: false, error: 'connectionId, type, id and complete are required' }, 400)
       }
-      await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
+      // フィードでつないだ学校は読むだけなので、完了は Canvas に書き戻さない
+      if (row.kind === 'token' && row.token) await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
       return jsonResponse({ ok: true })
     }
 

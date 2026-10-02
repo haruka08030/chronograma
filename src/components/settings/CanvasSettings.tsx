@@ -7,6 +7,7 @@ import {
   canvasExpiryWarning,
   CanvasRequestError,
   connectCanvas,
+  connectCanvasFeed,
   disconnectCanvas,
   fetchCanvasStatus,
   renewCanvasToken,
@@ -16,6 +17,7 @@ import {
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
 import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
+import { Segmented } from '../ui/Segmented'
 
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
 
@@ -94,7 +96,7 @@ export function CanvasSettings() {
     <SettingsRow label={t('common.loading')} />
   ) : connections.length === 0 ? (
     <>
-      <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} />
+      <NewConnectionForm busy={busy} act={act} />
       {errorText(errors.new) && <p className={errorClass}>{errorText(errors.new)}</p>}
     </>
   ) : (
@@ -115,7 +117,7 @@ export function CanvasSettings() {
       ))}
       {adding ? (
         <>
-          <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} onCancel={() => setAdding(false)} />
+          <NewConnectionForm busy={busy} act={act} onCancel={() => setAdding(false)} />
           {errorText(errors.new) && <p className={errorClass}>{errorText(errors.new)}</p>}
         </>
       ) : (
@@ -157,15 +159,16 @@ function ConnectionRows({
   const { t } = useTranslation()
   const host = new URL(connection.baseUrl).host
   // 期限切れ（つないだあとに切れた）ときと、延ばせないまま期限が近いときは、トークンだけ貼り直す欄を出す
-  const expiring = error ? null : canvasExpiryWarning(connection.expiresAt)
+  const feed = connection.kind === 'ical'
+  const expiring = error || feed ? null : canvasExpiryWarning(connection.expiresAt)
   return (
     <>
-      <SettingsRow label={host} help={connection.userName ?? undefined}>
+      <SettingsRow label={host} help={feed ? t('canvas.feedHelp') : (connection.userName ?? undefined)}>
         <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={onDisconnect}>
           {t('canvas.disconnect')}
         </button>
       </SettingsRow>
-      {(error === 'canvas_unauthorized' || expiring) && (
+      {((!feed && error === 'canvas_unauthorized') || expiring) && (
         <TokenForm
           busy={busy}
           baseUrl={connection.baseUrl}
@@ -175,6 +178,92 @@ function ConnectionRows({
       )}
       {errorText(error) && <p className={errorClass}>{errorText(error)}</p>}
     </>
+  )
+}
+
+/**
+ * 新しくつなぐ。アクセストークン（読み書き）が基本で、トークンを作れない学校はカレンダーフィード（読むだけ）。
+ */
+function NewConnectionForm({
+  busy,
+  act,
+  onCancel,
+}: {
+  busy: boolean
+  act: (key: string, fn: () => Promise<CanvasStatus>) => Promise<void>
+  onCancel?: () => void
+}) {
+  const { t } = useTranslation()
+  const [method, setMethod] = useState<'token' | 'feed'>('token')
+  return (
+    <div>
+      <div className="px-4 pt-3">
+        <Segmented
+          ariaLabel={t('canvas.methodLabel')}
+          value={method}
+          onChange={setMethod}
+          options={[
+            { value: 'token', label: t('canvas.methodToken') },
+            { value: 'feed', label: t('canvas.methodFeed') },
+          ]}
+        />
+      </div>
+      {method === 'token' ? (
+        <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} onCancel={onCancel} />
+      ) : (
+        <FeedForm busy={busy} onSubmit={(url) => act('new', () => connectCanvasFeed(url))} onCancel={onCancel} />
+      )}
+    </div>
+  )
+}
+
+function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feedUrl: string) => void; onCancel?: () => void }) {
+  const { t } = useTranslation()
+  const [url, setUrl] = useState('')
+  const ready = url.trim() !== ''
+  return (
+    <form
+      className="space-y-3 px-4 py-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (ready) onSubmit(url.trim())
+      }}
+    >
+      <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
+        <li>{t('canvas.feedStep1')}</li>
+        <li>{t('canvas.feedStep2')}</li>
+      </ol>
+      <label className="block">
+        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.feedLabel')}</span>
+        <input
+          type="text"
+          inputMode="url"
+          autoComplete="off"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://canvas.ucsc.edu/feeds/calendars/user_….ics"
+          className={field}
+        />
+      </label>
+      <FormButtons busy={busy} ready={ready} submitLabel={t('canvas.connect')} onCancel={onCancel} />
+    </form>
+  )
+}
+
+/** フォームの下の「キャンセル」「接続する」 */
+function FormButtons({ busy, ready, submitLabel, onCancel }: { busy: boolean; ready: boolean; submitLabel: string; onCancel?: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex justify-end gap-2">
+      {onCancel && (
+        <button type="button" onClick={onCancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+          {t('common.cancel')}
+        </button>
+      )}
+      <button type="submit" disabled={busy || !ready} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
+        {busy ? t('canvas.connecting') : submitLabel}
+      </button>
+    </div>
   )
 }
 
@@ -256,16 +345,7 @@ function TokenForm({
           className={field}
         />
       </label>
-      <div className="flex justify-end gap-2">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
-            {t('common.cancel')}
-          </button>
-        )}
-        <button type="submit" disabled={busy || !ready} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
-          {busy ? t('canvas.connecting') : t(renew ? 'canvas.renew' : 'canvas.connect')}
-        </button>
-      </div>
+      <FormButtons busy={busy} ready={ready} submitLabel={t(renew ? 'canvas.renew' : 'canvas.connect')} onCancel={onCancel} />
     </form>
   )
 }

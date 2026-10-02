@@ -73,6 +73,8 @@ export function useCanvasSync() {
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Canvas に書き戻さない */
     const autoCompleted = new Set<string>()
     const pendingWrite = new Map<string, ReturnType<typeof setTimeout>>()
+    /** カレンダーフィードでつないだ学校。完了を書き戻さない */
+    const readOnly = new Set<string>()
 
     const run = async () => {
       if (running) {
@@ -97,6 +99,8 @@ export function useCanvasSync() {
               connectionErrors[conn.id] = conn.error
               continue
             }
+            if (conn.readOnly) readOnly.add(conn.id)
+            else readOnly.delete(conn.id)
             const result = reconcileCanvasItems(next, conn, {
               now: new Date().toISOString(),
               listName: canvasListName(conn.id, next.lists),
@@ -158,6 +162,7 @@ export function useCanvasSync() {
         // 新しく現れたタスク（取り込み・他の端末からの同期）や、完了が変わっていないものは対象外
         if (before === undefined || before === t.completed) continue
         if (t.completed && autoCompleted.delete(t.id)) continue
+        if (readOnly.has(parsed.connectionId)) continue
         write(t.id, parsed.connectionId, parsed.type, parsed.id)
       }
     })

@@ -15,6 +15,13 @@ supabase functions deploy canvas
 No secrets to set: each user pastes their school's Canvas URL and a personal access token (Account → Settings → New Access Token, max 90 days) in Settings → Canvas.
 Several schools can be connected; each gets its own list. When a token expires, that school's sync fails with `canvas_unauthorized` and Settings shows a field under it to paste a new token (the URL is kept).
 
+## Calendar feed (schools that don't allow tokens)
+
+Some schools (e.g. UC Santa Cruz) disable personal access tokens. Those users paste the Calendar Feed URL instead
+(Canvas → Calendar → "Calendar Feed", `https://<school>/feeds/calendars/user_….ics`), stored as `kind = 'ical'` in `feed_url`.
+The feed is read-only: `ical.ts` reads assignments (`event-assignment-*`, ids from the `#assignment_<id>` URL fragment so they match the token connection) due from yesterday to 120 days ahead; past assignments are not imported because the feed doesn't say whether they were submitted.
+`complete` is a no-op for these connections, and `items` marks them `readOnly`.
+
 ## Keeping the token alive
 
 Canvas lets a user change their own token's expiry without changing the token string (`PUT /api/v1/users/self/tokens/:id`).
@@ -27,12 +34,12 @@ One connection per school; `connectionId` is the Canvas hostname (`xxx.instructu
 
 | action | body | returns |
 |--------|------|---------|
-| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, or `{ "token": "…", "connectionId": "…" }` to replace only that school's token | `{ connections }` |
+| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, `{ "token": "…", "connectionId": "…" }` to replace only that school's token, or `{ "feedUrl": "https://…/feeds/calendars/user_….ics" }` | `{ connections }` |
 | `status` | `{}` | `{ connections: [{ id, baseUrl, userName }] }` |
 | `items` | `{}` | `{ connections: [{ id, windowStart, windowEnd, items: [{ type, id, title, courseId, courseName, url, dueAt, done }] } \| { id, error }] }` — 30 days back to 120 days ahead; a school whose token expired comes back as `{ id, error }` without blocking the others |
 | `complete` | `{ "connectionId": "…", "type": "assignment", "id": "123", "complete": true }` | `{ ok: true }` |
 | `disconnect` | `{ "connectionId": "…" }` | `{ connections }` |
 
 `done` is true when the item is submitted, excused, graded, or marked complete in Canvas.
-Errors come back as `{ ok: false, code }` with `code` one of `canvas_unauthorized`, `canvas_bad_url`, `canvas_rate_limited`, `canvas_api`.
+Errors come back as `{ ok: false, code }` with `code` one of `canvas_unauthorized`, `canvas_bad_url`, `canvas_feed_invalid`, `canvas_rate_limited`, `canvas_api`.
 Only `https` hostnames are accepted as the Canvas URL, and the token is never sent to any other host (including pagination links).

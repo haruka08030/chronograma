@@ -5,7 +5,10 @@ create table if not exists public.canvas_connection (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,  -- 学校の Canvas のホスト名 'xxx.instructure.com'
   base_url   text not null,  -- 'https://xxx.instructure.com'
-  token      text not null,
+  -- 'token': アクセストークンで読み書き / 'ical': トークンを作れない学校向けに、カレンダーフィードを読むだけ
+  kind       text not null default 'token' check (kind in ('token', 'ical')),
+  token      text,           -- kind = 'token' のとき
+  feed_url   text,           -- kind = 'ical' のとき（URL そのものが鍵なのでブラウザに出さない）
   user_name  text,
   -- トークンの期限（null = 期限なしか、分からない）。同期のついでに 1 日 1 回確かめて、近ければ延ばす
   token_expires_at timestamptz,
@@ -21,6 +24,9 @@ alter table public.canvas_connection alter column id set not null;
 alter table public.canvas_connection drop constraint if exists canvas_connection_pkey;
 alter table public.canvas_connection add primary key (user_id, id);
 alter table public.canvas_connection
+  add column if not exists kind text not null default 'token',
+  add column if not exists feed_url text,
+  alter column token drop not null,
   add column if not exists token_expires_at timestamptz,
   add column if not exists token_checked_at timestamptz;
 

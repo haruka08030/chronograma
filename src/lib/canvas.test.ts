@@ -54,6 +54,15 @@ describe('canvasTaskId', () => {
   })
 })
 
+describe('canvasListName', () => {
+  const first = [{ id: canvasListId('school.instructure.com') }]
+  it('names the school from the hostname, skipping a leading canvas.', () => {
+    expect(canvasListName('school.instructure.com', [])).toBe('Canvas')
+    expect(canvasListName('canvas.ucsc.edu', first)).toBe('Canvas（ucsc）')
+    expect(canvasListName('univ-tokyo.instructure.com', first)).toBe('Canvas（univ-tokyo）')
+  })
+})
+
 describe('canvasDue', () => {
   it('converts the UTC deadline to the app time zone', () => {
     expect(canvasDue('2026-10-05T14:59:59Z', 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-05', dueTime: '23:59' })
@@ -79,6 +88,11 @@ describe('reconcileCanvasItems', () => {
     const first = r.tasks[0]
     expect(first).toMatchObject({ listId: canvasListId(CONN), sectionId: canvasSectionId(CONN, '101'), dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')
+  })
+
+  it('keeps all-day feed deadlines as a date without a time', () => {
+    const r = reconcile([], [item('1', { dueAt: null, dueDate: '2026-10-10' })])
+    expect(r.tasks[0]).toMatchObject({ dueDate: '2026-10-10', dueTime: null })
   })
 
   it('follows title and deadline changes on open tasks', () => {

@@ -18,6 +18,8 @@ const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki
 
 export type CanvasConnection = {
   id: string
+  /** 'token': アクセストークンで読み書き / 'ical': カレンダーフィードを読むだけ（完了は書き戻せない） */
+  kind?: 'token' | 'ical'
   baseUrl: string
   userName: string | null
   /** トークンの期限（ISO）。null は期限なしか、分からない。サーバーが近づくたびに延ばす */
@@ -45,11 +47,20 @@ export type CanvasItem = {
   url: string
   /** 締切（ISO 日時）。null は締切なし */
   dueAt: string | null
+  /** 終日の締切（`yyyy-MM-dd`）。カレンダーフィードの課題だけ。あれば `dueAt` より優先する */
+  dueDate?: string
   /** 提出済み・採点済み・免除・Canvas で完了にした */
   done: boolean
 }
 
-export type CanvasConnectionItems = { id: string; windowStart: string; windowEnd: string; items: CanvasItem[] }
+export type CanvasConnectionItems = {
+  id: string
+  windowStart: string
+  windowEnd: string
+  /** カレンダーフィードでつないだ学校。完了を書き戻さない */
+  readOnly?: boolean
+  items: CanvasItem[]
+}
 
 /** 学校ごとの結果。取れなかった学校は `error`（`canvas_unauthorized` など）だけ */
 export type CanvasItemsPayload = {
@@ -93,6 +104,8 @@ export const fetchCanvasStatus = () => invokeCanvas<CanvasStatus>({ action: 'sta
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
 export const connectCanvas = (token: string, baseUrl: string) =>
   invokeCanvas<CanvasStatus>({ action: 'connect', token, baseUrl })
+/** トークンを作れない学校は、カレンダーフィードの URL でつなぐ */
+export const connectCanvasFeed = (feedUrl: string) => invokeCanvas<CanvasStatus>({ action: 'connect', feedUrl })
 /** つないであった学校のトークンだけ貼り直す */
 export const renewCanvasToken = (connectionId: string, token: string) =>
   invokeCanvas<CanvasStatus>({ action: 'connect', token, connectionId })
@@ -118,10 +131,16 @@ export function canvasSectionId(connectionId: string, courseId: string): string 
   return `canvas-course-${connectionId}-${courseId}`
 }
 
-/** リスト名。1 校目は「Canvas」、2 校目からは学校が分かるようにホスト名の頭を添える */
+/**
+ * リスト名。1 校目は「Canvas」、2 校目からは学校が分かるようにホスト名の頭を添える。
+ * `canvas.ucsc.edu` のように頭が「canvas」「www」のときは、その次（ucsc）を使う。
+ */
 export function canvasListName(connectionId: string, lists: { id: string }[]): string {
   const others = lists.some((l) => l.id.startsWith('canvas-list-') && l.id !== canvasListId(connectionId))
-  return others ? `Canvas（${connectionId.split('.')[0]}）` : 'Canvas'
+  if (!others) return 'Canvas'
+  const labels = connectionId.split('.')
+  const school = labels.find((l, i) => i < labels.length - 1 && !/^(canvas|www|lms)$/i.test(l)) ?? labels[0]
+  return `Canvas（${school}）`
 }
 
 /** Canvas の締切（UTC の瞬間）を、アプリのタイムゾーンの期限日と締め切り時刻に */
@@ -199,7 +218,7 @@ export function reconcileCanvasItems(
     }
 
     const title = item.title || opts.untitled
-    const { dueDate, dueTime } = canvasDue(item.dueAt, opts.timeZone)
+    const { dueDate, dueTime } = item.dueDate ? { dueDate: item.dueDate, dueTime: null } : canvasDue(item.dueAt, opts.timeZone)
 
     if (!existing) {
       additions.push({
