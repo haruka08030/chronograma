@@ -31,6 +31,11 @@ import { timerRecordTimes } from '../lib/timerRecord'
 import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../lib/sleep'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { restoreMissing } from '../lib/autoBackup'
+import { appTimeZone, isValidTimeZone, setAppTimeZoneSetting, zonedNow } from '../lib/timeZone'
+import { reanchorTasks } from '../lib/taskTimeZone'
+
+/** 時間バーに並べられる別のタイムゾーンの数（多いとタイムラインが狭くなる） */
+export const MAX_EXTRA_TIME_ZONES = 2
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -145,6 +150,10 @@ interface TaskState {
   dailyCapacityMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
   eventReminderMinutes: number | null
+  /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
+  appTimeZone: string | null
+  /** タイムラインの時間バーに並べて出す別のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」） */
+  extraTimeZones: string[]
 
   habits: Habit[]
 
@@ -271,6 +280,8 @@ interface TaskState {
   dismissReminderPrompt: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
+  setAppTimeZone: (tz: string | null) => void
+  setExtraTimeZones: (zones: string[]) => void
   toggleTask: (id: string) => void
   updateTask: (
     id: string,
@@ -286,6 +297,7 @@ interface TaskState {
         | 'startTime'
         | 'endTime'
         | 'location'
+        | 'timeZone'
         | 'color'
         | 'priority'
         | 'tags'
@@ -496,6 +508,7 @@ function applyTaskPatch(
       | 'startTime'
       | 'endTime'
       | 'location'
+      | 'timeZone'
       | 'color'
       | 'priority'
       | 'tags'
@@ -511,6 +524,8 @@ function applyTaskPatch(
 ): Task {
   const now = new Date().toISOString()
   const applied = { ...task, ...patch, updatedAt: now }
+  // 日付・時刻の列はいつもアプリのタイムゾーンで書く（`taskTimeZone.ts`）
+  if (patch.timeZone !== undefined) applied.timeZoneAnchor = patch.timeZone ? appTimeZone() : null
   if (patch.completed === true) {
     if (!task.completed) {
       applied.completedAt = typeof patch.completedAt === 'string' ? patch.completedAt : now
@@ -710,7 +725,7 @@ export const useTaskStore = create<TaskState>()(
       selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
       calendarMode: 'week' as CalendarMode,
-      selectedCalendarDateKey: format(new Date(), 'yyyy-MM-dd'),
+      selectedCalendarDateKey: format(zonedNow(), 'yyyy-MM-dd'),
       theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
@@ -741,6 +756,8 @@ export const useTaskStore = create<TaskState>()(
       reminderPromptDismissed: false,
       dailyCapacityMinutes: 480,
       eventReminderMinutes: null as number | null,
+      appTimeZone: null as string | null,
+      extraTimeZones: [] as string[],
 
       habits: [],
 
@@ -1456,8 +1473,14 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
       startTimer: (title, tags, taskId) => {
-        // 走っているものを黙って捨てると記録が消える。先に閉じてから始める
-        if (get().activeTimer) get().stopTimer()
+        // 走っているものを黙って捨てると記録が消える。先に記録にして閉じてから始め、切り替えたことを知らせる
+        const previous = get().activeTimer
+        if (previous) {
+          // 1 分未満は記録に残らない（stopTimer と同じ判定）ので「保存して」とは言わない
+          const saved = timerRecordTimes(previous.startedAt, new Date().toISOString()) !== null
+          get().stopTimer()
+          get().showMoveBanner(i18n.t(saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', { title: previous.taskTitle }))
+        }
         set({
           activeTimer: {
             taskTitle: title,
@@ -1500,6 +1523,14 @@ export const useTaskStore = create<TaskState>()(
       setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
       dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
       setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
+      setAppTimeZone: (tz) => {
+        const next = tz && isValidTimeZone(tz) ? tz : null
+        setAppTimeZoneSetting(next)
+        // タイムゾーンを決めたタスクは同じ瞬間のまま新しいタイムゾーンの時刻に（決めていないものは壁時計のまま）
+        set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
+      },
+      setExtraTimeZones: (zones) =>
+        set({ extraTimeZones: [...new Set(zones.filter((z) => isValidTimeZone(z)))].slice(0, MAX_EXTRA_TIME_ZONES) }),
       setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
       stopTimer: () => {
         const timer = get().activeTimer
@@ -2385,3 +2416,18 @@ export const useTaskStore = create<TaskState>()(
     },
   ),
 )
+
+/**
+ * アプリのタイムゾーンを読み込み直後・変更時に反映する。タイムゾーンを決めたタスクの列が
+ * 別のタイムゾーンで書かれていたら（設定の変更・他の端末から同期・元に戻す）同じ瞬間のまま書き直す
+ */
+function applyTimeZoneState() {
+  const s = useTaskStore.getState()
+  setAppTimeZoneSetting(s.appTimeZone)
+  const tasks = reanchorTasks(s.tasks)
+  if (tasks !== s.tasks) useTaskStore.setState({ tasks })
+}
+applyTimeZoneState()
+useTaskStore.subscribe((s, prev) => {
+  if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
+})

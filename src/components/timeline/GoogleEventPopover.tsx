@@ -9,7 +9,8 @@ import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { TimeInput } from '../TimeInput'
 import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
-import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
+import { canEditGoogleEvent, confirmRemoveGoogleEvent, moveGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
+import { useEscapeLayer } from '../../hooks/useEscapeLayer'
 
 const WIDTH = 320
 
@@ -36,17 +37,20 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }, [eventId])
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
+  useEscapeLayer(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）
+        if (e.key === 'Escape' && !e.isComposing) onClose()
+        return
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
         if (ev && canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) {
           e.preventDefault()
-          void removeGoogleEvent(ev)
-          onClose()
+          if (confirmRemoveGoogleEvent(ev)) onClose()
         }
       }
     }
@@ -130,8 +134,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           <button
             type="button"
             onClick={() => {
-              void removeGoogleEvent(event)
-              onClose()
+              if (confirmRemoveGoogleEvent(event)) onClose()
             }}
             className={iconButton}
             aria-label={t('common.delete')}

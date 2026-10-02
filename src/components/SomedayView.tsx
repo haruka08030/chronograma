@@ -9,6 +9,7 @@ import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
+import { zonedNow } from '../lib/timeZone'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -42,7 +43,7 @@ export function SomedayView({ list }: { list: TaskList }) {
   }
 
   const doToday = (item: Task) => {
-    promoteToPlanned(item.id, format(new Date(), 'yyyy-MM-dd'))
+    promoteToPlanned(item.id, format(zonedNow(), 'yyyy-MM-dd'))
     showMoveBanner(t('someday.movedToToday', { title: item.title }))
   }
 

@@ -7,7 +7,6 @@ import {
   endOfWeek,
   eachDayOfInterval,
   format,
-  isToday,
   parseISO,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
@@ -19,7 +18,6 @@ import {
   timeToY,
   timeToMinutes,
   yToTime,
-  formatTimeLabel,
 } from '../lib/timeGrid'
 import {
   durationMinutesForTaskId,
@@ -76,9 +74,12 @@ import { GoogleEventPopover } from './timeline/GoogleEventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
 import { isSleepRecord } from '../lib/sleep'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
+import { isAppToday, zonedNow } from '../lib/timeZone'
+import { TimeGutter, TimeGutterHeader } from './timeline/TimeGutter'
+import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
+import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
-const GUTTER_WIDTH = 56
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
 const EDGE_FLIP_PX = 16
 const EDGE_FLIP_DELAY_MS = 600
@@ -292,12 +293,15 @@ export function WeekCalendarView({
     return eachDayOfInterval({ start: ws, end: we })
   }, [anchor])
 
-  const focusKey = selectedDateKey ?? format(new Date(), 'yyyy-MM-dd')
+  const focusKey = selectedDateKey ?? format(zonedNow(), 'yyyy-MM-dd')
   const gridDays = useMemo(() => {
     if (isDesktop && !singleDay) return days
     const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
     return [hit ?? days[0]!]
   }, [isDesktop, singleDay, days, focusKey])
+  /** 時間バーの他のタイムゾーンの時刻は、表示している最初の日で計算する */
+  const gridKey0 = format(gridDays[0]!, 'yyyy-MM-dd')
+  const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
   /** 予定（左）と 記録（右）の 2 列（今日・週とも）。押した・落とした列で作るものが決まる */
   const splitLanes = true
@@ -376,8 +380,8 @@ export function WeekCalendarView({
   useEffect(() => {
     if (!scrollRef.current) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
-    const now = new Date()
-    const showNow = singleDay ? isToday(anchor) : days.some((d) => isToday(d))
+    const now = zonedNow()
+    const showNow = singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d))
     const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : 7.5
     // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
     if (keepScrollOnFlipRef.current) {
@@ -612,26 +616,30 @@ export function WeekCalendarView({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {!singleDay && (
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
-          <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
+          {gridDays.length > 1 ? (
+            <TimeGutterHeader dateKey={gridKey0} />
+          ) : (
+            <div style={{ width: gutterWidth }} className="flex-shrink-0" />
+          )}
           <div className="flex-1 grid grid-cols-7">
             {days.map((day, i) => {
-              const today = isToday(day)
+              const today = isAppToday(day)
               const key = format(day, 'yyyy-MM-dd')
               const selected = selectedDateKey ? selectedDateKey === key : false
               // 「予定 / 記録」は 7 日すべてに並べるとうるさいので 1 か所だけ（今日、無ければ先頭の日）
-              const showLaneLabels = today || (i === 0 && !days.some((d) => isToday(d)))
+              const showLaneLabels = today || (i === 0 && !days.some((d) => isAppToday(d)))
               return (
                 <div key={day.toISOString()} className="group relative">
                   <button
                     type="button"
                     onClick={() => onSelectDate?.(key)}
                     className={`w-full text-center py-2 transition-colors ${
-                      today ? 'text-accent-600 dark:text-accent-400' : 'text-zinc-500 dark:text-zinc-400'
+                      today ? TODAY_TEXT : 'text-zinc-500 dark:text-zinc-400'
                     }`}
                   >
                     <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                     <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                      ${today ? 'bg-date-500 text-white' : selected ? 'ring-2 ring-date-400 text-date-700 dark:text-date-300' : ''}`}>
+                      ${dayMarkerClass({ today, selected })}`}>
                       {format(day, 'd')}
                     </div>
                     <div className={`mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 ${showLaneLabels ? 'md:grid' : ''}`}>
@@ -657,7 +665,7 @@ export function WeekCalendarView({
         {/* 1 日だけ描くとき（今日・スマホの週）は列の上に 1 行で */}
         {gridDays.length === 1 && (
           <div className="flex flex-shrink-0 border-b border-zinc-100 px-2 dark:border-zinc-800">
-            <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0" />
+            <TimeGutterHeader dateKey={gridKey0} />
             <div className="grid flex-1 grid-cols-2 py-1.5 text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
               <span>{t('weekCalendar.lanePlan')}</span>
               <span>{t('weekCalendar.laneLog')}</span>
@@ -667,7 +675,7 @@ export function WeekCalendarView({
 
         {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
-            <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
+            <div style={{ width: gutterWidth }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
               {t('weekCalendar.allDay')}
             </div>
             <div className={`flex-1 grid ${gridColsClass}`}>
@@ -795,17 +803,7 @@ export function WeekCalendarView({
           onDropCapture={() => setEdgeDir(null)}
         >
           <div className="flex" style={{ height: GRID_TOTAL_HEIGHT }}>
-            <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 relative">
-              {HOURS.map((h) => (
-                <div
-                  key={h}
-                  className="absolute right-2 text-[11px] text-zinc-400 dark:text-zinc-500 leading-none select-none"
-                  style={{ top: h * HOUR_HEIGHT - 6 }}
-                >
-                  {h > 0 ? formatTimeLabel(h) : ''}
-                </div>
-              ))}
-            </div>
+            <TimeGutter dateKey={gridKey0} />
 
             <div
               ref={gridRef}
@@ -821,7 +819,7 @@ export function WeekCalendarView({
                 const dayTimedEvents = (eventsByDate.get(key) ?? []).filter(
                   (e) => !e.isAllDay && e.startTime && e.endTime,
                 )
-                const today = isToday(day)
+                const today = isAppToday(day)
                 // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
                 const dayHabitSlots = habits.flatMap((h) => {
                   const slot = habitToPlannedItem(h, key)
@@ -856,8 +854,8 @@ export function WeekCalendarView({
                     key={key}
                     data-datekey={key}
                     className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
-                      ${today && !singleDay ? 'bg-accent-50/30 dark:bg-accent-500/5' : ''}
-                      ${selectedDateKey === key && !singleDay ? 'ring-1 ring-inset ring-accent-400/50' : ''}`}
+                      ${today && !singleDay ? TODAY_COLUMN : ''}
+                      ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
                     onPointerDown={(e) => {
                       onSelectDate?.(key)

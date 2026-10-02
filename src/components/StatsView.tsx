@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { format, subDays, isToday, startOfDay, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
+import { format, subDays, startOfDay, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
@@ -10,6 +10,7 @@ import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
+import { isAppToday, zonedNow } from '../lib/timeZone'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -29,9 +30,9 @@ export function StatsView() {
     )
     const completed = countedTasks.filter((t) => t.completed)
     const active = countedTasks.filter((t) => !t.completed)
-    const today = startOfDay(new Date())
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
-    const monthStart = startOfMonth(new Date())
+    const today = startOfDay(zonedNow())
+    const weekStart = startOfWeek(zonedNow(), { weekStartsOn: 1 })
+    const monthStart = startOfMonth(zonedNow())
 
     const completedToday = completed.filter((t) => {
       const d = new Date(completionInstant(t))
@@ -80,7 +81,7 @@ export function StatsView() {
     const overdue = active.filter((t) => {
       if (!t.dueDate) return false
       const d = parseISO(t.dueDate)
-      return d < today && !isToday(d)
+      return d < today && !isAppToday(d)
     }).length
 
     let streak = 0

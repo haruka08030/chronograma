@@ -13,6 +13,11 @@ import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
 import { linkifySegments, googleMapsUrl } from '../lib/linkify'
+import { isSubmitEnter } from '../lib/keyboard'
+import { appTimeZone } from '../lib/timeZone'
+import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
+import { TaskTimeZoneField } from './TaskTimeZoneField'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -32,9 +37,17 @@ export function TaskDetail({
   onClose: () => void
 }) {
   const { t, i18n } = useTranslation()
+  // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
+  useEscapeLayer(onClose)
   const dueDateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
+  useTaskStore((s) => s.appTimeZone)
+  // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）
+  const zone = foreignTimeZone(task)
+  const tv = zone ? convertTaskTimes(task, appTimeZone(), zone) : task
+  const updateTimes = (patch: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>>) =>
+    updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const addTask = useTaskStore((s) => s.addTask)
   const tasks = useTaskStore((s) => s.tasks)
@@ -144,7 +157,7 @@ export function TaskDetail({
                   onChange={(e) => setTitleValue(e.target.value)}
                   onBlur={commitTitle}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitTitle()
+                    if (isSubmitEnter(e)) commitTitle()
                     if (e.key === 'Escape') { setTitleValue(task.title); setEditingTitle(false) }
                   }}
                   className="w-full text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent outline-none
@@ -289,8 +302,8 @@ export function TaskDetail({
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.deadline')}</label>
                 <div className="flex flex-wrap items-center gap-2">
                   <DueDatePopover
-                    value={task.dueDate ?? null}
-                    onChange={(v) => updateTask(task.id, { dueDate: v })}
+                    value={tv.dueDate ?? null}
+                    onChange={(v) => updateTimes({ dueDate: v })}
                     align="left"
                     wrapperClassName="relative inline-block"
                     trigger={({ open, toggle }) => (
@@ -303,23 +316,23 @@ export function TaskDetail({
                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                           ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                       >
-                        <svg className={`w-4 h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                         </svg>
-                        <span className={task.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
-                          {task.dueDate
-                            ? format(parseISO(`${task.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                        <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
+                          {tv.dueDate
+                            ? format(parseISO(`${tv.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
                             : t('dueDatePicker.noDate')}
                         </span>
                       </button>
                     )}
                   />
-                  {task.dueDate && (
+                  {tv.dueDate && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('taskDetail.deadlineTime')}</span>
                       <TimeInput
-                        value={task.dueTime ?? ''}
-                        onChange={(v) => updateTask(task.id, { dueTime: v || null })}
+                        value={tv.dueTime ?? ''}
+                        onChange={(v) => updateTimes({ dueTime: v || null })}
                         className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                    bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                    focus:ring-2 focus:ring-accent-500/40"
@@ -332,8 +345,8 @@ export function TaskDetail({
               <div>
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.scheduled')}</label>
                 <DueDatePopover
-                  value={task.scheduledDate ?? null}
-                  onChange={(v) => updateTask(task.id, { scheduledDate: v })}
+                  value={tv.scheduledDate ?? null}
+                  onChange={(v) => updateTimes({ scheduledDate: v })}
                   kind="scheduled"
                   align="left"
                   wrapperClassName="relative inline-block"
@@ -347,31 +360,31 @@ export function TaskDetail({
                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                         ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                     >
-                      <svg className={`w-4 h-4 ${task.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span className={task.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
-                        {task.scheduledDate
-                          ? format(parseISO(`${task.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                      <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
+                        {tv.scheduledDate
+                          ? format(parseISO(`${tv.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
                           : t('taskDetail.scheduledNone')}
                       </span>
                     </button>
                   )}
                 />
-                {task.scheduledDate && (
+                {tv.scheduledDate && (
                   <div className="mt-2 flex items-center gap-2">
                     <TimeInput
-                      value={task.startTime ?? ''}
-                      onChange={(v) => updateTask(task.id, { startTime: v || null })}
+                      value={tv.startTime ?? ''}
+                      onChange={(v) => updateTimes({ startTime: v || null })}
                       className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
                     />
                     <span className="text-zinc-400 text-sm">〜</span>
                     <TimeInput
-                      value={task.endTime ?? ''}
-                      onChange={(v) => updateTask(task.id, { endTime: v || null })}
-                      pickerDefault={task.startTime ? addClockMinutes(task.startTime, 60) : undefined}
+                      value={tv.endTime ?? ''}
+                      onChange={(v) => updateTimes({ endTime: v || null })}
+                      pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
                       className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
@@ -379,6 +392,7 @@ export function TaskDetail({
                   </div>
                 )}
               </div>
+              {(task.startTime || task.dueTime || zone) && <TaskTimeZoneField task={task} view={tv} />}
             </>
           )}
 
@@ -396,10 +410,10 @@ export function TaskDetail({
                     </label>
                     <input
                       type="date"
-                      value={task.dueDate ?? ''}
+                      value={tv.dueDate ?? ''}
                       onChange={(e) => {
                         const v = e.target.value
-                        if (v) updateTask(task.id, { dueDate: v })
+                        if (v) updateTimes({ dueDate: v })
                       }}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
@@ -411,8 +425,8 @@ export function TaskDetail({
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
-                      value={task.startTime ?? ''}
-                      onChange={(v) => updateTask(task.id, { startTime: v || null })}
+                      value={tv.startTime ?? ''}
+                      onChange={(v) => updateTimes({ startTime: v || null })}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
@@ -433,13 +447,13 @@ export function TaskDetail({
                     </label>
                     <input
                       type="date"
-                      value={task.dueDate ? (task.endDate ?? task.dueDate) : ''}
-                      min={task.dueDate ?? undefined}
-                      disabled={!task.dueDate}
+                      value={tv.dueDate ? (tv.endDate ?? tv.dueDate) : ''}
+                      min={tv.dueDate ?? undefined}
+                      disabled={!tv.dueDate}
                       onChange={(e) => {
                         const v = e.target.value
-                        if (!v || !task.dueDate) return
-                        updateTask(task.id, { endDate: v !== task.dueDate ? v : null })
+                        if (!v || !tv.dueDate) return
+                        updateTimes({ endDate: v !== tv.dueDate ? v : null })
                       }}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
@@ -452,9 +466,9 @@ export function TaskDetail({
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
-                      value={task.endTime ?? ''}
-                      onChange={(v) => updateTask(task.id, { endTime: v || null })}
-                      pickerDefault={task.startTime ? addClockMinutes(task.startTime, 60) : undefined}
+                      value={tv.endTime ?? ''}
+                      onChange={(v) => updateTimes({ endTime: v || null })}
+                      pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                                  bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
@@ -471,6 +485,7 @@ export function TaskDetail({
               {isOvernightTimeLog(task) && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
               )}
+              {(task.startTime || zone) && <TaskTimeZoneField task={task} view={tv} />}
             </div>
           )}
 
@@ -551,7 +566,7 @@ export function TaskDetail({
               <input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addTag() }}
+                onKeyDown={(e) => { if (isSubmitEnter(e)) addTag() }}
                 placeholder={t('taskDetail.tagPlaceholder')}
                 className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
@@ -648,7 +663,7 @@ export function TaskDetail({
                   <input
                     value={subInput}
                     onChange={(e) => setSubInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') addSubtask() }}
+                    onKeyDown={(e) => { if (isSubmitEnter(e)) addSubtask() }}
                     placeholder={t('taskDetail.subtaskPlaceholder')}
                     className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
@@ -687,6 +702,9 @@ export function TaskDetail({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 dark:bg-black/40" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={task.title}
         className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
                    h-full overflow-y-auto shadow-xl animate-slide-in"
         onClick={(e) => e.stopPropagation()}

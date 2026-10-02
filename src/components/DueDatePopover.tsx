@@ -14,6 +14,9 @@ import {
   subMonths,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { zonedNow } from '../lib/timeZone'
+import { dayMarkerClass } from '../lib/dayMarker'
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -64,7 +67,7 @@ export function DueDatePopover({
   const [open, setOpen] = useState(false)
   const [dropUp, setDropUp] = useState(false)
   const [viewMonth, setViewMonth] = useState(() =>
-    startOfMonth(value ? parseDateKey(value) : new Date()),
+    startOfMonth(value ? parseDateKey(value) : zonedNow()),
   )
 
   // ref ではなく state で持つ（描画中に渡す toggle から読むため）
@@ -72,14 +75,7 @@ export function DueDatePopover({
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  useEscapeLayer(() => setOpen(false), open)
 
   useEffect(() => {
     if (!open) return
@@ -95,7 +91,7 @@ export function DueDatePopover({
 
   const toggle = () => {
     if (!open) {
-      setViewMonth(startOfMonth(value ? parseDateKey(value) : new Date()))
+      setViewMonth(startOfMonth(value ? parseDateKey(value) : zonedNow()))
       const rect = wrapperEl?.getBoundingClientRect()
       // 下方向に十分な余白がなければ上向きに開く。
       setDropUp(Boolean(rect && window.innerHeight - rect.bottom < 380))
@@ -110,8 +106,8 @@ export function DueDatePopover({
 
   const days = monthGridDays(viewMonth)
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
-  const todayKey = format(new Date(), 'yyyy-MM-dd')
-  const tomorrowKey = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  const todayKey = format(zonedNow(), 'yyyy-MM-dd')
+  const tomorrowKey = format(addDays(zonedNow(), 1), 'yyyy-MM-dd')
 
   return (
     <div
@@ -185,11 +181,9 @@ export function DueDatePopover({
                     aria-pressed={selected}
                     className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors
                       ${
-                        selected
-                          ? 'bg-date-500 font-semibold text-white hover:bg-date-600'
-                          : today
-                            ? 'font-semibold text-date-600 ring-1 ring-inset ring-date-400 hover:bg-date-50 dark:text-date-400 dark:hover:bg-date-500/10'
-                            : inMonth
+                        today || selected
+                          ? dayMarkerClass({ today, selected })
+                          : inMonth
                               ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'
                               : 'text-zinc-300 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-800'
                       }`}

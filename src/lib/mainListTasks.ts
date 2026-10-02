@@ -1,10 +1,11 @@
-import { isToday, parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
+import { parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
 import type { Task } from '../types/task'
 import { isListedTimeLog } from './timeLogTask'
 import { isActiveTask } from './taskLifecycle'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
 import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
+import { isAppToday, zonedNow } from './timeZone'
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
@@ -34,19 +35,19 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     // 期限が今日、または「今日やる」と予定日を置いたもの
     result = result.filter(
       (t) =>
-        (t.dueDate && isToday(parseISO(t.dueDate))) ||
-        (t.scheduledDate && isToday(parseISO(t.scheduledDate))),
+        (t.dueDate && isAppToday(parseISO(t.dueDate))) ||
+        (t.scheduledDate && isAppToday(parseISO(t.scheduledDate))),
     )
   } else if (selectedView === 'upcoming') {
-    const today = startOfDay(new Date())
-    const limit = startOfDay(addDays(new Date(), 7))
+    const today = startOfDay(zonedNow())
+    const limit = startOfDay(addDays(zonedNow(), 7))
     result = result.filter((t) => {
       if (!t.dueDate) return false
       const d = parseISO(t.dueDate)
       return (isSameDay(d, today) || isBefore(today, d)) && (isBefore(d, limit) || isSameDay(d, limit))
     })
   } else if (selectedView === 'overdue') {
-    const todayStart = startOfDay(new Date())
+    const todayStart = startOfDay(zonedNow())
     result = result.filter((t) => {
       if (!t.dueDate) return false
       const d = startOfDay(parseISO(t.dueDate))

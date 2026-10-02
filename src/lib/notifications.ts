@@ -1,7 +1,8 @@
 import type { Task } from '../types/task'
-import { isToday, parseISO } from 'date-fns'
+import { parseISO } from 'date-fns'
 import i18n from '../i18n/config'
 import { isActiveTask } from './taskLifecycle'
+import { isAppToday } from './timeZone'
 
 const notifiedIds = new Set<string>()
 
@@ -24,7 +25,7 @@ export function checkAndNotify(tasks: Task[], excludedListIds: ReadonlySet<strin
       !excludedListIds.has(t.listId) &&
       t.parentId === null &&
       t.dueDate &&
-      isToday(parseISO(t.dueDate)) &&
+      isAppToday(parseISO(t.dueDate)) &&
       !notifiedIds.has(t.id),
   )
 

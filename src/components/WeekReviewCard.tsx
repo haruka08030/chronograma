@@ -6,6 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { zonedNow } from '../lib/timeZone'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -15,7 +16,7 @@ export function WeekReviewCard() {
   const [weekOffset, setWeekOffset] = useState(0)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
-  const anchor = useMemo(() => addWeeks(new Date(), weekOffset), [weekOffset])
+  const anchor = useMemo(() => addWeeks(zonedNow(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
@@ -99,11 +100,6 @@ export function WeekReviewCard() {
           </div>
         ))}
       </dl>
-      {review.followRate != null && (
-        <p className="mt-1.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-          {t('weekReview.followRateHint', { count: review.timedPlanned })}
-        </p>
-      )}
 
       <p className="mt-4 rounded-lg bg-accent-50/70 px-3 py-2 text-xs leading-relaxed text-accent-800 dark:bg-accent-500/10 dark:text-accent-300">
         {insight}

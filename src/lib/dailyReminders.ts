@@ -2,6 +2,7 @@ import { format } from 'date-fns'
 import i18n from '../i18n/config'
 import type { DailyReminders } from '../store/taskStore'
 import { timeToMinutes } from './timeGrid'
+import { zonedNow } from './timeZone'
 
 const FIRED_KEY = 'chronograma-daily-reminders-fired'
 /** 指定時刻からこの分数を過ぎたら、その日はもう出さない（夜にアプリを開いて朝の通知が出る、を防ぐ） */
@@ -38,7 +39,7 @@ function isDue(time: string | null, now: Date): boolean {
 export function checkDailyReminders(
   reminders: DailyReminders,
   ctx: { remainingToday: number; onOpen: () => void },
-  now = new Date(),
+  now = zonedNow(),
 ) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return

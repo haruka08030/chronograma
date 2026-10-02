@@ -1,5 +1,6 @@
 import type { Task } from '../types/task'
 import { NEUTRAL_HEX } from './googleColors'
+import { zonedNow } from './timeZone'
 
 /**
  * カレンダー上の予定の見せ方。このアプリは「記録と可視化」が主役なので、色で目立つのは記録（実績）だけ。
@@ -11,7 +12,7 @@ export type PlanVisualState = 'done' | 'missed' | 'upcoming'
 export function planVisualState(
   task: Pick<Task, 'completed' | 'endTime' | 'startTime'>,
   dateKey: string,
-  now = new Date(),
+  now = zonedNow(),
 ): PlanVisualState {
   if (task.completed) return 'done'
   const [y, m, d] = dateKey.split('-').map(Number)

@@ -9,6 +9,9 @@ import { colorVars } from '../../lib/logCategoryColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
+import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
+import { timesPatchFromZone } from '../../lib/taskTimeZone'
+import { TimeZonePicker } from '../TimeZonePicker'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -49,6 +52,8 @@ export function QuickCreatePopover({
   const [destination, setDestination] = useState<'todo' | 'google'>(lastDestination)
   const toGoogle = !asLog && googleWritable && destination === 'google'
   const [category, setCategory] = useState('')
+  /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
+  const [zone, setZone] = useState<string | null>(null)
   const plannable = useMemo(() => {
     const excluded = unplannedListIds(lists)
     return [...lists].filter((l) => !excluded.has(l.id)).sort((a, b) => a.order - b.order)
@@ -80,14 +85,20 @@ export function QuickCreatePopover({
     const name = title.trim() || t('quickCreate.untitled')
     if (toGoogle) {
       lastDestination = 'google'
-      void addGoogleEvent(name, { date: dateKey, startTime, endTime })
+      void addGoogleEvent(name, { date: dateKey, startTime, endTime, timeZone: zone })
       onClose()
       return
     }
     if (googleWritable) lastDestination = 'todo'
     const id = addTask(name, listId)
     if (!id) return
-    updateTask(id, { scheduledDate: dateKey, startTime, endTime })
+    const times = { scheduledDate: dateKey, startTime, endTime }
+    updateTask(
+      id,
+      zone
+        ? { ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: null, dueTime: null, endDate: null }, {}, zone), timeZone: zone }
+        : times,
+    )
     lastListId = listId
     onCreated(id, openDetail)
   }
@@ -145,10 +156,35 @@ export function QuickCreatePopover({
         placeholder={asLog ? t('quickCreate.logPlaceholder') : t('quickCreate.titlePlaceholder')}
         className="w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
       />
-      <p className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+      <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
         <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        {format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale })} · {startTime} – {endTime}
-      </p>
+        <span className="min-w-0">
+          {format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale })} · {startTime} – {endTime}
+        </span>
+        {!asLog && (
+          <TimeZonePicker
+            ariaLabel={t('timeZone.field')}
+            value={zone}
+            nullOption={t('timeZone.useApp', { zone: zoneLongName(appTimeZone(), i18n.resolvedLanguage) })}
+            onChange={(tz) => setZone(tz && tz !== appTimeZone() ? tz : null)}
+            trigger={({ open, toggle }) => (
+              <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-label={t('timeZone.field')}
+                title={zone ? zoneOptionLabel(zone, i18n.resolvedLanguage) : t('timeZone.field')}
+                onClick={toggle}
+                className={`ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
+                  zone ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'
+                }`}
+              >
+                {zone ? `${zoneCityName(zone)} (${gmtLabel(zone)})` : gmtLabel(appTimeZone())}
+              </button>
+            )}
+          />
+        )}
+      </div>
       {asLog ? (
         <div className="mt-3">
           <TimeLogTagField value={category} onChange={setCategory} compact />

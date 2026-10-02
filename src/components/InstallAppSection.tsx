@@ -13,7 +13,7 @@ export function InstallAppSection() {
   }
   if (availability === 'prompt') {
     return (
-      <SettingsRow label={t('install.title')} help={t('install.why')}>
+      <SettingsRow label={t('install.title')}>
         <button type="button" onClick={() => void promptInstall()} className={settingsButton}>
           {t('install.button')}
         </button>
@@ -25,18 +25,13 @@ export function InstallAppSection() {
       label={t('install.title')}
       help={
         availability === 'ios' ? (
-          <>
-            {t('install.why')}
-            <ol className="mt-1.5 list-decimal space-y-0.5 pl-4">
-              <li>{t('install.iosStep1')}</li>
-              <li>{t('install.iosStep2')}</li>
-              <li>{t('install.iosStep3')}</li>
-            </ol>
-          </>
+          <ol className="list-decimal space-y-0.5 pl-4">
+            <li>{t('install.iosStep1')}</li>
+            <li>{t('install.iosStep2')}</li>
+            <li>{t('install.iosStep3')}</li>
+          </ol>
         ) : (
-          <>
-            {t('install.why')} {t('install.manual')}
-          </>
+          t('install.manual')
         )
       }
     />

@@ -11,3 +11,12 @@ export function isTextFieldUndoTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true
   return false
 }
+
+/**
+ * 確定の Enter か。日本語の変換を確定する Enter は除く
+ * （Safari は確定直後の Enter を isComposing=false で送ることがあるので keyCode 229 も見る）。
+ * テンキーの Enter も key は 'Enter' で来る
+ */
+export function isSubmitEnter(e: { key: string; nativeEvent: KeyboardEvent }): boolean {
+  return e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229
+}

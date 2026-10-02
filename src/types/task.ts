@@ -30,6 +30,13 @@ export interface Task {
   /** 予定/ログの開始時刻（`HH:mm`）。通常タスクでは `scheduledDate` の時間幅、ログでは `dueDate` の開始 */
   startTime: string | null
   endTime: string | null
+  /**
+   * 入力したタイムゾーン（IANA 名。`null`/未設定はアプリのタイムゾーンのまま動く）。
+   * 日付・時刻の列は常にアプリのタイムゾーンの壁時計で、詳細だけこのタイムゾーンで見せる（`taskTimeZone.ts`）
+   */
+  timeZone?: string | null
+  /** 日付・時刻の列がどのタイムゾーンの壁時計で書かれているか（`timeZone` があるときだけ） */
+  timeZoneAnchor?: string | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
   location?: string | null
   /** 記録の色（`#RRGGBB`）。Google カレンダーの予定から記録にしたとき元の色を引き継ぐ。null は分類の色 */

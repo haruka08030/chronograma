@@ -7,13 +7,15 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  isToday,
   parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
 } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { isAppToday } from '../lib/timeZone'
+import { dayMarkerClass } from '../lib/dayMarker'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -75,14 +77,7 @@ export function CalendarDateNav({
   const panelRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  useEscapeLayer(() => setOpen(false), open)
 
   useEffect(() => {
     if (!open) return
@@ -214,7 +209,7 @@ export function CalendarDateNav({
               {miniDays.map((day) => {
                 const key = format(day, 'yyyy-MM-dd')
                 const inMonth = isSameMonth(day, pickerMonth)
-                const today = isToday(day)
+                const today = isAppToday(day)
                 const selected = key === selectedDateKey
                 return (
                   <button
@@ -223,8 +218,7 @@ export function CalendarDateNav({
                     onClick={() => handlePickDay(key)}
                     className={`flex h-8 items-center justify-center rounded-full text-xs font-medium transition-colors
                       ${!inMonth ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-800 dark:text-zinc-100'}
-                      ${today ? 'bg-date-500 text-white hover:bg-date-600' : ''}
-                      ${selected && !today ? 'bg-zinc-200 dark:bg-zinc-700' : ''}
+                      ${dayMarkerClass({ today, selected })}
                       ${!today && !selected ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : ''}`}
                   >
                     {format(day, 'd')}

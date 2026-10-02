@@ -1,18 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { format } from 'date-fns'
-import { parseQuickAddTitle } from '../lib/parseQuickAdd'
-import { findListByName } from '../lib/listKind'
-import { displayListName } from '../lib/displayListName'
+import { addTaskFromQuickText } from '../lib/quickAddTask'
 
 export function QuickAdd() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const [active, setActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const addTask = useTaskStore((s) => s.addTask)
-  const updateTask = useTaskStore((s) => s.updateTask)
   const quickAddRequested = useTaskStore((s) => s.quickAddRequested)
   const clearQuickAddRequest = useTaskStore((s) => s.clearQuickAddRequest)
 
@@ -33,40 +28,8 @@ export function QuickAdd() {
   }, [active])
 
   const submit = () => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    const localeJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-    const parsed = parseQuickAddTitle(trimmed, localeJa)
-    const state = useTaskStore.getState()
-    const target = parsed.listName
-      ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name))
-      : null
-    const targetKind = target?.kind ?? state.lists.find((l) => l.id === state.selectedListId)?.kind ?? 'tasks'
-    const newId = addTask(parsed.title, target?.id, undefined)
-    if (target && target.id !== state.selectedListId) {
-      state.showMoveBanner(t('toast.addedToList', { name: displayListName(target.id, target.name) }))
-    }
-    if (newId) {
-      const patch: {
-        dueDate?: string | null
-        tags?: string[]
-        scheduledDate?: string | null
-        startTime?: string | null
-        endTime?: string | null
-      } = {}
-      if (targetKind !== 'tasks') {
-        // いつか・チェックリストには日付を付けない（付けると期限のビューに戻ってきてしまう）
-      } else if (parsed.startTime) {
-        // 時刻つきは「その時間にやる予定」としてタイムラインに置く（期限日にはしない）
-        patch.scheduledDate = parsed.dueDate ?? format(new Date(), 'yyyy-MM-dd')
-        patch.startTime = parsed.startTime
-        patch.endTime = parsed.endTime
-      } else if (parsed.dueDate) {
-        patch.dueDate = parsed.dueDate
-      }
-      if (parsed.tags.length) patch.tags = parsed.tags
-      if (Object.keys(patch).length > 0) updateTask(newId, patch)
-    }
+    if (!value.trim()) return
+    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId })
     setValue('')
     queueMicrotask(() => inputRef.current?.focus())
   }

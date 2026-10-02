@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { fromAppWall, toAppWall } from '../lib/timeZone'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -145,10 +146,11 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
   const resolveStaleTimer = useTaskStore((s) => s.resolveStaleTimer)
   const discardActiveTimer = useTaskStore((s) => s.discardActiveTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
-  const [endValue, setEndValue] = useState(() => toLocalInputValue(new Date(startedAt)))
+  // 入力と表示はアプリのタイムゾーンの壁時計（`toAppWall`）。保存するときに本当の瞬間に戻す
+  const [endValue, setEndValue] = useState(() => toLocalInputValue(toAppWall(startedAt)))
   const [editing, setEditing] = useState(false)
 
-  const started = new Date(startedAt)
+  const started = toAppWall(startedAt)
 
   return (
     <div
@@ -178,7 +180,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
           />
           <button
             type="button"
-            onClick={() => resolveStaleTimer(new Date(endValue).toISOString())}
+            onClick={() => resolveStaleTimer(fromAppWall(new Date(endValue)).toISOString())}
             disabled={!endValue || new Date(endValue) <= started}
             className="shrink-0 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-on-accent
                        transition-colors hover:bg-accent-700 disabled:opacity-40"

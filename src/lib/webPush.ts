@@ -6,6 +6,7 @@
  */
 import type { DailyReminders } from '../store/taskStore'
 import { getSupabase } from './supabase'
+import { appTimeZone } from './timeZone'
 
 const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim()
 
@@ -93,7 +94,8 @@ export async function syncWebPush({
       user_id: userId,
       p256dh: json.keys?.p256dh ?? '',
       auth: json.keys?.auth ?? '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      // サーバーは予定の時刻をこのタイムゾーンで読む（列はアプリのタイムゾーンの壁時計）
+      timezone: appTimeZone(),
       lang: lang.startsWith('ja') ? 'ja' : 'en',
       plan_time: reminders.planTime,
       wrap_up_time: reminders.wrapUpTime,

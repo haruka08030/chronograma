@@ -4,6 +4,8 @@ import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
+import { zonedNow } from '../lib/timeZone'
+import { TODAY_TEXT } from '../lib/dayMarker'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -17,7 +19,7 @@ export function SleepStatsCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const todayKey = format(new Date(), 'yyyy-MM-dd')
+  const todayKey = format(zonedNow(), 'yyyy-MM-dd')
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
 
@@ -128,7 +130,7 @@ export function SleepStatsCard() {
                 // 1 日おきに日付（最後＝今日は必ず）。月初は「10/1」
                 const show = (DAYS - 1 - i) % 2 === 0
                 return (
-                  <span key={key} className={`flex-1 text-center ${key === todayKey ? 'font-medium text-zinc-600 dark:text-zinc-300' : ''}`}>
+                  <span key={key} className={`flex-1 text-center ${key === todayKey ? TODAY_TEXT : ''}`}>
                     {show ? (d.getDate() === 1 ? format(d, 'M/d') : d.getDate()) : ''}
                   </span>
                 )

@@ -5,13 +5,13 @@ import { useTaskStore } from '../store/taskStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { previewBackupJson } from '../lib/backupFormat'
 import { loadImportRollback } from '../lib/importRollback'
-import { useAuth } from '../contexts/AuthContext'
 import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
 import { NotionSettings } from './settings/NotionSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
+import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { Segmented, SettingsGroup, SettingsRow, settingsButton } from './settings/SettingsPrimitives'
 
 /**
@@ -20,7 +20,6 @@ import { Segmented, SettingsGroup, SettingsRow, settingsButton } from './setting
  */
 export function SettingsView() {
   const { t } = useTranslation()
-  const { user, loading: authLoading } = useAuth()
   const theme = useTaskStore((s) => s.theme)
   const setTheme = useTaskStore((s) => s.setTheme)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
@@ -78,14 +77,15 @@ export function SettingsView() {
 
         <DailyRhythmSettings />
 
-        <SettingsGroup id="settings-categories" title={t('categories.title')} description={t('categories.help')}>
+        <TimeZoneSettings />
+
+        <SettingsGroup id="settings-categories" title={t('categories.title')}>
           <CategoryManager />
         </SettingsGroup>
 
         <SettingsGroup id="settings-account" title={t('settings.account')}>
           {isSupabaseConfigured ? (
             <div className="px-4 py-3">
-              {!user && !authLoading && <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{t('settings.accountHelp')}</p>}
               <AccountMenu variant="settings" />
             </div>
           ) : (
@@ -103,14 +103,14 @@ export function SettingsView() {
           </SettingsRow>
         </SettingsGroup>
 
-        <SettingsGroup id="settings-data" title={t('settings.data')} description={t('settings.dataIntro')}>
-          <SettingsRow label={t('settings.backupTitle')} help={t('settings.backupHint')}>
+        <SettingsGroup id="settings-data" title={t('settings.data')}>
+          <SettingsRow label={t('settings.backupTitle')}>
             <button type="button" onClick={exportData} className={settingsButton}>{t('sidebar.export')}</button>
             <button type="button" onClick={() => jsonInputRef.current?.click()} className={settingsButton}>{t('sidebar.import')}</button>
           </SettingsRow>
           <AutoBackupSettings />
           <RestoreBeforeImportRow />
-          <SettingsRow label={t('settings.csvTitle')} help={t('settings.csvHint')}>
+          <SettingsRow label={t('settings.csvTitle')}>
             <button type="button" onClick={() => csvInputRef.current?.click()} className={settingsButton}>{t('sidebar.importCsv')}</button>
           </SettingsRow>
         <input
@@ -205,7 +205,6 @@ function RestoreBeforeImportRow() {
   return (
     <SettingsRow
       label={t('settings.restoreImportTitle')}
-      help={t('settings.restoreImportHint', { count: saved.taskCount })}
     >
       <button
         type="button"

@@ -30,6 +30,8 @@ const SCREENS = [
   { name: 'planner', view: 'planner' },
   { name: 'todo', view: 'all' },
   { name: 'calendar', view: 'calendar' },
+  // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
+  { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   { name: 'habits', view: 'habits' },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
@@ -194,6 +196,10 @@ async function main() {
             await page.goto(BASE_URL, { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
+            if (screen.click) {
+              await page.click(screen.click)
+              await page.waitForTimeout(300)
+            }
 
             const file = path.join(outDir, `${screen.name}-${vp.name}-${theme}.png`)
             // アプリは body が overflow:hidden で、スクロールするのは内側のペイン。

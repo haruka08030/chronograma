@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
-import { isToday, isTomorrow, isPast, format, parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
@@ -12,6 +12,7 @@ import { isModKey } from '../lib/keyboard'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
+import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -36,15 +37,15 @@ const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
 }
 
 function dateTone(d: Date): DateTone {
-  if (isToday(d)) return 'today'
-  if (isTomorrow(d)) return 'tomorrow'
-  return isPast(d) ? 'overdue' : 'future'
+  if (isAppToday(d)) return 'today'
+  if (isAppTomorrow(d)) return 'tomorrow'
+  return isAppPast(d) ? 'overdue' : 'future'
 }
 
 function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; tone: DateTone } {
   const d = parseISO(iso)
-  if (isToday(d)) return { text: todayLabel, tone: 'today' }
-  const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
+  if (isAppToday(d)) return { text: todayLabel, tone: 'today' }
+  const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
   return { text: format(d, fmt, { locale }), tone: dateTone(d) }
 }
 
@@ -131,8 +132,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = parseISO(`${task.scheduledDate}T12:00:00`)
-    const fmt = d.getFullYear() !== new Date().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-    const datePart = isToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
+    const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
+    const datePart = isAppToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
     const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
     return { text: `${datePart}${timePart}`, tone: dateTone(d) }
   }, [timeLog, task.scheduledDate, task.startTime, task.endTime, dateLocale, t])
@@ -273,9 +274,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           ${isSubtask ? 'h-5 w-5 md:h-4 md:w-4' : 'h-6 w-6 md:h-[18px] md:w-[18px]'}
           ${
             task.completed
-              ? timeLog
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'bg-accent-500 border-accent-500 text-on-accent'
+              ? 'bg-accent-500 border-accent-500 text-on-accent'
               : priorityColor
                 ? `border-current ${priorityColor}`
                 : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'

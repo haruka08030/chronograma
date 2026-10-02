@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, isToday, parseISO } from 'date-fns'
+import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { parseQuickAddTitle } from '../lib/parseQuickAdd'
+import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { getDayPlan, getMoreSuggestions } from '../lib/dayPlan'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
-import { findListByName, unplannedListIds } from '../lib/listKind'
-import { displayListName } from '../lib/displayListName'
+import { unplannedListIds } from '../lib/listKind'
 import { requestPermission } from '../lib/notifications'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
@@ -25,6 +25,7 @@ import type { Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
+import { isAppToday, zonedNow } from '../lib/timeZone'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -49,15 +50,12 @@ export function TodayPlannerView() {
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const activeTimer = useTaskStore((s) => s.activeTimer)
-  const addTask = useTaskStore((s) => s.addTask)
-  const updateTask = useTaskStore((s) => s.updateTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
-  const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
@@ -66,9 +64,9 @@ export function TodayPlannerView() {
   const now = useNowMinuteTick()
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
-  const [dateKey, setDateKey] = useState(() => dayKeyOf(new Date()))
+  const [dateKey, setDateKey] = useState(() => dayKeyOf(zonedNow()))
   useNavShortcut({
-    today: () => setDateKey(dayKeyOf(new Date())),
+    today: () => setDateKey(dayKeyOf(zonedNow())),
     prev: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), -1))),
     next: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), 1))),
   })
@@ -80,7 +78,7 @@ export function TodayPlannerView() {
   const [mobilePane, setMobilePane] = useState<'list' | 'timeline'>('list')
 
   const date = dateOfKey(dateKey)
-  const viewingToday = isToday(date)
+  const viewingToday = isAppToday(date)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const tomorrowKey = dayKeyOf(addDays(date, 1))
 
@@ -150,34 +148,14 @@ export function TodayPlannerView() {
   const shortDate = (key: string) => format(dateOfKey(key), t('planner.shortDateFormat'), { locale: dateLocale })
 
   const submitDraft = () => {
-    const trimmed = draft.trim()
-    if (!trimmed) return
-    const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')))
-    const target = parsed.listName
-      ? findListByName(lists, parsed.listName, (l) => displayListName(l.id, l.name))
-      : null
-    if (target && (target.kind ?? 'tasks') !== 'tasks') {
-      // 「@買い物 牛乳」「@いつか オーロラを見る」: 今日の予定にはせず、そのリストへ入れるだけ
-      const id = addTask(parsed.title, target.id)
-      if (id && parsed.tags.length) updateTask(id, { tags: parsed.tags })
-      showMoveBanner(t('toast.addedToList', { name: displayListName(target.id, target.name) }))
-      setDraft('')
-      return
-    }
-    const id = addTask(parsed.title, target?.id ?? INBOX_LIST_ID)
-    if (id) {
-      // この画面で足したものは「やる日」。日付を書けばその日、時刻を書けばタイムラインに置く
-      updateTask(id, {
-        scheduledDate: parsed.dueDate ?? dateKey,
-        ...(parsed.startTime ? { startTime: parsed.startTime, endTime: parsed.endTime } : {}),
-        ...(parsed.tags.length ? { tags: parsed.tags } : {}),
-      })
-    }
+    if (!draft.trim()) return
+    // この画面で足したものは「やる日」＝見ている日。書き方の解釈は To-Do 画面と同じ
+    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey })
     setDraft('')
   }
 
   const totalCount = open.length + done.length
-  const overCapacity = dateKey >= dayKeyOf(new Date()) && plannedMinutes > dailyCapacityMinutes
+  const overCapacity = dateKey >= dayKeyOf(zonedNow()) && plannedMinutes > dailyCapacityMinutes
   const showWrapUp =
     viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
   const showReminderPrompt =
@@ -194,7 +172,6 @@ export function TodayPlannerView() {
     if (granted) setDailyReminders({ planTime: '08:30', wrapUpTime: '18:00' })
     dismissReminderPrompt()
   }
-  const timerBusy = activeTimer !== null
 
   /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
   /** 締切は焦らせてよい: 期限切れ＝赤 / 今日まで＝オレンジ / 明日まで＝薄いオレンジ（To‑Do の行と同じ段階） */
@@ -269,15 +246,15 @@ export function TodayPlannerView() {
     )
   }
 
-  const timerButton = (task: Task) => (
+  // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない
+  const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
     <button
       type="button"
-      disabled={timerBusy}
-      onClick={() => startTimer(task.title, task.tags, task.id)}
-      title={timerBusy ? t('planner.timerBusy') : t('planner.startTimer')}
+      onClick={() => startTimerForTask(task.id)}
+      title={t('planner.startTimer')}
       aria-label={t('planner.startTimer')}
       className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-opacity touch-manipulation hover:text-accent-600 md:p-1.5
-                 md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100 disabled:cursor-not-allowed disabled:opacity-0
+                 md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100
                  dark:text-zinc-600 dark:hover:text-accent-300"
     >
       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -338,7 +315,7 @@ export function TodayPlannerView() {
               {!viewingToday && (
                 <button
                   type="button"
-                  onClick={() => setDateKey(dayKeyOf(new Date()))}
+                  onClick={() => setDateKey(dayKeyOf(zonedNow()))}
                   className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
                   {t('common.today')}
@@ -497,7 +474,7 @@ export function TodayPlannerView() {
               {dayHabits.map((h) => {
                 const status = habitDayStatus(h, dateKey, habitRecords)
                 const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
-                const canTime = viewingToday && !activeTimer && status === 'missed'
+                const canTime = viewingToday && status === 'missed' && activeTimer?.taskTitle !== h.title
                 return (
                   <li key={h.id} className="relative flex w-20 flex-col items-center gap-1.5" style={colorVars(h.color)}>
                     <button

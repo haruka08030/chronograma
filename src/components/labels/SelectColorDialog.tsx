@@ -60,7 +60,6 @@ export function SelectColorDialog({
     <ModalLayer onDismiss={onCancel} labelledBy="select-color-title">
       <div className="w-[min(92vw,380px)] rounded-3xl bg-white p-6 shadow-2xl dark:bg-zinc-800">
         <h2 id="select-color-title" className="text-xl text-zinc-900 dark:text-zinc-100">{t('labels.selectColor')}</h2>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{t('labels.selectColorHelp')}</p>
 
         <div role="radiogroup" aria-label={t('labels.selectColor')} className="mt-5 grid grid-cols-8 gap-2">
           {CALENDAR_COLORS.map((c) => {

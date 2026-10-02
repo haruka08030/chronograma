@@ -7,6 +7,8 @@
  * 約 24 時間のログになってしまう）。
  */
 
+import { toAppWall } from './timeZone'
+
 /** 記録として成立する最小の長さ */
 export const MIN_RECORD_MS = 60_000
 
@@ -28,10 +30,13 @@ const hhmm = (d: Date) => `${p2(d.getHours())}:${p2(d.getMinutes())}`
  * 記録として短すぎる / 終了が開始より前 / 日付が壊れている場合は null。
  */
 export function timerRecordTimes(startedAt: string, endedAt: string): TimerRecordTimes | null {
-  const start = new Date(startedAt)
-  const end = new Date(endedAt)
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return null
-  if (end.getTime() - start.getTime() < MIN_RECORD_MS) return null
+  const startMs = new Date(startedAt).getTime()
+  const endMs = new Date(endedAt).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null
+  if (endMs - startMs < MIN_RECORD_MS) return null
+  // 記録の日付・時刻はアプリのタイムゾーンの壁時計
+  const start = toAppWall(startMs)
+  const end = toAppWall(endMs)
 
   const dueDate = dayKey(start)
   const endDay = dayKey(end)

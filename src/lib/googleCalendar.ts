@@ -3,6 +3,7 @@ import type { CalendarEvent } from '../types/calendarEvent'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
+import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -217,27 +218,19 @@ function formatYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-function formatHmLocal(d: Date): string {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-
-/** Edge Function は UTC で HH:mm を算出するため、ブラウザのローカル TZ で再正規化する */
+/** Edge Function は UTC で HH:mm を算出するため、アプリのタイムゾーンで再正規化する */
 export function normalizeCalendarEventTimes(event: CalendarEvent): CalendarEvent {
   if (event.isAllDay) return event
 
-  const start = new Date(event.start)
-  const end = new Date(event.end)
+  const tz = appTimeZone()
+  const start = wallInZone(new Date(event.start).getTime(), tz)
+  const end = wallInZone(new Date(event.end).getTime(), tz)
   return {
     ...event,
-    date: formatYmdLocal(start),
-    startTime: formatHmLocal(start),
-    endTime: formatHmLocal(end),
+    date: start.date,
+    startTime: start.time,
+    endTime: end.time,
   }
-}
-
-function getClientTimeZone(): string {
-  if (typeof Intl === 'undefined') return 'UTC'
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
 export function hasOAuthCallbackInUrl(): boolean {
@@ -286,9 +279,10 @@ export async function fetchCalendarEvents(
     error?: string
   }>({
     action: 'events',
-    timeMin: timeMin.toISOString(),
-    timeMax: timeMax.toISOString(),
-    timeZone: getClientTimeZone(),
+    // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
+    timeMin: fromAppWall(timeMin).toISOString(),
+    timeMax: fromAppWall(timeMax).toISOString(),
+    timeZone: appTimeZone(),
   })
 
   if (payload.error) {
@@ -315,6 +309,8 @@ export interface GoogleEventTiming {
   endDate?: string | null
   startTime: string | null
   endTime: string | null
+  /** 日付・時刻がどのタイムゾーンの壁時計か（予定のタイムゾーンとして Google に送る）。省略時はアプリのタイムゾーン */
+  timeZone?: string | null
 }
 
 function addDaysYmd(ymd: string, days: number): string {
@@ -332,7 +328,7 @@ function toGoogleTimes(t: GoogleEventTiming): GoogleTimes {
     // Google の終日は終わりの日を含まない
     return { start: { date: t.date }, end: { date: addDaysYmd(t.endDate ?? t.date, 1) } }
   }
-  const timeZone = getClientTimeZone()
+  const timeZone = t.timeZone || appTimeZone()
   const endDate = t.endDate ?? (t.endTime <= t.startTime ? addDaysYmd(t.date, 1) : t.date)
   return {
     start: { dateTime: `${t.date}T${t.startTime}:00`, timeZone },
@@ -346,17 +342,19 @@ export function googleEventTiming(e: CalendarEvent): GoogleEventTiming {
     const last = addDaysYmd(e.end.slice(0, 10), -1)
     return { date: e.date, endDate: last > e.date ? last : null, startTime: null, endTime: null }
   }
-  const end = new Date(e.end)
-  return { date: e.date, endDate: formatYmdLocal(end), startTime: e.startTime, endTime: e.endTime }
+  const end = wallInZone(new Date(e.end).getTime(), appTimeZone())
+  return { date: e.date, endDate: end.date, startTime: e.startTime, endTime: e.endTime }
 }
 
 /** 楽観表示用に、Google から返る形をローカルで組み立てる */
 export function applyTimingLocally(e: CalendarEvent, t: GoogleEventTiming): CalendarEvent {
   const g = toGoogleTimes(t)
   const isAllDay = !('dateTime' in g.start)
-  const start = 'dateTime' in g.start ? new Date(g.start.dateTime).toISOString() : g.start.date
-  const end = 'dateTime' in g.end ? new Date(g.end.dateTime).toISOString() : g.end.date
-  return { ...e, isAllDay, date: t.date, startTime: isAllDay ? null : t.startTime, endTime: isAllDay ? null : t.endTime, start, end }
+  const instant = (x: { dateTime: string; timeZone: string }) =>
+    new Date(instantFromWall(x.dateTime.slice(0, 10), x.dateTime.slice(11, 16), x.timeZone)).toISOString()
+  const start = 'dateTime' in g.start ? instant(g.start) : g.start.date
+  const end = 'dateTime' in g.end ? instant(g.end) : g.end.date
+  return normalizeCalendarEventTimes({ ...e, isAllDay, date: t.date, startTime: isAllDay ? null : t.startTime, endTime: isAllDay ? null : t.endTime, start, end })
 }
 
 async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent | null> {
@@ -365,7 +363,7 @@ async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent
   try {
     const payload = await invokeGoogleCalendar<{ ok?: boolean; event?: CalendarEvent | null; error?: string }>({
       ...body,
-      timeZone: getClientTimeZone(),
+      timeZone: appTimeZone(),
     })
     if (payload.ok === false) throw new Error(payload.error ?? 'Google Calendar write failed')
     return payload.event ? withColors(normalizeCalendarEventTimes(payload.event)) : null

@@ -13,7 +13,7 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
-import { isModKey } from '../lib/keyboard'
+import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
@@ -804,7 +804,7 @@ export function TaskList() {
                         onClick={(e) => e.stopPropagation()}
                         onBlur={() => finishSectionRename(sectionId, block.title)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                          if (isSubmitEnter(e)) {
                             e.preventDefault()
                             e.currentTarget.blur()
                             return

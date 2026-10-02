@@ -8,7 +8,6 @@ import {
   eachDayOfInterval,
   format,
   isSameMonth,
-  isToday,
 } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import type { CalendarEvent } from '../types/calendarEvent'
@@ -33,6 +32,8 @@ import { taskPlacementDate } from '../lib/taskTimeRange'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
+import { isAppToday } from '../lib/timeZone'
+import { dayMarkerClass } from '../lib/dayMarker'
 
 /** 月のマス用の短い時間表記（3h20 / 45m） */
 function formatMinutesShort(m: number): string {
@@ -148,7 +149,7 @@ export function CalendarView({
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
             const inMonth = isSameMonth(day, displayMonth)
-            const today = isToday(day)
+            const today = isAppToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
 
             return (
@@ -190,11 +191,9 @@ export function CalendarView({
               >
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
-                    ${today
-                      ? 'bg-date-500 text-white font-semibold'
-                      : selected
-                        ? 'ring-2 ring-date-400 text-date-700 dark:text-date-300'
-                        : inMonth
+                    ${today || selected
+                      ? dayMarkerClass({ today, selected })
+                      : inMonth
                           ? 'text-zinc-500 dark:text-zinc-400'
                           : 'text-zinc-300 dark:text-zinc-600'}`}
                   >

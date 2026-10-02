@@ -16,6 +16,7 @@ import {
   UNSCHEDULE_PATCH,
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
+import { zonedNow } from '../lib/timeZone'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -25,8 +26,8 @@ export function CalendarHubView() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   // 右の日パネルと内容が重なり、グリッドを 4 割潰していたので既定は閉じる（「ToDo を表示」で開く）
   const [dockOpen, setDockOpen] = useState(false)
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
-  const [weekAnchor, setWeekAnchor] = useState(() => new Date())
+  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(zonedNow()))
+  const [weekAnchor, setWeekAnchor] = useState(() => zonedNow())
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
@@ -43,7 +44,7 @@ export function CalendarHubView() {
   }, [setSelectedCalendarDateKey])
 
   const onGoToday = useCallback(() => {
-    const today = new Date()
+    const today = zonedNow()
     const key = format(today, 'yyyy-MM-dd')
     setSelectedCalendarDateKey(key)
     setMonthCursor(startOfMonth(today))
@@ -142,9 +143,16 @@ export function CalendarHubView() {
         <button
           type="button"
           onClick={() => setDockOpen((o) => !o)}
-          className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          aria-pressed={dockOpen}
+          title={t('calendarHub.dockHint')}
+          // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            dockOpen
+              ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+              : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+          }`}
         >
-          {dockOpen ? t('calendarHub.hideDock') : t('calendarHub.showDock')}
+          {t('calendarHub.dockToggle')}
         </button>
       </div>
 

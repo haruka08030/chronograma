@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n/config'
-import { DAILY_KEEP, listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
+import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
 import { useTaskStore } from '../../store/taskStore'
 import { SettingsRow, settingsButton } from './SettingsPrimitives'
@@ -65,7 +65,7 @@ export function AutoBackupSettings() {
 
   return (
     <div>
-      <SettingsRow label={t('autoBackup.title')} help={t('autoBackup.hint', { days: DAILY_KEEP })} />
+      <SettingsRow label={t('autoBackup.title')} />
       {backups !== null && (
         <div className="px-4 pb-3">
           {backups.length === 0 ? (

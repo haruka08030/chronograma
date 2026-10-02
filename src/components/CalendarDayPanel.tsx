@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, isToday, parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
@@ -14,6 +14,7 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
+import { isAppToday } from '../lib/timeZone'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -39,7 +40,7 @@ export function CalendarDayPanel({
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
-  const dateLabel = isToday(date)
+  const dateLabel = isAppToday(date)
     ? `${format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })} · ${t('activityLog.today')}`
     : format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
 

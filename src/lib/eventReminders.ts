@@ -4,6 +4,7 @@ import type { Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { taskPlacementDate } from './taskTimeRange'
 import { timeToMinutes } from './timeGrid'
+import { zonedNow } from './timeZone'
 
 const NOTIFIED_KEY = 'chronograma-event-reminded'
 
@@ -29,7 +30,7 @@ export function dueEventReminders(
   tasks: readonly Task[],
   minutesBefore: number,
   excludedListIds: ReadonlySet<string>,
-  now = new Date(),
+  now = zonedNow(),
 ): Task[] {
   const today = format(now, 'yyyy-MM-dd')
   const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -47,7 +48,7 @@ export function checkEventReminders(
   minutesBefore: number,
   excludedListIds: ReadonlySet<string>,
   onOpen: () => void,
-  now = new Date(),
+  now = zonedNow(),
 ) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return
   const today = format(now, 'yyyy-MM-dd')

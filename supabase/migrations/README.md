@@ -17,6 +17,7 @@
 | `011_due_reminders.sql` | `push_subscriptions.due_reminders`（締切の通知を Web Push でも送るか）と `due_notified`（その日に通知済みの締切タスク ID）。未適用でも動くが、締切の通知はタブを開いている間だけになる |
 | `012_per_user_keys.sql` | `lists` / `list_sections` / `tasks` / `habits` の主キーを `(user_id, id)` に、外部キーも同じ利用者の行だけを指すように張り直す。未分類の ID は全員 `__inbox__` なので、id だけの主キーだと 2 人目以降の同期が最初の利用者の行とぶつかって止まっていた。**一般公開の前に必ず適用する**（Postgres 15 以上） |
 | `013_google_oauth_server_only.sql` | `google_oauth` の SELECT ポリシーを外し、リフレッシュトークンをブラウザから読めなくする（Edge Function は service_role で読む） |
+| `014_task_time_zone.sql` | `tasks.time_zone`（そのタスク・記録を入れたタイムゾーン）と `time_zone_anchor`（日付・時刻の列がどのタイムゾーンで書かれているか）。各端末が読み込み時に自分のアプリのタイムゾーンへ同じ瞬間のまま書き直す。未適用でも同期は続く（その場合、他の端末ではタイムゾーンの指定が消える） |
 
 **メモ**
 

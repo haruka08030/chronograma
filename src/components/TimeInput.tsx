@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pad2, toMinutes } from '../lib/clockTime'
+import { isSubmitEnter } from '../lib/keyboard'
+import { zonedNow } from '../lib/timeZone'
 
 interface TimeInputProps {
   value: string
@@ -101,7 +103,7 @@ export function TimeInput({
       const idx = nearestOptionIndex(options, pickerDefault)
       if (idx >= 0) return idx
     }
-    const now = new Date()
+    const now = zonedNow()
     const idx = nearestOptionIndex(options, `${pad2(now.getHours())}:${pad2(now.getMinutes())}`)
     return idx >= 0 ? idx : 0
   }, [options, pickerDefault])
@@ -167,7 +169,7 @@ export function TimeInput({
       }
       return
     }
-    if (e.key === 'Enter') {
+    if (isSubmitEnter(e)) {
       e.preventDefault()
       const normalizedDraft = normalizeTime(draft)
       const highlightedOption = options[highlightIndex]

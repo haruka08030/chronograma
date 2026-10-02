@@ -108,7 +108,7 @@ export function NotionSettings() {
   const shownError = errorText(error) ?? (status?.connected ? errorText(sync.error) : null)
 
   return (
-    <SettingsGroup id="settings-notion" title={t('notion.title')} description={t('notion.description')}>
+    <SettingsGroup id="settings-notion" title={t('notion.title')}>
       {body}
       {status?.connected && (
         <SettingsRow
@@ -226,7 +226,7 @@ function ConnectedRows({
 
   return (
     <>
-      <SettingsRow label={t('notion.connectedTo', { name: status.databaseTitle })} help={t('notion.connectedHelp', { name: status.databaseTitle })}>
+      <SettingsRow label={t('notion.connectedTo', { name: status.databaseTitle })}>
         <button type="button" className={settingsButton} disabled={busy} onClick={onDisconnect}>
           {t('notion.disconnect')}
         </button>
@@ -246,7 +246,7 @@ function ConnectedRows({
         </select>
       </SettingsRow>
 
-      <SettingsRow label={t('notion.dateProperty')} help={t('notion.datePropertyHelp')} htmlFor="notion-date-prop">
+      <SettingsRow label={t('notion.dateProperty')} htmlFor="notion-date-prop">
         <select
           id="notion-date-prop"
           className={select}
@@ -263,7 +263,6 @@ function ConnectedRows({
       {options.length > 0 && (
         <div className="px-4 py-3">
           <p className="text-sm text-zinc-800 dark:text-zinc-200">{t('notion.actionStatuses')}</p>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{t('notion.actionStatusesHelp')}</p>
           <ul className="mt-3 space-y-2">
             {options.map((name) => {
               const on = config.actionStatuses.includes(name)

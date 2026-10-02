@@ -31,45 +31,45 @@ describe('タグ・リスト指定', () => {
 
 describe('日付', () => {
   it('今日・明日・明後日', () => {
-    expect(ja('バイト 今日').dueDate).toBe('2026-09-30')
-    expect(ja('バイト 明日').dueDate).toBe('2026-10-01')
-    expect(ja('バイト 明後日').dueDate).toBe('2026-10-02')
+    expect(ja('バイト 今日').date).toBe('2026-09-30')
+    expect(ja('バイト 明日').date).toBe('2026-10-01')
+    expect(ja('バイト 明後日').date).toBe('2026-10-02')
   })
 
   it('english keywords', () => {
-    expect(en('shift today').dueDate).toBe('2026-09-30')
-    expect(en('shift tomorrow').dueDate).toBe('2026-10-01')
+    expect(en('shift today').date).toBe('2026-09-30')
+    expect(en('shift tomorrow').date).toBe('2026-10-01')
   })
 
   it('曜日は次に来るその曜日（同じ曜日なら今日）', () => {
     // 水曜 2026-09-30 から見て
-    expect(ja('ジム 金曜').dueDate).toBe('2026-10-02')
-    expect(ja('ジム 水曜').dueDate).toBe('2026-09-30')
-    expect(ja('ジム 月曜').dueDate).toBe('2026-10-05')
+    expect(ja('ジム 金曜').date).toBe('2026-10-02')
+    expect(ja('ジム 水曜').date).toBe('2026-09-30')
+    expect(ja('ジム 月曜').date).toBe('2026-10-05')
   })
 
   it('来週◯曜は次の月曜から始まる週', () => {
     // 次の月曜 = 2026-10-05 の週
-    expect(ja('面談 来週金曜').dueDate).toBe('2026-10-09')
-    expect(ja('面談 来週月曜').dueDate).toBe('2026-10-05')
+    expect(ja('面談 来週金曜').date).toBe('2026-10-09')
+    expect(ja('面談 来週月曜').date).toBe('2026-10-05')
   })
 
   it('英語の曜日', () => {
-    expect(en('mtg fri').dueDate).toBe('2026-10-02')
+    expect(en('mtg fri').date).toBe('2026-10-02')
   })
 
   it('yyyy-MM-dd と 9/30 形式', () => {
-    expect(ja('課題 2026-12-24').dueDate).toBe('2026-12-24')
-    expect(ja('課題 10/3').dueDate).toBe('2026-10-03')
+    expect(ja('課題 2026-12-24').date).toBe('2026-12-24')
+    expect(ja('課題 10/3').date).toBe('2026-10-03')
   })
 
   it('過ぎた月日は来年にする', () => {
-    expect(ja('課題 1/5').dueDate).toBe('2027-01-05')
+    expect(ja('課題 1/5').date).toBe('2027-01-05')
   })
 
   it('ありえない月日は日付として読まない', () => {
     const r = ja('請求 13/40')
-    expect(r.dueDate).toBeNull()
+    expect(r.date).toBeNull()
     expect(r.title).toBe('請求 13/40')
   })
 })
@@ -107,7 +107,7 @@ describe('時刻と長さ', () => {
 
   it('日付と時刻を同じ語で書ける', () => {
     const r = ja('明日15時 面接')
-    expect(r.dueDate).toBe('2026-10-01')
+    expect(r.date).toBe('2026-10-01')
     expect(r.startTime).toBe('15:00')
     expect(r.title).toBe('面接')
   })
@@ -137,7 +137,7 @@ describe('タイトルの保全', () => {
   it('日時表現を含まない入力はそのまま', () => {
     const r = ja('TOEIC の申し込み')
     expect(r.title).toBe('TOEIC の申し込み')
-    expect(r.dueDate).toBeNull()
+    expect(r.date).toBeNull()
     expect(r.startTime).toBeNull()
   })
 
@@ -154,5 +154,39 @@ describe('タイトルの保全', () => {
 
   it('前後の余分な空白を詰める', () => {
     expect(ja('  ジム   明日  ').title).toBe('ジム')
+  })
+})
+
+describe('締切（まで / by / due）', () => {
+  it('日付だけなら「やる日」', () => {
+    const r = ja('課題 明日')
+    expect(r.date).toBe('2026-10-01')
+    expect(r.dateIsDeadline).toBe(false)
+  })
+
+  it('「明日まで」「金曜までに」は締切', () => {
+    expect(ja('明日まで 課題')).toMatchObject({ title: '課題', date: '2026-10-01', dateIsDeadline: true })
+    expect(ja('レポート 金曜までに')).toMatchObject({ title: 'レポート', date: '2026-10-02', dateIsDeadline: true })
+    expect(ja('ES 10/5まで')).toMatchObject({ title: 'ES', date: '2026-10-05', dateIsDeadline: true })
+  })
+
+  it('「まで」だけの語はタイトルのまま', () => {
+    expect(ja('終わるまで 粘る')).toMatchObject({ title: '終わるまで 粘る', date: null, dateIsDeadline: false })
+  })
+
+  it('英語は by / due の直後が日付なら締切', () => {
+    expect(en('essay by fri')).toMatchObject({ title: 'essay', date: '2026-10-02', dateIsDeadline: true })
+    expect(en('due tomorrow report')).toMatchObject({ title: 'report', date: '2026-10-01', dateIsDeadline: true })
+  })
+
+  it('by の後が日付でなければタイトルに戻す', () => {
+    expect(en('stand by me')).toMatchObject({ title: 'stand by me', date: null, dateIsDeadline: false })
+  })
+})
+
+describe('日本語表示でも英語の締切', () => {
+  it('「essay due fri」「レポート by 金曜」も締切', () => {
+    expect(ja('essay due fri')).toMatchObject({ title: 'essay', date: '2026-10-02', dateIsDeadline: true })
+    expect(ja('レポート by 金曜')).toMatchObject({ title: 'レポート', date: '2026-10-02', dateIsDeadline: true })
   })
 })

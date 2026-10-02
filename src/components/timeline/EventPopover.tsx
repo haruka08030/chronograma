@@ -9,6 +9,9 @@ import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
+import { useEscapeLayer } from '../../hooks/useEscapeLayer'
+import { startTimerForTask } from '../../lib/timerDrop'
+import { zonedNow } from '../../lib/timeZone'
 
 const WIDTH = 320
 
@@ -34,17 +37,16 @@ export function EventPopover({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
-  const startTimer = useTaskStore((s) => s.startTimer)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const ref = useRef<HTMLDivElement>(null)
+  useEscapeLayer(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'Escape') onClose()
-      else if (e.key === 'e') {
+      if (e.key === 'e') {
         e.preventDefault()
         onOpenDetail(taskId)
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -81,7 +83,7 @@ export function EventPopover({
   const dateText = dateKey ? format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
-  const now = new Date()
+  const now = zonedNow()
   const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const todayKey = format(now, 'yyyy-MM-dd')
   const canLogAsPlanned =
@@ -196,10 +198,10 @@ export function EventPopover({
           {!task.completed && !planEnded && (
             <button
               type="button"
-              disabled={activeTimer !== null}
+              // 記録中でも押せる（前の記録を保存して切り替える）
+              disabled={activeTimer?.taskId === task.id}
               onClick={() => {
-                startTimer(task.title, task.tags, task.id)
-                onClose()
+                if (startTimerForTask(task.id)) onClose()
               }}
               className="rounded-full border border-zinc-200 px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
             >

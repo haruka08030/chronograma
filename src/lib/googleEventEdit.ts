@@ -75,6 +75,16 @@ export async function renameGoogleEvent(event: CalendarEvent, summary: string) {
   }
 }
 
+/**
+ * 確認してから消す。Google の予定は Google 側から消え、⌘Z でも戻せないので、
+ * ボタンでも Delete キーでも必ず聞く。消したら true
+ */
+export function confirmRemoveGoogleEvent(event: CalendarEvent): boolean {
+  if (!window.confirm(i18n.t('confirm.deleteGoogleEvent', { title: event.summary || i18n.t('quickCreate.untitled') }))) return false
+  void removeGoogleEvent(event)
+  return true
+}
+
 export async function removeGoogleEvent(event: CalendarEvent) {
   remove(event.id)
   try {

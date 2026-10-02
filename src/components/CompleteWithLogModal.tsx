@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -33,10 +34,14 @@ export function CompleteWithLogModal({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
+  useEscapeLayer(onClose)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('task.completeModal.title')}
         className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
         onClick={(e) => e.stopPropagation()}
       >

@@ -73,6 +73,7 @@ import {
 } from '@dnd-kit/core'
 import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
+import { zonedNow } from './lib/timeZone'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -537,7 +538,7 @@ export default function App() {
       if (isWebPushActive()) return
       const state = useTaskStore.getState()
       checkDailyReminders(state.dailyReminders, {
-        remainingToday: getDayPlan(state.tasks, format(new Date(), 'yyyy-MM-dd'), unplannedListIds(state.lists)).open.length,
+        remainingToday: getDayPlan(state.tasks, format(zonedNow(), 'yyyy-MM-dd'), unplannedListIds(state.lists)).open.length,
         onOpen: () => useTaskStore.getState().selectView('planner'),
       })
     }

@@ -27,10 +27,10 @@ export function DailyRhythmSettings() {
     if (await requestPermission()) setDailyReminders({ [key]: fallback })
   }
 
-  const reminderRow = (key: keyof DailyReminders, label: string, help: string, fallback: string) => {
+  const reminderRow = (key: keyof DailyReminders, label: string, fallback: string) => {
     const value = dailyReminders[key]
     return (
-      <SettingsRow label={label} help={help}>
+      <SettingsRow label={label}>
         {value && (
           <input
             type="time"
@@ -49,11 +49,11 @@ export function DailyRhythmSettings() {
     <SettingsGroup
       id="settings-rhythm"
       title={t('settings.dailyRhythmTitle')}
-      description={unsupported ? t('settings.notificationsUnsupported') : denied ? t('settings.notificationsDenied') : t('settings.dailyRhythmHelp')}
+      description={unsupported ? t('settings.notificationsUnsupported') : denied ? t('settings.notificationsDenied') : undefined}
     >
-      {reminderRow('planTime', t('settings.planReminder'), t('settings.planReminderHelp'), '08:30')}
-      {reminderRow('wrapUpTime', t('settings.wrapUpReminder'), t('settings.wrapUpReminderHelp'), '18:00')}
-      <SettingsRow label={t('settings.eventReminder')} help={t('settings.eventReminderHelp')} htmlFor="event-reminder">
+      {reminderRow('planTime', t('settings.planReminder'), '08:30')}
+      {reminderRow('wrapUpTime', t('settings.wrapUpReminder'), '18:00')}
+      <SettingsRow label={t('settings.eventReminder')} htmlFor="event-reminder">
         <select
           id="event-reminder"
           value={eventReminderMinutes ?? 'off'}
@@ -73,10 +73,10 @@ export function DailyRhythmSettings() {
           ))}
         </select>
       </SettingsRow>
-      <SettingsRow label={t('settings.dueNotifications')} help={t('settings.dueNotificationsHelp')}>
+      <SettingsRow label={t('settings.dueNotifications')}>
         <Switch checked={notificationsEnabled} disabled={unsupported || denied} onChange={toggleNotifications} label={t('settings.dueNotifications')} />
       </SettingsRow>
-      <SettingsRow label={t('settings.dailyCapacity')} help={t('settings.dailyCapacityHelp')} htmlFor="daily-capacity">
+      <SettingsRow label={t('settings.dailyCapacity')} htmlFor="daily-capacity">
         <select
           id="daily-capacity"
           value={Math.round(dailyCapacityMinutes / 60)}

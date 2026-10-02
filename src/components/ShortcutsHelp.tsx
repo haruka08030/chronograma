@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SHORTCUT_LIST } from '../lib/shortcuts'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
 
 /** 「?」で開くキーボードショートカット一覧 */
 export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
+  useEscapeLayer(onClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === '?') onClose()
+      if (e.key === '?') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

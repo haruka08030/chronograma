@@ -6,6 +6,7 @@ import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { CATEGORY_COLOR_KEYS, categoryColorKey, categoryHex, colorVars } from '../../lib/logCategoryColors'
 import { hexForGoogleKey } from '../../lib/googleColors'
+import { zonedNow } from '../../lib/timeZone'
 
 const USAGE_DAYS = 30
 
@@ -33,7 +34,7 @@ export function CategoryManager() {
   /** 分類 → 直近 30 日の分数（分類なしは ''） */
   const usage = useMemo(() => {
     const map = new Map<string, number>()
-    const days = Array.from({ length: USAGE_DAYS }, (_, i) => format(subDays(new Date(), i), 'yyyy-MM-dd'))
+    const days = Array.from({ length: USAGE_DAYS }, (_, i) => format(subDays(zonedNow(), i), 'yyyy-MM-dd'))
     for (const task of tasks) {
       if (!task.isTimeLog || !isActiveTask(task)) continue
       let minutes = 0

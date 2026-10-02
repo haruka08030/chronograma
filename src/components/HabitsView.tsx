@@ -15,7 +15,6 @@ import {
   colorIndexForPalette,
   habitDateKey,
   completionRatioOnDate,
-  completionsInLast7Days,
   consistencyForLast7Days,
   currentStreakDays,
 } from '../lib/habitStats'
@@ -26,6 +25,8 @@ import { TimeInput } from './TimeInput'
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
 const ISO_MONDAY = new Date(2024, 0, 1)
 import { addClockMinutes } from '../lib/clockTime'
+import { zonedNow } from '../lib/timeZone'
+import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -192,7 +193,7 @@ function HabitTimeFields({
 
       {mode !== 'none' ? (
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          {t(mode === 'range' ? 'habits.onTimeHintRange' : 'habits.onTimeHintFixed', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
+          {t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
         </p>
       ) : null}
     </div>
@@ -350,7 +351,7 @@ export function HabitsView() {
   const heatmapDays = useMemo(
     () =>
       Array.from({ length: 28 }, (_, i) => {
-        const d = subDays(new Date(), 27 - i)
+        const d = subDays(zonedNow(), 27 - i)
         return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
     [habits, habitRecords],
@@ -365,7 +366,7 @@ export function HabitsView() {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
-  const todayKey = habitDateKey(new Date())
+  const todayKey = habitDateKey(zonedNow())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
@@ -397,7 +398,6 @@ export function HabitsView() {
   useNavShortcut({ today: goFocusToday, prev: () => shiftFocusDay(-1), next: () => shiftFocusDay(1) })
 
   const renderHabitRow = (h: Habit, offDay: boolean) => {
-    const last7 = completionsInLast7Days(h, habitRecords)
     const isEditing = editingHabitId === h.id
     // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
     const weeklyProgress = consistencyForLast7Days([h], habitRecords)
@@ -488,9 +488,6 @@ export function HabitsView() {
                 onStartTimeChange={setEditStartTime}
                 onEndTimeChange={setEditEndTime}
               />
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                {t('habits.editNote', { count: last7 })}
-              </p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"
@@ -576,11 +573,10 @@ export function HabitsView() {
               const cellTitle = record
                 ? t('habits.offTimeTooltip', { date: key, start: record.startTime, end: record.endTime })
                 : key
-              const ringClass = isCellToday
-                ? 'ring-2 ring-accent-400 dark:ring-accent-500/70'
-                : isCellFocus
-                  ? 'ring-2 ring-accent-500/50 ring-offset-2 ring-offset-white dark:ring-accent-400/55 dark:ring-offset-zinc-900'
-                  : ''
+              // 丸の塗りは達成の色なので、今日は曜日の文字で、選んだ日は枠で示す（カレンダーと同じ藍）
+              const ringClass = isCellFocus
+                ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900'
+                : ''
               return (
                 <button
                   key={key}
@@ -605,7 +601,7 @@ export function HabitsView() {
                     style={isDone ? { backgroundColor: h.color } : isOffTime ? { borderColor: h.color, color: h.color } : undefined}
                     title={cellTitle}
                   >
-                    {isDone ? '✓' : isOffTime ? '△' : <span className="text-[11px]">{habitWeekdayLabels[di]}</span>}
+                    {isDone ? '✓' : isOffTime ? '△' : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )
@@ -778,13 +774,7 @@ export function HabitsView() {
                 const key = habitDateKey(d)
                 const isColToday = key === todayKey
                 const isColFocus = key === selectedCalendarDateKey
-                const colBand =
-                  isColFocus ? 'bg-accent-500/10 dark:bg-accent-400/10' : ''
-                const labelTone = isColFocus
-                  ? 'text-accent-700 dark:text-accent-300 font-semibold'
-                  : isColToday
-                    ? 'text-accent-600/90 dark:text-accent-400/90'
-                    : 'text-zinc-400 dark:text-zinc-500'
+                const labelTone = isColToday || isColFocus ? '' : 'text-zinc-400 dark:text-zinc-500'
                 const headerDateShort = format(d, i18n.resolvedLanguage?.startsWith('ja') ? 'M/d' : 'MMM d', {
                   locale: dateLocale,
                 })
@@ -795,14 +785,10 @@ export function HabitsView() {
                     onClick={() => setSelectedCalendarDateKey(key)}
                     aria-label={t('habits.focusColumnAria', { date: headerDateShort })}
                     aria-current={isColFocus ? 'date' : undefined}
-                    className={`w-full rounded-md py-1.5 text-center text-[10px] font-medium transition-colors hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 ${colBand} ${labelTone}`}
+                    className={`w-full rounded-md py-1.5 text-center text-[10px] font-medium transition-colors hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 ${labelTone}`}
                   >
                     <span
-                      className={
-                        isColFocus
-                          ? 'inline-block rounded-full bg-accent-500/15 px-1.5 py-0.5 dark:bg-accent-400/15'
-                          : undefined
-                      }
+                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 ${dayMarkerClass({ today: isColToday, selected: isColFocus })}`}
                     >
                       {habitWeekdayLabels[i]}
                     </span>

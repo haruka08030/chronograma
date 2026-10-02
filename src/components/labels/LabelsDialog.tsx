@@ -66,7 +66,6 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
             <h2 id="labels-title" className="text-2xl text-zinc-900 dark:text-zinc-100">{t('labels.title')}</h2>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">{t('labels.help')}</p>
             <ul ref={listRef} className="space-y-2">
               {rows.map((r) => (
                 <li key={r.id} className="group flex items-center gap-2">

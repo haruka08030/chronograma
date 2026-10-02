@@ -10,6 +10,7 @@ import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
 import { isSleepRecord } from '../lib/sleep'
+import { zonedNow } from '../lib/timeZone'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -21,7 +22,7 @@ const toMin = (hhmm: string) => {
 
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
-  const d = new Date()
+  const d = zonedNow()
   const m = Math.round((d.getHours() * 60 + d.getMinutes()) / 5) * 5
   return addClockMinutes('00:00', Math.min(m, 1435))
 }
@@ -71,15 +72,15 @@ export function RecordPanel({
     return { totalMinutes: total, byCategory: [...m.entries()].sort((a, b) => b[1] - a[1]) }
   }, [dayLogs, dateKey])
 
-  const canStartTimer = viewingToday && !activeTimer
+  // 記録中でも始められる（前の記録を保存して切り替える）
+  const canStartTimer = viewingToday
+  // いま計っているものは「もう一度始める」に出さない
+  const recentChoices = recent.filter((r) => r.title !== activeTimer?.taskTitle)
   // 未来の日は「後から」記録できない
-  const canLogLater = dateKey <= format(new Date(), 'yyyy-MM-dd')
+  const canLogLater = dateKey <= format(zonedNow(), 'yyyy-MM-dd')
 
   useEffect(() => {
-    const open = () => {
-      if (useTaskStore.getState().activeTimer) return
-      setMode('timer')
-    }
+    const open = () => setMode('timer')
     window.addEventListener(OPEN_TIMER_EVENT, open)
     return () => window.removeEventListener(OPEN_TIMER_EVENT, open)
   }, [])
@@ -111,7 +112,7 @@ export function RecordPanel({
   const name = title.trim() || category.trim()
   const overnight = Boolean(start && end && toMin(end) < toMin(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+  const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
   const inFuture = viewingToday && Boolean(start && end) && (overnight || toMin(end) > nowMin)
   const canSaveManual = Boolean(name && start && end && start !== end && !inFuture)
 
@@ -262,9 +263,9 @@ export function RecordPanel({
           </button>
         )}
       </div>
-      {canStartTimer && recent.length > 0 && (
+      {canStartTimer && recentChoices.length > 0 && (
         <div className="-mt-1 flex flex-wrap items-center gap-1.5">
-          {recent.map((r) => (
+          {recentChoices.map((r) => (
             <button
               key={r.title}
               type="button"

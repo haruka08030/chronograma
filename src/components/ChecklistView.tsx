@@ -42,20 +42,23 @@ export function ChecklistView({ list }: { list: TaskList }) {
   }
 
   const row = (item: Task) => (
-    <li key={item.id} className="flex items-center gap-3 border-b border-zinc-100 last:border-b-0 dark:border-zinc-800">
+    <li key={item.id} className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+      {/* 今日の To-Do の行と同じ大きさ。チェックリストなので四角（押せる範囲は周りに広げて 40px） */}
       <button
         type="button"
         onClick={() => toggleTask(item.id)}
         aria-label={item.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
-        className="flex min-h-14 shrink-0 items-center pl-1 pr-1 touch-manipulation"
+        className="group/check -m-2.5 shrink-0 p-2.5 touch-manipulation"
       >
         <span
-          className={`flex h-6 w-6 items-center justify-center rounded-md border-2 transition-colors ${
-            item.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600'
+          className={`flex h-5 w-5 items-center justify-center rounded-md border-[1.5px] transition-colors ${
+            item.completed
+              ? 'border-accent-500 bg-accent-500 text-on-accent'
+              : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
           }`}
         >
           {item.completed && (
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           )}
@@ -64,7 +67,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
       <button
         type="button"
         onClick={() => toggleTask(item.id)}
-        className={`min-w-0 flex-1 truncate py-4 text-left text-base touch-manipulation ${
+        className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] touch-manipulation ${
           item.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
         }`}
       >
@@ -96,8 +99,8 @@ export function ChecklistView({ list }: { list: TaskList }) {
           <ListKindPicker list={list} />
         </header>
 
-        <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-zinc-700">
-          <svg className="ml-1.5 h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
+          <svg className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           <input
@@ -111,11 +114,11 @@ export function ChecklistView({ list }: { list: TaskList }) {
             }}
             placeholder={t('checklist.addPlaceholder')}
             enterKeyHint="done"
-            className="min-w-0 flex-1 bg-transparent py-4 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
         </div>
 
-        <ul>{open.map(row)}</ul>
+        <ul className="mt-2">{open.map(row)}</ul>
 
         {checked.length > 0 && (
           <section className="mt-8">

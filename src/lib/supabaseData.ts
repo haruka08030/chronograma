@@ -59,6 +59,9 @@ interface TaskRow {
   habit_id?: string | null
   /** 010 で追加。古い DB には無い */
   is_sleep?: boolean | null
+  /** 014 で追加。古い DB には無い */
+  time_zone?: string | null
+  time_zone_anchor?: string | null
   priority: string
   tags: unknown
   recurrence: unknown
@@ -136,6 +139,19 @@ function isMissingIsSleepColumnError(message: string | undefined): boolean {
 function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ is_sleep, ...rest }) => {
     void is_sleep
+    return rest
+  })
+}
+
+function isMissingTimeZoneColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return /Could not find the 'time_zone(_anchor)?' column/.test(message)
+}
+
+function stripTimeZoneFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ time_zone, time_zone_anchor, ...rest }) => {
+    void time_zone
+    void time_zone_anchor
     return rest
   })
 }
@@ -330,6 +346,8 @@ function rowToTask(row: TaskRow): Task {
     isTimeLog: row.is_time_log === true,
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     isSleep: row.is_sleep === true,
+    timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
+    timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
   }
@@ -375,6 +393,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     is_time_log: task.isTimeLog ?? false,
     habit_id: task.habitId ?? null,
     is_sleep: task.isSleep ?? false,
+    time_zone: task.timeZone ?? null,
+    time_zone_anchor: task.timeZone ? (task.timeZoneAnchor ?? null) : null,
     archived_at: task.archivedAt ?? null,
     deleted_at: task.deletedAt ?? null,
   }
@@ -529,6 +549,7 @@ export async function pushListsTasksHabits(
   let stripColor = false
   let stripHabitId = false
   let stripIsSleep = false
+  let stripTimeZone = false
   let stripDueTime = false
   let stripScheduledDate = false
   let stripArchivedAt = false
@@ -541,13 +562,14 @@ export async function pushListsTasksHabits(
     if (stripColor) rows = stripColorFromTaskRows(rows)
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
+    if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
     if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
     if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 11; attempt++) {
+  for (let attempt = 0; attempt < 12; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -572,6 +594,10 @@ export async function pushListsTasksHabits(
     }
     if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
       stripIsSleep = true
+      continue
+    }
+    if (isMissingTimeZoneColumnError(errMsg) && !stripTimeZone) {
+      stripTimeZone = true
       continue
     }
     if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {

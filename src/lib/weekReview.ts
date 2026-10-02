@@ -11,6 +11,7 @@ import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
 import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
+import { zonedNow } from './timeZone'
 
 export interface WeekReviewDay {
   dateKey: string
@@ -45,7 +46,7 @@ export function getWeekReview(
   habits: readonly Habit[],
   anchor: Date,
   excludedListIds: ReadonlySet<string> = new Set(),
-  now = new Date(),
+  now = zonedNow(),
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = format(now, 'yyyy-MM-dd')

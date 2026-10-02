@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useEscapeLayer } from '../../hooks/useEscapeLayer'
 
 /**
  * ラベル編集・色選択のダイアログの土台（body 直下に重ねる）。
@@ -16,6 +17,7 @@ export function ModalLayer({
   labelledBy: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  useEscapeLayer(onDismiss)
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     ref.current?.focus()
@@ -31,10 +33,7 @@ export function ModalLayer({
       aria-labelledby={labelledBy}
       tabIndex={-1}
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 outline-none dark:bg-black/50"
-      onKeyDown={(e) => {
-        e.stopPropagation()
-        if (e.key === 'Escape') onDismiss()
-      }}
+      onKeyDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation()

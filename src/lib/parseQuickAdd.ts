@@ -1,9 +1,12 @@
 import { addDays, format, isValid, parseISO, startOfDay } from 'date-fns'
+import { zonedNow } from './timeZone'
 
 export type ParsedQuickAdd = {
   title: string
-  /** 日付キーワード（今日/明日/曜日/9/30 など）。時刻が無いときは期限日として使われる */
-  dueDate: string | null
+  /** 日付キーワード（今日/明日/曜日/9/30 など） */
+  date: string | null
+  /** 「明日まで」「by fri」のように締切として書いたか。違えば「やる日」 */
+  dateIsDeadline: boolean
   tags: string[]
   /** 時刻指定（`HH:mm`）。あれば予定としてタイムラインに置く */
   startTime: string | null
@@ -31,6 +34,7 @@ type Piece =
   | { kind: 'time'; min: number }
   | { kind: 'range'; start: number; end: number }
   | { kind: 'duration'; min: number }
+  | { kind: 'deadline' }
   | { kind: 'filler' }
 
 function clockMinutes(h: number, m: number, meridiem?: string): number | null {
@@ -119,6 +123,8 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     return { piece: { kind: 'duration', min: Number(m[1]) }, rest: s.slice(m[0].length) }
   }
 
+  // 締切の印（「明日まで」「金曜までに」）
+  if (localeJa && (m = s.match(/^までに?/))) return { piece: { kind: 'deadline' }, rest: s.slice(m[0].length) }
   // つなぎ語（「15時から1時間」「明日の」）
   if (localeJa && (m = s.match(/^(から|の|に)/))) return { piece: { kind: 'filler' }, rest: s.slice(m[0].length) }
   return null
@@ -134,18 +140,22 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
     pieces.push(r.piece)
     rest = r.rest
   }
-  return pieces.every((p) => p.kind === 'filler') ? null : pieces
+  return pieces.every((p) => p.kind === 'filler' || p.kind === 'deadline') ? null : pieces
 }
 
 /**
  * クイック追加の入力から #タグ・日付・時刻・長さを取り出す。
  * 日時表現は空白で区切られた語として書く（例: 「明日15時 企画会議 1時間 #仕事」「mtg fri 3pm-4pm」）。
+ * 日付は「やる日」。締切にしたいときは「明日まで 課題」「essay by fri」と書く。
  */
-export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Date()): ParsedQuickAdd {
+export function parseQuickAddTitle(raw: string, localeJa: boolean, now = zonedNow()): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
   let listName: string | null = null
   let date: Date | null = null
+  let deadline = false
+  /** 英語の「by fri」「due 10/5」: 直後が日付の語なら締切の印として読む */
+  let pendingDeadlineWord: string | null = null
   let start: number | null = null
   let end: number | null = null
   let duration: number | null = null
@@ -153,6 +163,17 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Dat
   const titleParts: { text: string; durationOnly: boolean }[] = []
 
   for (const token of raw.trim().split(/\s+/).filter(Boolean)) {
+    if (pendingDeadlineWord !== null) {
+      const word = pendingDeadlineWord
+      pendingDeadlineWord = null
+      if (readToken(token, today, localeJa)?.some((p) => p.kind === 'date')) deadline = true
+      else titleParts.push({ text: word, durationOnly: false })
+    }
+    // 表示言語が日本語でも英語で書けるように、by / due は言語を問わず読む
+    if (/^(by|due)$/i.test(token)) {
+      pendingDeadlineWord = token
+      continue
+    }
     if ((token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
       listName = token.slice(1).trim()
       continue
@@ -175,8 +196,10 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Dat
       else if (p.kind === 'time') start = p.min
       else if (p.kind === 'range') { start = p.start; end = p.end }
       else if (p.kind === 'duration') duration = p.min
+      else if (p.kind === 'deadline') deadline = true
     }
   }
+  if (pendingDeadlineWord !== null) titleParts.push({ text: pendingDeadlineWord, durationOnly: false })
 
   if (start != null && end == null) end = Math.min(start + (duration ?? DEFAULT_BLOCK_MINUTES), 24 * 60 - 1)
 
@@ -188,7 +211,8 @@ export function parseQuickAddTitle(raw: string, localeJa: boolean, now = new Dat
       .trim() || raw.trim()
   return {
     title,
-    dueDate: date ? format(date, 'yyyy-MM-dd') : null,
+    date: date ? format(date, 'yyyy-MM-dd') : null,
+    dateIsDeadline: deadline && date != null,
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
