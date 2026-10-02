@@ -338,6 +338,8 @@ interface TaskState {
   permanentlyDeleteTask: (id: string) => void
   /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
   emptyDeleted: () => void
+  /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
+  discardBlankTask: (id: string) => void
   /** アーカイブする（対象と全子孫に archivedAt を付与） */
   archiveTask: (id: string) => void
   /** 複数タスクをアーカイブ */
@@ -731,6 +733,17 @@ export const useTaskStore = create<TaskState>()(
         if (undoStack.length > MAX_UNDO) undoStack.shift()
         redoStack.length = 0
         if (label) set({ undoBanner: { text: label, at: Date.now() } })
+      }
+
+      /**
+       * Enter で増やした空の行がまだ名前を持たないまま、取り消し履歴の一番上が
+       * 「その行を作る直前」の控えになっているか。名前付けと作成を 1 手として扱うのに使う
+       */
+      const isUnnamedJustCreated = (id: string) => {
+        const task = get().tasks.find((t) => t.id === id)
+        if (!task || task.title.trim()) return false
+        const top = undoStack[undoStack.length - 1]
+        return Boolean(top) && !top.tasks.some((t) => t.id === id)
       }
 
       return {
@@ -1632,7 +1645,8 @@ export const useTaskStore = create<TaskState>()(
         })
       },
       updateTask: (id, patch) => {
-        pushUndo()
+        // 作った直後の空の行に名前を付けるだけなら、作成と同じ 1 手にまとめる
+        if (!isUnnamedJustCreated(id)) pushUndo()
         return set((s) => ({
           tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
         }))
@@ -1762,6 +1776,15 @@ export const useTaskStore = create<TaskState>()(
           tasks: s.tasks.filter((t) => !del.has(t.id)),
           deletedTasks: s.deletedTasks.filter((d) => !del.has(d.task.id)),
         }))
+      },
+      discardBlankTask: (id) => {
+        const s0 = get()
+        const task = s0.tasks.find((t) => t.id === id)
+        if (!task || task.title.trim() || task.description.trim()) return
+        if (s0.tasks.some((t) => t.parentId === id)) return
+        // 作った直後の控えも捨てる。残すと「取り消し」が何も起きない一手になる
+        if (isUnnamedJustCreated(id)) undoStack.pop()
+        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }))
       },
       emptyDeleted: () => {
         const s0 = get()

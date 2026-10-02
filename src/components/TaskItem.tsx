@@ -84,6 +84,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
+  const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, selectTag, selectedView, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
@@ -114,7 +115,16 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
+  /** 名前のないまま離れたら作らなかったことにする（Enter で増やした行など） */
+  const discardIfBlank = () => {
+    if (task.title.trim() || editValue.trim()) return false
+    setEditing(false)
+    discardBlankTask(task.id)
+    return true
+  }
+
   const commitEdit = () => {
+    if (discardIfBlank()) return
     const trimmed = editValue.trim()
     if (trimmed && trimmed !== task.title) {
       updateTask(task.id, { title: trimmed })
@@ -306,10 +316,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               if (e.key === 'Enter') {
                 if (e.nativeEvent.isComposing) return
                 e.preventDefault()
+                if (discardIfBlank()) return
                 commitEdit()
                 onEnterCreateSibling?.(task)
               }
-              if (e.key === 'Escape') { setEditValue(task.title); setEditing(false) }
+              if (e.key === 'Escape') {
+                if (discardIfBlank()) return
+                setEditValue(task.title)
+                setEditing(false)
+              }
             }}
             className={`w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                        border-b border-accent-400 pb-0.5 ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
