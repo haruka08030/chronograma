@@ -21,6 +21,7 @@ import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { DateField } from './DateField'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -471,16 +472,11 @@ export function TaskDetail({
                     <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       {t('taskDetail.logDate')}
                     </label>
-                    <input
-                      type="date"
-                      value={tv.dueDate ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (v) updateTimes({ dueDate: v })
-                      }}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                               bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                               focus:ring-2 focus:ring-accent-500/40"
+                    <DateField
+                      value={tv.dueDate ?? null}
+                      onChange={(v) => updateTimes({ dueDate: v })}
+                      ariaLabel={t('taskDetail.logDate')}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
@@ -508,20 +504,16 @@ export function TaskDetail({
                     <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       {t('taskDetail.logEndDate')}
                     </label>
-                    <input
-                      type="date"
-                      value={tv.dueDate ? (tv.endDate ?? tv.dueDate) : ''}
+                    <DateField
+                      value={tv.dueDate ? (tv.endDate ?? tv.dueDate) : null}
                       min={tv.dueDate ?? undefined}
                       disabled={!tv.dueDate}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (!v || !tv.dueDate) return
+                      onChange={(v) => {
+                        if (!tv.dueDate) return
                         updateTimes({ endDate: v !== tv.dueDate ? v : null })
                       }}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                               bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                               focus:ring-2 focus:ring-accent-500/40
-                               disabled:opacity-50 disabled:cursor-not-allowed"
+                      ariaLabel={t('taskDetail.logEndDate')}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">

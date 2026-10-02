@@ -633,6 +633,7 @@ export default {
     clear: 'No date',
     noDate: 'No due date',
     scheduledTitle: 'Choose scheduled date',
+    dateTitle: 'Pick a date',
     clearScheduled: 'No plan',
   },
   search: {

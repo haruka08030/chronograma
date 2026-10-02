@@ -4,6 +4,7 @@ import { addClockMinutes } from '../lib/clockTime'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { buttonClass } from './ui/buttonClass'
 import { Modal, ModalTitle } from './ui/Modal'
+import { DateField } from './DateField'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -80,11 +81,11 @@ export function CompleteWithLogModal({
                 <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('task.completeModal.startDate')}
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={draft.date}
-                  onChange={(e) => onChange({ date: e.target.value, mode: 'shifted' })}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+                  onChange={(v) => onChange({ date: v, endDate: draft.endDate < v ? v : draft.endDate, mode: 'shifted' })}
+                  ariaLabel={t('task.completeModal.startDate')}
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                 />
               </div>
               <div className="flex w-[7.5rem] shrink-0 flex-col gap-1">
@@ -94,7 +95,7 @@ export function CompleteWithLogModal({
                 <TimeInput
                   value={draft.startTime}
                   onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                 />
               </div>
             </div>
@@ -109,12 +110,12 @@ export function CompleteWithLogModal({
                 <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('task.completeModal.endDate')}
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={draft.endDate}
                   min={draft.date}
-                  onChange={(e) => onChange({ endDate: e.target.value, mode: 'shifted' })}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+                  onChange={(v) => onChange({ endDate: v, mode: 'shifted' })}
+                  ariaLabel={t('task.completeModal.endDate')}
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                 />
               </div>
               <div className="flex w-[7.5rem] shrink-0 flex-col gap-1">
@@ -125,7 +126,7 @@ export function CompleteWithLogModal({
                   value={draft.endTime}
                   onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
                   pickerDefault={draft.startTime ? addClockMinutes(draft.startTime, 60) : undefined}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                 />
               </div>
             </div>
@@ -146,7 +147,7 @@ export function CompleteWithLogModal({
             onChange={(e) => onChange({ memo: e.target.value })}
             rows={4}
             placeholder={t('task.completeModal.memoPlaceholder')}
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
         </div>
 

@@ -1,4 +1,5 @@
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   addDays,
@@ -19,6 +20,10 @@ import { POPOVER_PANEL } from './ui/surface'
 import { zonedNow } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+
+/** パネルの大きさ（位置合わせ用。`w-[272px]` と 6 週の高さ） */
+const PANEL_WIDTH = 272
+const PANEL_HEIGHT = 360
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -49,11 +54,16 @@ type DueDatePopoverProps = {
   /** トリガー部分のラッパー（`position: relative` の親）に付与する class。 */
   wrapperClassName?: string
   trigger: (args: TriggerArgs) => ReactNode
-  /** 期限（due）か予定日（scheduled）か。見出しと「〜なし」ボタンの文言が変わる。 */
-  kind?: 'due' | 'scheduled'
+  /**
+   * 期限（due）か予定日（scheduled）か、空にできない日付（date: 記録の日付など）か。
+   * 見出しと「〜なし」ボタンが変わる（date には「〜なし」が無い）。
+   */
+  kind?: 'due' | 'scheduled' | 'date'
+  /** これより前の日は選べない（`yyyy-MM-dd`。終了日の下限など） */
+  min?: string
 }
 
-/** Google カレンダー（Web）風の期限ピッカー・ポップオーバー。 */
+/** Google カレンダー（Web）風の日付ピッカー・ポップオーバー（期限・予定日・記録の日付で共通）。 */
 export function DueDatePopover({
   value,
   onChange,
@@ -61,13 +71,14 @@ export function DueDatePopover({
   wrapperClassName = 'relative',
   trigger,
   kind = 'due',
+  min,
 }: DueDatePopoverProps) {
   const { t, i18n } = useTranslation()
   const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
   const dateLocale = isJa ? ja : enUS
 
   const [open, setOpen] = useState(false)
-  const [dropUp, setDropUp] = useState(false)
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({})
   const [viewMonth, setViewMonth] = useState(() =>
     startOfMonth(value ? parseDateKey(value) : zonedNow()),
   )
@@ -79,12 +90,42 @@ export function DueDatePopover({
 
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, wrapperEl] })
 
+  /**
+   * 画面に固定して body 直下に出す。ダイアログやスクロールする欄の中でも切れない。
+   * 下に余白がなければ上向き、横は画面からはみ出さないように寄せる。
+   */
+  const place = () => {
+    const rect = wrapperEl?.getBoundingClientRect()
+    if (!rect) return
+    const below = window.innerHeight - rect.bottom
+    const up = below < PANEL_HEIGHT && rect.top > below
+    const left = align === 'right' ? rect.right - PANEL_WIDTH : rect.left
+    setPanelStyle({
+      position: 'fixed',
+      left: Math.max(8, Math.min(left, window.innerWidth - PANEL_WIDTH - 8)),
+      ...(up ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+    })
+  }
+
+  // 開いている間に周りがスクロール・リサイズしたら、開くボタンに付いていく
+  useEffect(() => {
+    if (!open) return
+    const onMove = (e: Event) => {
+      if (e.target instanceof Node && panelRef.current?.contains(e.target)) return
+      place()
+    }
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  })
+
   const toggle = () => {
     if (!open) {
       setViewMonth(startOfMonth(value ? parseDateKey(value) : zonedNow()))
-      const rect = wrapperEl?.getBoundingClientRect()
-      // 下方向に十分な余白がなければ上向きに開く。
-      setDropUp(Boolean(rect && window.innerHeight - rect.bottom < 380))
+      place()
     }
     setOpen((o) => !o)
   }
@@ -107,15 +148,19 @@ export function DueDatePopover({
     >
       {trigger({ open, toggle, value })}
 
-      {open && (
+      {open && createPortal(
         <div
           ref={panelRef}
           id={dialogId}
+          // 開いている予定カードなどからは「内側」（押しても閉じない）
+          data-popover-keep
+          style={panelStyle}
+          onClick={(e) => e.stopPropagation()}
           role="dialog"
-          aria-label={t(kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : 'dueDatePicker.title')}
-          className={`absolute z-50 w-[272px] p-3 ${POPOVER_PANEL}
-            ${align === 'right' ? 'right-0' : 'left-0'}
-            ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+          aria-label={t(
+            kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : kind === 'date' ? 'dueDatePicker.dateTitle' : 'dueDatePicker.title',
+          )}
+          className={`z-[90] w-[272px] p-3 ${POPOVER_PANEL}`}
         >
           <div className="mb-1 flex items-center justify-between px-1">
             <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
@@ -158,13 +203,15 @@ export function DueDatePopover({
               const inMonth = isSameMonth(day, viewMonth)
               const today = key === todayKey
               const selected = value != null && key === value
+              const beforeMin = min != null && key < min
               return (
                 <div key={key} className="flex justify-center">
                   <button
                     type="button"
                     onClick={() => pick(key)}
                     aria-pressed={selected}
-                    className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors
+                    disabled={beforeMin}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-30
                       ${
                         today || selected
                           ? dayMarkerClass({ today, selected })
@@ -184,20 +231,22 @@ export function DueDatePopover({
             <div className="flex gap-1">
               <button
                 type="button"
+                disabled={min != null && todayKey < min}
                 onClick={() => pick(todayKey)}
-                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 {t('dueDatePicker.today')}
               </button>
               <button
                 type="button"
+                disabled={min != null && tomorrowKey < min}
                 onClick={() => pick(tomorrowKey)}
-                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 {t('dueDatePicker.tomorrow')}
               </button>
             </div>
-            {value != null && (
+            {value != null && kind !== 'date' && (
               <button
                 type="button"
                 onClick={() => pick(null)}
@@ -207,7 +256,8 @@ export function DueDatePopover({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

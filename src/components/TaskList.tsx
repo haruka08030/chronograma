@@ -36,6 +36,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CheckIcon, CloseIcon, PencilIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { DateField } from './DateField'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -1156,19 +1157,18 @@ export function TaskList() {
                 ))}
               </select>
             </label>
-            <label className="inline-flex items-center gap-1">
+            <div className="inline-flex items-center gap-1">
               <span className="text-zinc-500 dark:text-zinc-400">{t('common.due')}</span>
-              <input
-                type="date"
-                className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs w-[118px]"
-                onChange={(e) => {
-                  const v = e.target.value
-                  e.target.value = ''
-                  if (!v) return
-                  bulkUpdateTasks(selectedIds, { dueDate: v })
-                }}
-              />
-            </label>
+              <div className="w-[118px]">
+                <DateField
+                  value={null}
+                  placeholder={t('dueDatePicker.dateTitle')}
+                  onChange={(v) => bulkUpdateTasks(selectedIds, { dueDate: v })}
+                  ariaLabel={t('common.due')}
+                  className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs"
+                />
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => bulkUpdateTasks(selectedIds, { dueDate: null })}

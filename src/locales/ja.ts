@@ -633,6 +633,7 @@ export default {
     clear: '期限なし',
     noDate: '期限なし',
     scheduledTitle: '予定日を選択',
+    dateTitle: '日付を選択',
     clearScheduled: '予定なし',
   },
   search: {

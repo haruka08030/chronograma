@@ -14,6 +14,7 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { DateField } from '../DateField'
 
 const WIDTH = 320
 
@@ -171,13 +172,14 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           )}
           {editable ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <input
-                type="date"
-                value={event.date}
-                onChange={(e) => e.target.value && commitTiming({ date: e.target.value })}
-                aria-label={t('googleEdit.date')}
-                className={fieldClass}
-              />
+              <div className="w-48">
+                <DateField
+                  value={event.date}
+                  onChange={(v) => commitTiming({ date: v })}
+                  ariaLabel={t('googleEdit.date')}
+                  className={fieldClass}
+                />
+              </div>
               {event.startTime && event.endTime && (
                 <div className="flex w-full items-center gap-1.5">
                   <TimeInput value={event.startTime} onChange={(v) => v && commitTiming({ startTime: v })} className={`w-[5.5rem] ${fieldClass}`} />
