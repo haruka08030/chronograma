@@ -9,10 +9,15 @@ import { wallInZone } from './timeZone'
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
- * 学校（ホスト名）ごとに 1 つつなぎ、リストも学校ごとに分ける。id は接続 ID（ホスト名）を入れて決め打ちする:
- * リスト `canvas-list-<接続>`、セクション `canvas-course-<接続>-<コースID>`、タスク `canvas-<接続>-<種類>-<ID>`。
+ * 学校（ホスト名）ごとに 1 つつなぐ。使う人が気にするのは「どの科目か」なので、どの学校の課題も 1 つの
+ * 「Canvas」リスト（`canvas-list`）に入れ、科目ごとのセクションで分ける。
+ * id は接続 ID（ホスト名）を入れて決め打ちする: セクション `canvas-course-<接続>-<コースID>`、タスク `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
+
+export const CANVAS_LIST_ID = 'canvas-list'
+/** 学校ごとにリストを分けていた版のリスト id（`canvas-list-<接続>`）。見つけたら CANVAS_LIST_ID にまとめる */
+const OLD_LIST_PREFIX = 'canvas-list-'
 
 const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
 
@@ -143,10 +148,6 @@ export const fetchCanvasItems = () => invokeConnections<CanvasItemsPayload>({ ac
 export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
   invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })
 
-export function canvasListId(connectionId: string): string {
-  return `canvas-list-${connectionId}`
-}
-
 export function canvasTaskId(connectionId: string, type: string, id: string): string {
   return `canvas-${connectionId}-${type}-${id}`
 }
@@ -161,15 +162,34 @@ export function canvasSectionId(connectionId: string, courseId: string): string 
 }
 
 /**
- * リスト名。1 校目は「Canvas」、2 校目からは学校が分かるようにホスト名の頭を添える。
- * `canvas.ucsc.edu` のように頭が「canvas」「www」のときは、その次（ucsc）を使う。
+ * 学校ごとに分かれていた Canvas のリストを 1 つにまとめる。タスクとセクションを `canvas-list` へ移し、古いリストは消す。
+ * 名前と色は、一覧で上にある古いリストのものを引き継ぐ（変えた名前を戻さない）。
  */
-export function canvasListName(connectionId: string, lists: { id: string }[]): string {
-  const others = lists.some((l) => l.id.startsWith('canvas-list-') && l.id !== canvasListId(connectionId))
-  if (!others) return 'Canvas'
-  const labels = connectionId.split('.')
-  const school = labels.find((l, i) => i < labels.length - 1 && !/^(canvas|www|lms)$/i.test(l)) ?? labels[0]
-  return `Canvas（${school}）`
+export function mergeCanvasLists(
+  state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
+  now: string,
+): { lists: TaskList[]; sections: ListSection[]; tasks: Task[]; mergedIds: string[] } | null {
+  const old = state.lists.filter((l) => l.id.startsWith(OLD_LIST_PREFIX)).sort((a, b) => a.order - b.order)
+  if (old.length === 0) return null
+  const oldIds = new Set(old.map((l) => l.id))
+  const lists = state.lists.filter((l) => !oldIds.has(l.id))
+  if (!lists.some((l) => l.id === CANVAS_LIST_ID)) {
+    lists.push({ ...old[0], id: CANVAS_LIST_ID, updatedAt: now })
+  }
+
+  // セクションは古いリストの並びのまま、後ろに続ける
+  let nextOrder = Math.max(-1, ...state.sections.filter((s) => s.listId === CANVAS_LIST_ID).map((s) => s.order)) + 1
+  const sectionOrder = new Map<string, number>()
+  for (const list of old) {
+    for (const sec of state.sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)) {
+      sectionOrder.set(sec.id, nextOrder++)
+    }
+  }
+  const sections = state.sections.map((s) =>
+    oldIds.has(s.listId) ? { ...s, listId: CANVAS_LIST_ID, order: sectionOrder.get(s.id) ?? s.order, updatedAt: now } : s,
+  )
+  const tasks = state.tasks.map((t) => (oldIds.has(t.listId) ? { ...t, listId: CANVAS_LIST_ID, updatedAt: now } : t))
+  return { lists, sections, tasks, mergedIds: [...oldIds] }
 }
 
 /** Canvas の締切（UTC の瞬間）を、アプリのタイムゾーンの期限日と締め切り時刻に */
@@ -190,8 +210,9 @@ export type CanvasReconcileResult = {
 }
 
 /**
- * 1 校ぶんの Canvas の課題を、その学校のリストのタスクに合わせる。
- * - 未提出で無いものは作る（コースごとのセクションに入れる）。未完了のものはタイトル・期限を Canvas に合わせる
+ * 1 校ぶんの Canvas の課題を、Canvas のリストのタスクに合わせる。
+ * - 未提出で無いものは作る（コースごとのセクションに入れる。セクションを別のリストへ移していたら、そのリストに作る）。
+ *   未完了のものはタイトル・期限を Canvas に合わせる
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
@@ -202,7 +223,7 @@ export function reconcileCanvasItems(
   opts: { now: string; listName: string; listColor: string; timeZone: string; untitled: string; skipIds?: ReadonlySet<string> },
 ): CanvasReconcileResult {
   const conn = payload.id
-  const listId = canvasListId(conn)
+  const listId = CANVAS_LIST_ID
   let changed = false
   let lists = state.lists
   if (!lists.some((l) => l.id === listId)) {
@@ -212,13 +233,15 @@ export function reconcileCanvasItems(
   }
 
   let sections = state.sections
-  const ensureSection = (courseId: string, name: string | null): string => {
+  /** 科目のセクション。無ければ Canvas のリストに作る。あれば、移した先のリストのまま使う */
+  const ensureSection = (courseId: string, name: string | null): ListSection => {
     const id = canvasSectionId(conn, courseId)
-    if (!sections.some((s) => s.id === id)) {
-      const maxOrder = Math.max(-1, ...sections.filter((s) => s.listId === listId).map((s) => s.order))
-      sections = [...sections, { id, listId, name: name || opts.untitled, order: maxOrder + 1, updatedAt: opts.now }]
-    }
-    return id
+    const existing = sections.find((s) => s.id === id)
+    if (existing) return existing
+    const maxOrder = Math.max(-1, ...sections.filter((s) => s.listId === listId).map((s) => s.order))
+    const created = { id, listId, name: name || opts.untitled, order: maxOrder + 1, updatedAt: opts.now }
+    sections = [...sections, created]
+    return created
   }
 
   const skip = opts.skipIds ?? new Set<string>()
@@ -250,6 +273,7 @@ export function reconcileCanvasItems(
     const { dueDate, dueTime } = item.dueDate ? { dueDate: item.dueDate, dueTime: null } : canvasDue(item.dueAt, opts.timeZone)
 
     if (!existing) {
+      const section = item.courseId ? ensureSection(item.courseId, item.courseName) : null
       additions.push({
         id,
         title,
@@ -259,8 +283,8 @@ export function reconcileCanvasItems(
         createdAt: opts.now,
         updatedAt: opts.now,
         order: nextOrder++,
-        listId,
-        sectionId: item.courseId ? ensureSection(item.courseId, item.courseName) : null,
+        listId: section?.listId ?? listId,
+        sectionId: section?.id ?? null,
         parentId: null,
         dueDate,
         dueTime,

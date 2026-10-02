@@ -13,7 +13,7 @@ supabase functions deploy canvas
 ```
 
 No secrets to set: each user pastes their school's Canvas URL and a personal access token (Account → Settings → New Access Token, max 90 days) in Settings → Canvas.
-Several schools can be connected; each gets its own list. When a token expires, that school's sync fails with `canvas_unauthorized` and Settings shows a field under it to paste a new token (the URL is kept).
+Several schools can be connected; all their assignments go into one "Canvas" list, with a section per course. When a token expires, that school's sync fails with `canvas_unauthorized` and Settings shows a field under it to paste a new token (the URL is kept).
 
 ## Calendar feed (schools that don't allow tokens)
 

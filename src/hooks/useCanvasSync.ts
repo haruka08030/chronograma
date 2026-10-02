@@ -5,7 +5,8 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { paletteColors } from '../lib/listColorPalettes'
 import { appTimeZone } from '../lib/timeZone'
 import {
-  canvasListName,
+  CANVAS_LIST_ID,
+  mergeCanvasLists,
   CanvasRequestError,
   fetchCanvasItems,
   markCanvasComplete,
@@ -93,6 +94,14 @@ export function useCanvasSync() {
           const cols = paletteColors(s.listColorPaletteId)
           let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
           let changed = false
+          // 学校ごとに分かれていた版のリストを 1 つにまとめる（開いていたらまとめた先を開く）
+          const merged = mergeCanvasLists(next, new Date().toISOString())
+          let selectedListId = s.selectedListId
+          if (merged) {
+            next = { lists: merged.lists, sections: merged.sections, tasks: merged.tasks }
+            changed = true
+            if (selectedListId && merged.mergedIds.includes(selectedListId)) selectedListId = CANVAS_LIST_ID
+          }
           const connectionErrors: Record<string, string> = {}
           for (const conn of res.connections) {
             if ('error' in conn) {
@@ -103,7 +112,7 @@ export function useCanvasSync() {
             else readOnly.delete(conn.id)
             const result = reconcileCanvasItems(next, conn, {
               now: new Date().toISOString(),
-              listName: canvasListName(conn.id, next.lists),
+              listName: 'Canvas',
               listColor: cols[next.lists.length % cols.length],
               timeZone: appTimeZone(),
               untitled: i18n.t('canvas.untitled'),
@@ -116,7 +125,7 @@ export function useCanvasSync() {
               changed = true
             }
           }
-          if (changed) useTaskStore.setState(next)
+          if (changed) useTaskStore.setState({ ...next, selectedListId })
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {

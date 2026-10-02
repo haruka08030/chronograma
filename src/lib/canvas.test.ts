@@ -5,8 +5,8 @@ import {
   canvasDue,
   canvasFeedUrlProblem,
   canvasExpiryWarning,
-  canvasListId,
-  canvasListName,
+  CANVAS_LIST_ID,
+  mergeCanvasLists,
   canvasSectionId,
   canvasTaskId,
   parseCanvasTaskId,
@@ -52,17 +52,8 @@ describe('canvasTaskId', () => {
       type: 'discussion_topic',
       id: '42',
     })
-    expect(parseCanvasTaskId(canvasListId(CONN))).toBeNull()
+    expect(parseCanvasTaskId(CANVAS_LIST_ID)).toBeNull()
     expect(parseCanvasTaskId(canvasSectionId(CONN, '101'))).toBeNull()
-  })
-})
-
-describe('canvasListName', () => {
-  const first = [{ id: canvasListId('school.instructure.com') }]
-  it('names the school from the hostname, skipping a leading canvas.', () => {
-    expect(canvasListName('school.instructure.com', [])).toBe('Canvas')
-    expect(canvasListName('canvas.ucsc.edu', first)).toBe('Canvas（ucsc）')
-    expect(canvasListName('univ-tokyo.instructure.com', first)).toBe('Canvas（univ-tokyo）')
   })
 })
 
@@ -85,11 +76,11 @@ describe('canvasExpiryWarning', () => {
 describe('reconcileCanvasItems', () => {
   it('creates the list, a section per course, and open assignments', () => {
     const r = reconcile([], [item('1'), item('2', { courseId: '202', courseName: '統計学' }), item('3', { done: true })])
-    expect(r.lists.find((l) => l.id === canvasListId(CONN))?.name).toBe('Canvas')
+    expect(r.lists.find((l) => l.id === CANVAS_LIST_ID)?.name).toBe('Canvas')
     expect(r.sections.map((s) => s.name)).toEqual(['経済学入門', '統計学'])
     expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(CONN, 'assignment', '2')])
     const first = r.tasks[0]
-    expect(first).toMatchObject({ listId: canvasListId(CONN), sectionId: canvasSectionId(CONN, '101'), dueDate: '2026-10-05', dueTime: '23:59' })
+    expect(first).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: canvasSectionId(CONN, '101'), dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')
   })
 
@@ -141,19 +132,58 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks).toHaveLength(2)
   })
 
-  it('keeps two schools apart: separate lists, and one school never completes the other’s tasks', () => {
+  it('puts two schools in one list, and one school never completes the other’s tasks', () => {
     const OTHER = 'other.instructure.com'
     const a = reconcile([], [item('1')])
     const b = reconcileCanvasItems(
       { lists: a.lists, sections: a.sections, tasks: a.tasks },
-      { id: OTHER, windowStart: WINDOW.windowStart, windowEnd: WINDOW.windowEnd, items: [item('1')] },
-      { ...opts, listName: canvasListName(OTHER, a.lists) },
+      { id: OTHER, windowStart: WINDOW.windowStart, windowEnd: WINDOW.windowEnd, items: [item('1', { courseId: '9', courseName: 'オンライン講座' })] },
+      opts,
     )
-    expect(b.lists.filter((l) => l.id.startsWith('canvas-list-')).map((l) => l.name)).toEqual(['Canvas', 'Canvas（other）'])
+    expect(b.lists.filter((l) => l.id.startsWith('canvas-list')).map((l) => l.id)).toEqual([CANVAS_LIST_ID])
+    expect(b.sections.map((x) => x.name)).toEqual(['経済学入門', 'オンライン講座'])
     expect(b.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(OTHER, 'assignment', '1')])
     // 1 校目が空で返っても、2 校目のタスクは完了にしない
     const c = reconcileCanvasItems({ lists: b.lists, sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
     expect(c.tasks.map((t) => t.completed)).toEqual([true, false])
+  })
+})
+
+describe('mergeCanvasLists', () => {
+  const list = (id: string, name: string, order: number): TaskList => ({ id, name, color: '#111111', order })
+  const sec = (id: string, listId: string, order: number) => ({ id, listId, name: id, order })
+
+  it('moves tasks and sections of per-school lists into one list, keeping the first list’s name', () => {
+    const tasks = imported([item('1')]).map((t) => ({ ...t, listId: 'canvas-list-a.edu' }))
+    const r = mergeCanvasLists(
+      {
+        lists: [inbox, list('canvas-list-b.edu', 'Canvas（b）', 3), list('canvas-list-a.edu', '大学', 2)],
+        sections: [sec('s-b1', 'canvas-list-b.edu', 0), sec('s-a1', 'canvas-list-a.edu', 0), sec('s-a2', 'canvas-list-a.edu', 1)],
+        tasks,
+      },
+      NOW,
+    )!
+    expect(r.lists.map((l) => [l.id, l.name])).toEqual([['inbox', 'Inbox'], [CANVAS_LIST_ID, '大学']])
+    expect(r.sections.map((s) => [s.id, s.listId, s.order])).toEqual([
+      ['s-b1', CANVAS_LIST_ID, 2],
+      ['s-a1', CANVAS_LIST_ID, 0],
+      ['s-a2', CANVAS_LIST_ID, 1],
+    ])
+    expect(r.tasks.every((t) => t.listId === CANVAS_LIST_ID)).toBe(true)
+    expect(r.mergedIds.sort()).toEqual(['canvas-list-a.edu', 'canvas-list-b.edu'])
+  })
+
+  it('does nothing when there is nothing to merge', () => {
+    expect(mergeCanvasLists({ lists: [inbox], sections: [], tasks: [] }, NOW)).toBeNull()
+  })
+})
+
+describe('a course section moved to another list', () => {
+  it('gets the course’s new assignments in that list', () => {
+    const first = reconcile([], [item('1')])
+    const moved = first.sections.map((s) => ({ ...s, listId: 'my-list' }))
+    const r = reconcileCanvasItems({ lists: first.lists, sections: moved, tasks: first.tasks }, { ...WINDOW, items: [item('1'), item('2')] }, opts)
+    expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))).toMatchObject({ listId: 'my-list', sectionId: canvasSectionId(CONN, '101') })
   })
 })
 
