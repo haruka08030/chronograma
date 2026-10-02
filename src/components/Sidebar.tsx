@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
+import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { isTodoNavView } from '../lib/todoSurfaceView'
 import { TodoNavContent } from './TodoNavPanel'
 import { SmartViewRow } from './SmartViewRow'
@@ -34,6 +35,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const isDesktop = useIsDesktop()
   const isLargeScreen = useIsLargeScreen()
   const onTodoView = isTodoNavView(selectedView)
+  // スマホのドロワーも、ほかのドロワー・ダイアログと同じく Esc で閉じる
+  useEscapeLayer(() => onClose?.(), Boolean(open) && !isDesktop)
 
   const handleNav = (cb: () => void) => {
     cb()
