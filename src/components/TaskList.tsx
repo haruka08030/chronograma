@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
+import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
@@ -228,6 +228,8 @@ export function TaskList() {
   const deleteSectionStore = useTaskStore((s) => s.deleteSection)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const sectionScrollTarget = useTaskStore((s) => s.sectionScrollTarget)
+  const clearSectionScrollTarget = useTaskStore((s) => s.clearSectionScrollTarget)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
@@ -804,6 +806,14 @@ export function TaskList() {
     </span>
   )
 
+  // サイドバーでセクションを押したら、その見出しまでスクロールする（描画したあとで）
+  useLayoutEffect(() => {
+    if (!sectionScrollTarget) return
+    const el = document.querySelector(`[data-section-anchor="${CSS.escape(sectionScrollTarget)}"]`)
+    el?.scrollIntoView({ block: 'start' })
+    clearSectionScrollTarget()
+  }, [sectionScrollTarget, clearSectionScrollTarget, sectionBlocks])
+
   const activeContent = canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
       {showSectionBlocks && sectionBlocks ? (
@@ -816,7 +826,7 @@ export function TaskList() {
             ((sectionId === null && quickAddSectionId === '') ||
               (sectionId !== null && quickAddSectionId === sectionId))
           return (
-            <div key={blockKey} className="relative pt-3 first:pt-1">
+            <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
               {block.listTitle ? (
                 <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
                   {block.listTitle}
@@ -914,7 +924,11 @@ export function TaskList() {
     // 並べ替え中もセクションはそのまま。並び順は各セクションの中だけに効かせ、名前の変更・削除もできる。
     // 空の「セクションなし」は手動のときのドロップ先なので、並べ替え中は出さない
     sectionBlocks.filter((block) => block.headerKind !== 'section-none' || block.tasks.length > 0).map((block) => (
-      <div key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`} className="relative pt-3 first:pt-1">
+      <div
+        key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`}
+        data-section-anchor={block.sectionId ?? undefined}
+        className="relative scroll-mt-2 pt-3 first:pt-1"
+      >
         {block.listTitle ? (
           <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
             {block.listTitle}

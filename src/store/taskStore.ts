@@ -115,6 +115,8 @@ interface TaskState {
   selectedView: SmartView | null
   /** 設定を開いた直後のみ使い、スクロール後にクリア */
   settingsScrollTarget: SettingsScrollTarget | null
+  /** サイドバーでセクションを押した直後のみ使い、リストがその見出しまでスクロールしたらクリア */
+  sectionScrollTarget: string | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
   calendarMode: CalendarMode
   /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
@@ -222,6 +224,9 @@ interface TaskState {
   selectView: (view: SmartView) => void
   openSettingsWithScroll: (target: SettingsScrollTarget) => void
   clearSettingsScrollTarget: () => void
+  /** リストを開き、そのセクションを追加先にして見出しまでスクロールする（サイドバーのセクション） */
+  selectListSection: (listId: string, sectionId: string) => void
+  clearSectionScrollTarget: () => void
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
@@ -761,6 +766,7 @@ export const useTaskStore = create<TaskState>()(
       selectedListId: INBOX_ID,
       selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
+      sectionScrollTarget: null as string | null,
       calendarMode: 'week' as CalendarMode,
       selectedCalendarDateKey: format(zonedNow(), 'yyyy-MM-dd'),
       theme: 'system' as 'light' | 'dark' | 'system',
@@ -1293,6 +1299,16 @@ export const useTaskStore = create<TaskState>()(
           settingsScrollTarget: target,
         }),
       clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
+      selectListSection: (listId, sectionId) =>
+        set({
+          selectedListId: listId,
+          selectedView: null,
+          quickAddSectionId: sectionId,
+          sectionScrollTarget: sectionId,
+          settingsScrollTarget: null,
+          filterColor: null,
+        }),
+      clearSectionScrollTarget: () => set({ sectionScrollTarget: null }),
       setCalendarMode: (mode) => {
         pushUndo()
         set({ calendarMode: mode })
@@ -2477,6 +2493,7 @@ export const useTaskStore = create<TaskState>()(
           syncState,
           lastSyncedAt,
           settingsScrollTarget,
+          sectionScrollTarget,
           completePromptTaskId,
           recordPromptTaskId,
           ...rest
@@ -2499,6 +2516,7 @@ export const useTaskStore = create<TaskState>()(
         void syncState
         void lastSyncedAt
         void settingsScrollTarget
+        void sectionScrollTarget
         return rest as unknown as TaskState
       },
     },

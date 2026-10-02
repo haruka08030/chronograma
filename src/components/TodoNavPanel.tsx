@@ -168,7 +168,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
-  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
+  const selectListSection = useTaskStore((s) => s.selectListSection)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
@@ -215,12 +215,6 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
     const trimmed = editName.trim()
     if (trimmed) renameList(id, trimmed)
     setEditingId(null)
-  }
-
-  const selectListSection = (listId: string, sectionId: string) => {
-    selectList(listId)
-    // selectList が quickAddSectionId をクリアしたあとでセクションを指定
-    setQuickAddSectionId(sectionId)
   }
 
   return (
