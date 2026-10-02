@@ -164,7 +164,7 @@ export function WeekReviewCard() {
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(x.tag || null, logCategoryColors))} aria-hidden />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('labels.none')}</span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{fmtMin(x.minutes)}</span>
                 </li>

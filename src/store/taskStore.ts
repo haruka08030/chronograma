@@ -209,12 +209,7 @@ interface TaskState {
   /** 分類を追加（色は空いているものを自動で）。既にあれば何もしない */
   /** 分類を候補に足す。色（24 色のキーか `#RRGGBB`）を省くとまだ使っていない色 */
   addLogCategory: (name: string, color?: CategoryColorKey | string) => void
-  /** 名前を変える。過去の記録の分類も書き換え、既にある名前なら統合する */
-  renameLogCategory: (from: string, to: string) => void
-  /** 候補から外す（過去の記録の分類はそのまま） */
-  removeLogCategory: (name: string) => void
   moveLogCategory: (name: string, delta: -1 | 1) => void
-  setLogCategoryColor: (name: string, color: CategoryColorKey | string) => void
   /**
    * ラベル（Google カレンダーのラベル編集と同じ）をまとめて保存する。Undo は 1 段。
    * - `from` は元の名前（新しい行は null）。名前を変えると記録も付け替える
@@ -1216,35 +1211,6 @@ export const useTaskStore = create<TaskState>()(
           },
         })
       },
-      renameLogCategory: (from, raw) => {
-        const to = raw.trim()
-        if (!to || to === from) return
-        pushUndo()
-        const now = new Date().toISOString()
-        set((s) => {
-          const merging = s.timeLogTagPresets.includes(to)
-          const presets = merging
-            ? s.timeLogTagPresets.filter((n) => n !== from)
-            : s.timeLogTagPresets.map((n) => (n === from ? to : n))
-          const colors = { ...s.logCategoryColors }
-          if (!merging && colors[from]) colors[to] = colors[from]!
-          delete colors[from]
-          return {
-            timeLogTagPresets: presets,
-            logCategoryColors: colors,
-            tasks: s.tasks.map((t) => {
-              if (!t.isTimeLog || !t.tags.includes(from)) return t
-              const tags = [...new Set(t.tags.map((x) => (x === from ? to : x)))]
-              return { ...t, tags, updatedAt: now }
-            }),
-          }
-        })
-      },
-      removeLogCategory: (name) => {
-        if (!get().timeLogTagPresets.includes(name)) return
-        pushUndo(i18n.t('undo.labelDeleted', { name }))
-        set((s) => ({ timeLogTagPresets: s.timeLogTagPresets.filter((n) => n !== name) }))
-      },
       moveLogCategory: (name, delta) => {
         const list = [...get().timeLogTagPresets]
         const i = list.indexOf(name)
@@ -1253,10 +1219,6 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         ;[list[i], list[j]] = [list[j]!, list[i]!]
         set({ timeLogTagPresets: list })
-      },
-      setLogCategoryColor: (name, color) => {
-        pushUndo()
-        set((s) => ({ logCategoryColors: { ...s.logCategoryColors, [name]: color } }))
       },
       saveLogLabels: (rows) => {
         pushUndo()
