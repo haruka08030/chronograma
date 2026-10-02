@@ -1,3 +1,5 @@
+import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
+
 export type Priority = 'none' | 'low' | 'medium' | 'high'
 
 export interface Recurrence {
@@ -37,6 +39,11 @@ export interface Task {
   timeZone?: string | null
   /** 日付・時刻の列がどのタイムゾーンの壁時計で書かれているか（`timeZone` があるときだけ） */
   timeZoneAnchor?: string | null
+  /**
+   * このタスクの通知（Google の「通知を追加」）。`null`/未設定は設定の既定（予定の前・締切の前）、`[]` は通知しない。
+   * 判定は `supabase/functions/daily-reminders/schedule.ts`
+   */
+  reminders?: TaskReminder[] | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
   location?: string | null
   /** 記録の色（`#RRGGBB`）。Google カレンダーの予定から記録にしたとき元の色を引き継ぐ。null は分類の色 */

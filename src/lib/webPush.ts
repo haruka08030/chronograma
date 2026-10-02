@@ -1,10 +1,10 @@
 /**
- * Web Push（アプリを閉じていても届く朝・夕方の通知）の購読管理。
+ * Web Push（アプリを閉じていても届く通知）の購読管理。
  * 購読は端末ごとに `push_subscriptions` に保存し、送信は Edge Function `daily-reminders` が cron で行う。
  * 使えない環境（未ログイン / VAPID 未設定 / 開発サーバーで SW 無し / iOS でホーム画面未追加）では
- * 何もせず、タブを開いている間だけのローカル通知（`dailyReminders.ts`）にフォールバックする。
+ * 何もせず、タブを開いている間だけのローカル通知（`localReminders.ts`）にフォールバックする。
  */
-import type { DailyReminders } from '../store/taskStore'
+import type { ActiveTimer, DailyReminders } from '../store/taskStore'
 import { getSupabase } from './supabase'
 import { appTimeZone } from './timeZone'
 
@@ -47,13 +47,22 @@ export async function syncWebPush({
   reminders,
   eventReminderMinutes,
   dueReminders,
+  recordPrompts,
+  hasTaskReminders,
+  activeTimer,
   lang,
 }: {
   userId: string | null
   reminders: DailyReminders
   eventReminderMinutes: number | null
-  /** 締切の通知も push で送るか（アプリを閉じていても届く） */
+  /** 締切の前 */
   dueReminders: boolean
+  /** 予定のあとの記録の確認 */
+  recordPrompts: boolean
+  /** タスクごとに通知を決めたものがあるか（既定を全部オフにしていても購読する） */
+  hasTaskReminders: boolean
+  /** 動いているタイマー（止め忘れの通知） */
+  activeTimer: ActiveTimer | null
   lang: string
 }): Promise<void> {
   pushActive = false
@@ -63,7 +72,7 @@ export async function syncWebPush({
   if (!reg) return
 
   const wantsAny = Boolean(
-    reminders.planTime || reminders.wrapUpTime || eventReminderMinutes != null || dueReminders,
+    reminders.planTime || eventReminderMinutes != null || dueReminders || recordPrompts || hasTaskReminders || activeTimer,
   )
   let sub = await reg.pushManager.getSubscription()
 
@@ -88,23 +97,30 @@ export async function syncWebPush({
   }
 
   const json = sub.toJSON()
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    {
-      endpoint: sub.endpoint,
-      user_id: userId,
-      p256dh: json.keys?.p256dh ?? '',
-      auth: json.keys?.auth ?? '',
-      // サーバーは予定の時刻をこのタイムゾーンで読む（列はアプリのタイムゾーンの壁時計）
-      timezone: appTimeZone(),
-      lang: lang.startsWith('ja') ? 'ja' : 'en',
-      plan_time: reminders.planTime,
-      wrap_up_time: reminders.wrapUpTime,
-      event_reminder_minutes: eventReminderMinutes,
-      due_reminders: dueReminders,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'endpoint' },
-  )
+  const row = {
+    endpoint: sub.endpoint,
+    user_id: userId,
+    p256dh: json.keys?.p256dh ?? '',
+    auth: json.keys?.auth ?? '',
+    // サーバーは予定の時刻をこのタイムゾーンで読む（列はアプリのタイムゾーンの壁時計）
+    timezone: appTimeZone(),
+    lang: lang.startsWith('ja') ? 'ja' : 'en',
+    plan_time: reminders.planTime,
+    wrap_up_time: null,
+    event_reminder_minutes: eventReminderMinutes,
+    due_reminders: dueReminders,
+    updated_at: new Date().toISOString(),
+  }
+  // 002 の列（記録の確認・止め忘れ）。未適用の DB では外して送り直す
+  const extra = {
+    record_prompts: recordPrompts,
+    timer_started_at: activeTimer?.startedAt ?? null,
+    timer_title: activeTimer?.taskTitle ?? null,
+  }
+  let { error } = await supabase.from('push_subscriptions').upsert({ ...row, ...extra }, { onConflict: 'endpoint' })
+  if (error && /record_prompts|timer_/.test(error.message)) {
+    ;({ error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' }))
+  }
   if (error) {
     console.error('[push] save failed', error.message)
     return

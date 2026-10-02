@@ -58,9 +58,9 @@ export function TodayPlannerView() {
   const startTimer = useTaskStore((s) => s.startTimer)
   const selectView = useTaskStore((s) => s.selectView)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
-  const dailyReminders = useTaskStore((s) => s.dailyReminders)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
-  const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
+  const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
+  const anyNotification = useTaskStore((s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled)
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
@@ -163,15 +163,14 @@ export function TodayPlannerView() {
   const showReminderPrompt =
     totalCount > 0 &&
     !reminderPromptDismissed &&
-    !dailyReminders.planTime &&
-    !dailyReminders.wrapUpTime &&
+    !anyNotification &&
     typeof window !== 'undefined' &&
     'Notification' in window &&
     Notification.permission !== 'denied'
 
   const enableReminders = async () => {
     const granted = await requestPermission()
-    if (granted) setDailyReminders({ planTime: '08:30', wrapUpTime: '18:00' })
+    if (granted) enableRecommendedNotifications()
     dismissReminderPrompt()
   }
 

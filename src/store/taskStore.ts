@@ -28,6 +28,7 @@ import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
 import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 import { timerRecordTimes } from '../lib/timerRecord'
+import { taskPlacementDate } from '../lib/taskTimeRange'
 import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../lib/sleep'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { restoreMissing } from '../lib/autoBackup'
@@ -100,10 +101,9 @@ export interface ActiveTimer {
   taskId?: string | null
 }
 
-/** 朝の計画・夕方の締めの通知時刻（`HH:mm`）。null はオフ */
+/** 朝のまとめの通知時刻（`HH:mm`）。null はオフ */
 export interface DailyReminders {
   planTime: string | null
-  wrapUpTime: string | null
 }
 
 interface TaskState {
@@ -124,7 +124,12 @@ interface TaskState {
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
   filterTag: string | null
+  /** 締切の前の通知（前日 20:00 ＋ 時刻つきは 3 時間前） */
   notificationsEnabled: boolean
+  /** 予定が終わったら「予定どおり / 記録する」を聞く */
+  recordPrompts: boolean
+  /** 通知の「記録する」から開く、記録を入れる予定（永続化しない） */
+  recordPromptTaskId: string | null
   listColorPaletteId: ListColorPaletteId
   /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
   timeLogTagPresets: string[]
@@ -300,6 +305,7 @@ interface TaskState {
         | 'endTime'
         | 'location'
         | 'timeZone'
+        | 'reminders'
         | 'color'
         | 'priority'
         | 'tags'
@@ -394,6 +400,12 @@ interface TaskState {
   resetLocalData: () => void
 
   toggleNotifications: () => void
+  setRecordPrompts: (on: boolean) => void
+  /** おすすめの通知をまとめてオン（朝のまとめ 8:00・予定の 10 分前・締切の前・記録の確認） */
+  enableRecommendedNotifications: () => void
+  openRecordPrompt: (taskId: string | null) => void
+  /** 予定を予定どおりの時刻の記録にして完了（今より先の分は記録しない）。Undo は 1 段 */
+  logPlanAsPlanned: (taskId: string) => void
   exportData: () => void
   importData: (json: string) => boolean
   /**
@@ -511,6 +523,7 @@ function applyTaskPatch(
       | 'endTime'
       | 'location'
       | 'timeZone'
+      | 'reminders'
       | 'color'
       | 'priority'
       | 'tags'
@@ -741,6 +754,8 @@ export const useTaskStore = create<TaskState>()(
       quickAddRequested: false,
       filterTag: null,
       notificationsEnabled: false,
+      recordPrompts: true,
+      recordPromptTaskId: null as string | null,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
@@ -754,7 +769,7 @@ export const useTaskStore = create<TaskState>()(
       googleCanWrite: false,
       activeTimer: null,
       completePromptTaskId: null as string | null,
-      dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
+      dailyReminders: { planTime: null } as DailyReminders,
       reminderPromptDismissed: false,
       dailyCapacityMinutes: 480,
       eventReminderMinutes: null as number | null,
@@ -1947,6 +1962,29 @@ export const useTaskStore = create<TaskState>()(
 
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
+      setRecordPrompts: (on) => set({ recordPrompts: on }),
+      enableRecommendedNotifications: () =>
+        set((s) => ({
+          dailyReminders: { planTime: s.dailyReminders.planTime ?? '08:00' },
+          eventReminderMinutes: s.eventReminderMinutes ?? 10,
+          notificationsEnabled: true,
+          recordPrompts: true,
+        })),
+      openRecordPrompt: (taskId) => set({ recordPromptTaskId: taskId }),
+      logPlanAsPlanned: (taskId) => {
+        const task = get().tasks.find((t) => t.id === taskId)
+        const date = task ? taskPlacementDate(task) : null
+        if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
+        const now = zonedNow()
+        const today = format(now, 'yyyy-MM-dd')
+        const nowHm = format(now, 'HH:mm')
+        if (date > today || (date === today && task.startTime >= nowHm)) return
+        const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
+        get().asOneUndo(() => {
+          get().addTimeLog(task.title, date, task.startTime!, end, task.tags)
+          get().toggleTask(task.id)
+        })
+      },
 
       backupJson: () => {
         const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
@@ -2125,7 +2163,7 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 33,
+      version: 34,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -2387,6 +2425,11 @@ export const useTaskStore = create<TaskState>()(
           // 持ち主の記録はこの版から。それまでのデータは、この端末で同期していた本人のものとみなす
           state.dataOwner = LEGACY_DATA_OWNER
         }
+        if (version < 34) {
+          // 夕方の締めの通知は廃止した（予定ごとの記録の確認に置き換え）
+          const r = state.dailyReminders as Record<string, unknown> | undefined
+          if (r) state.dailyReminders = { planTime: typeof r.planTime === 'string' ? r.planTime : null }
+        }
         return state as unknown as TaskState
       },
       partialize: (state) => {
@@ -2406,9 +2449,11 @@ export const useTaskStore = create<TaskState>()(
           lastSyncedAt,
           settingsScrollTarget,
           completePromptTaskId,
+          recordPromptTaskId,
           ...rest
         } = state
         void completePromptTaskId
+        void recordPromptTaskId
         void searchQuery
         void deletedTasks
         void quickAddRequested

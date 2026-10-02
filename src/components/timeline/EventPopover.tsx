@@ -40,8 +40,7 @@ export function EventPopover({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const addTimeLog = useTaskStore((s) => s.addTimeLog)
-  const asOneUndo = useTaskStore((s) => s.asOneUndo)
+  const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
   const ref = useRef<HTMLDivElement>(null)
   useEscapeLayer(onClose)
 
@@ -94,11 +93,7 @@ export function EventPopover({
   /** 終わった予定は記録を始めても意味がないので、記録開始は出さない */
   const planEnded = Boolean(dateKey && task.endTime) && (dateKey! < todayKey || (dateKey === todayKey && task.endTime! <= nowHm))
   const logAsPlanned = () => {
-    const end = dateKey === todayKey && task.endTime! > nowHm ? nowHm : task.endTime!
-    asOneUndo(() => {
-      addTimeLog(task.title, dateKey!, task.startTime!, end, task.tags)
-      toggleTask(task.id)
-    })
+    logPlanAsPlanned(task.id)
     onClose()
   }
 
