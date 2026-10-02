@@ -35,6 +35,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CheckIcon, CloseIcon, PencilIcon } from './icons'
+import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 
@@ -1105,16 +1106,20 @@ export function TaskList() {
                   {sortMode !== 'manual' && (
                     <>
                       <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
-                      <button
-                        type="button"
-                        role="menuitemcheckbox"
-                        aria-checked={groupBySection}
-                        onClick={() => { setSectionGrouping(groupingScope, !groupBySection); setShowSort(false) }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                      >
-                        <CheckIcon className={`h-4 w-4 shrink-0 ${groupBySection ? 'text-accent-600 dark:text-accent-400' : 'invisible'}`} />
-                        {t('taskList.groupBySection')}
-                      </button>
+                      {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span
+                          className="cursor-pointer select-none text-sm text-zinc-600 dark:text-zinc-300"
+                          onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
+                        >
+                          {t('taskList.groupBySection')}
+                        </span>
+                        <Switch
+                          checked={groupBySection}
+                          onChange={(on) => setSectionGrouping(groupingScope, on)}
+                          label={t('taskList.groupBySection')}
+                        />
+                      </div>
                     </>
                   )}
                 </div>
