@@ -139,7 +139,7 @@ export function CalendarDateNav({
         </button>
       </div>
 
-      <div className="relative min-w-0 flex-1 sm:flex-initial">
+      <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
         <button
           ref={triggerRef}
           type="button"
@@ -159,10 +159,11 @@ export function CalendarDateNav({
               setOpen(true)
             }
           }}
-          className="max-w-full truncate rounded-md px-2 py-1 text-left text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          className="min-w-0 max-w-full truncate rounded-md px-2 py-1 text-left text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
         >
           {periodLabel}
         </button>
+        <GoogleStatusDot />
 
         {open && (
           <div
@@ -224,8 +225,6 @@ export function CalendarDateNav({
           </div>
         )}
       </div>
-
-      <GoogleStatusDot />
     </div>
   )
 }
