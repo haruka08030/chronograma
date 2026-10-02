@@ -2154,7 +2154,8 @@ export const useTaskStore = create<TaskState>()(
             deletedAt: null,
           }
         })
-        pushUndo()
+        // 結果は「元に戻す」付きの通知で知らせる（JSON の取り込みと同じ）
+        pushUndo(i18n.t('alert.csvImported', { count: newTasks.length, skipped }))
         set((st) => ({ tasks: [...st.tasks, ...newTasks] }))
         return { imported: newTasks.length, skipped, errors: [] }
       },

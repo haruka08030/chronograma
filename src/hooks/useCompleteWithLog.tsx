@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from '../components/CompleteWithLogModal'
-import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
+import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
+import { taskPlacementDate } from '../lib/taskTimeRange'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 
@@ -12,7 +12,6 @@ import { logLabelFromTask } from '../lib/logCategoryColors'
  * To‑Do の一覧のチェックと、通知の「記録する」で共有する。`modal` を描画しておくこと。
  */
 export function useCompleteWithLog() {
-  const { t } = useTranslation()
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [draft, setDraft] = useState<CompleteWithLogDraft | null>(null)
@@ -42,23 +41,14 @@ export function useCompleteWithLog() {
 
   const submit = useCallback(() => {
     if (!draft) return
+    // 終了が開始より前なら、画面の赤字と押せない保存ボタンで知らせている
+    if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
-    const dur = durationMinutesForTaskSlot({
-      dueDate: draft.date,
-      endDate: endDateArg,
-      startTime: draft.startTime,
-      endTime: draft.endTime,
-      isTimeLog: true,
-    })
-    if (dur == null || dur <= 0) {
-      alert(t('alert.endAfterStart'))
-      return
-    }
     addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
     toggleTask(draft.taskId)
     setDraft(null)
-  }, [draft, addTimeLog, toggleTask, t])
+  }, [draft, addTimeLog, toggleTask])
 
   const modal = draft ? (
     <CompleteWithLogModal

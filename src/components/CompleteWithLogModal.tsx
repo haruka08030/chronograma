@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
+import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { buttonClass } from './ui/buttonClass'
 import { Modal, ModalTitle } from './ui/Modal'
 
@@ -37,6 +38,8 @@ export function CompleteWithLogModal({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
+  const valid = isCompleteDraftValid(draft)
+  const overnight = draft.endDate === draft.date && draft.endTime < draft.startTime
   return (
     <Modal onClose={onClose} labelledBy="complete-with-log-title" className="p-5">
         <ModalTitle id="complete-with-log-title">{t('task.completeModal.title')}</ModalTitle>
@@ -129,6 +132,13 @@ export function CompleteWithLogModal({
           </div>
         </div>
 
+        {!valid ? (
+          <p className="mt-2 text-xs text-red-500 dark:text-red-400">{t('alert.endAfterStart')}</p>
+        ) : (
+          // 記録パネルと同じく、終了が開始より前なら翌日まで
+          overnight && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{t('records.nextDay')}</p>
+        )}
+
         <div className="mt-4">
           <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">{t('task.completeModal.memo')}</label>
           <textarea
@@ -151,6 +161,7 @@ export function CompleteWithLogModal({
           <button
             type="button"
             onClick={onSubmit}
+            disabled={!valid}
             className={buttonClass({ variant: 'primary', size: 'md' })}
           >
             {t('task.completeModal.saveComplete')}

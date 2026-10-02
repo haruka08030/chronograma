@@ -4,6 +4,7 @@ import i18n from '../../i18n/config'
 import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
 import { useTaskStore } from '../../store/taskStore'
+import { notify } from '../../lib/notify'
 import { SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 
@@ -40,20 +41,20 @@ export function AutoBackupSettings() {
   const restore = async (b: AutoBackupMeta) => {
     const full = await loadAutoBackup(b.id)
     if (!full) {
-      alert(i18n.t('autoBackup.unreadable'))
+      notify(i18n.t('autoBackup.unreadable'))
       return
     }
     if (!window.confirm(i18n.t('autoBackup.confirmRestore', { when: when(b.savedAt) }))) return
     const added = restoreMissingFromBackup(full.json)
-    if (added === null) alert(i18n.t('autoBackup.unreadable'))
-    else if (added === 0) alert(i18n.t('autoBackup.nothingMissing'))
-    else alert(i18n.t('autoBackup.restored', { count: added }))
+    // 戻せたときは store が「元に戻す」付きの通知を出す
+    if (added === null) notify(i18n.t('autoBackup.unreadable'))
+    else if (added === 0) notify(i18n.t('autoBackup.nothingMissing'))
   }
 
   const download = async (b: AutoBackupMeta) => {
     const full = await loadAutoBackup(b.id)
     if (!full) {
-      alert(i18n.t('autoBackup.unreadable'))
+      notify(i18n.t('autoBackup.unreadable'))
       return
     }
     const url = URL.createObjectURL(new Blob([full.json], { type: 'application/json' }))

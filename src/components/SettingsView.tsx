@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
+import { notify } from '../lib/notify'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { previewBackupJson } from '../lib/backupFormat'
 import { loadImportRollback } from '../lib/importRollback'
@@ -196,7 +197,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               // 「上書きしますか？」だけ出しても判断できない
               const preview = previewBackupJson(reader.result as string)
               if (!preview) {
-                alert(i18n.t('alert.invalidImportFile'))
+                notify(i18n.t('alert.invalidImportFile'))
                 return
               }
               const current = useTaskStore.getState()
@@ -210,7 +211,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               )
               if (!ok) return
               if (!importData(reader.result as string)) {
-                alert(i18n.t('alert.invalidImportFile'))
+                notify(i18n.t('alert.invalidImportFile'))
               }
             }
             reader.readAsText(file)
@@ -229,18 +230,9 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
             reader.onload = () => {
               const text = reader.result as string
               const result = importTasksFromCsv(text)
-              if (result.errors.length > 0) {
-                alert(i18n.t('alert.invalidCsvFile'))
-              } else if (result.imported === 0) {
-                alert(i18n.t('alert.csvNoRows'))
-              } else {
-                alert(
-                  i18n.t('alert.csvImported', {
-                    count: result.imported,
-                    skipped: result.skipped,
-                  }),
-                )
-              }
+              // 取り込めたときは store が「元に戻す」付きの通知を出す
+              if (result.errors.length > 0) notify(i18n.t('alert.invalidCsvFile'))
+              else if (result.imported === 0) notify(i18n.t('alert.csvNoRows'))
             }
             reader.readAsText(file)
             e.target.value = ''
