@@ -631,7 +631,7 @@ export function WeekCalendarView({
                   >
                     <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
                     <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                      ${today ? 'bg-accent-500 text-on-accent' : selected ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300' : ''}`}>
+                      ${today ? 'bg-date-500 text-white' : selected ? 'ring-2 ring-date-400 text-date-700 dark:text-date-300' : ''}`}>
                       {format(day, 'd')}
                     </div>
                     <div className={`mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 ${showLaneLabels ? 'md:grid' : ''}`}>

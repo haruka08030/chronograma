@@ -16,6 +16,14 @@
   --color-accent-800: #202124;
   --color-accent-900: #171717;
   --color-accent-950: #0b0b0c;
+  /* 日付（今日・明日の日付、日付の入ったアイコン、カレンダーの今日・選んだ日）だけは前のアクセントの藍色のまま */
+  --color-date-50: #eef2ff;
+  --color-date-100: #e0e7ff;
+  --color-date-300: #a5b4fc;
+  --color-date-400: #818cf8;
+  --color-date-500: #6366f1;
+  --color-date-600: #4f46e5;
+  --color-date-700: #4338ca;
   /* 塗りのアクセントの上に載せる文字色（ダークでは塗りが明るくなるので暗い文字） */
   --color-on-accent: #ffffff;
 }

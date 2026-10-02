@@ -303,7 +303,7 @@ export function TaskDetail({
                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                           ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                       >
-                        <svg className={`w-4 h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className={`w-4 h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                         </svg>
                         <span className={task.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
@@ -347,7 +347,7 @@ export function TaskDetail({
                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                         ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                     >
-                      <svg className={`w-4 h-4 ${task.scheduledDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className={`w-4 h-4 ${task.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <span className={task.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>

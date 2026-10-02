@@ -29,8 +29,8 @@ const DUE_TONE_CLASS: Record<DateTone, string> = {
 
 const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
   overdue: 'text-zinc-400 dark:text-zinc-500',
-  today: 'text-accent-600 dark:text-accent-400 font-medium',
-  tomorrow: 'text-accent-500/90 dark:text-accent-300/80',
+  today: 'text-date-600 dark:text-date-400 font-medium',
+  tomorrow: 'text-date-500/90 dark:text-date-300/80',
   future: 'text-zinc-500 dark:text-zinc-400',
   past: 'text-zinc-400 dark:text-zinc-500',
 }
@@ -404,7 +404,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               className={`transition-all cursor-pointer rounded-md p-1.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
             >
-              <svg className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-accent-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
               </svg>
             </button>

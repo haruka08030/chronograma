@@ -191,9 +191,9 @@ export function CalendarView({
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
                     ${today
-                      ? 'bg-accent-500 text-on-accent font-semibold'
+                      ? 'bg-date-500 text-white font-semibold'
                       : selected
-                        ? 'ring-2 ring-accent-400 text-accent-700 dark:text-accent-300'
+                        ? 'ring-2 ring-date-400 text-date-700 dark:text-date-300'
                         : inMonth
                           ? 'text-zinc-500 dark:text-zinc-400'
                           : 'text-zinc-300 dark:text-zinc-600'}`}

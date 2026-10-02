@@ -1118,7 +1118,8 @@ export const useTaskStore = create<TaskState>()(
           if (!needsRecord) return { habits }
           return {
             habits,
-            ...completedRecordPatch(s, { title: habit.title, dueDate: dateKey, ...times, habitId }),
+            // 習慣の色を記録にも引き継ぐ。ラベルの色ならそのラベル（分類）になる
+            ...completedRecordPatch(s, { title: habit.title, dueDate: dateKey, ...times, color: habit.color, habitId }),
           }
         })
       },
