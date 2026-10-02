@@ -10,6 +10,7 @@ import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
 import { NotionSettings } from './settings/NotionSettings'
+import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { Segmented, SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
@@ -37,7 +38,9 @@ export function SettingsView() {
         ? 'settings-appearance'
         : settingsScrollTarget === 'install'
           ? 'settings-app'
-          : 'settings-account'
+          : settingsScrollTarget === 'google'
+            ? 'settings-google'
+            : 'settings-account'
     document.getElementById(id)?.scrollIntoView({ block: 'start' })
     clearSettingsScrollTarget()
   }, [settingsScrollTarget, clearSettingsScrollTarget])
@@ -93,6 +96,8 @@ export function SettingsView() {
             <SettingsRow label={t('settings.account')} help={t('settings.supabaseOff')} />
           )}
         </SettingsGroup>
+
+        <GoogleCalendarSettings />
 
         <NotionSettings />
 

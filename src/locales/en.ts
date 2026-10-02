@@ -866,6 +866,10 @@ export default {
     markDone: 'Mark done',
     stopTitle: 'Stop recording',
   },
+  googleSettings: {
+    title: 'Google Calendar',
+    notConnected: 'Not connected',
+  },
   notion: {
     title: 'Notion',
     needsLogin: 'Sign in first to connect Notion.',
