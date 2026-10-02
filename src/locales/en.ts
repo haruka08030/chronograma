@@ -893,6 +893,13 @@ export default {
     markDone: 'Mark done',
     stopTitle: 'Stop recording',
   },
+  integrations: {
+    title: 'Integrations',
+    add: 'Add an integration',
+    manage: 'Add or set up integrations',
+    services: 'Google Calendar, Notion, Canvas',
+    disconnect: 'Disconnect',
+  },
   googleSettings: {
     title: 'Google Calendar',
     notConnected: 'Not connected',

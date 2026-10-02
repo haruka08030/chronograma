@@ -893,12 +893,19 @@ export default {
     markDone: '完了にする',
     stopTitle: '記録を停止',
   },
+  integrations: {
+    title: '外部連携',
+    add: '連携を追加',
+    manage: '連携を追加・設定',
+    services: 'Google カレンダー・Notion・Canvas',
+    disconnect: '接続を解除',
+  },
   googleSettings: {
     title: 'Google カレンダー',
     notConnected: '未接続',
   },
   notion: {
-    title: 'Notion 連携',
+    title: 'Notion',
     needsLogin: 'Notion と連携するには、まずログインが必要です。',
     step1Link: 'Notion のインテグレーション',
     step1: 'で「内部インテグレーション」を作り、シークレットをコピーする',
@@ -933,7 +940,7 @@ export default {
     },
   },
   canvas: {
-    title: 'Canvas 連携',
+    title: 'Canvas',
     needsLogin: 'Canvas と連携するには、まずログインが必要です。',
     step1Link: 'Canvas の「アカウント → 設定」',
     step1: 'で「新しいアクセストークン」を作り、トークンをコピーする（期限は最長 90 日）',

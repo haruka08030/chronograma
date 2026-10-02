@@ -12,6 +12,8 @@ import { CategoryManager } from './settings/CategoryManager'
 import { NotionSettings } from './settings/NotionSettings'
 import { CanvasSettings } from './settings/CanvasSettings'
 import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
+import { IntegrationsSummary } from './settings/IntegrationsSummary'
+import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
@@ -21,8 +23,65 @@ import { buttonClass } from './ui/buttonClass'
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
  * どのまとまりも「見出し + 1 枚の枠に行を並べる」形に揃える。
+ * 外部連携は使う人だけが使うので、トップには接続中のものだけを出し、つなぐ・設定するのは次のページにする。
  */
 export function SettingsView() {
+  const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
+  const [page, setPage] = useState<'main' | 'integrations'>(() => (settingsScrollTarget === 'google' ? 'integrations' : 'main'))
+
+  // Google カレンダーへの案内は連携のページを開く（届いたときに 1 回だけ切り替える）
+  const [seenTarget, setSeenTarget] = useState(settingsScrollTarget)
+  if (settingsScrollTarget !== seenTarget) {
+    setSeenTarget(settingsScrollTarget)
+    if (settingsScrollTarget === 'google') setPage('integrations')
+  }
+
+  return page === 'integrations' ? (
+    <IntegrationsPage onBack={() => setPage('main')} />
+  ) : (
+    <MainSettings onOpenIntegrations={() => setPage('integrations')} />
+  )
+}
+
+/** 外部連携のページ。戻るで設定のトップへ */
+function IntegrationsPage({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation()
+  const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
+  const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (settingsScrollTarget === 'google') {
+      document.getElementById('settings-google')?.scrollIntoView({ block: 'start' })
+      clearSettingsScrollTarget()
+    } else {
+      scrollRef.current?.scrollTo({ top: 0 })
+    }
+  }, [settingsScrollTarget, clearSettingsScrollTarget])
+
+  return (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
+        <div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="-ml-1 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            {t('settings.title')}
+          </button>
+          <h1 className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{t('integrations.title')}</h1>
+        </div>
+        <GoogleCalendarSettings />
+        <NotionSettings />
+        <CanvasSettings />
+      </div>
+    </div>
+  )
+}
+
+function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }) {
   const { t } = useTranslation()
   const theme = useTaskStore((s) => s.theme)
   const setTheme = useTaskStore((s) => s.setTheme)
@@ -34,15 +93,14 @@ export function SettingsView() {
   const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'ja'
 
   useLayoutEffect(() => {
-    if (!settingsScrollTarget) return
+    // Google カレンダーは連携のページで扱う（SettingsView が切り替える）
+    if (!settingsScrollTarget || settingsScrollTarget === 'google') return
     const id =
       settingsScrollTarget === 'appearance'
         ? 'settings-appearance'
         : settingsScrollTarget === 'install'
           ? 'settings-app'
-          : settingsScrollTarget === 'google'
-            ? 'settings-google'
-            : 'settings-account'
+          : 'settings-account'
     document.getElementById(id)?.scrollIntoView({ block: 'start' })
     clearSettingsScrollTarget()
   }, [settingsScrollTarget, clearSettingsScrollTarget])
@@ -99,11 +157,7 @@ export function SettingsView() {
           )}
         </SettingsGroup>
 
-        <GoogleCalendarSettings />
-
-        <NotionSettings />
-
-        <CanvasSettings />
+        <IntegrationsSummary onOpen={onOpenIntegrations} />
 
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
           <InstallAppSection />
