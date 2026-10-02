@@ -348,11 +348,7 @@ export function TaskList() {
     () => BULK_PRIORITY_OPTIONS.map((value) => ({ value, label: t(`common.${value}`) })),
     [t],
   )
-  // ナビからラベルを開いたとき（「すべて」をラベルで絞る）はラベル名を見出しにする
-  const labelView = selectedView === 'all' && filterTag !== null
-  const title = labelView
-    ? filterTag
-    : selectedView
+  const title = selectedView
     ? t(`sidebar.views.${selectedView}`)
     : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
 
@@ -982,7 +978,7 @@ export function TaskList() {
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 {t('taskList.incompleteTasks', { count: incompleteCount })}
               </p>
-              {filterTag && !labelView && (
+              {filterTag && (
                 <button
                   onClick={() => setFilterTag(null)}
                   className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-md

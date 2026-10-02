@@ -30,8 +30,6 @@ const TIMEZONE = 'Asia/Tokyo'
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   { name: 'todo', view: 'all' },
-  // ナビからラベルを開いた状態（「すべて」をラベルで絞る）
-  { name: 'todo-label', view: 'all', filterTag: '就活' },
   { name: 'calendar', view: 'calendar' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
@@ -175,12 +173,7 @@ async function main() {
           })
 
           const seed = buildSeedState({ theme, now: nowInTimeZone(TIMEZONE) })
-          // selectView と同じく、ビューを開くときはリストの選択を外す
-          if (screen.view) {
-            seed.state.selectedView = screen.view
-            seed.state.selectedListId = null
-          }
-          if (screen.filterTag) seed.state.filterTag = screen.filterTag
+          if (screen.view) seed.state.selectedView = screen.view
           if (screen.list) {
             seed.state.selectedView = null
             seed.state.selectedListId = screen.list

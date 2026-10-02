@@ -31,11 +31,7 @@ export function QuickAdd() {
 
   const submit = () => {
     if (!value.trim()) return
-    const { selectedListId, selectedView, filterTag } = useTaskStore.getState()
-    addTaskFromQuickText(value, {
-      currentListId: selectedListId,
-      extraTags: selectedView === 'all' && filterTag ? [filterTag] : undefined,
-    })
+    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId })
     setValue('')
     queueMicrotask(() => inputRef.current?.focus())
   }

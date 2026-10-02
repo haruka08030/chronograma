@@ -16,8 +16,6 @@ export interface QuickAddOptions {
    * 省略すると日付なし（時刻だけ書いたときは今日）
    */
   defaultDate?: string
-  /** 書いた #ラベル に足すラベル（ラベルを開いて追加したとき、そのラベルの一覧に残るように） */
-  extraTags?: string[]
 }
 
 /**
@@ -49,8 +47,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   const addedListId = after.tasks.find((t) => t.id === id)?.listId
   const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
   const patch: Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'tags'>> = {}
-  const tags = [...new Set([...(opts.extraTags ?? []), ...parsed.tags])]
-  if (tags.length) patch.tags = tags
+  if (parsed.tags.length) patch.tags = parsed.tags
   // いつか・チェックリストには日付を付けない（付けると期限のビューに戻ってきてしまう）
   if (kind === 'tasks') {
     if (parsed.startTime) {
