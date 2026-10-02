@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
+import { CALENDAR_COLORS } from '../../lib/googleColors'
 import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
 import { LabelsDialog } from './LabelsDialog'
-import { CheckIcon, PencilIcon } from '../icons'
+import { PencilIcon } from '../icons'
+import { ColorSwatches } from '../ui/ColorSwatches'
 
 /**
  * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
@@ -38,7 +39,6 @@ export function ColorPalette({
       .map((hex) => ({ hex, colorName: hex }))
     return [...base, ...extra]
   }, [presets, colors, t])
-  const selected = selectedHex?.toUpperCase() ?? null
 
   return (
     <div className="rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700">
@@ -51,30 +51,15 @@ export function ColorPalette({
       >
         <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
       </button>
-      <div role="radiogroup" aria-label={t('labels.pickerAria')} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
-        {swatches.map((sw) => {
+      <ColorSwatches
+        ariaLabel={t('labels.pickerAria')}
+        selectedHex={selectedHex}
+        onChoose={onChoose}
+        swatches={swatches.map((sw) => {
           const name = labelForHex(sw.hex, presets, colors)
-          const isSelected = selected === sw.hex.toUpperCase()
-          const tip = name ? `${name}（${sw.colorName}）` : sw.colorName
-          return (
-            <button
-              key={sw.hex}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              aria-label={tip}
-              title={tip}
-              onClick={() => onChoose(sw.hex)}
-              className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
-              style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}
-            >
-              {isSelected && (
-                <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
-              )}
-            </button>
-          )
+          return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
         })}
-      </div>
+      />
       <button
         type="button"
         onClick={onDefault}
