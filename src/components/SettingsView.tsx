@@ -10,6 +10,7 @@ import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
 import { NotionSettings } from './settings/NotionSettings'
+import { CanvasSettings } from './settings/CanvasSettings'
 import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
@@ -100,6 +101,8 @@ export function SettingsView() {
         <GoogleCalendarSettings />
 
         <NotionSettings />
+
+        <CanvasSettings />
 
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
           <InstallAppSection />

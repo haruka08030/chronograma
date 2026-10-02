@@ -5,7 +5,7 @@
 --   - 利用者の行は主キー (user_id, id)。未分類 '__inbox__' のように ID が全員で同じでもぶつからない。
 --     外部キーも (user_id, ...) にして、他人の行を指せないようにする。
 --   - RLS: 利用者のデータは本人だけが読み書きできる。
---     外部サービスのトークン（google_oauth / notion_connection）はブラウザに出さないので
+--     外部サービスのトークン（google_oauth / notion_connection / canvas_connection）はブラウザに出さないので
 --     ポリシーを置かず、Edge Function が service_role で読み書きする。
 
 
@@ -190,6 +190,18 @@ create table if not exists public.notion_connection (
 
 
 -- ===========================================================================
+-- canvas_connection（Canvas LMS のアクセストークンと学校の URL。サーバー専用）
+-- ===========================================================================
+create table if not exists public.canvas_connection (
+  user_id    uuid primary key references auth.users (id) on delete cascade,
+  base_url   text not null,  -- 'https://xxx.instructure.com'
+  token      text not null,
+  user_name  text,
+  updated_at timestamptz not null default now()
+);
+
+
+-- ===========================================================================
 -- RLS
 -- ===========================================================================
 alter table public.lists              enable row level security;
@@ -199,6 +211,7 @@ alter table public.habits             enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.google_oauth       enable row level security;  -- ポリシーなし（サーバー専用）
 alter table public.notion_connection  enable row level security;  -- ポリシーなし（サーバー専用）
+alter table public.canvas_connection  enable row level security;  -- ポリシーなし（サーバー専用）
 
 -- 本人の行だけ select / insert / update / delete できる（<表>_select_own など）
 do $$

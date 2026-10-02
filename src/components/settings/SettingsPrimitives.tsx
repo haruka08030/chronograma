@@ -100,3 +100,7 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
   )
 }
 
+
+/** 連携の設定で貼るトークン・URL などの入力欄 */
+export const settingsFieldClass =
+  'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'

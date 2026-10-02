@@ -434,8 +434,8 @@
 ## データベース（`supabase/migrations/`）
 
 **正本**: **`001_chronograma_schema.sql` 1 本**（`lists` / `list_sections` / `tasks` / `habits` /
-`push_subscriptions` / `google_oauth` / `notion_connection`、インデックス、RLS）。SQL Editor で全体を 1 回流す想定。
-利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` はクライアント向けポリシーなし（Edge Function が
+`push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）。SQL Editor で全体を 1 回流す想定。
+利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
 付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。

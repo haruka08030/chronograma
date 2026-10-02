@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
- * タスク・リスト・習慣・通知の購読・Google / Notion の連携は auth.users の on delete cascade で消える。
+ * タスク・リスト・習慣・通知の購読・Google / Notion / Canvas の連携は auth.users の on delete cascade で消える。
  * Google は消す前にトークンを無効にして、Google 側の「アクセスできるアプリ」からも外す。
  * auth.admin は service_role が要るので Edge Function で行う。
  */

@@ -13,11 +13,9 @@ import {
   type NotionStatus,
 } from '../../lib/notion'
 import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync'
-import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 
-const field =
-  'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
 const select =
   'max-w-[12rem] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
 

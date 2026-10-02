@@ -1,6 +1,7 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
+import { useCanvasSync } from './hooks/useCanvasSync'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from './i18n/config'
@@ -159,6 +160,7 @@ export default function App() {
   useAutoBackup()
   useSupabaseSync()
   useNotionSync()
+  useCanvasSync()
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
