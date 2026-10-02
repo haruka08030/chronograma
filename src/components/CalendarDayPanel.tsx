@@ -171,7 +171,6 @@ export function CalendarDayPanel({
               <CalendarInlineTaskAdd
                 dateKey={selectedDateKey}
                 size="md"
-                keepOpenAfterSubmit
                 onDone={() => setAdding(false)}
               />
             </div>

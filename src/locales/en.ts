@@ -706,7 +706,7 @@ export default {
   calendar: {
     recordedTotal: 'Logged {{time}}',
     moreItems: '+{{count}} more',
-    addTaskPlaceholder: 'Add task',
+    addTaskPlaceholder: 'Add a task',
     addTaskAria: 'Add a to-do on this day',
     thisMonth: 'This month',
     weekdayInitials: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],

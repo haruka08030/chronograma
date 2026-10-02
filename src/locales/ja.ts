@@ -706,7 +706,7 @@ export default {
   calendar: {
     recordedTotal: '記録 {{time}}',
     moreItems: '他 {{count}} 件',
-    addTaskPlaceholder: 'タスク追加',
+    addTaskPlaceholder: 'タスクを追加',
     addTaskAria: 'この日に To-Do を追加',
     thisMonth: '今月',
     weekdayInitials: ['月', '火', '水', '木', '金', '土', '日'],
