@@ -1,18 +1,19 @@
 /**
- * ボタンの見た目（アプリ全体で 1 種類）。形はすべて丸いピル（Google カレンダーと同じ）。
+ * ボタンの見た目（アプリ全体で 1 種類）。形は角丸の四角（入力欄・カードと同じ形）。
+ * ピルはチップ（最近の記録・ラベル・分類・切り替え）だけに使い、押すと実行するボタンと見分ける。
  * - primary: いちばん大事な操作（保存・追加・開始）。墨色の塗り
  * - secondary: 並べて出す別の操作（今日・後から記録）。枠だけ
  * - ghost: 取り消し・閉じるなど控えめな操作。地なし
  * - danger: 削除など戻せない／重い操作。赤い枠
  * - link: 文中や見出しの横に置く小さな操作（すべて追加・チェック済みを消す）
  *
- * `<button>` 以外（`<a>` など）にも使えるよう class 文字列を返す。部品で使うなら `Button`。
+ * `<button>` 以外（`<a>` など）にも使えるよう class 文字列を返す。
  */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link'
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-colors touch-manipulation disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 font-medium transition-colors touch-manipulation disabled:cursor-not-allowed disabled:opacity-40'
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-accent-600 text-on-accent hover:bg-accent-700',
@@ -25,11 +26,11 @@ const VARIANT: Record<ButtonVariant, string> = {
 }
 
 const SIZE: Record<ButtonSize, string> = {
-  xs: 'px-2.5 py-1 text-xs',
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
+  xs: 'rounded-md px-2.5 py-1 text-xs',
+  sm: 'rounded-lg px-3 py-1.5 text-xs',
+  md: 'rounded-lg px-4 py-2 text-sm',
   /** 画面の主役の操作（今日の「記録する」など）。指で押しやすい 44px */
-  lg: 'min-h-11 gap-2 px-4 text-sm',
+  lg: 'min-h-11 gap-2 rounded-lg px-4 text-sm',
 }
 
 export function buttonClass(
