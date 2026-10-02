@@ -535,6 +535,7 @@ export default {
     allDoneTitle: 'All caught up!',
     allDoneSubtitle: 'Nice work.',
     completedHeader: 'Completed ({{count}})',
+    groupBySection: 'Group by section',
     sort: {
       manual: 'Manual',
       dueDate: 'Due date',

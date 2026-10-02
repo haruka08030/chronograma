@@ -214,6 +214,8 @@ export function TaskList() {
   const selectedView = useTaskStore((s) => s.selectedView)
   const lists = useTaskStore((s) => s.lists)
   const sortMode = useTaskStore((s) => s.sortMode)
+  const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
+  const setSectionGrouping = useTaskStore((s) => s.setSectionGrouping)
   const setSortMode = useTaskStore((s) => s.setSortMode)
   const filterTag = useTaskStore((s) => s.filterTag)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -398,14 +400,23 @@ export function TaskList() {
   // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
   // リストにセクションがあるとき、リスト横断でセクションブロックを出す。
   const multiListSectionMode = !selectedListId && isTodoSurfaceView(selectedView)
+  /** 手動以外の並び順でセクションの塊を出すか。リストと「すべて」は lists、今日・近日中・期限切れは dueViews */
+  const groupingScope = selectedListId || selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
+  const groupBySection = sortMode === 'manual' || sectionGrouping[groupingScope]
   const showSectionBlocks = useMemo(() => {
+    if (!groupBySection) return false
     if (selectedListId) return listSectionsOrdered.length > 0
     if (!multiListSectionMode || sections.length === 0) return false
     const listIds = new Set(
       filtered.filter((t) => !t.completed && !isListedTimeLog(t)).map((t) => t.listId),
     )
     return sections.some((s) => listIds.has(s.listId))
-  }, [selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
+  }, [groupBySection, selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
+
+  /** 塊で分けないとき、行に出すセクション名 */
+  const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
+  const sectionLabelFor = (task: { sectionId: string | null }) =>
+    !groupBySection && task.sectionId ? sectionNameById.get(task.sectionId) ?? null : null
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -996,6 +1007,7 @@ export function TaskList() {
           selection={makeSelection(t.id)}
           autoEdit={pendingAutoEditTaskId === t.id}
           dragGroupIds={getDragGroupRootIds(t.id)}
+          sectionLabel={sectionLabelFor(t)}
         />
         {StaticSubtreeRows({
           parentId: t.id,
@@ -1089,6 +1101,22 @@ export function TaskList() {
                       </button>
                     )
                   })}
+                  {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
+                  {sortMode !== 'manual' && (
+                    <>
+                      <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
+                      <button
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={groupBySection}
+                        onClick={() => { setSectionGrouping(groupingScope, !groupBySection); setShowSort(false) }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        <CheckIcon className={`h-4 w-4 shrink-0 ${groupBySection ? 'text-accent-600 dark:text-accent-400' : 'invisible'}`} />
+                        {t('taskList.groupBySection')}
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}

@@ -83,6 +83,12 @@ export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'googl
 
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
+/**
+ * 手動以外の並び順のとき、セクションの塊で分けるか。リストと、期限で絞った一覧（今日・近日中・期限切れ）で別に持つ。
+ * 期限の一覧は「科目をまたいで締切順に見たい」ので、最初から分けない
+ */
+export type SectionGrouping = { lists: boolean; dueViews: boolean }
+
 export type { ListColorPaletteId }
 export {
   DEFAULT_LIST_COLOR_PALETTE_ID,
@@ -125,6 +131,7 @@ interface TaskState {
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
   sortMode: SortMode
+  sectionGrouping: SectionGrouping
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
   filterTag: string | null
@@ -231,6 +238,7 @@ interface TaskState {
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
+  setSectionGrouping: (scope: keyof SectionGrouping, on: boolean) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
@@ -772,6 +780,7 @@ export const useTaskStore = create<TaskState>()(
       theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
       sortMode: 'manual' as SortMode,
+      sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
       deletedTasks: [],
       moveBannerText: null as string | null,
       undoBanner: null as { text: string; at: number } | null,
@@ -1322,6 +1331,7 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         set({ sortMode: mode })
       },
+      setSectionGrouping: (scope, on) => set((s) => ({ sectionGrouping: { ...s.sectionGrouping, [scope]: on } })),
       setFilterTag: (tag) => {
         pushUndo()
         set({ filterTag: tag })

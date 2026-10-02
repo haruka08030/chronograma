@@ -535,6 +535,7 @@ export default {
     allDoneTitle: 'すべて完了です！',
     allDoneSubtitle: 'お疲れさまでした',
     completedHeader: '完了 {{count}} 件',
+    groupBySection: 'セクションで分ける',
     sort: {
       manual: '手動',
       dueDate: '期限日',

@@ -62,7 +62,7 @@ export type TaskItemSelection = {
   reveal: boolean
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd }: {
+export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -85,6 +85,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   autoEdit?: boolean
   /** true のときホバー用のネイティブ期限ピッカー（カレンダー形アイコン）を出さない */
   hideDueDatePicker?: boolean
+  /** セクションの塊で分けずに並べるとき、行に出すセクション名（Canvas なら科目） */
+  sectionLabel?: string | null
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
@@ -377,6 +379,9 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               <ClockIcon className="w-3 h-3" />
               {scheduled.text}
             </span>
+          )}
+          {sectionLabel && (
+            <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>
           )}
           {task.recurrence && (
             <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />

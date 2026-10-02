@@ -75,7 +75,12 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
         if (!a.dueDate && !b.dueDate) return a.order - b.order
         if (!a.dueDate) return 1
         if (!b.dueDate) return -1
-        return a.dueDate.localeCompare(b.dueDate)
+        // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
+        return (
+          a.dueDate.localeCompare(b.dueDate) ||
+          (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') ||
+          a.order - b.order
+        )
       })
     case 'priority':
       return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3))
