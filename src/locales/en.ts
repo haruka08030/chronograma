@@ -487,6 +487,7 @@ export default {
     title: 'Settings',
     intro: 'Change appearance, account, activity-log tag suggestions, list color palettes, and data import/export.',
     appearance: 'Appearance',
+    tagsEnabled: 'Use tags in To-Do',
     data: 'Data',
     account: 'Account',
     supabaseOff: 'Supabase is not configured; cloud sign-in is unavailable.',

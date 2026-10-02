@@ -23,6 +23,12 @@ describe('タグ・リスト指定', () => {
     expect(ja('課題 #授業 #授業').tags).toEqual(['授業'])
   })
 
+  it('タグを使わない設定では #… を題名に残す', () => {
+    const r = parseQuickAddTitle('ES 提出 #就活', true, NOW, { tags: false })
+    expect(r.title).toBe('ES 提出 #就活')
+    expect(r.tags).toEqual([])
+  })
+
   it('@リスト名 を取り出す（全角＠も）', () => {
     expect(ja('牛乳 @買い物').listName).toBe('買い物')
     expect(ja('牛乳 ＠買い物').listName).toBe('買い物')

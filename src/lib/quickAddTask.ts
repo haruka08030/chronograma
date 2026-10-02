@@ -31,8 +31,10 @@ export interface QuickAddOptions {
 export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): string | undefined {
   const trimmed = raw.trim()
   if (!trimmed) return undefined
-  const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')))
   const state = useTaskStore.getState()
+  const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
+    tags: state.tagsEnabled,
+  })
   const target = parsed.listName
     ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name))
     : null

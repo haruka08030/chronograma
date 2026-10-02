@@ -20,6 +20,7 @@ export function StatsView() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
 
   const stats = useMemo(() => {
@@ -139,7 +140,7 @@ export function StatsView() {
         </section>
 
         {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
-        {stats.byTag.some((x) => x.tag !== '') && (
+        {tagsEnabled && stats.byTag.some((x) => x.tag !== '') && (
           <section>
             <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byTagTitle')}</h2>
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">

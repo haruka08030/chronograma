@@ -87,6 +87,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const selectColor = useTaskStore((s) => s.selectColor)
   const selectedView = useTaskStore((s) => s.selectedView)
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -396,7 +397,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               {colorLabel}
             </button>
           )}
-          {task.tags.length > 0 && (
+          {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
                 <button

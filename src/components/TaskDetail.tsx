@@ -45,6 +45,7 @@ export function TaskDetail({
   const dueDateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   useTaskStore((s) => s.appTimeZone)
   // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）
   const zone = foreignTimeZone(task)
@@ -540,7 +541,7 @@ export function TaskDetail({
               <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
               <ColorLabelPicker task={task} />
             </div>
-          ) : (
+          ) : tagsEnabled && (
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.tags')}</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
