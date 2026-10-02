@@ -3,6 +3,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import {
   canvasDue,
+  canvasExpiryWarning,
   canvasListId,
   canvasListName,
   canvasSectionId,
@@ -57,6 +58,15 @@ describe('canvasDue', () => {
   it('converts the UTC deadline to the app time zone', () => {
     expect(canvasDue('2026-10-05T14:59:59Z', 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-05', dueTime: '23:59' })
     expect(canvasDue(null, 'Asia/Tokyo')).toEqual({ dueDate: null, dueTime: null })
+  })
+})
+
+describe('canvasExpiryWarning', () => {
+  const now = Date.parse(NOW)
+  it('warns only within 14 days of expiry', () => {
+    expect(canvasExpiryWarning('2026-10-10T00:00:00Z', now)?.toISOString()).toBe('2026-10-10T00:00:00.000Z')
+    expect(canvasExpiryWarning('2026-12-25T00:00:00Z', now)).toBeNull()
+    expect(canvasExpiryWarning(null, now)).toBeNull()
   })
 })
 

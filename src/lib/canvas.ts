@@ -16,7 +16,23 @@ import { wallInZone } from './timeZone'
 
 const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
 
-export type CanvasConnection = { id: string; baseUrl: string; userName: string | null }
+export type CanvasConnection = {
+  id: string
+  baseUrl: string
+  userName: string | null
+  /** トークンの期限（ISO）。null は期限なしか、分からない。サーバーが近づくたびに延ばす */
+  expiresAt?: string | null
+}
+
+/** 延ばせなかったトークンの予告を出すのは、期限のこの日数前から */
+const WARN_BEFORE_DAYS = 14
+
+/** 期限が近い（自動で延ばせなかった）なら、その期限の Date。予告がいらなければ null */
+export function canvasExpiryWarning(expiresAt: string | null | undefined, now: number = Date.now()): Date | null {
+  const at = expiresAt ? Date.parse(expiresAt) : NaN
+  if (Number.isNaN(at) || at - now > WARN_BEFORE_DAYS * 86_400_000) return null
+  return new Date(at)
+}
 
 export type CanvasStatus = { connections: CanvasConnection[] }
 

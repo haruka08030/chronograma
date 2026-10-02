@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import {
+  canvasExpiryWarning,
   CanvasRequestError,
   connectCanvas,
   disconnectCanvas,
@@ -155,6 +156,8 @@ function ConnectionRows({
 }) {
   const { t } = useTranslation()
   const host = new URL(connection.baseUrl).host
+  // 期限切れ（つないだあとに切れた）ときと、延ばせないまま期限が近いときは、トークンだけ貼り直す欄を出す
+  const expiring = error ? null : canvasExpiryWarning(connection.expiresAt)
   return (
     <>
       <SettingsRow label={host} help={connection.userName ?? undefined}>
@@ -162,8 +165,14 @@ function ConnectionRows({
           {t('canvas.disconnect')}
         </button>
       </SettingsRow>
-      {/* 期限切れ（つないだあとに切れた）ときは、トークンだけ貼り直す欄を出す */}
-      {error === 'canvas_unauthorized' && <TokenForm busy={busy} baseUrl={connection.baseUrl} onSubmit={(token) => onRenew(token)} />}
+      {(error === 'canvas_unauthorized' || expiring) && (
+        <TokenForm
+          busy={busy}
+          baseUrl={connection.baseUrl}
+          notice={expiring ? t('canvas.expiresSoon', { date: format(expiring, 'M/d') }) : undefined}
+          onSubmit={(token) => onRenew(token)}
+        />
+      )}
       {errorText(error) && <p className={errorClass}>{errorText(error)}</p>}
     </>
   )
@@ -173,11 +182,14 @@ function ConnectionRows({
 function TokenForm({
   busy,
   baseUrl,
+  notice,
   onSubmit,
   onCancel,
 }: {
   busy: boolean
   baseUrl?: string
+  /** 手順の上に出す予告（期限が近いなど） */
+  notice?: string
   onSubmit: (token: string, baseUrl: string) => void
   onCancel?: () => void
 }) {
@@ -206,6 +218,7 @@ function TokenForm({
         if (ready) onSubmit(token.trim(), baseUrl ?? url.trim())
       }}
     >
+      {notice && <p className="text-xs text-amber-600 dark:text-amber-400">{notice}</p>}
       <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
         <li>
           {settingsUrl ? (

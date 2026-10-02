@@ -952,6 +952,7 @@ export default {
     syncNowAction: 'Sync now',
     syncing: 'Syncing…',
     lastSynced: 'Synced at {{time}}. Syncs every 5 minutes while open',
+    expiresSoon: 'The token expires on {{date}} (your school doesn’t allow extending it automatically)',
     untitled: '(Untitled)',
     errors: {
       generic: 'Couldn’t reach Canvas. Try again in a moment.',

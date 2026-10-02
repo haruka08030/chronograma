@@ -198,6 +198,9 @@ create table if not exists public.canvas_connection (
   base_url   text not null,  -- 'https://xxx.instructure.com'
   token      text not null,
   user_name  text,
+  -- トークンの期限（null = 期限なしか、分からない）。同期のついでに 1 日 1 回確かめて、近ければ延ばす
+  token_expires_at timestamptz,
+  token_checked_at timestamptz,
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );

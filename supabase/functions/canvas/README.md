@@ -15,6 +15,12 @@ supabase functions deploy canvas
 No secrets to set: each user pastes their school's Canvas URL and a personal access token (Account → Settings → New Access Token, max 90 days) in Settings → Canvas.
 Several schools can be connected; each gets its own list. When a token expires, that school's sync fails with `canvas_unauthorized` and Settings shows a field under it to paste a new token (the URL is kept).
 
+## Keeping the token alive
+
+Canvas lets a user change their own token's expiry without changing the token string (`PUT /api/v1/users/self/tokens/:id`).
+On connect, and at most once every 20 hours during `items`, the function finds the token in `GET /api/v1/users/self/user_generated_tokens` (by `token_hint`, the token's first characters) and, if it expires within 60 days, moves the expiry to 89 days from now.
+The result is stored in `token_expires_at`. If the school doesn't allow it (or the token can't be found), nothing breaks: Settings shows a warning 14 days before `token_expires_at` with a field to paste a new token.
+
 ## Actions (POST JSON + Authorization: Bearer &lt;user jwt&gt;)
 
 One connection per school; `connectionId` is the Canvas hostname (`xxx.instructure.com`).

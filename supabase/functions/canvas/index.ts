@@ -10,6 +10,11 @@ const PLANNABLE_TYPES = new Set(['assignment', 'quiz', 'discussion_topic', 'wiki
 /** 取り込む範囲。出し忘れた課題を拾うため少し過去から、学期の残りまで */
 const WINDOW_PAST_DAYS = 30
 const WINDOW_FUTURE_DAYS = 120
+/** トークンの期限がこれより近ければ延ばす。延ばす先は学校の上限（多くは 90 日）の内側にする */
+const EXTEND_WHEN_DAYS_LEFT = 60
+const EXTEND_TO_DAYS = 89
+/** 期限を確かめる間隔 */
+const CHECK_EVERY_MS = 20 * 3_600_000
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -151,6 +156,33 @@ async function plannerItems(baseUrl: string, token: string) {
 }
 
 /** Canvas の To Do の「完了」を付け外しする。既に上書きがあれば更新、無ければ作る */
+type UserToken = { id: number; token_hint?: string | null; expires_at?: string | null }
+
+/**
+ * いま使っているトークンの期限を確かめ、近ければ延ばす（Canvas は期限を書き換えられ、トークンの文字列は変わらない）。
+ * 自分で作ったトークンの一覧から、先頭の数文字（token_hint）が一致するものを探す。
+ * 見つからない・学校の設定で延ばせないときは、分かった期限だけ返す（期限切れになれば貼り直しの欄が出る）。
+ */
+async function checkTokenExpiry(baseUrl: string, token: string): Promise<string | null> {
+  const tokens = await canvasAll<UserToken>(baseUrl, token, '/api/v1/users/self/user_generated_tokens?per_page=100')
+  const mine = tokens.filter((t) => t.token_hint && token.startsWith(t.token_hint))
+  if (mine.length !== 1) return null
+  const current = mine[0]
+  if (!current.expires_at) return null
+  const left = Date.parse(current.expires_at) - Date.now()
+  if (left > EXTEND_WHEN_DAYS_LEFT * 86_400_000) return current.expires_at
+  try {
+    const updated = await canvasJson<UserToken>(baseUrl, token, `/api/v1/users/self/tokens/${current.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ token: { expires_at: new Date(Date.now() + EXTEND_TO_DAYS * 86_400_000).toISOString() } }),
+    })
+    return updated.expires_at ?? current.expires_at
+  } catch (e) {
+    console.warn('[canvas] could not extend token', e instanceof Error ? e.message : e)
+    return current.expires_at
+  }
+}
+
 async function setMarkedComplete(baseUrl: string, token: string, type: string, id: string, complete: boolean) {
   const overrides = await canvasAll<PlannerOverride>(baseUrl, token, '/api/v1/planner/overrides?per_page=100')
   const existing = overrides.find((o) => o.plannable_type === type && String(o.plannable_id) === id)
@@ -201,11 +233,18 @@ Deno.serve(async (req) => {
     const action = (body.action as string) ?? ''
     const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
 
-    type Row = { id: string; base_url: string; token: string; user_name: string | null }
+    type Row = {
+      id: string
+      base_url: string
+      token: string
+      user_name: string | null
+      token_expires_at: string | null
+      token_checked_at: string | null
+    }
     const loadRows = async (): Promise<Row[]> => {
       const { data, error } = await admin
         .from('canvas_connection')
-        .select('id, base_url, token, user_name')
+        .select('id, base_url, token, user_name, token_expires_at, token_checked_at')
         .eq('user_id', user.id)
         .order('updated_at')
       if (error) throw new Error(error.message)
@@ -214,8 +253,22 @@ Deno.serve(async (req) => {
     /** 設定画面に返す形。トークンは含めない */
     const describe = (rows: Row[]) => ({
       ok: true,
-      connections: rows.map((r) => ({ id: r.id, baseUrl: r.base_url, userName: r.user_name })),
+      connections: rows.map((r) => ({ id: r.id, baseUrl: r.base_url, userName: r.user_name, expiresAt: r.token_expires_at })),
     })
+
+    /** 期限の確認と延長。失敗しても同期は止めない */
+    const refreshExpiry = async (r: Pick<Row, 'id' | 'base_url' | 'token'>) => {
+      try {
+        const expiresAt = await checkTokenExpiry(r.base_url, r.token)
+        await admin
+          .from('canvas_connection')
+          .update({ token_expires_at: expiresAt, token_checked_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .eq('id', r.id)
+      } catch (e) {
+        console.warn('[canvas] token check failed', e instanceof Error ? e.message : e)
+      }
+    }
 
     if (action === 'connect') {
       const token = (body.token as string | undefined)?.trim()
@@ -238,6 +291,8 @@ Deno.serve(async (req) => {
         { onConflict: 'user_id,id' },
       )
       if (error) throw new Error(error.message)
+      // 貼ったばかりのトークンも、すぐ期限を延ばしておく
+      await refreshExpiry({ id: new URL(baseUrl).host, base_url: baseUrl, token })
       return jsonResponse(describe(await loadRows()))
     }
 
@@ -260,7 +315,9 @@ Deno.serve(async (req) => {
       const connections = await Promise.all(
         rows.map(async (r) => {
           try {
-            return { id: r.id, ...(await plannerItems(r.base_url, r.token)) }
+            const result = { id: r.id, ...(await plannerItems(r.base_url, r.token)) }
+            if (!r.token_checked_at || Date.now() - Date.parse(r.token_checked_at) > CHECK_EVERY_MS) await refreshExpiry(r)
+            return result
           } catch (e) {
             if (!(e instanceof CanvasError)) throw e
             return { id: r.id, error: e.code }

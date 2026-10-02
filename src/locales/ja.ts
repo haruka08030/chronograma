@@ -952,6 +952,7 @@ export default {
     syncNowAction: '今すぐ同期',
     syncing: '同期中…',
     lastSynced: '{{time}} に同期しました。開いている間は 5 分ごとに同期します',
+    expiresSoon: '{{date}} にトークンの期限が切れます（学校の設定で自動では延ばせませんでした）',
     untitled: '（無題）',
     errors: {
       generic: 'Canvas と通信できませんでした。少し待ってからもう一度お試しください。',
