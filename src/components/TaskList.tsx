@@ -229,6 +229,9 @@ export function TaskList() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
+  /** 「＋ セクション」で開いた名前入力。名前が決まるまでセクションは作らない */
+  const [draftSectionListId, setDraftSectionListId] = useState<string | null>(null)
+  const [draftSectionName, setDraftSectionName] = useState('')
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   const [previewParentId, setPreviewParentId] = useState<string | null>(null)
   const previewParentIdRef = useRef<string | null>(null)
@@ -264,6 +267,8 @@ export function TaskList() {
     queueMicrotask(() => {
       setEditingSectionId(null)
       setEditingSectionName('')
+      setDraftSectionListId(null)
+      setDraftSectionName('')
     })
   }, [selectedListId, selectedView])
 
@@ -694,6 +699,18 @@ export function TaskList() {
     setEditingSectionName('')
   }, [editingSectionId])
 
+  const finishDraftSection = useCallback(() => {
+    const name = draftSectionName.trim()
+    if (draftSectionListId && name) addSectionStore(draftSectionListId, name)
+    setDraftSectionListId(null)
+    setDraftSectionName('')
+  }, [draftSectionListId, draftSectionName, addSectionStore])
+
+  const cancelDraftSection = useCallback(() => {
+    setDraftSectionListId(null)
+    setDraftSectionName('')
+  }, [])
+
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
   const subtaskNestRow =
     'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
@@ -754,25 +771,11 @@ export function TaskList() {
                   isQuickTarget={isQuickTarget}
                   titleButton={
                     editingSectionId === sectionId ? (
-                      <input
-                        autoFocus
+                      <SectionNameInput
                         value={editingSectionName}
-                        placeholder={t('sections.defaultName')}
-                        onChange={(e) => setEditingSectionName(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onBlur={() => finishSectionRename(sectionId, block.title)}
-                        onKeyDown={(e) => {
-                          if (isSubmitEnter(e)) {
-                            e.preventDefault()
-                            e.currentTarget.blur()
-                            return
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelSectionRename(sectionId)
-                          }
-                        }}
-                        className="w-full rounded bg-transparent text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent-400/50"
+                        onChange={setEditingSectionName}
+                        onCommit={() => finishSectionRename(sectionId, block.title)}
+                        onCancel={() => cancelSectionRename(sectionId)}
                       />
                     ) : (
                       <button
@@ -999,8 +1002,8 @@ export function TaskList() {
               <button
                 type="button"
                 onClick={() => {
-                  const sectionId = addSectionStore(selectedListId)
-                  beginSectionRename(sectionId, '')
+                  setDraftSectionListId(selectedListId)
+                  setDraftSectionName('')
                 }}
                 className={buttonClass({ variant: 'secondary', size: 'sm' })}
               >
@@ -1152,6 +1155,19 @@ export function TaskList() {
 
           {activeContent}
 
+          {draftSectionListId && draftSectionListId === selectedListId && (
+            <div className="relative pt-3">
+              <div className="flex items-center px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900">
+                <SectionNameInput
+                  value={draftSectionName}
+                  onChange={setDraftSectionName}
+                  onCommit={finishDraftSection}
+                  onCancel={cancelDraftSection}
+                />
+              </div>
+            </div>
+          )}
+
           {completedTodos.length > 0 && (
             <details className="pt-4">
               <summary className="text-xs font-medium text-zinc-400 dark:text-zinc-500 cursor-pointer select-none px-4 py-2">
@@ -1190,5 +1206,37 @@ export function TaskList() {
       {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
       {completeWithLogModal}
     </div>
+  )
+}
+
+/** セクション名の入力（新規・名前変更で共通）。Enter・フォーカス外しで確定、Esc で取り消し */
+function SectionNameInput({ value, onChange, onCommit, onCancel }: {
+  value: string
+  onChange: (value: string) => void
+  onCommit: () => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <input
+      autoFocus
+      value={value}
+      placeholder={t('sections.defaultName')}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={onCommit}
+      onKeyDown={(e) => {
+        if (isSubmitEnter(e)) {
+          e.preventDefault()
+          e.currentTarget.blur()
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          onCancel()
+        }
+      }}
+      className="w-full rounded bg-transparent text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent-400/50"
+    />
   )
 }
