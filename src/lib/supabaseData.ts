@@ -421,7 +421,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     habit_id: task.habitId ?? null,
     is_sleep: task.isSleep ?? false,
     time_zone: task.timeZone ?? null,
-    time_zone_anchor: task.timeZone ? (task.timeZoneAnchor ?? null) : null,
+    time_zone_anchor: task.timeZoneAnchor ?? null,
     reminders: task.reminders ?? null,
     archived_at: task.archivedAt ?? null,
     deleted_at: task.deletedAt ?? null,

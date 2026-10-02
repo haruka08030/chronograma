@@ -107,8 +107,26 @@ describe('taskTimeZone', () => {
     const r = reanchorTask(t, 'America/New_York')
     expect(r).toMatchObject({ startTime: '10:00', endTime: '10:30', timeZoneAnchor: 'America/New_York' })
     expect(reanchorTask(r, 'America/New_York')).toBe(r)
-    const floating = { ...base, scheduledDate: '2026-10-05', startTime: '09:00', endTime: '10:00' }
-    expect(reanchorTask(floating, 'America/New_York')).toBe(floating)
+  })
+
+  it('タイムゾーンを決めていない予定も、アプリのタイムゾーンを変えたら同じ瞬間のままずらす（Google と同じ）', () => {
+    const gym = { ...base, scheduledDate: '2026-10-05', startTime: '07:00', endTime: '08:00', timeZoneAnchor: 'Asia/Tokyo' }
+    expect(reanchorTask(gym, 'America/New_York')).toMatchObject({
+      scheduledDate: '2026-10-04',
+      startTime: '18:00',
+      endTime: '19:00',
+      timeZoneAnchor: 'America/New_York',
+    })
+  })
+
+  it('書いたタイムゾーンが分からない古いものは、いまのタイムゾーンで書いたとみなす（時刻は動かさない）', () => {
+    const old = { ...base, scheduledDate: '2026-10-05', startTime: '09:00', endTime: '10:00' }
+    expect(reanchorTask(old, 'Asia/Tokyo')).toMatchObject({ startTime: '09:00', timeZoneAnchor: 'Asia/Tokyo' })
+  })
+
+  it('日付だけのタスクは動かない', () => {
+    const due = { ...base, dueDate: '2026-10-05', timeZoneAnchor: 'Asia/Tokyo' }
+    expect(reanchorTask(due, 'America/New_York')).toMatchObject({ dueDate: '2026-10-05' })
   })
 })
 

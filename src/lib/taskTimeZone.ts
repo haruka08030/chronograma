@@ -6,8 +6,10 @@ import { appTimeZone, convertWall } from './timeZone'
  *
  * 日付・時刻の列は、ほかのタスクと同じく常に「アプリのタイムゾーン」の壁時計で持つ（タイムラインや集計はそのまま使える）。
  * `timeZone` は入力したときのタイムゾーンで、詳細ではそのタイムゾーンの時刻で見せて編集する。
- * `timeZoneAnchor` は列がどのタイムゾーンで書かれているか。アプリのタイムゾーンが変わったら（設定・端末の移動）
- * `reanchorTask` でその瞬間のまま書き直す。
+ * `timeZoneAnchor` は列がどのタイムゾーンで書かれているか（`timeZone` を決めていないタスクも持つ）。
+ * アプリのタイムゾーンが変わったら（設定・端末の移動）、すべての予定・記録を `reanchorTask` でその瞬間のまま
+ * 書き直す（Google カレンダーと同じ。東京 7 時のジムは、ニューヨークに切り替えると前日 18 時）。
+ * 時刻の無い（日付だけの）タスクは動かない。
  */
 
 export type TaskTimeFields = Pick<
@@ -78,7 +80,7 @@ export function foreignTimeZone(task: Pick<Task, 'timeZone'>): string | null {
  * 同期の行き違いを生まないよう `updatedAt` は変えない（どの端末でも読み込んだ側で直す）
  */
 export function reanchorTask(task: Task, zone: string = appTimeZone()): Task {
-  if (!task.timeZone) return task
+  // 書いたタイムゾーンが分からない（この仕組みの前に作った）ものは、いまのタイムゾーンで書いたとみなす
   if (!task.timeZoneAnchor) return { ...task, timeZoneAnchor: zone }
   if (task.timeZoneAnchor === zone) return task
   return { ...convertTaskTimes(task, task.timeZoneAnchor, zone), timeZoneAnchor: zone }

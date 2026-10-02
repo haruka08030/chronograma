@@ -562,7 +562,7 @@ function applyTaskPatch(
   const now = new Date().toISOString()
   const applied = { ...task, ...patch, updatedAt: now }
   // 日付・時刻の列はいつもアプリのタイムゾーンで書く（`taskTimeZone.ts`）
-  if (patch.timeZone !== undefined) applied.timeZoneAnchor = patch.timeZone ? appTimeZone() : null
+  if (patch.timeZone !== undefined) applied.timeZoneAnchor = appTimeZone()
   if (patch.completed === true) {
     if (!task.completed) {
       applied.completedAt = typeof patch.completedAt === 'string' ? patch.completedAt : now
@@ -680,6 +680,8 @@ function makeTask(
     isSleep: fields.isSleep ?? false,
     archivedAt: null,
     deletedAt: null,
+    // 列を書いたタイムゾーン。アプリのタイムゾーンを変えたら同じ瞬間のまま書き直す（`taskTimeZone.ts`）
+    timeZoneAnchor: appTimeZone(),
   }
   // 「睡眠」と付けた記録（後から記録・タイマー）も睡眠として扱う
   if (looksLikeSleep(task)) task.isSleep = true
@@ -1592,7 +1594,7 @@ export const useTaskStore = create<TaskState>()(
       setAppTimeZone: (tz) => {
         const next = tz && isValidTimeZone(tz) ? tz : null
         setAppTimeZoneSetting(next)
-        // タイムゾーンを決めたタスクは同じ瞬間のまま新しいタイムゾーンの時刻に（決めていないものは壁時計のまま）
+        // 時刻のある予定・記録は、すべて同じ瞬間のまま新しいタイムゾーンの時刻に（Google と同じ）
         set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
       },
       setExtraTimeZones: (zones) =>
