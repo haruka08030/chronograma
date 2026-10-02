@@ -13,6 +13,7 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
+import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
@@ -212,6 +213,7 @@ export function TaskList() {
   const sortMode = useTaskStore((s) => s.sortMode)
   const setSortMode = useTaskStore((s) => s.setSortMode)
   const filterTag = useTaskStore((s) => s.filterTag)
+  const filterColor = useTaskStore((s) => s.filterColor)
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
@@ -261,7 +263,7 @@ export function TaskList() {
 
   useEffect(() => {
     queueMicrotask(() => clearSelection())
-  }, [selectedListId, selectedView, filterTag, sortMode, clearSelection])
+  }, [selectedListId, selectedView, filterTag, filterColor, sortMode, clearSelection])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -348,7 +350,13 @@ export function TaskList() {
     () => BULK_PRIORITY_OPTIONS.map((value) => ({ value, label: t(`common.${value}`) })),
     [t],
   )
-  const title = selectedView
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
+  // ナビから色ラベルを開いたとき（「すべて」を色で絞る）はラベル名を見出しにする
+  const colorView = selectedView === 'all' && filterColor !== null
+  const title = colorView
+    ? colorLabelText(filterColor, presets, categoryColors, t)
+    : selectedView
     ? t(`sidebar.views.${selectedView}`)
     : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
 
@@ -368,10 +376,11 @@ export function TaskList() {
         selectedListId,
         sortMode,
         filterTag,
+        filterColor,
         sections,
         excludedListIds,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, sections, excludedListIds],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds],
   )
 
   const listSectionsOrdered = useMemo(() => {
@@ -424,11 +433,12 @@ export function TaskList() {
       selectedListId,
       sortMode,
       filterTag,
+      filterColor,
       sections,
       listOrderById,
       excludedListIds,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, sections, listOrderById, excludedListIds])
+  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, listOrderById, excludedListIds])
 
   type SectionBlockRow = {
     listId: string
@@ -971,7 +981,10 @@ export function TaskList() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-4 pb-2 pt-6 md:px-6 md:pt-8">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+            <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {colorView && (
+                <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: filterColor }} aria-hidden />
+              )}
               {title}
             </h1>
             <div className="flex items-center gap-2 mt-1">

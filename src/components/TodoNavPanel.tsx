@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
 import { CALENDAR_COLORS } from '../lib/googleColors'
@@ -10,6 +10,8 @@ import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
 import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
+import { unplannedListIds } from '../lib/listKind'
+import { colorLabelText, todoColorLabels } from '../lib/todoColorLabels'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -153,7 +155,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 /**
- * To‑Do のサブナビ本体（期限別ビュー / リスト / アーカイブ・ゴミ箱）。
+ * To‑Do のサブナビ本体（期限別ビュー / リスト / 色ラベル / アーカイブ・ゴミ箱）。
  * md 以上は `TodoNavPanel` として独立パネルに、md 未満はサイドバードロワー内に描画する。
  * リスト行は DnD id を持つため、同時に二箇所へマウントしないこと。
  */
@@ -171,6 +173,15 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
+  const tasks = useTaskStore((s) => s.tasks)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
+  const filterColor = useTaskStore((s) => s.filterColor)
+  const selectColor = useTaskStore((s) => s.selectColor)
+  const colorLabels = useMemo(
+    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors),
+    [tasks, lists, presets, categoryColors],
+  )
 
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -219,7 +230,8 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           key={v.id}
           view={v.id}
           icon={v.icon}
-          isSelected={selectedView === v.id}
+          // 色ラベルを開いている間は「すべて」ではなくラベルの行を選択中にする
+          isSelected={selectedView === v.id && !(v.id === 'all' && filterColor)}
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
@@ -318,6 +330,38 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         )}
       </div>
+
+      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」 */}
+      {colorLabels.length > 0 && (
+        <>
+          <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+          <div className="px-3 pb-1 pt-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+            {t('labels.title')}
+          </div>
+          {colorLabels.map((label) => {
+            const isSelected = selectedView === 'all' && filterColor === label.hex
+            const name = colorLabelText(label.hex, presets, categoryColors, t)
+            return (
+              <button
+                key={label.hex}
+                type="button"
+                onClick={() => handleNav(() => selectColor(label.hex))}
+                aria-current={isSelected ? 'page' : undefined}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
+                  ${isSelected
+                    ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+              >
+                <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{name}</span>
+                {label.count > 0 && (
+                  <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
+                )}
+              </button>
+            )
+          })}
+        </>
+      )}
 
       <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
 

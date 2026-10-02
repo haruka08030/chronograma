@@ -614,9 +614,9 @@ export function TaskDetail({
                       ))}
                   </select>
                 </div>
-                {/* カレンダーでの色。既定はリストの色 */}
+                {/* 色＝ラベル（記録と同じ）。カレンダーの色と To‑Do の色ラベルに使う。既定はリストの色 */}
                 <div className="mt-3">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.color')}</label>
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('labels.title')}</label>
                   <ColorLabelPicker
                     task={task}
                     planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}

@@ -124,6 +124,8 @@ interface TaskState {
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
   filterTag: string | null
+  /** To‑Do を色（ラベル）で絞っているときの `#RRGGBB`（大文字）。「すべて」と組み合わせて「ラベルを開いた」状態になる */
+  filterColor: string | null
   /** 締切の前の通知（前日 20:00 ＋ 時刻つきは 3 時間前） */
   notificationsEnabled: boolean
   /** 予定が終わったら「予定どおり / 記録する」を聞く */
@@ -228,6 +230,8 @@ interface TaskState {
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
+  /** To‑Do の色ラベルを開く（「すべて」をその色で絞る） */
+  selectColor: (hex: string) => void
 
   setCalendarEvents: (events: CalendarEvent[]) => void
   /**
@@ -588,6 +592,7 @@ interface ChronogramaUndoSnapshot {
   quickAddSectionId: string | null
   sortMode: SortMode
   filterTag: string | null
+  filterColor: string | null
   calendarMode: CalendarMode
   selectedCalendarDateKey: string
   activeTimer: ActiveTimer | null
@@ -708,6 +713,7 @@ export const useTaskStore = create<TaskState>()(
           quickAddSectionId: s.quickAddSectionId,
           sortMode: s.sortMode,
           filterTag: s.filterTag,
+          filterColor: s.filterColor,
           calendarMode: s.calendarMode,
           selectedCalendarDateKey: s.selectedCalendarDateKey,
           activeTimer: s.activeTimer ? structuredClone(s.activeTimer) : null,
@@ -764,6 +770,7 @@ export const useTaskStore = create<TaskState>()(
       dataOwner: null as string | null,
       quickAddRequested: false,
       filterTag: null,
+      filterColor: null,
       notificationsEnabled: false,
       recordPrompts: true,
       recordPromptTaskId: null as string | null,
@@ -1252,12 +1259,25 @@ export const useTaskStore = create<TaskState>()(
             presets.push(name)
             colors[name] = row.color
           }
+          // 予定・タスクは色（hex）だけ持つので、ラベルの色を変えたら同じ色の予定・タスクも新しい色へ
+          const recolor = new Map<string, string>()
+          for (const row of rows) {
+            const name = row.name.trim()
+            const from = row.from ?? name
+            if (!name || !s.timeLogTagPresets.includes(from)) continue
+            const oldHex = categoryHex(from, s.logCategoryColors).toUpperCase()
+            const newHex = categoryHex(name, { ...s.logCategoryColors, ...colors }).toUpperCase()
+            if (oldHex !== newHex) recolor.set(oldHex, newHex)
+          }
           const kept = new Set([...presets, ...rename.keys()])
           const removedHex = new Map(
             s.timeLogTagPresets.filter((n) => !kept.has(n)).map((n) => [n, categoryHex(n, s.logCategoryColors)] as const),
           )
           const tasks = s.tasks.map((t) => {
-            if (!t.isTimeLog) return t
+            if (!t.isTimeLog) {
+              const next = t.color ? recolor.get(t.color.toUpperCase()) : undefined
+              return next ? { ...t, color: next, updatedAt: now } : t
+            }
             const tag = t.tags[0]
             if (tag && rename.has(tag)) return { ...t, tags: [rename.get(tag)!], updatedAt: now }
             if (tag && removedHex.has(tag)) return { ...t, tags: [], color: removedHex.get(tag)!, updatedAt: now }
@@ -1271,13 +1291,23 @@ export const useTaskStore = create<TaskState>()(
         })
       },
 
-      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
+      // 色ラベルの絞り込みはラベルを開いている間だけ。別のリスト・ビューへ移ったら外す
+      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null, filterColor: null }),
       selectView: (view) =>
         set({
           selectedView: view,
           selectedListId: null,
           quickAddSectionId: null,
           settingsScrollTarget: null,
+          filterColor: null,
+        }),
+      selectColor: (hex) =>
+        set({
+          selectedView: 'all',
+          selectedListId: null,
+          quickAddSectionId: null,
+          settingsScrollTarget: null,
+          filterColor: hex.toUpperCase(),
         }),
       openSettingsWithScroll: (target) =>
         set({
@@ -1306,7 +1336,9 @@ export const useTaskStore = create<TaskState>()(
       },
       requestQuickAdd: () => {
         const s = get()
-        if (s.selectedView !== null) {
+        // 色ラベルを開いているときはその場で追加する（追加したタスクにその色が付く）
+        const colorView = s.selectedView === 'all' && s.filterColor !== null
+        if (s.selectedView !== null && !colorView) {
           set({ selectedListId: s.selectedListId ?? INBOX_ID, selectedView: null, quickAddRequested: true })
         } else {
           set({ quickAddRequested: true })

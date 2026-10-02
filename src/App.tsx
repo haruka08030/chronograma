@@ -340,6 +340,7 @@ export default function App() {
         selectedListId: state.selectedListId,
         sortMode: state.sortMode,
         filterTag: state.filterTag,
+        filterColor: state.filterColor,
         sections: state.sections,
         listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
         excludedListIds: unplannedListIds(state.lists),

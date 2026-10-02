@@ -15,6 +15,8 @@ export interface MainListTasksInput {
   selectedListId: string | null
   sortMode: SortMode
   filterTag: string | null
+  /** 色ラベルで絞るときの `#RRGGBB`（タスク自身の色。リストの色は見ない） */
+  filterColor?: string | null
   sections: ListSection[]
   /** スマートビューでリスト横断の手動順を決めるとき（`lists.order`） */
   listOrderById?: Map<string, number>
@@ -24,7 +26,7 @@ export interface MainListTasksInput {
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag, excludedListIds } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
   let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
   // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
   if (selectedView && excludedListIds && excludedListIds.size > 0) {
@@ -61,6 +63,10 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
 
   if (filterTag) {
     result = result.filter((t) => t.tags?.includes(filterTag))
+  }
+
+  if (filterColor) {
+    result = result.filter((t) => t.color?.toUpperCase() === filterColor)
   }
 
   switch (sortMode) {
