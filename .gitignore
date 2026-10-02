@@ -31,3 +31,6 @@ supabase/.temp/
 
 # UI 撮影の出力（scripts/shots）
 .shots/
+
+# 作業用の git worktree（機能ごとにブランチを切って作業する場所）
+.claude/worktrees/
