@@ -14,7 +14,7 @@ import {
 } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { inferLogCategory } from '../lib/logCategory'
-import { CATEGORY_COLOR_KEYS, assignColorsInOrder, categoryHex, labelForHex, logTagsFromTask, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
+import { CATEGORY_COLOR_KEYS, assignColorsInOrder, categoryHex, labelForHex, logLabelFromTask, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
 import { nearestGoogleHex } from '../lib/googleColors'
 import { eventChoiceKey, resolveEventColors, seriesChoiceKey, type EventColorChoices } from '../lib/googleEventColors'
 
@@ -99,6 +99,8 @@ export interface ActiveTimer {
   tags: string[]
   /** 「今日の計画」などタスクから開始したときの元タスク。停止時に完了確認を出す */
   taskId?: string | null
+  /** 元タスクの名前の無い色。記録にそのまま付ける */
+  color?: string | null
 }
 
 /** 朝のまとめの通知時刻（`HH:mm`）。null はオフ */
@@ -276,11 +278,13 @@ interface TaskState {
     tags?: string[],
     description?: string,
     endDate?: string | null,
+    /** 名前の無い色（To-Do の色を引き継ぐとき）。あれば分類は推定しない */
+    color?: string | null,
   ) => void
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
-  startTimer: (title: string, tags?: string[], taskId?: string | null) => void
+  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -1484,7 +1488,7 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }))
       },
-      addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg) => {
+      addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color) => {
         const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
         const endDate =
           endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
@@ -1498,7 +1502,8 @@ export const useTaskStore = create<TaskState>()(
             endTime,
             isTimeLog: true,
             completed: true,
-            tags: withInferredCategory(tags ?? [], get(), title),
+            tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title),
+            color: color ?? null,
           },
           maxOrder + 1,
         )
@@ -1539,7 +1544,7 @@ export const useTaskStore = create<TaskState>()(
         )
         set((s) => ({ tasks: [...s.tasks, log] }))
       },
-      startTimer: (title, tags, taskId) => {
+      startTimer: (title, tags, taskId, color) => {
         // 走っているものを黙って捨てると記録が消える。先に記録にして閉じてから始め、切り替えたことを知らせる
         const previous = get().activeTimer
         if (previous) {
@@ -1552,8 +1557,9 @@ export const useTaskStore = create<TaskState>()(
           activeTimer: {
             taskTitle: title,
             startedAt: new Date().toISOString(),
-            tags: withInferredCategory(tags ?? [], get(), title, { taskId }),
+            tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId }),
             taskId: taskId ?? null,
+            color: color ?? null,
           },
           completePromptTaskId: null,
         })
@@ -1581,6 +1587,7 @@ export const useTaskStore = create<TaskState>()(
               isTimeLog: true,
               completed: true,
               tags: timer.tags,
+              color: timer.color ?? null,
             }, maxOrder + 1),
           ],
         }))
@@ -1627,6 +1634,7 @@ export const useTaskStore = create<TaskState>()(
               isTimeLog: true,
               completed: true,
               tags: timer.tags,
+              color: timer.color ?? null,
             }, maxOrder + 1),
           ],
         }))
@@ -2031,7 +2039,8 @@ export const useTaskStore = create<TaskState>()(
         const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
         get().asOneUndo(() => {
           const { timeLogTagPresets, logCategoryColors } = get()
-          get().addTimeLog(task.title, date, task.startTime!, end, logTagsFromTask(task, timeLogTagPresets, logCategoryColors))
+          const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
+          get().addTimeLog(task.title, date, task.startTime!, end, label.tags, undefined, null, label.color)
           get().toggleTask(task.id)
         })
       },

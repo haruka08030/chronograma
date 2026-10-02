@@ -18,6 +18,8 @@ export interface CompleteWithLogDraft {
   memo: string
   mode: CompletionMode
   tags: string[]
+  /** 元の To-Do の名前の無い色 */
+  color: string | null
 }
 
 export function CompleteWithLogModal({
