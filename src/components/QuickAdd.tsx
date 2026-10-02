@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { PlusIcon } from './icons'
 
 export function QuickAdd() {
   const { t } = useTranslation()
@@ -44,9 +45,7 @@ export function QuickAdd() {
       >
         <span className="w-6 h-6 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600
                          flex items-center justify-center group-hover:border-accent-500 group-hover:text-accent-500 transition-colors">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+          <PlusIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
         <span className="text-sm">{t('quickAdd.trigger')}</span>
       </button>
@@ -57,9 +56,7 @@ export function QuickAdd() {
     <div className="px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl ring-2 ring-accent-500/40 space-y-1.5">
       <div className="flex items-center gap-3">
       <span className="w-6 h-6 rounded-full border-2 border-accent-400 flex items-center justify-center text-accent-500 flex-shrink-0">
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
+        <PlusIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
       </span>
       <input
         ref={inputRef}

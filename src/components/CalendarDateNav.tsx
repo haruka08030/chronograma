@@ -16,6 +16,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -124,9 +125,7 @@ export function CalendarDateNav({
           aria-label={mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria')}
           className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
+          <ChevronLeftIcon className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -134,9 +133,7 @@ export function CalendarDateNav({
           aria-label={mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria')}
           className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
+          <ChevronRightIcon className="h-4 w-4" />
         </button>
       </div>
 
@@ -180,9 +177,7 @@ export function CalendarDateNav({
                 onClick={() => setPickerMonth((m) => subMonths(m, 1))}
                 className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
+                <ChevronLeftIcon className="h-4 w-4" />
               </button>
               <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
                 {format(pickerMonth, isJa ? 'yyyy年M月' : 'MMMM yyyy', { locale: dateLocale })}
@@ -193,9 +188,7 @@ export function CalendarDateNav({
                 onClick={() => setPickerMonth((m) => addMonths(m, 1))}
                 className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
+                <ChevronRightIcon className="h-4 w-4" />
               </button>
             </div>
             <div className="grid grid-cols-7 gap-0.5">

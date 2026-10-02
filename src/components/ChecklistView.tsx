@@ -8,6 +8,7 @@ import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
+import { CheckIcon, PlusIcon } from './icons'
 
 /**
  * チェックリスト（買い物・持ち物）用の画面。店の中で片手で使う前提で、
@@ -58,9 +59,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
           }`}
         >
           {item.completed && (
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
+            <CheckIcon className="h-3 w-3" strokeWidth={3} />
           )}
         </span>
       </button>
@@ -100,9 +99,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
         </header>
 
         <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
-          <svg className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+          <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

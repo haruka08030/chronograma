@@ -17,6 +17,7 @@ import { enUS, ja } from 'date-fns/locale'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { zonedNow } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -139,9 +140,7 @@ export function DueDatePopover({
                 onClick={() => setViewMonth((m) => subMonths(m, 1))}
                 className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
+                <ChevronLeftIcon className="h-4 w-4" />
               </button>
               <button
                 type="button"
@@ -149,9 +148,7 @@ export function DueDatePopover({
                 onClick={() => setViewMonth((m) => addMonths(m, 1))}
                 className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
+                <ChevronRightIcon className="h-4 w-4" />
               </button>
             </div>
           </div>

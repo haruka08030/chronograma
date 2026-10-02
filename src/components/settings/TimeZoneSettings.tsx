@@ -3,6 +3,7 @@ import { MAX_EXTRA_TIME_ZONES, useTaskStore } from '../../store/taskStore'
 import { deviceTimeZone, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { SettingsGroup, SettingsRow, settingsButton } from './SettingsPrimitives'
+import { CloseIcon } from '../icons'
 
 /** 設定「日付と時刻」: アプリのタイムゾーンと、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
 export function TimeZoneSettings() {
@@ -48,9 +49,7 @@ export function TimeZoneSettings() {
             onClick={() => setExtra(extra.filter((z) => z !== tz))}
             className="shrink-0 rounded-full p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
       ))}

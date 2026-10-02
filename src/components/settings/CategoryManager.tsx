@@ -7,6 +7,7 @@ import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { CATEGORY_COLOR_KEYS, categoryColorKey, categoryHex, colorVars } from '../../lib/logCategoryColors'
 import { hexForGoogleKey } from '../../lib/googleColors'
 import { zonedNow } from '../../lib/timeZone'
+import { CloseIcon } from '../icons'
 
 const USAGE_DAYS = 30
 
@@ -148,7 +149,7 @@ export function CategoryManager() {
                   title={t('categories.removeHelp')}
                   className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800"
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <CloseIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
               {colorFor === name && (

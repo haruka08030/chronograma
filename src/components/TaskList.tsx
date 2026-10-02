@@ -32,6 +32,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
+import { CloseIcon, PencilIcon } from './icons'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -836,9 +837,7 @@ export function TaskList() {
                         title={t('sections.renameTitle')}
                         onClick={() => beginSectionRename(sectionId, block.title)}
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
+                        <PencilIcon className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
@@ -850,9 +849,7 @@ export function TaskList() {
                           }
                         }}
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <CloseIcon className="w-3.5 h-3.5" />
                       </button>
                     </span>
                   }
@@ -1033,9 +1030,7 @@ export function TaskList() {
                              hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
                 >
                   {filterTag}
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
                 </button>
               )}
             </div>

@@ -7,6 +7,7 @@ import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { zonedNow } from '../lib/timeZone'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -66,9 +67,7 @@ export function WeekReviewCard() {
             aria-label={t('weekReview.prevWeek')}
             className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
+            <ChevronLeftIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -85,9 +84,7 @@ export function WeekReviewCard() {
             aria-label={t('weekReview.nextWeek')}
             className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
+            <ChevronRightIcon className="h-4 w-4" />
           </button>
         </div>
       </div>

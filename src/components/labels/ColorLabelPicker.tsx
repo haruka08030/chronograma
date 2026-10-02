@@ -5,6 +5,7 @@ import type { Task } from '../../types/task'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { colorKeyForHex, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { ColorPalette } from './ColorPalette'
+import { CaretDownIcon } from '../icons'
 
 /**
  * 記録の色＝ラベル（Google カレンダーの予定の色選択と同じ）。
@@ -78,9 +79,7 @@ export function ColorLabelPicker({
         >
           <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: current ?? planDefaultHex ?? NEUTRAL_HEX }} aria-hidden />
           <span>{triggerText}</span>
-          <svg className="h-3 w-3 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M7 10l5 5 5-5z" />
-          </svg>
+          <CaretDownIcon className="h-3 w-3 text-zinc-500" />
         </button>
       </div>
 

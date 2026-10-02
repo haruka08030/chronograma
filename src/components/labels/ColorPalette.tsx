@@ -4,6 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
 import { LabelsDialog } from './LabelsDialog'
+import { CheckIcon, PencilIcon } from '../icons'
 
 /**
  * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
@@ -48,9 +49,7 @@ export function ColorPalette({
         title={t('labels.edit')}
         className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-700 shadow ring-1 ring-zinc-200 transition-colors hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600 dark:hover:bg-zinc-700"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
-        </svg>
+        <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
       </button>
       <div role="radiogroup" aria-label={t('labels.pickerAria')} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
         {swatches.map((sw) => {
@@ -70,9 +69,7 @@ export function ColorPalette({
               style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}
             >
               {isSelected && (
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
+                <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
               )}
             </button>
           )

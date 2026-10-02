@@ -11,6 +11,7 @@ import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
 import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
+import { PlayIcon, PlusIcon } from './icons'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -243,9 +244,7 @@ export function RecordPanel({
             className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-medium text-on-accent shadow-sm transition-colors hover:bg-accent-700
                        dark:bg-accent-500 dark:hover:bg-accent-400"
           >
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
-            </svg>
+            <PlayIcon className="h-4 w-4" />
             {t('quickLog.start')}
           </button>
         )}
@@ -256,9 +255,7 @@ export function RecordPanel({
             className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50
                        dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+            <PlusIcon className="h-4 w-4" strokeWidth={2.5} />
             {t('records.later')}
           </button>
         )}
@@ -276,15 +273,7 @@ export function RecordPanel({
                          dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
-              <svg
-                className="h-2.5 w-2.5 shrink-0 text-[var(--c)]"
-                style={colorVars(categoryHex(r.category, logCategoryColors))}
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
-              </svg>
+              <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={colorVars(categoryHex(r.category, logCategoryColors))} />
               <span className="truncate">{r.title}</span>
             </button>
           ))}

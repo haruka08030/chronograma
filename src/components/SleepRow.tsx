@@ -5,6 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { CloseIcon } from './icons'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -129,9 +130,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
             title={t('common.cancel')}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
           </button>
         )}
         <button

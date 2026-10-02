@@ -26,6 +26,7 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, zonedNow } from '../lib/timeZone'
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -217,9 +218,7 @@ export function TodayPlannerView() {
             }`}
           >
             {task.completed && (
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
+              <CheckIcon className="h-3 w-3" strokeWidth={3} />
             )}
           </span>
         </button>
@@ -257,9 +256,7 @@ export function TodayPlannerView() {
                  md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100
                  dark:text-zinc-600 dark:hover:text-accent-300"
     >
-      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
-      </svg>
+      <PlayIcon className="h-4 w-4" />
     </button>
   )
 
@@ -308,9 +305,7 @@ export function TodayPlannerView() {
                 aria-label={t('planner.prevDay')}
                 className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
+                <ChevronLeftIcon className="h-4 w-4" />
               </button>
               {!viewingToday && (
                 <button
@@ -327,9 +322,7 @@ export function TodayPlannerView() {
                 aria-label={t('planner.nextDay')}
                 className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
+                <ChevronRightIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -368,9 +361,7 @@ export function TodayPlannerView() {
         <div className="px-3">
           <h2 className={sectionLabel}>{t('planner.todoHeading')}</h2>
           <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
-            <svg className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+            <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />
             <input
               data-quickadd
               value={draft}
@@ -417,9 +408,7 @@ export function TodayPlannerView() {
               aria-expanded={showSuggestions}
               className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
             >
-              <svg className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
+              <ChevronRightIcon className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} strokeWidth={2.5} />
               <span className="flex-1">
                 {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
               </span>
@@ -492,9 +481,7 @@ export function TodayPlannerView() {
                       }`}
                     >
                       {status !== 'missed' && (
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
+                        <CheckIcon className="h-5 w-5" strokeWidth={3} />
                       )}
                     </button>
                     {canTime && (
@@ -510,9 +497,7 @@ export function TodayPlannerView() {
                         className="absolute left-1/2 top-7 ml-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
                                    before:absolute before:-inset-2 before:content-[''] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       >
-                        <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                          <path d="M7 5.5v13a1 1 0 001.52.85l10.4-6.5a1 1 0 000-1.7L8.52 4.65A1 1 0 007 5.5z" />
-                        </svg>
+                        <PlayIcon className="h-2.5 w-2.5" />
                       </button>
                     )}
                     <span className="line-clamp-2 w-full text-center text-xs leading-snug text-zinc-600 dark:text-zinc-300">{h.title}</span>
@@ -534,9 +519,7 @@ export function TodayPlannerView() {
               aria-expanded={showDone}
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
-              <svg className={`h-3 w-3 transition-transform ${showDone ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
+              <ChevronRightIcon className={`h-3 w-3 transition-transform ${showDone ? 'rotate-90' : ''}`} strokeWidth={2.5} />
               {t('planner.doneHeading', { count: done.length })}
             </button>
             {showDone && (

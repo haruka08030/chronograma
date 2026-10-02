@@ -78,6 +78,7 @@ import { isAppToday, zonedNow } from '../lib/timeZone'
 import { TimeGutter, TimeGutterHeader } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
+import { CheckIcon } from './icons'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -215,9 +216,7 @@ function SlotCheck({ top, hStyle, label, onCheck }: { top: number; hStyle?: Reac
         aria-label={label}
         className="pointer-events-auto flex h-4 w-4 items-center justify-center rounded-full border border-current bg-white/70 opacity-70 transition-opacity hover:opacity-100 dark:bg-zinc-900/60"
       >
-        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-        </svg>
+        <CheckIcon className="h-2.5 w-2.5" strokeWidth={3} />
       </button>
     </div>
   )

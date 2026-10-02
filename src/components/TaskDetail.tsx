@@ -18,6 +18,7 @@ import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneField } from './TaskTimeZoneField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { CalendarIcon, ClockIcon, CloseIcon } from './icons'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -187,9 +188,7 @@ export function TaskDetail({
               onClick={onClose}
               className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
             >
-              <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <CloseIcon className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
 
@@ -316,9 +315,7 @@ export function TaskDetail({
                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                           ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                       >
-                        <svg className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                        </svg>
+                        <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                           {tv.dueDate
                             ? format(parseISO(`${tv.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
@@ -360,9 +357,7 @@ export function TaskDetail({
                         bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                         ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
                     >
-                      <svg className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                         {tv.scheduledDate
                           ? format(parseISO(`${tv.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
@@ -555,9 +550,7 @@ export function TaskDetail({
                 >
                   {tag}
                   <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500 transition-colors">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
                   </button>
                 </span>
               ))}

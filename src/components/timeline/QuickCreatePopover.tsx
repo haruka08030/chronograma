@@ -12,6 +12,7 @@ import { addGoogleEvent } from '../../lib/googleEventEdit'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
+import { ClockIcon } from '../icons'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -157,7 +158,7 @@ export function QuickCreatePopover({
         className="w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
       />
       <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-        <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <ClockIcon className="h-4 w-4 shrink-0 text-zinc-400" strokeWidth={1.75} />
         <span className="min-w-0">
           {format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale })} · {startTime} – {endTime}
         </span>
