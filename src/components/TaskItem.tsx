@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
@@ -83,7 +84,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
-  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, selectTag, selectedView, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
   const rowMenuRef = useRef<HTMLDivElement>(null)
@@ -364,7 +365,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               {task.tags.map((tag) => (
                 <button
                   key={tag}
-                  onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}
+                  // To‑Do ではそのラベルを開く。カレンダー横の一覧などでは画面を移らずその場で絞る
+                  onClick={(e) => { e.stopPropagation(); if (isTodoSurfaceView(selectedView)) selectTag(tag); else setFilterTag(tag) }}
                   className="text-[10px] px-1.5 py-0.5 rounded bg-accent-50 dark:bg-accent-500/10
                              text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
                 >

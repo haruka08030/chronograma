@@ -223,6 +223,8 @@ interface TaskState {
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
+  /** To‑Do のラベルを開く（「すべて」をそのラベルで絞る） */
+  selectTag: (tag: string) => void
 
   setCalendarEvents: (events: CalendarEvent[]) => void
   /**
@@ -1243,13 +1245,23 @@ export const useTaskStore = create<TaskState>()(
         })
       },
 
-      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null }),
+      // ラベルの絞り込みはラベルを開いている間だけ。別のリスト・ビューへ移ったら外す
+      selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null, filterTag: null }),
       selectView: (view) =>
         set({
           selectedView: view,
           selectedListId: null,
           quickAddSectionId: null,
           settingsScrollTarget: null,
+          filterTag: null,
+        }),
+      selectTag: (tag) =>
+        set({
+          selectedView: 'all',
+          selectedListId: null,
+          quickAddSectionId: null,
+          settingsScrollTarget: null,
+          filterTag: tag,
         }),
       openSettingsWithScroll: (target) =>
         set({
@@ -1278,7 +1290,9 @@ export const useTaskStore = create<TaskState>()(
       },
       requestQuickAdd: () => {
         const s = get()
-        if (s.selectedView !== null) {
+        // ラベルを開いているときはその場で追加する（追加したタスクにそのラベルが付く）
+        const labelView = s.selectedView === 'all' && s.filterTag !== null
+        if (s.selectedView !== null && !labelView) {
           set({ selectedListId: s.selectedListId ?? INBOX_ID, selectedView: null, quickAddRequested: true })
         } else {
           set({ quickAddRequested: true })
@@ -2380,7 +2394,6 @@ export const useTaskStore = create<TaskState>()(
           searchQuery,
           deletedTasks,
           quickAddRequested,
-          filterTag,
           calendarEvents,
           googleConnected,
           googleAccessToken,
@@ -2399,7 +2412,6 @@ export const useTaskStore = create<TaskState>()(
         void searchQuery
         void deletedTasks
         void quickAddRequested
-        void filterTag
         void calendarEvents
         void googleConnected
         void googleAccessToken

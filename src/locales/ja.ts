@@ -93,6 +93,7 @@ export default {
     reorderList: 'リストを並べ替え',
     deleteList: 'リストを削除',
     renameList: 'リスト名を変更',
+    labels: 'ラベル',
     views: {
       planner: '今日の計画',
       all: 'すべて',
@@ -569,8 +570,8 @@ export default {
     time: '時間',
     logDuration: '記録時間の長さ: {{label}}',
     recurrence: '繰り返し',
-    tags: 'タグ',
-    tagPlaceholder: 'タグを追加',
+    tags: 'ラベル',
+    tagPlaceholder: 'ラベルを追加',
     color: '色',
     list: 'リスト',
     section: 'セクション',

@@ -4,7 +4,7 @@
 各画面を **デスクトップ / スマホ × ライト / ダーク** で撮って `.shots/`（git 管理外）に置く。
 
 ```bash
-npm run shots                        # 全部（8 画面 × 2 幅 × 2 テーマ = 32 枚）
+npm run shots                        # 全部（10 画面 × 2 幅 × 2 テーマ = 40 枚）
 npm run shots -- --only=planner,stats
 npm run shots -- --dark-only
 npm run shots -- --out=/tmp/shots
@@ -18,8 +18,8 @@ npm run shots -- --out=/tmp/shots
 
 ## 撮る画面
 
-`capture.mjs` の `SCREENS`。今は 今日の計画 / To-Do / カレンダー / 習慣 /
-統計 / 設定 / いつか / 買い物 の 8 つ。
+`capture.mjs` の `SCREENS`。今は 今日の計画 / To-Do / To-Do のラベル / カレンダー / 習慣 /
+統計 / 設定 / いつか / 買い物 の 9 つと、カレンダーの一覧を開いた状態。
 
 ## 種データ
 
