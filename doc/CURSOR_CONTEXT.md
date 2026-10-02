@@ -78,9 +78,12 @@
   （Google カレンダー方式）。1 日表示・ログ画面は等幅で横並び（`columns`）、週表示・予定 vs ログの週は
   列が狭いので右へずらし重ね（`cascade`、ホバーで前面・`title` で全文）。週/日タイムラインは
   `layoutPlanAndLog` で**重なる塊の中だけ**予定=左 / ログ=右に分ける。重ねるためブロック背景は不透明色
-- **1 日のリズム**: `dailyReminders`（朝の計画 / 夕方の締めの `HH:mm`、既定オフ）を `App` が 30 秒ごとに
-  `checkDailyReminders`（`src/lib/dailyReminders.ts`）で判定し、1 日 1 回ブラウザ通知（タブが開いている間のみ）。
-  「今日の計画」でタスクが 1 件以上あるときに一度だけオプトインを案内。`dailyCapacityMinutes`（既定 8h）を
+- **通知**: 何をいつ出すかは `supabase/functions/daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）。
+  朝のまとめ（`dailyReminders.planTime`）・予定の前（`eventReminderMinutes`）・締切の前（`notificationsEnabled`、前日 20:00 ＋ 3 時間前）・
+  予定のあとの記録の確認（`recordPrompts`、通知の「予定どおり / 記録する」→ `logPlanAsPlanned` / `RecordPromptHost`）・
+  タイマーの止め忘れ（3 時間）。タスクごとの通知は `Task.reminders`（`TaskRemindersField`、null は既定）。
+  Web Push 購読中は Edge Function、それ以外は `App` が 30 秒ごとに `checkLocalReminders`（`src/lib/localReminders.ts`）。
+  「今日の計画」でタスクが 1 件以上あるときに一度だけおすすめの通知をまとめてオンにする案内。`dailyCapacityMinutes`（既定 8h）を
   超えて計画すると穏やかに警告。設定は `DailyRhythmSettings`。日の集計は `getDayPlan`（`src/lib/dayPlan.ts`）
 - **タスク連動タイマー**: `startTimer(title, tags, taskId)`。停止時に元タスクが未完了なら `completePromptTaskId`
   を立てて `FloatingTimer` が「完了にしますか？」を出す。1 分未満の停止はログを作らない
@@ -144,9 +147,6 @@
 - **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
   c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
   各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）
-- **予定の開始前通知**: `eventReminderMinutes`（5/10/15/30 分前、既定オフ、設定の「通知と 1 日のリズム」）。タブが開いている間は
-  `checkEventReminders`（`src/lib/eventReminders.ts`、localStorage で 1 日 1 回）、Web Push 購読中は Edge Function
-  `daily-reminders` が `push_subscriptions.event_reminder_minutes`を見て送る
 
 ### グローバルショートカット（`App.tsx`）
 

@@ -1,10 +1,10 @@
 /* Chronograma service worker
  * - オフラインでも開けるように、画面（HTML）はネットワーク優先・失敗時はキャッシュ、
  *   ビルド済みアセット（/assets/ はハッシュ付き）はキャッシュ優先
- * - 朝の計画 / 夕方の締めの Web Push を表示し、タップで「今日の計画」を開く
+ * - 通知（Web Push）を表示し、タップで「今日の計画」を開く。記録の確認は「予定どおり」「記録する」のボタン付き
  * Supabase や Google など別オリジンの通信には触らない（同期は常に最新が必要なため）
  */
-const CACHE = 'chronograma-v1'
+const CACHE = 'chronograma-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png']
 
 self.addEventListener('install', (event) => {
@@ -75,19 +75,25 @@ self.addEventListener('push', (event) => {
       tag: data.tag || 'chronograma',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { url: data.url || '/?view=planner' },
+      data: { url: data.url || '/?view=planner', taskId: data.taskId },
+      // 記録の確認: 「予定どおり」「記録する」（対応していないブラウザでは本文のタップで記録の画面）
+      actions: Array.isArray(data.actions) ? data.actions : undefined,
     }),
   )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = new URL((event.notification.data && event.notification.data.url) || '/?view=planner', self.location.origin)
+  const data = event.notification.data || {}
+  const target = new URL(data.url || '/?view=planner', self.location.origin)
+  const taskId = data.taskId || target.searchParams.get('record')
+  const asPlanned = event.action === 'as-planned'
+  if (taskId && asPlanned) target.searchParams.set('as', 'planned')
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
         if (new URL(w.url).origin === target.origin) {
-          w.postMessage({ type: 'open-view', view: target.searchParams.get('view') })
+          w.postMessage(taskId ? { type: 'record', taskId, asPlanned } : { type: 'open-view', view: target.searchParams.get('view') })
           return w.focus()
         }
       }

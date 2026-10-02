@@ -17,6 +17,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneField } from './TaskTimeZoneField'
+import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon } from './icons'
 
@@ -388,6 +389,7 @@ export function TaskDetail({
                 )}
               </div>
               {(task.startTime || task.dueTime || zone) && <TaskTimeZoneField task={task} view={tv} />}
+              <TaskRemindersField task={task} />
             </>
           )}
 

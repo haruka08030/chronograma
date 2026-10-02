@@ -73,6 +73,8 @@ create table if not exists public.tasks (
   time_zone        text,
   -- 日付・時刻の列がどのタイムゾーンで書かれているか。各端末が読み込み時に同じ瞬間のまま書き直す
   time_zone_anchor text,
+  -- タスクごとの通知 [{ "at": "start" | "due" | "dueDay", "minutes": n }]（null = 設定の既定）
+  reminders        jsonb,
 
   -- 記録（time log）
   is_time_log      boolean not null default false,
@@ -133,7 +135,7 @@ create table if not exists public.push_subscriptions (
   timezone               text not null default 'UTC',
   lang                   text not null default 'ja',
 
-  -- 朝の計画・夕方の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回）
+  -- 朝のまとめ（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回）。wrap_up_* は廃止（夕方の締め）
   plan_time              text check (plan_time is null or plan_time ~ '^\d{2}:\d{2}$'),
   wrap_up_time           text check (wrap_up_time is null or wrap_up_time ~ '^\d{2}:\d{2}$'),
   last_plan_sent         date,
@@ -142,9 +144,17 @@ create table if not exists public.push_subscriptions (
   -- 予定の開始 N 分前（null = オフ）
   event_reminder_minutes integer
     check (event_reminder_minutes is null or event_reminder_minutes between 1 and 120),
-  -- 締切の通知
+  -- 締切の前（前日 20:00 ＋ 時刻つきは 3 時間前）
   due_reminders          boolean not null default false,
-  -- その日に通知済みの ID: { "date": "yyyy-mm-dd", "ids": ["task id", ...] }
+  -- 予定のあとの記録の確認
+  record_prompts         boolean not null default false,
+  -- 送った通知の鍵（同じ通知を二度送らない）: { "keys": ["task:start:10:yyyy-mm-dd", ...] }
+  reminder_sent          jsonb,
+  -- 動いているタイマー（止め忘れの通知用）と、通知済みのタイマーの開始時刻
+  timer_started_at       timestamptz,
+  timer_title            text,
+  timer_notified_for     timestamptz,
+  -- 廃止（reminder_sent に統合）
   event_notified         jsonb,
   due_notified           jsonb,
 

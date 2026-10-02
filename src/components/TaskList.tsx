@@ -25,13 +25,12 @@ import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
 import type { Priority, Task } from '../types/task'
-import { CompleteWithLogModal, type CompleteWithLogDraft } from './CompleteWithLogModal'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 import { CloseIcon, PencilIcon } from './icons'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
@@ -215,7 +214,6 @@ export function TaskList() {
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
-  const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const archiveTasks = useTaskStore((s) => s.archiveTasks)
@@ -228,7 +226,6 @@ export function TaskList() {
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  const [completionDraft, setCompletionDraft] = useState<CompleteWithLogDraft | null>(null)
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
@@ -551,24 +548,7 @@ export function TaskList() {
     [active, selected],
   )
 
-  const openCompleteWithLog = useCallback((task: Task) => {
-    const placement = taskPlacementDate(task)
-    if (task.completed || isListedTimeLog(task) || !placement || !task.startTime || !task.endTime) {
-      toggleTask(task.id)
-      return
-    }
-    setCompletionDraft({
-      taskId: task.id,
-      title: task.title,
-      date: placement,
-      endDate: task.endDate ?? placement,
-      startTime: task.startTime,
-      endTime: task.endTime,
-      memo: task.description.trim(),
-      mode: 'as-planned',
-      tags: [...task.tags],
-    })
-  }, [toggleTask])
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
   const handleEnterCreateSibling = useCallback((task: Task) => {
     const newTaskId = addTaskAfter(task.id, '')
@@ -578,34 +558,6 @@ export function TaskList() {
       setPendingAutoEditTaskId((prev) => (prev === newTaskId ? null : prev))
     })
   }, [addTaskAfter])
-
-  const submitCompleteWithLog = useCallback(() => {
-    if (!completionDraft) return
-    const memo = completionDraft.memo.trim()
-    const endDateArg = completionDraft.endDate !== completionDraft.date ? completionDraft.endDate : null
-    const dur = durationMinutesForTaskSlot({
-      dueDate: completionDraft.date,
-      endDate: endDateArg,
-      startTime: completionDraft.startTime,
-      endTime: completionDraft.endTime,
-      isTimeLog: true,
-    })
-    if (dur == null || dur <= 0) {
-      alert(t('alert.endAfterStart'))
-      return
-    }
-    addTimeLog(
-      completionDraft.title,
-      completionDraft.date,
-      completionDraft.startTime,
-      completionDraft.endTime,
-      completionDraft.tags,
-      memo || undefined,
-      endDateArg,
-    )
-    toggleTask(completionDraft.taskId)
-    setCompletionDraft(null)
-  }, [completionDraft, addTimeLog, toggleTask, t])
 
   const flatActiveIds = useMemo(() => {
     const out: string[] = []
@@ -1232,15 +1184,7 @@ export function TaskList() {
       </div>
 
       {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
-      {completionDraft && (
-        <CompleteWithLogModal
-          draft={completionDraft}
-          radioGroupName="completion-mode"
-          onClose={() => setCompletionDraft(null)}
-          onChange={(patch) => setCompletionDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
-          onSubmit={submitCompleteWithLog}
-        />
-      )}
+      {completeWithLogModal}
     </div>
   )
 }

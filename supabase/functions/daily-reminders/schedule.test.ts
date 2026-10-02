@@ -1,102 +1,97 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_DUE_NOTIFY_MINUTES,
-  isWithinTick,
+  dailyDue,
+  effectiveReminders,
   minutesOfClock,
-  selectDueToNotify,
-  type DueCandidate,
+  morningDigest,
+  remindersInWindow,
+  staleTimerDue,
+  wallMs,
+  type ReminderSettings,
+  type ReminderTask,
 } from './schedule'
 
-const task = (p: Partial<DueCandidate> & { id: string }): DueCandidate => ({
-  title: p.id,
-  due_time: null,
-  list_id: 'inbox',
+const task = (p: Partial<ReminderTask> & { id: string }): ReminderTask => ({ title: p.id, list_id: 'inbox', ...p })
+const settings = (p: Partial<ReminderSettings> = {}): ReminderSettings => ({
+  eventReminderMinutes: 10,
+  dueReminders: true,
+  recordPrompts: true,
   ...p,
 })
-
-const opts = (p: Partial<Parameters<typeof selectDueToNotify>[1]> & { nowMinutes: number }) => ({
-  excludedListIds: new Set<string>(),
-  notifiedIds: new Set<string>(),
-  ...p,
-})
+/** その時刻を含む 5 分の幅（cron 1 回ぶん） */
+const tick = (date: string, time: string): [number, number] => {
+  const to = wallMs(date, time)!
+  return [to - 5 * 60_000, to]
+}
 
 describe('minutesOfClock', () => {
-  it('HH:mm と HH:mm:ss の両方を読む', () => {
+  it('HH:mm と HH:mm:ss の両方を読み、壊れた値は null', () => {
     expect(minutesOfClock('09:30')).toBe(570)
     expect(minutesOfClock('09:30:00')).toBe(570)
-    expect(minutesOfClock('9:05')).toBe(545)
-  })
-
-  it('空・壊れた値・範囲外は null', () => {
-    expect(minutesOfClock(null)).toBeNull()
-    expect(minutesOfClock('')).toBeNull()
-    expect(minutesOfClock('あとで')).toBeNull()
     expect(minutesOfClock('24:00')).toBeNull()
-    expect(minutesOfClock('10:75')).toBeNull()
+    expect(minutesOfClock(null)).toBeNull()
   })
 })
 
-describe('isWithinTick', () => {
-  it('(now-5, now] の幅だけ真', () => {
-    expect(isWithinTick(600, 600)).toBe(true)
-    expect(isWithinTick(596, 600)).toBe(true)
-    expect(isWithinTick(595, 600)).toBe(false) // ちょうど 5 分前は前回の tick で送った
-    expect(isWithinTick(601, 600)).toBe(false) // まだ先
+describe('remindersInWindow', () => {
+  const plan = task({ id: 'zemi', scheduled_date: '2026-10-05', start_time: '15:00', end_time: '16:30' })
+
+  it('予定の開始 N 分前と、終わったときの記録の確認', () => {
+    expect(remindersInWindow([plan], settings(), ...tick('2026-10-05', '14:50')).map((r) => r.kind)).toEqual(['start'])
+    expect(remindersInWindow([plan], settings(), ...tick('2026-10-05', '16:30')).map((r) => r.kind)).toEqual(['record'])
+    expect(remindersInWindow([plan], settings({ recordPrompts: false }), ...tick('2026-10-05', '16:30'))).toEqual([])
+  })
+
+  it('締切は前日 20:00 と、時刻つきなら 3 時間前（締切の時刻ちょうどには鳴らない）', () => {
+    const es = task({ id: 'es', due_date: '2026-10-05', due_time: '18:00' })
+    expect(remindersInWindow([es], settings(), ...tick('2026-10-04', '20:00')).map((r) => r.key)).toEqual(['es:dueDay:-240:2026-10-05'])
+    expect(remindersInWindow([es], settings(), ...tick('2026-10-05', '15:00')).map((r) => r.minutesBefore)).toEqual([180])
+    expect(remindersInWindow([es], settings(), ...tick('2026-10-05', '18:00'))).toEqual([])
+    const dateOnly = task({ id: 'report', due_date: '2026-10-05' })
+    expect(effectiveReminders(dateOnly, settings())).toEqual([{ at: 'dueDay', minutes: -240 }])
+  })
+
+  it('タスクで決めた通知は既定の代わりに使う。空なら鳴らさない', () => {
+    const es = task({ id: 'es', due_date: '2026-10-10', due_time: '18:00', reminders: [{ at: 'dueDay', minutes: -7 * 1440 + 20 * 60 }] })
+    expect(remindersInWindow([es], settings(), ...tick('2026-10-03', '20:00')).map((r) => r.taskId)).toEqual(['es'])
+    expect(remindersInWindow([es], settings(), ...tick('2026-10-09', '20:00'))).toEqual([])
+    const quiet = { ...plan, reminders: [] }
+    expect(remindersInWindow([quiet], settings(), ...tick('2026-10-05', '14:50'))).toEqual([])
+  })
+
+  it('日をまたぐ予定の終わりは翌日', () => {
+    const night = task({ id: 'night', scheduled_date: '2026-10-05', start_time: '23:00', end_time: '01:00' })
+    expect(remindersInWindow([night], settings(), ...tick('2026-10-06', '01:00')).map((r) => r.kind)).toEqual(['record'])
   })
 })
 
-describe('selectDueToNotify', () => {
-  it('締切時刻がその幅に入ったものを選ぶ', () => {
-    const rows = [task({ id: 'a', due_time: '18:00' }), task({ id: 'b', due_time: '19:00' })]
-    const picked = selectDueToNotify(rows, opts({ nowMinutes: 18 * 60 }))
-    expect(picked.map((t) => t.id)).toEqual(['a'])
-  })
-
-  it('締切時刻が無いものは朝の計画の時刻にまとめる', () => {
-    const rows = [task({ id: 'a' }), task({ id: 'b' })]
-    expect(selectDueToNotify(rows, opts({ nowMinutes: 7 * 60, planTime: '07:00' })).map((t) => t.id))
-      .toEqual(['a', 'b'])
-    // 別の時刻では出さない
-    expect(selectDueToNotify(rows, opts({ nowMinutes: 12 * 60, planTime: '07:00' }))).toEqual([])
-  })
-
-  it('朝の計画が未設定なら 9:00 にまとめる', () => {
-    const rows = [task({ id: 'a' })]
-    expect(DEFAULT_DUE_NOTIFY_MINUTES).toBe(540)
-    expect(selectDueToNotify(rows, opts({ nowMinutes: 540 })).map((t) => t.id)).toEqual(['a'])
-    expect(selectDueToNotify(rows, opts({ nowMinutes: 600 }))).toEqual([])
-  })
-
-  it('いつか / 買い物のリストは出さない', () => {
-    const rows = [task({ id: 'a', due_time: '18:00', list_id: 'someday' })]
-    const picked = selectDueToNotify(
-      rows,
-      opts({ nowMinutes: 18 * 60, excludedListIds: new Set(['someday']) }),
+describe('morningDigest', () => {
+  it('今日の予定・今日の締切（時刻順）・期限切れを数える', () => {
+    const d = morningDigest(
+      [
+        task({ id: 'a', scheduled_date: '2026-10-05' }),
+        task({ id: 'b', due_date: '2026-10-05', due_time: '18:00' }),
+        task({ id: 'c', due_date: '2026-10-05', due_time: '09:00' }),
+        task({ id: 'd', due_date: '2026-10-01' }),
+      ],
+      '2026-10-05',
     )
-    expect(picked).toEqual([])
+    expect(d).toEqual({ planned: 1, due: [{ title: 'c', time: '09:00' }, { title: 'b', time: '18:00' }], overdue: 1 })
+  })
+})
+
+describe('dailyDue / staleTimerDue', () => {
+  it('朝のまとめは指定時刻から 60 分以内に 1 日 1 回', () => {
+    expect(dailyDue('08:30', null, '2026-10-05', 8 * 60 + 30)).toBe(true)
+    expect(dailyDue('08:30', '2026-10-05', '2026-10-05', 8 * 60 + 35)).toBe(false)
+    expect(dailyDue('08:30', null, '2026-10-05', 10 * 60)).toBe(false)
   })
 
-  it('その日に通知済みのものは二度出さない', () => {
-    const rows = [task({ id: 'a', due_time: '18:00' })]
-    const picked = selectDueToNotify(
-      rows,
-      opts({ nowMinutes: 18 * 60, notifiedIds: new Set(['a']) }),
-    )
-    expect(picked).toEqual([])
-  })
-
-  it('同じ時刻に重なったものはまとめて返す（呼び出し側で 1 通にする）', () => {
-    const rows = [
-      task({ id: 'a', due_time: '18:00' }),
-      task({ id: 'b', due_time: '18:00' }),
-      task({ id: 'c', due_time: '20:00' }),
-    ]
-    const picked = selectDueToNotify(rows, opts({ nowMinutes: 18 * 60 }))
-    expect(picked.map((t) => t.id)).toEqual(['a', 'b'])
-  })
-
-  it('壊れた締切時刻は既定の時刻として扱う（取りこぼさない）', () => {
-    const rows = [task({ id: 'a', due_time: 'bogus' })]
-    expect(selectDueToNotify(rows, opts({ nowMinutes: 540 })).map((t) => t.id)).toEqual(['a'])
+  it('タイマーは 3 時間を超えたら 1 回だけ', () => {
+    const start = '2026-10-05T00:00:00.000Z'
+    const at = (h: number) => Date.parse(start) + h * 3600_000
+    expect(staleTimerDue(start, at(2.9), null)).toBe(false)
+    expect(staleTimerDue(start, at(3), null)).toBe(true)
+    expect(staleTimerDue(start, at(5), start)).toBe(false)
   })
 })

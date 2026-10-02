@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
+import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
@@ -62,6 +63,8 @@ interface TaskRow {
   /** 014 で追加。古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
+  /** 002 で追加。古い DB には無い */
+  reminders?: unknown
   priority: string
   tags: unknown
   recurrence: unknown
@@ -152,6 +155,18 @@ function stripTimeZoneFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ time_zone, time_zone_anchor, ...rest }) => {
     void time_zone
     void time_zone_anchor
+    return rest
+  })
+}
+
+function isMissingRemindersColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'reminders' column")
+}
+
+function stripRemindersFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ reminders, ...rest }) => {
+    void reminders
     return rest
   })
 }
@@ -296,6 +311,17 @@ function habitToRow(userId: string, h: Habit): HabitRow {
   }
 }
 
+/** 壊れた要素は捨てる。配列でなければ既定（null） */
+export function parseReminders(raw: unknown): TaskReminder[] | null {
+  if (!Array.isArray(raw)) return null
+  return raw.filter(
+    (r): r is TaskReminder =>
+      typeof r === 'object' && r !== null &&
+      ['start', 'due', 'dueDay'].includes((r as TaskReminder).at) &&
+      Number.isFinite((r as TaskReminder).minutes),
+  )
+}
+
 function rowToTask(row: TaskRow): Task {
   const tags = Array.isArray(row.tags) ? row.tags.filter((t): t is string => typeof t === 'string') : []
   let recurrence: Task['recurrence'] = null
@@ -348,6 +374,7 @@ function rowToTask(row: TaskRow): Task {
     isSleep: row.is_sleep === true,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
+    reminders: parseReminders(row.reminders),
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
   }
@@ -395,6 +422,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     is_sleep: task.isSleep ?? false,
     time_zone: task.timeZone ?? null,
     time_zone_anchor: task.timeZone ? (task.timeZoneAnchor ?? null) : null,
+    reminders: task.reminders ?? null,
     archived_at: task.archivedAt ?? null,
     deleted_at: task.deletedAt ?? null,
   }
@@ -550,6 +578,7 @@ export async function pushListsTasksHabits(
   let stripHabitId = false
   let stripIsSleep = false
   let stripTimeZone = false
+  let stripReminders = false
   let stripDueTime = false
   let stripScheduledDate = false
   let stripArchivedAt = false
@@ -563,13 +592,14 @@ export async function pushListsTasksHabits(
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
     if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
+    if (stripReminders) rows = stripRemindersFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
     if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
     if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 12; attempt++) {
+  for (let attempt = 0; attempt < 13; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -594,6 +624,10 @@ export async function pushListsTasksHabits(
     }
     if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
       stripIsSleep = true
+      continue
+    }
+    if (isMissingRemindersColumnError(errMsg) && !stripReminders) {
+      stripReminders = true
       continue
     }
     if (isMissingTimeZoneColumnError(errMsg) && !stripTimeZone) {

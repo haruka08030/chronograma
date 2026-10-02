@@ -28,14 +28,10 @@ import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragSh
 import { TaskItem } from './components/TaskItem'
 import { TimerDropZone } from './components/TimerDropZone'
 import { TIMER_DROP_ID, canStartTimerFor, setTimerDragActive, startTimerForTask } from './lib/timerDrop'
-import { requestPermission, checkAndNotify } from './lib/notifications'
-import { checkDailyReminders } from './lib/dailyReminders'
-import { checkEventReminders } from './lib/eventReminders'
+import { checkLocalReminders } from './lib/localReminders'
 import { isWebPushActive, syncWebPush } from './lib/webPush'
 import { useAuth } from './contexts/AuthContext'
-import { getDayPlan } from './lib/dayPlan'
 import { unplannedListIds } from './lib/listKind'
-import { format } from 'date-fns'
 import {
   buildReorderedActiveRootIdsForGroup,
   getOrderedActiveRootTasksForDnD,
@@ -73,7 +69,7 @@ import {
 } from '@dnd-kit/core'
 import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
-import { zonedNow } from './lib/timeZone'
+import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
@@ -488,65 +484,51 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
+  // ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
-  // 締切の通知（タブが開いている間。Web Push が有効ならサーバー側が締切時刻に送る）
-  useEffect(() => {
-    if (!notificationsEnabled) return
-    const notifyIfLocal = () => {
-      if (isWebPushActive()) return
-      checkAndNotify(useTaskStore.getState().tasks, unplannedListIds(useTaskStore.getState().lists))
-    }
-    requestPermission().then((granted) => {
-      if (granted) notifyIfLocal()
-    })
-    const id = setInterval(notifyIfLocal, 60_000)
-    return () => clearInterval(id)
-  }, [notificationsEnabled])
-
-  // 朝の計画・夕方の締めの通知。締切の通知（notificationsEnabled）も
-  // 同じ購読に乗せてサーバーから送るので、ここで一緒に同期する
   const dailyReminders = useTaskStore((s) => s.dailyReminders)
+  const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
+  const recordPrompts = useTaskStore((s) => s.recordPrompts)
+  const activeTimer = useTaskStore((s) => s.activeTimer)
+  const hasTaskReminders = useTaskStore((s) => s.tasks.some((t) => (t.reminders?.length ?? 0) > 0 && !t.completed))
+  const appTimeZoneSetting = useTaskStore((s) => s.appTimeZone)
   const { user } = useAuth()
   const userId = user?.id ?? null
-  // ログイン中は Web Push（閉じていても届く）に購読。使えない環境では下のローカル通知だけ
-  const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
   useEffect(() => {
     void syncWebPush({
       userId,
       reminders: dailyReminders,
       eventReminderMinutes,
       dueReminders: notificationsEnabled,
+      recordPrompts,
+      hasTaskReminders,
+      activeTimer,
       lang: i18n.resolvedLanguage ?? 'ja',
     })
-  }, [userId, dailyReminders, eventReminderMinutes, notificationsEnabled])
-  // 予定の開始前通知（タブが開いている間。Web Push が有効ならサーバー側が送る）
+  }, [userId, dailyReminders, eventReminderMinutes, notificationsEnabled, recordPrompts, hasTaskReminders, activeTimer, appTimeZoneSetting])
   useEffect(() => {
-    if (eventReminderMinutes == null) return
     const tick = () => {
       if (isWebPushActive()) return
       const state = useTaskStore.getState()
-      checkEventReminders(state.tasks, eventReminderMinutes, unplannedListIds(state.lists), () =>
-        useTaskStore.getState().selectView('planner'),
-      )
-    }
-    tick()
-    const id = setInterval(tick, 30_000)
-    return () => clearInterval(id)
-  }, [eventReminderMinutes])
-  useEffect(() => {
-    if (!dailyReminders.planTime && !dailyReminders.wrapUpTime) return
-    const tick = () => {
-      if (isWebPushActive()) return
-      const state = useTaskStore.getState()
-      checkDailyReminders(state.dailyReminders, {
-        remainingToday: getDayPlan(state.tasks, format(zonedNow(), 'yyyy-MM-dd'), unplannedListIds(state.lists)).open.length,
+      checkLocalReminders({
+        tasks: state.tasks,
+        excludedListIds: unplannedListIds(state.lists),
+        daily: state.dailyReminders,
+        settings: {
+          eventReminderMinutes: state.eventReminderMinutes,
+          dueReminders: state.notificationsEnabled,
+          recordPrompts: state.recordPrompts,
+        },
+        activeTimer: state.activeTimer,
         onOpen: () => useTaskStore.getState().selectView('planner'),
+        onRecord: (taskId) => useTaskStore.getState().openRecordPrompt(taskId),
       })
     }
     tick()
     const id = setInterval(tick, 30_000)
     return () => clearInterval(id)
-  }, [dailyReminders])
+  }, [])
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
@@ -632,6 +614,7 @@ export default function App() {
         <UndoToast />
         <MoveToast />
         <FloatingTimer />
+        <RecordPromptHost />
         <MobileBottomNav
           onOpenMore={() => setSidebarOpen(true)}
           onNavigate={() => setSidebarOpen(false)}
