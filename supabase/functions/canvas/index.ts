@@ -148,7 +148,10 @@ async function canvasAll<T>(baseUrl: string, token: string, path: string): Promi
   let url: string | null = `${baseUrl}${path}`
   for (let i = 0; i < 20 && url; i++) {
     const res = await canvasRequest(baseUrl, token, url)
-    out.push(...((await res.json()) as T[]))
+    const page = await res.json().catch(() => null)
+    // ログイン画面などの HTML が返ってきたときは、URL が Canvas の API ではない
+    if (!Array.isArray(page)) throw new CanvasError('canvas_bad_url', 'Not a JSON array')
+    out.push(...(page as T[]))
     url = nextLink(res)
   }
   if (url) throw new CanvasError('canvas_api', 'Too many items')
@@ -390,8 +393,10 @@ Deno.serve(async (req) => {
             }
             return result
           } catch (e) {
-            if (!(e instanceof CanvasError)) throw e
-            return { id: r.id, error: e.code }
+            // 想定外の失敗（Canvas が JSON でない応答を返したなど）でも、その学校だけのエラーにして、ほかの学校は取り込む
+            if (e instanceof CanvasError) return { id: r.id, error: e.code }
+            console.error('[canvas] items', r.id, e instanceof Error ? e.message : e)
+            return { id: r.id, error: 'canvas_api' }
           }
         }),
       )
