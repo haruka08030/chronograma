@@ -49,7 +49,8 @@ export function ColorLabelPicker({
   const current = isPlan
     ? task.color?.toUpperCase() ?? null
     : task.tags[0] || task.color ? recordHex(task, colors).toUpperCase() : null
-  const label = isPlan ? null : task.tags[0] ?? null
+  // 予定は色だけ持つが、その色にラベル（分類名）が付いていれば色名ではなくラベル名で出す
+  const label = isPlan ? labelForHex(current, presets, colors) : task.tags[0] ?? null
   const currentKey = colorKeyForHex(current)
   const triggerText = label ?? (currentKey ? t(`googleColors.${currentKey}`) : current ?? t(isPlan ? 'labels.listColor' : 'labels.none'))
 
