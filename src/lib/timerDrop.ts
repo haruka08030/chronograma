@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { useTaskStore } from '../store/taskStore'
+import { logTagsFromTask } from './logCategoryColors'
 import type { Task } from '../types/task'
 
 /**
@@ -60,9 +61,9 @@ export function canStartTimerFor(task: Task | undefined | null): task is Task {
 }
 
 export function startTimerForTask(taskId: string): boolean {
-  const { tasks, startTimer } = useTaskStore.getState()
+  const { tasks, startTimer, timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
   const task = tasks.find((t) => t.id === taskId)
   if (!canStartTimerFor(task)) return false
-  startTimer(task.title, task.tags, task.id)
+  startTimer(task.title, logTagsFromTask(task, timeLogTagPresets, logCategoryColors), task.id)
   return true
 }

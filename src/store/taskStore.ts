@@ -14,7 +14,7 @@ import {
 } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/tagColors'
 import { inferLogCategory } from '../lib/logCategory'
-import { CATEGORY_COLOR_KEYS, assignColorsInOrder, categoryHex, labelForHex, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
+import { CATEGORY_COLOR_KEYS, assignColorsInOrder, categoryHex, labelForHex, logTagsFromTask, nextCategoryColor, type CategoryColorKey } from '../lib/logCategoryColors'
 import { nearestGoogleHex } from '../lib/googleColors'
 import { eventChoiceKey, resolveEventColors, seriesChoiceKey, type EventColorChoices } from '../lib/googleEventColors'
 
@@ -2025,7 +2025,8 @@ export const useTaskStore = create<TaskState>()(
         if (date > today || (date === today && task.startTime >= nowHm)) return
         const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
         get().asOneUndo(() => {
-          get().addTimeLog(task.title, date, task.startTime!, end, task.tags)
+          const { timeLogTagPresets, logCategoryColors } = get()
+          get().addTimeLog(task.title, date, task.startTime!, end, logTagsFromTask(task, timeLogTagPresets, logCategoryColors))
           get().toggleTask(task.id)
         })
       },

@@ -5,6 +5,7 @@ import type { Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { logTagsFromTask } from '../lib/logCategoryColors'
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（予定どおり / ずれた時刻で）。
@@ -33,7 +34,7 @@ export function useCompleteWithLog() {
         endTime: task.endTime,
         memo: task.description.trim(),
         mode: 'as-planned',
-        tags: [...task.tags],
+        tags: logTagsFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
       })
     },
     [toggleTask],

@@ -77,6 +77,19 @@ export function labelForHex(
   return presets.find((n) => categoryHex(n, colors) === h) ?? null
 }
 
+/**
+ * To-Do から記録を作るときの分類。To-Do のラベル（色に付けた名前）をそのまま引き継ぐ。
+ * To-Do のタグは記録の分類にしない（別のもの。以前はタグの 1 つ目が分類になっていた）
+ */
+export function logTagsFromTask(
+  task: { color?: string | null },
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+): string[] {
+  const name = labelForHex(task.color, presets, colors)
+  return name ? [name] : []
+}
+
 /** `gc-solid` / `gc-plan` / `gc-dot` に渡すスタイル */
 export function colorVars(hex: string): CSSProperties {
   return { '--c': hex, '--on-c': textOnHex(hex) } as CSSProperties

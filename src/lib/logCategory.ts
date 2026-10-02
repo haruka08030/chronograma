@@ -47,7 +47,13 @@ export function inferLogCategory(
 ): string | null {
   if (opts.sourceTaskId) {
     const src = tasks.find((t) => t.id === opts.sourceTaskId)
-    if (src?.tags[0]) return src.tags[0]
+    // To-Do のタグは分類ではない。To-Do からはラベル（色）で引く
+    if (src?.isTimeLog && src.tags[0]) return src.tags[0]
+    if (src && !src.isTimeLog && src.color) {
+      const hex = src.color.toLowerCase()
+      const hit = opts.categoryHexes?.find(([, h]) => h.toLowerCase() === hex)
+      if (hit) return hit[0]
+    }
   }
   const key = norm(title)
   if (!key) return null
