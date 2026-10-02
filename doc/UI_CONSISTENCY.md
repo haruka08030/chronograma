@@ -58,7 +58,7 @@
 | ボタン | **済（2026-10-02）**: `components/ui/buttonClass.ts` の `buttonClass({ variant, size })` に統一。形は角丸の四角（xs は 6px、ほかは 8px）。一度ピルにしたが、墨色のモダンな方向・入力欄やカードの形と合わせるため四角に戻した（同日ユーザー決定）。ピルはチップ（最近の記録・ラベル・分類）だけ。primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link、大きさ xs〜lg。ダイアログ・予定カード・タイマー・習慣・設定（`settingsButton` は廃止）・アカウント・一括操作バーなど約 50 か所。残り: アイコンだけのボタン（下の行） | `Button`（primary / secondary / ghost / danger / link、sm / md） |
 | アイコンボタン | `iconButton` を EventPopover と GoogleEventPopover が別々に定義 | `IconButton` |
 | アイコン SVG | **済（2026-10-02）**: 12 種 63 か所を `components/icons.tsx`（`CheckIcon` など）に、ナビの一覧などが持っていた形は `lib/iconPaths.ts` の `ICON_PATHS` に寄せた。鉛筆は 2 種類あったのを 1 つに。残り: EventPopover の文字の ▶、FloatingTimer の停止の四角 | `components/icons.tsx` |
-| 切り替えタブ | `SettingsPrimitives` の `Segmented` は設定画面だけ。月/週（`CalendarHubView`）、予定/記録（`CalendarDayPanel`）、やること/タイムライン（`TodayPlannerView`）は手書きで見た目も違う | `Segmented` を `components/ui/` へ移して使い回す |
+| 切り替えタブ | **済（2026-10-02）**: `components/ui/Segmented.tsx` に移し、設定（テーマ・言語）・月/週・予定/記録・スマホのやること/タイムラインで共通に（`role` tab/radio・`size`・`fullWidth`）。予定/記録に読み上げ名を足し、日本語の「ToDo」表記を「To-Do」にそろえた | `Segmented` を `components/ui/` へ移して使い回す |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
 | モーダル | 中央に出るものが 3 種（`labels/ModalLayer`・`CompleteWithLogModal`・`ShortcutsHelp`）で角・背景・アニメーションが違う | `ModalLayer` を共通の `Modal` に |
 | ポップオーバー | 予定カード 3 種が同じ外枠 class と「外を押す・Esc で閉じる」effect を重複。ドロップダウン 7 種で角・影・ダークの背景が違う | `AnchoredCard`・`popoverPanel` 定数・`useDismiss` |

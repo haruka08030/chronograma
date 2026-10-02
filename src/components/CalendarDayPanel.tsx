@@ -15,6 +15,7 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
 import { isAppToday } from '../lib/timeZone'
+import { Segmented } from './ui/Segmented'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -178,30 +179,16 @@ export function CalendarDayPanel({
         </div>
 
         <div className="px-4 pt-3">
-          <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
-            <button
-              type="button"
-              onClick={() => setTab('planned')}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                tab === 'planned'
-                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100'
-                  : 'text-zinc-500 dark:text-zinc-400'
-              }`}
-            >
-              {t('calendarDayPanel.plannedTab')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('log')}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                tab === 'log'
-                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100'
-                  : 'text-zinc-500 dark:text-zinc-400'
-              }`}
-            >
-              {t('common.log')}
-            </button>
-          </div>
+          <Segmented
+            role="tab"
+            ariaLabel={t('calendarDayPanel.tabsAria')}
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'planned', label: t('calendarDayPanel.plannedTab') },
+              { value: 'log', label: t('common.log') },
+            ]}
+          />
         </div>
 
         {tab === 'planned' ? (

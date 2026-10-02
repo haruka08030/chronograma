@@ -28,6 +28,7 @@ import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, zonedNow } from '../lib/timeZone'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { Segmented } from './ui/Segmented'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -265,27 +266,20 @@ export function TodayPlannerView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:flex-row">
-      <div
-        role="tablist"
-        aria-label={t('planner.paneTabsAria')}
-        className="flex shrink-0 gap-1 px-4 pb-2 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden"
-      >
-        {(['list', 'timeline'] as const).map((pane) => (
-          <button
-            key={pane}
-            type="button"
-            role="tab"
-            aria-selected={mobilePane === pane}
-            onClick={() => setMobilePane(pane)}
-            className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors touch-manipulation ${
-              mobilePane === pane
-                ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-                : 'text-zinc-400 dark:text-zinc-500'
-            }`}
-          >
-            {pane === 'list' ? t('planner.paneList') : t('planner.paneTimeline')}
-          </button>
-        ))}
+      {/* スマホだけ: やること / タイムラインの切り替え */}
+      <div className="shrink-0 px-4 pb-2 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
+        <Segmented
+          role="tab"
+          size="md"
+          fullWidth
+          ariaLabel={t('planner.paneTabsAria')}
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { value: 'list', label: t('planner.paneList') },
+            { value: 'timeline', label: t('planner.paneTimeline') },
+          ]}
+        />
       </div>
 
       <section
