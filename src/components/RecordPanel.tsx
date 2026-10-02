@@ -139,7 +139,7 @@ export function RecordPanel({
     if (min === 0) return t('planner.hours', { h })
     return t('planner.hoursMinutes', { h, m: min })
   }
-  const labelOf = (cat: string) => cat || t('tags.untagged')
+  const labelOf = (cat: string) => cat || t('labels.none')
 
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === 'Enter' || e.key === 'NumpadEnter') && !e.nativeEvent.isComposing) {
