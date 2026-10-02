@@ -1,4 +1,5 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
+import { useAutoBackup } from './hooks/useAutoBackup'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from './i18n/config'
@@ -153,6 +154,8 @@ function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask:
 
 export default function App() {
   const { t } = useTranslation()
+  // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
+  useAutoBackup()
   useSupabaseSync()
 
   const theme = useTaskStore((s) => s.theme)

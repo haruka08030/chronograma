@@ -29,6 +29,7 @@ import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 import { timerRecordTimes } from '../lib/timerRecord'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
+import { restoreMissing } from '../lib/autoBackup'
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
@@ -366,6 +367,10 @@ interface TaskState {
    * ⌘Z と違い、ページを再読み込みしたあとでも使える。控えが無ければ false
    */
   restoreBeforeImport: () => boolean
+  /** 今の全データをバックアップと同じ JSON にする（自動バックアップ用） */
+  backupJson: () => string
+  /** 自動バックアップにあって今は無いものだけを戻す。戻したタスク数（読めなければ null） */
+  restoreMissingFromBackup: (json: string) => number | null
   /** CSV からタスクを追加（既存データは保持） */
   importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
@@ -725,7 +730,7 @@ export const useTaskStore = create<TaskState>()(
         set((s) => ({
           sections: [
             ...s.sections,
-            { id: sectionId, listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1 },
+            { id: sectionId, listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1, updatedAt: new Date().toISOString() },
           ],
         }))
         return sectionId
@@ -733,7 +738,9 @@ export const useTaskStore = create<TaskState>()(
       renameSection: (id, name) => {
         pushUndo()
         return set((s) => ({
-          sections: s.sections.map((sec) => (sec.id === id ? { ...sec, name: name.trim() || sec.name } : sec)),
+          sections: s.sections.map((sec) =>
+            sec.id === id ? { ...sec, name: name.trim() || sec.name, updatedAt: new Date().toISOString() } : sec,
+          ),
         }))
       },
       deleteSection: (id) => {
@@ -745,11 +752,12 @@ export const useTaskStore = create<TaskState>()(
       },
       reorderSections: (listId, orderedIds) => {
         pushUndo()
+        const now = new Date().toISOString()
         return set((s) => ({
           sections: s.sections.map((sec) => {
             if (sec.listId !== listId) return sec
             const idx = orderedIds.indexOf(sec.id)
-            return idx >= 0 ? { ...sec, order: idx } : sec
+            return idx >= 0 && sec.order !== idx ? { ...sec, order: idx, updatedAt: now } : sec
           }),
         }))
       },
@@ -1234,7 +1242,7 @@ export const useTaskStore = create<TaskState>()(
 
       setListKind: (id, kind) => {
         pushUndo()
-        set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind } : l)) }))
+        set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind, updatedAt: new Date().toISOString() } : l)) }))
       },
       addList: (name, kind) => {
         pushUndo()
@@ -1242,29 +1250,30 @@ export const useTaskStore = create<TaskState>()(
         const cols = paletteColors(get().listColorPaletteId)
         const colorIdx = get().lists.length % cols.length
         set((s) => ({
-          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks' }],
+          lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks', updatedAt: new Date().toISOString() }],
         }))
       },
       renameList: (id, name) => {
         pushUndo()
         return set((s) => ({
-          lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
+          lists: s.lists.map((l) => (l.id === id ? { ...l, name, updatedAt: new Date().toISOString() } : l)),
         }))
       },
       updateListColor: (id, color) => {
         pushUndo()
         return set((s) => ({
-          lists: s.lists.map((l) => (l.id === id ? { ...l, color } : l)),
+          lists: s.lists.map((l) => (l.id === id ? { ...l, color, updatedAt: new Date().toISOString() } : l)),
         }))
       },
       deleteList: (id) => {
         if (id === INBOX_ID) return
         pushUndo()
+        const now = new Date().toISOString()
         set((s) => ({
           lists: s.lists.filter((l) => l.id !== id),
           sections: s.sections.filter((sec) => sec.listId !== id),
           tasks: s.tasks.map((t) =>
-            t.listId === id ? { ...t, listId: INBOX_ID, sectionId: null } : t,
+            t.listId === id ? { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now } : t,
           ),
           selectedListId:
             s.selectedListId === id ? INBOX_ID : s.selectedListId,
@@ -1274,16 +1283,17 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         return set((s) => ({
           lists: s.lists.map((l) =>
-            l.id === id ? { ...l, order: newOrder } : l,
+            l.id === id ? { ...l, order: newOrder, updatedAt: new Date().toISOString() } : l,
           ),
         }))
       },
       reorderLists: (orderedIds) => {
         pushUndo()
+        const now = new Date().toISOString()
         return set((s) => ({
           lists: s.lists.map((l) => {
             const idx = orderedIds.indexOf(l.id)
-            return idx >= 0 ? { ...l, order: idx } : l
+            return idx >= 0 && l.order !== idx ? { ...l, order: idx, updatedAt: now } : l
           }),
         }))
       },
@@ -1693,16 +1703,17 @@ export const useTaskStore = create<TaskState>()(
         pushUndo()
         return set((s) => ({
           tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, order: newOrder } : t,
+            t.id === id ? { ...t, order: newOrder, updatedAt: new Date().toISOString() } : t,
           ),
         }))
       },
       reorderTasks: (orderedIds) => {
         pushUndo()
+        const now = new Date().toISOString()
         return set((s) => ({
           tasks: s.tasks.map((t) => {
             const idx = orderedIds.indexOf(t.id)
-            return idx >= 0 ? { ...t, order: idx } : t
+            return idx >= 0 && t.order !== idx ? { ...t, order: idx, updatedAt: now } : t
           }),
         }))
       },
@@ -1807,9 +1818,9 @@ export const useTaskStore = create<TaskState>()(
       toggleNotifications: () =>
         set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
 
-      exportData: () => {
+      backupJson: () => {
         const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
-        const data = JSON.stringify(
+        return JSON.stringify(
           buildBackupPayload({
             tasks,
             lists,
@@ -1819,9 +1830,26 @@ export const useTaskStore = create<TaskState>()(
             timeLogTagPresets,
             logCategoryColors,
           }),
-          null,
-          2,
         )
+      },
+
+      restoreMissingFromBackup: (json) => {
+        const parsed = parseBackupJson(json)
+        if (!parsed) return null
+        const s = get()
+        const { next, addedTasks } = restoreMissing(
+          { lists: s.lists, sections: s.sections, tasks: s.tasks, habits: s.habits },
+          parsed,
+          new Date().toISOString(),
+        )
+        if (addedTasks === 0 && next.lists.length === s.lists.length && next.habits.length === s.habits.length) return 0
+        pushUndo(i18n.t('undo.restoredFromBackup', { count: addedTasks }))
+        set(next)
+        return addedTasks
+      },
+
+      exportData: () => {
+        const data = JSON.stringify(JSON.parse(get().backupJson()), null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')

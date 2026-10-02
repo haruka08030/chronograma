@@ -2,8 +2,16 @@ import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getSupabase } from '../lib/supabase'
 import { decideHydrate, fetchListsTasksHabits, pushListsTasksHabits } from '../lib/supabaseData'
-import { baselineFrom, loadBaseline, mergeSnapshots, saveBaseline, type SyncSnapshot } from '../lib/syncMerge'
+import {
+  baselineFrom,
+  loadBaseline,
+  mergeSnapshots,
+  mergeWithoutBaseline,
+  saveBaseline,
+  type SyncSnapshot,
+} from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
+import { backupNow } from './useAutoBackup'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -51,6 +59,11 @@ export function useSupabaseSync() {
         cur.sections === next.sections
       )
         return
+      // 同期で手元のタスクが減るときは、減る前を控えておく（他端末での削除でも、取り違えでも戻せるように）
+      if (cur.tasks !== next.tasks) {
+        const nextIds = new Set(next.tasks.map((t) => t.id))
+        if (cur.tasks.some((t) => !nextIds.has(t.id))) backupNow('beforeSync')
+      }
       const listIds = new Set(next.lists.map((l) => l.id))
       const sel = cur.selectedListId
       applyingRef.current = true
@@ -78,18 +91,27 @@ export function useSupabaseSync() {
       let deletes = undefined as Parameters<typeof pushListsTasksHabits>[6]
 
       if (!baseline) {
-        // この端末で初めての同期: 従来どおり、サーバーに中身があればサーバー優先
+        // この端末で初めての同期
         const local = localSnapshot()
         const decision = decideHydrate(
           remote.lists, remote.tasks, remote.habits, remote.sections,
           local.lists, local.tasks, local.habits, local.sections,
         )
-        if (decision.kind === 'use_remote') {
+        if (decision.kind === 'use_remote' && local.tasks.length === 0 && local.habits.length === 0) {
+          // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           saveBaseline(userId, baselineFrom(localSnapshot()))
           return true
         }
-        toPush = local
+        if (decision.kind === 'use_remote') {
+          // サーバーで置き換えると、送れていなかった手元の変更が消える。両方を残して送る
+          const merged = mergeWithoutBaseline(local, remote)
+          apply(merged)
+          toPush = merged
+          deletes = { lists: [], tasks: [], habits: [], sections: [] }
+        } else {
+          toPush = local
+        }
       } else {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
         const local = localSnapshot()
