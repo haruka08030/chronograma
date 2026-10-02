@@ -34,7 +34,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { CloseIcon, PencilIcon } from './icons'
+import { CheckIcon, CloseIcon, PencilIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
@@ -1039,19 +1039,25 @@ export function TaskList() {
             </button>
             {showSort && (
               <>
-                <div className={`absolute right-0 top-full z-20 mt-1 min-w-[120px] py-1 ${POPOVER_PANEL}`}>
-                  {sortOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setSortMode(opt.value); setShowSort(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors
-                        ${sortMode === opt.value
-                          ? 'text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-500/10'
-                          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
+                <div role="menu" className={`absolute right-0 top-full z-20 mt-1 flex min-w-40 flex-col py-1 ${POPOVER_PANEL}`}>
+                  {sortOptions.map((opt) => {
+                    const selected = sortMode === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={selected}
+                        onClick={() => { setSortMode(opt.value); setShowSort(false) }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700
+                          ${selected ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-300'}`}
+                      >
+                        <CheckIcon className={`h-4 w-4 shrink-0 ${selected ? 'text-accent-600 dark:text-accent-400' : 'invisible'}`} />
+                        {opt.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </>
             )}
