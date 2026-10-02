@@ -11,7 +11,7 @@ import { useTaskStore } from './store/taskStore'
 import { Sidebar } from './components/Sidebar'
 import { TodoNavPanel } from './components/TodoNavPanel'
 import { LABEL_DROP_PREFIX, LIST_PREFIX } from './lib/listDnD'
-import { colorLabelText } from './lib/todoColorLabels'
+import { labelDroppedTasks } from './lib/labelDrop'
 import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
@@ -360,20 +360,10 @@ export default function App() {
         state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
       }
     } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(LABEL_DROP_PREFIX)) {
-      // ナビの色ラベルに落とすと、その色（ラベル）を付ける（詳細の「ラベル」で選ぶのと同じく色だけ）
-      const hex = overId.slice(LABEL_DROP_PREFIX.length)
       const taskId = activeId.slice(TASK_PREFIX.length)
       const group =
         (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
-      const state = useTaskStore.getState()
-      const targets = group.filter((id) => state.tasks.find((t) => t.id === id)?.color?.toUpperCase() !== hex)
-      if (targets.length === 0) return
-      state.bulkUpdateTasks(targets, { color: hex })
-      state.showMoveBanner(
-        i18n.t('toast.taskLabeled', {
-          name: colorLabelText(hex, state.timeLogTagPresets, state.logCategoryColors, i18n.t),
-        }),
-      )
+      labelDroppedTasks(group, overId.slice(LABEL_DROP_PREFIX.length))
     } else if (activeId.startsWith(TASK_PREFIX)) {
       // サイドバー行は useSortable が list:: を、別途 useDroppable が drop:: を同じノードに登録する。
       // 衝突判定では list:: が選ばれることが多いので両方扱う。

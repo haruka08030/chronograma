@@ -14,6 +14,8 @@ import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
+import { labelDroppedTasks } from '../lib/labelDrop'
+import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
 
@@ -131,19 +133,37 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   )
 }
 
-/** 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける */
+/**
+ * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。
+ * 手動並びは ⋮⋮（dnd-kit）、並べ替え中は行ごとのネイティブ D&D でつかむので、両方を受ける
+ */
 function ColorLabelRow({ label, name, isSelected, onSelect }: {
   label: TodoColorLabel
   name: string
   isSelected: boolean
   onSelect: () => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `${LABEL_DROP_PREFIX}${label.hex}` })
+  const { setNodeRef, isOver: isOverDndKit } = useDroppable({ id: `${LABEL_DROP_PREFIX}${label.hex}` })
+  const [isOverNative, setIsOverNative] = useState(false)
+  const isOver = isOverDndKit || isOverNative
   return (
     <button
       ref={setNodeRef}
       type="button"
       onClick={onSelect}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsOverNative(true)
+      }}
+      onDragLeave={() => setIsOverNative(false)}
+      onDrop={(e) => {
+        setIsOverNative(false)
+        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        e.preventDefault()
+        labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
+      }}
       aria-current={isSelected ? 'page' : undefined}
       className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
         ${isOver
@@ -211,7 +231,8 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectColor = useTaskStore((s) => s.selectColor)
   // タスクをドラッグしている間は、まだ使っていないラベルもドロップ先として出す
   const { active } = useDndContext()
-  const draggingTask = active != null && String(active.id).startsWith(TASK_PREFIX)
+  const nativeDragActive = useTaskNativeDragActive()
+  const draggingTask = (active != null && String(active.id).startsWith(TASK_PREFIX)) || nativeDragActive
   const colorLabels = useMemo(
     () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors, draggingTask),
     [tasks, lists, presets, categoryColors, draggingTask],
