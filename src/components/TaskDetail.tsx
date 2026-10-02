@@ -569,6 +569,8 @@ export function TaskDetail({
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (isSubmitEnter(e)) addTag() }}
+                // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
+                onBlur={addTag}
                 placeholder={t('taskDetail.tagPlaceholder')}
                 className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
@@ -664,6 +666,8 @@ export function TaskDetail({
                     value={subInput}
                     onChange={(e) => setSubInput(e.target.value)}
                     onKeyDown={(e) => { if (isSubmitEnter(e)) addSubtask() }}
+                    // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
+                    onBlur={addSubtask}
                     placeholder={t('taskDetail.subtaskPlaceholder')}
                     className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
