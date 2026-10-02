@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
-import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { buttonClass } from './ui/buttonClass'
+import { Modal, ModalTitle } from './ui/Modal'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -35,18 +35,9 @@ export function CompleteWithLogModal({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
-  useEscapeLayer(onClose)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30 dark:bg-black/50" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('task.completeModal.title')}
-        className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('task.completeModal.title')}</h2>
+    <Modal onClose={onClose} labelledBy="complete-with-log-title" className="p-5">
+        <ModalTitle id="complete-with-log-title">{t('task.completeModal.title')}</ModalTitle>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           {t('task.completeModal.body')}
         </p>
@@ -55,6 +46,7 @@ export function CompleteWithLogModal({
           <label className="flex items-center gap-2">
             <input
               type="radio"
+              className="accent-accent-600"
               name={radioGroupName}
               checked={draft.mode === 'as-planned'}
               onChange={() => onChange({ mode: 'as-planned' })}
@@ -64,6 +56,7 @@ export function CompleteWithLogModal({
           <label className="flex items-center gap-2">
             <input
               type="radio"
+              className="accent-accent-600"
               name={radioGroupName}
               checked={draft.mode === 'shifted'}
               onChange={() => onChange({ mode: 'shifted' })}
@@ -161,7 +154,6 @@ export function CompleteWithLogModal({
             {t('task.completeModal.saveComplete')}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

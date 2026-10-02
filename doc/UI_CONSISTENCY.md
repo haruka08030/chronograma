@@ -60,7 +60,7 @@
 | アイコン SVG | **済（2026-10-02）**: 12 種 63 か所を `components/icons.tsx`（`CheckIcon` など）に、ナビの一覧などが持っていた形は `lib/iconPaths.ts` の `ICON_PATHS` に寄せた。鉛筆は 2 種類あったのを 1 つに。残り: EventPopover の文字の ▶、FloatingTimer の停止の四角 | `components/icons.tsx` |
 | 切り替えタブ | **済（2026-10-02）**: `components/ui/Segmented.tsx` に移し、設定（テーマ・言語）・月/週・予定/記録・スマホのやること/タイムラインで共通に（`role` tab/radio・`size`・`fullWidth`）。予定/記録に読み上げ名を足し、日本語の「ToDo」表記を「To-Do」にそろえた | `Segmented` を `components/ui/` へ移して使い回す |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
-| モーダル | 中央に出るものが 3 種（`labels/ModalLayer`・`CompleteWithLogModal`・`ShortcutsHelp`）で角・背景・アニメーションが違う | `ModalLayer` を共通の `Modal` に |
+| モーダル | **済（2026-10-02）**: `components/ui/Modal.tsx`（`Modal`・`ModalTitle`）に統一し `labels/ModalLayer` は廃止。ラベル・色を選択・完了＋記録・ショートカット一覧の 4 つが、同じ背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す、になった。完了＋記録のラジオもブラウザの青から墨色に | `ModalLayer` を共通の `Modal` に |
 | ポップオーバー | 予定カード 3 種が同じ外枠 class と「外を押す・Esc で閉じる」effect を重複。ドロップダウン 7 種で角・影・ダークの背景が違う | `AnchoredCard`・`popoverPanel` 定数・`useDismiss` |
 | 月カレンダー | `DueDatePopover` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。見た目（大きさ・見出し・＜＞の位置）も違う | `lib/monthGrid.ts`・`MiniMonthCalendar` |
 | 日付の移動（＜ 今日 ＞） | 今日画面・週のふりかえり・習慣・カレンダーで 4 通り | `DayNav` |
