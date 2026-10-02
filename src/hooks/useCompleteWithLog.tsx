@@ -5,7 +5,7 @@ import type { Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { durationMinutesForTaskSlot, taskPlacementDate } from '../lib/taskTimeRange'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { logTagsFromTask } from '../lib/logCategoryColors'
+import { logLabelFromTask } from '../lib/logCategoryColors'
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（予定どおり / ずれた時刻で）。
@@ -34,7 +34,7 @@ export function useCompleteWithLog() {
         endTime: task.endTime,
         memo: task.description.trim(),
         mode: 'as-planned',
-        tags: logTagsFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
+        ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
       })
     },
     [toggleTask],
@@ -55,7 +55,7 @@ export function useCompleteWithLog() {
       alert(t('alert.endAfterStart'))
       return
     }
-    addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg)
+    addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
     toggleTask(draft.taskId)
     setDraft(null)
   }, [draft, addTimeLog, toggleTask, t])

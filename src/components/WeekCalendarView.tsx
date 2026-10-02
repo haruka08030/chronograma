@@ -64,7 +64,7 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
 import { unplannedListIds } from '../lib/listKind'
-import { colorVars, logTagsFromTask, recordHex } from '../lib/logCategoryColors'
+import { colorVars, logLabelFromTask, recordHex } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX, NEUTRAL_HEX } from '../lib/googleColors'
 import { planHex, planVisualState } from '../lib/planVisual'
 import { habitToPlannedItem } from '../lib/habitSlots'
@@ -592,7 +592,8 @@ export function WeekCalendarView({
         }
         asOneUndo(() => {
           const { timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
-          addTimeLog(task.title, dateKey, startTime, endTime, logTagsFromTask(task, timeLogTagPresets, logCategoryColors))
+          const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
+          addTimeLog(task.title, dateKey, startTime, endTime, label.tags, undefined, null, label.color)
           if (!task.completed) toggleTask(taskId)
         })
         return

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { inferLogCategory } from './logCategory'
-import { logTagsFromTask } from './logCategoryColors'
+import { logLabelFromTask } from './logCategoryColors'
 
 function task(over: Partial<Task>): Task {
   return {
@@ -31,16 +31,16 @@ const presets = ['就活', '課題']
 const colors = { 就活: SAGE, 課題: '#D50000' }
 
 describe('To-Do から記録を作るときの分類', () => {
-  it('ラベル（色に付けた名前）を引き継ぐ', () => {
-    expect(logTagsFromTask(task({ color: SAGE.toLowerCase() }), presets, colors)).toEqual(['就活'])
+  it('ラベル（色に付けた名前）を分類として引き継ぐ', () => {
+    expect(logLabelFromTask(task({ color: SAGE.toLowerCase() }), presets, colors)).toEqual({ tags: ['就活'], color: null })
   })
 
   it('タグは分類にしない', () => {
-    expect(logTagsFromTask(task({ tags: ['メモ'], color: null }), presets, colors)).toEqual([])
+    expect(logLabelFromTask(task({ tags: ['メモ'], color: null }), presets, colors)).toEqual({ tags: [], color: null })
   })
 
-  it('名前の無い色なら分類なし', () => {
-    expect(logTagsFromTask(task({ color: '#123456' }), presets, colors)).toEqual([])
+  it('名前の無い色は、色だけ引き継ぐ', () => {
+    expect(logLabelFromTask(task({ color: '#123456' }), presets, colors)).toEqual({ tags: [], color: '#123456' })
   })
 
   it('タイマーの元タスクからも、タグではなくラベルで引く', () => {

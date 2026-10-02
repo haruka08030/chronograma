@@ -77,17 +77,25 @@ export function labelForHex(
   return presets.find((n) => categoryHex(n, colors) === h) ?? null
 }
 
+/** 記録の分類（`tags`）と、名前の無い色（`color`）。記録の色選びで選んだときと同じ形 */
+export interface LogLabel {
+  tags: string[]
+  color: string | null
+}
+
 /**
- * To-Do から記録を作るときの分類。To-Do のラベル（色に付けた名前）をそのまま引き継ぐ。
+ * To-Do から記録を作るときのラベル。To-Do の色をそのまま引き継ぐ。
+ * 名前の付いた色なら分類、名前の無い色なら色だけ（あとで名前を付けると分類になる）。
  * To-Do のタグは記録の分類にしない（別のもの。以前はタグの 1 つ目が分類になっていた）
  */
-export function logTagsFromTask(
+export function logLabelFromTask(
   task: { color?: string | null },
   presets: readonly string[],
   colors: Readonly<Record<string, string>>,
-): string[] {
+): LogLabel {
   const name = labelForHex(task.color, presets, colors)
-  return name ? [name] : []
+  if (name) return { tags: [name], color: null }
+  return { tags: [], color: task.color ?? null }
 }
 
 /** `gc-solid` / `gc-plan` / `gc-dot` に渡すスタイル */
