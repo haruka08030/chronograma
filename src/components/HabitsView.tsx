@@ -327,7 +327,6 @@ export function HabitsView() {
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (typeof window !== 'undefined' && !window.confirm(t('confirm.deleteHabit'))) return
     deleteHabit(id)
     if (editingHabitId === id) cancelEdit()
   }

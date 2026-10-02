@@ -39,8 +39,6 @@ export default {
     reorderAria: 'セクションを並べ替え',
     renameTitle: '名前を変更',
     renamePrompt: 'セクション名',
-    deleteConfirm:
-      'このセクションを削除しますか？（タスクは「セクションなし」に移ります）',
   },
   toast: {
     addedToList: '「{{name}}」に追加しました',
@@ -53,8 +51,6 @@ export default {
     importOverwriteCounts:
       '取り込むと、いまのデータは全て置き換わります。\n\nタスク: {{currentTasks}} 件 → {{nextTasks}} 件\nリスト: {{currentLists}} 件 → {{nextLists}} 件\n\n取り込んだ直後なら ⌘Z（Ctrl+Z）で元に戻せます。続けますか？',
     restoreBeforeImport: '取り込み前（タスク {{count}} 件）に戻しますか？いまのデータは置き換わります。',
-    deleteHabit: 'この習慣を削除しますか？',
-    deleteTimeLog: 'この記録を削除しますか？',
     deleteGoogleEvent: '「{{title}}」を Google カレンダーから削除しますか？元に戻せません。',
   },
   alert: {
@@ -670,7 +666,10 @@ export default {
   undo: {
     imported: 'バックアップを取り込みました（タスク {{count}} 件）',
     restoredFromBackup: '自動バックアップからタスク {{count}} 件を戻しました',
-    sectionDeleted: 'セクションを削除しました',
+    sectionDeleted: '「{{name}}」を削除しました',
+    listDeleted: '「{{name}}」を削除しました',
+    habitDeleted: '「{{name}}」を削除しました',
+    labelDeleted: '「{{name}}」を削除しました',
     tasksArchived: '{{count}} 件をアーカイブしました',
     message: 'タスクを削除しました',
     button: '元に戻す',

@@ -818,7 +818,8 @@ export const useTaskStore = create<TaskState>()(
         }))
       },
       deleteSection: (id) => {
-        pushUndo(i18n.t('undo.sectionDeleted'))
+        const name = get().sections.find((sec) => sec.id === id)?.name ?? ''
+        pushUndo(i18n.t('undo.sectionDeleted', { name }))
         return set((s) => ({
           sections: s.sections.filter((sec) => sec.id !== id),
           tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),
@@ -1113,7 +1114,8 @@ export const useTaskStore = create<TaskState>()(
         }))
       },
       deleteHabit: (id) => {
-        pushUndo()
+        const name = get().habits.find((h) => h.id === id)?.title ?? ''
+        pushUndo(i18n.t('undo.habitDeleted', { name }))
         return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
       },
       toggleHabitDate: (habitId, dateKey) => {
@@ -1223,7 +1225,7 @@ export const useTaskStore = create<TaskState>()(
       },
       removeLogCategory: (name) => {
         if (!get().timeLogTagPresets.includes(name)) return
-        pushUndo()
+        pushUndo(i18n.t('undo.labelDeleted', { name }))
         set((s) => ({ timeLogTagPresets: s.timeLogTagPresets.filter((n) => n !== name) }))
       },
       moveLogCategory: (name, delta) => {
@@ -1355,7 +1357,8 @@ export const useTaskStore = create<TaskState>()(
       },
       deleteList: (id) => {
         if (id === INBOX_ID) return
-        pushUndo()
+        const name = get().lists.find((l) => l.id === id)?.name ?? ''
+        pushUndo(i18n.t('undo.listDeleted', { name }))
         const now = new Date().toISOString()
         set((s) => ({
           lists: s.lists.filter((l) => l.id !== id),

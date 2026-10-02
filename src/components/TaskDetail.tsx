@@ -145,7 +145,6 @@ export function TaskDetail({
   }
 
   const handleDeleteLog = () => {
-    if (!confirm(t('confirm.deleteTimeLog'))) return
     deleteTask(task.id)
     onClose()
   }

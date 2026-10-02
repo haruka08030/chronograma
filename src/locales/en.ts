@@ -39,8 +39,6 @@ export default {
     reorderAria: 'Reorder section',
     renameTitle: 'Rename',
     renamePrompt: 'Section name',
-    deleteConfirm:
-      'Delete this section? (Tasks move to “No section”.)',
   },
   toast: {
     addedToList: 'Added to “{{name}}”',
@@ -53,8 +51,6 @@ export default {
     importOverwriteCounts:
       'Importing replaces everything you have now.\n\nTasks: {{currentTasks}} → {{nextTasks}}\nLists: {{currentLists}} → {{nextLists}}\n\nYou can undo with Ctrl+Z (⌘Z) right after. Continue?',
     restoreBeforeImport: 'Go back to before the import ({{count}} tasks)? This replaces what you have now.',
-    deleteHabit: 'Delete this habit?',
-    deleteTimeLog: 'Delete this time entry?',
     deleteGoogleEvent: 'Delete “{{title}}” from Google Calendar? This can’t be undone.',
   },
   alert: {
@@ -670,7 +666,10 @@ export default {
   undo: {
     imported: 'Imported a backup ({{count}} tasks)',
     restoredFromBackup: 'Brought back {{count}} tasks from an automatic backup',
-    sectionDeleted: 'Section deleted',
+    sectionDeleted: 'Deleted “{{name}}”',
+    listDeleted: 'Deleted “{{name}}”',
+    habitDeleted: 'Deleted “{{name}}”',
+    labelDeleted: 'Deleted “{{name}}”',
     tasksArchived: 'Archived {{count}} tasks',
     message: 'Task deleted',
     button: 'Undo',

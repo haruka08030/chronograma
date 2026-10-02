@@ -803,11 +803,7 @@ export function TaskList() {
                         type="button"
                         className="p-1 rounded text-zinc-400 hover:text-red-500"
                         title={t('common.delete')}
-                        onClick={() => {
-                          if (window.confirm(t('sections.deleteConfirm'))) {
-                            deleteSectionStore(sectionId)
-                          }
-                        }}
+                        onClick={() => deleteSectionStore(sectionId)}
                       >
                         <CloseIcon className="w-3.5 h-3.5" />
                       </button>
