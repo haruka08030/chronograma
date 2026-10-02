@@ -4,6 +4,7 @@ import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
 import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
@@ -609,7 +610,16 @@ export default function App() {
           )}
 
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {mainContent}
+            <ErrorBoundary
+              scope="screen"
+              resetKey={`${selectedView ?? ''}|${selectedList?.id ?? ''}|${searchQuery.trim()}`}
+              onLeave={() => {
+                setSearchQuery('')
+                useTaskStore.getState().selectView('planner')
+              }}
+            >
+              {mainContent}
+            </ErrorBoundary>
           </div>
         </div>
 

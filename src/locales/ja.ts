@@ -382,6 +382,14 @@ export default {
     undo: '元に戻す',
     help: 'この一覧',
   },
+  crash: {
+    title: 'うまく表示できませんでした',
+    screenHelp: 'この画面でエラーが起きました。データは消えていません。ほかの画面を開くか、再読み込みしてください。',
+    appHelp: 'エラーが起きました。データは消えていません。再読み込みしてください。',
+    reload: '再読み込み',
+    goToday: '今日を開く',
+    details: 'エラーの詳細',
+  },
   app: {
     searchPlaceholderTouch: '検索',
     searchPlaceholder: '検索… (⌘K)',

@@ -383,6 +383,14 @@ export default {
     undo: 'Undo',
     help: 'This list',
   },
+  crash: {
+    title: 'Something went wrong',
+    screenHelp: 'This screen hit an error. Your data is safe. Open another screen, or reload.',
+    appHelp: 'Chronograma hit an error. Your data is safe. Reload to try again.',
+    reload: 'Reload',
+    goToday: 'Go to Today',
+    details: 'Error details',
+  },
   app: {
     searchPlaceholderTouch: 'Search',
     searchPlaceholder: 'Search… (⌘K)',
