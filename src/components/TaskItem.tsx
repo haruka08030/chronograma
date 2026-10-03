@@ -22,6 +22,7 @@ import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
 import { useLongPress } from '../hooks/useLongPress'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -214,8 +215,8 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
       className={`group relative flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
-                  ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
-                  ${selection?.cursor ? 'bg-zinc-50 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800/40 dark:ring-zinc-600' : ''}
+                  ${selection?.selected ? ROW_SELECTED_CLASS : ''}
+                  ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
       style={{ WebkitTouchCallout: 'none' }}

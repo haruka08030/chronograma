@@ -37,6 +37,9 @@ import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
 import { SUBTLE_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
@@ -66,6 +69,8 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const bulk = useBulkTaskActions()
   const startTimer = useTaskStore((s) => s.startTimer)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -110,9 +115,9 @@ export function TodayPlannerView() {
     [tasks, dateKey, excludedListIds],
   )
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
-  const overdue = viewingToday ? overdueAll : []
+  const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
-  const leftOver = viewingToday ? carryOver : []
+  const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
   // その下に、締切が先のもの・日付なしなどを 10 件ずつスクロールで足していく
   const moreSuggestions = useMemo(
@@ -150,6 +155,31 @@ export function TodayPlannerView() {
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
 
   const shortDate = (key: string) => df.shortDate(key)
+
+  // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
+  // 対象は開いている未完了の行を上から順に
+  const rowIds = useMemo(
+    () => [
+      ...(showLeftOver ? leftOver : []),
+      ...overdue,
+      ...open,
+      ...(showSuggestions ? [...suggestions, ...moreSuggestions.slice(0, moreShown)] : []),
+    ].map((x) => x.id),
+    [showLeftOver, leftOver, overdue, open, showSuggestions, suggestions, moreSuggestions, moreShown],
+  )
+  const clearSelectedRef = useRef<() => void>(() => {})
+  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+    rowIds,
+    openDetail,
+    toggleRow: toggleTask,
+    removeRows: deleteTasks,
+    completeRows: bulk.complete,
+    openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
+    resetOn: [dateKey],
+  })
+  useEffect(() => {
+    clearSelectedRef.current = clearSelection
+  }, [clearSelection])
 
   const submitDraft = () => {
     if (!draft.trim()) return
@@ -192,31 +222,37 @@ export function TodayPlannerView() {
     const meta = rowMeta(task)
     const sourceLink = sourceLinkOf(task.description)
     const hasRowExtras = !task.completed && (sourceLink !== null || task.tags.length > 0)
+    const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
     return (
       <li
         key={task.id}
+        data-task-row={task.id}
         draggable={!task.completed}
         onDragStart={(e) => {
           startTaskDrag(e, task.id)
           startNativeTaskDragGhost(e, task.title)
         }}
-        className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-        // To-Do 一覧と同じタスクのメニュー
+        className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60
+          ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
+        // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
         onContextMenu={(e) => {
           e.preventDefault()
-          openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
+          if (sel?.onContextMenu) sel.onContextMenu(e)
+          else openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
         }}
       >
         <CompletionCircle
           completed={task.completed}
           priority={task.priority}
+          inert={selected.size > 0}
           onClick={() => toggleTask(task.id)}
           label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
         />
         <div className="min-w-0 flex-1">
           <button
             type="button"
-            onClick={() => openDetail(task.id)}
+            // ⌘・Shift で選ぶ、選んでいる間は押すと選ぶ・外す、ふだんは詳細（To-Do 一覧と同じ）
+            onClick={(e) => (sel ? makeRowClick(task.id)(e) : openDetail(task.id))}
             className={`block w-full truncate text-left text-[15px] ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
               task.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
             }`}
