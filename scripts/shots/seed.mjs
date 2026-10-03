@@ -89,6 +89,9 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, now),
     task({ id: 's15', title: '牛乳', listId: SHOPPING_ID, order: 0 }, now),
     task({ id: 's16', title: 'シャンプー', listId: SHOPPING_ID, order: 1 }, now),
+    // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
+    task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, now),
+    task({ id: 's20', title: '就活サイトのプロフィール更新', scheduledDate: dayKey(shift(now, -2)), order: 15 }, now),
   ]
 
   const habits = [

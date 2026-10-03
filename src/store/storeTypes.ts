@@ -278,7 +278,7 @@ export interface TaskState {
     >,
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
-  rescheduleTasks: (ids: string[], dateKey: string) => void
+  rescheduleTasks: (ids: string[], dateKey: string, label?: string) => void
   /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],

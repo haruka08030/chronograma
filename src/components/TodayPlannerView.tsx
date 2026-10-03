@@ -78,6 +78,7 @@ export function TodayPlannerView() {
   const [draftFocused, setDraftFocused] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showDone, setShowDone] = useState(false)
+  const [showLeftOver, setShowLeftOver] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<'list' | 'timeline'>('list')
 
@@ -102,11 +103,9 @@ export function TodayPlannerView() {
   )
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
   const overdue = viewingToday ? overdueAll : []
-  // やり残しは今日を見ているときだけ候補に出す（過去日・未来日に持ち越しは無い）
-  const suggestions = useMemo(
-    () => [...(viewingToday ? carryOver : []), ...dueSoon],
-    [viewingToday, carryOver, dueSoon],
-  )
+  // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
+  const leftOver = viewingToday ? carryOver : []
+  const suggestions = dueSoon
   // その下に、締切が先のもの・日付なしなどを 10 件ずつスクロールで足していく
   const moreSuggestions = useMemo(
     () => getMoreSuggestions(tasks, dateKey, excludedListIds),
@@ -346,6 +345,47 @@ export function TodayPlannerView() {
             {t('planner.addHint')}
           </p>
         </div>
+
+        {leftOver.length > 0 && (
+          <div className="mt-2 px-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLeftOver((v) => !v)}
+                aria-expanded={showLeftOver}
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+              >
+                <ChevronRightIcon className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+                <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  rescheduleTasks(
+                    leftOver.map((x) => x.id),
+                    dateKey,
+                    leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
+                  )
+                }
+                className={`mr-3 shrink-0 ${textButton}`}
+              >
+                {leftOver.length > 1 ? t('planner.moveAllToToday') : t('planner.doToday')}
+              </button>
+            </div>
+            {showLeftOver && (
+              <ul>
+                {leftOver.map((task) =>
+                  renderRow(
+                    task,
+                    <button type="button" onClick={() => rescheduleTasks([task.id], dateKey)} className={`shrink-0 ${textButton}`}>
+                      {t('planner.doToday')}
+                    </button>,
+                  ),
+                )}
+              </ul>
+            )}
+          </div>
+        )}
 
         <ul className="mt-2 px-3">
           {overdue.map((task) => renderRow(task, timerButton(task)))}

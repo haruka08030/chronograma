@@ -124,9 +124,9 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))
     },
-    rescheduleTasks: (ids, dateKey) => {
+    rescheduleTasks: (ids, dateKey, label) => {
       if (ids.length === 0) return
-      pushUndo()
+      pushUndo(label)
       const selected = new Set(ids)
       set((s) => ({
         tasks: s.tasks.map((t) =>
