@@ -1,6 +1,5 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
-import { useHotkey } from '../hooks/useHotkey'
 import { INVERSE_SURFACE, POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
@@ -18,8 +17,6 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { groupsBySection, isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
-import { isModKey } from '../lib/keyboard'
-import { useSelectAllShortcut } from '../lib/shortcuts'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
@@ -51,6 +48,7 @@ import { tip } from '../lib/tooltip'
 import { chipClass } from './ui/chipClass'
 import { DisclosureButton } from './ui/Disclosure'
 import { EmptyState } from './ui/EmptyState'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 /** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
@@ -252,7 +250,6 @@ export function TaskList() {
   const [showSort, setShowSort] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
   useDismiss({ open: showSort, onClose: () => setShowSort(false), inside: [sortMenuRef] })
-  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
   /** 「＋ セクション」で開いた名前入力。名前が決まるまでセクションは作らない */
@@ -261,11 +258,8 @@ export function TaskList() {
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   const [previewParentId, setPreviewParentId] = useState<string | null>(null)
   const previewParentIdRef = useRef<string | null>(null)
-  const selectedRef = useRef(selected)
-  const lastAnchorRef = useRef<string | null>(null)
-  /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
-  const [cursorId, setCursorId] = useState<string | null>(null)
-  const [cursorVisible, setCursorVisible] = useState(false)
+  /** 選択の解除（下の useTaskListSelection が入れる。ドラッグの処理はそれより前に作るので参照で受ける） */
+  const clearSelectionRef = useRef<() => void>(() => {})
   /** セクションの見出しの右クリックメニュー */
   const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number; sectionId: string; title: string; canQuickTarget: boolean } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
@@ -281,23 +275,6 @@ export function TaskList() {
     previewParentIdRef.current = next
     setPreviewParentId(next)
   }, [])
-
-  useEffect(() => {
-    selectedRef.current = selected
-  }, [selected])
-
-  const clearSelection = useCallback(() => {
-    setSelected(new Set())
-    lastAnchorRef.current = null
-  }, [])
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      clearSelection()
-      setCursorId(null)
-      setCursorVisible(false)
-    })
-  }, [selectedListId, selectedView, filterTag, filterColor, sortMode, clearSelection])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -318,16 +295,16 @@ export function TaskList() {
         const id = String(active.id)
         setTaskDragging(id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX))
         if (id.startsWith(DRAGSEC_PREFIX)) {
-          clearSelection()
+          clearSelectionRef.current()
           return
         }
         if (id.startsWith(SUBTASK_PREFIX)) {
-          clearSelection()
+          clearSelectionRef.current()
           return
         }
         if (id.startsWith(TASK_PREFIX)) {
           const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-          if (!group || group.length <= 1) clearSelection()
+          if (!group || group.length <= 1) clearSelectionRef.current()
         }
       },
       onDragMove({ active, delta }: DragMoveEvent) {
@@ -354,16 +331,16 @@ export function TaskList() {
         clearNestPreview()
         setTaskDragging(false)
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) clearSelection()
+        if (group && group.length > 1) clearSelectionRef.current()
       },
       onDragCancel({ active }: DragCancelEvent) {
         clearNestPreview()
         setTaskDragging(false)
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) clearSelection()
+        if (group && group.length > 1) clearSelectionRef.current()
       },
     }),
-    [clearSelection, clearNestPreview, updateNestPreview],
+    [clearNestPreview, updateNestPreview],
   )
   useDndMonitor(dndMonitor)
 
@@ -588,15 +565,6 @@ export function TaskList() {
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 
-  const getDragGroupRootIds = useCallback(
-    (taskId: string): string[] => {
-      const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
-      if (selected.has(taskId) && rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
-      return [taskId]
-    },
-    [active, selected],
-  )
-
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const [showCompleted, setShowCompleted] = useState(false)
 
@@ -646,99 +614,7 @@ export function TaskList() {
     [flatActiveIds, flatCompletedTodoIds],
   )
 
-  const toggleInSelection = useCallback((taskId: string) => {
-    setSelected((prev) => {
-      const n = new Set(prev)
-      if (n.has(taskId)) n.delete(taskId)
-      else n.add(taskId)
-      return n
-    })
-    lastAnchorRef.current = taskId
-  }, [])
-
-  const makeRowClick = useCallback(
-    (taskId: string) => (e: React.MouseEvent) => {
-      setCursorId(taskId)
-      setCursorVisible(false)
-      if (e.shiftKey && lastAnchorRef.current !== null) {
-        const anchor = lastAnchorRef.current
-        const ia = flatCombined.indexOf(anchor)
-        const ib = flatCombined.indexOf(taskId)
-        if (ia >= 0 && ib >= 0) {
-          const lo = Math.min(ia, ib)
-          const hi = Math.max(ia, ib)
-          setSelected((prev) => {
-            const n = new Set(prev)
-            for (let i = lo; i <= hi; i++) n.add(flatCombined[i])
-            return n
-          })
-        }
-        lastAnchorRef.current = taskId
-        return
-      }
-      if (isModKey(e)) {
-        toggleInSelection(taskId)
-        return
-      }
-      if (selectedRef.current.size > 0) {
-        toggleInSelection(taskId)
-        return
-      }
-      openDetail(taskId)
-      lastAnchorRef.current = taskId
-    },
-    [flatCombined, openDetail, toggleInSelection],
-  )
-
-  const makeSelection = useCallback(
-    (taskId: string): TaskItemSelection => ({
-      selected: selected.has(taskId),
-      reveal: selected.size > 0,
-      onToggle: () => toggleInSelection(taskId),
-      cursor: cursorVisible && cursorId === taskId,
-      onContextMenu: (e) => {
-        setCursorId(taskId)
-        setCursorVisible(false)
-        // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる
-        const ids = selected.has(taskId) && selected.size > 1 ? [...selected] : [taskId]
-        setContextMenu({ x: e.clientX, y: e.clientY, taskIds: ids })
-      },
-    }),
-    [selected, toggleInSelection, cursorVisible, cursorId],
-  )
-
-  // ⌘A: 表示中の未完了のタスクをすべて選ぶ（そのまま一括操作のバーが出る）
-  useSelectAllShortcut(() => {
-    if (flatActiveIds.length === 0) return false
-    setSelected(new Set(flatActiveIds))
-    lastAnchorRef.current = flatActiveIds[flatActiveIds.length - 1]
-    return true
-  })
-
   const bulk = useBulkTaskActions()
-  const bulkComplete = useCallback(() => {
-    bulk.complete([...selected])
-    clearSelection()
-  }, [selected, bulk, clearSelection])
-
-  const bulkDelete = useCallback(() => {
-    if (selected.size === 0) return
-    deleteTasks([...selected])
-    clearSelection()
-  }, [selected, deleteTasks, clearSelection])
-
-  // 完了・削除などで枠の行が一覧から消えたら、同じ位置の行（末尾なら前の行）へ移す
-  const cursorIndexRef = useRef(-1)
-  useEffect(() => {
-    if (!cursorId) return
-    const i = flatActiveIds.indexOf(cursorId)
-    if (i >= 0) {
-      cursorIndexRef.current = i
-      return
-    }
-    const fallback = flatActiveIds[Math.min(cursorIndexRef.current, flatActiveIds.length - 1)] ?? null
-    queueMicrotask(() => setCursorId(fallback))
-  }, [cursorId, flatActiveIds])
 
   const completeByKey = useCallback((taskId: string) => {
     const task = tasks.find((x) => x.id === taskId)
@@ -751,69 +627,31 @@ export function TaskList() {
     toggleTask(taskId)
   }, [tasks, openCompleteWithLog, toggleTask, listKind])
 
-  /**
-   * 一覧のキー操作（入力中・ダイアログやメニューが開いている間は効かない）
-   * - ↑↓ で行を動く、Shift+↑↓ で選択を広げる、Enter・e で詳細、Space で完了
-   * - 選択中（なければ枠の行）: Delete で削除（元に戻すトーストが出る）、⌘Enter で完了、Esc で解除
-   * 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）。対象がなければ false で次へ回す
-   */
-  const cursorRow = () => (cursorId && flatActiveIds.includes(cursorId) ? cursorId : null)
-  const targetRow = () => (cursorVisible ? cursorRow() : null)
-  const onButton = (e: KeyboardEvent) =>
-    e.target instanceof HTMLButtonElement || (e.target instanceof Element && e.target.getAttribute('role') === 'button')
+  // 選択とキー操作（カレンダーの置き場と同じ）
+  const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => setContextMenu(menu), [])
+  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+    rowIds: flatActiveIds,
+    rangeIds: flatCombined,
+    openDetail,
+    completeRow: completeByKey,
+    toggleRow: toggleTask,
+    removeRows: deleteTasks,
+    completeRows: bulk.complete,
+    openMenu,
+    resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
+  })
+  useEffect(() => {
+    clearSelectionRef.current = clearSelection
+  }, [clearSelection])
 
-  useHotkey(['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], (e) => {
-    const ids = flatActiveIds
-    if (ids.length === 0) return false
-    const cursor = cursorRow()
-    const down = e.key === 'ArrowDown'
-    const i = cursor ? ids.indexOf(cursor) : -1
-    const next = i < 0 ? (down ? ids[0] : ids[ids.length - 1]) : ids[Math.min(ids.length - 1, Math.max(0, i + (down ? 1 : -1)))]
-    if (e.shiftKey) {
-      setSelected((prev) => new Set([...prev, ...(cursor ? [cursor] : []), next]))
-      lastAnchorRef.current = next
-    }
-    setCursorId(next)
-    setCursorVisible(true)
-  })
-  useHotkey('Escape', () => {
-    if (selectedRef.current.size > 0) clearSelection()
-    else if (targetRow()) setCursorVisible(false)
-    else return false
-  })
-  useHotkey(['Delete', 'Backspace'], () => {
-    const target = targetRow()
-    if (selectedRef.current.size > 0) bulkDelete()
-    else if (target) deleteTasks([target])
-    else return false
-  })
-  useHotkey('mod+Enter', () => {
-    const target = targetRow()
-    if (selectedRef.current.size > 0) bulkComplete()
-    else if (target) toggleTask(target)
-    else return false
-  })
-  useHotkey(['mod+/', 'ContextMenu', 'shift+F10'], () => {
-    // ⌘/（Notion と同じ）: 選択中（なければ枠の行）の右クリックメニューを、その行の下に開く
-    const target = targetRow()
-    const ids = selectedRef.current.size > 0 ? [...selectedRef.current] : target ? [target] : []
-    if (ids.length === 0) return false
-    const anchor = target && ids.includes(target) ? target : ids[0]
-    const row = document.querySelector(`[data-task-row="${anchor}"]`)?.getBoundingClientRect()
-    if (!row) return false
-    setContextMenu({ x: row.left + 48, y: row.bottom + 4, taskIds: ids })
-  })
-  // e は予定カードと同じ「詳細を開く」。ボタンの上の Enter はボタンのほうを押す
-  useHotkey(['Enter', 'e'], (e) => {
-    const target = targetRow()
-    if (!target || (e.key === 'Enter' && onButton(e))) return false
-    openDetail(target)
-  })
-  useHotkey('Space', (e) => {
-    const target = targetRow()
-    if (!target || onButton(e)) return false
-    completeByKey(target)
-  })
+  const getDragGroupRootIds = useCallback(
+    (taskId: string): string[] => {
+      const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
+      if (selected.has(taskId) && rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
+      return [taskId]
+    },
+    [active, selected],
+  )
 
   const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
     setEditingSectionId(sectionId)

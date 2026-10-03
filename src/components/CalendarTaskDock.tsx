@@ -8,13 +8,13 @@ import { isActiveTask } from '../lib/taskLifecycle'
 
 const UNSCHEDULED = '__unscheduled__'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { isModKey } from '../lib/keyboard'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { displayListName } from '../lib/displayListName'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-import { useSelectAllShortcut } from '../lib/shortcuts'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { TaskContextMenu } from './TaskContextMenu'
 import { EmptyState } from './ui/EmptyState'
 import { CheckCircleIcon } from './icons'
@@ -32,19 +32,10 @@ export function CalendarTaskDock() {
 
   // 既定は「時間が未定のタスク」（全リスト横断）。カレンダーに置く候補を探す場所なので 1 リストに絞らない
   const [dockListId, setDockListId] = useState<string>(UNSCHEDULED)
-  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-
-  const toggleSelected = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const clearSelected = useCallback(() => setSelected(new Set()), [])
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const bulk = useBulkTaskActions()
   const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
@@ -74,13 +65,27 @@ export function CalendarTaskDock() {
     [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
-  const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+  const active = useMemo(() => filtered.filter((t) => !t.completed && !isListedTimeLog(t)), [filtered])
+  const activeIds = useMemo(() => active.map((t) => t.id), [active])
 
-  // ⌘A: 置き場のタスクをすべて選ぶ（To-Do 一覧と同じ）
-  useSelectAllShortcut(() => {
-    if (active.length === 0) return false
-    setSelected(new Set(active.map((x) => x.id)))
-    return true
+  // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
+  const completeRow = useCallback(
+    (id: string) => {
+      const task = active.find((x) => x.id === id)
+      if (task && !task.completed) openCompleteWithLog(task)
+      else toggleTask(id)
+    },
+    [active, openCompleteWithLog, toggleTask],
+  )
+  const { selected, clearSelection: clearSelected, makeRowClick, makeSelection } = useTaskListSelection({
+    rowIds: activeIds,
+    openDetail,
+    completeRow,
+    toggleRow: toggleTask,
+    removeRows: deleteTasks,
+    completeRows: bulk.complete,
+    openMenu: setMenu,
+    resetOn: [dockListId],
   })
 
   const selectedInOrder = useMemo(
@@ -91,16 +96,6 @@ export function CalendarTaskDock() {
     (id: string): string[] =>
       selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : [id],
     [selected, selectedInOrder],
-  )
-  const makeRowClick = useCallback(
-    (id: string) => (e: React.MouseEvent) => {
-      if (e.shiftKey || isModKey(e) || selected.size > 0) {
-        toggleSelected(id)
-        return
-      }
-      openDetail(id)
-    },
-    [openDetail, selected.size, toggleSelected],
   )
 
   return (
@@ -147,14 +142,7 @@ export function CalendarTaskDock() {
               hideDueDatePicker
               onRowClick={makeRowClick(t.id)}
               onCompleteRequest={openCompleteWithLog}
-              selection={{
-                selected: selected.has(t.id),
-                reveal: selected.size > 0,
-                onToggle: () => toggleSelected(t.id),
-                // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる（To-Do 一覧と同じ）
-                onContextMenu: (e) =>
-                  setMenu({ x: e.clientX, y: e.clientY, taskIds: selected.has(t.id) && selected.size > 1 ? [...selected] : [t.id] }),
-              }}
+              selection={makeSelection(t.id)}
               dragGroupIds={getDragGroupIds(t.id)}
               onNativeDragEnd={clearSelected}
             />
