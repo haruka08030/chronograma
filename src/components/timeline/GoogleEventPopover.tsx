@@ -13,6 +13,7 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
+import { PillToggle } from '../ui/PillToggle'
 import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
@@ -209,24 +210,15 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       </div>
       <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
         {recurring && (
-          <div role="radiogroup" aria-label={t('eventCard.colorScope')} className="flex gap-1 text-xs">
-            {(['event', 'series'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={scope === v}
-                onClick={() => setScope(v)}
-                className={`rounded-full px-3 py-1 transition-colors ${
-                  scope === v
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                }`}
-              >
-                {t(v === 'event' ? 'eventCard.scopeEvent' : 'eventCard.scopeSeries')}
-              </button>
-            ))}
-          </div>
+          <PillToggle
+            ariaLabel={t('eventCard.colorScope')}
+            options={[
+              { value: 'event', label: t('eventCard.scopeEvent') },
+              { value: 'series', label: t('eventCard.scopeSeries') },
+            ]}
+            value={scope}
+            onChange={setScope}
+          />
         )}
         <ColorPalette
           selectedHex={hex}

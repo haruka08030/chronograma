@@ -32,6 +32,7 @@ import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
+import { PillToggle } from './ui/PillToggle'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
@@ -76,21 +77,12 @@ function WeekdayPicker({
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   if (freq !== 'weekly') return null
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {HABIT_WEEKDAY_ORDER.map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onToggle(v)}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
-            ${weekdays.includes(v)
-              ? 'bg-accent-500 text-on-accent'
-              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-        >
-          {labels[v - 1]}
-        </button>
-      ))}
-    </div>
+    <PillToggle
+      ariaLabel={t('habits.freqWeeklyLabel')}
+      options={HABIT_WEEKDAY_ORDER.map((v) => ({ value: v, label: labels[v - 1] }))}
+      values={weekdays}
+      onToggle={onToggle}
+    />
   )
 }
 
