@@ -27,7 +27,7 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CalendarIcon, CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon, SunIcon } from './icons'
+import { CalendarArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
@@ -231,18 +231,15 @@ export function TodayPlannerView() {
     </RowActionButton>
   )
 
-  /** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。今日はナビの「今日の計画」と同じ太陽 */
-  const moveHereButton = (task: Task) => {
-    const Icon = viewingToday ? SunIcon : CalendarIcon
-    return (
-      <RowActionButton
-        label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
-        onClick={() => rescheduleTasks([task.id], dateKey)}
-      >
-        <Icon className="h-4 w-4" />
-      </RowActionButton>
-    )
-  }
+  /** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。カレンダーに矢印＝その日へ移す */
+  const moveHereButton = (task: Task) => (
+    <RowActionButton
+      label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
+      onClick={() => rescheduleTasks([task.id], dateKey)}
+    >
+      <CalendarArrowIcon className="h-4 w-4" />
+    </RowActionButton>
+  )
 
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
