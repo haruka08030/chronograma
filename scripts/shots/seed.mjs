@@ -8,7 +8,7 @@
 
 const PERSIST_KEY = 'chronograma-storage'
 /** `taskStore.ts` の persist version と合わせる。古いと migrate が走って構図が変わる */
-const PERSIST_VERSION = 34
+const PERSIST_VERSION = 35
 
 const INBOX_ID = '__inbox__'
 const SOMEDAY_ID = 'seed-someday'

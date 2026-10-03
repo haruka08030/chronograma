@@ -17,8 +17,6 @@ import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
  */
 
 export { CANVAS_LIST_ID }
-/** 未分類のリスト id（ストアの INBOX_LIST_ID と同じ） */
-const INBOX_LIST_ID = '__inbox__'
 
 const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
 
@@ -158,38 +156,6 @@ export function parseCanvasTaskId(id: string): { connectionId: string; type: str
   return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
 }
 
-/** 最初の版の id（学校名なし）: タスク `canvas-<種類>-<ID>`、セクション `canvas-course-<コースID>` */
-const LEGACY_TASK_ID_RE = /^canvas-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
-const LEGACY_SECTION_ID_RE = /^canvas-course-\d+$/
-
-/**
- * 最初の版（id に学校名が無い）で取り込んだ課題の重複を片付ける。
- * 学校名入りの id に変わったとき移し替えなかったので、同じ課題が新しい id でもう 1 つ作られている。
- * 新しい方があるものだけゴミ箱へ（戻せる）。空になった古い科目のセクションも消す。
- */
-export function dropLegacyCanvasCopies(
-  state: { sections: ListSection[]; tasks: Task[] },
-  now: string,
-): { sections: ListSection[]; tasks: Task[] } | null {
-  const current = new Set<string>()
-  for (const t of state.tasks) {
-    const p = parseCanvasTaskId(t.id)
-    if (p) current.add(`${p.type}-${p.id}`)
-  }
-  let dropped = false
-  const tasks = state.tasks.map((t) => {
-    if (t.deletedAt) return t
-    const m = LEGACY_TASK_ID_RE.exec(t.id)
-    if (!m || !current.has(`${m[1]}-${m[2]}`)) return t
-    dropped = true
-    return { ...t, deletedAt: now, updatedAt: now }
-  })
-  const used = new Set(tasks.filter((t) => !t.deletedAt && t.sectionId).map((t) => t.sectionId))
-  const sections = state.sections.filter((sec) => !LEGACY_SECTION_ID_RE.test(sec.id) || used.has(sec.id))
-  if (!dropped && sections.length === state.sections.length) return null
-  return { sections, tasks: dropped ? tasks : state.tasks }
-}
-
 export function canvasSectionId(connectionId: string, courseId: string): string {
   return `canvas-course-${connectionId}-${courseId}`
 }
@@ -249,7 +215,6 @@ export type CanvasReconcileResult = {
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
- * - 未分類に落ちていた課題（同期で元のリストを見失ったもの）は、科目のセクションへ戻す
  */
 export function reconcileCanvasItems(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
@@ -295,12 +260,7 @@ export function reconcileCanvasItems(
     const id = canvasTaskId(conn, item.type, item.id)
     if (seen.has(id)) continue
     seen.add(id)
-    let existing = byId.get(id)
-    if (existing && !existing.deletedAt && existing.listId === INBOX_LIST_ID) {
-      const section = item.courseId ? ensureSection(item.courseId, item.courseName) : null
-      existing = { ...existing, listId: section?.listId ?? listId, sectionId: section?.id ?? null, updatedAt: opts.now }
-      updates.set(id, existing)
-    }
+    const existing = byId.get(id)
     if (existing && (existing.completed || existing.archivedAt || existing.deletedAt || skip.has(id))) continue
 
     if (item.done) {

@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
-import type { ListSection } from '../types/section'
 import {
-  dropLegacyCanvasCopies,
   canvasDue,
   canvasFeedUrlProblem,
   canvasExpiryWarning,
@@ -123,17 +121,6 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
-  it('brings assignments that fell into the inbox back to their course, even done ones', () => {
-    const [open, done] = imported([item('1'), item('2')])
-    const stray = [
-      { ...open, listId: '__inbox__', sectionId: null },
-      { ...done, listId: '__inbox__', sectionId: null, completed: true },
-    ]
-    const r = reconcile(stray, [item('1'), item('2')])
-    for (const t of r.tasks) expect(t).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: canvasSectionId(CONN, '101') })
-    expect(r.tasks[1].completed).toBe(true)
-  })
-
   it('reuses an existing course section instead of adding another', () => {
     const first = reconcile([], [item('1')])
     const r = reconcileCanvasItems(
@@ -221,22 +208,3 @@ describe('canvasFeedUrlProblem', () => {
   })
 })
 
-describe('dropLegacyCanvasCopies', () => {
-  const sec = (id: string): ListSection => ({ id, listId: '__inbox__', name: id, order: 0 })
-  it('trashes first-version copies that have a new twin, and drops their empty course sections', () => {
-    const [fresh] = imported([item('1')])
-    const legacy = { ...fresh, id: 'canvas-assignment-1', listId: '__inbox__', sectionId: 'canvas-course-101' }
-    const orphan = { ...fresh, id: 'canvas-assignment-9', listId: '__inbox__', sectionId: null }
-    const r = dropLegacyCanvasCopies({ sections: [sec('canvas-course-101'), sec(canvasSectionId(CONN, '101'))], tasks: [fresh, legacy, orphan] }, NOW)!
-    expect(r.tasks.map((t) => [t.id, t.deletedAt ?? null])).toEqual([
-      [fresh.id, null],
-      ['canvas-assignment-1', NOW],
-      ['canvas-assignment-9', null],
-    ])
-    expect(r.sections.map((s) => s.id)).toEqual([canvasSectionId(CONN, '101')])
-  })
-
-  it('does nothing when there are no first-version copies', () => {
-    expect(dropLegacyCanvasCopies({ sections: [], tasks: imported([item('1')]) }, NOW)).toBeNull()
-  })
-})

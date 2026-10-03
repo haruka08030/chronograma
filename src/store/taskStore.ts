@@ -6,6 +6,7 @@ import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
 import { newId } from '../lib/id'
+import { migrateLegacyCanvasIds } from '../lib/canvasLegacyMigration'
 import {
   DEFAULT_LIST_COLOR_PALETTE_ID,
   paletteColors,
@@ -41,7 +42,7 @@ export const MAX_EXTRA_TIME_ZONES = 2
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
 /** 保存形式の版。上げたら migrate に手順を足す */
-const STORE_VERSION = 34
+const STORE_VERSION = 35
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
@@ -2552,6 +2553,19 @@ export const useTaskStore = create<TaskState>()(
           // 夕方の締めの通知は廃止した（予定ごとの記録の確認に置き換え）
           const r = state.dailyReminders as Record<string, unknown> | undefined
           if (r) state.dailyReminders = { planTime: typeof r.planTime === 'string' ? r.planTime : null }
+        }
+        if (version < 35) {
+          // Canvas の最初の版の id を学校名入りに（重複は利用者の書いたものを写してまとめる）。サーバーは 006 で同じことをする
+          const migrated = migrateLegacyCanvasIds(
+            {
+              lists: (state.lists as TaskList[]) ?? [],
+              sections: (state.sections as ListSection[]) ?? [],
+              tasks: (state.tasks as Task[]) ?? [],
+            },
+            new Date().toISOString(),
+          )
+          state.sections = migrated.sections
+          state.tasks = migrated.tasks
         }
         return state as unknown as TaskState
       },

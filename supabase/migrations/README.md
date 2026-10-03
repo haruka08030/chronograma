@@ -9,6 +9,7 @@
 | [`003_canvas.sql`](003_canvas.sql) | Canvas 連携（`canvas_connection`、学校ごとに 1 行） |
 | [`004_list_delete_no_cascade.sql`](004_list_delete_no_cascade.sql) | リストを消しても中のタスク・セクションを道連れにしない（`on delete no action`） |
 | [`005_size_limits.sql`](005_size_limits.sql) | 行の大きさの上限（`*_size_check`、`not valid`） |
+| [`006_canvas_legacy_ids.sql`](006_canvas_legacy_ids.sql) | Canvas の最初の版の id（学校名なし）を学校名入りに書き換え、重複をまとめる（データの書き換えのみ。各端末は保存データの版 35 で同じことをする） |
 
 テーブル（最新の形）:
 
