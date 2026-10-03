@@ -20,7 +20,7 @@ export function ColorPalette({
   defaultLabel,
   defaultHex,
   bare = false,
-  columns = 12,
+  fill = false,
 }: {
   selectedHex: string | null
   onChoose: (hex: string) => void
@@ -30,8 +30,8 @@ export function ColorPalette({
   defaultHex?: string
   /** 枠なし（メニューの中など、すでに浮く面の上に置くとき） */
   bare?: boolean
-  /** 幅 320px のカードの中は 6（12 列だとはみ出す） */
-  columns?: 6 | 12
+  /** 色の丸をカードの幅いっぱいに並べる（幅 320px の予定のカード。12 列だとはみ出す） */
+  fill?: boolean
 }) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -49,8 +49,7 @@ export function ColorPalette({
   }, [presets, colors, t])
 
   return (
-    // 6 列のときは丸の幅に合わせて真ん中に置く（カードの幅いっぱいだと丸が左に寄って右が空く）
-    <div className={`${columns === 6 ? 'mx-auto w-fit' : ''} ${bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}`}>
+    <div className={bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}>
       <button
         type="button"
         onClick={() => setEditingLabels(true)}
@@ -64,7 +63,7 @@ export function ColorPalette({
         ariaLabel={t('labels.pickerAria')}
         selectedHex={selectedHex}
         onChoose={onChoose}
-        columns={columns}
+        fill={fill}
         swatches={swatches.map((sw) => {
           const name = labelForHex(sw.hex, presets, colors)
           return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
