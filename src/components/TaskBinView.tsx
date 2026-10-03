@@ -20,8 +20,7 @@ import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 
 type BinMode = 'archived' | 'deleted'
 
-const RESTORE_ICON =
-  'M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3'
+const RESTORE_ICON = ICON_PATHS.restore
 const DELETE_ICON =
   ICON_PATHS.trash
 const ARCHIVE_BOX_ICON =

@@ -22,9 +22,7 @@ import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
-
-const LONG_PRESS_MS = 450
-const LONG_PRESS_SLOP_PX = 8
+import { useLongPress } from '../hooks/useLongPress'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -179,26 +177,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const rowNativeDraggable = !hasSortableHandle
 
   // スマホ: 行を長押しで一括選択を始める（ドラッグは左の ⋮⋮ だけなので競合しない）
-  const longPressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
-  const suppressClickRef = useRef(false)
-  const cancelLongPress = useCallback(() => {
-    if (longPressRef.current) window.clearTimeout(longPressRef.current.timer)
-    longPressRef.current = null
-  }, [])
-  const onRowPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch' || !selection || editing) return
-    const timer = window.setTimeout(() => {
-      longPressRef.current = null
-      suppressClickRef.current = true
-      navigator.vibrate?.(15)
-      selection.onToggle(e as unknown as React.MouseEvent)
-    }, LONG_PRESS_MS)
-    longPressRef.current = { timer, x: e.clientX, y: e.clientY }
-  }
-  const onRowPointerMove = (e: React.PointerEvent) => {
-    const lp = longPressRef.current
-    if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > LONG_PRESS_SLOP_PX) cancelLongPress()
-  }
+  const longPress = useLongPress((e) => selection?.onToggle(e as unknown as React.MouseEvent), !!selection && !editing)
 
   const beginTitleInteraction = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
@@ -241,13 +220,10 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
       style={{ WebkitTouchCallout: 'none' }}
-      onPointerDown={onRowPointerDown}
-      onPointerMove={onRowPointerMove}
-      onPointerUp={cancelLongPress}
-      onPointerCancel={cancelLongPress}
+      {...longPress.pointerHandlers}
       onContextMenu={(e) => {
         // 長押しで出る OS のメニューを抑える（選択に使う）
-        if (suppressClickRef.current || longPressRef.current) {
+        if (longPress.isPressing()) {
           e.preventDefault()
           return
         }
@@ -255,14 +231,8 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         e.preventDefault()
         openMenuAt(e)
       }}
-      onClickCapture={(e) => {
-        // 長押しで選択した直後の click で詳細・編集が開かないように
-        if (suppressClickRef.current) {
-          suppressClickRef.current = false
-          e.stopPropagation()
-          e.preventDefault()
-        }
-      }}
+      // 長押しで選択した直後の click で詳細・編集が開かないように
+      onClickCapture={longPress.onClickCapture}
       onClick={(e) => {
         if (editing) return
         if (onRowClick) onRowClick(e)

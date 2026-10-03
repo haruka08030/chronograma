@@ -75,6 +75,11 @@ const SCREENS = [
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
   // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
   { name: 'habits-new-weekly', view: 'habits', click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'], scrollToBottom: true },
+  // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
+  { name: 'habits-menu', view: 'habits', rightClick: 'div[role="button"]:has-text("朝に 10 分ストレッチ")' },
+  // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
+  { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
+  { name: 'habits-archived-menu', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true, rightClick: 'li:has-text("日記を書く")' },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
