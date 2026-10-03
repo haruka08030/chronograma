@@ -46,6 +46,7 @@
 | アイコンボタン | `iconButtonClass(extra)`。丸・枠なし・乗せたときだけ薄い地。予定カードの右上（詳細・削除・閉じる・Google で開く）とラベル編集の行の削除。行の右端の操作は枠ありの `RowActionButton` | `components/ui/iconButtonClass.ts` |
 | ピル選択 | `PillToggle`。形はピル、選択中は墨の塗り（`buttonClass` の primary と同じ）、それ以外は細い枠（`chipClass` の outline と同じ）。`value`/`onChange` は 1 つ選ぶ（radiogroup）、`values`/`onToggle` は複数選ぶ（aria-pressed）。予定カードの「予定 / タスク」・繰り返し予定の範囲・習慣の曜日 | `components/ui/PillToggle.tsx` |
 | 小見出し | `SectionLabel`（`as`・`level`）と `sectionLabelClass(level)`。2 段で、どちらも text-xs・font-medium。`section`（zinc-400）は画面・パネル・カードの中のまとまりの見出し、`field`（zinc-500）はフォームの欄の名前。画面の題・今日の計画の区切りの見出し（太い黒）・カードの題・開閉する見出し・メニューの区切り・リストのセクション名には使わない | `components/ui/SectionLabel.tsx`・`components/ui/sectionLabelClass.ts` |
+| 見出し | 画面の区切り（今日の計画の To-Do・習慣、習慣画面の「この日の習慣」）は `SECTION_HEADING_CLASS`（text-base・太い墨）。カード・設定のまとまりの題（統計・週のふりかえり・睡眠・設定・習慣のフォーム）は `CARD_TITLE_CLASS`（text-sm・太い墨） | `components/ui/headingClass.ts` |
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
@@ -87,11 +88,4 @@
 
 ## まだ違うところ
 
-### 見た目の部品
-
-- カードの題（統計・設定・週のふりかえり・睡眠・習慣のフォーム）は `font-semibold` と `font-medium`、`zinc-800` と `zinc-900` が混在
-- 習慣画面の「この日の習慣」は小さな灰色の見出し（`SectionLabel`）、今日の計画の To-Do・習慣は太い黒の見出しで、画面の区切りの見出しが 2 通り
-
-### 日付
-
-- クラッシュ画面（`ui/ErrorBoundary.tsx`）の時刻はブラウザの書式のまま
+なし

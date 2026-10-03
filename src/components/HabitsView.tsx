@@ -39,6 +39,7 @@ import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
 import { CheckIcon, RepeatIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { CARD_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -400,7 +401,7 @@ export function HabitsView() {
           >
             <div className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.editTitle')}</h3>
+                <h3 className={CARD_TITLE_CLASS}>{t('habits.editTitle')}</h3>
                 <button
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
@@ -637,7 +638,7 @@ export function HabitsView() {
 
         {showComposer ? (
           <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-            <h2 className="mb-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.newHabit')}</h2>
+            <h2 className={`mb-4 ${CARD_TITLE_CLASS}`}>{t('habits.newHabit')}</h2>
             <div className="space-y-3">
               <input
                 ref={newTitleInputRef}
@@ -700,7 +701,7 @@ export function HabitsView() {
 
         {habits.length > 0 ? (
           <div className="space-y-2">
-            <SectionLabel>{t('habits.listForDayTitle')}</SectionLabel>
+            <h2 className={SECTION_HEADING_CLASS}>{t('habits.listForDayTitle')}</h2>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{focusDateLabel}</span>
               <DayNav

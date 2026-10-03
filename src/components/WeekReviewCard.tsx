@@ -12,6 +12,7 @@ import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
+import { CARD_TITLE_CLASS } from './ui/headingClass'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -57,7 +58,7 @@ export function WeekReviewCard() {
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t('weekReview.title')}</h2>
+          <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
           </p>
