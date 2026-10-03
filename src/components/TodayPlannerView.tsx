@@ -8,7 +8,6 @@ import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { getDayPlan, getMoreSuggestions } from '../lib/dayPlan'
-import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -32,6 +31,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
 import { isSubmitEnter } from '../lib/keyboard'
+import { CompletionCircle } from './ui/CompletionCircle'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -196,27 +196,12 @@ export function TodayPlannerView() {
         }}
         className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
       >
-        <button
-          type="button"
+        <CompletionCircle
+          completed={task.completed}
+          priority={task.priority}
           onClick={() => toggleTask(task.id)}
-          aria-label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
-          className="group/check -m-2.5 shrink-0 p-2.5 touch-manipulation"
-        >
-          {/* 見た目の丸は 20px のまま、押せる範囲は周り 10px ずつ広げて 40px */}
-          <span
-            className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] transition-colors ${
-              task.completed
-                ? 'border-accent-500 bg-accent-500 text-on-accent'
-                : PRIORITY_RING_CLASS[task.priority]
-                  ? `border-current ${PRIORITY_RING_CLASS[task.priority]}`
-                  : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
-            }`}
-          >
-            {task.completed && (
-              <CheckIcon className="h-3 w-3" strokeWidth={3} />
-            )}
-          </span>
-        </button>
+          label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
+        />
         <button
           type="button"
           onClick={() => openDetail(task.id)}

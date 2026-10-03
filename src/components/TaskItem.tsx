@@ -9,11 +9,11 @@ import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
-import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { TaskContextMenu } from './TaskContextMenu'
+import { CompletionCircle } from './ui/CompletionCircle'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -130,7 +130,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
   const timeLog = isListedTimeLog(task)
   const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
-  const priorityColor = PRIORITY_RING_CLASS[task.priority]
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
@@ -292,7 +291,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         </button>
       ) : null}
 
-      <button
+      <CompletionCircle
+        completed={task.completed}
+        priority={task.priority}
+        small={isSubtask}
         onClick={(e) => {
           e.stopPropagation()
           if (!task.completed && !timeLog && onCompleteRequest) {
@@ -301,16 +303,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           }
           toggleTask(task.id)
         }}
-        className={`rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all touch-manipulation
-          ${isSubtask ? 'h-5 w-5 md:h-4 md:w-4' : 'h-6 w-6 md:h-[18px] md:w-[18px]'}
-          ${
-            task.completed
-              ? 'bg-accent-500 border-accent-500 text-on-accent'
-              : priorityColor
-                ? `border-current ${priorityColor}`
-                : 'border-zinc-300 dark:border-zinc-600 hover:border-accent-400'
-          }`}
-        aria-label={
+        label={
           !task.completed && !timeLog && onCompleteRequest
             ? t('taskItem.completeWithLog')
             : task.completed
@@ -319,11 +312,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
               : t('taskItem.markIncomplete')
             : t('taskItem.markComplete')
         }
-      >
-        {task.completed && (
-          <CheckIcon className={isSubtask ? 'w-3 h-3 md:w-2.5 md:h-2.5' : 'w-3.5 h-3.5 md:w-3 md:h-3'} strokeWidth={3} />
-        )}
-      </button>
+      />
 
       <div className="flex-1 min-w-0">
         {editing ? (
