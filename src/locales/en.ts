@@ -264,6 +264,11 @@ export default {
     clearChecked: 'Clear checked',
     details: 'Notes and details',
   },
+  nestedList: {
+    addChild: 'Add below',
+    addChildTo: 'Add below “{{title}}”',
+    progress: '{{done}}/{{total}}',
+  },
   someday: {
     subtitle: 'Things you want to do someday, with no deadline. They stay out of Today and due views.',
     addPlaceholder: 'Add something for someday',

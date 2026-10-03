@@ -107,6 +107,9 @@
 - **いつか / チェックリストの専用画面**: リスト選択時に `kind` が `checklist` なら `ChecklistView`、`someday` なら `SomedayView`
   （`App.tsx` の `mainContent`）。`uncheckTasks`（全部戻す）・`promoteToPlanned`（いつか → 未分類 + 今日の予定日）はどちらも Undo 1 段。
   `TaskDetail` は `tasks` 以外のリストで優先度・締切・予定日の欄を出さない。カレンダー（月・週・日パネル）と予定 vs ログも除外
+  - 子は親の下に 1 段ずつ下げて出す（`childrenByParent`、`lib/listTree.ts`）。子のある行に「済/全部」の数。PC は行に乗せると「＋」（下に追加、`ChildAddInput`・`addChildAtEnd` で末尾へ）、スマホは詳細カードのサブタスク欄から足す
+  - チェックリストは `toggleChecklistItem`: 子のある行は子ごと、子がそろったら親もチェック済み（そのグループごと「チェック済み」へ）。「残り N 個」は子のある行を子で数える
+  - いつかの子は ☆ でかなえても親の下に ★ で残る（親は自分でかなえる）。子だけ「予定する」と親から外れて未分類の 1 件になる
 - **記録の分類**: 分類は 1 つ選ぶチップ（`TimeLogTagField`、同じチップで解除、＋で追加すると設定の分類にも保存）。既定の分類
   （`logCategories.defaults`、勉強・課題・就活…）を新規ユーザーに入れ、persist v26 で空の既存ユーザーにも入れる。分類なしで記録したら
   `inferLogCategory`（`src/lib/logCategory.ts`: 元タスクの先頭タグ → 同じタイトルの前回の分類）を `startTimer` / `addTimeLog` /

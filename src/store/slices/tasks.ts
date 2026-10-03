@@ -4,6 +4,7 @@ import i18n from '../../i18n/config'
 import { INBOX_ID } from '../storeConstants'
 import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
+import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 
@@ -14,6 +15,8 @@ type TasksActions = Pick<
   | 'addTaskWithDate'
   | 'addTaskWithTime'
   | 'toggleTask'
+  | 'addChildAtEnd'
+  | 'toggleChecklistItem'
   | 'updateTask'
   | 'rescheduleTasks'
   | 'bulkUpdateTasks'
@@ -91,6 +94,17 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       set((st) => ({ tasks: [...st.tasks, task] }))
       return task.id
     },
+    addChildAtEnd: (title, parentId) => {
+      const parent = get().tasks.find((t) => t.id === parentId)
+      if (!parent) return undefined
+      const siblings = get().tasks.filter((t) => t.parentId === parentId)
+      const order = siblings.length ? Math.max(...siblings.map((t) => t.order)) + 1 : 0
+      const task = makeTask({ title, listId: parent.listId }, order)
+      task.parentId = parentId
+      pushUndo()
+      set((st) => ({ tasks: [...st.tasks, task] }))
+      return task.id
+    },
     addTaskWithDate: (title, dueDate, listId) => {
       pushUndo()
       const targetList = listId ?? get().selectedListId ?? INBOX_ID
@@ -114,6 +128,14 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       set((s) => {
         // 繰り返しは完了で次回を作り、取り消しでまだ手を付けていない次回を片付ける（`taskRecurrence.ts`）
         const tasks = toggleTaskCompletion(s.tasks, id, new Date().toISOString())
+        return tasks ? { tasks } : s
+      })
+    },
+    toggleChecklistItem: (id) => {
+      if (!get().tasks.some((t) => t.id === id)) return
+      pushUndo()
+      set((s) => {
+        const tasks = toggleChecklistTree(s.tasks, id, new Date().toISOString())
         return tasks ? { tasks } : s
       })
     },
@@ -213,7 +235,8 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
           tasks: s.tasks.map((t) => {
             if (!family.has(t.id)) return t
             if (t.id === id) {
-              return { ...t, listId: INBOX_ID, sectionId: null, order: maxOrder + 1, scheduledDate: dateKey, updatedAt: now }
+              // 「中国語」の下の「HSK 合格」だけを予定にしたら、未分類では 1 件のタスクとして出す
+              return { ...t, listId: INBOX_ID, sectionId: null, parentId: null, order: maxOrder + 1, scheduledDate: dateKey, updatedAt: now }
             }
             return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }
           }),

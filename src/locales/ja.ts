@@ -262,6 +262,11 @@ export default {
     clearChecked: 'チェック済みを消す',
     details: 'メモ・詳細',
   },
+  nestedList: {
+    addChild: '下に追加',
+    addChildTo: '「{{title}}」の下に追加',
+    progress: '{{done}}/{{total}}',
+  },
   someday: {
     subtitle: '期限のない「いつかやりたいこと」。今日の計画や期限には出ません。',
     addPlaceholder: 'いつかやりたいことを追加',

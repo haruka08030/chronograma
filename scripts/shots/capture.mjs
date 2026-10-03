@@ -58,6 +58,8 @@ const SCREENS = [
   { name: 'settings', view: 'settings' },
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
+  // 行に乗せると出る「下に追加」（PC だけ）
+  { name: 'checklist-hover', list: 'seed-shopping', hover: 'div.group:has(> button:text-is("カレー"))' },
 ]
 
 const VIEWPORTS = [

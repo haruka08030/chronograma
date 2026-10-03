@@ -87,8 +87,16 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     // いつか（Wish）と買い物（チェックリスト）は別リスト
     task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, order: 0 }, now),
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, now),
+    // 下に置いた子（目標の下の一歩、メニューの下の材料）
+    task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2 }, now),
+    task({ id: 's22', title: 'HSK 4 級に合格', listId: SOMEDAY_ID, parentId: 's21', order: 0 }, now),
+    task({ id: 's23', title: '単語帳を 1 冊終える', listId: SOMEDAY_ID, parentId: 's21', order: 1, completed: true }, now),
     task({ id: 's15', title: '牛乳', listId: SHOPPING_ID, order: 0 }, now),
     task({ id: 's16', title: 'シャンプー', listId: SHOPPING_ID, order: 1 }, now),
+    task({ id: 's24', title: 'カレー', listId: SHOPPING_ID, order: 2 }, now),
+    task({ id: 's25', title: '玉ねぎ', listId: SHOPPING_ID, parentId: 's24', order: 0, completed: true }, now),
+    task({ id: 's26', title: 'にんじん', listId: SHOPPING_ID, parentId: 's24', order: 1 }, now),
+    task({ id: 's27', title: '豚こま', listId: SHOPPING_ID, parentId: 's24', order: 2 }, now),
     // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
     task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, now),
     task({ id: 's20', title: '就活サイトのプロフィール更新', scheduledDate: dayKey(shift(now, -2)), order: 15 }, now),

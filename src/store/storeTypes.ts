@@ -216,6 +216,8 @@ export interface TaskState {
 
   addTask: (title: string, listId?: string, parentId?: string) => string | undefined
   addTaskAfter: (afterTaskId: string, title: string) => string | undefined
+  /** 子を末尾に足す（いつか・チェックリストの行の下の欄。上から書いた順に並ぶ） */
+  addChildAtEnd: (title: string, parentId: string) => string | undefined
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   /** 予定から記録を作る。`color` は元の予定の色（Google の予定から写すとき） */
@@ -248,6 +250,8 @@ export interface TaskState {
   setAppTimeZone: (tz: string | null) => void
   setExtraTimeZones: (zones: string[]) => void
   toggleTask: (id: string) => void
+  /** チェックリストのチェック。子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`）。Undo は 1 段 */
+  toggleChecklistItem: (id: string) => void
   updateTask: (
     id: string,
     patch: Partial<
@@ -292,7 +296,7 @@ export interface TaskState {
   deleteTasks: (ids: string[]) => void
   /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
   uncheckTasks: (ids: string[]) => void
-  /** いつか → 「やること」（未分類）へ移して予定日を付ける。Undo は 1 段 */
+  /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */
   promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
