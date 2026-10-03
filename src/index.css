@@ -215,6 +215,15 @@ body {
     -webkit-user-select: text;
     user-select: text;
   }
+  /* ブラウザが描く部品（ラジオ・選択欄の一覧・スクロールバー）もダークのときは暗い見た目にする */
+  .dark {
+    color-scheme: dark;
+  }
+  /* ラジオ・チェックボックスはブラウザの青ではなくアプリの墨（ダークは明るい墨）。部品ごとに付けない */
+  input[type='radio'],
+  input[type='checkbox'] {
+    accent-color: var(--color-accent-600);
+  }
   ::selection {
     background-color: color-mix(in srgb, var(--color-date-500) 22%, transparent);
   }

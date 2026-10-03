@@ -274,7 +274,7 @@ function ConnectedRows({
                       type="checkbox"
                       checked={on}
                       onChange={(e) => toggleAction(name, e.target.checked)}
-                      className="h-4 w-4 rounded border-zinc-300 accent-accent-600"
+                      className="h-4 w-4 rounded border-zinc-300"
                     />
                     <span className="truncate">{name}</span>
                   </label>

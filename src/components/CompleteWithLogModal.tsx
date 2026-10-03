@@ -58,7 +58,6 @@ export function CompleteWithLogModal({
           <label className="flex items-center gap-2">
             <input
               type="radio"
-              className="accent-accent-600"
               name={radioGroupName}
               checked={draft.mode === 'as-planned'}
               onChange={() => onChange({ mode: 'as-planned' })}
@@ -68,7 +67,6 @@ export function CompleteWithLogModal({
           <label className="flex items-center gap-2">
             <input
               type="radio"
-              className="accent-accent-600"
               name={radioGroupName}
               checked={draft.mode === 'shifted'}
               onChange={() => onChange({ mode: 'shifted' })}
