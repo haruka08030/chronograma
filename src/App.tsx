@@ -605,6 +605,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
+                    aria-label={t('app.clearSearch')}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-400/70 transition-colors hover:bg-zinc-200/50 hover:text-zinc-600 dark:text-zinc-500/60 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-300"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />

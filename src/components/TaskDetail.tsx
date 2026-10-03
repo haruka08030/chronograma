@@ -194,6 +194,7 @@ export function TaskDetail({
             <button
               type="button"
               onClick={onClose}
+              aria-label={t('common.close')}
               className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
             >
               <CloseIcon className="w-5 h-5 text-zinc-400" />
@@ -558,7 +559,7 @@ export function TaskDetail({
                              bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300"
                 >
                   {tag}
-                  <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500 transition-colors">
+                  <button type="button" onClick={() => removeTag(tag)} aria-label={t('taskDetail.removeTag', { tag })} className="hover:text-red-500 transition-colors">
                     <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
                   </button>
                 </span>

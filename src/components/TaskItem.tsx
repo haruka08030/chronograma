@@ -434,7 +434,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 toggle()
               }}
               className={`transition-all cursor-pointer rounded-md p-1.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
-                ${open ? '' : 'md:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
+                ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
             </button>
@@ -547,7 +547,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           archiveTask(task.id)
           showMoveBanner(t('toast.taskArchived'))
         }}
-        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block dark:hover:bg-zinc-700"
+        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.archiveAria')}
         title={t('taskItem.archive')}
       >
@@ -558,7 +558,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
       <button
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
-        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block dark:hover:bg-zinc-700"
+        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.deleteAria')}
         title={t('taskItem.deleteAria')}
       >

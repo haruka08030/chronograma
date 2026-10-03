@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDndContext } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -40,6 +41,7 @@ export function SortableSubtaskItem({
     isDragging,
   } = useSortable({ id })
 
+  const { t } = useTranslation()
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: active ? undefined : transition,
@@ -52,6 +54,7 @@ export function SortableSubtaskItem({
       type="button"
       {...attributes}
       {...listeners}
+      aria-label={t('common.dragToReorder')}
       className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
       tabIndex={-1}
     >

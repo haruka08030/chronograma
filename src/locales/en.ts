@@ -9,6 +9,7 @@ export default {
     close: 'Close',
     timeRangeSeparator: '–',
     listSeparator: ', ',
+    dragToReorder: 'Drag to reorder',
     back: 'Back',
     loading: '…',
     today: 'Today',
@@ -386,6 +387,7 @@ export default {
   app: {
     searchPlaceholderTouch: 'Search',
     searchPlaceholder: 'Search… (⌘K)',
+    clearSearch: 'Clear search',
   },
   nav: {
     planner: 'Today',
@@ -577,6 +579,7 @@ export default {
     recurrence: 'Repeat',
     tags: 'Tags',
     tagPlaceholder: 'Add tag',
+    removeTag: 'Remove {{tag}}',
     color: 'Color',
     list: 'List',
     section: 'Section',

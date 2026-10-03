@@ -9,6 +9,7 @@ export default {
     close: '閉じる',
     timeRangeSeparator: '〜',
     listSeparator: '、',
+    dragToReorder: 'ドラッグして並べ替え',
     back: '戻る',
     loading: '…',
     today: '今日',
@@ -385,6 +386,7 @@ export default {
   app: {
     searchPlaceholderTouch: '検索',
     searchPlaceholder: '検索… (⌘K)',
+    clearSearch: '検索をクリア',
   },
   nav: {
     planner: '今日',
@@ -577,6 +579,7 @@ export default {
     recurrence: '繰り返し',
     tags: 'タグ',
     tagPlaceholder: 'タグを追加',
+    removeTag: '{{tag}} を外す',
     color: '色',
     list: 'リスト',
     section: 'セクション',
