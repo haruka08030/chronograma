@@ -213,7 +213,7 @@ export function ActionMenu({
             <SearchIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
             <input
               // タップの端末で開いたときはキーボードを出さない（キーボードが下の項目を隠す。検索は打ちたいときに欄を押す）
-              autoFocus={!above && !coarse}
+              autoFocus={!coarse}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)

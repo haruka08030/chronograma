@@ -66,16 +66,28 @@ export function TimeLogTagField({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="radiogroup" aria-label={t('logCategories.label')}>
-      {chips.map((name) => {
+      {chips.map((name, i) => {
         const selected = value === name
         const vars = colorVars(categoryHex(name, colors))
+        // ラジオの並びは Tab で 1 回だけ止まり、←→ で選ぶ（1 つずつ止まると題名から開始まで Tab が 7 回）
+        const tabStop = selected || (!chips.includes(value) && i === 0)
         return (
           <button
             key={name}
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={tabStop ? 0 : -1}
             onClick={() => onChange(selected ? '' : name)}
+            onKeyDown={(e) => {
+              const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+              if (!step) return
+              e.preventDefault()
+              const nextIndex = (i + step + chips.length) % chips.length
+              onChange(chips[nextIndex]!)
+              const radios = e.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')
+              radios?.[nextIndex]?.focus()
+            }}
             className={chipClass({ variant: 'outline', size, selected })}
             style={selected ? vars : undefined}
           >

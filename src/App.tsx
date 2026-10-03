@@ -462,12 +462,12 @@ export default function App() {
   }
 
   // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
-  useHotkey('mod+k', () => {
+  useHotkey(SHORTCUTS.searchAnywhere.hotkeys, () => {
     // `/` と同じ: 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから入る
     if (!searchRef.current) useTaskStore.getState().selectView('all')
     whenElement(() => searchRef.current, (el) => el.focus())
   }, { scope: 'always', allowInInputs: true })
-  useHotkey('mod+n', () => {
+  useHotkey(SHORTCUTS.createAnywhere.hotkeys, () => {
     const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
     if (quickAdd instanceof HTMLInputElement) {
       quickAdd.focus()
@@ -494,7 +494,13 @@ export default function App() {
     if (state.recentDeletes.length === 0) return false
     state.undoDelete()
   }, { scope: 'always' })
-  useHotkey('mod+shift+z', () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
+  useHotkey(SHORTCUTS.redo.hotkeys, () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
+  // 記録を止める（l → Enter で間違えて始めたときも、マウスに持ち替えずに止められる。1 分未満は記録に残らない）
+  useHotkey(SHORTCUTS.stopLog.hotkeys, () => {
+    const state = useTaskStore.getState()
+    if (!state.activeTimer) return false
+    state.stopTimer()
+  })
 
   // 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
   // ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す
