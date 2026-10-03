@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { withCors } from '../_shared/cors.ts'
 
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
@@ -7,24 +8,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
  * auth.admin は service_role が要るので Edge Function で行う。
  */
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-}
-
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+Deno.serve(withCors(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
@@ -99,4 +90,4 @@ Deno.serve(async (req) => {
     console.error('[account]', err)
     return jsonResponse({ ok: false, error: 'Failed to delete account' }, 500)
   }
-})
+}))

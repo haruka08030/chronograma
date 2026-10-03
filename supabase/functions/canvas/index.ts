@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
+import { withCors } from '../_shared/cors.ts'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
@@ -17,12 +18,6 @@ const EXTEND_WHEN_DAYS_LEFT = 60
 const EXTEND_TO_DAYS = 89
 /** 期限を確かめる間隔 */
 const CHECK_EVERY_MS = 20 * 3_600_000
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-}
 
 type PlannerItem = {
   plannable_type: string
@@ -50,7 +45,7 @@ class CanvasError extends Error {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
@@ -285,11 +280,7 @@ async function setMarkedComplete(baseUrl: string, token: string, type: string, i
   })
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+Deno.serve(withCors(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
@@ -490,4 +481,4 @@ Deno.serve(async (req) => {
     if (e instanceof CanvasError) return jsonResponse({ ok: false, code: e.code, error: e.code })
     return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' })
   }
-})
+}))

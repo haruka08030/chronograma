@@ -1,15 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { withCors } from '../_shared/cors.ts'
 
 // 予定の読み書き（events）＋カレンダーの色の取得（readonly）
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
 const WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-}
 
 type CalendarEvent = {
   id: string
@@ -45,7 +40,7 @@ type GoogleEventItem = {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
@@ -215,11 +210,7 @@ function hasWriteScope(scope: string | null | undefined): boolean {
   return (scope ?? '').split(/\s+/).includes(WRITE_SCOPE)
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+Deno.serve(withCors(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
@@ -505,4 +496,4 @@ Deno.serve(async (req) => {
     console.error('[google]', e)
     return jsonResponse({ ok: false, error: 'Internal error' })
   }
-})
+}))

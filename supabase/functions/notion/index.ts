@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { withCors } from '../_shared/cors.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -9,12 +10,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 const NOTION_API = 'https://api.notion.com/v1'
 // データベースを /databases/{id}/query で読む版に固定する（2025-09 以降の data_sources 版にはしない）
 const NOTION_VERSION = '2022-06-28'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-}
 
 type StatusKind = 'status' | 'select'
 
@@ -54,7 +49,7 @@ class NotionError extends Error {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
@@ -186,11 +181,7 @@ async function queryActionPages(token: string, databaseId: string, config: Notio
   throw new NotionError('notion_api', 'Too many pages')
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+Deno.serve(withCors(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
@@ -330,4 +321,4 @@ Deno.serve(async (req) => {
     console.error('[notion]', e)
     return jsonResponse({ ok: false, error: 'Internal error' })
   }
-})
+}))
