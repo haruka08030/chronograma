@@ -282,6 +282,8 @@ export default {
     addPlaceholder: '追加（例: 牛乳）',
     checkedHeading: 'チェック済み {{count}}',
     uncheckAll: '全部戻す',
+    check: 'チェック',
+    uncheck: 'チェックを外す',
     clearChecked: 'チェック済みを消す',
   },
   someday: {
