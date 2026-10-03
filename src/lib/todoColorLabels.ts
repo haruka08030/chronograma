@@ -1,6 +1,6 @@
 import type { Task } from '../types/task'
 import { CALENDAR_COLORS } from './googleColors'
-import { categoryHex, colorKeyForHex, labelForHex } from './logCategoryColors'
+import { categoryHex, colorKeyForHex, isHexColor, labelForHex } from './logCategoryColors'
 import { isActiveTask } from './taskLifecycle'
 
 export interface TodoColorLabel {
@@ -68,4 +68,15 @@ export function colorLabelText(
   if (name) return name
   const key = colorKeyForHex(hex)
   return key ? t(`googleColors.${key}`) : hex.toUpperCase()
+}
+
+/** `recordLabelKey` の表示名: ラベル名 → 名前の無い色は色ラベルと同じ名前 → 空は「ラベルなし」 */
+export function recordLabelKeyText(
+  key: string,
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+  t: (key: string) => string,
+): string {
+  if (!key) return t('labels.none')
+  return isHexColor(key) ? colorLabelText(key, presets, colors, t) : key
 }

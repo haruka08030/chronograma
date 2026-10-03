@@ -5,7 +5,8 @@ import { tip } from '../lib/tooltip'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { recentLogs } from '../lib/logCategory'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { categoryHex, colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
+import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
@@ -48,6 +49,7 @@ export function RecordPanel({
   const startTimer = useTaskStore((s) => s.startTimer)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
 
   const [mode, setMode] = useState<'idle' | 'timer' | 'manual'>('idle')
   const [title, setTitle] = useState('')
@@ -68,11 +70,11 @@ export function RecordPanel({
       if (isSleepRecord(log)) continue
       const min = minutesOfLogOnCalendarDay(log, dateKey)
       total += min
-      const cat = log.tags[0] ?? ''
+      const cat = recordLabelKey(log, labelPresets, logCategoryColors)
       m.set(cat, (m.get(cat) ?? 0) + min)
     }
     return { totalMinutes: total, byCategory: [...m.entries()].sort((a, b) => b[1] - a[1]) }
-  }, [dayLogs, dateKey])
+  }, [dayLogs, dateKey, labelPresets, logCategoryColors])
 
   // 記録中でも始められる（前の記録を保存して切り替える）
   const canStartTimer = viewingToday
@@ -132,7 +134,7 @@ export function RecordPanel({
     close()
   }
 
-  const labelOf = (cat: string) => cat || t('labels.none')
+  const labelOf = (cat: string) => recordLabelKeyText(cat, labelPresets, logCategoryColors, t)
 
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isSubmitEnter(e)) {
@@ -151,14 +153,14 @@ export function RecordPanel({
             key={cat}
             className="gc-dot h-full"
             title={`${labelOf(cat)} ${formatDuration(min)}`}
-            style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
+            style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
           />
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
         {byCategory.map(([cat, min]) => (
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(cat || null, logCategoryColors))} aria-hidden />
+            <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(cat, logCategoryColors))} aria-hidden />
             <span className="max-w-[8rem] truncate">{labelOf(cat)}</span>
             <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
           </li>

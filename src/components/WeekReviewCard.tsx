@@ -4,7 +4,8 @@ import { addWeeks, format, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
+import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
@@ -20,8 +21,12 @@ export function WeekReviewCard() {
   const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
-  const review = useMemo(() => getWeekReview(tasks, habits, anchor, excluded), [tasks, habits, anchor, excluded])
+  const review = useMemo(
+    () => getWeekReview(tasks, habits, anchor, excluded, undefined, (log) => recordLabelKey(log, labelPresets, logCategoryColors)),
+    [tasks, habits, anchor, excluded, labelPresets, logCategoryColors],
+  )
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
   const fmtMin = (m: number) => {
@@ -116,7 +121,7 @@ export function WeekReviewCard() {
                       <div
                         key={x.tag}
                         className="gc-dot w-full shrink-0"
-                        style={{ ...colorVars(categoryHex(x.tag || null, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
+                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
                       />
                     ))}
                   </div>
@@ -146,8 +151,8 @@ export function WeekReviewCard() {
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(x.tag || null, logCategoryColors))} aria-hidden />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('labels.none')}</span>
+                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{fmtMin(x.minutes)}</span>
                 </li>

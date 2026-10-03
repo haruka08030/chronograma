@@ -123,6 +123,25 @@ export function recordHex(task: { color?: string | null; tags: string[] }, color
   return task.color || categoryHex(task.tags[0], colors)
 }
 
+/**
+ * 記録をラベルごとにまとめるときのキー。タイムラインの色（`recordHex`）と同じ分け方にする:
+ * ラベル名 → 名前の無い色は `#RRGGBB`（その色に名前が付いていればその名前）→ どちらも無ければ空（ラベルなし）
+ */
+export function recordLabelKey(
+  task: { color?: string | null; tags: string[] },
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+): string {
+  if (task.tags[0]) return task.tags[0]
+  if (!task.color) return ''
+  return labelForHex(task.color, presets, colors) ?? task.color.toUpperCase()
+}
+
+/** `recordLabelKey` の色 */
+export function recordLabelKeyHex(key: string, colors: Readonly<Record<string, string>>): string {
+  return isHexColor(key) ? key.toUpperCase() : categoryHex(key || null, colors)
+}
+
 /** まだどの分類にも使われていない色（Google の並び順） */
 export function unnamedColorKeys(presets: readonly string[], colors: Readonly<Record<string, string>>): CategoryColorKey[] {
   const used = new Set(presets.map((n) => categoryColorKey(n, colors)))

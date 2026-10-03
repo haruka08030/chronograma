@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { colorLabelText, todoColorLabels } from './todoColorLabels'
+import { recordLabelKey, recordLabelKeyHex } from './logCategoryColors'
+import { colorLabelText, recordLabelKeyText, todoColorLabels } from './todoColorLabels'
 
 function task(over: Partial<Task>): Task {
   return {
@@ -91,5 +92,24 @@ describe('colorLabelText', () => {
     expect(colorLabelText(SAGE, presets, colors, t)).toBe('授業')
     expect(colorLabelText('#F6BF26', presets, colors, t)).toBe('t:googleColors.banana')
     expect(colorLabelText('#123456', presets, colors, t)).toBe('#123456')
+  })
+})
+
+describe('recordLabelKey', () => {
+  const t = (key: string) => `t:${key}`
+  it('groups a record by its label, then by its unnamed color, like the timeline color', () => {
+    expect(recordLabelKey({ tags: ['就活'], color: null }, presets, colors)).toBe('就活')
+    // 名前の付いた色だけ持つ記録はそのラベルにまとめる
+    expect(recordLabelKey({ tags: [], color: SAGE.toLowerCase() }, presets, colors)).toBe('授業')
+    expect(recordLabelKey({ tags: [], color: '#f6bf26' }, presets, colors)).toBe('#F6BF26')
+    expect(recordLabelKey({ tags: [], color: null }, presets, colors)).toBe('')
+  })
+  it('gives the same color and name as the To-Do color labels', () => {
+    expect(recordLabelKeyHex('#F6BF26', colors)).toBe('#F6BF26')
+    expect(recordLabelKeyHex('授業', colors)).toBe(SAGE)
+    expect(recordLabelKeyHex('', colors)).toBe('#9E9E9E')
+    expect(recordLabelKeyText('#F6BF26', presets, colors, t)).toBe('t:googleColors.banana')
+    expect(recordLabelKeyText('授業', presets, colors, t)).toBe('授業')
+    expect(recordLabelKeyText('', presets, colors, t)).toBe('t:labels.none')
   })
 })

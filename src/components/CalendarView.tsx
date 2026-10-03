@@ -12,7 +12,7 @@ import {
 import { unplannedListIds } from '../lib/listKind'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
@@ -96,6 +96,7 @@ export function CalendarView({
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   /** 日ごとの記録（分類 → 分）。月のマスでは記録を一番上に色で見せる（記録と可視化が主役） */
   const recordsByDate = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
@@ -106,13 +107,13 @@ export function CalendarView({
         const min = minutesOfLogOnCalendarDay(t, key)
         if (min <= 0) continue
         const byCat = map.get(key) ?? new Map<string, number>()
-        const cat = t.tags[0] ?? ''
+        const cat = recordLabelKey(t, labelPresets, logCategoryColors)
         byCat.set(cat, (byCat.get(cat) ?? 0) + min)
         map.set(key, byCat)
       }
     }
     return map
-  }, [tasks, days])
+  }, [tasks, days, labelPresets, logCategoryColors])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
@@ -231,7 +232,7 @@ export function CalendarView({
                       <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatMinutesShort(total) })}>
                         <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
                           {[...recs.entries()].map(([cat, min]) => (
-                            <div key={cat} className="gc-dot" style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / total) * 100}%` }} />
+                            <div key={cat} className="gc-dot" style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / total) * 100}%` }} />
                           ))}
                         </div>
                         <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatMinutesShort(total)}</span>

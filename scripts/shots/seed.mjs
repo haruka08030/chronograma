@@ -80,7 +80,7 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     task({ id: 's10', title: '睡眠', dueDate: yesterday, endDate: today, startTime: '23:30', endTime: '07:00', isTimeLog: true, isSleep: true, completed: true, order: 9, tags: ['睡眠'] }, now),
     // ラベルなしの記録（夕方の「ラベルなしの記録 N 件」を出す）
     task({ id: 's17', title: '昼ごはん', dueDate: today, startTime: '12:00', endTime: '12:45', isTimeLog: true, completed: true, order: 12, tags: [] }, now),
-    task({ id: 's18', title: 'メール返信', dueDate: today, startTime: '16:45', endTime: '17:15', isTimeLog: true, completed: true, order: 13, tags: [] }, now),
+    task({ id: 's18', title: 'メール返信', dueDate: today, startTime: '16:45', endTime: '17:15', isTimeLog: true, completed: true, order: 13, tags: [], color: '#F6BF26' }, now),
     // 完了したタスク（統計の数字を埋める）
     task({ id: 's11', title: '履修登録', completed: true, dueDate: yesterday, order: 10 }, now),
     task({ id: 's12', title: '健康診断の予約', completed: true, dueDate: yesterday, order: 11 }, now),
