@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   addDays,
@@ -30,7 +30,8 @@ function monthGridDays(viewMonth: Date): Date[] {
 /**
  * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
  * カレンダー画面の見出しの日付ジャンプで共通。
- * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める
+ * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める。
+ * キーボード: 日の格子は Tab で 1 回だけ止まり、←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める
  */
 export function DatePickerBody({
   value,
@@ -39,6 +40,7 @@ export function DatePickerBody({
   min,
   footer = true,
   month,
+  autoFocus = false,
 }: {
   value: string | null
   onPick: (key: string | null) => void
@@ -48,6 +50,8 @@ export function DatePickerBody({
   footer?: boolean
   /** 最初に見せる月（カレンダー画面の月表示では、選んでいる日ではなく見ている月から始める） */
   month?: Date
+  /** 開いたら日の格子（選んでいる日・なければ今日）にフォーカスする（期限の欄から開くポップオーバー） */
+  autoFocus?: boolean
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -57,6 +61,39 @@ export function DatePickerBody({
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
   const todayKey = appTodayKey()
   const tomorrowKey = toDateKey(addDays(appToday(), 1))
+
+  // キーで動かす日（格子の中で Tab が止まる 1 日）
+  const [activeKey, setActiveKey] = useState(() => value ?? todayKey)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const focusActive = useRef(autoFocus)
+  useEffect(() => {
+    if (!focusActive.current) return
+    focusActive.current = false
+    gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${activeKey}"]`)?.focus()
+  }, [activeKey, viewMonth])
+  // 見ている月に無い日は、その月の 1 日を止まる日にする（月を切り替えたとき）
+  const tabKey = isSameMonth(fromDateKey(activeKey), viewMonth) ? activeKey : toDateKey(viewMonth)
+
+  const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const from = fromDateKey(tabKey)
+    const dow = (from.getDay() + 6) % 7
+    const next =
+      e.key === 'ArrowLeft' ? addDays(from, -1)
+      : e.key === 'ArrowRight' ? addDays(from, 1)
+      : e.key === 'ArrowUp' ? addDays(from, -7)
+      : e.key === 'ArrowDown' ? addDays(from, 7)
+      : e.key === 'PageUp' ? subMonths(from, 1)
+      : e.key === 'PageDown' ? addMonths(from, 1)
+      : e.key === 'Home' ? addDays(from, -dow)
+      : e.key === 'End' ? addDays(from, 6 - dow)
+      : null
+    if (!next) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isSameMonth(next, viewMonth)) setViewMonth(startOfMonth(next))
+    focusActive.current = true
+    setActiveKey(toDateKey(next))
+  }
 
   return (
     <>
@@ -95,7 +132,7 @@ export function DatePickerBody({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-y-0.5">
+      <div ref={gridRef} role="group" aria-label={df.yearMonth(viewMonth)} className="grid grid-cols-7 gap-y-0.5" onKeyDown={onGridKeyDown}>
         {days.map((day) => {
           const key = toDateKey(day)
           const inMonth = isSameMonth(day, viewMonth)
@@ -106,6 +143,8 @@ export function DatePickerBody({
             <div key={key} className="flex justify-center">
               <button
                 type="button"
+                data-day={key}
+                tabIndex={key === tabKey ? 0 : -1}
                 onClick={() => pick(key)}
                 aria-pressed={selected}
                 disabled={beforeMin}
