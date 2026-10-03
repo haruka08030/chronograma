@@ -85,7 +85,7 @@ export function CanvasSettings() {
         sync.syncing
           ? t('canvas.syncing')
           : sync.lastSyncedAt
-            ? t('canvas.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
+            ? t('common.syncedAt', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
             : undefined
       }
     >

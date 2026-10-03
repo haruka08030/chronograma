@@ -117,7 +117,7 @@ export function NotionSettings() {
             sync.syncing
               ? t('notion.syncing')
               : sync.lastSyncedAt
-                ? t('notion.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
+                ? t('common.syncedAt', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
                 : status.config.actionStatuses.length === 0
                   ? t('notion.pickStatusesFirst')
                   : undefined

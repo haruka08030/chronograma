@@ -1,6 +1,7 @@
 /** 既定 UI 言語（日本語） */
 export default {
   common: {
+    syncedAt: '{{time}} に同期',
     add: '追加',
     cancel: 'キャンセル',
     save: '保存',
@@ -985,7 +986,6 @@ export default {
     syncNow: '同期',
     syncNowAction: '今すぐ同期',
     syncing: '同期中…',
-    lastSynced: '{{time}} に同期しました。開いている間は 5 分ごとに同期します',
     pickStatusesFirst: '要アクションのステータスを選ぶと同期が始まります',
     taskTitle: '{{name}}：{{status}}',
     untitled: '（無題）',
@@ -1029,7 +1029,6 @@ export default {
     syncNow: '同期',
     syncNowAction: '今すぐ同期',
     syncing: '同期中…',
-    lastSynced: '{{time}} に同期しました。開いている間は 5 分ごとに同期します',
     expiresSoon: '{{date}} にトークンの期限が切れます（学校の設定で自動では延ばせませんでした）',
     untitled: '（無題）',
     errors: {

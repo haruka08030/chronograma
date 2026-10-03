@@ -1,6 +1,7 @@
 /** English UI strings */
 export default {
   common: {
+    syncedAt: 'Synced at {{time}}',
     add: 'Add',
     cancel: 'Cancel',
     save: 'Save',
@@ -986,7 +987,6 @@ export default {
     syncNow: 'Sync',
     syncNowAction: 'Sync now',
     syncing: 'Syncing…',
-    lastSynced: 'Synced at {{time}}. Syncs every 5 minutes while open',
     pickStatusesFirst: 'Pick the statuses that need action to start syncing',
     taskTitle: '{{name}}: {{status}}',
     untitled: '(Untitled)',
@@ -1030,7 +1030,6 @@ export default {
     syncNow: 'Sync',
     syncNowAction: 'Sync now',
     syncing: 'Syncing…',
-    lastSynced: 'Synced at {{time}}. Syncs every 5 minutes while open',
     expiresSoon: 'The token expires on {{date}} (your school doesn’t allow extending it automatically)',
     untitled: '(Untitled)',
     errors: {
