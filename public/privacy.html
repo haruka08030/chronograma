@@ -75,6 +75,7 @@
     <li>クラウドのデータは、利用者が削除するかアカウントを削除するまで保存します。</li>
     <li><strong>アカウントの削除</strong>：設定 → アカウント の「アカウントを削除」から、アカウントとクラウドのデータ（連携の情報を含む）をすべて削除できます。Google のトークンはそのときに無効にします。</li>
     <li>Google カレンダー・Notion の連携は設定からいつでも解除できます。Google のアクセス権は <a href="https://myaccount.google.com/permissions" rel="noopener">Google アカウントの設定</a> からも取り消せます。</li>
+    <li>Notion の統合トークンは本サービスからは無効にできません。連携の解除やアカウントの削除のあとも Notion 側でのアクセスを止めたい場合は、Notion の設定でそのインテグレーションを削除してください。</li>
     <li>ログアウトすると、その端末のデータは消えます（送れていなかった変更に備えて、端末内に自動バックアップを残します）。</li>
     <li>データは設定 → データ からいつでも JSON で書き出せます。</li>
   </ul>
@@ -106,7 +107,7 @@
     <p>Supabase (database, sign-in and server functions; region: [Supabase region]), [hosting provider] (serving the app), Google (Calendar API if connected; Google Fonts, which receives your IP address when fonts load), Notion (if connected), and your browser's push service (Apple, Google, Mozilla, Microsoft and others, if notifications are on).</p>
 
     <h2>4. Retention and deletion</h2>
-    <p>Cloud data is kept until you delete it or your account. You can delete your account and all cloud data, including connections, from Settings → Account → Delete account; the Google token is revoked at that time. You can disconnect Google Calendar or Notion at any time, and revoke Google access from your <a href="https://myaccount.google.com/permissions" rel="noopener">Google Account</a>. Signing out removes the data from that device, keeping an automatic backup on the device in case some changes were not yet synced. You can export your data as JSON from Settings → Data.</p>
+    <p>Cloud data is kept until you delete it or your account. You can delete your account and all cloud data, including connections, from Settings → Account → Delete account; the Google token is revoked at that time. You can disconnect Google Calendar or Notion at any time, and revoke Google access from your <a href="https://myaccount.google.com/permissions" rel="noopener">Google Account</a>. The Service cannot revoke Notion integration tokens; to stop Notion access after disconnecting or deleting your account, remove the integration in Notion's settings. Signing out removes the data from that device, keeping an automatic backup on the device in case some changes were not yet synced. You can export your data as JSON from Settings → Data.</p>
 
     <h2>5. Security</h2>
     <p>Traffic is encrypted with HTTPS. Row-level access control means only you can read or write your data. Connection tokens are handled only on the server.</p>

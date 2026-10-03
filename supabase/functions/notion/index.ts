@@ -258,7 +258,10 @@ Deno.serve(async (req) => {
 
     if (action === 'disconnect') {
       const { error } = await admin.from('notion_connection').delete().eq('user_id', user.id)
-      if (error) return jsonResponse({ ok: false, error: error.message }, 500)
+      if (error) {
+        console.error('[notion] disconnect', error.message)
+        return jsonResponse({ ok: false, error: 'Failed to disconnect' }, 500)
+      }
       return jsonResponse({ ok: true })
     }
 
@@ -323,7 +326,8 @@ Deno.serve(async (req) => {
     if (e instanceof NotionError) {
       return jsonResponse({ ok: false, code: e.code, error: e.message })
     }
-    const message = e instanceof Error ? e.message : String(e)
-    return jsonResponse({ ok: false, error: message })
+    // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
+    console.error('[notion]', e)
+    return jsonResponse({ ok: false, error: 'Internal error' })
   }
 })

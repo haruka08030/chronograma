@@ -425,6 +425,14 @@ Deno.serve(async (req) => {
 
     if (action === 'disconnect') {
       if (!connectionId) return jsonResponse({ ok: false, error: 'connectionId is required' }, 400)
+      // 行を消すだけでは Canvas 側にトークンが残るので、先に取り消す（失敗しても切断は進める）
+      const target = (await loadRows()).find((r) => r.id === connectionId)
+      if (target?.kind === 'token' && target.token) {
+        await canvasRequest(target.base_url, target.token, `${target.base_url}/login/oauth2/token`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(5000),
+        }).catch((e) => console.warn('[canvas] revoke failed', e instanceof Error ? e.message : e))
+      }
       const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
       if (error) {
         console.error('[canvas] disconnect', error.message)

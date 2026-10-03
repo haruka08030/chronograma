@@ -277,10 +277,20 @@ Deno.serve(async (req) => {
       })
 
       if (!tokenRes.ok) {
+        // 応答の本文はログにだけ残す。クライアントが見分ける error（invalid_grant / redirect_uri_mismatch /
+        // invalid_client など）だけを返す
         const bodyText = await tokenRes.text()
+        console.error('[google] code exchange failed', tokenRes.status, bodyText)
+        let code = ''
+        try {
+          const parsed = JSON.parse(bodyText) as { error?: unknown }
+          if (typeof parsed.error === 'string' && /^[a-z_]{1,64}$/.test(parsed.error)) code = parsed.error
+        } catch {
+          /* JSON でなければ code なし */
+        }
         return jsonResponse({
           ok: false,
-          error: `Google code exchange failed: ${tokenRes.status} ${bodyText}`,
+          error: `Google code exchange failed: ${code || tokenRes.status}`,
         })
       }
 
@@ -310,7 +320,8 @@ Deno.serve(async (req) => {
       )
 
       if (error) {
-        return jsonResponse({ ok: false, error: error.message })
+        console.error('[google] save token failed', error.message)
+        return jsonResponse({ ok: false, error: 'Failed to save Google connection' })
       }
       return jsonResponse({ ok: true })
     }
@@ -335,7 +346,8 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id)
 
       if (error) {
-        return jsonResponse({ error: error.message }, 500)
+        console.error('[google] disconnect failed', error.message)
+        return jsonResponse({ error: 'Failed to disconnect' }, 500)
       }
       return jsonResponse({ ok: true })
     }
@@ -348,7 +360,8 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (fetchError) {
-        return jsonResponse({ error: fetchError.message }, 500)
+        console.error('[google] load connection failed', fetchError.message)
+        return jsonResponse({ error: 'Failed to load Google connection' }, 500)
       }
       if (!row?.refresh_token) {
         return jsonResponse({ connected: false })
@@ -384,7 +397,8 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (fetchError) {
-        return jsonResponse({ error: fetchError.message }, 500)
+        console.error('[google] load connection failed', fetchError.message)
+        return jsonResponse({ error: 'Failed to load Google connection' }, 500)
       }
       if (!row?.refresh_token) {
         return jsonResponse({
@@ -423,6 +437,7 @@ Deno.serve(async (req) => {
           message.includes('Calendar API error 401') ||
           message.includes('Calendar API error 403')
         const scopeMissing = message.includes('Calendar API error 403')
+        if (!needsReconnect) console.error('[google] events failed', message)
         return jsonResponse({
           events: [],
           connected: false,
@@ -430,7 +445,7 @@ Deno.serve(async (req) => {
             ? 'Google Calendar scope not granted. Reconnect and approve calendar access.'
             : needsReconnect
               ? 'Google Calendar authorization expired. Disconnect and reconnect.'
-              : message,
+              : 'Google Calendar request failed',
         })
       }
     }
@@ -441,7 +456,10 @@ Deno.serve(async (req) => {
         .select('refresh_token, scope')
         .eq('user_id', user.id)
         .maybeSingle()
-      if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 500)
+      if (fetchError) {
+        console.error('[google] load connection failed', fetchError.message)
+        return jsonResponse({ ok: false, error: 'Failed to load Google connection' }, 500)
+      }
       if (!row?.refresh_token) {
         return jsonResponse({ ok: false, error: 'Google Calendar not connected. Reconnect in settings.' })
       }
@@ -476,13 +494,15 @@ Deno.serve(async (req) => {
         if (message.includes('invalid_grant') || message.includes('Calendar API error 401')) {
           return jsonResponse({ ok: false, error: 'Google Calendar authorization expired. Disconnect and reconnect.' })
         }
-        return jsonResponse({ ok: false, error: message })
+        console.error('[google] write failed', message)
+        return jsonResponse({ ok: false, error: 'Google Calendar write failed' })
       }
     }
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    return jsonResponse({ ok: false, error: message })
+    // 内部のエラーは中身を返さず、サーバーのログにだけ残す
+    console.error('[google]', e)
+    return jsonResponse({ ok: false, error: 'Internal error' })
   }
 })

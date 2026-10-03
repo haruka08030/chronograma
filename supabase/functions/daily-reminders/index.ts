@@ -147,9 +147,23 @@ function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payload {
   }
 }
 
+/** 秘密の値を比べる。かかる時間から一致した長さが分からないよう、両方のハッシュを全バイト比べる */
+async function secretEquals(given: string, expected: string): Promise<boolean> {
+  const enc = new TextEncoder()
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(given)),
+    crypto.subtle.digest('SHA-256', enc.encode(expected)),
+  ])
+  const x = new Uint8Array(a)
+  const y = new Uint8Array(b)
+  let diff = 0
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i]
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   const secret = Deno.env.get('CRON_SECRET')
-  if (!secret || req.headers.get('x-cron-secret') !== secret) {
+  if (!secret || !(await secretEquals(req.headers.get('x-cron-secret') ?? '', secret))) {
     return new Response('forbidden', { status: 403 })
   }
 

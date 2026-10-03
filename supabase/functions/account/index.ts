@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
  * タスク・リスト・習慣・通知の購読・Google / Notion / Canvas の連携は auth.users の on delete cascade で消える。
- * Google は消す前にトークンを無効にして、Google 側の「アクセスできるアプリ」からも外す。
+ * Google は消す前にトークンを無効にして、Google 側の「アクセスできるアプリ」からも外す。Canvas のトークンも取り消す。
  * auth.admin は service_role が要るので Edge Function で行う。
  */
 
@@ -64,6 +64,30 @@ Deno.serve(async (req) => {
         console.error('[account] google revoke failed', err)
       }
     }
+
+    // Canvas のアクセストークンも取り消す。学校ごとに並べて投げ、遅い学校があっても削除を待たせない
+    const { data: canvasRows } = await admin
+      .from('canvas_connection')
+      .select('base_url, token')
+      .eq('user_id', user.id)
+      .eq('kind', 'token')
+    await Promise.allSettled(
+      ((canvasRows ?? []) as { base_url: string; token: string | null }[]).map(async (r) => {
+        // 保存時に確かめた https のドメイン名だけ。それ以外の宛先へはトークンを送らない
+        if (!r.token || !/^https:\/\/[a-z0-9.-]+$/i.test(r.base_url)) return
+        try {
+          const res = await fetch(`${r.base_url}/login/oauth2/token`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${r.token}` },
+            redirect: 'manual',
+            signal: AbortSignal.timeout(5000),
+          })
+          await res.body?.cancel()
+        } catch (err) {
+          console.error('[account] canvas revoke failed', err)
+        }
+      }),
+    )
 
     const { error } = await admin.auth.admin.deleteUser(user.id)
     if (error) {
