@@ -973,6 +973,7 @@ export default {
       canvas_bad_url: 'Couldn’t read the Canvas URL. Paste the address you see after signing in (e.g. https://xxx.instructure.com).',
       canvas_feed_invalid: 'Couldn’t read the calendar feed. Paste the “Calendar Feed” URL from Canvas Calendar again (…/feeds/calendars/….ics).',
       canvas_rate_limited: 'Too many requests to Canvas. Wait a moment, then sync.',
+      canvas_too_many: 'You can connect up to 5 schools. Disconnect one you no longer use first.',
       canvas_api: 'Canvas returned an error. Try again in a moment.',
     },
   },

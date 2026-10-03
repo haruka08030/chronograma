@@ -973,6 +973,7 @@ export default {
       canvas_bad_url: 'Canvas の URL を読み取れませんでした。Canvas にログインしたときのアドレス（例: https://xxx.instructure.com）を貼ってください。',
       canvas_feed_invalid: 'カレンダーフィードを読めませんでした。Canvas のカレンダーの「カレンダーフィード」の URL（…/feeds/calendars/….ics）を貼り直してください。',
       canvas_rate_limited: 'Canvas へのアクセスが多すぎます。少し待ってから同期してください。',
+      canvas_too_many: 'つなげる学校は 5 つまでです。使っていない学校を外してから追加してください。',
       canvas_api: 'Canvas からエラーが返りました。少し待ってからもう一度お試しください。',
     },
   },

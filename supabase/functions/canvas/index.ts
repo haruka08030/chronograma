@@ -39,6 +39,8 @@ type PlannerItem = {
 type PlannerOverride = { id: number; plannable_type: string; plannable_id: number | string }
 
 /** クライアントに分かる形のエラー。文言はクライアント側で訳す */
+const MAX_CONNECTIONS = 5
+
 class CanvasError extends Error {
   constructor(public code: string, message?: string) {
     super(message ?? code)
@@ -71,6 +73,39 @@ function parseBaseUrl(input: string): string | null {
   return `https://${host}`
 }
 
+/** IPv4 / IPv6 の内部・ループバック・リンクローカルのアドレスか */
+function isPrivateAddress(ip: string): boolean {
+  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])]
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224
+  }
+  const v6 = ip.toLowerCase()
+  if (v6.startsWith('::ffff:')) return isPrivateAddress(v6.slice(7))
+  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6)
+}
+
+const checkedHosts = new Map<string, boolean>()
+
+/**
+ * 名前が内部のアドレスを指していないか確かめる（ドメイン名で内部のサーバーへ届かせないため）。
+ * 名前解決そのものに失敗したときは fetch に任せる（それも失敗して canvas_bad_url になる）
+ */
+async function assertPublicHost(host: string): Promise<void> {
+  let ok = checkedHosts.get(host)
+  // 実行環境に名前解決の API が無ければ、ドメイン名の検査（parseBaseUrl）とリダイレクトの検査だけに頼る
+  if (ok === undefined && typeof Deno.resolveDns !== 'function') ok = true
+  if (ok === undefined) {
+    const lookups = await Promise.all(
+      (['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])),
+    )
+    ok = !lookups.flat().some(isPrivateAddress)
+    checkedHosts.set(host, ok)
+  }
+  if (!ok) throw new CanvasError('canvas_bad_url', 'Private address')
+}
+
 /** カレンダーフィードの URL（`https://<学校>/feeds/calendars/user_….ics`）。それ以外の宛先は読まない */
 function parseFeedUrl(input: string): { baseUrl: string; feedUrl: string } | null {
   const baseUrl = parseBaseUrl(input)
@@ -88,9 +123,21 @@ function parseFeedUrl(input: string): { baseUrl: string; feedUrl: string } | nul
 /** フィードを読む。締切が昨日〜120 日後の課題だけ（済んだか分からない過去の課題は取り込まない） */
 async function feedItems(baseUrl: string, feedUrl: string) {
   let res: Response
+  let url = feedUrl
   try {
-    res = await fetch(feedUrl, { headers: { Accept: 'text/calendar' } })
+    // リダイレクトは自動で追わない。追うと、学校の URL のふりをしたサイトから内部の宛先へ飛ばされる。
+    // 学校が別ドメインへ移した場合に備え、行き先も https の公開ドメインなら数回まで追う
+    for (let hop = 0; ; hop++) {
+      await assertPublicHost(new URL(url).hostname)
+      res = await fetch(url, { headers: { Accept: 'text/calendar' }, redirect: 'manual' })
+      if (res.status < 300 || res.status >= 400) break
+      const next = res.headers.get('location')
+      const nextBase = next ? parseBaseUrl(new URL(next, url).href) : null
+      if (!next || !nextBase || hop >= 3) throw new CanvasError('canvas_feed_invalid', `HTTP ${res.status}`)
+      url = new URL(next, url).href
+    }
   } catch (e) {
+    if (e instanceof CanvasError) throw e
     throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
   }
   const text = res.ok ? await res.text() : ''
@@ -107,12 +154,14 @@ async function canvasRequest(baseUrl: string, token: string, url: string, init: 
   if (!url.startsWith(`${baseUrl}/`)) throw new CanvasError('canvas_api', 'Unexpected host')
   let res: Response
   try {
+    await assertPublicHost(new URL(baseUrl).hostname)
     res = await fetch(url, {
       ...init,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
       redirect: 'manual',
     })
   } catch (e) {
+    if (e instanceof CanvasError) throw e
     throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
   }
   if (res.ok) return res
@@ -314,9 +363,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    /** 1 人がつなげる学校の数（行が増え続けて、同期のたびに外へ取りに行く先が増えないように） */
+    const assertRoomFor = async (host: string) => {
+      const rows = await loadRows()
+      if (rows.length >= MAX_CONNECTIONS && !rows.some((r) => r.id === host)) throw new CanvasError('canvas_too_many')
+    }
+
     if (action === 'connect' && typeof body.feedUrl === 'string') {
       const feed = parseFeedUrl(body.feedUrl)
       if (!feed) return jsonResponse({ ok: false, code: 'canvas_feed_invalid' })
+      await assertRoomFor(new URL(feed.baseUrl).host)
       // 読めるか確かめてから保存する
       await feedItems(feed.baseUrl, feed.feedUrl)
       const { error } = await admin.from('canvas_connection').upsert(
@@ -346,6 +402,7 @@ Deno.serve(async (req) => {
       const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
       if (!baseUrl) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
       if (!token) return jsonResponse({ ok: false, code: 'canvas_unauthorized' })
+      await assertRoomFor(new URL(baseUrl).host)
       const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
       const { error } = await admin.from('canvas_connection').upsert(
         {
@@ -369,7 +426,10 @@ Deno.serve(async (req) => {
     if (action === 'disconnect') {
       if (!connectionId) return jsonResponse({ ok: false, error: 'connectionId is required' }, 400)
       const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
-      if (error) return jsonResponse({ ok: false, error: error.message }, 500)
+      if (error) {
+        console.error('[canvas] disconnect', error.message)
+        return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' }, 500)
+      }
       return jsonResponse(describe(await loadRows()))
     }
 
@@ -417,10 +477,9 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
-    if (e instanceof CanvasError) {
-      return jsonResponse({ ok: false, code: e.code, error: e.message })
-    }
-    const message = e instanceof Error ? e.message : String(e)
-    return jsonResponse({ ok: false, error: message })
+    // 学校のサイトや DB の応答の中身は返さない（ログにだけ残す）
+    console.error('[canvas]', e instanceof Error ? e.message : e)
+    if (e instanceof CanvasError) return jsonResponse({ ok: false, code: e.code, error: e.code })
+    return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' })
   }
 })
