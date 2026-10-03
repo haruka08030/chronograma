@@ -115,7 +115,7 @@ export async function syncWebPush({
   const extra = {
     record_prompts: recordPrompts,
     timer_started_at: activeTimer?.startedAt ?? null,
-    timer_title: activeTimer?.taskTitle ?? null,
+    timer_title: activeTimer?.taskTitle?.slice(0, 2000) ?? null,
   }
   let { error } = await supabase.from('push_subscriptions').upsert({ ...row, ...extra }, { onConflict: 'endpoint' })
   if (error && /record_prompts|timer_/.test(error.message)) {

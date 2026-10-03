@@ -238,12 +238,21 @@ function rowToSection(row: SectionRow): ListSection {
   }
 }
 
+/**
+ * DB の大きさの上限（`001` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
+ * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
+ */
+const MAX_NAME = 500
+const MAX_TITLE = 2000
+const MAX_DESCRIPTION = 200_000
+const clip = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text)
+
 function sectionToRow(userId: string, sec: ListSection): SectionRow {
   return {
     id: sec.id,
     user_id: userId,
     list_id: sec.listId,
-    name: sec.name,
+    name: clip(sec.name, MAX_NAME),
     sort_order: sec.order,
     // 送った時刻にすると、手元で変えていない端末の送信が「新しい変更」に見えて他端末の変更を上書きする
     updated_at: sec.updatedAt ?? UNKNOWN_UPDATED_AT,
@@ -299,7 +308,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
   return {
     id: h.id,
     user_id: userId,
-    title: h.title,
+    title: clip(h.title, MAX_TITLE),
     color: h.color,
     time_mode: h.timeMode,
     start_time: h.startTime,
@@ -384,7 +393,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
   return {
     id: list.id,
     user_id: userId,
-    name: list.name,
+    name: clip(list.name, MAX_NAME),
     color: list.color,
     sort_order: list.order,
     kind: list.kind ?? 'tasks',
@@ -399,8 +408,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     list_id: task.listId,
     parent_id: task.parentId,
     section_id: task.sectionId ?? null,
-    title: task.title,
-    description: task.description,
+    title: clip(task.title, MAX_TITLE),
+    description: clip(task.description, MAX_DESCRIPTION),
     completed: task.completed,
     completed_at: task.completedAt ?? null,
     created_at: task.createdAt,
@@ -412,7 +421,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_date: task.endDate ?? null,
     start_time: task.startTime,
     end_time: task.endTime,
-    location: task.location ?? null,
+    location: task.location == null ? null : clip(task.location, MAX_TITLE),
     color: task.color ?? null,
     priority: task.priority,
     tags: task.tags,
