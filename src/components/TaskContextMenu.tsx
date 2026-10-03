@@ -80,6 +80,8 @@ export function TaskContextMenu({
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
     { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
   ]
+    // 日曜は「明日」と「来週」が同じ月曜になるので 1 つにする（予定日のメニューと同じ）
+    .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
     .map((o): ActionLeaf => ({
       id: `due-${o.key}`,
       label: o.label,

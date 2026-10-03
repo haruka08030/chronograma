@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../../hooks/useDismiss'
 import { POPOVER_PANEL } from './surface'
 import { MenuDivider, MenuItem, MenuLabel } from './Menu'
-import { ChevronRightIcon, SearchIcon } from '../icons'
-import { useIsCoarsePointer } from '../../hooks/useMediaQuery'
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../icons'
+import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
 
 /** 画面の端からはみ出さないための余白 */
 const EDGE = 8
@@ -65,6 +65,8 @@ function LeafRow({ leaf, active, onHover, onRun, withGroup = false }: {
  * - 開くと検索欄に入るので、そのまま打って絞り込める（中のメニューの項目も出る）
  * - ↑↓ で選ぶ、→ / Enter で中のメニュー、← で戻る、Esc で閉じる。項目を実行すると閉じる
  * - 押した所に出し、画面からはみ出すなら内側へ寄せる。`above` なら (x, y) の上に出す（スマホの下のボタンから開くとき）
+ * - タッチの狭い画面（スマホ）では下から出すシート: 行は 44px 以上、中のメニューは同じシートの中で切り替え（‹ で戻る）、
+ *   削除など危ない項目は区切って離す。検索欄は出さない（項目は見て押す）
  */
 export function ActionMenu({
   x,
@@ -87,6 +89,9 @@ export function ActionMenu({
 }) {
   const { t } = useTranslation()
   const coarse = useIsCoarsePointer()
+  const desktop = useIsDesktop()
+  const sheet = coarse && !desktop
+  const showSearch = searchable && !sheet
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [sub, setSub] = useState<string | null>(null)
@@ -139,11 +144,11 @@ export function ActionMenu({
   // 押した所に出し、右・下にはみ出すなら内側へ寄せる（拡大アニメーション中でも本来の大きさで測る）
   useLayoutEffect(() => {
     const el = menuRef.current
-    if (!el) return
+    if (!el || sheet) return
     el.style.left = `${Math.max(EDGE, Math.min(x, window.innerWidth - el.offsetWidth - EDGE))}px`
     const top = above ? y - el.offsetHeight - EDGE : y
     el.style.top = `${Math.max(EDGE, Math.min(top, window.innerHeight - el.offsetHeight - EDGE))}px`
-  }, [x, y, q, above])
+  }, [x, y, q, above, sheet])
 
   // 検索欄の無いメニューは、メニュー自体にフォーカスしてキーで操作できるようにする
   useLayoutEffect(() => {
@@ -155,7 +160,7 @@ export function ActionMenu({
     const el = subRef.current
     const menu = menuRef.current
     const item = sub ? menu?.querySelector(`[data-sub="${sub}"]`) : null
-    if (!sub || !el || !menu || !item) return
+    if (sheet || !sub || !el || !menu || !item) return
     const m = menu.getBoundingClientRect()
     const r = item.getBoundingClientRect()
     const right = m.right - 4
@@ -196,6 +201,60 @@ export function ActionMenu({
     }
   }
 
+  if (sheet) {
+    // スマホ: 下からのシート。中のメニューは同じシートの中に出す
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[69] bg-black/30" aria-hidden onClick={onClose} />
+        <div
+          ref={menuRef}
+          role="menu"
+          tabIndex={-1}
+          data-popover-keep
+          className="fixed inset-x-0 bottom-0 z-[70] max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl outline-none animate-sheet-in dark:bg-zinc-800
+                     [&_[role=menuitem]]:min-h-11 [&_[role=menuitemradio]]:min-h-11"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
+          {openedSub ? (
+            <>
+              <MenuItem icon={<ChevronLeftIcon className="h-4 w-4" />} onClick={closeSub}>
+                {openedSub.label}
+              </MenuItem>
+              <MenuDivider />
+              {openedSub.leaves.map((leaf) => (
+                <LeafRow key={leaf.id} leaf={leaf} active={false} onHover={() => {}} onRun={() => runLeaf(leaf)} />
+              ))}
+              {openedSub.extra && <div className="px-2 pt-2">{openedSub.extra(onClose)}</div>}
+            </>
+          ) : (
+            <>
+              {header && <MenuLabel>{header}</MenuLabel>}
+              {entries.map((item) => (
+                <div key={item.id}>
+                  {(item.divider || (item.kind === 'leaf' && item.danger)) && <MenuDivider />}
+                  {item.kind === 'sub' ? (
+                    <MenuItem
+                      aria-haspopup="menu"
+                      icon={item.icon}
+                      trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
+                      onClick={() => openSub(item.id, false)}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ) : (
+                    <LeafRow leaf={item} active={false} onHover={() => {}} onRun={() => runLeaf(item)} />
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </>,
+      document.body,
+    )
+  }
+
   return createPortal(
     <>
       <div
@@ -206,9 +265,9 @@ export function ActionMenu({
         className={`fixed z-[70] w-64 p-1 outline-none animate-pop-in ${POPOVER_PANEL}`}
         style={{ left: x, top: y }}
         onContextMenu={(e) => e.preventDefault()}
-        onKeyDown={searchable ? undefined : onKeyDown}
+        onKeyDown={showSearch ? undefined : onKeyDown}
       >
-        {searchable && (
+        {showSearch && (
           <div className="flex items-center gap-2 border-b border-zinc-100 px-2 pb-1.5 pt-1 dark:border-zinc-700">
             <SearchIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
             <input
