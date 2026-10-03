@@ -60,6 +60,8 @@ export type TaskItemSelection = {
   onToggle: (e: React.MouseEvent) => void
   /** 一覧で何か選択中、または当該行が選択中のときチェック列を常時表示 */
   reveal: boolean
+  /** ↑↓ で選んでいる行（キー操作中だけ枠を出す） */
+  cursor?: boolean
 }
 
 export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
@@ -218,9 +220,15 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     setEditing(true)
   }, [onRowClick, selection?.reveal, task.title])
 
+  const rowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selection?.cursor) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selection?.cursor])
+
   // PC の行の最低の高さ（min-h）は、並べ替えハンドルの有無（手動の並べ替えかどうか）で行の高さが変わらないように
   return (
     <div
+      ref={rowRef}
       draggable={rowNativeDraggable}
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
@@ -228,6 +236,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
                   ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
+                  ${selection?.cursor ? 'bg-zinc-50 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800/40 dark:ring-zinc-600' : ''}
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
       style={{ WebkitTouchCallout: 'none' }}

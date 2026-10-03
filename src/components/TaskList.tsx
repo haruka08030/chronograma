@@ -251,6 +251,9 @@ export function TaskList() {
   const previewParentIdRef = useRef<string | null>(null)
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
+  /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
+  const [cursorId, setCursorId] = useState<string | null>(null)
+  const [cursorVisible, setCursorVisible] = useState(false)
 
   const clearNestPreview = useCallback(() => {
     if (previewParentIdRef.current === null) return
@@ -274,7 +277,11 @@ export function TaskList() {
   }, [])
 
   useEffect(() => {
-    queueMicrotask(() => clearSelection())
+    queueMicrotask(() => {
+      clearSelection()
+      setCursorId(null)
+      setCursorVisible(false)
+    })
   }, [selectedListId, selectedView, filterTag, filterColor, sortMode, clearSelection])
 
   useEffect(() => {
@@ -633,6 +640,8 @@ export function TaskList() {
 
   const makeRowClick = useCallback(
     (taskId: string) => (e: React.MouseEvent) => {
+      setCursorId(taskId)
+      setCursorVisible(false)
       if (e.shiftKey && lastAnchorRef.current !== null) {
         const anchor = lastAnchorRef.current
         const ia = flatCombined.indexOf(anchor)
@@ -668,8 +677,9 @@ export function TaskList() {
       selected: selected.has(taskId),
       reveal: selected.size > 0,
       onToggle: () => toggleInSelection(taskId),
+      cursor: cursorVisible && cursorId === taskId,
     }),
-    [selected, toggleInSelection],
+    [selected, toggleInSelection, cursorVisible, cursorId],
   )
 
   // ⌘A: 表示中の未完了のタスクをすべて選ぶ（そのまま一括操作のバーが出る）
@@ -701,21 +711,80 @@ export function TaskList() {
     clearSelection()
   }, [selected, archiveTasks, clearSelection])
 
-  // 選択中のキー操作: Esc で解除、Delete で削除、⌘Enter で完了（入力中・ダイアログ表示中は除く）
-  const bulkKeysRef = useRef({ clearSelection, bulkComplete, bulkDelete })
+  // 完了・削除などで枠の行が一覧から消えたら、同じ位置の行（末尾なら前の行）へ移す
+  const cursorIndexRef = useRef(-1)
   useEffect(() => {
-    bulkKeysRef.current = { clearSelection, bulkComplete, bulkDelete }
+    if (!cursorId) return
+    const i = flatActiveIds.indexOf(cursorId)
+    if (i >= 0) {
+      cursorIndexRef.current = i
+      return
+    }
+    const fallback = flatActiveIds[Math.min(cursorIndexRef.current, flatActiveIds.length - 1)] ?? null
+    queueMicrotask(() => setCursorId(fallback))
+  }, [cursorId, flatActiveIds])
+
+  const completeByKey = useCallback((taskId: string) => {
+    const task = tasks.find((x) => x.id === taskId)
+    if (!task) return
+    // 丸を押したときと同じ: 未完了の To-Do は「記録して完了」を開く
+    if (!task.completed && !isListedTimeLog(task)) {
+      openCompleteWithLog(task)
+      return
+    }
+    toggleTask(taskId)
+  }, [tasks, openCompleteWithLog, toggleTask])
+
+  /**
+   * 一覧のキー操作（入力中・ダイアログ表示中は除く）
+   * - ↑↓ で行を動く、Shift+↑↓ で選択を広げる、Enter で詳細、Space で完了
+   * - 選択中（なければ枠の行）: Delete で削除、⌘Enter で完了、Esc で解除
+   */
+  const listKeysRef = useRef({ clearSelection, bulkComplete, bulkDelete, completeByKey, openDetail, deleteTasks, toggleTask, flatActiveIds, cursorId, cursorVisible })
+  useEffect(() => {
+    listKeysRef.current = { clearSelection, bulkComplete, bulkDelete, completeByKey, openDetail, deleteTasks, toggleTask, flatActiveIds, cursorId, cursorVisible }
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing) return
+      if (e.defaultPrevented || e.isComposing || e.altKey) return
       if (isTypingTarget(document.activeElement) || document.querySelector('[role="dialog"]')) return
-      if (selectedRef.current.size === 0) return
-      const keys = bulkKeysRef.current
-      if (e.key === 'Escape') keys.clearSelection()
-      else if (e.key === 'Delete' || e.key === 'Backspace') keys.bulkDelete()
-      else if (e.key === 'Enter' && isModKey(e)) keys.bulkComplete()
-      else return
+      const k = listKeysRef.current
+      const hasSelection = selectedRef.current.size > 0
+      const cursor = k.cursorId && k.flatActiveIds.includes(k.cursorId) ? k.cursorId : null
+      // 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）
+      const target = k.cursorVisible ? cursor : null
+      const onButton = document.activeElement instanceof HTMLButtonElement || document.activeElement?.getAttribute('role') === 'button'
+
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isModKey(e)) {
+        const ids = k.flatActiveIds
+        if (ids.length === 0) return
+        const i = cursor ? ids.indexOf(cursor) : -1
+        const next = i < 0
+          ? (e.key === 'ArrowDown' ? ids[0] : ids[ids.length - 1])
+          : ids[Math.min(ids.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))]
+        if (e.shiftKey) {
+          setSelected((prev) => new Set([...prev, ...(cursor ? [cursor] : []), next]))
+          lastAnchorRef.current = next
+        }
+        setCursorId(next)
+        setCursorVisible(true)
+      } else if (e.key === 'Escape') {
+        if (hasSelection) k.clearSelection()
+        else if (target) setCursorVisible(false)
+        else return
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (hasSelection) k.bulkDelete()
+        else if (target) k.deleteTasks([target])
+        else return
+      } else if (e.key === 'Enter' && isModKey(e)) {
+        if (hasSelection) k.bulkComplete()
+        else if (target) k.toggleTask(target)
+        else return
+      } else if (e.key === 'Enter' && !onButton && target) {
+        k.openDetail(target)
+      } else if (e.key === ' ' && !onButton && target) {
+        k.completeByKey(target)
+      } else return
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
