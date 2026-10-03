@@ -44,6 +44,7 @@ import { SUBTLE_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
 import { sourceLinkOf } from '../lib/sourceLink'
+import { planTiming } from '../lib/planTiming'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -210,13 +211,18 @@ export function TodayPlannerView() {
 
   /**
    * 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤）。
-   * 時刻を入れた行でも、明日までの締切は時刻の前に出す（締切は焦らせてよい。予定を入れても消さない）
+   * 時刻を入れた行でも、明日までの締切は時刻の前に出す（締切は焦らせてよい。予定を入れても消さない）。
+   * 予定の時間が過ぎても終わっていなければ時刻も赤くする
    */
-  const rowMeta = (task: Task): { time: string | null; due: ReturnType<typeof dueMeta> } => {
+  const rowMeta = (task: Task): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
     const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
     const due = dueMeta(task)
-    if (!timed) return { time: null, due }
-    return { time: `${task.startTime}–${task.endTime}`, due: due && due.tone !== 'muted' ? due : null }
+    if (!timed) return { time: null, timeOver: false, due }
+    return {
+      time: `${task.startTime}–${task.endTime}`,
+      timeOver: planTiming(task, now).ended,
+      due: due && due.tone !== 'muted' ? due : null,
+    }
   }
   const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (!task.dueDate) return null
@@ -285,7 +291,7 @@ export function TodayPlannerView() {
           <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]}`}>{meta.due.text}</span>
         )}
         {meta.time && !task.completed && (
-          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted}`}>{meta.time}</span>
+          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted}`}>{meta.time}</span>
         )}
         {action}
       </li>
