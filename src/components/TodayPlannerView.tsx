@@ -453,7 +453,7 @@ export function TodayPlannerView() {
                 const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
                 const canTime = viewingToday && status === 'missed' && activeTimer?.taskTitle !== h.title
                 return (
-                  <li key={h.id} className="relative flex w-20 flex-col items-center gap-1.5" style={colorVars(h.color)}>
+                  <li key={h.id} className="relative flex w-24 flex-col items-center gap-1.5" style={colorVars(h.color)}>
                     <button
                       type="button"
                       aria-pressed={status !== 'missed'}
@@ -483,8 +483,9 @@ export function TodayPlannerView() {
                         }}
                         aria-label={t('quickLog.resume', { title: h.title })}
                         {...tip(t('quickLog.resume', { title: h.title }))}
-                        className="absolute left-1/2 top-7 ml-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
-                                   before:absolute before:-inset-2 before:content-[''] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                        // リングの右下の外に置く（重ねると、リングの右下を押したときにタイマーが始まる）
+                        className="absolute left-1/2 top-6 ml-6 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
+                                   dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       >
                         <PlayIcon className="h-2.5 w-2.5" />
                       </button>

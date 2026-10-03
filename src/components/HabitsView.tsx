@@ -18,7 +18,7 @@ import {
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
-import { colorVars } from '../lib/logCategoryColors'
+import { colorVars, labelForHex } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
@@ -64,10 +64,17 @@ function ColorPicker({
   onPick: (hex: string) => void
 }) {
   const { t } = useTranslation()
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  // 習慣の色＝記録のラベル。丸だけでは分からないので、選んでいる色のラベル名を出す
+  const label = labelForHex(color, presets, colors)
   return (
     <div className="flex flex-col gap-2">
       <SectionLabel as="span" level="field">{t('habits.color')}</SectionLabel>
       <ColorPalette bare selectedHex={color} onChoose={onPick} />
+      <p className={HINT_TEXT}>
+        {label ? t('habits.colorLabel', { label }) : t('habits.colorNoLabel')}
+      </p>
     </div>
   )
 }

@@ -82,7 +82,15 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       // 時間を決めた習慣は、予定どおりの時刻の記録も作る（`habitRecord.ts`）
       const patch = completeHabitAsPlannedPatch(get(), habitId, dateKey, { now: new Date().toISOString(), colorNames: logColorNames() })
       if (!patch) return
-      pushUndo()
+      // 記録を作ったときは、どのラベルで残したかを出す（習慣の色＝ラベルなので、黙って付くと気付けない）
+      const record = 'tasks' in patch ? patch.tasks[patch.tasks.length - 1] : undefined
+      const name = get().habits.find((h) => h.id === habitId)?.title ?? ''
+      pushUndo(record
+        ? {
+            key: record.category ? 'undo.habitRecordedLabel' : 'undo.habitRecorded',
+            params: { name, label: record.category ?? '' },
+          }
+        : undefined)
       set(patch)
     },
   }

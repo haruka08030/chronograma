@@ -76,8 +76,8 @@ export function UndoToast() {
 
   return (
     <div className={`fixed left-1/2 z-50 -translate-x-1/2 animate-toast-in ${stacked}`}>
-      <div className={`mx-3 flex max-w-[min(100vw-1.5rem,24rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
-        <span className="min-w-0 truncate">{message}</span>
+      <div className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
+        <span className="min-w-0 line-clamp-2">{message}</span>
         <button
           onClick={() => {
             if (kind === 'google') {
