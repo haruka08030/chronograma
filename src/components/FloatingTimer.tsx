@@ -47,6 +47,12 @@ export function FloatingTimer() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [activeTimer])
+  // 浮くタイマーが出ている間、スクロールする面の下に余白を足す（`timer-safe`）
+  const timerShown = activeTimer != null
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-timer-open', timerShown)
+    return () => document.documentElement.removeAttribute('data-timer-open')
+  }, [timerShown])
 
   if (!activeTimer) return <CompletePrompt />
 

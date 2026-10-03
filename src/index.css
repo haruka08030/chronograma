@@ -246,3 +246,8 @@ button:not(:disabled):has(> svg:only-child):active {
 @media (prefers-reduced-motion: reduce) {
   button:not(:disabled):has(> svg:only-child):active { scale: none; }
 }
+
+/* 記録中は浮くタイマーが画面の下に重なる。スクロールする面の下に余白を足し、一番下の行まで出せるようにする（@layer の外で、各所の pb-* より優先） */
+html[data-timer-open] .timer-safe {
+  padding-bottom: 6rem;
+}

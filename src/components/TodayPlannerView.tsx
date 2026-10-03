@@ -300,7 +300,7 @@ export function TodayPlannerView() {
       </div>
 
       <section
-        className={`${mobilePane === 'list' ? 'flex' : 'hidden'} min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
+        className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
         <header className="px-6 pb-5 pt-4 md:pt-8">
