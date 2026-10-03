@@ -862,7 +862,6 @@ export default {
     tabsAria: '予定と記録の切り替え',
     noPlanned: 'この日の予定・To-Do・完了したタスクはまだありません',
     executedSection: '完了 {{count}} 件',
-    noExecuted: 'この日に完了した To-Do はありません',
     totalLogged: '合計記録',
     noLogs: 'この日の記録はまだありません',
     timeUnset: '時刻未設定',
