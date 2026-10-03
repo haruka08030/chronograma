@@ -26,6 +26,17 @@ function withSyncLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
   return navigator.locks.request(`chronograma-sync:${userId}`, fn)
 }
 
+/** 動いている同期フックの「今すぐ送る」。ログインしていなければ null */
+let flushSync: (() => Promise<boolean>) | null = null
+
+/**
+ * 待っている変更（入力から 1.8 秒の待ち時間ぶん）を今すぐ送り、送れたかを返す。
+ * ログアウトの直前に使う（以前は待ち時間中の編集が送られないまま端末から消えていた）
+ */
+export function flushPendingSync(): Promise<boolean> {
+  return flushSync ? flushSync() : Promise.resolve(true)
+}
+
 function localSnapshot(): SyncSnapshot {
   const s = useTaskStore.getState()
   return { lists: s.lists, tasks: s.tasks, habits: s.habits, sections: s.sections }
@@ -211,6 +222,15 @@ export function useSupabaseSync() {
 
     void sync()
 
+    flushSync = async () => {
+      clearTimeout(debounce)
+      await sync()
+      // 実行中の同期に相乗りした場合は、それ（と予約した 1 回）が終わるまで待つ。回線が無いと長引くので 10 秒で諦める
+      const until = Date.now() + 10_000
+      while (running && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
+      return !running && useTaskStore.getState().syncState === 'idle'
+    }
+
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (
         state.tasks === prev.tasks &&
@@ -240,6 +260,7 @@ export function useSupabaseSync() {
     }, POLL_MS)
 
     return () => {
+      flushSync = null
       cancelled = true
       clearTimeout(debounce)
       clearTimeout(retry)

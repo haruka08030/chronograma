@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { useTaskStore } from '../store/taskStore'
+import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
@@ -23,10 +23,16 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
 
   if (!isSupabaseConfigured) return null
 
-  /** ログアウトするとこの端末のデータは消える（クラウドから戻る）。送れていない変更があるときだけ確かめる */
-  const handleSignOut = () => {
-    if (useTaskStore.getState().syncState !== 'idle' && !window.confirm(t('account.signOutUnsynced'))) return
-    void signOut()
+  /**
+   * ログアウトするとこの端末のデータは消える（クラウドから戻る）。待っている変更を先に送り、
+   * 送れなかったときだけ確かめる
+   */
+  const handleSignOut = async () => {
+    setPending(true)
+    const synced = await flushPendingSync()
+    setPending(false)
+    if (!synced && !window.confirm(t('account.signOutUnsynced'))) return
+    await signOut()
   }
 
   /** 取り消せないので 2 回確かめる。2 回目はメールアドレスの入力で、押し間違いでは消えないようにする */
@@ -98,6 +104,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         <button
           type="button"
           onClick={handleSignOut}
+          disabled={pending}
           className={buttonClass({ variant: 'secondary', size: 'sm' })}
         >
           {t('account.signOut')}
