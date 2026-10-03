@@ -379,7 +379,7 @@ export default {
     logView: '記録を始める（今日）',
     create: 'To-Do を追加',
     search: '検索',
-    edit: '開いている予定の詳細',
+    edit: '開いている予定・To-Do の行の詳細を開く',
     delete: '開いている予定・選んだタスクを削除',
     completeSelected: '選んだタスクを完了',
     moveRow: 'To-Do の行を移動（Shift で選択を広げる）',

@@ -20,13 +20,48 @@ export function isModKey(e: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey'>): boolean
   return e.metaKey || e.ctrlKey
 }
 
-/** 入力中はブラウザのテキスト取り消し（⌘Z）を優先する */
-export function isTextFieldUndoTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-  if (target.isContentEditable) return true
-  return false
+/**
+ * 入力中か（テキスト欄・選択・contenteditable）。ショートカットはここでは効かせず、
+ * ⌘Z もブラウザのテキスト取り消しを優先する。DOM の無いテストでも使えるよう形で見る
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as { tagName?: unknown; isContentEditable?: unknown } | null
+  if (!el || typeof el.tagName !== 'string') return false
+  const tag = el.tagName.toUpperCase()
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true
+}
+
+/**
+ * 日本語の変換中のキーか。変換中・変換を確定/取り消すキーではショートカットを動かさない
+ * （Safari は確定直後のキーを isComposing=false で送ることがあるので keyCode 229 も見る）
+ */
+export function isImeKeyEvent(e: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>): boolean {
+  return e.isComposing || e.keyCode === 229
+}
+
+type HotkeyEvent = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
+
+/** 一覧やヒントに出す名前 → KeyboardEvent.key */
+const KEY_ALIASES: Record<string, string> = { Space: ' ', Esc: 'Escape' }
+
+/**
+ * キーの書き方（'e'・'Delete'・'mod+Enter'・'shift+ArrowDown'・'?'）に押したキーが合うか。
+ * - mod（⌘ / Ctrl）・alt・shift は書いたものだけを押しているときに合う（⌘E で e は動かない）
+ * - ? / などの記号は Shift で打つ配列があるので Shift を見ない
+ * - mod 付きの文字は大文字・小文字を区別しない（⌘⇧Z が 'Z' で来るブラウザがある）
+ */
+export function matchesHotkey(e: HotkeyEvent, spec: string): boolean {
+  const parts = spec.split('+')
+  const raw = parts.pop() ?? ''
+  const key = KEY_ALIASES[raw] ?? raw
+  if (!key) return false
+  const mod = parts.includes('mod')
+  if (isModKey(e) !== mod) return false
+  if (e.altKey !== parts.includes('alt')) return false
+  const symbol = key.length === 1 && key !== ' ' && key.toLowerCase() === key.toUpperCase()
+  if (!symbol && e.shiftKey !== parts.includes('shift')) return false
+  if (mod && key.length === 1) return e.key.toLowerCase() === key.toLowerCase()
+  return e.key === key
 }
 
 /**

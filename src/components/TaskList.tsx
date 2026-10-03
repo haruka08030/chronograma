@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
+import { useHotkey } from '../hooks/useHotkey'
 import { INVERSE_SURFACE, POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
@@ -18,7 +19,7 @@ import { groupsBySection, isTodoSurfaceView, sortKeyOf, sortModeOf } from '../li
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey } from '../lib/keyboard'
-import { isTypingTarget, useSelectAllShortcut } from '../lib/shortcuts'
+import { useSelectAllShortcut } from '../lib/shortcuts'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
@@ -751,68 +752,68 @@ export function TaskList() {
   }, [tasks, openCompleteWithLog, toggleTask, listKind])
 
   /**
-   * 一覧のキー操作（入力中・ダイアログ表示中は除く）
-   * - ↑↓ で行を動く、Shift+↑↓ で選択を広げる、Enter で詳細、Space で完了
-   * - 選択中（なければ枠の行）: Delete で削除、⌘Enter で完了、Esc で解除
+   * 一覧のキー操作（入力中・ダイアログやメニューが開いている間は効かない）
+   * - ↑↓ で行を動く、Shift+↑↓ で選択を広げる、Enter・e で詳細、Space で完了
+   * - 選択中（なければ枠の行）: Delete で削除（元に戻すトーストが出る）、⌘Enter で完了、Esc で解除
+   * 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）。対象がなければ false で次へ回す
    */
-  const listKeysRef = useRef({ clearSelection, bulkComplete, bulkDelete, completeByKey, openDetail, deleteTasks, toggleTask, flatActiveIds, cursorId, cursorVisible })
-  useEffect(() => {
-    listKeysRef.current = { clearSelection, bulkComplete, bulkDelete, completeByKey, openDetail, deleteTasks, toggleTask, flatActiveIds, cursorId, cursorVisible }
-  })
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing || e.altKey) return
-      if (isTypingTarget(document.activeElement) || document.querySelector('[role="dialog"], [role="menu"]')) return
-      const k = listKeysRef.current
-      const hasSelection = selectedRef.current.size > 0
-      const cursor = k.cursorId && k.flatActiveIds.includes(k.cursorId) ? k.cursorId : null
-      // 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）
-      const target = k.cursorVisible ? cursor : null
-      const onButton = document.activeElement instanceof HTMLButtonElement || document.activeElement?.getAttribute('role') === 'button'
+  const cursorRow = () => (cursorId && flatActiveIds.includes(cursorId) ? cursorId : null)
+  const targetRow = () => (cursorVisible ? cursorRow() : null)
+  const onButton = (e: KeyboardEvent) =>
+    e.target instanceof HTMLButtonElement || (e.target instanceof Element && e.target.getAttribute('role') === 'button')
 
-      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isModKey(e)) {
-        const ids = k.flatActiveIds
-        if (ids.length === 0) return
-        const i = cursor ? ids.indexOf(cursor) : -1
-        const next = i < 0
-          ? (e.key === 'ArrowDown' ? ids[0] : ids[ids.length - 1])
-          : ids[Math.min(ids.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))]
-        if (e.shiftKey) {
-          setSelected((prev) => new Set([...prev, ...(cursor ? [cursor] : []), next]))
-          lastAnchorRef.current = next
-        }
-        setCursorId(next)
-        setCursorVisible(true)
-      } else if (e.key === 'Escape') {
-        if (hasSelection) k.clearSelection()
-        else if (target) setCursorVisible(false)
-        else return
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (hasSelection) k.bulkDelete()
-        else if (target) k.deleteTasks([target])
-        else return
-      } else if (e.key === 'Enter' && isModKey(e)) {
-        if (hasSelection) k.bulkComplete()
-        else if (target) k.toggleTask(target)
-        else return
-      } else if ((e.key === '/' && isModKey(e)) || e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
-        // ⌘/（Notion と同じ）: 選択中（なければ枠の行）の右クリックメニューを、その行の下に開く
-        const ids = hasSelection ? [...selectedRef.current] : target ? [target] : []
-        if (ids.length === 0) return
-        const anchor = (target && ids.includes(target) ? target : ids[0])
-        const row = document.querySelector(`[data-task-row="${anchor}"]`)?.getBoundingClientRect()
-        if (!row) return
-        setContextMenu({ x: row.left + 48, y: row.bottom + 4, taskIds: ids })
-      } else if (e.key === 'Enter' && !onButton && target) {
-        k.openDetail(target)
-      } else if (e.key === ' ' && !onButton && target) {
-        k.completeByKey(target)
-      } else return
-      e.preventDefault()
+  useHotkey(['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], (e) => {
+    const ids = flatActiveIds
+    if (ids.length === 0) return false
+    const cursor = cursorRow()
+    const down = e.key === 'ArrowDown'
+    const i = cursor ? ids.indexOf(cursor) : -1
+    const next = i < 0 ? (down ? ids[0] : ids[ids.length - 1]) : ids[Math.min(ids.length - 1, Math.max(0, i + (down ? 1 : -1)))]
+    if (e.shiftKey) {
+      setSelected((prev) => new Set([...prev, ...(cursor ? [cursor] : []), next]))
+      lastAnchorRef.current = next
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+    setCursorId(next)
+    setCursorVisible(true)
+  })
+  useHotkey('Escape', () => {
+    if (selectedRef.current.size > 0) clearSelection()
+    else if (targetRow()) setCursorVisible(false)
+    else return false
+  })
+  useHotkey(['Delete', 'Backspace'], () => {
+    const target = targetRow()
+    if (selectedRef.current.size > 0) bulkDelete()
+    else if (target) deleteTasks([target])
+    else return false
+  })
+  useHotkey('mod+Enter', () => {
+    const target = targetRow()
+    if (selectedRef.current.size > 0) bulkComplete()
+    else if (target) toggleTask(target)
+    else return false
+  })
+  useHotkey(['mod+/', 'ContextMenu', 'shift+F10'], () => {
+    // ⌘/（Notion と同じ）: 選択中（なければ枠の行）の右クリックメニューを、その行の下に開く
+    const target = targetRow()
+    const ids = selectedRef.current.size > 0 ? [...selectedRef.current] : target ? [target] : []
+    if (ids.length === 0) return false
+    const anchor = target && ids.includes(target) ? target : ids[0]
+    const row = document.querySelector(`[data-task-row="${anchor}"]`)?.getBoundingClientRect()
+    if (!row) return false
+    setContextMenu({ x: row.left + 48, y: row.bottom + 4, taskIds: ids })
+  })
+  // e は予定カードと同じ「詳細を開く」。ボタンの上の Enter はボタンのほうを押す
+  useHotkey(['Enter', 'e'], (e) => {
+    const target = targetRow()
+    if (!target || (e.key === 'Enter' && onButton(e))) return false
+    openDetail(target)
+  })
+  useHotkey('Space', (e) => {
+    const target = targetRow()
+    if (!target || onButton(e)) return false
+    completeByKey(target)
+  })
 
   const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
     setEditingSectionId(sectionId)

@@ -48,13 +48,6 @@ export function useSelectAllShortcut(handler: () => boolean) {
   }, [])
 }
 
-/** 入力中（テキスト欄・選択・contenteditable）はショートカットを無視する */
-export function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
-}
-
 /** ヘルプに出す一覧（キー → 説明の i18n キー）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
 export const SHORTCUT_LIST: { keys: string[]; label: string }[] = [
   { keys: ['t'], label: 'shortcuts.today' },
