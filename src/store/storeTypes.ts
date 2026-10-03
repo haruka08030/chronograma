@@ -97,7 +97,7 @@ export interface TaskState {
   googleConnected: boolean
   googleAccessToken: string | null
   googleConnectionError: string | null
-  /** Google の予定を書き換えられる権限（calendar.events）があるか。古い接続は読み取りのみ */
+  /** Google の予定を書き換えられる権限（calendar.events.owned など）があるか。古い接続は読み取りのみ */
   googleCanWrite: boolean
 
   activeTimer: ActiveTimer | null

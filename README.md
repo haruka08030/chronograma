@@ -88,7 +88,7 @@ select cron.schedule(
 
 予定の取り込みは Supabase **Edge Function** `google-calendar` 経由です（リフレッシュトークンは `google_oauth` 表に保存）。
 
-1. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.readonly`・`calendar.events` を登録し、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
+1. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.events.owned`・`calendar.calendarlist.readonly` を登録し（理由は [`doc/GOOGLE_VERIFICATION.md`](doc/GOOGLE_VERIFICATION.md)）、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
    - **APIs & Services → Library** で **Google Calendar API** を有効化
    - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `http://localhost:5173` と本番 URL（例 `https://your-app.vercel.app`）を追加
 2. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。

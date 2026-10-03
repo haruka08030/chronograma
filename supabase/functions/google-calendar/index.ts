@@ -1,9 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
 
-// 予定の読み書き（events）＋カレンダーの色の取得（readonly）
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
-const WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
+// 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
+// 使うのは primary カレンダーだけなので、いちばん狭いものにしている。`src/lib/googleCalendar.ts` とそろえる
+const SCOPES =
+  'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+/** 予定を書き換えられるスコープ。前の版でつないだ接続は calendar.events を持っている */
+const WRITE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events.owned',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar',
+]
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
 
 type CalendarEvent = {
@@ -207,7 +214,7 @@ async function writeGoogleEvent(
 }
 
 function hasWriteScope(scope: string | null | undefined): boolean {
-  return (scope ?? '').split(/\s+/).includes(WRITE_SCOPE)
+  return (scope ?? '').split(/\s+/).some((s) => WRITE_SCOPES.includes(s))
 }
 
 Deno.serve(withCors(async (req) => {

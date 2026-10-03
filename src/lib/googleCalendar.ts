@@ -45,8 +45,10 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
   return payload
 }
 
-// 予定の読み書き（events）＋カレンダーの色の取得（readonly）
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
+// 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
+// Edge Function `google-calendar` の SCOPES とそろえる
+const SCOPES =
+  'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 const GCAL_OAUTH_STATE_KEY = 'chronograma_gcal_oauth_state'
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 
