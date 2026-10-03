@@ -11,6 +11,7 @@ import { iconButtonClass } from '../ui/iconButtonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
+import { REVEAL_ON_HOVER } from '../ui/revealClass'
 
 let nextRowId = 0
 
@@ -98,7 +99,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                     onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
                     aria-label={t('labels.remove')}
                     {...tip(t('labels.remove'))}
-                    className={iconButtonClass('md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100')}
+                    className={iconButtonClass(REVEAL_ON_HOVER)}
                   >
                     <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
                   </button>
