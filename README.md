@@ -101,3 +101,5 @@ supabase functions deploy google-calendar
 ```
 
 Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。
+
+Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy などのセキュリティヘッダー）。CSP の接続先は `https://*.supabase.co` だけなので、Supabase に独自ドメインを使う場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `connect-src` に追加してください。
