@@ -1,56 +1,29 @@
-import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
-import { useDismiss } from '../hooks/useDismiss'
-import { INVERSE_SURFACE, POPOVER_PANEL } from './ui/surface'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { INVERSE_SURFACE } from './ui/surface'
 import { useTranslation } from 'react-i18next'
-import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
-import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
-import type { SectionGroupingScope } from '../store/storeTypes'
-import { unplannedListIds } from '../lib/listKind'
-import { ListKindPicker } from './ListKindPicker'
-import {
-  getFilteredRootTasks,
-  getOrderedActiveRootTasksForDnD,
-  sectionDropId,
-} from '../lib/mainListTasks'
+import { useTaskStore } from '../store/taskStore'
+import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { groupsBySection, isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
-import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
-import { SortableSubtaskItem } from './SortableSubtaskItem'
-import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
-import { isIndentIntent } from '../lib/taskDragIntent'
-import { getIndentTargetId } from '../lib/taskDepth'
-import { SectionHeaderDnD } from './SectionHeaderDnD'
-import { SECTION_HEADING_TEXT } from './ListSectionHeading'
+import { TASK_PREFIX } from './SortableTaskItem'
+import { subtaskDragId } from '../lib/subtaskDnD'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
-import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
-import { TaskItem, type TaskItemSelection } from './TaskItem'
-import { MenuDivider, MenuItem } from './ui/Menu'
-import { ActionMenu } from './ui/ActionMenu'
 import { QuickAdd } from './QuickAdd'
 import type { Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CheckCircleIcon, CloseIcon, PencilIcon, PlusIcon, SortIcon, TrashIcon } from './icons'
-import { Switch } from './settings/SettingsPrimitives'
-import { buttonClass } from './ui/buttonClass'
-import { useTextEntry } from '../hooks/useTextEntry'
-import { tip } from '../lib/tooltip'
-import { chipClass } from './ui/chipClass'
-import { DisclosureButton } from './ui/Disclosure'
+import { CheckCircleIcon, CloseIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
-
-const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
-/** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
-const UNPLANNED_SORT_OPTIONS: SortMode[] = ['manual', 'title', 'createdAt']
+import { useTaskListDnd } from '../hooks/useTaskListDnd'
+import { useTaskListRows } from '../hooks/useTaskListRows'
+import { useSectionEditing } from '../hooks/useSectionEditing'
+import { TaskListHeader } from './todo/TaskListHeader'
+import { TaskListActiveContent } from './todo/TaskListActiveContent'
+import { CompletedTasksSection } from './todo/CompletedTasksSection'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -60,162 +33,6 @@ function countIncompleteDescendants(parentId: string, childrenByParent: Map<stri
     }
   }
   return n
-}
-
-function DnDSubtreeRows({
-  parentId,
-  depth,
-  incompleteSubtasks,
-  makeRowClick,
-  makeSelection,
-  openCompleteWithLog,
-  onEnterCreateSibling,
-  pendingAutoEditTaskId,
-  subtaskNestWithDrag,
-  nestPreviewParentId,
-}: {
-  parentId: string
-  depth: number
-  incompleteSubtasks: (id: string) => Task[]
-  makeRowClick: (id: string) => (e: MouseEvent) => void
-  makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
-  onEnterCreateSibling: (task: Task) => void
-  pendingAutoEditTaskId: string | null
-  subtaskNestWithDrag: string
-  nestPreviewParentId: string | null
-}): ReactNode[] {
-  return incompleteSubtasks(parentId).flatMap((st): ReactNode[] => [
-    <div key={st.id} className={`${subtaskNestWithDrag}${depth > 0 ? ' ml-2' : ''}`}>
-      <SortableSubtaskItem
-        task={st}
-        onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
-        onEnterCreateSibling={onEnterCreateSibling}
-        selection={makeSelection(st.id)}
-        autoEdit={pendingAutoEditTaskId === st.id}
-        showNestGuide={st.id === nestPreviewParentId}
-      />
-    </div>,
-    ...DnDSubtreeRows({
-      parentId: st.id,
-      depth: depth + 1,
-      incompleteSubtasks,
-      makeRowClick,
-      makeSelection,
-      openCompleteWithLog,
-      onEnterCreateSibling,
-      pendingAutoEditTaskId,
-      subtaskNestWithDrag,
-      nestPreviewParentId,
-    }),
-  ])
-}
-
-function StaticSubtreeRows({
-  parentId,
-  depth,
-  incompleteSubtasks,
-  makeRowClick,
-  makeSelection,
-  openCompleteWithLog,
-  onEnterCreateSibling,
-  pendingAutoEditTaskId,
-  subtaskNestNoDrag,
-}: {
-  parentId: string
-  depth: number
-  incompleteSubtasks: (id: string) => Task[]
-  makeRowClick: (id: string) => (e: MouseEvent) => void
-  makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
-  onEnterCreateSibling: (task: Task) => void
-  pendingAutoEditTaskId: string | null
-  subtaskNestNoDrag: string
-}): ReactNode[] {
-  return incompleteSubtasks(parentId).map((st): ReactNode => (
-    <div key={st.id} className={`${subtaskNestNoDrag}${depth > 0 ? ' ml-1.5' : ''}`}>
-      <TaskItem
-        task={st}
-        isSubtask
-        onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
-        onEnterCreateSibling={onEnterCreateSibling}
-        selection={makeSelection(st.id)}
-        autoEdit={pendingAutoEditTaskId === st.id}
-      />
-      {StaticSubtreeRows({
-        parentId: st.id,
-        depth: depth + 1,
-        incompleteSubtasks,
-        makeRowClick,
-        makeSelection,
-        openCompleteWithLog,
-        onEnterCreateSibling,
-        pendingAutoEditTaskId,
-        subtaskNestNoDrag,
-      })}
-    </div>
-  ))
-}
-
-function CompletedSubtreeRows({
-  parentId,
-  depth,
-  childrenByParent,
-  makeRowClick,
-  makeSelection,
-  openCompleteWithLog,
-  onEnterCreateSibling,
-  pendingAutoEditTaskId,
-  subtaskNestNoDrag,
-}: {
-  parentId: string
-  depth: number
-  childrenByParent: Map<string, Task[]>
-  makeRowClick: (id: string) => (e: MouseEvent) => void
-  makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
-  onEnterCreateSibling: (task: Task) => void
-  pendingAutoEditTaskId: string | null
-  subtaskNestNoDrag: string
-}): ReactNode[] {
-  return (childrenByParent.get(parentId) ?? []).map((st): ReactNode => (
-    <div key={st.id} className={`${subtaskNestNoDrag}${depth > 0 ? ' ml-1.5' : ''}`}>
-      <TaskItem
-        task={st}
-        isSubtask
-        onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
-        onEnterCreateSibling={onEnterCreateSibling}
-        selection={makeSelection(st.id)}
-        autoEdit={pendingAutoEditTaskId === st.id}
-      />
-      {CompletedSubtreeRows({
-        parentId: st.id,
-        depth: depth + 1,
-        childrenByParent,
-        makeRowClick,
-        makeSelection,
-        openCompleteWithLog,
-        onEnterCreateSibling,
-        pendingAutoEditTaskId,
-        subtaskNestNoDrag,
-      })}
-    </div>
-  ))
-}
-
-/** セクションの末尾の落とし先。`empty` は中にタスクが無いとき（落とせる場所が分かるよう、点線の枠で大きく出す） */
-function SectionDropZone({ listId, sectionId, empty = false }: { listId: string; sectionId: string | null; empty?: boolean }) {
-  const { setNodeRef, isOver } = useDroppable({ id: sectionDropId(listId, sectionId) })
-  return (
-    <div
-      ref={setNodeRef}
-      className={`mx-2 rounded-md transition-colors ${empty ? 'min-h-12 border border-dashed border-zinc-300 dark:border-zinc-600' : 'min-h-3'} ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
-      aria-hidden
-    />
-  )
 }
 
 export function TaskList() {
@@ -229,123 +46,21 @@ export function TaskList() {
   // 並び順はリスト・ビューごと
   const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView)))
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
-  const setSectionGrouping = useTaskStore((s) => s.setSectionGrouping)
-  const setSortMode = useTaskStore((s) => s.setSortMode)
   const filterTag = useTaskStore((s) => s.filterTag)
   const filterColor = useTaskStore((s) => s.filterColor)
-  const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
-  const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
   const sections = useTaskStore((s) => s.sections)
-  const addSectionStore = useTaskStore((s) => s.addSection)
-  const renameSectionStore = useTaskStore((s) => s.renameSection)
-  const deleteSectionStore = useTaskStore((s) => s.deleteSection)
-  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
-  const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const openDetail = openTaskDetail
-  const [showSort, setShowSort] = useState(false)
-  const sortMenuRef = useRef<HTMLDivElement>(null)
-  useDismiss({ open: showSort, onClose: () => setShowSort(false), inside: [sortMenuRef] })
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
-  const [editingSectionName, setEditingSectionName] = useState('')
-  /** 「＋ セクション」で開いた名前入力。名前が決まるまでセクションは作らない */
-  const [draftSectionListId, setDraftSectionListId] = useState<string | null>(null)
-  const [draftSectionName, setDraftSectionName] = useState('')
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
-  const [previewParentId, setPreviewParentId] = useState<string | null>(null)
-  const previewParentIdRef = useRef<string | null>(null)
   /** 選択の解除（下の useTaskListSelection が入れる。ドラッグの処理はそれより前に作るので参照で受ける） */
   const clearSelectionRef = useRef<() => void>(() => {})
-  /** セクションの見出しの右クリックメニュー */
-  const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number; sectionId: string; title: string; canQuickTarget: boolean } | null>(null)
-
-  const clearNestPreview = useCallback(() => {
-    if (previewParentIdRef.current === null) return
-    previewParentIdRef.current = null
-    setPreviewParentId(null)
-  }, [])
-
-  const updateNestPreview = useCallback((next: string | null) => {
-    if (previewParentIdRef.current === next) return
-    previewParentIdRef.current = next
-    setPreviewParentId(next)
-  }, [])
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setEditingSectionId(null)
-      setEditingSectionName('')
-      setDraftSectionListId(null)
-      setDraftSectionName('')
-    })
-  }, [selectedListId, selectedView])
-
-  /** タスクをドラッグ中か。空の「セクションなし」は、セクションの外へ戻す落とし先としてこの間だけ出す */
-  const [taskDragging, setTaskDragging] = useState(false)
-
-  const dndMonitor = useMemo(
-    () => ({
-      onDragStart({ active }: DragStartEvent) {
-        clearNestPreview()
-        const id = String(active.id)
-        setTaskDragging(id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX))
-        if (id.startsWith(DRAGSEC_PREFIX)) {
-          clearSelectionRef.current()
-          return
-        }
-        if (id.startsWith(SUBTASK_PREFIX)) {
-          clearSelectionRef.current()
-          return
-        }
-        if (id.startsWith(TASK_PREFIX)) {
-          const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-          if (!group || group.length <= 1) clearSelectionRef.current()
-        }
-      },
-      onDragMove({ active, delta }: DragMoveEvent) {
-        const id = String(active.id)
-        if (!id.startsWith(TASK_PREFIX) && !id.startsWith(SUBTASK_PREFIX)) {
-          updateNestPreview(null)
-          return
-        }
-        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) {
-          updateNestPreview(null)
-          return
-        }
-        const taskId = id.startsWith(SUBTASK_PREFIX)
-          ? parseSubtaskDragId(id)
-          : id.slice(TASK_PREFIX.length)
-        if (!taskId || !isIndentIntent(delta)) {
-          updateNestPreview(null)
-          return
-        }
-        updateNestPreview(getIndentTargetId(useTaskStore.getState().tasks, taskId))
-      },
-      onDragEnd({ active }: DragEndEvent) {
-        clearNestPreview()
-        setTaskDragging(false)
-        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) clearSelectionRef.current()
-      },
-      onDragCancel({ active }: DragCancelEvent) {
-        clearNestPreview()
-        setTaskDragging(false)
-        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) clearSelectionRef.current()
-      },
-    }),
-    [clearNestPreview, updateNestPreview],
-  )
-  useDndMonitor(dndMonitor)
+  const { previewParentId, taskDragging } = useTaskListDnd(clearSelectionRef)
+  const { sectionTitle, sectionActions, beginDraftSection, draftSection, sectionMenuElement } =
+    useSectionEditing(selectedListId, selectedView)
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
-  const sortOptions = useMemo(
-    () => (listKind === 'tasks' ? SORT_OPTIONS : UNPLANNED_SORT_OPTIONS).map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
-    [t, listKind],
-  )
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   // ナビから色ラベルを開いたとき（「すべて」を色で絞る）はラベル名を見出しにする
@@ -356,51 +71,19 @@ export function TaskList() {
     ? t(`sidebar.views.${selectedView}`)
     : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
 
-  const listOrderById = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const l of lists) m.set(l.id, l.order)
-    return m
-  }, [lists])
-  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const selectedList = selectedListId ? lists.find((l) => l.id === selectedListId) ?? null : null
 
-  const filtered = useMemo(
-    () =>
-      getFilteredRootTasks({
-        tasks,
-        selectedView,
-        selectedListId,
-        sortMode,
-        filterTag,
-        filterColor,
-        sections,
-        excludedListIds,
-      }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds],
-  )
-
-  const listSectionsOrdered = useMemo(() => {
-    if (!selectedListId) return []
-    return sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
-  }, [sections, selectedListId])
-
-  // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
-  // リストにセクションがあるとき、リスト横断でセクションブロックを出す。
-  const multiListSectionMode = !selectedListId && isTodoSurfaceView(selectedView)
-  /** 手動以外の並び順でセクションの塊を出すか。リストはリストごと、「すべて」は lists、今日・近日中・期限切れは dueViews */
-  const groupingScope: SectionGroupingScope = selectedListId
-    ? { listId: selectedListId }
-    : selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
-  const groupBySection = groupsBySection(sortMode, sectionGrouping, groupingScope)
-  const showSectionBlocks = useMemo(() => {
-    if (!groupBySection) return false
-    if (selectedListId) return listSectionsOrdered.length > 0
-    if (!multiListSectionMode || sections.length === 0) return false
-    const listIds = new Set(
-      filtered.filter((t) => !t.completed && !isListedTimeLog(t)).map((t) => t.listId),
-    )
-    return sections.some((s) => listIds.has(s.listId))
-  }, [groupBySection, selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
+  const { filtered, groupingScope, groupBySection, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
+    tasks,
+    lists,
+    sections,
+    selectedListId,
+    selectedView,
+    sortMode,
+    sectionGrouping,
+    filterTag,
+    filterColor,
+  })
 
   /** 塊で分けないとき、行に出すセクション名 */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
@@ -429,135 +112,6 @@ export function TaskList() {
     return n
   }, [filtered, childrenByParent])
 
-  const active = useMemo(() => {
-    const incomplete = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
-    // 手動以外は filtered が既にソート済みなので、その順序を維持したまま
-    // セクションごとにバケット分けする（下の sectionBlocks で分割）。
-    if (!showSectionBlocks || sortMode !== 'manual') return incomplete
-    return getOrderedActiveRootTasksForDnD({
-      tasks,
-      selectedView,
-      selectedListId,
-      sortMode,
-      filterTag,
-      filterColor,
-      sections,
-      listOrderById,
-      excludedListIds,
-    })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, listOrderById, excludedListIds])
-
-  type SectionBlockRow = {
-    listId: string
-    sectionId: string | null
-    title: string
-    /** マルチリスト時、このブロックの直前に出すリスト名 */
-    listTitle: string | null
-    tasks: typeof active
-    headerKind: 'section-none' | 'section-named' | 'list-only'
-  }
-
-  const sectionBlocks = useMemo((): SectionBlockRow[] | null => {
-    if (!showSectionBlocks) return null
-
-    if (selectedListId) {
-      const map = new Map<string | null, typeof active>()
-      map.set(null, [])
-      for (const s of listSectionsOrdered) map.set(s.id, [])
-      for (const t of active) {
-        const sid = t.sectionId ?? null
-        const bucket = map.get(sid)
-        if (bucket) bucket.push(t)
-        else map.get(null)!.push(t)
-      }
-      const rows: SectionBlockRow[] = [
-        {
-          listId: selectedListId,
-          sectionId: null,
-          title: t('sections.noneTitle'),
-          listTitle: null,
-          tasks: map.get(null) ?? [],
-          headerKind: 'section-none',
-        },
-      ]
-      for (const s of listSectionsOrdered) {
-        rows.push({
-          listId: selectedListId,
-          sectionId: s.id,
-          title: s.name,
-          listTitle: null,
-          tasks: map.get(s.id) ?? [],
-          headerKind: 'section-named',
-        })
-      }
-      return rows
-    }
-
-    // スマートビュー: リスト order 順に、セクションがあるリストはセクション分割、無いリストはフラット
-    const sortedLists = [...lists].sort((a, b) => a.order - b.order)
-    const activeByList = new Map<string, typeof active>()
-    for (const t of active) {
-      const arr = activeByList.get(t.listId)
-      if (arr) arr.push(t)
-      else activeByList.set(t.listId, [t])
-    }
-
-    const rows: SectionBlockRow[] = []
-    for (const list of sortedLists) {
-      const listTasks = activeByList.get(list.id)
-      if (!listTasks || listTasks.length === 0) continue
-
-      const listSecs = sections
-        .filter((s) => s.listId === list.id)
-        .sort((a, b) => a.order - b.order)
-      const listLabel = displayListName(list.id, list.name)
-
-      if (listSecs.length === 0) {
-        rows.push({
-          listId: list.id,
-          sectionId: null,
-          title: listLabel,
-          listTitle: null,
-          tasks: listTasks,
-          headerKind: 'list-only',
-        })
-        continue
-      }
-
-      const map = new Map<string | null, typeof active>()
-      map.set(null, [])
-      for (const s of listSecs) map.set(s.id, [])
-      for (const t of listTasks) {
-        const sid = t.sectionId ?? null
-        const bucket = map.get(sid)
-        if (bucket) bucket.push(t)
-        else map.get(null)!.push(t)
-      }
-
-      let first = true
-      const pushRow = (
-        sectionId: string | null,
-        title: string,
-        tasksIn: typeof active,
-        headerKind: 'section-none' | 'section-named',
-      ) => {
-        rows.push({
-          listId: list.id,
-          sectionId,
-          title,
-          listTitle: first ? listLabel : null,
-          tasks: tasksIn,
-          headerKind,
-        })
-        first = false
-      }
-      pushRow(null, t('sections.noneTitle'), map.get(null) ?? [], 'section-none')
-      for (const s of listSecs) {
-        pushRow(s.id, s.name, map.get(s.id) ?? [], 'section-named')
-      }
-    }
-    return rows.length > 0 ? rows : null
-  }, [showSectionBlocks, selectedListId, listSectionsOrdered, active, t, lists, sections])
   const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
@@ -650,37 +204,6 @@ export function TaskList() {
     [active, selected],
   )
 
-  const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
-    setEditingSectionId(sectionId)
-    setEditingSectionName(currentName)
-  }, [])
-
-  const finishSectionRename = useCallback((sectionId: string, currentName: string) => {
-    if (editingSectionId !== sectionId) return
-    const name = editingSectionName.trim()
-    if (name && name !== currentName) renameSectionStore(sectionId, name)
-    setEditingSectionId(null)
-    setEditingSectionName('')
-  }, [editingSectionId, editingSectionName, renameSectionStore])
-
-  const cancelSectionRename = useCallback((sectionId: string) => {
-    if (editingSectionId !== sectionId) return
-    setEditingSectionId(null)
-    setEditingSectionName('')
-  }, [editingSectionId])
-
-  const finishDraftSection = useCallback(() => {
-    const name = draftSectionName.trim()
-    if (draftSectionListId && name) addSectionStore(draftSectionListId, name)
-    setDraftSectionListId(null)
-    setDraftSectionName('')
-  }, [draftSectionListId, draftSectionName, addSectionStore])
-
-  const cancelDraftSection = useCallback(() => {
-    setDraftSectionListId(null)
-    setDraftSectionName('')
-  }, [])
-
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
   const subtaskNestRow =
     'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
@@ -718,357 +241,25 @@ export function TaskList() {
     return out
   }, [showSectionBlocks, sectionBlocks, active, incompleteSubtasks])
 
-  /** セクション名。押すとそこへ追加、ダブルクリックか鉛筆で名前を変える。手動でも並べ替え中でも同じ */
-  const sectionTitle = (sectionId: string, title: string, canQuickTarget: boolean) =>
-    editingSectionId === sectionId ? (
-      <SectionNameInput
-        value={editingSectionName}
-        onChange={setEditingSectionName}
-        onCommit={() => finishSectionRename(sectionId, title)}
-        onCancel={() => cancelSectionRename(sectionId)}
-      />
-    ) : (
-      <button
-        type="button"
-        className={`w-full text-left ${SECTION_HEADING_TEXT} truncate`}
-        onClick={() => {
-          if (canQuickTarget) setQuickAddSectionId(sectionId)
-        }}
-        // 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（リストと同じ）
-        onDoubleClick={() => beginSectionRename(sectionId, title)}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setSectionMenu({ x: e.clientX, y: e.clientY, sectionId, title, canQuickTarget })
-        }}
-      >
-        {title}
-      </button>
-    )
-
-  /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す */
-  const sectionActions = (sectionId: string, title: string) => (
-    <span
-      className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        {...tip(t('sections.renameTitle'))}
-        onClick={() => beginSectionRename(sectionId, title)}
-      >
-        <PencilIcon className="w-3.5 h-3.5" />
-      </button>
-      <button
-        type="button"
-        className="p-1 rounded text-zinc-400 hover:text-red-500"
-        {...tip(t('common.delete'))}
-        onClick={() => deleteSectionStore(sectionId)}
-      >
-        <CloseIcon className="w-3.5 h-3.5" />
-      </button>
-    </span>
-  )
-
   useSectionScrollTarget(sectionBlocks)
-
-  const activeContent = canDrag ? (
-    <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
-      {showSectionBlocks && sectionBlocks ? (
-        sectionBlocks.map((block) => {
-          const sectionId = block.sectionId
-          const blockKey = `${block.listId}::${sectionId ?? 'none'}::${block.headerKind}`
-          const canQuickTarget = Boolean(selectedListId) && selectedListId === block.listId
-          const isQuickTarget =
-            canQuickTarget &&
-            ((sectionId === null && quickAddSectionId === '') ||
-              (sectionId !== null && quickAddSectionId === sectionId))
-          // セクションの外にタスクが無いときの「セクションなし」は、ドラッグ中（外へ戻す落とし先）だけ出す
-          if (block.headerKind === 'section-none' && block.tasks.length === 0 && !taskDragging) return null
-          return (
-            <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
-              {block.listTitle ? (
-                <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
-                  {block.listTitle}
-                </div>
-              ) : null}
-              {block.headerKind === 'section-named' && sectionId !== null ? (
-                <SectionHeaderDnD
-                  listId={block.listId}
-                  sectionId={sectionId}
-                  isQuickTarget={isQuickTarget}
-                  titleButton={sectionTitle(sectionId, block.title, canQuickTarget)}
-                  actions={sectionActions(sectionId, block.title)}
-                />
-              ) : (
-                <div
-                  className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
-                    ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
-                    ${block.headerKind === 'list-only' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className={`min-w-0 flex-1 text-left truncate ${
-                      block.headerKind === 'list-only'
-                        ? 'text-xs font-semibold tracking-tight'
-                        : SECTION_HEADING_TEXT
-                    }`}
-                    onClick={() => {
-                      if (canQuickTarget && block.headerKind === 'section-none') setQuickAddSectionId('')
-                    }}
-                  >
-                    {block.title}
-                  </button>
-                </div>
-              )}
-              {block.tasks.flatMap((t) => [
-                <SortableTaskItem
-                  key={t.id}
-                  task={t}
-                  dragGroupRootIds={getDragGroupRootIds(t.id)}
-                  onRowClick={makeRowClick(t.id)}
-                  onCompleteRequest={openCompleteWithLog}
-                  onEnterCreateSibling={handleEnterCreateSibling}
-                  selection={makeSelection(t.id)}
-                  autoEdit={pendingAutoEditTaskId === t.id}
-                  showNestGuide={t.id === previewParentId}
-                />,
-                ...DnDSubtreeRows({
-                  parentId: t.id,
-                  depth: 0,
-                  incompleteSubtasks,
-                  makeRowClick,
-                  makeSelection,
-                  openCompleteWithLog,
-                  onEnterCreateSibling: handleEnterCreateSibling,
-                  pendingAutoEditTaskId,
-                  subtaskNestWithDrag,
-                  nestPreviewParentId: previewParentId,
-                }),
-              ])}
-              {block.headerKind !== 'list-only' ? (
-                <SectionDropZone
-                  listId={block.listId}
-                  sectionId={block.sectionId}
-                  empty={block.headerKind === 'section-none' && block.tasks.length === 0}
-                />
-              ) : null}
-            </div>
-          )
-        })
-      ) : (
-        active.flatMap((t) => [
-          <SortableTaskItem
-            key={t.id}
-            task={t}
-            dragGroupRootIds={getDragGroupRootIds(t.id)}
-            onRowClick={makeRowClick(t.id)}
-            onCompleteRequest={openCompleteWithLog}
-            onEnterCreateSibling={handleEnterCreateSibling}
-            selection={makeSelection(t.id)}
-            autoEdit={pendingAutoEditTaskId === t.id}
-            showNestGuide={t.id === previewParentId}
-          />,
-          ...DnDSubtreeRows({
-            parentId: t.id,
-            depth: 0,
-            incompleteSubtasks,
-            makeRowClick,
-            makeSelection,
-            openCompleteWithLog,
-            onEnterCreateSibling: handleEnterCreateSibling,
-            pendingAutoEditTaskId,
-            subtaskNestWithDrag,
-            nestPreviewParentId: previewParentId,
-          }),
-        ])
-      )}
-    </SortableContext>
-  ) : showSectionBlocks && sectionBlocks ? (
-    // 並べ替え中もセクションはそのまま。並び順は各セクションの中だけに効かせ、名前の変更・削除もできる。
-    // 空の「セクションなし」は手動のときのドロップ先なので、並べ替え中は出さない
-    sectionBlocks.filter((block) => block.headerKind !== 'section-none' || block.tasks.length > 0).map((block) => (
-      <div
-        key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`}
-        data-section-anchor={block.sectionId ?? undefined}
-        className="relative scroll-mt-2 pt-3 first:pt-1"
-      >
-        {block.listTitle ? (
-          <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
-            {block.listTitle}
-          </div>
-        ) : null}
-        {block.headerKind === 'section-named' && block.sectionId !== null ? (
-          <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
-            <div className="min-w-0 flex-1">
-              {sectionTitle(block.sectionId, block.title, Boolean(selectedListId) && selectedListId === block.listId)}
-            </div>
-            {sectionActions(block.sectionId, block.title)}
-          </div>
-        ) : (
-        <button
-          type="button"
-          className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
-            block.headerKind === 'list-only'
-              ? 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
-              : SECTION_HEADING_TEXT
-          }`}
-          onClick={() => {
-            if (selectedListId === block.listId) {
-              setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)
-            }
-          }}
-        >
-          {block.title}
-        </button>
-        )}
-        {block.tasks.map((t) => (
-          <div key={t.id}>
-            <TaskItem
-              task={t}
-              onRowClick={makeRowClick(t.id)}
-              onCompleteRequest={openCompleteWithLog}
-              onEnterCreateSibling={handleEnterCreateSibling}
-              selection={makeSelection(t.id)}
-              autoEdit={pendingAutoEditTaskId === t.id}
-              dragGroupIds={getDragGroupRootIds(t.id)}
-            />
-            {StaticSubtreeRows({
-              parentId: t.id,
-              depth: 0,
-              incompleteSubtasks,
-              makeRowClick,
-              makeSelection,
-              openCompleteWithLog,
-              onEnterCreateSibling: handleEnterCreateSibling,
-              pendingAutoEditTaskId,
-              subtaskNestNoDrag,
-            })}
-          </div>
-        ))}
-      </div>
-    ))
-  ) : (
-    active.map((t) => (
-      <div key={t.id}>
-        <TaskItem
-          task={t}
-          onRowClick={makeRowClick(t.id)}
-          onCompleteRequest={openCompleteWithLog}
-          onEnterCreateSibling={handleEnterCreateSibling}
-          selection={makeSelection(t.id)}
-          autoEdit={pendingAutoEditTaskId === t.id}
-          dragGroupIds={getDragGroupRootIds(t.id)}
-          sectionLabel={sectionLabelFor(t)}
-        />
-        {StaticSubtreeRows({
-          parentId: t.id,
-          depth: 0,
-          incompleteSubtasks,
-          makeRowClick,
-          makeSelection,
-          openCompleteWithLog,
-          onEnterCreateSibling: handleEnterCreateSibling,
-          pendingAutoEditTaskId,
-          subtaskNestNoDrag,
-        })}
-      </div>
-    ))
-  )
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        {/* 見出しは下のリスト（「タスクを追加」の＋・行の頭）と同じ 32px にそろえる */}
-        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-8 pb-2 pt-6 md:pt-8">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {colorView && (
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: filterColor }} aria-hidden />
-              )}
-              {title}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                {t('taskList.incompleteTasks', { count: incompleteCount })}
-              </p>
-              {filterTag && (
-                <button
-                  onClick={() => setFilterTag(null)}
-                  className={chipClass({ variant: 'fill', hover: true })}
-                >
-                  {filterTag}
-                  <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
-                </button>
-              )}
-            </div>
-          </div>
+        <TaskListHeader
+          title={title}
+          colorView={colorView}
+          filterColor={filterColor ?? undefined}
+          incompleteCount={incompleteCount}
+          selectedList={selectedList}
+          selectedListId={selectedListId}
+          listKind={listKind}
+          sortMode={sortMode}
+          groupingScope={groupingScope}
+          groupBySection={groupBySection}
+          onAddSection={beginDraftSection}
+        />
 
-          <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-            {selectedList && selectedList.id !== INBOX_LIST_ID && <ListKindPicker list={selectedList} />}
-            {selectedListId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftSectionListId(selectedListId)
-                  setDraftSectionName('')
-                }}
-                className={buttonClass({ variant: 'secondary', size: 'sm' })}
-              >
-                {t('taskList.addSection')}
-              </button>
-            )}
-            <div ref={sortMenuRef} className="relative">
-            <button
-              type="button"
-              aria-expanded={showSort}
-              onClick={() => setShowSort(!showSort)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg
-                         text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <SortIcon className="w-3.5 h-3.5" />
-              {sortOptions.find((o) => o.value === sortMode)?.label}
-            </button>
-            {showSort && (
-              <>
-                {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
-                <div role="menu" className={`absolute right-0 top-full z-20 mt-1 flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}>
-                  {sortOptions.map((opt) => (
-                    <MenuItem
-                      key={opt.value}
-                      role="menuitemradio"
-                      checked={sortMode === opt.value}
-                      onClick={() => { setSortMode(opt.value); setShowSort(false) }}
-                    >
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                  {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
-                  {sortMode !== 'manual' && (
-                    <>
-                      <MenuDivider />
-                      {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
-                      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-                        <span
-                          className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200"
-                          onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
-                        >
-                          {t('taskList.groupBySection')}
-                        </span>
-                        <Switch
-                          checked={groupBySection}
-                          onChange={(on) => setSectionGrouping(groupingScope, on)}
-                          label={t('taskList.groupBySection')}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-            </div>
-          </div>
-        </div>
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
@@ -1085,119 +276,52 @@ export function TaskList() {
             <EmptyState icon={<CheckCircleIcon strokeWidth={1} />} title={t('taskList.allDoneTitle')} hint={t('taskList.allDoneSubtitle')} />
           )}
 
-          {activeContent}
+          <TaskListActiveContent
+            canDrag={canDrag}
+            flatManualSortableIds={flatManualSortableIds}
+            showSectionBlocks={showSectionBlocks}
+            sectionBlocks={sectionBlocks}
+            active={active}
+            selectedListId={selectedListId}
+            taskDragging={taskDragging}
+            previewParentId={previewParentId}
+            pendingAutoEditTaskId={pendingAutoEditTaskId}
+            sectionTitle={sectionTitle}
+            sectionActions={sectionActions}
+            sectionLabelFor={sectionLabelFor}
+            getDragGroupRootIds={getDragGroupRootIds}
+            makeRowClick={makeRowClick}
+            makeSelection={makeSelection}
+            openCompleteWithLog={openCompleteWithLog}
+            handleEnterCreateSibling={handleEnterCreateSibling}
+            incompleteSubtasks={incompleteSubtasks}
+            subtaskNestWithDrag={subtaskNestWithDrag}
+            subtaskNestNoDrag={subtaskNestNoDrag}
+          />
 
-          {draftSectionListId && draftSectionListId === selectedListId && (
-            <div className="relative pt-3">
-              <div className="flex items-center px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900">
-                <SectionNameInput
-                  value={draftSectionName}
-                  onChange={setDraftSectionName}
-                  onCommit={finishDraftSection}
-                  onCancel={cancelDraftSection}
-                />
-              </div>
-            </div>
-          )}
+          {draftSection}
 
           {completedTodos.length > 0 && (
-            <div className="pt-4">
-              <div className="flex items-center justify-between gap-2">
-                <DisclosureButton tone="muted" open={showCompleted} onToggle={() => setShowCompleted((v) => !v)} className="ml-1">
-                  {listKind === 'someday'
-                    ? t('someday.fulfilledHeading', { count: completedTodos.length })
-                    : listKind === 'checklist'
-                    ? t('checklist.checkedHeading', { count: completedTodos.length })
-                    : t('taskList.completedHeader', { count: completedTodos.length })}
-                </DisclosureButton>
-                {listKind === 'checklist' && (
-                  // 持ち物リストの使い回し（全部戻す）と、買い終わった分の片付け
-                  <div className="mr-2 flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => uncheckTasks(flatCompletedTodoIds)}
-                      className={buttonClass({ variant: 'ghost', size: 'xs' })}
-                    >
-                      {t('checklist.uncheckAll')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTasks(completedTodos.map((x) => x.id))}
-                      className={buttonClass({ variant: 'link', size: 'xs' })}
-                    >
-                      {t('checklist.clearChecked')}
-                    </button>
-                  </div>
-                )}
-              </div>
-              {showCompleted && (
-              <div className="space-y-0.5 mt-1">
-                {completedTodos.map((t) => (
-                  <div key={t.id}>
-                    <TaskItem
-                      task={t}
-                      onRowClick={makeRowClick(t.id)}
-                      onCompleteRequest={openCompleteWithLog}
-                      onEnterCreateSibling={handleEnterCreateSibling}
-                      selection={makeSelection(t.id)}
-                      autoEdit={pendingAutoEditTaskId === t.id}
-                    />
-                    {CompletedSubtreeRows({
-                      parentId: t.id,
-                      depth: 0,
-                      childrenByParent,
-                      makeRowClick,
-                      makeSelection,
-                      openCompleteWithLog,
-                      onEnterCreateSibling: handleEnterCreateSibling,
-                      pendingAutoEditTaskId,
-                      subtaskNestNoDrag,
-                    })}
-                  </div>
-                ))}
-              </div>
-              )}
-            </div>
+            <CompletedTasksSection
+              completedTodos={completedTodos}
+              flatCompletedTodoIds={flatCompletedTodoIds}
+              listKind={listKind}
+              showCompleted={showCompleted}
+              onToggleCompleted={() => setShowCompleted((v) => !v)}
+              childrenByParent={childrenByParent}
+              makeRowClick={makeRowClick}
+              makeSelection={makeSelection}
+              openCompleteWithLog={openCompleteWithLog}
+              handleEnterCreateSibling={handleEnterCreateSibling}
+              pendingAutoEditTaskId={pendingAutoEditTaskId}
+              subtaskNestNoDrag={subtaskNestNoDrag}
+            />
           )}
+
         </div>
       </div>
       {completeWithLogModal}
-      {sectionMenu && (
-        <ActionMenu
-          x={sectionMenu.x}
-          y={sectionMenu.y}
-          header={sectionMenu.title}
-          searchable={false}
-          onClose={() => setSectionMenu(null)}
-          entries={[
-            {
-              kind: 'leaf',
-              id: 'rename',
-              label: t('sections.renameTitle'),
-              icon: <PencilIcon className="h-4 w-4" />,
-              run: () => beginSectionRename(sectionMenu.sectionId, sectionMenu.title),
-            },
-            ...(sectionMenu.canQuickTarget
-              ? [{
-                  kind: 'leaf' as const,
-                  id: 'add',
-                  label: t('sections.addHere'),
-                  icon: <PlusIcon className="h-4 w-4" />,
-                  run: () => setQuickAddSectionId(sectionMenu.sectionId),
-                }]
-              : []),
-            {
-              kind: 'leaf',
-              id: 'delete',
-              divider: true,
-              label: t('sections.delete'),
-              icon: <TrashIcon className="h-4 w-4" />,
-              danger: true,
-              run: () => deleteSectionStore(sectionMenu.sectionId),
-            },
-          ]}
-        />
-      )}
+      {sectionMenuElement}
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
       {selected.size > 0 && (
         <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6 [@media(hover:hover)]:hidden">
@@ -1225,27 +349,5 @@ export function TaskList() {
         </div>
       )}
     </div>
-  )
-}
-
-/** セクション名の入力（新規・名前変更で共通）。Enter・フォーカス外しで確定、Esc で取り消し */
-function SectionNameInput({ value, onChange, onCommit, onCancel }: {
-  value: string
-  onChange: (value: string) => void
-  onCommit: () => void
-  onCancel: () => void
-}) {
-  const { t } = useTranslation()
-  const entry = useTextEntry({ onSubmit: onCommit, onCancel })
-  return (
-    <input
-      autoFocus
-      value={value}
-      placeholder={t('sections.defaultName')}
-      onChange={(e) => onChange(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      {...entry}
-      className={`w-full rounded bg-transparent text-left ${SECTION_HEADING_TEXT} focus:outline-none focus:ring-1 focus:ring-accent-400/50`}
-    />
   )
 }

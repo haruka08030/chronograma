@@ -1,32 +1,20 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import {
-  addDays,
-  differenceInCalendarDays,
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
-  format,
-  parseISO,
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
-  HOURS,
-  timeToY,
   timeToMinutes,
-  yToTime,
 } from '../lib/timeGrid'
 import {
   durationMinutesForTaskId,
   isOvernightTimeLog,
-  logOverlapsDateKey,
   patchAfterTimelineMove,
-  taskPlacementDate,
-  timeLogSegmentLayoutForDay,
 } from '../lib/taskTimeRange'
-import { isActiveTask } from '../lib/taskLifecycle'
-import { useTimelineDrag, getResizeCursor, type CreateIntent, type CreatePopup } from '../lib/useTimelineDrag'
+import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
 import {
   canStartTimerFor,
   getTimerDrop,
@@ -35,9 +23,8 @@ import {
   setTimerDropHover,
   startTimerForTask,
 } from '../lib/timerDrop'
-import { useTimelineDrop, readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
+import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
-  beginCalendarItemNativeDrag,
   getCalendarItemDrag,
   isOverUnscheduleDrop,
   setCalendarItemDragActive,
@@ -46,195 +33,33 @@ import {
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
-import {
-  canEditGoogleEvent,
-  getDraggedGoogleEvent,
-  GOOGLE_EVENT_DND_TYPE,
-  moveGoogleEvent,
-  setDraggedGoogleEvent,
-} from '../lib/googleEventEdit'
-import { googleEventTiming } from '../lib/googleCalendar'
+import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
-import { layoutPlanAndLog } from '../lib/overlapLayout'
-import { unplannedListIds } from '../lib/listKind'
-import { colorVars, logLabelFromTask, recordHex } from '../lib/logCategoryColors'
-import { DEFAULT_GOOGLE_EVENT_HEX, NEUTRAL_HEX } from '../lib/googleColors'
-import { planHex, planVisualState } from '../lib/planVisual'
-import { habitToPlannedItem } from '../lib/habitSlots'
-import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
+import { logLabelFromTask } from '../lib/logCategoryColors'
+import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover } from './timeline/EventPopover'
 import { GoogleEventPopover } from './timeline/GoogleEventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
-import { isSleepRecord } from '../lib/sleep'
-import { rectOf, type AnchorRect } from './timeline/anchoredCard'
-import { isAppToday, zonedNow, appTodayKey, isNowOnDay } from '../lib/timeZone'
-import { TimeGutter, TimeGutterHeader } from './timeline/TimeGutter'
+import { appTodayKey } from '../lib/timeZone'
+import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
-import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
-import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
-import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
-import { dateFnsLocale, toDateKey } from '../lib/dateKey'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { toDateKey } from '../lib/dateKey'
 import { minutesToTime } from '../lib/clockTime'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { WeekDayHeader } from './calendar/WeekDayHeader'
+import { WeekAllDayRow } from './calendar/WeekAllDayRow'
+import { WeekDayColumn } from './calendar/WeekDayColumn'
+import { useWeekBuckets } from '../hooks/useWeekBuckets'
+import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
+import { useCalendarCards } from '../hooks/useCalendarCards'
+import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
-/** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
-const EDGE_FLIP_PX = 16
-const EDGE_FLIP_DELAY_MS = 600
-const EDGE_FLIP_REPEAT_MS = 1000
-
-/** 週タイムラインのブロック用（列上では開始・終了時刻が必須。Google 等の外部ブロックは最小形） */
-type TimeBlockTask = {
-  id: string
-  title: string
-  startTime: string
-  endTime: string
-  completed: boolean
-  dueDate?: string | null
-  endDate?: string | null
-  isTimeLog?: boolean
-  parentId?: string | null
-}
-
-/** ブロックの縦位置（重なり計算と描画で同じ値を使う） */
-function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: boolean): { top: number; height: number } {
-  const seg = isLog && dayKey ? timeLogSegmentLayoutForDay(task as Task, dayKey) : null
-  const top = seg?.top ?? timeToY(task.startTime)
-  const height = seg?.height ?? Math.max(timeToY(task.endTime) - top, HOUR_HEIGHT / 4)
-  return { top, height: Math.max(height, 18) }
-}
-
-/**
- * タイムライン上の 1 ブロック（Google カレンダー風）。
- * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
- * 終わった・完了した予定は灰色（`gc-missed`）。
- * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
- */
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sleep, hStyle, colorHex, withCheck }: {
-  task: TimeBlockTask
-  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避け、完了は ✓ の塗りで見せる */
-  withCheck?: boolean
-  /** クリック・タップで開く（ドラッグしない Google の予定用） */
-  onTap?: () => void
-  /** 週グリッド上の列の日付（ログのセグメント表示用） */
-  dayKey?: string
-  onPointerDown: (e: React.PointerEvent) => void
-  onOpenDetail: () => void
-  isLog?: boolean
-  /** 睡眠の記録。色の付いた記録と並べても目立たない、落ち着いた帯にする */
-  sleep?: boolean
-  /** 重なり回避の横位置（left/width） */
-  hStyle?: React.CSSProperties
-  /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
-  colorHex: string
-}) {
-  const { t } = useTranslation()
-  const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
-
-  const handlePointerMoveLocal = (e: React.PointerEvent) => {
-    if (onTap) {
-      // 押すとカードが開くだけ（動かせない）
-      ;(e.currentTarget as HTMLElement).style.cursor = 'pointer'
-      return
-    }
-    const cursor = getResizeCursor(e)
-    ;(e.currentTarget as HTMLElement).style.cursor = cursor ?? 'grab'
-  }
-
-  // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
-  // Google の予定（外部）も予定と同じ見せ方
-  const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
-  const moon = sleep && (
-    <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
-  )
-  const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
-  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
-  const compact = height < 32
-
-  return (
-    <button
-      onPointerDown={(e) => {
-        e.stopPropagation()
-        // 右クリックはメニュー（ドラッグを始めない）
-        if (e.button !== 0) return
-        onPointerDown(e)
-      }}
-      onPointerMove={handlePointerMoveLocal}
-      onClick={onTap}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          e.stopPropagation()
-          onOpenDetail()
-        }
-      }}
-      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-5' : 'pr-1.5'} text-left text-[11px] leading-tight
-        cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
-        `}
-      data-block-id={task.id}
-      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
-      style={{
-        top,
-        height,
-        left: 2,
-        right: 2,
-        ...hStyle,
-        ...colorVars(colorHex),
-        boxShadow: '0 0 0 1px var(--gc-surface)',
-      }}
-    >
-      {compact ? (
-        <span className="block truncate">
-          <span className="font-medium">{moon}{doneMark}{task.title}</span>
-          <span className="opacity-80">{t('common.listSeparator')}{task.startTime}</span>
-        </span>
-      ) : (
-        <>
-          <span className="block truncate font-medium">{moon}{doneMark}{task.title}</span>
-          <span className="block text-[10px] opacity-80">
-            {task.startTime} – {task.endTime}
-          </span>
-        </>
-      )}
-    </button>
-  )
-}
-
-/**
- * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
- * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
- */
-function SlotCheck({ top, hStyle, label, done, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
-  return (
-    <div className="pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
-      <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} className="pointer-events-auto" />
-    </div>
-  )
-}
-
-/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる） */
-function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup; onAnchor: (el: HTMLDivElement | null) => void; laneClass: string }) {
-  const { t } = useTranslation()
-  const top = timeToY(popup.startTime)
-  const height = Math.max(timeToY(popup.endTime) - top, 20)
-  return (
-    <div
-      ref={onAnchor}
-      className={`gc-solid pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
-      style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
-    >
-      <span className="block font-medium">{t('quickCreate.untitled')}</span>
-      <span className="block text-[10px] opacity-80">{popup.startTime} – {popup.endTime}</span>
-    </div>
-  )
-}
 
 export function WeekCalendarView({
   anchor,
@@ -251,23 +76,14 @@ export function WeekCalendarView({
   /** ドラッグ中に左右の端で止めたとき前後の週へめくる（未指定ならめくらない） */
   onNavigateWeek?: (dir: -1 | 1) => void
 }) {
-  const { t, i18n } = useTranslation()
-  /** 予定を `t` で回す箇所でも使えるように */
-  const tr = t
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
-  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
   const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const toggleTask = useTaskStore((s) => s.toggleTask)
-  const habits = useTaskStore((s) => s.habits)
-  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
-  const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
@@ -284,7 +100,6 @@ export function WeekCalendarView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
 
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -319,49 +134,10 @@ export function WeekCalendarView({
   const logLimitMin = (key: string): number | null =>
     key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes()
   const logLimitRef = useRef(logLimitMin)
+  // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const { allDayByDate, timedByDate, timeLogsByDate } = useMemo(() => {
-    const allDay = new Map<string, typeof tasks>()
-    const timed = new Map<string, typeof tasks>()
-    const logs = new Map<string, typeof tasks>()
-    for (const t of tasks) {
-      if (t.parentId || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-      if (t.isTimeLog) {
-        if (!t.dueDate || !t.startTime || !t.endTime) continue
-        for (const day of days) {
-          const dk = toDateKey(day)
-          if (!logOverlapsDateKey(t, dk)) continue
-          const arr = logs.get(dk) ?? []
-          arr.push(t)
-          logs.set(dk, arr)
-        }
-        continue
-      }
-      const placement = taskPlacementDate(t)
-      if (!placement) continue
-      if (t.startTime && t.endTime) {
-        const arr = timed.get(placement) ?? []
-        arr.push(t)
-        timed.set(placement, arr)
-      } else {
-        const arr = allDay.get(placement) ?? []
-        arr.push(t)
-        allDay.set(placement, arr)
-      }
-    }
-    return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
-  }, [tasks, days, excludedListIds])
-
-  const eventsByDate = useMemo(() => {
-    const map = new Map<string, typeof calendarEvents>()
-    for (const e of calendarEvents) {
-      const arr = map.get(e.date) ?? []
-      arr.push(e)
-      map.set(e.date, arr)
-    }
-    return map
-  }, [calendarEvents])
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
 
   const fetchRange = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -371,40 +147,7 @@ export function WeekCalendarView({
   }, [anchor])
   useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
-  /**
-   * 日を押すと親が anchor を作り直すので、anchor そのものではなく「表示している週（1 日表示なら日）」が
-   * 変わったときだけスクロールを合わせる。でないと朝や夜で押した瞬間に今の時刻へ戻されてしまう
-   */
-  const scrollKey = toDateKey(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }))
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
-    const now = zonedNow()
-    const showNow = singleDay ? isNowOnDay(anchor) : days.some((d) => isNowOnDay(d))
-    // 夜中（区切りの前）に前の日を開いたときは、夜の予定・記録が見えるよう夕方から
-    const lateNight = !showNow && (singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d)))
-    const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : lateNight ? 17 : 7.5
-    // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
-    if (keepScrollOnFlipRef.current) {
-      keepScrollOnFlipRef.current = false
-      return
-    }
-    const top = HOUR_HEIGHT * hours
-    // 隠れている間（スマホの「やること」タブ）は scrollTop が効かないので、見えた時点で合わせる
-    if (el.clientHeight > 0) {
-      el.scrollTop = top
-      return
-    }
-    const ro = new ResizeObserver(() => {
-      if (el.clientHeight === 0) return
-      el.scrollTop = top
-      ro.disconnect()
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 表示週が変わったときだけ合わせる
-  }, [singleDay, scrollKey])
+  useWeekScrollPosition({ scrollRef, keepScrollOnFlipRef, anchor, days, singleDay })
 
   const getRelativeY = useCallback((clientY: number, dateKey: string) => {
     if (!gridRef.current) return 0
@@ -430,29 +173,11 @@ export function WeekCalendarView({
     return null
   }, [])
 
-  // 予定を押したときのカード / 空き時間の作成カード（Google カレンダー風）
-  const [eventCard, setEventCard] = useState<{ taskId: string; anchor: AnchorRect } | null>(null)
-  const [createAnchor, setCreateAnchor] = useState<AnchorRect | null>(null)
-  const openCard = useCallback((taskId: string) => {
-    const el = gridRef.current?.querySelector(`[data-block-id="${CSS.escape(taskId)}"]`) ?? null
-    const anchor = rectOf(el)
-    if (anchor) setEventCard({ taskId, anchor })
-    else openDetail(taskId)
-  }, [openDetail])
-  const closeCard = useCallback(() => setEventCard(null), [])
-  const [googleCard, setGoogleCard] = useState<{ eventId: string; anchor: AnchorRect } | null>(null)
-  const openGoogleCard = useCallback((eventId: string) => {
-    // 終日の行のチップはグリッドの外にあるので、画面全体から探す
-    const anchor = rectOf(document.querySelector(`[data-block-id="${CSS.escape(`event-${eventId}`)}"]`))
-    if (anchor) setGoogleCard({ eventId, anchor })
-  }, [])
-  const closeGoogleCard = useCallback(() => setGoogleCard(null), [])
-  // 安定した ref コールバック（毎回作り直すと描画のたびに state が変わって無限ループになる）
-  const setCreateAnchorFromEl = useCallback((el: HTMLDivElement | null) => setCreateAnchor(el ? rectOf(el) : null), [])
-  const openDetailFromCard = useCallback((taskId: string) => {
-    setEventCard(null)
-    openDetail(taskId)
-  }, [openDetail])
+  const {
+    eventCard, setEventCard, openCard, closeCard, openDetailFromCard,
+    googleCard, setGoogleCard, openGoogleCard, closeGoogleCard,
+    createAnchor, setCreateAnchorFromEl,
+  } = useCalendarCards(gridRef)
 
   const timelineDrag = useTimelineDrag({
     getRelativeY,
@@ -504,32 +229,15 @@ export function WeekCalendarView({
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
-  const [edgeDir, setEdgeDir] = useState<-1 | 1 | null>(null)
-  const edgeDirAt = (clientX: number, clientY: number): -1 | 1 | null => {
-    if (!onNavigateWeek || gridDays.length !== 7 || !gridRef.current || !scrollRef.current) return null
-    const area = scrollRef.current.getBoundingClientRect()
-    if (clientY < area.top || clientY > area.bottom) return null
-    const grid = gridRef.current.getBoundingClientRect()
-    if (clientX < grid.left + EDGE_FLIP_PX) return -1
-    if (clientX > grid.right - EDGE_FLIP_PX) return 1
-    return null
-  }
-  const flipWeekRef = useRef<(dir: -1 | 1) => void>(() => {})
-  flipWeekRef.current = (dir) => {
-    keepScrollOnFlipRef.current = true
-    onNavigateWeek?.(dir)
-    timelineDrag.shiftMoveDragDate(dir * 7)
-  }
-  const pointerMoving = timelineDrag.drag?.kind === 'move'
-  const activeEdge = edgeDir && (taskDragActive || pointerMoving) ? edgeDir : null
-  useEffect(() => {
-    if (!activeEdge) return
-    let id = window.setTimeout(function tick() {
-      flipWeekRef.current(activeEdge)
-      id = window.setTimeout(tick, EDGE_FLIP_REPEAT_MS)
-    }, EDGE_FLIP_DELAY_MS)
-    return () => window.clearTimeout(id)
-  }, [activeEdge])
+  const { activeEdge, setEdgeDir, edgeDirAt } = useWeekEdgeFlip({
+    onNavigateWeek,
+    gridDays,
+    gridRef,
+    scrollRef,
+    keepScrollOnFlipRef,
+    timelineDrag,
+    taskDragActive,
+  })
 
   const endMoveExtras = () => {
     setAllDayMoveKey(null)
@@ -647,168 +355,33 @@ export function WeekCalendarView({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {!singleDay && (
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
-          {gridDays.length > 1 ? (
-            <TimeGutterHeader dateKey={gridKey0} />
-          ) : (
-            <div style={{ width: gutterWidth }} className="flex-shrink-0" />
-          )}
-          <div className="flex-1 grid grid-cols-7">
-            {days.map((day, i) => {
-              const today = isAppToday(day)
-              const key = toDateKey(day)
-              const selected = selectedDateKey ? selectedDateKey === key : false
-              // 「予定 / 記録」は 7 日すべてに並べるとうるさいので 1 か所だけ（今日、無ければ先頭の日）
-              const showLaneLabels = today || (i === 0 && !days.some((d) => isAppToday(d)))
-              return (
-                <div key={day.toISOString()} className="group relative">
-                  <button
-                    type="button"
-                    onClick={() => onSelectDate?.(key)}
-                    className={`w-full text-center py-2 transition-colors ${
-                      today ? TODAY_TEXT : 'text-zinc-500 dark:text-zinc-400'
-                    }`}
-                  >
-                    <div className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</div>
-                    <div className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full
-                      ${dayMarkerClass({ today, selected })}`}>
-                      {format(day, 'd')}
-                    </div>
-                    <div className={`mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 ${showLaneLabels ? 'md:grid' : ''}`}>
-                      <span>{t('weekCalendar.lanePlan')}</span>
-                      <span>{t('weekCalendar.laneLog')}</span>
-                    </div>
-                  </button>
-                  <CalendarAddTaskButton
-                    onClick={() => {
-                      onSelectDate?.(key)
-                      setAllDayAddDate(key)
-                    }}
-                    className={`absolute right-1 top-1 hidden h-4 w-4 p-px opacity-0 transition-opacity md:block
-                      focus-visible:opacity-100 group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        )}
-
-        {/* 1 日だけ描くとき（今日・スマホの週）は列の上に 1 行で */}
-        {gridDays.length === 1 && (
-          <div className="flex flex-shrink-0 border-b border-zinc-100 px-2 dark:border-zinc-800">
-            <TimeGutterHeader dateKey={gridKey0} />
-            <div className="grid flex-1 grid-cols-2 py-1.5 text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-              <span>{t('weekCalendar.lanePlan')}</span>
-              <span>{t('weekCalendar.laneLog')}</span>
-            </div>
-          </div>
-        )}
+        <WeekDayHeader
+          singleDay={singleDay}
+          days={days}
+          gridDays={gridDays}
+          gridKey0={gridKey0}
+          gutterWidth={gutterWidth}
+          selectedDateKey={selectedDateKey}
+          onSelectDate={onSelectDate}
+          setAllDayAddDate={setAllDayAddDate}
+        />
 
         {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
-          <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2">
-            <div style={{ width: gutterWidth }} className="flex-shrink-0 text-[10px] text-zinc-400 pr-2 pt-1 text-right">
-              {t('weekCalendar.allDay')}
-            </div>
-            <div className={`flex-1 grid ${gridColsClass}`}>
-              {gridDays.map((day) => {
-                const key = toDateKey(day)
-                const dayAllDay = singleDay ? [] : (allDayByDate.get(key) ?? [])
-                const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
-                return (
-                  <div
-                    key={key}
-                    className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
-                      ${allDayDragOver === key || allDayMoveKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
-                    onDragOver={(e) => {
-                      if (acceptTaskDrag(e, { googleEvents: true })) setAllDayDragOver(key)
-                    }}
-                    onDragLeave={(e) => {
-                      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
-                      setAllDayDragOver((prev) => (prev === key ? null : prev))
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      setAllDayAddDate(null)
-                      setAllDayDragOver(null)
-                      const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
-                      if (gev) {
-                        // 終日の Google の予定は日数を保ったまま動かす
-                        const cur = googleEventTiming(gev)
-                        const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
-                        void moveGoogleEvent(gev, {
-                          date: key,
-                          endDate: span > 0 ? toDateKey(addDays(parseISO(key), span)) : null,
-                          startTime: null,
-                          endTime: null,
-                        })
-                        return
-                      }
-                      const ids = readDraggedTaskIds(e.dataTransfer)
-                      if (!ids.length) return
-                      // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
-                      asOneUndo(() => {
-                        for (const id of ids) {
-                          updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false })
-                        }
-                      })
-                    }}
-                  >
-                    {dayAllDayEvents.map((e) => (
-                      <div
-                        key={`event-all-day-${e.id}`}
-                        title={e.summary}
-                        data-block-id={`event-${e.id}`}
-                        draggable={canEditGoogleEvent(e, googleCanWrite)}
-                        onDragStart={(ev) => {
-                          setDraggedGoogleEvent(e)
-                          ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
-                          ev.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onDragEnd={() => {
-                          setDraggedGoogleEvent(null)
-                          setAllDayDragOver(null)
-                        }}
-                        onClick={() => openGoogleCard(e.id)}
-                        className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
-                          text-[10px] leading-tight transition-all hover:brightness-95
-                          ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
-                        style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
-                      >
-                        {e.summary}
-                      </div>
-                    ))}
-                    {dayAllDay.map((t) => (
-                      <div
-                        key={t.id}
-                        draggable
-                        onDragStart={(e) => {
-                          startTaskDrag(e, t.id)
-                          beginCalendarItemNativeDrag()
-                        }}
-                        onDragEnd={() => setAllDayDragOver(null)}
-                        onClick={() => openDetail(t.id)}
-                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
-                          text-[10px] leading-tight transition-all hover:brightness-95 active:cursor-grabbing`}
-                        style={colorVars(planHex(t))}
-                      >
-                        <CalendarCheck
-                          done={t.completed}
-                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                          onCheck={() => openCompleteWithLog(t)}
-                        />
-                        <span className="truncate">{t.title}</span>
-                      </div>
-                    ))}
-                    {allDayAddDate === key && (
-                      <CalendarInlineTaskAdd dateKey={key} onDone={() => setAllDayAddDate(null)} />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <WeekAllDayRow
+            gridDays={gridDays}
+            singleDay={singleDay}
+            gutterWidth={gutterWidth}
+            gridColsClass={gridColsClass}
+            allDayByDate={allDayByDate}
+            eventsByDate={eventsByDate}
+            allDayDragOver={allDayDragOver}
+            setAllDayDragOver={setAllDayDragOver}
+            allDayMoveKey={allDayMoveKey}
+            allDayAddDate={allDayAddDate}
+            setAllDayAddDate={setAllDayAddDate}
+            openGoogleCard={openGoogleCard}
+            openCompleteWithLog={openCompleteWithLog}
+          />
         )}
 
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -842,254 +415,40 @@ export function WeekCalendarView({
               onPointerUp={handleGridPointerUp}
               onPointerCancel={handleGridPointerCancel}
             >
-              {gridDays.map((day) => {
-                const key = toDateKey(day)
-                const dayTimed = timedByDate.get(key) ?? []
-                const dayLogs = timeLogsByDate.get(key) ?? []
-                const dayTimedEvents = (eventsByDate.get(key) ?? []).filter(
-                  (e) => !e.isAllDay && e.startTime && e.endTime,
-                )
-                const today = isAppToday(day)
-                // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
-                const dayHabitSlots = habits.flatMap((h) => {
-                  const slot = habitToPlannedItem(h, key)
-                  return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
-                })
-                const limitMin = logLimitMin(key)
-                /** 始まった（記録にできる）時間か */
-                const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
-                // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
-                const mode = gridDays.length > 1 ? 'cascade' : 'columns'
-                const blockStyles = layoutPlanAndLog(
-                  [
-                    ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-                    ...dayHabitSlots.map(({ slot }) => ({
-                      id: slot.id,
-                      ...blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false),
-                    })),
-                    ...dayTimedEvents.map((e) => ({
-                      id: `event-${e.id}`,
-                      ...blockGeometry({ id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false }, key, false),
-                    })),
-                  ],
-                  dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
-                  mode,
-                  splitLanes,
-                )
-                const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
-                const logStyle = (id: string) => blockStyles.get(`log:${id}`)
-
-                return (
-                  <div
-                    key={key}
-                    data-datekey={key}
-                    className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
-                      ${today && !singleDay ? TODAY_COLUMN : ''}
-                      ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}`}
-                    style={{ height: GRID_TOTAL_HEIGHT }}
-                    onPointerDown={(e) => {
-                      // 右クリックで予定を作り始めない
-                      if (e.button !== 0) return
-                      onSelectDate?.(key)
-                      const lane = laneAt(e.clientX, e.currentTarget)
-                      const limit = lane === 'log' ? logLimitMin(key) : null
-                      timelineDrag.handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
-                    }}
-                    onDragEnter={timelineDrop.handleDragEnter}
-                    onDragOver={(e) => {
-                      const lane = laneAt(e.clientX, e.currentTarget)
-                      if (lane !== dropLane) setDropLane(lane)
-                      const limit = lane === 'log' ? logLimitMin(key) : null
-                      const blocked = limit !== null && timeToMinutes(yToTime(getRelativeY(e.clientY, key))) >= limit
-                      if (blocked !== dropBlocked) setDropBlocked(blocked)
-                      // 記録の列の「今より先」には落とせない（preventDefault しない＝ドロップ不可）
-                      if (!blocked) timelineDrop.handleDragOver(e, key)
-                    }}
-                    onDragLeave={timelineDrop.handleDragLeave}
-                    onDrop={(e) => {
-                      dropLaneRef.current = laneAt(e.clientX, e.currentTarget)
-                      timelineDrop.handleDropEvent(e, key)
-                    }}
-                  >
-                    {splitLanes && (
-                      <div className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-zinc-100 dark:border-zinc-800/60" />
-                    )}
-                    {/* 記録の列の「今より先」は使えないので薄く塗る */}
-                    {splitLanes && logLimitMin(key) !== null && (
-                      <div
-                        className="absolute bottom-0 left-1/2 right-0 cursor-default bg-zinc-50 dark:bg-zinc-800/30"
-                        style={{ top: ((logLimitMin(key) ?? 0) / 60) * HOUR_HEIGHT }}
-                      />
-                    )}
-                    {HOURS.map((h) => (
-                      <div
-                        key={h}
-                        className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800/60"
-                        style={{ top: h * HOUR_HEIGHT }}
-                      />
-                    ))}
-
-                    {today && <NowIndicator />}
-
-                    {dayTimed.map((t) => (
-                      <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
-                        <TimeBlock
-                          task={t as TimeBlockTask}
-                          onPointerDown={(e) =>
-                            timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
-                              startTime: t.startTime!,
-                              endTime: t.endTime!,
-                              isTimeLog: false,
-                            })
-                          }
-                          dayKey={key}
-                          onOpenDetail={() => openCard(t.id)}
-                          hStyle={planStyle(t.id)}
-                          colorHex={planHex(t)}
-                          withCheck
-                        />
-                        <SlotCheck
-                          top={blockGeometry(t as TimeBlockTask, key, false).top}
-                          hStyle={planStyle(t.id)}
-                          done={t.completed}
-                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.completeWithLog')}
-                          onCheck={() => openCompleteWithLog(t)}
-                        />
-                      </div>
-                    ))}
-                    {dayLogs.map((t) => (
-                      <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
-                        <TimeBlock
-                          task={t as TimeBlockTask}
-                          dayKey={key}
-                          isLog
-                          sleep={isSleepRecord(t)}
-                          hStyle={logStyle(t.id)}
-                          colorHex={recordHex(t, logCategoryColors)}
-                          onPointerDown={(e) =>
-                            timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
-                                startTime: t.startTime!,
-                                endTime: t.endTime!,
-                                isTimeLog: true,
-                                dueDate: t.dueDate,
-                                endDate: t.endDate,
-                              })
-                          }
-                          onOpenDetail={() => openCard(t.id)}
-                        />
-                      </div>
-                    ))}
-                    {dayHabitSlots.map(({ habit, slot, done }) => (
-                      <div key={slot.id}>
-                        <TimeBlock
-                          task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
-                          dayKey={key}
-                          hStyle={planStyle(slot.id)}
-                          colorHex={habit.color}
-                          onPointerDown={(evt) => {
-                            evt.preventDefault()
-                            evt.stopPropagation()
-                          }}
-                          onOpenDetail={() => {}}
-                          withCheck={done || hasStarted(slot.startTime)}
-                        />
-                        {(done || hasStarted(slot.startTime)) && (
-                          // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
-                          <SlotCheck
-                            top={blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false).top}
-                            hStyle={planStyle(slot.id)}
-                            done={done}
-                            label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
-                            onCheck={() => toggleHabitDate(habit.id, key)}
-                          />
-                        )}
-                      </div>
-                    ))}
-                    {dayTimedEvents.map((e) => {
-                      // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
-                      const recorded = dayLogs.some((l) => l.title === e.summary)
-                      const editable = canEditGoogleEvent(e, googleCanWrite)
-                      return (
-                      <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
-                      <TimeBlock
-                        task={{
-                          id: `event-${e.id}`,
-                          title: e.summary,
-                          startTime: e.startTime!,
-                          endTime: e.endTime!,
-                          completed: recorded,
-                        }}
-                        dayKey={key}
-                        hStyle={planStyle(`event-${e.id}`)}
-                        colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
-                        onPointerDown={(evt) => {
-                          if (!editable) {
-                            evt.preventDefault()
-                            evt.stopPropagation()
-                            return
-                          }
-                          // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
-                          googleDragRef.current = e
-                          timelineDrag.handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
-                        }}
-                        onTap={editable ? undefined : () => openGoogleCard(e.id)}
-                        onOpenDetail={() => openGoogleCard(e.id)}
-                        withCheck={hasStarted(e.startTime!) && !recorded}
-                      />
-                      {hasStarted(e.startTime!) && !recorded && (
-                        <SlotCheck
-                          top={timeToY(e.startTime!)}
-                          hStyle={planStyle(`event-${e.id}`)}
-                          label={t('weekCalendar.eventToRecord')}
-                          onCheck={() => {
-                            // 今より先までの予定は、今までの分だけ記録にする
-                            const end = limitMin !== null && timeToMinutes(e.endTime!) > limitMin
-                              ? minutesToTime(limitMin)
-                              : e.endTime!
-                            addCompletedTaskWithTime(e.summary, key, e.startTime!, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
-                          }}
-                        />
-                      )}
-                      </div>
-                      )
-                    })}
-
-                    {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && !allDayMoveKey && !unscheduleHover && (
-                      <div
-                        className={`absolute ${laneClass(
-                          timelineDrag.dragPreview.kind === 'create'
-                            ? timelineDrag.activeCreateIntent
-                            : dayLogs.some((x) => x.id === timelineDrag.dragPreview!.taskId) ? 'log' : 'schedule',
-                        )} rounded-md pointer-events-none z-20
-                          ${timelineDrag.dragPreview.kind === 'create'
-                            ? 'bg-accent-500/20 border-2 border-accent-500/60'
-                            : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'}`}
-                        style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
-                      >
-                        <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-                          {timelineDrag.dragPreview.label}
-                        </span>
-                      </div>
-                    )}
-
-                    {timelineDrop.dropPreview && timelineDrop.dropPreview.dateKey === key && !dropBlocked && (
-                      <div
-                        className={`absolute ${laneClass(dropLane)} rounded-md pointer-events-none z-20
-                                   bg-accent-500/20 border-2 border-accent-500/60 border-dashed`}
-                        style={{ top: timelineDrop.dropPreview.top, height: timelineDrop.dropPreview.height }}
-                      >
-                        <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-                          {timelineDrop.dropPreview.label}
-                        </span>
-                      </div>
-                    )}
-
-                    {timelineDrag.popup && timelineDrag.popup.dateKey === key && (
-                      <CreateGhost popup={timelineDrag.popup} onAnchor={setCreateAnchorFromEl} laneClass={laneClass(timelineDrag.popup.intent)} />
-                    )}
-                  </div>
-                )
-              })}
+              {gridDays.map((day) => (
+                <WeekDayColumn
+                  key={toDateKey(day)}
+                  day={day}
+                  gridDays={gridDays}
+                  singleDay={singleDay}
+                  selectedDateKey={selectedDateKey}
+                  onSelectDate={onSelectDate}
+                  timedByDate={timedByDate}
+                  timeLogsByDate={timeLogsByDate}
+                  eventsByDate={eventsByDate}
+                  habitIndex={habitIndex}
+                  splitLanes={splitLanes}
+                  laneAt={laneAt}
+                  laneClass={laneClass}
+                  logLimitMin={logLimitMin}
+                  getRelativeY={getRelativeY}
+                  gridRef={gridRef}
+                  timelineDrag={timelineDrag}
+                  timelineDrop={timelineDrop}
+                  dropLane={dropLane}
+                  setDropLane={setDropLane}
+                  dropBlocked={dropBlocked}
+                  setDropBlocked={setDropBlocked}
+                  dropLaneRef={dropLaneRef}
+                  googleDragRef={googleDragRef}
+                  allDayMoveKey={allDayMoveKey}
+                  unscheduleHover={unscheduleHover}
+                  openCard={openCard}
+                  openGoogleCard={openGoogleCard}
+                  openCompleteWithLog={openCompleteWithLog}
+                  setCreateAnchorFromEl={setCreateAnchorFromEl}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -1115,22 +474,6 @@ export function WeekCalendarView({
           }}
         />
       )}
-    </div>
-  )
-}
-
-function NowIndicator() {
-  const now = useNowMinuteTick()
-
-  const minutes = now.getHours() * 60 + now.getMinutes()
-  const top = (minutes / 60) * HOUR_HEIGHT
-
-  return (
-    <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top }}>
-      <div className="relative">
-        <div className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-red-500" />
-        <div className="h-px bg-red-500" />
-      </div>
     </div>
   )
 }
