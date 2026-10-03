@@ -4,6 +4,7 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
 import { wallInZone } from './timeZone'
+import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 
 /**
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -15,9 +16,9 @@ import { wallInZone } from './timeZone'
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
 
-export const CANVAS_LIST_ID = 'canvas-list'
-/** 学校ごとにリストを分けていた版のリスト id（`canvas-list-<接続>`）。見つけたら CANVAS_LIST_ID にまとめる */
-const OLD_LIST_PREFIX = 'canvas-list-'
+export { CANVAS_LIST_ID }
+/** 未分類のリスト id（ストアの INBOX_LIST_ID と同じ） */
+const INBOX_LIST_ID = '__inbox__'
 
 const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
 
@@ -169,7 +170,7 @@ export function mergeCanvasLists(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
   now: string,
 ): { lists: TaskList[]; sections: ListSection[]; tasks: Task[]; mergedIds: string[] } | null {
-  const old = state.lists.filter((l) => l.id.startsWith(OLD_LIST_PREFIX)).sort((a, b) => a.order - b.order)
+  const old = state.lists.filter((l) => l.id !== CANVAS_LIST_ID && isCanvasListId(l.id)).sort((a, b) => a.order - b.order)
   if (old.length === 0) return null
   const oldIds = new Set(old.map((l) => l.id))
   const lists = state.lists.filter((l) => !oldIds.has(l.id))
@@ -216,6 +217,7 @@ export type CanvasReconcileResult = {
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
+ * - 未分類に落ちていた課題（同期で元のリストを見失ったもの）は、科目のセクションへ戻す
  */
 export function reconcileCanvasItems(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
@@ -261,7 +263,12 @@ export function reconcileCanvasItems(
     const id = canvasTaskId(conn, item.type, item.id)
     if (seen.has(id)) continue
     seen.add(id)
-    const existing = byId.get(id)
+    let existing = byId.get(id)
+    if (existing && !existing.deletedAt && existing.listId === INBOX_LIST_ID) {
+      const section = item.courseId ? ensureSection(item.courseId, item.courseName) : null
+      existing = { ...existing, listId: section?.listId ?? listId, sectionId: section?.id ?? null, updatedAt: opts.now }
+      updates.set(id, existing)
+    }
     if (existing && (existing.completed || existing.archivedAt || existing.deletedAt || skip.has(id))) continue
 
     if (item.done) {

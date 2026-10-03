@@ -2,6 +2,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
+import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
 
@@ -98,18 +99,25 @@ export function mergeSnapshots(
       listIds.add(SYNC_INBOX_LIST_ID)
     }
   }
-  const mergedSections = sections.merged.filter((s) => listIds.has(s.listId))
-  const sectionIds = new Set(mergedSections.map((s) => s.id))
+  // 消えたリストの付け替え先。Canvas の古いリスト（学校ごと）は Canvas のリストへ（未分類に課題を散らさない）
+  const fallbackList = (listId: string) =>
+    isCanvasListId(listId) && listIds.has(CANVAS_LIST_ID) ? CANVAS_LIST_ID : SYNC_INBOX_LIST_ID
+  const mergedSections = sections.merged
+    .map((s) => (listIds.has(s.listId) || fallbackList(s.listId) !== CANVAS_LIST_ID ? s : { ...s, listId: CANVAS_LIST_ID }))
+    .filter((s) => listIds.has(s.listId))
+  const sectionListById = new Map(mergedSections.map((s) => [s.id, s.listId]))
   const taskIds = new Set(tasks.merged.map((t) => t.id))
   const mergedTasks = tasks.merged.map((t) => {
     const listOk = listIds.has(t.listId)
-    const sectionOk = t.sectionId == null || sectionIds.has(t.sectionId)
+    const listId = listOk ? t.listId : fallbackList(t.listId)
+    const sectionList = t.sectionId == null ? undefined : sectionListById.get(t.sectionId)
+    const sectionOk = t.sectionId == null || (sectionList !== undefined && (listOk || sectionList === listId))
     const parentOk = t.parentId == null || taskIds.has(t.parentId)
     if (listOk && sectionOk && parentOk) return t
     return {
       ...t,
-      listId: listOk ? t.listId : SYNC_INBOX_LIST_ID,
-      sectionId: listOk && sectionOk ? t.sectionId : null,
+      listId,
+      sectionId: sectionOk ? t.sectionId : null,
       parentId: parentOk ? t.parentId : null,
     }
   })

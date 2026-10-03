@@ -231,6 +231,22 @@ describe('mergeSnapshots の参照整合性', () => {
     expect(merged.tasks[0]!.listId).toBe(SYNC_INBOX_LIST_ID)
   })
 
+  it('消えた Canvas の古いリストのタスクとセクションは、未分類ではなく Canvas のリストへ', () => {
+    const old = list('canvas-list-school.instructure.com')
+    const canvas = list('canvas-list')
+    const sec = section('canvas-course-school.instructure.com-101', old.id)
+    const t1 = task('canvas-school.instructure.com-assignment-1', { listId: old.id, sectionId: sec.id })
+    const base = snapshot({ lists: [inbox, old], sections: [sec], tasks: [t1] })
+    const baseline = baselineFrom(base)
+    // この端末で 1 つの Canvas リストにまとめた後、別の端末が古いリストのまま課題を書き換えていた
+    const local = snapshot({ lists: [inbox, canvas], sections: [{ ...sec, listId: canvas.id }], tasks: [{ ...t1, listId: canvas.id }] })
+    const remote = snapshot({ lists: [inbox, old], sections: [sec], tasks: [{ ...t1, title: 'edited', updatedAt: T2 }] })
+
+    const { merged } = mergeSnapshots(local, remote, baseline)
+
+    expect(merged.tasks[0]).toMatchObject({ title: 'edited', listId: 'canvas-list', sectionId: sec.id })
+  })
+
   it('消えたセクションを参照するタスクはセクションなしにする', () => {
     const sec = section('sec1')
     const base = snapshot({ sections: [sec], tasks: [task('t1', { sectionId: sec.id })] })

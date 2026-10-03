@@ -121,6 +121,17 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
+  it('brings assignments that fell into the inbox back to their course, even done ones', () => {
+    const [open, done] = imported([item('1'), item('2')])
+    const stray = [
+      { ...open, listId: '__inbox__', sectionId: null },
+      { ...done, listId: '__inbox__', sectionId: null, completed: true },
+    ]
+    const r = reconcile(stray, [item('1'), item('2')])
+    for (const t of r.tasks) expect(t).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: canvasSectionId(CONN, '101') })
+    expect(r.tasks[1].completed).toBe(true)
+  })
+
   it('reuses an existing course section instead of adding another', () => {
     const first = reconcile([], [item('1')])
     const r = reconcileCanvasItems(
