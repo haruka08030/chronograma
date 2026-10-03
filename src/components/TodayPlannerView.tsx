@@ -27,7 +27,7 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
+import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
@@ -37,6 +37,7 @@ import { RowActionButton } from './ui/RowActionButton'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { TaskContextMenu } from './TaskContextMenu'
 import { InlineAddInput } from './ui/InlineAddInput'
+import { DisclosureButton } from './ui/Disclosure'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -356,15 +357,9 @@ export function TodayPlannerView() {
           <div className="mt-2 px-3">
             {/* 見出しの右に「すべて今日へ」（» の二重矢印）、開くと行ごとに「今日やる」（→）。どちらも行のアイコンと同じ列 */}
             <div className="flex items-center gap-3 pr-3">
-              <button
-                type="button"
-                onClick={() => setShowLeftOver((v) => !v)}
-                aria-expanded={showLeftOver}
-                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-              >
-                <ChevronRightIcon className={`h-3 w-3 shrink-0 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+              <DisclosureButton tone="alert" open={showLeftOver} onToggle={() => setShowLeftOver((v) => !v)} className="flex-1">
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
-              </button>
+              </DisclosureButton>
               {leftOver.length > 1 ? (
                 <RowActionButton label={t('planner.moveAllToToday')} onClick={moveAllLeftOver}>
                   <CalendarDoubleArrowIcon className="h-4 w-4" />
@@ -393,17 +388,11 @@ export function TodayPlannerView() {
 
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <div className="mt-6 px-3">
-            <button
-              type="button"
-              onClick={() => setShowSuggestions((v) => !v)}
-              aria-expanded={showSuggestions}
-              className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
-            >
-              <ChevronRightIcon className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+            <DisclosureButton open={showSuggestions} onToggle={() => setShowSuggestions((v) => !v)} className="w-full">
               <span className="flex-1">
                 {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
               </span>
-            </button>
+            </DisclosureButton>
             {showSuggestions && (
               <>
                 <ul>
@@ -500,15 +489,9 @@ export function TodayPlannerView() {
 
         {done.length > 0 && (
           <div className="mt-6 px-3">
-            <button
-              type="button"
-              onClick={() => setShowDone((v) => !v)}
-              aria-expanded={showDone}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-            >
-              <ChevronRightIcon className={`h-3 w-3 transition-transform ${showDone ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+            <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
               {t('planner.doneHeading', { count: done.length })}
-            </button>
+            </DisclosureButton>
             {showDone && (
               <ul>
                 {done.map((task) => renderRow(task))}

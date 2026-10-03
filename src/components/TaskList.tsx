@@ -48,6 +48,7 @@ import { buttonClass } from './ui/buttonClass'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { chipClass } from './ui/chipClass'
+import { DisclosureButton } from './ui/Disclosure'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -590,6 +591,7 @@ export function TaskList() {
   )
 
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
+  const [showCompleted, setShowCompleted] = useState(false)
 
   const handleEnterCreateSibling = useCallback((task: Task) => {
     const newTaskId = addTaskAfter(task.id, '')
@@ -1255,10 +1257,11 @@ export function TaskList() {
           )}
 
           {completedTodos.length > 0 && (
-            <details className="pt-4">
-              <summary className="text-xs font-medium text-zinc-400 dark:text-zinc-500 cursor-pointer select-none px-4 py-2">
+            <div className="pt-4">
+              <DisclosureButton tone="muted" open={showCompleted} onToggle={() => setShowCompleted((v) => !v)} className="ml-1">
                 {t('taskList.completedHeader', { count: completedTodos.length })}
-              </summary>
+              </DisclosureButton>
+              {showCompleted && (
               <div className="space-y-0.5 mt-1">
                 {completedTodos.map((t) => (
                   <div key={t.id}>
@@ -1284,7 +1287,8 @@ export function TaskList() {
                   </div>
                 ))}
               </div>
-            </details>
+              )}
+            </div>
           )}
         </div>
       </div>
