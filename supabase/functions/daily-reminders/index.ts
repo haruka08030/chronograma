@@ -15,6 +15,7 @@ import {
   type FiredReminder,
   type ReminderTask,
 } from './schedule.ts'
+import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 
 type Sub = {
   endpoint: string
@@ -211,6 +212,12 @@ Deno.serve(async (req) => {
   let sent = 0
   let removed = 0
   for (const sub of (data ?? []) as Sub[]) {
+    // プッシュサービス以外の宛先へは送らない（DB の制約より前に入った行）
+    if (!isKnownPushEndpoint(sub.endpoint)) {
+      await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      removed++
+      continue
+    }
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
     const nowWall = (dayWallMs(local.date) ?? 0) + local.minutes * 60_000
