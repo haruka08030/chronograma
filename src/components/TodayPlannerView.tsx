@@ -474,7 +474,7 @@ export function TodayPlannerView() {
                       type="button"
                       aria-pressed={status !== 'missed'}
                       aria-label={h.title}
-                      title={record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined}
+                      {...tip(record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined)}
                       onClick={() => toggleHabitDate(h.id, dateKey)}
                       className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-[var(--c)] transition-colors touch-manipulation ${
                         status === 'done'
@@ -497,7 +497,7 @@ export function TodayPlannerView() {
                           if (!isTimedHabit(h)) toggleHabitDate(h.id, dateKey)
                         }}
                         aria-label={t('quickLog.resume', { title: h.title })}
-                        title={t('quickLog.resume', { title: h.title })}
+                        {...tip(t('quickLog.resume', { title: h.title }))}
                         className="absolute left-1/2 top-7 ml-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
                                    before:absolute before:-inset-2 before:content-[''] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       >

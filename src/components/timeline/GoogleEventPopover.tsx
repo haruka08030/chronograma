@@ -15,6 +15,7 @@ import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
+import { tip } from '../../lib/tooltip'
 
 const WIDTH = 320
 
@@ -121,7 +122,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
-          <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButton} aria-label={t('googleEdit.openInGoogle')} title={t('googleEdit.openInGoogle')}>
+          <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButton} aria-label={t('googleEdit.openInGoogle')} {...tip(t('googleEdit.openInGoogle'))}>
             <OpenPanelIcon className="h-4 w-4" strokeWidth={1.75} />
           </a>
         )}
@@ -134,7 +135,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             }}
             className={iconButton}
             aria-label={t('common.delete')}
-            title={`${t('common.delete')} (Delete)`}
+            {...tip(t('common.delete'), 'Delete')}
           >
             <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
           </button>
@@ -143,7 +144,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           type="button"
           onClick={onClose}
           aria-label={t('common.close')}
-          title={`${t('common.close')} (Esc)`}
+          {...tip(t('common.close'), 'Esc')}
           className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
         >
           <CloseIcon className="h-4 w-4" />

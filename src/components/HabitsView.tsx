@@ -33,6 +33,7 @@ import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { DayNav } from './ui/DayNav'
+import { tip } from '../lib/tooltip'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -419,7 +420,7 @@ export function HabitsView() {
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
                   className="p-1.5 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
-                  title={t('common.delete')}
+                  {...tip(t('common.delete'))}
                   aria-label={t('common.delete')}
                 >
                   <PathIcon d={iconTrash} className="w-4 h-4" strokeWidth={1.5} />

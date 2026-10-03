@@ -16,6 +16,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { groupBySection } from '../lib/sectionGroups'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { ListSectionHeading } from './ListSectionHeading'
+import { tip } from '../lib/tooltip'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -77,7 +78,7 @@ export function SomedayView({ list }: { list: TaskList }) {
         <button
           type="button"
           onClick={() => toggleTask(item.id)}
-          title={t('someday.fulfill')}
+          {...tip(t('someday.fulfill'))}
           aria-label={t('someday.fulfillItem', { title: item.title })}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-base text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
         >
@@ -95,7 +96,7 @@ export function SomedayView({ list }: { list: TaskList }) {
           trigger={({ open, toggle }) => (
             <button
               type="button"
-              title={t('someday.schedule')}
+              {...tip(t('someday.schedule'))}
               aria-label={t('someday.scheduleItem', { title: item.title })}
               aria-expanded={open}
               aria-haspopup="dialog"
@@ -164,7 +165,7 @@ export function SomedayView({ list }: { list: TaskList }) {
                   <button
                     type="button"
                     onClick={() => toggleTask(item.id)}
-                    title={t('someday.unfulfill')}
+                    {...tip(t('someday.unfulfill'))}
                     aria-label={t('someday.unfulfillItem', { title: item.title })}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-amber-500 transition-colors hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600"
                   >

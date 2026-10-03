@@ -1,4 +1,5 @@
 import { CheckIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
 
 /**
  * カレンダー上の予定に付ける丸い ✓（月のマス・終日の行・時間ブロックで共有）。
@@ -25,7 +26,7 @@ export function CalendarCheck({ done = false, size = 'sm', label, onCheck, class
         onCheck()
       }}
       onKeyDown={(e) => e.stopPropagation()}
-      title={label}
+      {...tip(label)}
       aria-label={label}
       aria-pressed={done}
       className={`flex ${size === 'md' ? 'h-4 w-4' : 'h-3.5 w-3.5'} shrink-0 cursor-pointer items-center justify-center rounded-full border border-current transition-opacity

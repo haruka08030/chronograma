@@ -32,7 +32,7 @@
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
 | ポップオーバー | 面は `FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`。ダークの背景は zinc-800（下の画面より一段明るく） | `components/ui/surface.ts` |
 | 月のカレンダー（日付を選ぶ） | 月の切り替え・日付・今日/明日/なし。期限のポップオーバーとタスクの右クリックメニューで共通 | `components/DatePickerBody.tsx` |
-| マウスを乗せたときのヒント | `tip(説明, キー)` を付けると、0.5 秒後に説明＋キーを出す（マウスのある端末だけ） | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
+| マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。ボタンに `title` は使わない | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
 | タスクのまとめて操作 | 完了・削除・アーカイブ・期限・優先度・リスト移動。何件に何をしたかをトーストで出す | `hooks/useBulkTaskActions.ts` |
 
 ### 挙動

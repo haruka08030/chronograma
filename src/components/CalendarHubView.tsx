@@ -18,6 +18,7 @@ import {
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
 import { appToday } from '../lib/timeZone'
+import { tip } from '../lib/tooltip'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -124,7 +125,7 @@ export function CalendarHubView() {
           type="button"
           onClick={() => setDockOpen((o) => !o)}
           aria-pressed={dockOpen}
-          title={t('calendarHub.dockHint')}
+          {...tip(t('calendarHub.dockHint'))}
           // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             dockOpen

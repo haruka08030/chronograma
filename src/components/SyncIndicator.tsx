@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useTaskStore } from '../store/taskStore'
 import { relativeSyncKey } from './syncIndicatorLabel'
+import { tip } from '../lib/tooltip'
 
 /**
  * クラウド同期の状態。以前は失敗が console にしか出ず、預けたデータが
@@ -46,7 +47,7 @@ export function SyncIndicator() {
   if (syncState === 'syncing') {
     const title = when ? t('sync.syncingWithLast', { when }) : t('sync.syncing')
     return (
-      <span className="flex shrink-0 items-center" title={title} aria-label={title} role="status">
+      <span className="flex shrink-0 items-center" {...tip(title)} aria-label={title} role="status">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400 dark:bg-zinc-500" />
       </span>
     )
@@ -77,7 +78,7 @@ export function SyncIndicator() {
   return (
     <span
       className="flex shrink-0 items-center gap-1 text-amber-600 dark:text-amber-500"
-      title={detail}
+      {...tip(detail)}
       role="status"
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />

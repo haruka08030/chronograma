@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { PlusIcon } from './icons'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -21,7 +22,7 @@ export function CalendarAddTaskButton({
       onClick={onClick}
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={label ?? t('calendar.addTaskAria')}
-      title={label ?? t('calendar.addTaskAria')}
+      {...tip(label ?? t('calendar.addTaskAria'))}
       className={`inline-flex items-center justify-center rounded text-zinc-400 transition-colors
                   hover:bg-zinc-200/70 hover:text-zinc-600 dark:hover:bg-zinc-700/70 dark:hover:text-zinc-200
                   ${className}`}

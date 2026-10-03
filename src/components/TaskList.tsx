@@ -45,6 +45,7 @@ import { CheckCircleIcon, CloseIcon, PencilIcon, SortIcon } from './icons'
 import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -891,7 +892,7 @@ export function TaskList() {
       <button
         type="button"
         className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        title={t('sections.renameTitle')}
+        {...tip(t('sections.renameTitle'))}
         onClick={() => beginSectionRename(sectionId, title)}
       >
         <PencilIcon className="w-3.5 h-3.5" />
@@ -899,7 +900,7 @@ export function TaskList() {
       <button
         type="button"
         className="p-1 rounded text-zinc-400 hover:text-red-500"
-        title={t('common.delete')}
+        {...tip(t('common.delete'))}
         onClick={() => deleteSectionStore(sectionId)}
       >
         <CloseIcon className="w-3.5 h-3.5" />

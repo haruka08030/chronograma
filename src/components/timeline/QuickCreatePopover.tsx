@@ -17,6 +17,7 @@ import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { tip } from '../../lib/tooltip'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -169,7 +170,7 @@ export function QuickCreatePopover({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 aria-label={t('timeZone.field')}
-                title={zone ? zoneOptionLabel(zone, i18n.resolvedLanguage) : t('timeZone.field')}
+                {...tip(zone ? zoneOptionLabel(zone, i18n.resolvedLanguage) : t('timeZone.field'))}
                 onClick={toggle}
                 className={`ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
                   zone ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'

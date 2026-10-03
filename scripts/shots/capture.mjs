@@ -30,9 +30,11 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
+  // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
+  { name: 'planner-tip', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")', hover: 'button[aria-label$="完了にする"] >> nth=0' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
@@ -250,6 +252,11 @@ async function main() {
             if (screen.click) {
               await page.click(screen.click, screen.clickAt ? { position: screen.clickAt } : undefined)
               await page.waitForTimeout(300)
+            }
+            if (screen.hover && !vp.hasTouch) {
+              // マウスを乗せたときのヒント（TooltipHost は 0.5 秒後に出す）
+              await page.hover(screen.hover)
+              await page.waitForTimeout(800)
             }
 
             if (screen.scrollToBottom) {

@@ -263,7 +263,7 @@ export function RecordPanel({
               key={r.title}
               type="button"
               onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
-              title={t('quickLog.resume', { title: r.title })}
+              {...tip(t('quickLog.resume', { title: r.title }))}
               aria-label={t('quickLog.resume', { title: r.title })}
               className="inline-flex min-h-9 max-w-[10rem] items-center gap-1.5 rounded-full border border-zinc-200 py-1 pl-2 pr-2.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 md:min-h-7
                          dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"

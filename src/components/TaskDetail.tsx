@@ -22,6 +22,7 @@ import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './ic
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -279,7 +280,7 @@ export function TaskDetail({
                   href={googleMapsUrl(task.location)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title={t('taskDetail.openInMaps')}
+                  {...tip(t('taskDetail.openInMaps'))}
                   aria-label={t('taskDetail.openInMaps')}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700
                              text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-500/10

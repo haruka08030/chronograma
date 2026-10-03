@@ -11,6 +11,7 @@ import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
+import { tip } from '../lib/tooltip'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -129,7 +130,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     type="button"
                     onClick={() => (mode === 'deleted' ? restoreDeletedTask(task.id) : unarchiveTask(task.id))}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    title={mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')}
+                    {...tip(mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive'))}
                   >
                     <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
                     <span className="hidden sm:inline">
@@ -148,7 +149,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                       }
                     }}
                     className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                    title={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
+                    {...tip(mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete'))}
                     aria-label={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
                   >
                     <PathIcon d={DELETE_ICON} className="h-4 w-4" />

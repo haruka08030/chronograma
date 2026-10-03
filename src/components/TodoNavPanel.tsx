@@ -20,6 +20,7 @@ import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../l
 import { groupsBySection } from '../lib/todoSurfaceView'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -115,7 +116,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
             tabIndex={-1}
-            title={t('sidebar.reorderList')}
+            {...tip(t('sidebar.reorderList'))}
             aria-label={t('sidebar.reorderList')}
             onClick={(e) => e.stopPropagation()}
           >

@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { buildTimeLogTagUniverse } from '../lib/tagColors'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -102,7 +103,7 @@ export function TimeLogTagField({
           type="button"
           onClick={() => setAdding(true)}
           aria-label={t('logCategories.add')}
-          title={t('logCategories.add')}
+          {...tip(t('logCategories.add'))}
           className={`rounded-full border border-dashed border-zinc-300 text-zinc-400 transition-colors hover:border-accent-400 hover:text-accent-600 dark:border-zinc-600 ${size}`}
         >
           ＋

@@ -15,6 +15,7 @@ import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, Repeat
 import { TaskContextMenu } from './TaskContextMenu'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -470,7 +471,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.archiveAria')}
-        title={t('taskItem.archive')}
+        {...tip(t('taskItem.archive'))}
       >
         <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
@@ -479,7 +480,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.deleteAria')}
-        title={t('taskItem.deleteAria')}
+        {...tip(t('taskItem.deleteAria'))}
       >
         <TrashIcon className="h-4 w-4 text-zinc-400" />
       </button>

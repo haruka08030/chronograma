@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { CheckIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
 
 export interface Swatch {
   hex: string
@@ -49,7 +50,7 @@ export function ColorSwatches({
             role="radio"
             aria-checked={isSelected}
             aria-label={name}
-            title={name}
+            {...tip(name)}
             onClick={() => onChoose(sw.hex)}
             className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
             style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}

@@ -10,7 +10,19 @@ const EDGE = 8
 
 type Shown = { label: string; key: string | null; rect: DOMRect }
 
-/** `tip()`（lib/tooltip）を付けた要素のヒントを出す。App に 1 つだけ置く。マウスのある PC だけ（タップでは出さない） */
+const LABELLED_CONTROL = 'button[aria-label], a[aria-label], [role="button"][aria-label]'
+
+/**
+ * ヒントを出す要素。`tip()` を付けたもの、または文字の無いボタン（アイコンだけ）の `aria-label`。
+ * 文字が見えているボタンは押す前から分かるので出さない
+ */
+function tipTarget(target: Element | null): HTMLElement | null {
+  const el = target?.closest?.<HTMLElement>(`[data-tip], ${LABELLED_CONTROL}`) ?? null
+  if (!el || el.dataset.tip) return el
+  return el.innerText.trim() ? null : el
+}
+
+/** `tip()`（lib/tooltip）を付けた要素と、アイコンだけのボタンのヒントを出す。App に 1 つだけ置く。マウスのある PC だけ（タップでは出さない） */
 export function TooltipHost() {
   const [shown, setShown] = useState<Shown | null>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
@@ -27,14 +39,14 @@ export function TooltipHost() {
     }
     const onOver = (e: PointerEvent) => {
       if (e.pointerType !== 'mouse') return
-      const el = (e.target as Element | null)?.closest?.<HTMLElement>('[data-tip]') ?? null
+      const el = tipTarget(e.target as Element | null)
       if (el === current) return
       hide()
       if (!el) return
       current = el
       timer = window.setTimeout(() => {
         if (current !== el || !el.isConnected) return
-        setShown({ label: el.dataset.tip ?? '', key: el.dataset.tipKey ?? null, rect: el.getBoundingClientRect() })
+        setShown({ label: el.dataset.tip ?? el.getAttribute('aria-label') ?? '', key: el.dataset.tipKey ?? null, rect: el.getBoundingClientRect() })
       }, SHOW_DELAY_MS)
     }
     // 押した・打った・スクロールしたら消す（押したあとも出続けると操作の邪魔になる）

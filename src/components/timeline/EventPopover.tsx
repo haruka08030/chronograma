@@ -15,6 +15,7 @@ import { startTimerForTask } from '../../lib/timerDrop'
 import { zonedNow } from '../../lib/timeZone'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { tip } from '../../lib/tooltip'
 
 const WIDTH = 320
 
@@ -104,7 +105,7 @@ export function EventPopover({
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
-        <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButton} aria-label={t('eventCard.edit')} title={`${t('eventCard.edit')} (e)`}>
+        <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButton} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
         <button
@@ -115,11 +116,11 @@ export function EventPopover({
           }}
           className={iconButton}
           aria-label={t('common.delete')}
-          title={`${t('common.delete')} (Delete)`}
+          {...tip(t('common.delete'), 'Delete')}
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        <button type="button" onClick={onClose} className={iconButton} aria-label={t('common.close')} title={`${t('common.close')} (Esc)`}>
+        <button type="button" onClick={onClose} className={iconButton} aria-label={t('common.close')} {...tip(t('common.close'), 'Esc')}>
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>

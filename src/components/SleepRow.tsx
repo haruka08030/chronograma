@@ -9,6 +9,7 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { tip } from '../lib/tooltip'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -68,7 +69,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       <button
         type="button"
         onClick={() => setEditing(true)}
-        title={t('sleep.edit')}
+        {...tip(t('sleep.edit'))}
         className="-mx-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <MoonIcon />
@@ -121,7 +122,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
             type="button"
             onClick={() => setEditing(false)}
             aria-label={t('common.cancel')}
-            title={t('common.cancel')}
+            {...tip(t('common.cancel'))}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
