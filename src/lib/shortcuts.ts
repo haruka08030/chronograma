@@ -48,26 +48,40 @@ export function useSelectAllShortcut(handler: () => boolean) {
   }, [])
 }
 
-/** ヘルプに出す一覧（キー → 説明の i18n キー）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
-export const SHORTCUT_LIST: { keys: string[]; label: string }[] = [
-  { keys: ['t'], label: 'shortcuts.today' },
-  { keys: ['j', 'n'], label: 'shortcuts.next' },
-  { keys: ['k', 'p'], label: 'shortcuts.prev' },
-  { keys: ['d'], label: 'shortcuts.dayView' },
-  { keys: ['w'], label: 'shortcuts.weekView' },
-  { keys: ['m'], label: 'shortcuts.monthView' },
-  { keys: ['l'], label: 'shortcuts.logView' },
-  { keys: ['c'], label: 'shortcuts.create' },
-  { keys: ['/'], label: 'shortcuts.search' },
-  { keys: ['e'], label: 'shortcuts.edit' },
-  { keys: ['Delete'], label: 'shortcuts.delete' },
-  { keys: ['↑', '↓'], label: 'shortcuts.moveRow' },
-  { keys: ['Enter'], label: 'shortcuts.openRow' },
-  { keys: ['Space'], label: 'shortcuts.completeRow' },
-  { keys: ['mod', 'A'], label: 'shortcuts.selectAll' },
-  { keys: ['mod', '/'], label: 'shortcuts.openMenu' },
-  { keys: ['mod', 'Enter'], label: 'shortcuts.completeSelected' },
-  { keys: ['Esc'], label: 'shortcuts.close' },
-  { keys: ['mod', 'Z'], label: 'shortcuts.undo' },
-  { keys: ['?'], label: 'shortcuts.help' },
-]
+/**
+ * ショートカットの表（1 つだけ）。処理の登録（`useHotkey(SHORTCUTS.x.hotkeys, …)`）・「?」の一覧・ボタンのヒント（`shortcutTip`）を
+ * ここから作る。別々に書くと、一覧に載っているのに効かない・ヒントのキーが違う、がおきる。
+ * - hotkeys: `useHotkey` に渡すキー（'mod' は ⌘ / Ctrl）
+ * - display: 一覧とヒントに出すキー。外側の並びは「どれか」（J / N）、内側は「同時に」（⌘ + A）。'mod' は ⌘ / Ctrl
+ * - label: 説明の i18n キー
+ */
+export const SHORTCUTS = {
+  today: { hotkeys: ['t'], display: [['T']], label: 'shortcuts.today' },
+  next: { hotkeys: ['j', 'n'], display: [['J'], ['N']], label: 'shortcuts.next' },
+  prev: { hotkeys: ['k', 'p'], display: [['K'], ['P']], label: 'shortcuts.prev' },
+  dayView: { hotkeys: ['d'], display: [['D']], label: 'shortcuts.dayView' },
+  weekView: { hotkeys: ['w'], display: [['W']], label: 'shortcuts.weekView' },
+  monthView: { hotkeys: ['m'], display: [['M']], label: 'shortcuts.monthView' },
+  logView: { hotkeys: ['l'], display: [['L']], label: 'shortcuts.logView' },
+  create: { hotkeys: ['c'], display: [['C']], label: 'shortcuts.create' },
+  search: { hotkeys: ['/'], display: [['/']], label: 'shortcuts.search' },
+  edit: { hotkeys: ['e'], display: [['E']], label: 'shortcuts.edit' },
+  delete: { hotkeys: ['Delete', 'Backspace'], display: [['Delete']], label: 'shortcuts.delete' },
+  moveRow: { hotkeys: ['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], display: [['↑'], ['↓']], label: 'shortcuts.moveRow' },
+  openRow: { hotkeys: ['Enter'], display: [['Enter']], label: 'shortcuts.openRow' },
+  completeRow: { hotkeys: ['Space'], display: [['Space']], label: 'shortcuts.completeRow' },
+  selectAll: { hotkeys: ['mod+a'], display: [['mod', 'A']], label: 'shortcuts.selectAll' },
+  openMenu: { hotkeys: ['mod+/', 'ContextMenu', 'shift+F10'], display: [['mod', '/']], label: 'shortcuts.openMenu' },
+  completeSelected: { hotkeys: ['mod+Enter'], display: [['mod', 'Enter']], label: 'shortcuts.completeSelected' },
+  close: { hotkeys: ['Escape'], display: [['Esc']], label: 'shortcuts.close' },
+  undo: { hotkeys: ['mod+z'], display: [['mod', 'Z']], label: 'shortcuts.undo' },
+  help: { hotkeys: ['?'], display: [['?']], label: 'shortcuts.help' },
+} as const satisfies Record<string, { hotkeys: readonly string[]; display: readonly (readonly string[])[]; label: string }>
+
+export type ShortcutId = keyof typeof SHORTCUTS
+
+/** ヘルプに出す一覧（表の順）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
+export const SHORTCUT_LIST: { keys: string[]; label: string }[] = Object.values(SHORTCUTS).map((s) => ({
+  keys: s.display.flat(),
+  label: s.label,
+}))

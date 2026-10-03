@@ -17,9 +17,10 @@ import { PillToggle } from '../ui/PillToggle'
 import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip, tip } from '../../lib/tooltip'
 import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
+import { SHORTCUTS } from '../../lib/shortcuts'
 
 const WIDTH = 320
 
@@ -52,7 +53,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
   // 入力欄の外の Esc は層の仕組みが閉じる。欄が自分で使った Esc（時刻の取り消し）では閉じない
   useHotkey('Escape', () => onClose(), { scope: layer, allowInInputs: true })
-  useHotkey(['Delete', 'Backspace'], () => {
+  useHotkey(SHORTCUTS.delete.hotkeys, () => {
     const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
     if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
     removeGoogleEvent(ev)
@@ -127,7 +128,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             }}
             className={iconButtonClass()}
             aria-label={t('common.delete')}
-            {...tip(t('common.delete'), 'Delete')}
+            {...shortcutTip(t('common.delete'), 'delete')}
           >
             <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
           </button>
@@ -136,7 +137,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           type="button"
           onClick={onClose}
           aria-label={t('common.close')}
-          {...tip(t('common.close'), 'Esc')}
+          {...shortcutTip(t('common.close'), 'close')}
           className={iconButtonClass()}
         >
           <CloseIcon className="h-4 w-4" />

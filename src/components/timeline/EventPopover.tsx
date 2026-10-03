@@ -14,8 +14,9 @@ import { startTimerForTask } from '../../lib/timerDrop'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
+import { SHORTCUTS } from '../../lib/shortcuts'
 
 const WIDTH = 320
 
@@ -48,8 +49,8 @@ export function EventPopover({
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
   // カードが一番上のときだけ（上に色の一覧などが重なっていれば効かない）
-  useHotkey('e', () => onOpenDetail(taskId), { scope: layer })
-  useHotkey(['Delete', 'Backspace'], () => {
+  useHotkey(SHORTCUTS.edit.hotkeys, () => onOpenDetail(taskId), { scope: layer })
+  useHotkey(SHORTCUTS.delete.hotkeys, () => {
     deleteTask(taskId)
     onClose()
   }, { scope: layer })
@@ -95,7 +96,7 @@ export function EventPopover({
           }}
           className={iconButtonClass()}
           aria-label={t('common.delete')}
-          {...tip(t('common.delete'), 'Delete')}
+          {...shortcutTip(t('common.delete'), 'delete')}
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>

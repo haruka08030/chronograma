@@ -45,7 +45,7 @@ import {
 import { shortcutLabel } from './lib/keyboard'
 import { TooltipHost } from './components/ui/Tooltip'
 import { OverlayHost } from './components/OverlayHost'
-import { dispatchNav, dispatchSelectAll } from './lib/shortcuts'
+import { SHORTCUTS, dispatchNav, dispatchSelectAll } from './lib/shortcuts'
 import { useHotkey } from './hooks/useHotkey'
 import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
@@ -411,30 +411,30 @@ export default function App() {
     else el.click()
   }
   const findQuickAdd = () => document.querySelector<HTMLElement>('[data-quickadd]')
-  useHotkey('t', () => dispatchNav('today'))
-  useHotkey(['j', 'n'], () => dispatchNav('next'))
-  useHotkey(['k', 'p'], () => dispatchNav('prev'))
-  useHotkey('d', () => useTaskStore.getState().selectView('planner'))
-  useHotkey(['w', 'm'], (e) => {
+  useHotkey(SHORTCUTS.today.hotkeys, () => dispatchNav('today'))
+  useHotkey(SHORTCUTS.next.hotkeys, () => dispatchNav('next'))
+  useHotkey(SHORTCUTS.prev.hotkeys, () => dispatchNav('prev'))
+  useHotkey(SHORTCUTS.dayView.hotkeys, () => useTaskStore.getState().selectView('planner'))
+  useHotkey([...SHORTCUTS.weekView.hotkeys, ...SHORTCUTS.monthView.hotkeys], (e) => {
     const store = useTaskStore.getState()
     store.setCalendarMode(e.key === 'w' ? 'week' : 'month')
     store.selectView('calendar')
   })
-  useHotkey('l', () => {
+  useHotkey(SHORTCUTS.logView.hotkeys, () => {
     // 記録は「今日」に統合。今日を開いて「記録する」を開く
     useTaskStore.getState().selectView('planner')
     requestAction(OPEN_TIMER_ACTION)
   })
   // 画面を切り替えたら、その画面の欄が出てからフォーカスする（読み込みに時間がかかっても取りこぼさない）
-  useHotkey('c', () => {
+  useHotkey(SHORTCUTS.create.hotkeys, () => {
     if (!findQuickAdd()) useTaskStore.getState().selectView('planner')
     whenElement(findQuickAdd, focusQuickAddEl)
   })
-  useHotkey('/', () => {
+  useHotkey(SHORTCUTS.search.hotkeys, () => {
     if (!searchRef.current) useTaskStore.getState().selectView('all')
     whenElement(() => searchRef.current, (el) => el.focus())
   })
-  useHotkey('?', () => setShowShortcuts(true))
+  useHotkey(SHORTCUTS.help.hotkeys, () => setShowShortcuts(true))
 
   // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
   useHotkey('mod+k', () => searchRef.current?.focus(), { scope: 'always', allowInInputs: true })
@@ -448,7 +448,7 @@ export default function App() {
       useTaskStore.getState().requestQuickAdd()
     }
   }, { scope: 'always', allowInInputs: true })
-  useHotkey('mod+a', () => {
+  useHotkey(SHORTCUTS.selectAll.hotkeys, () => {
     // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
     // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
     if (dispatchSelectAll()) return
@@ -457,7 +457,7 @@ export default function App() {
     if (box) window.getSelection()?.selectAllChildren(box)
   }, { scope: 'always' })
   // 入力中はブラウザのテキスト取り消しを優先する（allowInInputs なし）。戻すものが無ければブラウザに任せる
-  useHotkey('mod+z', () => {
+  useHotkey(SHORTCUTS.undo.hotkeys, () => {
     const state = useTaskStore.getState()
     // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
     if (state.googleUndo && undoGoogleDelete()) return

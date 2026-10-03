@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList, type MouseEvent } from 'react'
 import { useHotkey } from './useHotkey'
-import { useSelectAllShortcut } from '../lib/shortcuts'
+import { SHORTCUTS, useSelectAllShortcut } from '../lib/shortcuts'
 import { isModKey } from '../lib/keyboard'
 import type { TaskItemSelection } from '../components/TaskItem'
 
@@ -155,7 +155,7 @@ export function useTaskListSelection({
   const onButton = (e: KeyboardEvent) =>
     e.target instanceof HTMLButtonElement || (e.target instanceof Element && e.target.getAttribute('role') === 'button')
 
-  useHotkey(['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], (e) => {
+  useHotkey(SHORTCUTS.moveRow.hotkeys, (e) => {
     if (rowIds.length === 0) return false
     const cursor = cursorRow()
     const down = e.key === 'ArrowDown'
@@ -168,24 +168,24 @@ export function useTaskListSelection({
     setCursorId(next)
     setCursorVisible(true)
   })
-  useHotkey('Escape', () => {
+  useHotkey(SHORTCUTS.close.hotkeys, () => {
     if (selectedRef.current.size > 0) clearSelection()
     else if (targetRow()) setCursorVisible(false)
     else return false
   })
-  useHotkey(['Delete', 'Backspace'], () => {
+  useHotkey(SHORTCUTS.delete.hotkeys, () => {
     const target = targetRow()
     if (selectedRef.current.size > 0) removeSelected()
     else if (target) removeRows([target])
     else return false
   })
-  useHotkey('mod+Enter', () => {
+  useHotkey(SHORTCUTS.completeSelected.hotkeys, () => {
     const target = targetRow()
     if (selectedRef.current.size > 0) completeSelected()
     else if (target) toggleRow(target)
     else return false
   })
-  useHotkey(['mod+/', 'ContextMenu', 'shift+F10'], () => {
+  useHotkey(SHORTCUTS.openMenu.hotkeys, () => {
     // ⌘/（Notion と同じ）: 選択中（なければ枠の行）のメニューを、その行の下に開く
     const target = targetRow()
     const ids = selectedRef.current.size > 0 ? [...selectedRef.current] : target ? [target] : []
@@ -196,12 +196,12 @@ export function useTaskListSelection({
     openMenu({ x: row.left + 48, y: row.bottom + 4, taskIds: ids })
   })
   // e は予定カードと同じ「詳細を開く」。ボタンの上の Enter はボタンのほうを押す
-  useHotkey(['Enter', 'e'], (e) => {
+  useHotkey([...SHORTCUTS.openRow.hotkeys, ...SHORTCUTS.edit.hotkeys], (e) => {
     const target = targetRow()
     if (!target || (e.key === 'Enter' && onButton(e))) return false
     openDetail(target)
   })
-  useHotkey('Space', (e) => {
+  useHotkey(SHORTCUTS.completeRow.hotkeys, (e) => {
     const target = targetRow()
     if (!target || onButton(e)) return false
     completeRow(target)

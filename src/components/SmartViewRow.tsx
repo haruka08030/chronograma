@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { tip } from '../lib/tooltip'
+import { shortcutTip } from '../lib/tooltip'
+import type { ShortcutId } from '../lib/shortcuts'
 import type { SmartView } from '../store/taskStore'
 import { PathIcon } from './PathIcon'
 
 /** サイドバーと To‑Do パネルで共通のスマートビュー行 */
 /** 1 文字ショートカットのある画面（マウスを乗せるとキーを出す） */
-const VIEW_SHORTCUT: Partial<Record<SmartView, string>> = { planner: 'D', calendar: 'W' }
+const VIEW_SHORTCUT: Partial<Record<SmartView, ShortcutId>> = { planner: 'dayView', calendar: 'weekView' }
 
 export function SmartViewRow({ view, icon, isSelected, onSelect }: {
   view: SmartView
@@ -19,7 +20,7 @@ export function SmartViewRow({ view, icon, isSelected, onSelect }: {
     <button
       type="button"
       onClick={onSelect}
-      {...(shortcut ? tip(t(`sidebar.views.${view}`), shortcut) : {})}
+      {...(shortcut ? shortcutTip(t(`sidebar.views.${view}`), shortcut) : {})}
       aria-current={isSelected ? 'page' : undefined}
       className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm text-left
         ${isSelected

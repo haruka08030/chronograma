@@ -88,7 +88,7 @@ function ensureListeners() {
  * キーを登録する。keys は 'e'・'Delete'・'mod+Enter'・'shift+ArrowDown'・'?' など（`matchesHotkey`）
  *   useHotkey('e', () => openDetail(id), { scope: layer })
  */
-export function useHotkey(keys: string | string[], handler: HotkeyHandler, options: HotkeyOptions = {}) {
+export function useHotkey(keys: string | readonly string[], handler: HotkeyHandler, options: HotkeyOptions = {}) {
   const handlerRef = useRef(handler)
   const optionsRef = useRef(options)
   useEffect(() => {

@@ -1,3 +1,6 @@
+import { SHORTCUTS, type ShortcutId } from './shortcuts'
+import { IS_MAC, modKeyLabel } from './keyboard'
+
 /**
  * マウスを乗せたときに出すヒント（説明＋ショートカットのキー）。要素に広げて付ける:
  *   <button {...tip(t('shortcuts.today'), 'T')}>今日</button>
@@ -10,4 +13,15 @@ export function tip(label: string | undefined, key?: string) {
     'data-tip': label,
     ...(key ? { 'data-tip-key': key } : {}),
   }
+}
+
+/**
+ * ショートカットのあるボタンのヒント。キーは表（`SHORTCUTS`）から取る（書き写さない）。
+ *   <button {...shortcutTip(t('shortcuts.today'), 'today')}>今日</button>
+ */
+export function shortcutTip(label: string, id: ShortcutId | undefined) {
+  if (!id) return tip(label)
+  // ヒントには最初の組み合わせだけ（J / N なら J）
+  const combo = SHORTCUTS[id].display[0].map((k) => (k === 'mod' ? modKeyLabel() : k))
+  return tip(label, combo.join(IS_MAC ? '' : '+'))
 }
