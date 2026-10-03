@@ -153,8 +153,8 @@ export function parseQuickAddTitle(
   localeJa: boolean,
   /** 「今日」「明日」の基準の日（夜中はまだ前の日。`appToday`） */
   now: Date = appToday(),
-  /** タグを使わない設定なら `#…` も題名のまま残す */
-  opts: { tags?: boolean } = {},
+  /** タグを使わない設定なら `#…` も題名のまま残す。リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
+  opts: { tags?: boolean; lists?: boolean } = {},
 ): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
@@ -181,7 +181,7 @@ export function parseQuickAddTitle(
       pendingDeadlineWord = token
       continue
     }
-    if ((token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
+    if (opts.lists !== false && (token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
       listName = token.slice(1).trim()
       continue
     }

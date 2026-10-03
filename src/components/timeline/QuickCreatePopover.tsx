@@ -17,6 +17,7 @@ import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { addTaskFromQuickText } from '../../lib/quickAddTask'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -49,7 +50,6 @@ export function QuickCreatePopover({
 }) {
   const { t, i18n } = useTranslation()
   const lists = useTaskStore((s) => s.lists)
-  const addTask = useTaskStore((s) => s.addTask)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [title, setTitle] = useState('')
@@ -88,15 +88,28 @@ export function QuickCreatePopover({
       return
     }
     if (googleWritable) lastDestination = 'todo'
-    const id = addTask(name, listId)
+    // 題名はクイック追加と同じに読む。ドラッグした日・時間帯は「書かなかったときの既定値」で、
+    // 「明日」「16時」のように書いたらそちらが勝つ（書いたのはドラッグのあとなので、より新しい意図）。
+    // 「金曜まで」は締切だけ付き、予定はドラッグした枠のまま。`@リスト` は選んだリストより優先
+    let id: string | undefined
+    // 作成とタイムゾーンの書き直しは 1 回の取り消しで戻す
+    useTaskStore.getState().asOneUndo(() => {
+      id = addTaskFromQuickText(name, {
+        defaultListId: listId,
+        currentListId: listId,
+        defaultDate: dateKey,
+        defaultTime: { startTime, endTime },
+      })
+      const created = useTaskStore.getState().tasks.find((x) => x.id === id)
+      if (!id || !zone || !created?.scheduledDate || !created.startTime || !created.endTime) return
+      // 別のタイムゾーンで作るときは、書いた（またはドラッグした）時刻をそのタイムゾーンの時刻として読む
+      const times = { scheduledDate: created.scheduledDate, startTime: created.startTime, endTime: created.endTime }
+      updateTask(id, {
+        ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
+        timeZone: zone,
+      })
+    })
     if (!id) return
-    const times = { scheduledDate: dateKey, startTime, endTime }
-    updateTask(
-      id,
-      zone
-        ? { ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: null, dueTime: null, endDate: null }, {}, zone), timeZone: zone }
-        : times,
-    )
     lastListId = listId
     onCreated(id, openDetail)
   }

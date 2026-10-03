@@ -22,6 +22,7 @@ import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './ic
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { addTaskFromQuickText } from '../lib/quickAddTask'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -59,7 +60,6 @@ export function TaskDetail({
   const updateTimes = (patch: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>>) =>
     updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const addTask = useTaskStore((s) => s.addTask)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストには締切や予定を付けない（付けると期限のビューに戻ってきてしまう）
@@ -140,7 +140,8 @@ export function TaskDetail({
   const addSubtask = () => {
     const trimmed = subInput.trim()
     if (!trimmed) return
-    addTask(trimmed, task.listId, task.id)
+    // 「明日」「15時」「金曜まで」はクイック追加と同じに読む。リストは親と同じ（`@…` は題名に残す）
+    addTaskFromQuickText(trimmed, { parentId: task.id })
     setSubInput('')
   }
 
