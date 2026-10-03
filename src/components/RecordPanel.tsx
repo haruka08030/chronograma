@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import { addDays, format, parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { recentLogs } from '../lib/logCategory'
@@ -237,6 +238,7 @@ export function RecordPanel({
           <button
             type="button"
             onClick={() => setMode('timer')}
+            {...tip(t('quickLog.start'), 'L')}
             className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
           >
             <PlayIcon className="h-4 w-4" />

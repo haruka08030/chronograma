@@ -1,5 +1,6 @@
 import { useCallback, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import {
   addMonths,
   eachDayOfInterval,
@@ -104,6 +105,7 @@ export function CalendarDateNav({
       <button
         type="button"
         onClick={onGoToday}
+        {...tip(t('shortcuts.today'), 'T')}
         className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
       >
         {t('calendarHub.today')}
@@ -113,6 +115,7 @@ export function CalendarDateNav({
         <button
           type="button"
           onClick={onPrevPeriod}
+          {...tip(mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria'), 'K')}
           aria-label={mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria')}
           className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
@@ -121,6 +124,7 @@ export function CalendarDateNav({
         <button
           type="button"
           onClick={onNextPeriod}
+          {...tip(mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria'), 'J')}
           aria-label={mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria')}
           className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >

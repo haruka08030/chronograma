@@ -42,6 +42,7 @@ import {
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
+import { TooltipHost } from './components/ui/Tooltip'
 import { dispatchNav, dispatchSelectAll, isTypingTarget } from './lib/shortcuts'
 import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
@@ -646,6 +647,7 @@ export default function App() {
           </Suspense>
         )}
         <UndoToast />
+        <TooltipHost />
         <MoveToast />
         <StorageFullBanner />
         <FloatingTimer />

@@ -1,18 +1,24 @@
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import type { SmartView } from '../store/taskStore'
 
 /** サイドバーと To‑Do パネルで共通のスマートビュー行 */
+/** 1 文字ショートカットのある画面（マウスを乗せるとキーを出す） */
+const VIEW_SHORTCUT: Partial<Record<SmartView, string>> = { planner: 'D', calendar: 'W' }
+
 export function SmartViewRow({ view, icon, isSelected, onSelect }: {
   view: SmartView
   icon: string
   isSelected: boolean
   onSelect: () => void
 }) {
+  const shortcut = VIEW_SHORTCUT[view]
   const { t } = useTranslation()
   return (
     <button
       type="button"
       onClick={onSelect}
+      {...(shortcut ? tip(t(`sidebar.views.${view}`), shortcut) : {})}
       aria-current={isSelected ? 'page' : undefined}
       className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm text-left
         ${isSelected

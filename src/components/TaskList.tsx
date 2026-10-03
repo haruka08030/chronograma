@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
 import type { SectionGroupingScope } from '../store/storeTypes'
@@ -1228,6 +1229,7 @@ export function TaskList() {
             <button
               type="button"
               onClick={bulkComplete}
+              {...tip(t('shortcuts.completeSelected'), '⌘Enter')}
               className={buttonClass({ variant: 'secondary', size: 'xs' })}
             >
               {t('taskList.markComplete')}
@@ -1242,6 +1244,7 @@ export function TaskList() {
             <button
               type="button"
               onClick={bulkDelete}
+              {...tip(t('taskList.bulkDelete'), 'Delete')}
               className={buttonClass({ variant: 'danger', size: 'xs' })}
             >
               {t('taskList.bulkDelete')}

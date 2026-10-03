@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
@@ -720,6 +721,7 @@ export function HabitsView() {
                 <button
                   type="button"
                   onClick={() => shiftFocusDay(-1)}
+                  {...tip(t('habits.prevDayAria'), 'K')}
                   className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   aria-label={t('habits.prevDayAria')}
                 >
@@ -731,6 +733,7 @@ export function HabitsView() {
                 <button
                   type="button"
                   onClick={() => shiftFocusDay(1)}
+                  {...tip(t('habits.nextDayAria'), 'J')}
                   className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   aria-label={t('habits.nextDayAria')}
                 >
@@ -740,6 +743,7 @@ export function HabitsView() {
               <button
                 type="button"
                 onClick={goFocusToday}
+                {...tip(t('shortcuts.today'), 'T')}
                 disabled={isFocusToday}
                 className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
               >

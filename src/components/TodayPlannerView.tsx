@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
+import { tip } from '../lib/tooltip'
 import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
@@ -290,6 +291,7 @@ export function TodayPlannerView() {
               <button
                 type="button"
                 onClick={() => setDateKey(dayKeyOf(addDays(date, -1)))}
+                {...tip(t('planner.prevDay'), 'K')}
                 aria-label={t('planner.prevDay')}
                 className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
@@ -299,6 +301,7 @@ export function TodayPlannerView() {
                 <button
                   type="button"
                   onClick={() => setDateKey(dayKeyOf(appToday()))}
+                  {...tip(t('shortcuts.today'), 'T')}
                   className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
                   {t('common.today')}
@@ -307,6 +310,7 @@ export function TodayPlannerView() {
               <button
                 type="button"
                 onClick={() => setDateKey(tomorrowKey)}
+                {...tip(t('planner.nextDay'), 'J')}
                 aria-label={t('planner.nextDay')}
                 className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
