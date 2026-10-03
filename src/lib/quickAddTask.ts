@@ -1,13 +1,14 @@
 import { addDays } from 'date-fns'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import type { Recurrence, Task } from '../types/task'
 import { parseQuickAddTitle, type ParsedQuickAdd, type QuickAddRepeat } from './parseQuickAdd'
 import { fromDateKey, toDateKey } from './dateKey'
 import { findListByName } from './listKind'
 import { displayListName } from './displayListName'
 import { appTodayKey } from './timeZone'
 import { formatDate } from './dateFormat'
+import { isoWeekday } from './recurrence'
 
 export interface QuickAddOptions {
   /** リストを書かなかったときに入れるリスト。省略すると選んでいるリスト（無ければ未分類） */
@@ -38,7 +39,12 @@ type SchedulePatch = Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime
 /** `from` の日から数えて、繰り返しの曜日・日に最初に当たる日（`from` 自身も含む）。指定が無ければ `from` */
 export function firstRepeatDay(repeat: QuickAddRepeat, from: string): string {
   const d = fromDateKey(from)
-  if (repeat.weekday != null) return toDateKey(addDays(d, (repeat.weekday - d.getDay() + 7) % 7))
+  if (repeat.weekdays?.length) {
+    for (let i = 0; i < 7; i++) {
+      const c = addDays(d, i)
+      if (repeat.weekdays.includes(isoWeekday(c))) return toDateKey(c)
+    }
+  }
   if (repeat.monthDay != null) {
     // 31日のように無い月は飛ばす
     for (let i = repeat.monthDay >= d.getDate() ? 0 : 1; i < 13; i++) {
@@ -47,6 +53,15 @@ export function firstRepeatDay(repeat: QuickAddRepeat, from: string): string {
     }
   }
   return from
+}
+
+/**
+ * 書いた繰り返し → 保存する繰り返し。曜日が 1 つ（毎週金）なら締切の曜日で回るので曜日は持たせない。
+ * 2 つ以上（毎週月水・平日）なら次の回を決めるのに要るので持たせる
+ */
+function repeatRecurrence(repeat: QuickAddRepeat): Recurrence {
+  const base = { type: repeat.type, interval: repeat.interval }
+  return repeat.type === 'weekly' && repeat.weekdays && repeat.weekdays.length > 1 ? { ...base, weekdays: repeat.weekdays } : base
 }
 
 /**
@@ -62,7 +77,7 @@ function repeatSchedule(
   todayKey: string,
 ): SchedulePatch {
   const first = parsed.date ?? firstRepeatDay(repeat, opts.defaultDate ?? todayKey)
-  const patch: SchedulePatch = { dueDate: first, recurrence: { type: repeat.type, interval: repeat.interval } }
+  const patch: SchedulePatch = { dueDate: first, recurrence: repeatRecurrence(repeat) }
   const typedTime = parsed.startTime != null
   const startTime = typedTime ? parsed.startTime : opts.defaultTime?.startTime
   const endTime = typedTime ? parsed.endTime : opts.defaultTime?.endTime

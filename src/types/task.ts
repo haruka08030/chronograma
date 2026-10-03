@@ -5,6 +5,11 @@ export type Priority = 'none' | 'low' | 'medium' | 'high'
 export interface Recurrence {
   type: 'daily' | 'weekly' | 'monthly' | 'yearly'
   interval: number
+  /**
+   * 毎週の曜日（1=月 … 7=日。習慣の `HabitWeekday` と同じ）。`weekly` のときだけ。
+   * 未設定は締切の曜日で回る。次の回は選んだ曜日のうち次に来る日（`taskRecurrence.ts`）
+   */
+  weekdays?: number[]
 }
 
 export interface Task {

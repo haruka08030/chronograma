@@ -109,6 +109,34 @@ describe('fetchListsTasksHabits', () => {
   })
 })
 
+describe('repeat weekdays (recurrence JSON)', () => {
+  it('reads weekdays on weekly repeats, and drops them elsewhere or when invalid', async () => {
+    const rows = [
+      { ...task('mw'), recurrence: { type: 'weekly', interval: 1, weekdays: [3, 1, 3, 9, 'x'] } },
+      { ...task('old'), recurrence: { type: 'weekly', interval: 2 } },
+      { ...task('daily'), recurrence: { type: 'daily', interval: 1, weekdays: [1, 2] } },
+      { ...task('empty'), recurrence: { type: 'weekly', interval: 1, weekdays: [] } },
+    ]
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: rows, habits: [] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = Object.fromEntries(res.tasks.map((t) => [t.id, t.recurrence]))
+    expect(byId.mw).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3] })
+    expect(byId.old).toEqual({ type: 'weekly', interval: 2 })
+    expect(byId.daily).toEqual({ type: 'daily', interval: 1 })
+    expect(byId.empty).toEqual({ type: 'weekly', interval: 1 })
+  })
+
+  it('sends weekdays inside the recurrence column', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const [t] = fetchedTasks(['mw'])
+    const local = [{ ...t!, recurrence: { type: 'weekly' as const, interval: 1, weekdays: [1, 3, 5] } }]
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    expect(upserts.find((u) => u.table === 'tasks')!.rows[0]!.recurrence).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3, 5] })
+  })
+})
+
 describe('pushListsTasksHabits', () => {
   const inbox: TaskList = { id: '__inbox__', name: '未分類', color: '#7986CB', order: 0 }
 

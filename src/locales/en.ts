@@ -635,6 +635,15 @@ export default {
       monthly: 'Every month',
       yearly: 'Every year',
     },
+    recurrenceWeekdays: 'Repeat on',
+    recurrenceSummary: {
+      daily: 'Every {{count}} days',
+      weekly: 'Every {{count}} weeks',
+      monthly: 'Every {{count}} months',
+      yearly: 'Every {{count}} years',
+      withDays: '{{repeat}} on {{days}}',
+      everyWorkday: 'Every weekday',
+    },
   },
   taskItem: {
     bulkSelectAria: 'Include in multi-select',

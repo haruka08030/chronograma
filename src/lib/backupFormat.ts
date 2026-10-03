@@ -8,6 +8,7 @@ import {
 } from './listColorPalettes'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
+import { buildRecurrence } from './recurrence'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -140,7 +141,7 @@ function readRecurrence(v: unknown): Recurrence | null {
   const r = v as Record<string, unknown>
   if (r.type !== 'daily' && r.type !== 'weekly' && r.type !== 'monthly' && r.type !== 'yearly') return null
   const interval = typeof r.interval === 'number' && Number.isInteger(r.interval) && r.interval > 0 ? r.interval : 1
-  return { type: r.type, interval }
+  return buildRecurrence(r.type, interval, r.weekdays)
 }
 
 function normalizePriority(raw: unknown): Priority {

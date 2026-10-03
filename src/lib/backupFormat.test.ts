@@ -46,6 +46,20 @@ describe('parseBackupJson', () => {
     expect(t.recurrence).toEqual({ type: 'weekly', interval: 2 })
     expect(t.updatedAt).toBe('2026-10-02T00:00:00.000Z')
   })
+
+  it('keeps the weekdays of a weekly repeat', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: [{ id: '__inbox__', name: '未分類' }],
+        tasks: [
+          { id: 't1', title: 'ジム', listId: '__inbox__', dueDate: '2026-10-05', recurrence: { type: 'weekly', interval: 1, weekdays: [5, 1, 3] } },
+          { id: 't2', title: '日記', listId: '__inbox__', dueDate: '2026-10-05', recurrence: { type: 'daily', interval: 1, weekdays: [1] } },
+        ],
+      }),
+    )
+    expect(parsed!.tasks[0].recurrence).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3, 5] })
+    expect(parsed!.tasks[1].recurrence).toEqual({ type: 'daily', interval: 1 })
+  })
 })
 
 describe('readBackupJson', () => {

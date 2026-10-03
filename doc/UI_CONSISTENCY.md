@@ -46,7 +46,7 @@
 | 開閉する見出し | `DisclosureButton`。小さな ＞ が開くと下を向く。色は見出しの役割で `alert`（やり残し＝赤）/ `default`（候補）/ `muted`（完了）。今日の計画と To-Do の「完了」 | `components/ui/Disclosure.tsx` |
 | 空状態 | `EmptyState`。線のアイコン＋中央。画面（To-Do・ゴミ箱・検索・いつか・習慣）は `lg`、パネルの中（日パネル・時間未定のタスク）は `sm`。一覧の途中の一言（「この日の予定はなし」・メニューの「見つかりません」）は文字だけ | `components/ui/EmptyState.tsx` |
 | アイコンボタン | `iconButtonClass(extra)`。丸・枠なし・乗せたときだけ薄い地。予定カードの右上（詳細・削除・閉じる・Google で開く）とラベル編集の行の削除。行の右端の操作は枠ありの `RowActionButton` | `components/ui/iconButtonClass.ts` |
-| ピル選択 | `PillToggle`。形はピル、選択中は墨の塗り（`buttonClass` の primary と同じ）、それ以外は細い枠（`chipClass` の outline と同じ）。`value`/`onChange` は 1 つ選ぶ（radiogroup）、`values`/`onToggle` は複数選ぶ（aria-pressed）。予定カードの「予定 / タスク」・繰り返し予定の範囲・習慣の曜日 | `components/ui/PillToggle.tsx` |
+| ピル選択 | `PillToggle`。形はピル、選択中は墨の塗り（`buttonClass` の primary と同じ）、それ以外は細い枠（`chipClass` の outline と同じ）。`value`/`onChange` は 1 つ選ぶ（radiogroup）、`values`/`onToggle` は複数選ぶ（aria-pressed）。予定カードの「予定 / タスク」・繰り返し予定の範囲・習慣の曜日・繰り返しタスクの曜日 | `components/ui/PillToggle.tsx` |
 | 小見出し | `SectionLabel`（`as`・`level`）と `sectionLabelClass(level)`。2 段で、どちらも text-xs・font-medium。`section`（zinc-400）は画面・パネル・カードの中のまとまりの見出し、`field`（zinc-500）はフォームの欄の名前。画面の題・今日の計画の区切りの見出し（太い黒）・カードの題・開閉する見出し・メニューの区切り・リストのセクション名には使わない | `components/ui/SectionLabel.tsx`・`components/ui/sectionLabelClass.ts` |
 | 見出し | 画面の題（h1）は `PAGE_TITLE_CLASS`（text-2xl・semibold・墨）。画面の区切り（今日の計画の To-Do・習慣、習慣画面の「この日の習慣」）は `SECTION_HEADING_CLASS`（text-base・太い墨）。カード・設定のまとまりの題（統計・週のふりかえり・睡眠・設定・習慣のフォーム）は `CARD_TITLE_CLASS`（text-sm・太い墨） | `components/ui/headingClass.ts` |
 | 画面のスクロール枠 | `PAGE_SCROLL_CLASS`（min-h-0・min-w-0・flex-1・overflow-y-auto）。To-Do・ゴミ箱・カレンダー・検索・統計・習慣・設定。縦に並べる画面は flex-col を足す | `components/ui/layoutClass.ts` |
@@ -82,7 +82,7 @@
 | 1 行の入力欄 | `useTextEntry`: Enter で確定、Esc で取り消し（親のダイアログは閉じない）、外したら確定。Esc / Enter のあとの blur は無視する | `hooks/useTextEntry.ts` |
 | ⌘ の表示 | Mac は ⌘、それ以外は Ctrl。`shortcutLabel(['mod', 'Z'])` | `lib/keyboard.ts` `modKeyLabel`・`shortcutLabel` |
 | 削除 | 戻せるもの（タスク・記録・セクション・リスト・習慣・ラベル・Google の予定）は確認なしで消して「元に戻す」トースト。戻せないもの（ゴミ箱から完全に削除・アカウント）だけ `askConfirm` | — |
-| 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切、時刻つき＝タイムラインの予定、「@リスト」＝リスト、「毎日」「毎週金」「隔週」「毎月15日」「毎年」「3日ごと」「every fri」「every 2 weeks」＝繰り返し（最初の回の日が締切。日付を書かなければ既定のやる日か今日から数えて最初に当たる日。曜日を 2 つ以上・平日は繰り返しの型で表せないので読まない）。上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスクで同じ。欄ごとに違うのは書かなかったときの既定値だけ（セル＝その日、予定作成カード＝ドラッグした日と時間帯、サブタスク＝親とそのリスト固定で @… は題名に残る）。書いた日付・時刻は既定値より優先。いつか・チェックリストには日付を付けない。足すのと日時を付けるのは 1 回で元に戻る | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
+| 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切、時刻つき＝タイムラインの予定、「@リスト」＝リスト、「毎日」「毎週金」「毎週月水」「毎週月・水・金」「平日」「隔週」「毎月15日」「毎年」「3日ごと」「every fri」「every mon wed」「every weekday」「every 2 weeks」＝繰り返し（最初の回の日が締切。日付を書かなければ既定のやる日か今日から数えて最初に当たる日。曜日が 2 つ以上なら繰り返しに曜日を持たせる）。上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスクで同じ。欄ごとに違うのは書かなかったときの既定値だけ（セル＝その日、予定作成カード＝ドラッグした日と時間帯、サブタスク＝親とそのリスト固定で @… は題名に残る）。書いた日付・時刻は既定値より優先。いつか・チェックリストには日付を付けない。足すのと日時を付けるのは 1 回で元に戻る | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
 | To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
 | 習慣の達成 | 習慣画面・今日画面・週カレンダーとも、押すと付き、もう一度押すと外す（その日の習慣の記録も外れる） | ストアの `toggleHabitDate` |
 | 記録を足して完了 | 完了の丸はどこでも完了の切り替えだけ（時刻つきの予定も記録を足さない）。「記録して完了」は通知の「記録する」から開く。予定カードは「完了」と「予定どおり記録」を別のボタンにする。記録の追加と完了は 1 つの操作で、元に戻すも 1 回 | `hooks/useCompleteWithLog.tsx` |

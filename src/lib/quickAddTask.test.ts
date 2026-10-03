@@ -204,10 +204,10 @@ describe('サブタスク（親とリストは固定）', () => {
 })
 
 describe('繰り返し（最初の回の日が締切）', () => {
-  const rep = (type: 'daily' | 'weekly' | 'monthly' | 'yearly', interval = 1, weekday: number | null = null, monthDay: number | null = null) => ({
+  const rep = (type: 'daily' | 'weekly' | 'monthly' | 'yearly', interval = 1, weekdays: number[] | null = null, monthDay: number | null = null) => ({
     type,
     interval,
-    weekday,
+    weekdays,
     monthDay,
   })
 
@@ -219,9 +219,12 @@ describe('繰り返し（最初の回の日が締切）', () => {
 
     it('曜日は次に来るその曜日（同じ曜日ならその日）', () => {
       // 2026-09-30 は水曜
-      expect(firstRepeatDay(rep('weekly', 1, 5), TODAY)).toBe('2026-10-02')
-      expect(firstRepeatDay(rep('weekly', 1, 3), TODAY)).toBe(TODAY)
-      expect(firstRepeatDay(rep('weekly', 1, 1), TODAY)).toBe('2026-10-05')
+      expect(firstRepeatDay(rep('weekly', 1, [5]), TODAY)).toBe('2026-10-02')
+      expect(firstRepeatDay(rep('weekly', 1, [3]), TODAY)).toBe(TODAY)
+      expect(firstRepeatDay(rep('weekly', 1, [1]), TODAY)).toBe('2026-10-05')
+      expect(firstRepeatDay(rep('weekly', 1, [1, 5]), TODAY)).toBe('2026-10-02')
+      expect(firstRepeatDay(rep('weekly', 1, [1, 2]), TODAY)).toBe('2026-10-05')
+      expect(firstRepeatDay(rep('weekly', 1, [1, 2, 3, 4, 5]), '2026-10-04')).toBe('2026-10-05')
     })
 
     it('毎月◯日は次に来るその日。無い月は飛ばす', () => {
@@ -241,7 +244,7 @@ describe('繰り返し（最初の回の日が締切）', () => {
         dueDate: TODAY,
         recurrence: { type: 'daily', interval: 1 },
       })
-      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 2, 5) }, {}, TODAY)).toEqual({
+      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 2, [5]) }, {}, TODAY)).toEqual({
         dueDate: '2026-10-02',
         recurrence: { type: 'weekly', interval: 2 },
       })
@@ -255,7 +258,7 @@ describe('繰り返し（最初の回の日が締切）', () => {
     })
 
     it('既定のやる日があればその日から数え、やる日も最初の回に置く', () => {
-      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 1, 5) }, { defaultDate: '2026-10-05' }, TODAY)).toEqual({
+      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 1, [5]) }, { defaultDate: '2026-10-05' }, TODAY)).toEqual({
         dueDate: '2026-10-09',
         scheduledDate: '2026-10-09',
         recurrence: { type: 'weekly', interval: 1 },
@@ -263,7 +266,7 @@ describe('繰り返し（最初の回の日が締切）', () => {
     })
 
     it('時刻つきなら最初の回の日の予定', () => {
-      expect(quickAddSchedule({ ...none, startTime: '15:00', endTime: '16:00', repeat: rep('weekly', 1, 5) }, {}, TODAY)).toEqual({
+      expect(quickAddSchedule({ ...none, startTime: '15:00', endTime: '16:00', repeat: rep('weekly', 1, [5]) }, {}, TODAY)).toEqual({
         dueDate: '2026-10-02',
         scheduledDate: '2026-10-02',
         startTime: '15:00',
@@ -273,7 +276,7 @@ describe('繰り返し（最初の回の日が締切）', () => {
     })
 
     it('締切として書いたら、やる日は既定のまま', () => {
-      const parsed = { ...none, dateIsDeadline: true, repeat: rep('weekly', 1, 5) }
+      const parsed = { ...none, dateIsDeadline: true, repeat: rep('weekly', 1, [5]) }
       expect(quickAddSchedule(parsed, { defaultDate: TODAY }, TODAY)).toEqual({
         dueDate: '2026-10-02',
         scheduledDate: TODAY,
@@ -314,9 +317,24 @@ describe('繰り返し（最初の回の日が締切）', () => {
     })
   })
 
-  it('「毎週月水」は繰り返しで表せないのでタイトルのまま', () => {
-    expect(added(addTaskFromQuickText('毎週月水 ジム'))).toMatchObject({ title: '毎週月水 ジム', dueDate: null })
-    expect(added(addTaskFromQuickText('毎週月水 ジム')).recurrence).toBeUndefined()
+  it('「毎週月水 ジム」は次に来る月か水が締切で、曜日つきの毎週', () => {
+    // 2026-09-30 は水曜
+    expect(added(addTaskFromQuickText('毎週月水 ジム'))).toMatchObject({
+      title: 'ジム',
+      dueDate: TODAY,
+      recurrence: { type: 'weekly', interval: 1, weekdays: [1, 3] },
+    })
+    expect(added(addTaskFromQuickText('平日 朝活', { defaultDate: '2026-10-03' }))).toMatchObject({
+      title: '朝活',
+      dueDate: '2026-10-05',
+      scheduledDate: '2026-10-05',
+      recurrence: { type: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] },
+    })
+    expect(added(addTaskFromQuickText('gym every tue thu'))).toMatchObject({
+      title: 'gym',
+      dueDate: '2026-10-01',
+      recurrence: { type: 'weekly', interval: 1, weekdays: [2, 4] },
+    })
   })
 
   it('カレンダーのセルで別の日に入ったら知らせる', () => {

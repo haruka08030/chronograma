@@ -60,6 +60,8 @@ const SCREENS = [
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
   // タイトルを押すと編集になるので、行の左の余白を押して開く
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
+  // 曜日つきの毎週（繰り返しの下に曜日のピル）
+  { name: 'task-detail-repeat', view: 'all', click: 'div.group.cursor-pointer:has-text("バイトのシフト提出")', clickAt: { x: 4, y: 12 } },
   { name: 'task-detail-scheduled', view: 'all', click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))', clickAt: { x: 4, y: 12 } },
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
