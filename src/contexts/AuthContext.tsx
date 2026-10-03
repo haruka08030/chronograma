@@ -16,7 +16,7 @@ import {
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
+import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
 import { clearAutoBackups } from '../lib/autoBackup'
@@ -218,8 +218,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 通知の行は RLS 上ログイン中にしか消せないので、セッションを切る前に外す
         await detachWebPush()
         // この端末のセッションだけを切る。既定（global）だとほかの端末もログアウトされ、
-        // そちらの Google 連携まで外れたように見えていた
-        if (sb) await sb.auth.signOut({ scope: 'local' })
+        // そちらの Google 連携まで外れたように見えていた。オフラインでも端末からは確実に消す
+        if (sb) await signOutThisDevice(sb)
+        setSession(null)
         // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
         clearLocalAccountState()
       },
@@ -245,7 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearBaseline(userId)
         await clearAutoBackups()
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
-        await sb.auth.signOut({ scope: 'local' })
+        await signOutThisDevice(sb)
+        setSession(null)
         clearLocalAccountState()
         return {}
       },

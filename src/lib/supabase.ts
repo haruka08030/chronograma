@@ -22,6 +22,30 @@ export function getSupabase(): SupabaseClient | null {
 }
 
 /**
+ * この端末だけログアウトする。回線が無いとサーバーでの取り消しが失敗し、auth-js はセッションを残したまま
+ * エラーを返す（そのまま端末のデータだけ消すと「ログインしたまま空」になっていた）。そのときは端末に
+ * 保存したセッションを自分で消す。サーバー側のセッションは期限切れまで残るが、この端末からは使われない
+ */
+export async function signOutThisDevice(sb: SupabaseClient): Promise<void> {
+  const { error } = await sb.auth.signOut({ scope: 'local' })
+  if (!error) return
+  // auth-js の内部の片付け（保存したセッションを消し、ほかのタブにも SIGNED_OUT を知らせる）
+  const auth = sb.auth as unknown as { _removeSession?: () => Promise<void> }
+  if (typeof auth._removeSession === 'function') {
+    await auth._removeSession()
+    return
+  }
+  // 内部が変わっていたら、保存したセッション（`sb-<ref>-auth-token`）を直接消す
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (/^sb-.+-auth-token/.test(key)) localStorage.removeItem(key)
+    }
+  } catch {
+    /* 保存領域が使えなければ消すものも無い */
+  }
+}
+
+/**
  * タブを閉じる・隠れる瞬間に Edge Function を呼ぶ。`functions.invoke` はセッションの読み出しを待ち、
  * ページが消えると送信ごと捨てられるので、手元のアクセストークンで `keepalive` の fetch を送る。応答は待たない。
  */
