@@ -8,6 +8,7 @@ npm run shots                        # 全部（10 画面 × 2 幅 × 2 テー�
 npm run shots -- --only=planner,stats
 npm run shots -- --dark-only
 npm run shots -- --out=/tmp/shots
+npm run shots -- --at=19:30          # 撮る時刻（既定は 13:00 に固定。--at=now で実時刻）
 ```
 
 **本番ビルドを撮る**（`npm run build` → `preview`）。dev サーバーだと

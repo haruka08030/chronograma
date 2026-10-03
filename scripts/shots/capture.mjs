@@ -5,6 +5,7 @@
  *   npm run shots -- --only=planner,stats
  *   npm run shots -- --dark-only
  *   npm run shots -- --out=/tmp/shots
+ *   npm run shots -- --at=19:30         # 時刻を変える（既定 13:00。--at=now で実時刻）
  *
  * 保存先の既定は `.shots/`（git 管理外）。
  * 毎回この作業ツリーをビルドし、空いているポートで自分のサーバーを起こして最後に止める。
@@ -26,6 +27,9 @@ const FIRST_PORT = 5180
  */
 const TIMEZONE = 'Asia/Tokyo'
 
+/** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
+const DEFAULT_AT = '13:00'
+
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
@@ -33,6 +37,8 @@ const SCREENS = [
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
+  // 夜中に開いたとき（日付が変わった直後のタイムライン）
+  { name: 'planner-midnight', view: 'planner', at: '00:30' },
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
@@ -82,12 +88,14 @@ function instantAt(at, timeZone) {
 }
 
 function parseArgs(argv) {
-  const out = { only: null, themes: ['light', 'dark'], outDir: '.shots' }
+  // 時刻を決めないと、撮るたびに「過ぎた予定」「現在線」が動いて見比べられない。既定は昼
+  const out = { only: null, themes: ['light', 'dark'], outDir: '.shots', at: DEFAULT_AT }
   for (const a of argv) {
     if (a.startsWith('--only=')) out.only = a.slice(7).split(',').map((s) => s.trim()).filter(Boolean)
     else if (a === '--dark-only') out.themes = ['dark']
     else if (a === '--light-only') out.themes = ['light']
     else if (a.startsWith('--out=')) out.outDir = a.slice(6)
+    else if (a.startsWith('--at=')) out.at = a.slice(5) === 'now' ? null : a.slice(5)
   }
   return out
 }
@@ -192,7 +200,8 @@ async function main() {
             reducedMotion: 'reduce',
           })
 
-          const instant = screen.at ? instantAt(screen.at, TIMEZONE) : new Date()
+          const at = screen.at ?? args.at
+          const instant = at ? instantAt(at, TIMEZONE) : new Date()
           const seed = buildSeedState({ theme, now: nowInTimeZone(TIMEZONE, instant) })
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
@@ -222,7 +231,7 @@ async function main() {
           )
 
           const page = await context.newPage()
-          if (screen.at) await page.clock.setFixedTime(instant)
+          if (at) await page.clock.setFixedTime(instant)
           const consoleErrors = []
           page.on('console', (m) => {
             if (m.type() === 'error') consoleErrors.push(m.text())

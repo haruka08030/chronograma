@@ -8,7 +8,7 @@
 
 const PERSIST_KEY = 'chronograma-storage'
 /** `taskStore.ts` の persist version と合わせる。古いと migrate が走って構図が変わる */
-const PERSIST_VERSION = 32
+const PERSIST_VERSION = 34
 
 const INBOX_ID = '__inbox__'
 const SOMEDAY_ID = 'seed-someday'
@@ -48,6 +48,7 @@ function task(fields, now) {
     tags: fields.tags ?? [],
     recurrence: null,
     isTimeLog: fields.isTimeLog ?? false,
+    isSleep: fields.isSleep ?? false,
     habitId: null,
     archivedAt: null,
     deletedAt: null,
@@ -76,7 +77,7 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     // 記録（色が付く主役）。完了済みのタイムログ
     task({ id: 's8', title: '課題（確率論）', dueDate: today, startTime: '10:00', endTime: '11:30', isTimeLog: true, completed: true, order: 7, tags: ['課題'] }, now),
     task({ id: 's9', title: '授業', dueDate: today, startTime: '13:00', endTime: '14:30', isTimeLog: true, completed: true, order: 8, tags: ['授業'] }, now),
-    task({ id: 's10', title: '睡眠', dueDate: yesterday, endDate: today, startTime: '23:30', endTime: '07:00', isTimeLog: true, completed: true, order: 9, tags: ['睡眠'] }, now),
+    task({ id: 's10', title: '睡眠', dueDate: yesterday, endDate: today, startTime: '23:30', endTime: '07:00', isTimeLog: true, isSleep: true, completed: true, order: 9, tags: ['睡眠'] }, now),
     // ラベルなしの記録（夕方の「ラベルなしの記録 N 件」を出す）
     task({ id: 's17', title: '昼ごはん', dueDate: today, startTime: '12:00', endTime: '12:45', isTimeLog: true, completed: true, order: 12, tags: [] }, now),
     task({ id: 's18', title: 'メール返信', dueDate: today, startTime: '16:45', endTime: '17:15', isTimeLog: true, completed: true, order: 13, tags: [] }, now),
