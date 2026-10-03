@@ -130,7 +130,6 @@ export default {
     overCapacityShort: '(over)',
     todoHeading: 'To-dos',
     addPlaceholder: 'Add',
-    addHint: 'e.g. 3pm essay 1h / report by fri / @Shopping milk',
     dueToday: 'Due today',
     dueOn: 'Due {{date}}',
     allDone: 'Everything you planned is done.',

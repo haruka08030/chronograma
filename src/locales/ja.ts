@@ -128,7 +128,6 @@ export default {
     overCapacityShort: '(超過)',
     todoHeading: 'To-Do',
     addPlaceholder: '追加',
-    addHint: '例: 15時 ES 1時間 ／ 金曜まで レポート ／ @買い物 牛乳',
     dueToday: '今日まで',
     dueOn: '{{date}} まで',
     allDone: '予定していたことは全部終わりました。',

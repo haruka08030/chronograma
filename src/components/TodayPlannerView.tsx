@@ -82,7 +82,6 @@ export function TodayPlannerView() {
     next: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), 1))),
   })
   const [draft, setDraft] = useState('')
-  const [draftFocused, setDraftFocused] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [showLeftOver, setShowLeftOver] = useState(false)
@@ -365,27 +364,15 @@ export function TodayPlannerView() {
         </ul>
 
         {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
-        <div className="relative mt-1 px-3">
+        <div className="mt-1 px-3">
           <InlineAddInput
             underline
             data-quickadd
             value={draft}
             onValueChange={setDraft}
             onSubmit={submitDraft}
-            onFocus={() => setDraftFocused(true)}
-            onBlur={() => setDraftFocused(false)}
             placeholder={t('planner.addPlaceholder')}
-            aria-describedby="planner-add-hint"
           />
-          {/* 浮かせて出す。行の流れに入れると、欄を離れた瞬間に下の行がずれて押し間違える */}
-          <p
-            id="planner-add-hint"
-            className={draftFocused
-              ? 'pointer-events-none absolute inset-x-3 top-full z-10 bg-white px-11 pb-1 text-xs text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500'
-              : 'sr-only'}
-          >
-            {t('planner.addHint')}
-          </p>
         </div>
 
         {totalCount > 0 && open.length === 0 && overdue.length === 0 && (
