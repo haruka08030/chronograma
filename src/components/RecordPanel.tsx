@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { tip } from '../lib/tooltip'
@@ -19,9 +19,11 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
+import { usePendingAction } from '../lib/pendingAction'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
-export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
+/** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
+export const OPEN_TIMER_ACTION = 'open-timer'
 
 
 /** 今の時刻を 5 分単位に丸めた HH:MM */
@@ -84,11 +86,7 @@ export function RecordPanel({
   // 未来の日は「後から」記録できない
   const canLogLater = dateKey <= toDateKey(zonedNow())
 
-  useEffect(() => {
-    const open = () => setMode('timer')
-    window.addEventListener(OPEN_TIMER_EVENT, open)
-    return () => window.removeEventListener(OPEN_TIMER_EVENT, open)
-  }, [])
+  usePendingAction(OPEN_TIMER_ACTION, () => setMode('timer'))
 
   const close = () => {
     setMode('idle')

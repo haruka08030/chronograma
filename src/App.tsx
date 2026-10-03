@@ -13,7 +13,8 @@ import { LABEL_DROP_PREFIX, LIST_PREFIX } from './lib/listDnD'
 import { labelDroppedTasks, moveDroppedTasks } from './lib/navDrop'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { TodayPlannerView } from './components/TodayPlannerView'
-import { OPEN_TIMER_EVENT } from './components/RecordPanel'
+import { OPEN_TIMER_ACTION } from './components/RecordPanel'
+import { requestAction, whenElement } from './lib/pendingAction'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
@@ -404,12 +405,11 @@ export default function App() {
   }, [theme])
 
   // 1 文字ショートカット（Google カレンダー風）。入力中・修飾キー付き・ダイアログやカードが開いている間は効かない
-  const focusQuickAdd = () => {
-    const el = document.querySelector<HTMLElement>('[data-quickadd]')
+  const focusQuickAddEl = (el: HTMLElement) => {
     if (el instanceof HTMLInputElement) el.focus()
-    else el?.click()
-    return Boolean(el)
+    else el.click()
   }
+  const findQuickAdd = () => document.querySelector<HTMLElement>('[data-quickadd]')
   useHotkey('t', () => dispatchNav('today'))
   useHotkey(['j', 'n'], () => dispatchNav('next'))
   useHotkey(['k', 'p'], () => dispatchNav('prev'))
@@ -422,19 +422,16 @@ export default function App() {
   useHotkey('l', () => {
     // 記録は「今日」に統合。今日を開いて「記録する」を開く
     useTaskStore.getState().selectView('planner')
-    window.setTimeout(() => window.dispatchEvent(new Event(OPEN_TIMER_EVENT)), 50)
+    requestAction(OPEN_TIMER_ACTION)
   })
+  // 画面を切り替えたら、その画面の欄が出てからフォーカスする（読み込みに時間がかかっても取りこぼさない）
   useHotkey('c', () => {
-    if (focusQuickAdd()) return
-    useTaskStore.getState().selectView('planner')
-    window.setTimeout(focusQuickAdd, 50)
+    if (!findQuickAdd()) useTaskStore.getState().selectView('planner')
+    whenElement(findQuickAdd, focusQuickAddEl)
   })
   useHotkey('/', () => {
-    if (searchRef.current) searchRef.current.focus()
-    else {
-      useTaskStore.getState().selectView('all')
-      window.setTimeout(() => searchRef.current?.focus(), 50)
-    }
+    if (!searchRef.current) useTaskStore.getState().selectView('all')
+    whenElement(() => searchRef.current, (el) => el.focus())
   })
   useHotkey('?', () => setShowShortcuts(true))
 
