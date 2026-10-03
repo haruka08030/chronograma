@@ -227,7 +227,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           onDefault={() => setGoogleEventColor(event, null, effectiveScope)}
           defaultLabel={t('eventCard.googleColor')}
           defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
-          columns={6}
+          fill
         />
       </div>
     </div>
