@@ -60,6 +60,7 @@ export default {
   },
   toast: {
     addedToList: '「{{name}}」に追加しました',
+    addedToDay: '{{date}} に追加しました',
     taskMovedToList: '「{{name}}」に移動しました',
     taskLabeled: '「{{name}}」のラベルを付けました',
     taskArchived: 'アーカイブしました',

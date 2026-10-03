@@ -60,6 +60,7 @@ export default {
   },
   toast: {
     addedToList: 'Added to “{{name}}”',
+    addedToDay: 'Added to {{date}}',
     taskMovedToList: 'Moved to “{{name}}”.',
     taskLabeled: 'Labeled “{{name}}”.',
     taskArchived: 'Archived',

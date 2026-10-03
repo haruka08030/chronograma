@@ -5,6 +5,7 @@ import { parseQuickAddTitle, type ParsedQuickAdd } from './parseQuickAdd'
 import { findListByName } from './listKind'
 import { displayListName } from './displayListName'
 import { appTodayKey } from './timeZone'
+import { formatDate } from './dateFormat'
 
 export interface QuickAddOptions {
   /** リストを書かなかったときに入れるリスト。省略すると選んでいるリスト（無ければ未分類） */
@@ -100,6 +101,12 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
 
   if (target && target.id !== opts.currentListId) {
     state.showMoveBanner(i18n.t('toast.addedToList', { name: displayListName(target.id, target.name) }))
+  } else {
+    // 見ている日と違う日に入ったら、その欄から消えて「入らなかった」と見えないよう知らせる
+    const scheduledDate = useTaskStore.getState().tasks.find((t) => t.id === id)?.scheduledDate
+    if (opts.defaultDate && scheduledDate && scheduledDate !== opts.defaultDate) {
+      state.showMoveBanner(i18n.t('toast.addedToDay', { date: formatDate(scheduledDate, 'monthDayWeekday') }))
+    }
   }
 
   return id

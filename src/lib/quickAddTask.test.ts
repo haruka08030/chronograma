@@ -44,7 +44,9 @@ const store = vi.hoisted(() => {
 })
 
 vi.mock('../store/taskStore', () => ({ useTaskStore: { getState: () => store } }))
-vi.mock('../i18n/config', () => ({ default: { t: (k: string) => k, resolvedLanguage: 'ja' } }))
+vi.mock('../i18n/config', () => ({
+  default: { t: (k: string, o?: { date?: string }) => (o?.date ? `${k}:${o.date}` : k), resolvedLanguage: 'ja', getFixedT: () => () => 'M/d' },
+}))
 vi.mock('./timeZone', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./timeZone')>()),
   appToday: () => NOW,
@@ -125,7 +127,13 @@ describe('カレンダーのセル（defaultDate＝そのセルの日）', () =>
     })
     const t = added(addTaskFromQuickText('レポート @授業', cell))
     expect(t).toMatchObject({ listId: 'school', scheduledDate: '2026-10-05' })
-    expect(store.showMoveBanner).toHaveBeenCalledTimes(1)
+    expect(store.showMoveBanner.mock.calls).toEqual([['toast.addedToDay:10/1'], ['toast.addedToList']])
+  })
+
+  it('その日のままなら知らせない', () => {
+    addTaskFromQuickText('15時 ES', cell)
+    addTaskFromQuickText('金曜まで レポート', cell)
+    expect(store.showMoveBanner).not.toHaveBeenCalled()
   })
 
   it('いつか・買い物には日付を付けない', () => {
