@@ -633,6 +633,8 @@ export default {
     markIncomplete: 'タスクを未完了に戻す',
     markComplete: 'タスクを完了にする',
     deleteAria: '削除',
+    openIn: '{{name}} で開く',
+    openLink: 'リンクを開く',
     moreMenuAria: 'タスクのメニュー',
     dueDateAria: '期限を設定',
     archive: 'アーカイブ',

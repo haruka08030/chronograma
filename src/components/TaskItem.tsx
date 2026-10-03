@@ -6,10 +6,11 @@ import type { Locale } from 'date-fns'
 import { format, parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ExternalLinkIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { TaskContextMenu } from './TaskContextMenu'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
@@ -141,7 +142,9 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   }
 
   const timeLog = isListedTimeLog(task)
-  const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
+  // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
+  const sourceLink = sourceLinkOf(task.description)
+  const notePreview = sourceLink ? '' : task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -381,6 +384,19 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           )}
           {task.recurrence && (
             <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+          )}
+          {sourceLink && (
+            <a
+              href={sourceLink.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
+              aria-label={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
+              className="inline-flex items-center rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+            >
+              <ExternalLinkIcon className="h-3.5 w-3.5" />
+            </a>
           )}
           {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
             <div className="flex gap-1">

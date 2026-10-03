@@ -634,6 +634,8 @@ export default {
     markIncomplete: 'Mark incomplete',
     markComplete: 'Mark complete',
     deleteAria: 'Delete',
+    openIn: 'Open in {{name}}',
+    openLink: 'Open link',
     moreMenuAria: 'Task menu',
     dueDateAria: 'Set due date',
     archive: 'Archive',
