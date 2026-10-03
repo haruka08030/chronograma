@@ -111,6 +111,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  /** 押してから指が TAP_SLOP_PX より動いたか（タッチのタップ判定） */
+  const beyondTapSlopRef = useRef(false)
   /** タッチ: ブロック上はドラッグせずタップで詳細を開く（スクロールと競合しない） */
   const onBlockTapRef = useRef(onBlockTap)
   useEffect(() => {
@@ -125,6 +127,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
+    beyondTapSlopRef.current = false
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
   }, [getRelativeY, popup, defaultCreateIntent])
@@ -206,6 +209,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (p0 && !didMoveRef.current) {
       const dx = Math.abs(e.clientX - p0.x)
       const dy = Math.abs(e.clientY - p0.y)
+      if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) beyondTapSlopRef.current = true
       const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
       if (dx > threshold || dy > threshold) {
         didMoveRef.current = true
@@ -241,8 +245,10 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       if (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current)) {
         setDrag(null)
         pointerStartRef.current = null
-        if (clickCreateMinutes && !isCoarsePointer() && !didMoveRef.current) {
-          // クリックした 30 分枠の頭から既定の長さで作成カードを出す
+        // タッチでスクロールになったときは pointercancel が来てここには来ない。指は少しぶれるので TAP_SLOP_PX 以内をタップとする
+        const tapped = isCoarsePointer() ? !beyondTapSlopRef.current : !didMoveRef.current
+        if (clickCreateMinutes && tapped) {
+          // クリック / タップした 30 分枠の頭から既定の長さで作成カードを出す
           const startMin = Math.floor(timeToMinutes(yToTime(minY)) / 30) * 30
           const limitMin = drag.maxY !== undefined ? Math.floor((drag.maxY / HOUR_HEIGHT) * 60) : 24 * 60 - SNAP_MINUTES
           const endMin = Math.min(startMin + clickCreateMinutes, 24 * 60 - SNAP_MINUTES, limitMin)
