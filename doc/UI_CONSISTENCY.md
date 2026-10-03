@@ -25,6 +25,9 @@
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
 | モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める | `components/ui/Modal.tsx` |
 | ポップオーバー | 面は `FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`。ダークの背景は zinc-800（下の画面より一段明るく） | `components/ui/surface.ts` |
+| 月のカレンダー（日付を選ぶ） | 月の切り替え・日付・今日/明日/なし。期限のポップオーバーとタスクの右クリックメニューで共通 | `components/DatePickerBody.tsx` |
+| マウスを乗せたときのヒント | `tip(説明, キー)` を付けると、0.5 秒後に説明＋キーを出す（マウスのある端末だけ） | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
+| タスクのまとめて操作 | 完了・削除・アーカイブ・期限・優先度・リスト移動。何件に何をしたかをトーストで出す | `hooks/useBulkTaskActions.ts` |
 
 ### 挙動
 
@@ -59,9 +62,12 @@
 | 部品 | 今の状態 | 切り出し先 |
 | --- | --- | --- |
 | アイコンボタン | `iconButton` を EventPopover と GoogleEventPopover が別々に定義 | `IconButton` |
-| アイコン | EventPopover の文字の ▶、FloatingTimer の停止の四角が `icons.tsx` を使っていない | `components/icons.tsx` |
+| アイコン | EventPopover の文字の ▶、FloatingTimer の停止の四角が `icons.tsx` を使っていない。アーカイブのアイコンは `ArchiveIcon` があるのに `TaskItem`・`TaskBinView`・`TodoNavPanel` が直書き。`MobileBottomNav`・`ThemeToggle` なども path を直書き | `components/icons.tsx` |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
-| 月カレンダー | `DueDatePopover` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `lib/monthGrid.ts`・`MiniMonthCalendar` |
+| 月カレンダー | `DatePickerBody` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `DatePickerBody` に寄せる |
+| 確認ダイアログ | `window.confirm` が 9 か所（ゴミ箱を空にする・完全に削除・ログアウト・アカウント削除・Notion/Canvas の解除・取り込み前の戻し・クラッシュ画面）。ブラウザ標準の見た目で、PWA では浮く | `Modal` の上に `ConfirmDialog`（取消 / 実行・赤、Enter・Esc） |
+| メニュー | タスクの右クリックメニューの行（アイコン・右端のキー・チェック・赤）と、並べ替えメニュー・アカウントメニュー・スマホの行の ≡ メニューが別々の class | `Menu`・`MenuItem` |
+| 濃い色の浮く面 | 元に戻すトースト・移動のトースト・選択中の件数（スマホ）・ヒントが、それぞれ `bg-zinc-900 text-white` 系を書いている | `surface.ts` に `INVERSE_SURFACE` |
 | 日付の移動（＜ 今日 ＞） | 今日画面・週のふりかえり・習慣・カレンダーで 4 通り | `DayNav` |
 | 色選択 | 5 か所（`ColorPalette`、`HabitsView` の `ColorPicker`、`SelectColorDialog`、`TodoNavPanel` の `ColorPicker`、`CategoryManager`）で列数・大きさ・選択中の印が違う | `SwatchGrid` |
 | 完了の丸 | `TaskItem` と今日画面で大きさ・枠の太さ・優先度の付け方が違う | `CompletionCircle` |
@@ -80,7 +86,7 @@
 ### 完了
 
 - 完了時に「記録も付ける」を聞くのは To-Do 画面の `TaskList` だけ。今日画面・買い物・いつか・予定カードは `toggleTask` だけ
-- 「記録を足して完了」の取り消し: 予定カードと週カレンダーは 1 回で戻るが、`TaskList` の `submitCompleteWithLog` は 2 回必要。まとめて完了（`bulkComplete`）は件数ぶん必要で、完了済みを選ぶと未完了に戻してしまう
+- 「記録を足して完了」の取り消し: 予定カードと週カレンダーは 1 回で戻るが、`TaskList` の `submitCompleteWithLog` は 2 回必要
 - 習慣: 習慣画面と今日画面は付け外しできるが、週カレンダーの習慣の枠は付けるだけ（`completeHabitAsPlanned`）
 
 ### 削除
@@ -111,7 +117,15 @@
 - 言語から date-fns の locale を選ぶ式が約 20 か所
 - → `lib/clockTime.ts` を広げる、`lib/dateKey.ts`、`useDateFormat()`
 
+### タスクのメニュー
+
+- 右クリックメニュー（`TaskContextMenu`）は To‑Do 一覧だけ。カレンダーのタスク置き場・その日のパネル・検索結果も `TaskItem` なのに出ない
+- スマホの行の ≡ メニュー（リスト・セクション・アーカイブ・削除）は右クリックメニューと別の実装で、項目も違う
+- → `TaskItem` に右クリックメニューを持たせ、≡ も同じメニューを開く
+
 ### ショートカット
+
+- ⌘ の表示: ショートカット一覧・右クリックメニュー・ヒントは ⌘ 固定（Windows でも ⌘）。元に戻すトーストだけ OS を見ている → `modKeyLabel()`
 
 - 仕組みが複数: `App.tsx` の全体リスナー、`lib/shortcuts.ts` のイベント、部品ごとの window リスナー（予定カード 2 種・`TaskList`・`DueDatePopover`・`CalendarDateNav`・`ShortcutsHelp`）
 - 「入力中か」の判定が 2 つ（`lib/shortcuts.ts` `isTypingTarget` と `lib/keyboard.ts` `isTextFieldUndoTarget`）＋各所の手書き
