@@ -10,12 +10,21 @@ import {
   saveBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
-import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER } from '../store/taskStore'
+import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
 const POLL_MS = 60_000
+
+/**
+ * 同じ人の同期をタブ間で 1 本ずつにする。前回同期の控え（baseline）は端末で 1 つなので、
+ * 2 つのタブが同時に回すと、取得が古いほうのタブが「控えにあってサーバーに無い」を削除と読み違える
+ */
+function withSyncLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator === 'undefined' || !navigator.locks) return fn()
+  return navigator.locks.request(`chronograma-sync:${userId}`, fn)
+}
 
 function localSnapshot(): SyncSnapshot {
   const s = useTaskStore.getState()
@@ -78,7 +87,11 @@ export function useSupabaseSync() {
     }
 
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
-    const syncOnce = async (): Promise<boolean> => {
+    const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
+
+    const syncOnceLocked = async (): Promise<boolean> => {
+      // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
+      adoptOtherTabChanges()
       const remote = await fetchListsTasksHabits(supabase, userId)
       if (cancelled) return true
       if ('error' in remote) {
@@ -202,7 +215,7 @@ export function useSupabaseSync() {
         state.sections === prev.sections
       )
         return
-      if (applyingRef.current) return
+      if (applyingRef.current || isAdoptingFromOtherTab()) return
       clearTimeout(debounce)
       debounce = setTimeout(() => void sync(), DEBOUNCE_MS)
     })

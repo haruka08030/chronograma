@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Task } from '../types/task'
 import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -34,11 +34,14 @@ import { clearImportRollback, loadImportRollback, saveImportRollback } from '../
 import { restoreMissing } from '../lib/autoBackup'
 import { appTimeZone, isValidTimeZone, setAppTimeZoneSetting, zonedNow } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
+import { markRawKnown, persistStorage, readChangedRaw, withoutPersisting } from '../lib/persistStorage'
 
 /** 時間バーに並べられる別のタイムゾーンの数（多いとタイムラインが狭くなる） */
 export const MAX_EXTRA_TIME_ZONES = 2
 
 const PERSIST_STORAGE_KEY = 'chronograma-storage'
+/** 保存形式の版。上げたら migrate に手順を足す */
+const STORE_VERSION = 34
 const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
@@ -710,11 +713,18 @@ function completedRecordPatch(
   }
 }
 
+/** 他のタブの変更を取り込んだとき、手元の ⌘Z の履歴（取り込む前の状態）を捨てる */
+let clearUndoHistory = () => {}
+
 export const useTaskStore = create<TaskState>()(
   persist(
     (set, get) => {
       const undoStack: ChronogramaUndoSnapshot[] = []
       const redoStack: ChronogramaUndoSnapshot[] = []
+      clearUndoHistory = () => {
+        undoStack.length = 0
+        redoStack.length = 0
+      }
       const MAX_UNDO = 50
 
       const captureUndoSnapshot = (): ChronogramaUndoSnapshot => {
@@ -2220,7 +2230,8 @@ export const useTaskStore = create<TaskState>()(
     },
     {
       name: PERSIST_STORAGE_KEY,
-      version: 34,
+      version: STORE_VERSION,
+      storage: createJSONStorage(() => persistStorage),
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
@@ -2551,3 +2562,63 @@ applyTimeZoneState()
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
+
+/**
+ * タブごとに違ってよい表示の状態。他のタブの保存からは取り込まない
+ * （取り込むと、別のタブで画面を切り替えただけでこのタブの画面も切り替わる）
+ */
+const TAB_LOCAL_KEYS = [
+  'selectedListId',
+  'selectedView',
+  'calendarMode',
+  'selectedCalendarDateKey',
+  'sortMode',
+  'sectionGrouping',
+  'filterColor',
+  'quickAddSectionId',
+] as const
+
+let adoptingFromOtherTab = false
+/** いまの更新が他のタブからの取り込みか（同期はそのタブが送るので、こちらからは送らない） */
+export const isAdoptingFromOtherTab = () => adoptingFromOtherTab
+
+/**
+ * 他のタブが保存した内容を取り込む。取り込まないと、古いままのタブが次の同期で
+ * 「もう一方のタブで作ったタスク」を自分が消したものと判断し、サーバーからも消していた。
+ * ログインしていなくても、最後に書いたタブがもう一方の編集を上書きしていた
+ */
+export function adoptOtherTabChanges(): void {
+  const raw = readChangedRaw(PERSIST_STORAGE_KEY)
+  if (!raw) return
+  let parsed: { state?: Record<string, unknown>; version?: unknown }
+  try {
+    parsed = JSON.parse(raw) as typeof parsed
+  } catch {
+    return
+  }
+  markRawKnown(raw)
+  if (parsed.version !== STORE_VERSION) {
+    // 新しい版のアプリを開いたタブが書いた。古いコードで読むと壊すので、このタブも新しい版で開き直す
+    if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) window.location.reload()
+    return
+  }
+  const incoming: Record<string, unknown> = { ...parsed.state }
+  for (const key of TAB_LOCAL_KEYS) delete incoming[key]
+  const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
+  const sel = useTaskStore.getState().selectedListId
+  if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
+  adoptingFromOtherTab = true
+  try {
+    // 保存し直さない（同じ内容を書くだけで、表示の状態だけが違う書き込みがタブ間を往復する）
+    withoutPersisting(() => useTaskStore.setState(incoming as Partial<TaskState>))
+    clearUndoHistory()
+  } finally {
+    adoptingFromOtherTab = false
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === PERSIST_STORAGE_KEY) adoptOtherTabChanges()
+  })
+}
