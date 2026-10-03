@@ -238,18 +238,6 @@ export function normalizeCalendarEventTimes(event: CalendarEvent): CalendarEvent
   }
 }
 
-export function hasOAuthCallbackInUrl(): boolean {
-  if (typeof window === 'undefined') return false
-  const hash = window.location.hash
-  const search = window.location.search
-  return (
-    hash.includes('access_token') ||
-    hash.includes('error') ||
-    search.includes('code=') ||
-    search.includes('error=')
-  )
-}
-
 /** 最後に取れたカレンダーの色（色の付いていない新しい予定に使う） */
 let lastCalendarHex: string | null | undefined
 

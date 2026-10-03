@@ -10,13 +10,12 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
   handleGoogleOAuthCallback,
   hasGoogleOAuthCallbackInUrl,
-  hasOAuthCallbackInUrl,
   isGoogleCalendarConnected,
   localizeGoogleError,
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
-import { pendingAuthLinkError } from '../lib/authLinkError'
+import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
@@ -31,6 +30,8 @@ export type AuthContextValue = {
   loading: boolean
   signInWithOtp: (email: string) => Promise<{ error?: string }>
   verifyEmailOtp: (email: string, token: string) => Promise<{ error?: string }>
+  /** Google の画面に移る。戻ってきたら Supabase がセッションを作る（同じメールのアカウントがあればそこに入る） */
+  signInWithGoogle: () => Promise<{ error?: string }>
   signOut: () => Promise<void>
   /** アカウントとクラウドのデータを全部消し、この端末のデータと自動バックアップも消す */
   deleteAccount: () => Promise<{ error?: string }>
@@ -44,6 +45,7 @@ const noopAuth: AuthContextValue = {
   loading: false,
   signInWithOtp: async () => ({ error: 'Supabase が設定されていません' }),
   verifyEmailOtp: async () => ({ error: 'Supabase が設定されていません' }),
+  signInWithGoogle: async () => ({ error: 'Supabase が設定されていません' }),
   signOut: async () => {},
   deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
 }
@@ -61,10 +63,6 @@ const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>([
   'USER_UPDATED',
 ])
 
-function hasGoogleIdentity(user: User): boolean {
-  return user.identities?.some((identity) => identity.provider === 'google') ?? false
-}
-
 let googleSyncQueue: Promise<void> = Promise.resolve()
 
 function enqueueGoogleSync(task: () => Promise<void>) {
@@ -73,10 +71,7 @@ function enqueueGoogleSync(task: () => Promise<void>) {
   })
 }
 
-async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Session) {
-  const user = session.user
-  const fromOAuthCallback = hasOAuthCallbackInUrl()
-
+async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
   // 直接 Google OAuth の ?code= は、どの画面に戻ってきても必ず交換する。
   // （以前は plan-vs-actual が mount されたときだけ処理していたため取りこぼしていた）
   if (hasGoogleOAuthCallbackInUrl()) {
@@ -105,26 +100,8 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Sess
     return
   }
 
-  if (user && hasGoogleIdentity(user)) {
-    try {
-      const connected = await isGoogleCalendarConnected()
-      useTaskStore.getState().setGoogleConnected(connected)
-      if (connected) {
-        useTaskStore.getState().setGoogleConnectionError(null)
-      } else if (fromOAuthCallback) {
-        useTaskStore.getState().setGoogleConnectionError(
-          localizeGoogleError(
-            'Google refresh token missing after OAuth. Reconnect after revoking app access.',
-            (key) => i18n.t(key),
-          ),
-        )
-      }
-    } catch {
-      useTaskStore.getState().setGoogleConnected(false)
-    }
-    return
-  }
-
+  // Google でログインしただけではカレンダーはつながらない（連携は設定から別に許可する）。
+  // ログインの方法によらず、サーバーに連携があるかだけを見る
   try {
     const connected = await isGoogleCalendarConnected()
     useTaskStore.getState().setGoogleConnected(connected)
@@ -178,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (s) lastUserId = s.user.id
         setSession(s)
         if (s) {
-          enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION', s))
+          enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
         }
       })
       .catch((err) => {
@@ -193,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (s) lastUserId = s.user.id
 
       if (s && GOOGLE_AUTH_EVENTS.has(event)) {
-        enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s))
+        enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
       }
 
       if (event === 'SIGNED_OUT') clearLocalAccountState(lastUserId)
@@ -253,6 +230,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }
           return { error: message || i18n.t('account.genericError') }
         }
+      },
+      signInWithGoogle: async () => {
+        const sb = getSupabase()
+        if (!sb) return { error: 'Supabase が設定されていません' }
+        // 戻りが失敗（キャンセルなど）だったとき、メールのリンクの失敗と区別して出すため
+        markOAuthSignInStarted()
+        const { error } = await sb.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+            // 毎回アカウントを選ばせる（共用 PC・複数アカウントの人が別のアカウントに入らないように）
+            queryParams: { prompt: 'select_account' },
+          },
+        })
+        if (!error) return {}
+        if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
+        return { error: i18n.t('account.googleFailed') }
       },
       signOut: async () => {
         const sb = getSupabase()

@@ -20,7 +20,11 @@ describe('parseAuthLinkError', () => {
 
 describe('authLinkErrorKey', () => {
   it('explains an expired or used link separately', () => {
-    expect(authLinkErrorKey('otp_expired')).toBe('account.linkExpired')
-    expect(authLinkErrorKey('access_denied')).toBe('account.linkFailed')
+    expect(authLinkErrorKey('otp_expired', false)).toBe('account.linkExpired')
+    expect(authLinkErrorKey('access_denied', false)).toBe('account.linkFailed')
+  })
+
+  it('explains a cancelled or failed Google sign-in as such', () => {
+    expect(authLinkErrorKey('access_denied', true)).toBe('account.googleFailed')
   })
 })

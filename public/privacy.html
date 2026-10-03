@@ -40,6 +40,7 @@
   <h3>ログインして同期する場合</h3>
   <ul>
     <li><strong>メールアドレス</strong>：ログイン用のリンクを送り、アカウントを識別するため。</li>
+    <li><strong>Google でログインした場合</strong>：Google アカウントのメールアドレス・名前・プロフィール画像の URL と、Google のアカウント ID。アカウントを識別するためだけに使います。</li>
     <li><strong>入力した内容</strong>：リスト、タスク（タイトル・メモ・日付・時刻・場所・タグ・色など）、時間の記録、睡眠の記録、習慣とその達成日。複数の端末で同じデータを使うため。</li>
     <li><strong>通知の設定</strong>：通知を有効にした端末のプッシュ通知の宛先（ブラウザが発行する購読情報）、タイムゾーン、表示言語、通知の時刻、その日に通知済みのタスクの ID。通知を送るため。</li>
   </ul>
@@ -103,7 +104,7 @@
 
     <h2>1. Information we handle</h2>
     <p><strong>Without signing in</strong>, everything you enter stays in your browser (localStorage and IndexedDB) and is never sent to us. Automatic backups also stay on the device.</p>
-    <p><strong>When you sign in to sync</strong>, we store: your email address (to send sign-in links and identify your account); the content you enter (lists, tasks with their notes, dates, times, places, tags and colors, time records, sleep records, habits and the dates you completed them); and, if you turn on notifications, the device's push subscription, time zone, language, reminder times and the IDs of tasks already notified that day.</p>
+    <p><strong>When you sign in to sync</strong>, we store: your email address (to send sign-in links and identify your account); if you sign in with Google, your Google account's email address, name, profile picture URL and account ID (used only to identify your account); the content you enter (lists, tasks with their notes, dates, times, places, tags and colors, time records, sleep records, habits and the dates you completed them); and, if you turn on notifications, the device's push subscription, time zone, language, reminder times and the IDs of tasks already notified that day.</p>
     <p><strong>Google Calendar (optional)</strong>: we store the refresh token Google issues and the granted scopes on the server; the browser cannot read them. Events are fetched from Google each time they are shown and are not stored on our server. We write to your calendar only when you create, edit or delete an event in the Service.</p>
     <p><strong>Notion (optional)</strong>: we store the integration token, database ID and status settings you enter, server-side only. We read the rows that need action and update a row's status when you complete its task.</p>
     <p><strong>Canvas (optional)</strong>: we store your school's Canvas URL and the access token or calendar feed URL you enter, server-side only. We read assignment names, due dates, course names and links to create tasks; with a token, completing a task also marks the assignment complete in Canvas.</p>

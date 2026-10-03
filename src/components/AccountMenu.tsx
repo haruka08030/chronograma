@@ -10,23 +10,34 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
+import { isGoogleAvailable } from '../lib/googleCalendar'
+import { GoogleLogo } from './ui/GoogleLogo'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
-  const { user, loading, signInWithOtp, verifyEmailOtp, signOut, deleteAccount } = useAuth()
+  const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
   // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
   const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
   const [email, setEmail] = useState('')
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [pending, setPending] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(() => {
     const linkError = pendingAuthLinkError()
     return linkError ? t(authLinkErrorKey(linkError)) : null
   })
   useEffect(() => clearAuthLinkError(), [])
+  // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setRedirecting(false)
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
   const wrapRef = useRef<HTMLDivElement>(null)
   useDismiss({ open, onClose: () => setOpen(false), inside: [wrapRef] })
 
@@ -107,6 +118,18 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       setError(isNetworkErrorMessage(message) ? t('account.networkError') : t('account.genericError'))
     } finally {
       setPending(false)
+    }
+  }
+
+  /** Google の画面に移る。うまく移れたらこのページは離れるので、押せないままにしておく */
+  const handleGoogle = async () => {
+    setError(null)
+    setMessage(null)
+    setRedirecting(true)
+    const res = await signInWithGoogle()
+    if (res.error) {
+      setError(res.error)
+      setRedirecting(false)
     }
   }
 
@@ -196,6 +219,24 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
               <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.privacyPolicy')}</a>
               {t('account.agreeSuffix')}
             </p>
+            {!codeSentTo && isGoogleAvailable() && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleGoogle()}
+                  disabled={pending || redirecting}
+                  className={buttonClass({ variant: 'secondary', size: 'md' }, 'w-full')}
+                >
+                  <GoogleLogo />
+                  {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
+                </button>
+                <div className="my-3 flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500" aria-hidden>
+                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+                  {t('account.orEmail')}
+                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+              </>
+            )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 break-all">{codeSentTo}</p>

@@ -14,7 +14,7 @@
 - **習慣**: ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
 - **外観**: ライト／ダーク、日本語と英語の UI
 
-**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、メールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
@@ -85,6 +85,16 @@ select cron.schedule(
 ```
 
 通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。
+
+### Google でログイン（任意）
+
+ログインの画面に「Google でログイン」を出すには、`VITE_GOOGLE_CLIENT_ID` を設定したうえで次を行います（カレンダー連携と同じ Web クライアントを使えます）。
+
+1. **Google Cloud Console → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `https://<project-ref>.supabase.co/auth/v1/callback` を追加
+2. Supabase の **Authentication → Providers → Google** を有効にし、Client ID / Secret を設定
+3. **Authentication → URL Configuration** の **Redirect URLs** に本番と開発のオリジンが入っていること（マジックリンクと同じ）
+
+ログインで求める権限はメールアドレスと名前・プロフィール画像だけです。カレンダーは設定から別に連携します。同じメールアドレスでメールと Google の両方からログインすると、Supabase が同じアカウントにまとめます（Google 側で確認済みのアドレスのとき）。
 
 ### Google Calendar 連携（任意）
 
