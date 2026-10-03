@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { displayListName } from '../lib/displayListName'
 import type { Priority } from '../types/task'
+import { toastTitle } from '../lib/undoWindow'
 
 /**
  * タスクをまとめて操作する（右クリックメニュー・キー操作・選択中の操作で共通）。
@@ -37,7 +38,7 @@ export function useBulkTaskActions() {
         const name = displayListName(list.id, list.name)
         const label =
           ids.length === 1
-            ? t('undo.taskMoved', { title: tasks.find((x) => x.id === ids[0])?.title ?? '', name })
+            ? t('undo.taskMoved', { title: toastTitle(tasks.find((x) => x.id === ids[0])?.title ?? ''), name })
             : t('undo.tasksMoved', { count: ids.length, name })
         bulkUpdateTasks(ids, { listId }, label)
       },

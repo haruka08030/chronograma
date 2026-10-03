@@ -700,6 +700,8 @@ export default {
     habitDeleted: 'Deleted “{{name}}”',
     googleDeleted: 'Deleted “{{name}}”',
     tasksArchived: 'Archived {{count}} tasks',
+    labelDeleted: 'Deleted the label “{{name}}”',
+    labelsDeleted: 'Deleted {{count}} labels',
     message: 'Task deleted',
     taskDeleted: 'Deleted “{{title}}”',
     tasksDeleted: 'Deleted {{count}} tasks',

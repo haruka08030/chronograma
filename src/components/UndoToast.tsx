@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { undoGoogleDelete } from '../lib/googleEventEdit'
-import { UNDO_WINDOW_MS } from '../lib/undoWindow'
+import { UNDO_WINDOW_MS, toastTitle } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
 import { INVERSE_SURFACE } from './ui/surface'
 
@@ -57,7 +57,7 @@ export function UndoToast() {
   function deletedMessage() {
     const ids = new Set(deletedTasks.map((d) => d.task.id))
     const roots = deletedTasks.filter((d) => !d.task.parentId || !ids.has(d.task.parentId))
-    if (roots.length === 1 && roots[0].task.title.trim()) return t('undo.taskDeleted', { title: roots[0].task.title })
+    if (roots.length === 1 && roots[0].task.title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].task.title) })
     if (roots.length > 1) return t('undo.tasksDeleted', { count: roots.length })
     return t('undo.message')
   }

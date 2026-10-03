@@ -699,6 +699,8 @@ export default {
     habitDeleted: '「{{name}}」を削除しました',
     googleDeleted: '「{{name}}」を削除しました',
     tasksArchived: '{{count}} 件をアーカイブしました',
+    labelDeleted: 'ラベル「{{name}}」を削除しました',
+    labelsDeleted: 'ラベルを {{count}} 件削除しました',
     message: 'タスクを削除しました',
     taskDeleted: '「{{title}}」を削除しました',
     tasksDeleted: '{{count}} 件を削除しました',

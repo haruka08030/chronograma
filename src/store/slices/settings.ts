@@ -6,6 +6,7 @@ import { reanchorTasks } from '../../lib/taskTimeZone'
 import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import i18n from '../../i18n/config'
 
 type SettingsActions = Pick<
   TaskState,
@@ -67,7 +68,16 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       set({ timeLogTagPresets: list })
     },
     saveLogLabels: (rows) => {
-      pushUndo()
+      // 消したラベルがあれば「元に戻す」で知らせる（ほかの削除と同じく、確認は出さずに戻せるようにする）
+      const nextNames = new Set(rows.flatMap((r) => [r.name.trim(), r.from ?? '']).filter(Boolean))
+      const removed = get().timeLogTagPresets.filter((n) => !nextNames.has(n))
+      pushUndo(
+        removed.length === 1
+          ? i18n.t('undo.labelDeleted', { name: removed[0] })
+          : removed.length > 1
+            ? i18n.t('undo.labelsDeleted', { count: removed.length })
+            : undefined,
+      )
       const now = new Date().toISOString()
       set((s) => {
         const presets: string[] = []
