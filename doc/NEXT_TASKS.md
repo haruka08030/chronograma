@@ -54,13 +54,13 @@ Wish や買い物が「やるべきこと」の横に並ぶと選択肢が多す
 | 同期モデル | 三方向マージ（`syncMerge.ts`）でタスク単位に `updatedAt` の新しい方を採用。同じタスクを両端末で同時に編集すると後勝ち（フィールド単位ではない）。他端末の変更はフォーカス復帰・60 秒ごとに取り込む。2 端末の実機では未確認 | Supabase Realtime で即時反映 |
 | Google Calendar | 権限は `calendar.readonly` と `calendar.events`。古い接続は読み取りのみ | 公開には Google の審査、既存ユーザーの再同意 |
 | スマホ | PWA・下部ナビ「今日」・計画画面の切り替えあり。iPhone / Android の実機での操作感は未確認（タイムラインのタッチ操作、キーボード表示時のレイアウト） | 実機で確認して直す |
-| ドキュメント | スキーマの正本は `001_chronograma_schema.sql`、短い説明は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる | |
+| ドキュメント | スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる | |
 
 ## 運用・環境
 
 | 項目 | 内容 |
 | --- | --- |
-| Supabase | 各環境で `001_chronograma_schema.sql` を最新の内容で実行済みか確認 |
+| Supabase | 各環境で `supabase/migrations/` の最後の番号まで実行済みか確認 |
 | Web Push | VAPID 鍵、`daily-reminders` のデプロイ、pg_cron の登録（手順は README）。実際の送信は未確認 |
 | デバッグログ | ルート `.gitignore` の `*.log` で `.cursor/debug-*.log` は除外される |
 

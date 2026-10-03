@@ -433,8 +433,9 @@
 
 ## データベース（`supabase/migrations/`）
 
-**正本**: **`001_chronograma_schema.sql` 1 本**（`lists` / `list_sections` / `tasks` / `habits` /
-`push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）。SQL Editor で全体を 1 回流す想定。
+**正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` /
+`push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）に、`002` 以降の変更を番号順に積む。
+SQL Editor で `001` から順に全部流す（どれも何度流しても同じ形）。変更は次の番号の新しいファイルで足し、コミット済みのファイルは書き換えない。
 利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
 付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。一覧の短い説明は **`supabase/migrations/README.md`**。
@@ -462,6 +463,6 @@ service_role で読み書き）。Web Push の送信は Edge Function `daily-rem
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左
 - README
   と古いドキュメント間のマイグレーション説明の齟齬に注意（**スキーマの正本は
-  `supabase/migrations/001_chronograma_schema.sql`**。短い説明は
+  `supabase/migrations/` の番号順のファイル**。短い説明は
   `supabase/migrations/README.md`。ルート `README.md` と本ファイルの DB
   節はそれと同期させる）

@@ -1,12 +1,11 @@
 -- Chronograma: Supabase のスキーマ一式。
--- SQL Editor でこのファイル全体を実行すれば、新しいプロジェクトでも既存の DB でも最終形になる。
--- 何度流しても同じ形になる（Postgres 15 以上）。
+-- 最初のスキーマ。このあと 002 以降を番号順に実行する（Postgres 15 以上）。
 --
 -- 方針
 --   - 利用者の行は主キー (user_id, id)。未分類 '__inbox__' のように ID が全員で同じでもぶつからない。
 --     外部キーも (user_id, ...) にして、他人の行を指せないようにする。
 --   - RLS: 利用者のデータは本人だけが読み書きできる。
---     外部サービスのトークン（google_oauth / notion_connection / canvas_connection）はブラウザに出さないので
+--     外部サービスのトークン（google_oauth / notion_connection）はブラウザに出さないので
 --     ポリシーを置かず、Edge Function が service_role で読み書きする。
 
 
@@ -38,10 +37,8 @@ create table if not exists public.list_sections (
   sort_order double precision not null default 0,
   updated_at timestamptz not null default now(),
   primary key (user_id, id),
-  -- リストを消しても中身は道連れにしない（下の「既存の DB を最終形にそろえる」を参照）。
-  -- アカウントの削除では auth.users からの cascade で消える
   constraint list_sections_list_fkey
-    foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action
+    foreign key (user_id, list_id) references public.lists (user_id, id) on delete cascade
 );
 
 create index if not exists list_sections_user_list_idx on public.list_sections (user_id, list_id);
@@ -76,8 +73,6 @@ create table if not exists public.tasks (
   time_zone        text,
   -- 日付・時刻の列がどのタイムゾーンで書かれているか。各端末が読み込み時に同じ瞬間のまま書き直す
   time_zone_anchor text,
-  -- タスクごとの通知 [{ "at": "start" | "due" | "dueDay", "minutes": n }]（null = 設定の既定）
-  reminders        jsonb,
 
   -- 記録（time log）
   is_time_log      boolean not null default false,
@@ -94,7 +89,7 @@ create table if not exists public.tasks (
 
   primary key (user_id, id),
   constraint tasks_list_fkey
-    foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action,
+    foreign key (user_id, list_id) references public.lists (user_id, id) on delete cascade,
   -- セクションが消えたら section_id だけ null にする（user_id は残す）
   constraint tasks_section_fkey
     foreign key (user_id, section_id) references public.list_sections (user_id, id)
@@ -138,7 +133,7 @@ create table if not exists public.push_subscriptions (
   timezone               text not null default 'UTC',
   lang                   text not null default 'ja',
 
-  -- 朝のまとめ（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回）。wrap_up_* は廃止（夕方の締め）
+  -- 朝の計画・夕方の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回）
   plan_time              text check (plan_time is null or plan_time ~ '^\d{2}:\d{2}$'),
   wrap_up_time           text check (wrap_up_time is null or wrap_up_time ~ '^\d{2}:\d{2}$'),
   last_plan_sent         date,
@@ -147,17 +142,9 @@ create table if not exists public.push_subscriptions (
   -- 予定の開始 N 分前（null = オフ）
   event_reminder_minutes integer
     check (event_reminder_minutes is null or event_reminder_minutes between 1 and 120),
-  -- 締切の前（前日 20:00 ＋ 時刻つきは 3 時間前）
+  -- 締切の通知
   due_reminders          boolean not null default false,
-  -- 予定のあとの記録の確認
-  record_prompts         boolean not null default false,
-  -- 送った通知の鍵（同じ通知を二度送らない）: { "keys": ["task:start:10:yyyy-mm-dd", ...] }
-  reminder_sent          jsonb,
-  -- 動いているタイマー（止め忘れの通知用）と、通知済みのタイマーの開始時刻
-  timer_started_at       timestamptz,
-  timer_title            text,
-  timer_notified_for     timestamptz,
-  -- 廃止（reminder_sent に統合）
+  -- その日に通知済みの ID: { "date": "yyyy-mm-dd", "ids": ["task id", ...] }
   event_notified         jsonb,
   due_notified           jsonb,
 
@@ -193,102 +180,6 @@ create table if not exists public.notion_connection (
 
 
 -- ===========================================================================
--- canvas_connection（Canvas LMS のアクセストークンと学校の URL。学校ごとに 1 行。サーバー専用）
--- ===========================================================================
-create table if not exists public.canvas_connection (
-  user_id    uuid not null references auth.users (id) on delete cascade,
-  id         text not null,  -- 学校の Canvas のホスト名 'xxx.instructure.com'
-  base_url   text not null,  -- 'https://xxx.instructure.com'
-  -- 'token': アクセストークンで読み書き / 'ical': トークンを作れない学校向けに、カレンダーフィードを読むだけ
-  kind       text not null default 'token' check (kind in ('token', 'ical')),
-  token      text,           -- kind = 'token' のとき
-  feed_url   text,           -- kind = 'ical' のとき（URL そのものが鍵なのでブラウザに出さない）
-  user_name  text,
-  -- トークンの期限（null = 期限なしか、分からない）。同期のついでに 1 日 1 回確かめて、近ければ延ばす
-  token_expires_at timestamptz,
-  token_checked_at timestamptz,
-  updated_at timestamptz not null default now(),
-  primary key (user_id, id)
-);
-
-
--- ===========================================================================
--- 既存の DB を最終形にそろえる
--- 上の create table if not exists は、表が既にあると何もしない。古い形の表に足りない列・制約をここで足す。
--- 新しいプロジェクトでは何も変わらない。
--- ===========================================================================
-
--- tasks: タスクごとの通知（null = 設定の既定）
-alter table public.tasks
-  add column if not exists reminders jsonb;
-
--- push_subscriptions: 予定のあとの記録の確認、送った通知の鍵、タイマーの止め忘れ
-alter table public.push_subscriptions
-  add column if not exists record_prompts     boolean not null default false,
-  add column if not exists reminder_sent      jsonb,
-  add column if not exists timer_started_at   timestamptz,
-  add column if not exists timer_title        text,
-  add column if not exists timer_notified_for timestamptz;
-
--- canvas_connection: 最初の版（1 人 1 つ、主キー user_id）を学校（ホスト名）ごとの行に変える
-alter table public.canvas_connection add column if not exists id text;
-update public.canvas_connection set id = regexp_replace(base_url, '^https://', '') where id is null;
-alter table public.canvas_connection alter column id set not null;
-alter table public.canvas_connection drop constraint if exists canvas_connection_pkey;
-alter table public.canvas_connection add primary key (user_id, id);
-alter table public.canvas_connection
-  add column if not exists kind text not null default 'token',
-  add column if not exists feed_url text,
-  alter column token drop not null,
-  add column if not exists token_expires_at timestamptz,
-  add column if not exists token_checked_at timestamptz;
-
--- リストを消したときに、中のタスク・セクションをサーバー側で道連れにしない。
--- cascade だと、端末 A がリスト L を消すのと同じころに端末 B が L にタスクを足すと、B のタスクがサーバーから消え、
--- B も次の同期でそれを「消された」と読んで手元から消してしまう。no action なら A のリスト削除が失敗し、
--- 次の同期で B のタスクを受け取って未分類へ移してから消し直す。
--- restrict ではなく no action にするのは、アカウントの削除で auth.users から lists と tasks の両方へ
--- cascade するときに、文の終わりで確かめるため。
-alter table public.tasks drop constraint if exists tasks_list_fkey;
-alter table public.tasks
-  add constraint tasks_list_fkey
-  foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action;
-
-alter table public.list_sections drop constraint if exists list_sections_list_fkey;
-alter table public.list_sections
-  add constraint list_sections_list_fkey
-  foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action;
-
-
--- ===========================================================================
--- 大きさの上限（2026-10）。1 人のアカウントに巨大な行を書き込めないようにする。
--- ふつうの使い方では届かない大きさにしてあり、アプリも送る前に同じ長さで切る（`supabaseData.ts`）。
--- 既にある行は検査しない（not valid）。
--- ===========================================================================
-do $$
-declare c record;
-begin
-  for c in
-    select * from (values
-      ('lists',              'lists_size_check',              'length(id) <= 200 and length(name) <= 500'),
-      ('list_sections',      'list_sections_size_check',      'length(id) <= 200 and length(name) <= 500'),
-      ('tasks',              'tasks_size_check',
-        'length(id) <= 200 and length(title) <= 2000 and length(description) <= 200000'
-        || ' and coalesce(length(location), 0) <= 2000 and pg_column_size(tags) <= 65536'
-        || ' and coalesce(pg_column_size(recurrence), 0) <= 16384 and coalesce(pg_column_size(reminders), 0) <= 16384'),
-      ('habits',             'habits_size_check',
-        'length(id) <= 200 and length(title) <= 2000 and pg_column_size(frequency) <= 16384'
-        || ' and pg_column_size(completed_dates) <= 1048576'),
-      ('push_subscriptions', 'push_subscriptions_size_check',
-        'length(endpoint) <= 2000 and coalesce(length(timer_title), 0) <= 2000')
-    ) as v(tbl, name, expr)
-  loop
-    execute format('alter table public.%I drop constraint if exists %I', c.tbl, c.name);
-    execute format('alter table public.%I add constraint %I check (%s) not valid', c.tbl, c.name, c.expr);
-  end loop;
-end $$;
-
--- ===========================================================================
 -- RLS
 -- ===========================================================================
 alter table public.lists              enable row level security;
@@ -298,7 +189,6 @@ alter table public.habits             enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.google_oauth       enable row level security;  -- ポリシーなし（サーバー専用）
 alter table public.notion_connection  enable row level security;  -- ポリシーなし（サーバー専用）
-alter table public.canvas_connection  enable row level security;  -- ポリシーなし（サーバー専用）
 
 -- 本人の行だけ select / insert / update / delete できる（<表>_select_own など）
 do $$

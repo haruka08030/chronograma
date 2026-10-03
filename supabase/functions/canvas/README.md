@@ -6,7 +6,7 @@ The access token is stored in `canvas_connection` and never returned to the brow
 
 ## Deploy
 
-The `canvas_connection` table is in `supabase/migrations/001_chronograma_schema.sql` (also run it on existing DBs; it is safe to rerun).
+The `canvas_connection` table is created by `supabase/migrations/003_canvas.sql` (safe to rerun).
 
 ```bash
 supabase functions deploy canvas
