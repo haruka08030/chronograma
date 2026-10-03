@@ -14,7 +14,7 @@ import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { startTaskDrag } from '../lib/taskDrag'
-import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatDate } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
@@ -23,14 +23,6 @@ import { openTaskMenu } from '../lib/overlays'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
-
-const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
-  overdue: 'text-zinc-400 dark:text-zinc-500',
-  today: 'text-date-600 dark:text-date-400 font-medium',
-  tomorrow: 'text-date-500/90 dark:text-date-300/80',
-  future: 'text-zinc-500 dark:text-zinc-400',
-  past: 'text-zinc-400 dark:text-zinc-500',
-}
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
