@@ -5,6 +5,12 @@
  */
 export const FLOATING_SURFACE = 'border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800'
 
+/**
+ * 濃い色で浮かせる小さな面（元に戻すトースト・移動のトースト・選択中の件数・ヒント）。
+ * 画面の上の「知らせ」なので、ライトでは墨、ダークでは明るいグレーに反転させる
+ */
+export const INVERSE_SURFACE = 'bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900'
+
 /** ボタンの下に開くドロップダウン（日付・メニュー・色・アカウント） */
 export const POPOVER_PANEL = `${FLOATING_SURFACE} rounded-xl shadow-xl`
 

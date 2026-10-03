@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { INVERSE_SURFACE } from './surface'
 
 /** マウスを乗せてから出るまで（Google カレンダーと同じく、通り過ぎただけでは出さない） */
 const SHOW_DELAY_MS = 500
@@ -72,7 +73,7 @@ export function TooltipHost() {
     <div
       ref={bubbleRef}
       role="tooltip"
-      className="pointer-events-none fixed z-[100] flex items-center gap-1.5 whitespace-nowrap rounded-md bg-zinc-800 px-2 py-1 text-xs text-white shadow-md dark:bg-zinc-100 dark:text-zinc-900"
+      className={`pointer-events-none fixed z-[100] flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs ${INVERSE_SURFACE}`}
       style={{ left: 0, top: 0, visibility: 'hidden' }}
     >
       {shown.label}

@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { undoGoogleDelete } from '../lib/googleEventEdit'
 import { UNDO_WINDOW_MS } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
+import { INVERSE_SURFACE } from './ui/surface'
 
 const MOBILE_FLOAT_BOTTOM =
   'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
@@ -71,7 +72,7 @@ export function UndoToast() {
 
   return (
     <div className={`fixed left-1/2 z-50 -translate-x-1/2 animate-toast-in ${stacked}`}>
-      <div className="mx-3 flex max-w-[min(100vw-1.5rem,24rem)] items-center gap-3 rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+      <div className={`mx-3 flex max-w-[min(100vw-1.5rem,24rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
         <span className="min-w-0 truncate">{message}</span>
         <button
           onClick={() => {

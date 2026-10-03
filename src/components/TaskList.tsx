@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
-import { POPOVER_PANEL } from './ui/surface'
+import { INVERSE_SURFACE, POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
@@ -1290,7 +1290,7 @@ export function TaskList() {
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
       {selected.size > 0 && (
         <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6 [@media(hover:hover)]:hidden">
-          <div className="flex items-center gap-1 rounded-full bg-zinc-900 py-1 pl-4 pr-1 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+          <div className={`flex items-center gap-1 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
             <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
             <button
               type="button"
