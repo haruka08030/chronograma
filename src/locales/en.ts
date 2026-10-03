@@ -253,7 +253,7 @@ export default {
     prompt: 'Log your sleep?',
     bedAria: 'Went to bed',
     wakeAria: 'Woke up',
-    save: 'Log',
+    save: 'Save',
     edit: 'Edit sleep times',
     noFuture: 'Wake time is in the future',
   },

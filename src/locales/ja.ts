@@ -251,7 +251,7 @@ export default {
     prompt: '睡眠を記録しますか？',
     bedAria: '寝た時刻',
     wakeAria: '起きた時刻',
-    save: '記録する',
+    save: '保存',
     edit: '睡眠の時刻を直す',
     noFuture: '起きた時刻が今より先です',
   },
