@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Modal, ModalTitle } from './Modal'
 import { buttonClass } from './buttonClass'
+import { fieldClass } from './fieldClass'
 import { isSubmitEnter } from '../../lib/keyboard'
 
 export type ConfirmOptions = {
@@ -49,7 +50,7 @@ export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; 
                 onResult(true)
               }
             }}
-            className="w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:text-zinc-100"
+            className={fieldClass({}, 'w-full')}
           />
         </label>
       )}

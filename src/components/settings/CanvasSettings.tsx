@@ -17,12 +17,14 @@ import {
   type CanvasStatus,
 } from '../../lib/canvas'
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
-import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
 import { useTaskStore } from '../../store/taskStore'
 
+const field = fieldClass({}, 'w-full')
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
 
 /**

@@ -5,6 +5,7 @@ import { hexToHsv, hsvToHex } from '../../lib/colorMath'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { CheckIcon, PencilSquareIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { fieldClass } from '../ui/fieldClass'
 import { tip } from '../../lib/tooltip'
 
 const CHECK = (
@@ -155,7 +156,7 @@ export function SelectColorDialog({
             }}
             onBlur={() => setHexDraft(hex)}
             spellCheck={false}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2.5 font-mono text-sm text-zinc-900 outline-none focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
+            className={fieldClass({}, 'mt-1 w-full font-mono')}
           />
         </label>
 

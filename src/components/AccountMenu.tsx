@@ -9,6 +9,7 @@ import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../l
 import { isSupabaseConfigured } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
+import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
@@ -208,7 +209,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   placeholder={t('account.codePlaceholder')}
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none tracking-widest"
+                  className={fieldClass({}, 'w-full tracking-widest')}
                 />
                 {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
@@ -235,7 +236,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   placeholder={t('account.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none"
+                  className={fieldClass({}, 'w-full')}
                 />
                 {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}

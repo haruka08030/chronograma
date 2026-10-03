@@ -19,6 +19,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
+import { fieldClass } from './ui/fieldClass'
 import { usePendingAction } from '../lib/pendingAction'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
@@ -186,14 +187,14 @@ export function RecordPanel({
               <TimeInput
                 value={start}
                 onChange={setStart}
-                className="w-[5.5rem] rounded-md bg-zinc-50 px-2 py-1 text-sm tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               <span aria-hidden>–</span>
               <TimeInput
                 value={end}
                 onChange={setEnd}
                 pickerDefault={start ? addClockMinutes(start, 60) : undefined}
-                className="w-[5.5rem] rounded-md bg-zinc-50 px-2 py-1 text-sm tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               {inFuture ? (
                 <span className="text-xs text-red-500 dark:text-red-400">{t('records.noFuture')}</span>

@@ -3,6 +3,7 @@ import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { buttonClass } from './ui/buttonClass'
+import { fieldClass } from './ui/fieldClass'
 import { Modal, ModalTitle } from './ui/Modal'
 import { DateField } from './DateField'
 import { useTextAreaEntry } from '../hooks/useTextEntry'
@@ -90,7 +91,7 @@ export function CompleteWithLogModal({
                   value={draft.date}
                   onChange={(v) => onChange({ date: v, endDate: draft.endDate < v ? v : draft.endDate, mode: 'shifted' })}
                   ariaLabel={t('task.completeModal.startDate')}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  className={fieldClass({}, 'w-full')}
                 />
               </div>
               <div className="flex w-[7.5rem] shrink-0 flex-col gap-1">
@@ -100,7 +101,7 @@ export function CompleteWithLogModal({
                 <TimeInput
                   value={draft.startTime}
                   onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  className={fieldClass({}, 'w-full')}
                 />
               </div>
             </div>
@@ -120,7 +121,7 @@ export function CompleteWithLogModal({
                   min={draft.date}
                   onChange={(v) => onChange({ endDate: v, mode: 'shifted' })}
                   ariaLabel={t('task.completeModal.endDate')}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  className={fieldClass({}, 'w-full')}
                 />
               </div>
               <div className="flex w-[7.5rem] shrink-0 flex-col gap-1">
@@ -131,7 +132,7 @@ export function CompleteWithLogModal({
                   value={draft.endTime}
                   onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
                   pickerDefault={draft.startTime ? addClockMinutes(draft.startTime, 60) : undefined}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  className={fieldClass({}, 'w-full')}
                 />
               </div>
             </div>
@@ -153,7 +154,7 @@ export function CompleteWithLogModal({
             {...memoEntry}
             rows={4}
             placeholder={t('task.completeModal.memoPlaceholder')}
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+            className={fieldClass({}, 'w-full')}
           />
         </div>
 
