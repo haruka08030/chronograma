@@ -239,7 +239,7 @@ function rowToSection(row: SectionRow): ListSection {
 }
 
 /**
- * DB の大きさの上限（`001` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
+ * DB の大きさの上限（`005_size_limits.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
  * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
  */
 const MAX_NAME = 500
