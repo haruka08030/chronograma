@@ -16,6 +16,7 @@ import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { tip } from '../../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
+import { clockOf } from '../../lib/clockTime'
 
 const WIDTH = 320
 
@@ -78,7 +79,7 @@ export function EventPopover({
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
   const now = zonedNow()
-  const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const nowHm = clockOf(now)
   const todayKey = toDateKey(now)
   const canLogAsPlanned =
     !isLog && !task.completed && Boolean(dateKey && task.startTime && task.endTime) &&

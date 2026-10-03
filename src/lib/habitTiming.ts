@@ -1,6 +1,7 @@
 import type { Habit } from '../types/habit'
 import type { Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
+import { minutesToTime, timeToMinutes } from './clockTime'
 
 /** 目標の時刻からこれだけずれても「時間どおり」 */
 export const HABIT_ON_TIME_TOLERANCE_MIN = 15
@@ -33,10 +34,6 @@ export interface HabitRecordIndex {
   deleted: Map<string, Span[]>
 }
 
-function toMin(hhmm: string): number {
-  const [h, m] = hhmm.split(':').map(Number)
-  return h * 60 + m
-}
 
 function dayNumber(dateKey: string): number {
   const [y, m, d] = dateKey.split('-').map(Number)
@@ -46,8 +43,8 @@ function dayNumber(dateKey: string): number {
 function recordSpan(record: Task): Span | null {
   if (!record.dueDate || !record.startTime || !record.endTime) return null
   const day = dayNumber(record.dueDate)
-  const start = day * 1440 + toMin(record.startTime)
-  let end = (record.endDate && record.endDate > record.dueDate ? dayNumber(record.endDate) : day) * 1440 + toMin(record.endTime)
+  const start = day * 1440 + timeToMinutes(record.startTime)
+  let end = (record.endDate && record.endDate > record.dueDate ? dayNumber(record.endDate) : day) * 1440 + timeToMinutes(record.endTime)
   if (end <= start) end += 1440
   return { record, start, end }
 }
@@ -88,9 +85,9 @@ export function isTimedHabit(habit: Habit): boolean {
 /** その日の目標（通しの分）。時刻ひとつの習慣は終わりを持たない */
 function target(habit: Habit, dateKey: string): { start: number; end: number | null } {
   const base = dayNumber(dateKey) * 1440
-  const start = base + toMin(habit.startTime!)
+  const start = base + timeToMinutes(habit.startTime!)
   if (habit.timeMode !== 'range') return { start, end: null }
-  let end = base + toMin(habit.endTime!)
+  let end = base + timeToMinutes(habit.endTime!)
   if (end <= start) end += 1440
   return { start, end }
 }
@@ -161,6 +158,6 @@ export function plannedRecordTimes(habit: Habit): { startTime: string; endTime: 
   if (!isTimedHabit(habit)) return null
   const start = habit.startTime!
   if (habit.timeMode === 'range') return { startTime: start, endTime: habit.endTime! }
-  const end = Math.min(toMin(start) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
-  return { startTime: start, endTime: `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}` }
+  const end = Math.min(timeToMinutes(start) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
+  return { startTime: start, endTime: minutesToTime(end) }
 }

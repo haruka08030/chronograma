@@ -1,6 +1,7 @@
 import { addDays, isValid, startOfDay } from 'date-fns'
 import { appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
+import { pad2 } from './clockTime'
 
 export type ParsedQuickAdd = {
   title: string
@@ -22,8 +23,7 @@ export const DEFAULT_BLOCK_MINUTES = 60
 const JA_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const EN_WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-const pad = (n: number) => String(n).padStart(2, '0')
-const hm = (min: number) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`
+const hm = (min: number) => `${pad2(Math.floor(min / 60) % 24)}:${pad2(min % 60)}`
 
 /** 次に来るその曜日（今日と同じ曜日なら今日） */
 function nextWeekday(today: Date, dow: number): Date {

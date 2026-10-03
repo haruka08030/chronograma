@@ -10,19 +10,16 @@ import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
+import { minutesToTime, timeToMinutes } from '../lib/clockTime'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
 
 /** 5 分単位に切り捨てた hh:mm */
 const floorTo5 = (min: number) => {
   const m = min - (min % 5)
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return minutesToTime(m)
 }
 
 const MoonIcon = () => (
@@ -59,7 +56,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     const init = record?.startTime && record.endTime ? { bed: record.startTime, wake: record.endTime } : defaultSleepTimes(tasks)
     setBed(init.bed)
     // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
-    setWake(!record && isToday && toMin(init.wake) > nowMin ? floorTo5(nowMin) : init.wake)
+    setWake(!record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake)
     setDraftFor(draftKey)
   }
 
@@ -82,7 +79,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     )
   }
 
-  const inFuture = isToday && Boolean(wake) && toMin(wake) > nowMin
+  const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {
     if (!canSave) return

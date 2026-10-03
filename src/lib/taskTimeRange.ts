@@ -1,6 +1,8 @@
 import { addMinutes, differenceInCalendarDays, differenceInMinutes, endOfDay, max, min, startOfDay } from 'date-fns'
 import type { Task } from '../types/task'
 import { HOUR_HEIGHT, SNAP_MINUTES, timeToMinutes } from './timeGrid'
+import { clockOf } from './clockTime'
+import { toDateKey } from './dateKey'
 
 const DAY_MINUTES = 24 * 60
 
@@ -166,10 +168,10 @@ export function patchAfterTimelineMove(
     if (dur != null && dur > 0) {
       const start = ymdHmToLocalDate(targetDueDate, newStartTime)
       const end = addMinutes(start, dur)
-      const due = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
-      const ed = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
-      const st = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
-      const et = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+      const due = toDateKey(start)
+      const ed = toDateKey(end)
+      const st = clockOf(start)
+      const et = clockOf(end)
       return {
         dueDate: due,
         startTime: st,

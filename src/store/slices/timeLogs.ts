@@ -1,5 +1,4 @@
 /** 記録（時間ログ）・タイマー・睡眠 */
-import { format } from 'date-fns'
 import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
@@ -12,6 +11,7 @@ import { completedRecordPatch, makeTask } from '../taskHelpers'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
+import { clockOf } from '../../lib/clockTime'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -182,7 +182,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
       const now = zonedNow()
       const today = toDateKey(now)
-      const nowHm = format(now, 'HH:mm')
+      const nowHm = clockOf(now)
       if (date > today || (date === today && task.startTime >= nowHm)) return
       const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
       get().asOneUndo(() => {
