@@ -300,7 +300,7 @@ export function TodayPlannerView() {
               ) : <span />}
               {plannedMinutes > 0 && (
                 <span
-                  className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'}`}
+                  className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
                   title={overCapacity ? t('planner.overCapacity', { capacity: formatDuration(dailyCapacityMinutes) }) : undefined}
                 >
                   {t('planner.summaryPlanned', { time: formatDuration(plannedMinutes) })}
