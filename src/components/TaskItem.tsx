@@ -218,6 +218,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     setEditing(true)
   }, [onRowClick, selection?.reveal, task.title])
 
+  // PC の行の最低の高さ（min-h）は、並べ替えハンドルの有無（手動の並べ替えかどうか）で行の高さが変わらないように
   return (
     <div
       draggable={rowNativeDraggable}
@@ -225,7 +226,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
       className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
-                  ${isSubtask ? 'px-2.5 py-1.5' : 'px-2.5 py-2'}
+                  ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
                   ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
@@ -336,8 +337,9 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 setEditing(false)
               }
             }}
-            className={`w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                       border-b border-accent-400 pb-0.5 ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
+            // 下線と余白（3px）は負のマージンで行の高さに数えない。押して編集に入っても行が動かない
+            className={`block w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
+                       border-b border-accent-400 pb-0.5 -mb-[3px] ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
           />
         ) : (
           <span
