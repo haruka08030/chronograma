@@ -7,7 +7,6 @@ import { unplannedListIds } from '../lib/listKind'
 import { isActiveTask } from '../lib/taskLifecycle'
 
 const UNSCHEDULED = '__unscheduled__'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
 import { displayListName } from '../lib/displayListName'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
@@ -18,6 +17,7 @@ import { sectionLabelClass } from './ui/sectionLabelClass'
 import { fieldClass } from './ui/fieldClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { META_TEXT } from './ui/textClass'
+import { isLogTask } from '../types/task'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -62,7 +62,7 @@ export function CalendarTaskDock() {
     [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
-  const active = useMemo(() => filtered.filter((t) => !t.completed && !isListedTimeLog(t)), [filtered])
+  const active = useMemo(() => filtered.filter((t) => !t.completed && !isLogTask(t)), [filtered])
   const activeIds = useMemo(() => active.map((t) => t.id), [active])
 
   // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）

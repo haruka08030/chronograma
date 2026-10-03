@@ -21,6 +21,7 @@ import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { isLogTask } from '../types/task'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -94,7 +95,7 @@ export function CalendarHubView() {
       const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
       const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
         const task = tasks.find((x) => x.id === id)
-        return !!task && !task.isTimeLog
+        return !!task && !isLogTask(task)
       })
       asOneUndo(() => {
         for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)

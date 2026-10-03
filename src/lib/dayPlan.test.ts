@@ -41,7 +41,7 @@ describe('getMoreSuggestions', () => {
     task('done', { completed: true }),
     task('child', { parentId: 'undated1' }),
     task('someday', { listId: 'someday' }),
-    task('log', { isTimeLog: true, dueDate: '2026-10-10' }),
+    task('log', { kind: 'log', dueDate: '2026-10-10' }),
     task('deleted', { deletedAt: '2026-09-01T00:00:00Z' }),
   ]
 

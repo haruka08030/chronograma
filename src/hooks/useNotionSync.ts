@@ -15,6 +15,7 @@ import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { loadPulled, savePulled } from '../lib/externalFields'
+import type { SyncStatus } from '../types/sync'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -23,14 +24,10 @@ const ADVANCE_DELAY_MS = 5_000
 /** 初回はクラウド同期の取得を待つ（新しい端末で、取得前に作ったタスクが上書きされないように） */
 const FIRST_SYNC_WAIT_MS = 10_000
 
-export type NotionSyncState = {
+export type NotionSyncState = SyncStatus & {
   /** null はまだ確認していない */
   connected: boolean | null
   configured: boolean
-  syncing: boolean
-  lastSyncedAt: string | null
-  /** サーバーのエラーコード（`notion_unauthorized` など）か、その他のメッセージ */
-  error: string | null
 }
 
 let syncState: NotionSyncState = { connected: null, configured: false, syncing: false, lastSyncedAt: null, error: null }

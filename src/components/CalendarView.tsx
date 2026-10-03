@@ -26,7 +26,6 @@ import {
   moveGoogleEvent,
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
@@ -38,6 +37,7 @@ import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { isLogTask } from '../types/task'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -89,7 +89,7 @@ export function CalendarView({
   const recordsByDate = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const t of tasks) {
-      if (!isListedTimeLog(t) || !isActiveTask(t) || t.parentId) continue
+      if (!isLogTask(t) || !isActiveTask(t) || t.parentId) continue
       for (const day of days) {
         const key = toDateKey(day)
         const min = minutesOfLogOnCalendarDay(t, key)
@@ -105,7 +105,7 @@ export function CalendarView({
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+      if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
       const key = taskPlacementDate(t)
       if (!key) continue
       const arr = map.get(key) ?? []
@@ -183,7 +183,7 @@ export function CalendarView({
                           scheduledDate: key,
                           startTime: existingTask.startTime,
                           endTime: existingTask.endTime,
-                          isTimeLog: false,
+                          kind: 'todo',
                         })
                       }
                     }
@@ -271,7 +271,7 @@ export function CalendarView({
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        openTaskMenu(t.startTime || t.isTimeLog ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                        openTaskMenu(t.startTime || isLogTask(t) ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
                       }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800

@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
@@ -138,7 +137,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
     },
   }
 
-  const timeLog = isListedTimeLog(task)
+  const timeLog = isLogTask(task)
   // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
   const sourceLink = sourceLinkOf(task.description)
   const repeatText = task.recurrence ? recurrenceLabel(t, task.recurrence, task.dueDate) : null
@@ -400,7 +399,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
 
       {!hideDueDatePicker && listKind === 'tasks' && (
         <DueDatePopover
-          value={task.dueDate ?? null}
+          value={task.dueDate}
           onChange={(v) => updateTask(task.id, { dueDate: v })}
           align="right"
           // md 未満はタイトル幅を確保するため出さない（期限は詳細シートで編集）

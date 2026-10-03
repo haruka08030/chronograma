@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName } from '../lib/timeZone'
 import { foreignTimeZone, timesPatchFromZone, type TaskTimeFields } from '../lib/taskTimeZone'
 import { TimeZonePicker } from './TimeZonePicker'
@@ -65,7 +65,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   if (!zone) return null
 
   const day = (ymd: string) => formatDate(ymd, 'shortDate', i18n.resolvedLanguage)
-  const date = task.isTimeLog ? task.dueDate : task.scheduledDate
+  const date = isLogTask(task) ? task.dueDate : task.scheduledDate
   let when: string | null = null
   if (date && task.startTime) {
     const end = task.endTime ? `–${task.endDate && task.endDate !== date ? `${day(task.endDate)} ` : ''}${task.endTime}` : ''

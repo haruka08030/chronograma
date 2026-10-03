@@ -21,7 +21,7 @@ const log = (id: string, patch: Record<string, unknown> = {}) => ({
   ...TASK_DEFAULTS,
   id, title: id, description: '', completed: true, completedAt: OLD, createdAt: OLD, updatedAt: OLD, order: 0,
   listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-01', startTime: '10:00', endTime: '11:00',
-  priority: 'none' as const, tags: [] as string[], recurrence: null, isTimeLog: true, ...patch,
+  priority: 'none' as const, tags: [] as string[], recurrence: null, kind: 'log' as const, ...patch,
 })
 
 describe('記録の分類（category）', () => {
@@ -40,7 +40,7 @@ describe('記録の分類（category）', () => {
   })
 
   it('To-Do のタグは分類にならない', () => {
-    useTaskStore.setState({ tasks: [log('todo', { isTimeLog: false, completed: false, tags: ['就活'] })] })
+    useTaskStore.setState({ tasks: [log('todo', { kind: 'todo', completed: false, tags: ['就活'] })] })
     useTaskStore.getState().updateTask('todo', { title: '変更' })
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: null, tags: ['就活'] })
   })
@@ -60,9 +60,9 @@ describe('記録の分類（category）', () => {
   it('名前の無い色の色を変えると、その色のタスク・記録と絞り込みも新しい色へ', () => {
     useTaskStore.setState({
       tasks: [
-        log('todo', { isTimeLog: false, completed: false, color: '#039BE5' }),
+        log('todo', { kind: 'todo', completed: false, color: '#039BE5' }),
         log('rec', { category: null, color: '#039BE5' }),
-        log('other', { isTimeLog: false, completed: false, color: '#D50000' }),
+        log('other', { kind: 'todo', completed: false, color: '#D50000' }),
       ],
       timeLogTagPresets: ['勉強'],
       logCategoryColors: { 勉強: 'sage' },

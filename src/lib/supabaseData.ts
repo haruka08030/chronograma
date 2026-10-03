@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -394,9 +394,8 @@ function rowToTaskFields(row: TaskRow): Task {
     tags,
     category: typeof row.category === 'string' ? row.category : null,
     recurrence,
-    isTimeLog: row.is_time_log === true,
+    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
-    isSleep: row.is_sleep === true,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
     reminders: parseReminders(row.reminders),
@@ -423,34 +422,35 @@ function taskToRow(userId: string, task: Task): TaskRow {
     user_id: userId,
     list_id: task.listId,
     parent_id: task.parentId,
-    section_id: task.sectionId ?? null,
+    section_id: task.sectionId,
     title: clip(task.title, MAX_TITLE),
     description: clip(task.description, MAX_DESCRIPTION),
     completed: task.completed,
-    completed_at: task.completedAt ?? null,
+    completed_at: task.completedAt,
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     sort_order: task.order,
     due_date: task.dueDate,
-    due_time: task.dueTime ?? null,
-    scheduled_date: task.scheduledDate ?? null,
-    end_date: task.endDate ?? null,
+    due_time: task.dueTime,
+    scheduled_date: task.scheduledDate,
+    end_date: task.endDate,
     start_time: task.startTime,
     end_time: task.endTime,
     location: task.location == null ? null : clip(task.location, MAX_TITLE),
-    color: task.color ?? null,
+    color: task.color,
     priority: task.priority,
     tags: task.tags,
-    category: task.isTimeLog ? task.category : null,
+    category: isLogTask(task) ? task.category : null,
     recurrence: task.recurrence,
-    is_time_log: task.isTimeLog ?? false,
-    habit_id: task.habitId ?? null,
-    is_sleep: task.isSleep ?? false,
-    time_zone: task.timeZone ?? null,
-    time_zone_anchor: task.timeZoneAnchor ?? null,
-    reminders: task.reminders ?? null,
-    archived_at: task.archivedAt ?? null,
-    deleted_at: task.deletedAt ?? null,
+    // 種類はサーバーでは 2 つの列（記録か・睡眠か）。前の版の端末も同じ列を読む
+    is_time_log: isLogTask(task),
+    habit_id: task.habitId,
+    is_sleep: isSleepTask(task),
+    time_zone: task.timeZone,
+    time_zone_anchor: task.timeZoneAnchor,
+    reminders: task.reminders,
+    archived_at: task.archivedAt,
+    deleted_at: task.deletedAt,
   }
 }
 

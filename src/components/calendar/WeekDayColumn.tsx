@@ -6,14 +6,13 @@ import type { CreateIntent, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
-import type { Task } from '../../types/task'
+import { isSleepTask, type Task } from '../../types/task'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
 import { habitToPlannedItem } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
-import { isSleepRecord } from '../../lib/sleep'
 import { isAppToday } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
@@ -188,7 +187,7 @@ export function WeekDayColumn({
               timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                 startTime: t.startTime!,
                 endTime: t.endTime!,
-                isTimeLog: false,
+                kind: 'todo',
               })
             }
             dayKey={key}
@@ -212,14 +211,14 @@ export function WeekDayColumn({
             task={t as TimeBlockTask}
             dayKey={key}
             isLog
-            sleep={isSleepRecord(t)}
+            sleep={isSleepTask(t)}
             hStyle={logStyle(t.id)}
             colorHex={recordHex(t, logCategoryColors)}
             onPointerDown={(e) =>
               timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                   startTime: t.startTime!,
                   endTime: t.endTime!,
-                  isTimeLog: true,
+                  kind: 'log',
                   dueDate: t.dueDate,
                   endDate: t.endDate,
                 })

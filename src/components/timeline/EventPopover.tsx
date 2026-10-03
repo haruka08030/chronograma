@@ -21,6 +21,7 @@ import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { LinkifiedText } from '../ui/LinkifiedText'
+import { isLogTask } from '../../types/task'
 
 const WIDTH = 320
 
@@ -65,7 +66,7 @@ export function EventPopover({
 
   if (!task) return null
 
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX

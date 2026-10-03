@@ -23,7 +23,7 @@ const log = (id: string, over: Partial<Task> = {}): Task => ({
   priority: 'none',
   tags: [],
   recurrence: null,
-  isTimeLog: true,
+  kind: 'log',
   ...over,
 })
 
@@ -44,9 +44,9 @@ describe('sleepMinutes', () => {
 })
 
 describe('wakeDateOf / sleepEndingOn', () => {
-  const night = log('n', { isSleep: true, dueDate: '2026-09-29', endDate: '2026-09-30', startTime: '23:30', endTime: '07:00' })
-  const legacy = log('l', { isSleep: true, dueDate: '2026-09-28', startTime: '23:00', endTime: '06:30' })
-  const late = log('a', { isSleep: true, dueDate: '2026-09-27', startTime: '02:00', endTime: '09:00' })
+  const night = log('n', { kind: 'sleep', dueDate: '2026-09-29', endDate: '2026-09-30', startTime: '23:30', endTime: '07:00' })
+  const legacy = log('l', { kind: 'sleep', dueDate: '2026-09-28', startTime: '23:00', endTime: '06:30' })
+  const late = log('a', { kind: 'sleep', dueDate: '2026-09-27', startTime: '02:00', endTime: '09:00' })
 
   it('reads the wake day from endDate, or from times that wrap past midnight', () => {
     expect(wakeDateOf(night)).toBe('2026-09-30')
@@ -77,14 +77,14 @@ describe('looksLikeSleep', () => {
   it('leaves other records and plans alone', () => {
     expect(looksLikeSleep(log('睡眠学習の課題'))).toBe(false)
     expect(looksLikeSleep(log('昼寝'))).toBe(false)
-    expect(looksLikeSleep(log('睡眠', { isTimeLog: false }))).toBe(false)
+    expect(looksLikeSleep(log('睡眠', { kind: 'todo' }))).toBe(false)
   })
 })
 
 describe('getDayPlan', () => {
   it('leaves sleep out of the logged time', () => {
     const tasks = [
-      log('n', { isSleep: true, dueDate: '2026-09-30', startTime: '00:30', endTime: '07:00' }),
+      log('n', { kind: 'sleep', dueDate: '2026-09-30', startTime: '00:30', endTime: '07:00' }),
       log('study', { dueDate: '2026-09-30', startTime: '09:00', endTime: '10:30' }),
     ]
     expect(getDayPlan(tasks, '2026-09-30').loggedMinutes).toBe(90)
@@ -93,7 +93,7 @@ describe('getDayPlan', () => {
 
 describe('summarizeSleep', () => {
   const night = (id: string, bedDay: string, wakeDay: string | null, bed: string, wake: string) =>
-    log(id, { isSleep: true, dueDate: bedDay, endDate: wakeDay, startTime: bed, endTime: wake })
+    log(id, { kind: 'sleep', dueDate: bedDay, endDate: wakeDay, startTime: bed, endTime: wake })
 
   it('averages bedtimes across midnight and lists missing days as null', () => {
     const tasks = [

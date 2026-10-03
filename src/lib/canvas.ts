@@ -326,7 +326,7 @@ export function reconcileCanvasItems(
         priority: 'none',
         tags: item.courseName ? [item.courseName] : [],
         recurrence: null,
-        isTimeLog: false,
+        kind: 'todo',
         habitId: null,
         archivedAt: null,
         deletedAt: null,

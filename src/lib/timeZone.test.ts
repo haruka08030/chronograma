@@ -88,7 +88,7 @@ describe('taskTimeZone', () => {
   })
 
   it('converts an overnight record', () => {
-    const log = { ...base, isTimeLog: true, dueDate: '2026-10-05', startTime: '23:00', endTime: '01:00' }
+    const log = { ...base, kind: 'log' as const, dueDate: '2026-10-05', startTime: '23:00', endTime: '01:00' }
     expect(convertTaskTimes(log, 'Asia/Tokyo', 'Europe/London')).toMatchObject({
       dueDate: '2026-10-05',
       startTime: '15:00',

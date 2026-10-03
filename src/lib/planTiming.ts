@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
@@ -11,7 +11,7 @@ import { clockOf } from './clockTime'
  */
 export function planTiming(task: Task, now: Date = zonedNow()): { dateKey: string | null; canLogAsPlanned: boolean; ended: boolean } {
   const dateKey = taskPlacementDate(task)
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const nowHm = clockOf(now)
   const todayKey = toDateKey(now)
   const canLogAsPlanned =

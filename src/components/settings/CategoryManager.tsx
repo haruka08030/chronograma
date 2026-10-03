@@ -13,6 +13,7 @@ import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
 import { HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { isLogTask } from '../../types/task'
 
 const USAGE_DAYS = 30
 
@@ -36,7 +37,7 @@ export function CategoryManager() {
     const map = new Map<string, number>()
     const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
     for (const task of tasks) {
-      if (!task.isTimeLog || !isActiveTask(task)) continue
+      if (!isLogTask(task) || !isActiveTask(task)) continue
       let minutes = 0
       for (const d of days) minutes += minutesOfLogOnCalendarDay(task, d)
       if (minutes <= 0) continue
@@ -49,7 +50,7 @@ export function CategoryManager() {
   const unlisted = useMemo(() => {
     const set = new Set<string>()
     for (const task of tasks) {
-      if (task.isTimeLog && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
+      if (isLogTask(task) && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
     }
     return [...set]
   }, [tasks, presets])

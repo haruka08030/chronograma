@@ -1,4 +1,4 @@
-import type { Task } from '../../types/task'
+import type { Task, TaskKind } from '../../types/task'
 import { HOUR_HEIGHT, timeToY } from '../../lib/timeGrid'
 import { timeLogSegmentLayoutForDay } from '../../lib/taskTimeRange'
 
@@ -11,7 +11,7 @@ export type TimeBlockTask = {
   completed: boolean
   dueDate?: string | null
   endDate?: string | null
-  isTimeLog?: boolean
+  kind?: TaskKind
   parentId?: string | null
 }
 

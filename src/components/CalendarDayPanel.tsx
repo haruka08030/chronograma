@@ -7,12 +7,11 @@ import { TaskItem } from './TaskItem'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { isSleepRecord } from '../lib/sleep'
 import { colorVars } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { completionDayKey } from '../lib/dayPlan'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
@@ -58,7 +57,7 @@ export function CalendarDayPanel({
           (t) =>
             taskPlacementDate(t) === selectedDateKey &&
             !t.parentId &&
-            !t.isTimeLog &&
+            !isLogTask(t) &&
             !t.completed &&
             isActiveTask(t) &&
             !excludedListIds.has(t.listId),
@@ -94,7 +93,7 @@ export function CalendarDayPanel({
         .filter(
           (t) =>
             !t.parentId &&
-            !t.isTimeLog &&
+            !isLogTask(t) &&
             t.completed &&
             isActiveTask(t) &&
             !excludedListIds.has(t.listId) &&
@@ -111,7 +110,7 @@ export function CalendarDayPanel({
   const logItems = useMemo(
     () =>
       tasks
-        .filter((t) => !t.parentId && t.isTimeLog && isActiveTask(t) && logOverlapsDateKey(t, selectedDateKey))
+        .filter((t) => !t.parentId && isLogTask(t) && isActiveTask(t) && logOverlapsDateKey(t, selectedDateKey))
         .sort((a, b) => {
           if (!a.startTime || !b.startTime) return a.order - b.order
           return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
@@ -121,7 +120,7 @@ export function CalendarDayPanel({
 
   const totalLoggedMinutes = useMemo(
     () =>
-      logItems.reduce((acc, item) => (isSleepRecord(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
+      logItems.reduce((acc, item) => (isSleepTask(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
     [logItems, selectedDateKey],
   )
 
@@ -147,7 +146,7 @@ export function CalendarDayPanel({
           const all = useTaskStore.getState().tasks
           const moving = ids
             .map((id) => all.find((x) => x.id === id))
-            .filter((x): x is Task => !!x && !x.isTimeLog && taskPlacementDate(x) !== selectedDateKey)
+            .filter((x): x is Task => !!x && !isLogTask(x) && taskPlacementDate(x) !== selectedDateKey)
           if (!moving.length) return
           // この日の予定に入れる（時刻があれば保つ。期限 dueDate は変えない）
           asOneUndo(() => {

@@ -1,8 +1,6 @@
 import { addDays } from 'date-fns'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
-import { isListedTimeLog } from './timeLogTask'
-import { isSleepRecord } from './sleep'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appDayKeyOf } from './timeZone'
@@ -52,9 +50,9 @@ export function getDayPlan(
   let loggedMinutes = 0
   for (const task of tasks) {
     if (!isActiveTask(task)) continue
-    if (isListedTimeLog(task)) {
+    if (isLogTask(task)) {
       // 睡眠は記録の時間に入れない（毎日 7〜8 時間で他の記録が見えなくなる）
-      if (!isSleepRecord(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
+      if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
     if (task.parentId || excludedListIds.has(task.listId)) continue
@@ -95,7 +93,7 @@ export function getMoreSuggestions(
   const undated: Task[] = []
   const placedLater: Task[] = []
   for (const task of tasks) {
-    if (!isActiveTask(task) || task.completed || isListedTimeLog(task)) continue
+    if (!isActiveTask(task) || task.completed || isLogTask(task)) continue
     if (task.parentId || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
     if (placed === null) undated.push(task)

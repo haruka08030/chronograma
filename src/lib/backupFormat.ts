@@ -1,4 +1,4 @@
-import type { Task, Priority, Recurrence } from '../types/task'
+import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
@@ -157,10 +157,12 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const listId = readString(row, 'listId', 'list_id')
   if (!id || title === null || !listId) return null
 
-  const t = raw as Task
+  // 前の版のバックアップは種類を 2 つの印（記録か・睡眠か）で持つ。今の形には残さない
+  const copy: Record<string, unknown> = { ...row }
+  delete copy.isTimeLog
+  delete copy.isSleep
+  const t = copy as unknown as Task
   const now = new Date().toISOString()
-  const isTimeLog =
-    t.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true'
   const completedAtRaw = row.completedAt ?? row.completed_at
   let completedAt: string | null = null
   if (typeof completedAtRaw === 'string') {
@@ -178,6 +180,10 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const deletedAtRaw = row.deletedAt ?? row.deleted_at
   const habitIdRaw = row.habitId ?? row.habit_id
   const isSleepRaw = row.isSleep ?? row.is_sleep
+  const kind: TaskKind =
+    row.kind === 'todo' || row.kind === 'log' || row.kind === 'sleep'
+      ? row.kind
+      : taskKindFromFlags(row.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true', isSleepRaw === true)
 
   // 手で直したファイルや古い形でも、画面が前提にしている形にそろえる。
   // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）
@@ -208,9 +214,8 @@ function normalizeTaskRow(raw: unknown): Task | null {
     dueTime: readTime(dueTimeRaw),
     scheduledDate: readDate(scheduledDateRaw),
     priority: normalizePriority(t.priority ?? row.priority),
-    isTimeLog: Boolean(isTimeLog),
+    kind,
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
-    isSleep: isSleepRaw === true,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
@@ -289,7 +294,8 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    tasks: input.tasks,
+    // 前の版のアプリは種類を 2 つの印（記録か・睡眠か）で読む。そのアプリでも取り込めるように両方書く
+    tasks: input.tasks.map((t) => ({ ...t, ...taskKindFlags(t.kind) })),
     lists: input.lists,
     habits: input.habits,
     listSections: input.sections,

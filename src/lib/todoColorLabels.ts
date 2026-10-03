@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { CALENDAR_COLORS } from './googleColors'
 import { categoryHex, colorKeyForHex, isHexColor, labelForHex } from './logCategoryColors'
 import { isActiveTask } from './taskLifecycle'
@@ -31,7 +31,7 @@ export function todoColorLabels(
 ): TodoColorLabel[] {
   const counts = new Map<string, number>()
   for (const t of tasks) {
-    if (!t.color || t.isTimeLog || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+    if (!t.color || isLogTask(t) || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
     const hex = t.color.toUpperCase()
     counts.set(hex, (counts.get(hex) ?? 0) + (t.completed ? 0 : 1))
   }

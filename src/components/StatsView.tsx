@@ -2,10 +2,9 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { format, subDays, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { unplannedListIds } from '../lib/listKind'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
@@ -27,7 +26,7 @@ export function StatsView() {
     // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
     const excluded = unplannedListIds(lists)
     const countedTasks = tasks.filter(
-      (t) => t.parentId === null && !isListedTimeLog(t) && isActiveTask(t) && !excluded.has(t.listId),
+      (t) => t.parentId === null && !isLogTask(t) && isActiveTask(t) && !excluded.has(t.listId),
     )
     const completed = countedTasks.filter((t) => t.completed)
     const active = countedTasks.filter((t) => !t.completed)

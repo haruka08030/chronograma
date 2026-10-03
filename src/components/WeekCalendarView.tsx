@@ -37,7 +37,7 @@ import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover } from './timeline/EventPopover'
@@ -189,7 +189,7 @@ export function WeekCalendarView({
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
       if (!prev) return
       const patch = patchAfterTimelineMove(prev, dateKey, startTime, endTime)
-      if (prev.isTimeLog) {
+      if (isLogTask(prev)) {
         // 記録を今より先へは動かせない（元の位置に戻る）
         const limit = logLimitRef.current(dateKey)
         const crossesDay = isOvernightTimeLog({ ...prev, ...patch } as Task)
@@ -204,7 +204,7 @@ export function WeekCalendarView({
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
-      if (prev?.isTimeLog && prev.dueDate && !prev.endDate) {
+      if (prev && isLogTask(prev) && prev.dueDate && !prev.endDate) {
         const limit = logLimitRef.current(prev.dueDate)
         if (limit !== null && timeToMinutes(endTime) > limit) {
           if (timeToMinutes(startTime) >= limit) return
@@ -250,7 +250,7 @@ export function WeekCalendarView({
     setEdgeDir(edgeDirAt(e.clientX, e.clientY))
     // 記録は「やったこと」なので終日・ToDo には戻さない
     const task = tasks.find((x) => x.id === d.taskId)
-    if (!task || task.isTimeLog) return
+    if (!task || isLogTask(task)) return
     setCalendarItemDragActive(true)
     if (canStartTimerFor(task)) {
       setTimerDragActive(true)
@@ -280,7 +280,7 @@ export function WeekCalendarView({
       timelineDrag.handlePointerCancel()
     } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
-      if (task && !task.isTimeLog) {
+      if (task && !isLogTask(task)) {
         updateTask(d.taskId, allDayMoveKey
           ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null }
           : UNSCHEDULE_PATCH)
@@ -319,7 +319,7 @@ export function WeekCalendarView({
         })
         return
       }
-      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, isTimeLog: false })
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind: 'todo' })
     },
   })
 

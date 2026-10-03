@@ -103,7 +103,7 @@ export function WeekAllDayRow({
                 // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
                 asOneUndo(() => {
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false })
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind: 'todo' })
                   }
                 })
               }}

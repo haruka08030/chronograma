@@ -1,7 +1,6 @@
 /** タスクの並べ替え・入れ子（ドラッグ）・リスト間の移動 */
-import type { Task } from '../../types/task'
+import { isLogTask, type Task } from '../../types/task'
 import i18n from '../../i18n/config'
-import { isListedTimeLog } from '../../lib/timeLogTask'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { canNestUnder, getIndentTargetId } from '../../lib/taskDepth'
 import { expandDescendantIds, isAncestorInChain, siblingIdsOrdered } from '../taskHelpers'
@@ -65,7 +64,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!moved || moved.parentId == null) return
       if (!parent) return
       if (taskId === newParentId) return
-      if (isListedTimeLog(moved) || isListedTimeLog(parent)) return
+      if (isLogTask(moved) || isLogTask(parent)) return
       if (isAncestorInChain(s0.tasks, taskId, newParentId)) return
       if (moved.parentId !== newParentId && !canNestUnder(s0.tasks, taskId, newParentId)) return
 
@@ -131,7 +130,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!moved || moved.parentId !== null) return
       if (!parent) return
       if (taskId === parentId) return
-      if (isListedTimeLog(moved) || isListedTimeLog(parent)) return
+      if (isLogTask(moved) || isLogTask(parent)) return
       if (isAncestorInChain(s0.tasks, taskId, parentId)) return
       if (!canNestUnder(s0.tasks, taskId, parentId)) return
 
@@ -185,12 +184,12 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!parent) return
       // 親自身がサブタスクの場合は moveSubtaskInList で祖父母へ動かす。ここはルート直下のみ。
       if (parent.parentId != null) return
-      if (isListedTimeLog(moved)) return
+      if (isLogTask(moved)) return
 
       pushUndo()
       set((s) => {
         const now = new Date().toISOString()
-        const targetSectionId = parent.sectionId ?? null
+        const targetSectionId = parent.sectionId
 
         const rootOrder = s.tasks
           .filter(
@@ -198,7 +197,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
               t.parentId === null &&
               t.id !== taskId &&
               t.listId === parent.listId &&
-              (t.sectionId ?? null) === targetSectionId,
+              t.sectionId === targetSectionId,
           )
           .sort((a, b) => a.order - b.order)
           .map((t) => t.id)

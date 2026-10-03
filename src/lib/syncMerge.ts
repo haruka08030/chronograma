@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import { taskKindFromFlags, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
@@ -65,6 +65,27 @@ function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]
     out[rec.id as string] = order.map((k) => fieldHash(rec[k])).join('.')
   }
   return { order, rows: out }
+}
+
+/**
+ * 前の版の控え（タスクの種類を isTimeLog・isSleep の 2 項目で持つ）を、kind 1 項目の並びに直す。
+ * 直さないと、どの行も「前回同期の後に変えた」と読み違え、他端末で消した行を戻してしまう
+ */
+function withTaskKindField(f: { order: string[]; rows: Record<string, string> }): { order: string[]; rows: Record<string, string> } {
+  const logAt = f.order.indexOf('isTimeLog')
+  if (logAt < 0 || f.order.includes('kind')) return f
+  const sleepAt = f.order.indexOf('isSleep')
+  const order = [...f.order.filter((k) => k !== 'isTimeLog' && k !== 'isSleep'), 'kind'].sort()
+  const yes = fieldHash(true)
+  const rows: Record<string, string> = {}
+  for (const [id, joined] of Object.entries(f.rows)) {
+    const old = joined.split('.')
+    const byKey = new Map(f.order.map((k, i) => [k, old[i]]))
+    const kind = taskKindFromFlags(old[logAt] === yes, sleepAt >= 0 && old[sleepAt] === yes)
+    byKey.set('kind', fieldHash(kind))
+    rows[id] = order.map((k) => byKey.get(k)).join('.')
+  }
+  return { order, rows }
 }
 
 /** 控えと同じ並びの項目ハッシュ（`fieldsBaseline` の 1 行ぶんと比べられる形） */
@@ -233,7 +254,7 @@ export function mergeSnapshots(
   remote: SyncSnapshot,
   baseline: SyncBaseline,
 ): { merged: SyncSnapshot; deletes: SyncDeletes } {
-  const f = baseline.fields
+  const f = baseline.fields?.tasks ? { ...baseline.fields, tasks: withTaskKindField(baseline.fields.tasks) } : baseline.fields
   const off = baseline.clockOffsetMs ?? 0
   const lists = mergeKind(local.lists, remote.lists, baseline.lists, (l) => stampMs(l.updatedAt), f?.lists, off)
   const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt), f?.sections, off)

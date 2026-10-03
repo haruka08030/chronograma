@@ -44,7 +44,7 @@ describe('getWeekReview followRate', () => {
   })
 
   it('counts a plan already recorded before it ends', () => {
-    const log = task('log', { title: 'ゼミ', isTimeLog: true, dueDate: '2026-10-03', startTime: '15:00', endTime: '15:40' })
+    const log = task('log', { title: 'ゼミ', kind: 'log', dueDate: '2026-10-03', startTime: '15:00', endTime: '15:40' })
     const review = getWeekReview([...tasks, log], [], at('15:45'), new Set(), at('15:45'))
     expect(review.timedPlanned).toBe(1)
     expect(review.followRate).toBe(1)

@@ -1,5 +1,4 @@
-import type { Task } from '../types/task'
-import { isListedTimeLog } from './timeLogTask'
+import { isLogTask, type Task } from '../types/task'
 
 /** ルートタスクを深さ 0 とする。子は +1（最大チェーンは 5 レベル = 深さ 0..4） */
 export const MAX_TASK_TREE_DEPTH = 4
@@ -43,13 +42,13 @@ export function canNestUnder(
 }
 
 function isVisibleForIndent(t: Task): boolean {
-  return !t.completed && !isListedTimeLog(t)
+  return !t.completed && !isLogTask(t)
 }
 
 /** 右ドラッグでインデントしたときの親候補（直前の表示兄弟）。不可なら null */
 export function getIndentTargetId(tasks: Task[], taskId: string): string | null {
   const task = tasks.find((t) => t.id === taskId)
-  if (!task || isListedTimeLog(task)) return null
+  if (!task || isLogTask(task)) return null
 
   const siblings =
     task.parentId == null
@@ -57,7 +56,7 @@ export function getIndentTargetId(tasks: Task[], taskId: string): string | null 
           (t) =>
             t.parentId == null &&
             t.listId === task.listId &&
-            (t.sectionId ?? null) === (task.sectionId ?? null) &&
+            t.sectionId === task.sectionId &&
             isVisibleForIndent(t),
         )
       : tasks.filter((t) => t.parentId === task.parentId && isVisibleForIndent(t))

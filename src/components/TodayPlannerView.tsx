@@ -19,11 +19,10 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { WeekCalendarView } from './WeekCalendarView'
 import { RecordPanel } from './RecordPanel'
 import { SleepRow } from './SleepRow'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
 import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
-import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon } from './icons'
 import { tip } from '../lib/tooltip'
@@ -102,7 +101,7 @@ export function TodayPlannerView() {
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter((x) => x.isTimeLog && isActiveTask(x) && !isSleepRecord(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
+        .filter((x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
