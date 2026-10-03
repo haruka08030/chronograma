@@ -18,7 +18,7 @@
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
-実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。優先して直したい作業候補の一覧は [`doc/NEXT_TASKS.md`](doc/NEXT_TASKS.md) です。
+実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。作業は GitHub の Issue、アイデアと方向性は [`doc/IDEAS.md`](doc/IDEAS.md)、実装で守る決まりは [`doc/RULES.md`](doc/RULES.md) です。
 
 ## ローカルで動かす（Web）
 

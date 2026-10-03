@@ -51,7 +51,7 @@
 - `TimeInput.tsx` の候補のハイライトだけ青
 - 習慣の「時間外」: 習慣画面は白地＋色の枠＋△、今日画面は 35% の塗り＋オレンジの文字
 - 優先度の色が 2 か所で定義（`lib/priorityColor.ts` と `TaskDetail.tsx` の `PRIORITY_OPTIONS`）
-- 藍の直書き: `SleepRow.tsx` の `indigo-400`、`SleepStatsCard.tsx` の `#5c6bc0`、`lib/backupFormat.ts` の既定色 `#6366f1`。`HabitsView.tsx` のマス目 `rgba(99,102,241)` はデータの色なので藍のまま（[NEXT_TASKS](./NEXT_TASKS.md)）
+- 藍の直書き: `SleepRow.tsx` の `indigo-400`、`SleepStatsCard.tsx` の `#5c6bc0`、`lib/backupFormat.ts` の既定色 `#6366f1`。`HabitsView.tsx` のマス目 `rgba(99,102,241)` はデータの色なので藍のまま（[IDEAS](./IDEAS.md)）
 - 使われていない: `lib/tagColors.ts`（`getTagColor` など）
 
 ### 見た目の部品
