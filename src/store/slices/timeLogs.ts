@@ -1,0 +1,195 @@
+/** 記録（時間ログ）・タイマー・睡眠 */
+import { format } from 'date-fns'
+import i18n from '../../i18n/config'
+import { logLabelFromTask } from '../../lib/logCategoryColors'
+import { timerRecordTimes } from '../../lib/timerRecord'
+import { taskPlacementDate } from '../../lib/taskTimeRange'
+import { sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { zonedNow } from '../../lib/timeZone'
+import { INBOX_ID } from '../storeConstants'
+import { logColorNames, withInferredCategory } from '../storeDefaults'
+import { completedRecordPatch, makeTask } from '../taskHelpers'
+import type { TaskState } from '../storeTypes'
+import type { SliceContext } from './sliceTypes'
+
+type TimeLogsActions = Pick<
+  TaskState,
+  | 'addCompletedTaskWithTime'
+  | 'addTimeLog'
+  | 'logSleep'
+  | 'startTimer'
+  | 'resolveStaleTimer'
+  | 'discardActiveTimer'
+  | 'dismissCompletePrompt'
+  | 'stopTimer'
+  | 'openRecordPrompt'
+  | 'logPlanAsPlanned'
+>
+
+export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsActions {
+  const { pushUndo } = undo
+  return {
+    addCompletedTaskWithTime: (title, dueDate, startTime, endTime, color) => {
+      pushUndo()
+      set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
+    },
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color) => {
+      const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+      const endDate =
+        endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
+      const log = makeTask(
+        {
+          title,
+          listId: INBOX_ID,
+          dueDate: date,
+          endDate,
+          startTime,
+          endTime,
+          isTimeLog: true,
+          completed: true,
+          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title),
+          color: color ?? null,
+        },
+        maxOrder + 1,
+      )
+      if (description !== undefined) {
+        log.description = description
+      }
+      pushUndo()
+      set((s) => ({ tasks: [...s.tasks, log] }))
+    },
+    logSleep: (wakeDateKey, bedTime, wakeTime) => {
+      if (bedTime === wakeTime) return
+      const { dueDate, endDate } = sleepSpan(wakeDateKey, bedTime, wakeTime)
+      const existing = sleepEndingOn(get().tasks, wakeDateKey)
+      pushUndo()
+      if (existing) {
+        const now = new Date().toISOString()
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === existing.id ? { ...t, dueDate, endDate, startTime: bedTime, endTime: wakeTime, updatedAt: now } : t,
+          ),
+        }))
+        return
+      }
+      const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+      const log = makeTask(
+        {
+          title: i18n.t('sleep.title'),
+          listId: INBOX_ID,
+          dueDate,
+          endDate,
+          startTime: bedTime,
+          endTime: wakeTime,
+          isTimeLog: true,
+          completed: true,
+          isSleep: true,
+        },
+        maxOrder + 1,
+      )
+      set((s) => ({ tasks: [...s.tasks, log] }))
+    },
+    startTimer: (title, tags, taskId, color) => {
+      // 走っているものを黙って捨てると記録が消える。先に記録にして閉じてから始め、切り替えたことを知らせる
+      const previous = get().activeTimer
+      if (previous) {
+        // 1 分未満は記録に残らない（stopTimer と同じ判定）ので「保存して」とは言わない
+        const saved = timerRecordTimes(previous.startedAt, new Date().toISOString()) !== null
+        get().stopTimer()
+        get().showMoveBanner(i18n.t(saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', { title: previous.taskTitle }))
+      }
+      set({
+        activeTimer: {
+          taskTitle: title,
+          startedAt: new Date().toISOString(),
+          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId }),
+          taskId: taskId ?? null,
+          color: color ?? null,
+        },
+        completePromptTaskId: null,
+      })
+    },
+    /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
+    resolveStaleTimer: (endedAt) => {
+      const timer = get().activeTimer
+      if (!timer) return
+      const times = timerRecordTimes(timer.startedAt, endedAt)
+      if (!times) {
+        set({ activeTimer: null, completePromptTaskId: null })
+        return
+      }
+      const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+      pushUndo()
+      set((s) => ({
+        activeTimer: null,
+        completePromptTaskId: null,
+        tasks: [
+          ...s.tasks,
+          makeTask({
+            title: timer.taskTitle,
+            listId: INBOX_ID,
+            ...times,
+            isTimeLog: true,
+            completed: true,
+            tags: timer.tags,
+            color: timer.color ?? null,
+          }, maxOrder + 1),
+        ],
+      }))
+    },
+    discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),
+    dismissCompletePrompt: () => set({ completePromptTaskId: null }),
+
+    stopTimer: () => {
+      const timer = get().activeTimer
+      if (!timer) return
+      // 1 分未満は誤操作とみなして記録しない（`timerRecordTimes` が null を返す）
+      const times = timerRecordTimes(timer.startedAt, new Date().toISOString())
+      if (!times) {
+        set({ activeTimer: null, completePromptTaskId: null })
+        return
+      }
+      const { dueDate, endDate, startTime, endTime } = times
+      const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
+      const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
+      pushUndo()
+      set((s) => ({
+        activeTimer: null,
+        completePromptTaskId: linked && !linked.completed ? linked.id : null,
+        tasks: [
+          ...s.tasks,
+          makeTask({
+            title: timer.taskTitle,
+            listId: INBOX_ID,
+            dueDate,
+            endDate,
+            startTime,
+            endTime,
+            isTimeLog: true,
+            completed: true,
+            tags: timer.tags,
+            color: timer.color ?? null,
+          }, maxOrder + 1),
+        ],
+      }))
+    },
+
+    openRecordPrompt: (taskId) => set({ recordPromptTaskId: taskId }),
+    logPlanAsPlanned: (taskId) => {
+      const task = get().tasks.find((t) => t.id === taskId)
+      const date = task ? taskPlacementDate(task) : null
+      if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
+      const now = zonedNow()
+      const today = format(now, 'yyyy-MM-dd')
+      const nowHm = format(now, 'HH:mm')
+      if (date > today || (date === today && task.startTime >= nowHm)) return
+      const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
+      get().asOneUndo(() => {
+        const { timeLogTagPresets, logCategoryColors } = get()
+        const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
+        get().addTimeLog(task.title, date, task.startTime!, end, label.tags, undefined, null, label.color)
+        get().toggleTask(task.id)
+      })
+    },
+  }
+}
