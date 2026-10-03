@@ -34,26 +34,32 @@ const payload = (tasks: unknown[], lists: unknown[]) =>
 describe('previewBackupJson', () => {
   it('タスクとリストの件数を返す', () => {
     const json = payload([task('a', 'l1'), task('b', 'l1')], [list('l1')])
-    expect(previewBackupJson(json)).toEqual({ tasks: 2, lists: 1 })
+    expect(previewBackupJson(json)).toEqual({ ok: true, tasks: 2, lists: 1 })
   })
 
   it('空のバックアップは 0 件（null ではない）', () => {
-    expect(previewBackupJson(payload([], [list('l1')]))).toEqual({ tasks: 0, lists: 1 })
+    expect(previewBackupJson(payload([], [list('l1')]))).toEqual({ ok: true, tasks: 0, lists: 1 })
   })
 
-  it('壊れた JSON は null', () => {
-    expect(previewBackupJson('{ not json')).toBeNull()
+  it('壊れた JSON は取り込ませない', () => {
+    expect(previewBackupJson('{ not json')).toEqual({ ok: false, problem: { kind: 'notJson' } })
   })
 
-  it('tasks / lists が無いものは null', () => {
-    expect(previewBackupJson(JSON.stringify({ schemaVersion: 1 }))).toBeNull()
+  it('tasks / lists が無いものは取り込ませない', () => {
+    expect(previewBackupJson(JSON.stringify({ schemaVersion: 1 }))).toEqual({ ok: false, problem: { kind: 'notBackup' } })
   })
 
-  it('存在しないリストを参照するタスクがあれば null（取り込ませない）', () => {
-    expect(previewBackupJson(payload([task('a', 'missing')], [list('l1')]))).toBeNull()
+  it('存在しないリストを参照するタスクがあれば取り込ませない', () => {
+    expect(previewBackupJson(payload([task('a', 'missing')], [list('l1')]))).toMatchObject({
+      ok: false,
+      problem: { kind: 'missingList', item: 'task' },
+    })
   })
 
-  it('ID が重複していれば null', () => {
-    expect(previewBackupJson(payload([task('a', 'l1'), task('a', 'l1')], [list('l1')]))).toBeNull()
+  it('ID が重複していれば取り込ませない', () => {
+    expect(previewBackupJson(payload([task('a', 'l1'), task('a', 'l1')], [list('l1')]))).toMatchObject({
+      ok: false,
+      problem: { kind: 'duplicateIds', item: 'task' },
+    })
   })
 })

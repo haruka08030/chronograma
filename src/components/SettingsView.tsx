@@ -5,6 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { notify } from '../lib/notify'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { previewBackupJson } from '../lib/backupFormat'
+import { backupProblemText } from '../lib/backupProblemText'
 import { loadImportRollback } from '../lib/importRollback'
 import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
@@ -199,8 +200,9 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               // 先に中身を読んでから確認する。件数が分からないまま
               // 「上書きしますか？」だけ出しても判断できない
               const preview = previewBackupJson(reader.result as string)
-              if (!preview) {
-                notify(i18n.t('alert.invalidImportFile'))
+              if (!preview.ok) {
+                // どこが悪いか（重複 ID・無いリストを指すタスクなど）を出す
+                notify(backupProblemText(preview.problem))
                 return
               }
               const current = useTaskStore.getState()

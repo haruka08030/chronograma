@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { parseBackupJson, withFreshStamps } from './backupFormat'
+import { BACKUP_SCHEMA_VERSION, parseBackupJson, readBackupJson, withFreshStamps } from './backupFormat'
+import { backupProblemText } from './backupProblemText'
+import i18n from '../i18n/config'
 
 const file = (data: Record<string, unknown>) => JSON.stringify({ version: 3, ...data })
 
@@ -43,6 +45,103 @@ describe('parseBackupJson', () => {
     expect(t.dueTime).toBe('18:00')
     expect(t.recurrence).toEqual({ type: 'weekly', interval: 2 })
     expect(t.updatedAt).toBe('2026-10-02T00:00:00.000Z')
+  })
+})
+
+describe('readBackupJson', () => {
+  const inbox = { id: '__inbox__', name: '未分類' }
+  const problemOf = (json: string) => {
+    const read = readBackupJson(json)
+    return read.ok ? null : read.problem
+  }
+
+  it('reads a consistent file', () => {
+    const read = readBackupJson(file({ lists: [inbox], tasks: [{ id: 't1', title: 'ES', listId: '__inbox__' }] }))
+    expect(read.ok).toBe(true)
+  })
+
+  it('says when the file is not JSON or not a backup', () => {
+    expect(problemOf('{ not json')).toEqual({ kind: 'notJson' })
+    expect(problemOf('null')).toEqual({ kind: 'notBackup' })
+    expect(problemOf(JSON.stringify({ tasks: [] }))).toEqual({ kind: 'notBackup' })
+  })
+
+  it('says when the file comes from a newer app version', () => {
+    const json = JSON.stringify({ schemaVersion: BACKUP_SCHEMA_VERSION + 1, lists: [], tasks: [] })
+    expect(problemOf(json)).toEqual({ kind: 'newerVersion', version: BACKUP_SCHEMA_VERSION + 1 })
+  })
+
+  it('counts rows missing required fields', () => {
+    expect(problemOf(file({ lists: [inbox], tasks: [{ id: 't1' }, { title: 'x', listId: '__inbox__' }] }))).toEqual({
+      kind: 'missingFields', item: 'task', count: 2,
+    })
+    expect(problemOf(file({ lists: [{ id: 'l1' }], tasks: [] }))).toEqual({ kind: 'missingFields', item: 'list', count: 1 })
+  })
+
+  it('names duplicate IDs with a count and an example', () => {
+    const tasks = [
+      { id: 't1', title: 'ES', listId: '__inbox__' },
+      { id: 't1', title: 'ES 2', listId: '__inbox__' },
+      { id: 't1', title: 'ES 3', listId: '__inbox__' },
+    ]
+    expect(problemOf(file({ lists: [inbox], tasks }))).toEqual({ kind: 'duplicateIds', item: 'task', count: 2, example: 'ES 2' })
+    expect(problemOf(file({ lists: [inbox, { id: '__inbox__', name: '' }], tasks: [] }))).toEqual({
+      kind: 'duplicateIds', item: 'list', count: 1, example: '__inbox__',
+    })
+    const listSections = [{ id: 's1', listId: '__inbox__', name: '前半' }, { id: 's1', listId: '__inbox__', name: '後半' }]
+    expect(problemOf(file({ lists: [inbox], tasks: [], listSections }))).toMatchObject({ kind: 'duplicateIds', item: 'section' })
+  })
+
+  it('names tasks and sections pointing to a list not in the file', () => {
+    const tasks = [
+      { id: 't1', title: 'OK', listId: '__inbox__' },
+      { id: 't2', title: '迷子', listId: 'gone' },
+      { id: 't3', title: '迷子 2', listId: 'gone' },
+    ]
+    expect(problemOf(file({ lists: [inbox], tasks }))).toEqual({ kind: 'missingList', item: 'task', count: 2, example: '迷子' })
+    const listSections = [{ id: 's1', listId: 'gone', name: '前半' }]
+    expect(problemOf(file({ lists: [inbox], tasks: [], listSections }))).toEqual({
+      kind: 'missingList', item: 'section', count: 1, example: '前半',
+    })
+  })
+
+  it('names tasks whose section is missing or in another list', () => {
+    const lists = [inbox, { id: 'l2', name: '大学' }]
+    const listSections = [{ id: 's1', listId: 'l2', name: '前半' }]
+    const tasks = [
+      { id: 't1', title: '別リスト', listId: '__inbox__', sectionId: 's1' },
+      { id: 't2', title: '無い', listId: 'l2', sectionId: 'gone' },
+      { id: 't3', title: 'OK', listId: 'l2', sectionId: 's1' },
+    ]
+    expect(problemOf(file({ lists, tasks, listSections }))).toEqual({ kind: 'missingSection', count: 2, example: '別リスト' })
+  })
+
+  it('names subtasks whose parent is not in the file', () => {
+    const tasks = [
+      { id: 't1', title: '親', listId: '__inbox__' },
+      { id: 't2', title: '子', listId: '__inbox__', parentId: 't1' },
+      { id: 't3', title: '孤児', listId: '__inbox__', parentId: 'gone' },
+    ]
+    expect(problemOf(file({ lists: [inbox], tasks }))).toEqual({ kind: 'missingParent', count: 1, example: '孤児' })
+  })
+
+  it('parseBackupJson still returns null for a rejected file', () => {
+    expect(parseBackupJson(file({ lists: [inbox], tasks: [{ id: 't1', title: 'x', listId: 'gone' }] }))).toBeNull()
+  })
+})
+
+describe('backupProblemText', () => {
+  it('says what is wrong in plain words, in each language', async () => {
+    const before = i18n.language
+    await i18n.changeLanguage('ja')
+    expect(backupProblemText({ kind: 'missingParent', count: 3, example: '課題' })).toBe(
+      '親タスクがファイルに無いサブタスクが 3 件あります（例:「課題」）',
+    )
+    await i18n.changeLanguage('en')
+    expect(backupProblemText({ kind: 'duplicateIds', item: 'list', count: 1, example: 'a'.repeat(30) })).toBe(
+      `1 list(s) have a duplicate ID (e.g. "${'a'.repeat(20)}…").`,
+    )
+    await i18n.changeLanguage(before)
   })
 })
 

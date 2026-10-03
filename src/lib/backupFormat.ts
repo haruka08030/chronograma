@@ -33,13 +33,63 @@ export interface BackupImportResult {
   logCategoryColors: Record<string, string> | null
 }
 
-function hasDuplicateIds<T extends { id: string }>(rows: T[]): boolean {
+/** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
+export type BackupItemKind = 'task' | 'list' | 'section'
+
+export type BackupProblem =
+  /** JSON として読めない */
+  | { kind: 'notJson' }
+  /** tasks / lists が無い（このアプリのバックアップではない） */
+  | { kind: 'notBackup' }
+  /** このアプリより新しい版で書き出されたもの */
+  | { kind: 'newerVersion'; version: number }
+  /** ID・タイトル（名前）・リストなど、必須の項目が欠けた行がある */
+  | { kind: 'missingFields'; item: 'task' | 'list'; count: number }
+  /** 同じ ID が 2 回以上出てくる */
+  | { kind: 'duplicateIds'; item: BackupItemKind; count: number; example: string }
+  /** ファイルに無いリストを指すタスク・セクションがある */
+  | { kind: 'missingList'; item: 'task' | 'section'; count: number; example: string }
+  /** ファイルに無いか、別のリストのセクションを指すタスクがある */
+  | { kind: 'missingSection'; count: number; example: string }
+  /** ファイルに無い親タスクを指すサブタスクがある */
+  | { kind: 'missingParent'; count: number; example: string }
+
+export type BackupReadResult =
+  | { ok: true; data: BackupImportResult }
+  | { ok: false; problem: BackupProblem }
+
+/** 例として画面に出す名前。空なら ID */
+function exampleName(name: string, id: string): string {
+  return name.trim() || id
+}
+
+/** 重複している ID の件数（2 回目以降の行の数）と、最初の 1 件の名前 */
+function findDuplicateIds<T extends { id: string }>(
+  rows: T[],
+  nameOf: (row: T) => string,
+): { count: number; example: string } | null {
   const seen = new Set<string>()
+  let count = 0
+  let example = ''
   for (const row of rows) {
-    if (seen.has(row.id)) return true
+    if (seen.has(row.id)) {
+      if (count === 0) example = exampleName(nameOf(row), row.id)
+      count += 1
+    }
     seen.add(row.id)
   }
-  return false
+  return count > 0 ? { count, example } : null
+}
+
+/** 条件に合わない行の件数と、最初の 1 件の名前 */
+function findBad<T extends { id: string }>(
+  rows: T[],
+  isBad: (row: T) => boolean,
+  nameOf: (row: T) => string,
+): { count: number; example: string } | null {
+  const bad = rows.filter(isBad)
+  if (bad.length === 0) return null
+  return { count: bad.length, example: exampleName(nameOf(bad[0]), bad[0].id) }
 }
 
 function readOrder(raw: Record<string, unknown>): number {
@@ -246,71 +296,95 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
   }
 }
 
-export function parseBackupJson(json: string): BackupImportResult | null {
+/** 取り込めるか確かめて読む。取り込めないときは理由を返す */
+export function readBackupJson(json: string): BackupReadResult {
+  let data: Record<string, unknown>
   try {
-    const data = JSON.parse(json) as Record<string, unknown>
-    if (!Array.isArray(data.tasks) || !Array.isArray(data.lists)) return null
+    data = JSON.parse(json) as Record<string, unknown>
+  } catch {
+    return { ok: false, problem: { kind: 'notJson' } }
+  }
+  if (typeof data !== 'object' || data === null || !Array.isArray(data.tasks) || !Array.isArray(data.lists)) {
+    return { ok: false, problem: { kind: 'notBackup' } }
+  }
+  const version = data.schemaVersion
+  if (typeof version === 'number' && version > BACKUP_SCHEMA_VERSION) {
+    return { ok: false, problem: { kind: 'newerVersion', version } }
+  }
 
-    const tasks = (data.tasks as unknown[])
-      .map(normalizeTaskRow)
-      .filter((t): t is Task => t !== null)
-    const lists = (data.lists as unknown[])
-      .map(normalizeListRow)
-      .filter((l): l is TaskList => l !== null)
+  const tasks = (data.tasks as unknown[])
+    .map(normalizeTaskRow)
+    .filter((t): t is Task => t !== null)
+  const lists = (data.lists as unknown[])
+    .map(normalizeListRow)
+    .filter((l): l is TaskList => l !== null)
 
-    if (tasks.length !== data.tasks.length || lists.length !== data.lists.length) return null
+  if (lists.length !== data.lists.length) {
+    return { ok: false, problem: { kind: 'missingFields', item: 'list', count: data.lists.length - lists.length } }
+  }
+  if (tasks.length !== data.tasks.length) {
+    return { ok: false, problem: { kind: 'missingFields', item: 'task', count: data.tasks.length - tasks.length } }
+  }
 
-    const sections = readSectionsArray(data)
-      .map(normalizeSectionRow)
-      .filter((s): s is ListSection => s !== null)
+  const sections = readSectionsArray(data)
+    .map(normalizeSectionRow)
+    .filter((s): s is ListSection => s !== null)
 
-    const habits = Array.isArray(data.habits)
-      ? (data.habits as unknown[])
-          .map(normalizeHabitRow)
-          .filter((h): h is Habit => h !== null)
-      : []
+  const habits = Array.isArray(data.habits)
+    ? (data.habits as unknown[])
+        .map(normalizeHabitRow)
+        .filter((h): h is Habit => h !== null)
+    : []
 
-    const paletteRaw = data.listColorPaletteId
-    const listColorPaletteId =
-      paletteRaw !== undefined && paletteRaw !== null
-        ? normalizeListColorPaletteId(paletteRaw)
-        : null
-
-    const rawPresets = data.timeLogTagPresets
-    const timeLogTagPresets = Array.isArray(rawPresets)
-      ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
+  const paletteRaw = data.listColorPaletteId
+  const listColorPaletteId =
+    paletteRaw !== undefined && paletteRaw !== null
+      ? normalizeListColorPaletteId(paletteRaw)
       : null
 
-    const rawColors = data.logCategoryColors
-    const logCategoryColors =
-      rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
-        ? Object.fromEntries(
-            Object.entries(rawColors as Record<string, unknown>).filter(
-              (e): e is [string, string] => typeof e[1] === 'string',
-            ),
-          )
-        : null
+  const rawPresets = data.timeLogTagPresets
+  const timeLogTagPresets = Array.isArray(rawPresets)
+    ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
+    : null
 
-    // Validation: reject structurally valid but inconsistent backups.
-    if (hasDuplicateIds(tasks) || hasDuplicateIds(lists) || hasDuplicateIds(sections)) return null
+  const rawColors = data.logCategoryColors
+  const logCategoryColors =
+    rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
+      ? Object.fromEntries(
+          Object.entries(rawColors as Record<string, unknown>).filter(
+            (e): e is [string, string] => typeof e[1] === 'string',
+          ),
+        )
+      : null
 
-    const listIds = new Set(lists.map((l) => l.id))
-    const sectionById = new Map(sections.map((s) => [s.id, s]))
-    const taskIds = new Set(tasks.map((t) => t.id))
-    for (const section of sections) {
-      if (!listIds.has(section.listId)) return null
-    }
-    for (const task of tasks) {
-      if (!listIds.has(task.listId)) return null
-      if (task.sectionId && !sectionById.has(task.sectionId)) return null
-      if (task.sectionId) {
-        const sec = sectionById.get(task.sectionId)
-        if (!sec || sec.listId !== task.listId) return null
-      }
-      if (task.parentId && !taskIds.has(task.parentId)) return null
-    }
+  // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
+  const duplicateLists = findDuplicateIds(lists, (l) => l.name)
+  if (duplicateLists) return { ok: false, problem: { kind: 'duplicateIds', item: 'list', ...duplicateLists } }
+  const duplicateSections = findDuplicateIds(sections, (s) => s.name)
+  if (duplicateSections) return { ok: false, problem: { kind: 'duplicateIds', item: 'section', ...duplicateSections } }
+  const duplicateTasks = findDuplicateIds(tasks, (t) => t.title)
+  if (duplicateTasks) return { ok: false, problem: { kind: 'duplicateIds', item: 'task', ...duplicateTasks } }
 
-    return {
+  const listIds = new Set(lists.map((l) => l.id))
+  const sectionById = new Map(sections.map((s) => [s.id, s]))
+  const taskIds = new Set(tasks.map((t) => t.id))
+
+  const sectionsWithoutList = findBad(sections, (s) => !listIds.has(s.listId), (s) => s.name)
+  if (sectionsWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'section', ...sectionsWithoutList } }
+  const tasksWithoutList = findBad(tasks, (t) => !listIds.has(t.listId), (t) => t.title)
+  if (tasksWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'task', ...tasksWithoutList } }
+  const tasksWithBadSection = findBad(
+    tasks,
+    (t) => Boolean(t.sectionId) && sectionById.get(t.sectionId!)?.listId !== t.listId,
+    (t) => t.title,
+  )
+  if (tasksWithBadSection) return { ok: false, problem: { kind: 'missingSection', ...tasksWithBadSection } }
+  const tasksWithoutParent = findBad(tasks, (t) => Boolean(t.parentId) && !taskIds.has(t.parentId!), (t) => t.title)
+  if (tasksWithoutParent) return { ok: false, problem: { kind: 'missingParent', ...tasksWithoutParent } }
+
+  return {
+    ok: true,
+    data: {
       tasks,
       lists,
       habits,
@@ -318,21 +392,29 @@ export function parseBackupJson(json: string): BackupImportResult | null {
       listColorPaletteId,
       timeLogTagPresets,
       logCategoryColors,
-    }
-  } catch {
-    return null
+    },
   }
 }
+
+/** 取り込めるものだけを返す（理由がいらないとき用）。取り込めなければ null */
+export function parseBackupJson(json: string): BackupImportResult | null {
+  const read = readBackupJson(json)
+  return read.ok ? read.data : null
+}
+
+export type BackupPreview =
+  | { ok: true; tasks: number; lists: number }
+  | { ok: false; problem: BackupProblem }
 
 /**
  * 取り込み前の下見。件数だけを返す。
  * 取り込みは現在のデータを全て置き換えるので、「何件が何件になるか」を
- * 確認ダイアログに出せるようにする。壊れたファイルなら null（= 取り込めない）。
+ * 確認ダイアログに出せるようにする。取り込めないファイルなら、その理由を返す。
  */
-export function previewBackupJson(json: string): { tasks: number; lists: number } | null {
-  const parsed = parseBackupJson(json)
-  if (!parsed) return null
-  return { tasks: parsed.tasks.length, lists: parsed.lists.length }
+export function previewBackupJson(json: string): BackupPreview {
+  const read = readBackupJson(json)
+  if (!read.ok) return read
+  return { ok: true, tasks: read.data.tasks.length, lists: read.data.lists.length }
 }
 
 /**
