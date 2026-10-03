@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { CheckIcon } from '../icons'
@@ -40,8 +41,9 @@ export function ColorSwatches({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={`grid w-max gap-1.5 ${className}`}
-      style={{ gridTemplateColumns: `repeat(${columns}, ${SWATCH_SIZE})` }}
+      // 12 列（幅 354px）はスマホのカードに収まらないので、狭い画面では 6 列で折り返す
+      className={`grid w-max gap-1.5 ${columns === 12 ? 'grid-cols-[repeat(6,var(--sw))] sm:grid-cols-[repeat(12,var(--sw))]' : 'grid-cols-[repeat(6,var(--sw))]'} ${className}`}
+      style={{ '--sw': SWATCH_SIZE } as CSSProperties}
     >
       {list.map((sw) => {
         const isSelected = selected === sw.hex.toUpperCase()
