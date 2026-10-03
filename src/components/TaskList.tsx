@@ -52,6 +52,8 @@ import { DisclosureButton } from './ui/Disclosure'
 import { EmptyState } from './ui/EmptyState'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
+/** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
+const UNPLANNED_SORT_OPTIONS: SortMode[] = ['manual', 'title', 'createdAt']
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -225,6 +227,8 @@ export function TaskList() {
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
   const lists = useTaskStore((s) => s.lists)
+  /** 開いているリストの種類。いつか・チェックリストも操作は To-Do と同じで、印・日付・下の「済み」の出し方だけ変える */
+  const listKind = useTaskStore((s) => s.lists.find((l) => l.id === s.selectedListId)?.kind ?? 'tasks')
   // 並び順はリスト・ビューごと
   const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView)))
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
@@ -236,6 +240,7 @@ export function TaskList() {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
   const sections = useTaskStore((s) => s.sections)
   const addSectionStore = useTaskStore((s) => s.addSection)
   const renameSectionStore = useTaskStore((s) => s.renameSection)
@@ -363,8 +368,8 @@ export function TaskList() {
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const sortOptions = useMemo(
-    () => SORT_OPTIONS.map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
-    [t],
+    () => (listKind === 'tasks' ? SORT_OPTIONS : UNPLANNED_SORT_OPTIONS).map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
+    [t, listKind],
   )
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -607,7 +612,7 @@ export function TaskList() {
     const out: string[] = []
     const walk = (parentId: string) => {
       for (const st of childrenByParent.get(parentId) ?? []) {
-        if (!st.completed && !isListedTimeLog(st)) {
+        if ((listKind === 'checklist' || !st.completed) && !isListedTimeLog(st)) {
           out.push(st.id)
           walk(st.id)
         }
@@ -618,7 +623,7 @@ export function TaskList() {
       walk(p.id)
     }
     return out
-  }, [active, childrenByParent])
+  }, [active, childrenByParent, listKind])
 
   const flatCompletedTodoIds = useMemo(() => {
     const out: string[] = []
@@ -737,13 +742,13 @@ export function TaskList() {
   const completeByKey = useCallback((taskId: string) => {
     const task = tasks.find((x) => x.id === taskId)
     if (!task) return
-    // 丸を押したときと同じ: 未完了の To-Do は「記録して完了」を開く
-    if (!task.completed && !isListedTimeLog(task)) {
+    // 丸を押したときと同じ: 未完了の To-Do は「記録して完了」を開く（いつか・チェックリストは聞かない）
+    if (!task.completed && !isListedTimeLog(task) && listKind === 'tasks') {
       openCompleteWithLog(task)
       return
     }
     toggleTask(taskId)
-  }, [tasks, openCompleteWithLog, toggleTask])
+  }, [tasks, openCompleteWithLog, toggleTask, listKind])
 
   /**
    * 一覧のキー操作（入力中・ダイアログ表示中は除く）
@@ -846,10 +851,12 @@ export function TaskList() {
   const subtaskNestNoDrag = subtaskNestRow
   const subtaskNestWithDrag = subtaskNestRow
 
+  // チェックリストはチェックした子も親の下に残す（「カレー」の材料がそろうまでまとめて見える）
+  const keepDoneChildren = listKind === 'checklist'
   const incompleteSubtasks = useCallback(
     (parentId: string) =>
-      (childrenByParent.get(parentId) ?? []).filter((st) => !st.completed && !isListedTimeLog(st)),
-    [childrenByParent],
+      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isListedTimeLog(st)),
+    [childrenByParent, keepDoneChildren],
   )
 
   /** ネストした SortableContext を避ける: DOM 順と一致する単一コンテキスト（各ルート直後にそのサブ） */
@@ -1230,7 +1237,11 @@ export function TaskList() {
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
             <div className="mb-1.5">
-              <QuickAdd />
+              <QuickAdd
+                placeholder={
+                  listKind === 'someday' ? t('someday.addPlaceholder') : listKind === 'checklist' ? t('checklist.addPlaceholder') : undefined
+                }
+              />
             </div>
           )}
 
@@ -1255,9 +1266,34 @@ export function TaskList() {
 
           {completedTodos.length > 0 && (
             <div className="pt-4">
-              <DisclosureButton tone="muted" open={showCompleted} onToggle={() => setShowCompleted((v) => !v)} className="ml-1">
-                {t('taskList.completedHeader', { count: completedTodos.length })}
-              </DisclosureButton>
+              <div className="flex items-center justify-between gap-2">
+                <DisclosureButton tone="muted" open={showCompleted} onToggle={() => setShowCompleted((v) => !v)} className="ml-1">
+                  {listKind === 'someday'
+                    ? t('someday.fulfilledHeading', { count: completedTodos.length })
+                    : listKind === 'checklist'
+                    ? t('checklist.checkedHeading', { count: completedTodos.length })
+                    : t('taskList.completedHeader', { count: completedTodos.length })}
+                </DisclosureButton>
+                {listKind === 'checklist' && (
+                  // 持ち物リストの使い回し（全部戻す）と、買い終わった分の片付け
+                  <div className="mr-2 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => uncheckTasks(flatCompletedTodoIds)}
+                      className={buttonClass({ variant: 'ghost', size: 'xs' })}
+                    >
+                      {t('checklist.uncheckAll')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTasks(completedTodos.map((x) => x.id))}
+                      className={buttonClass({ variant: 'link', size: 'xs' })}
+                    >
+                      {t('checklist.clearChecked')}
+                    </button>
+                  </div>
+                )}
+              </div>
               {showCompleted && (
               <div className="space-y-0.5 mt-1">
                 {completedTodos.map((t) => (

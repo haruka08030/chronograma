@@ -62,8 +62,9 @@ const SCREENS = [
   { name: 'settings', view: 'settings' },
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
-  // 行に乗せると出る「下に追加」（PC だけ）
-  { name: 'checklist-hover', list: 'seed-shopping', hover: 'div.group:has(> button:text-is("カレー"))' },
+  // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
+  { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
+  { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
 ]
 
 const VIEWPORTS = [

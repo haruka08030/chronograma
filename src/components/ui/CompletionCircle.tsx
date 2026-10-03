@@ -3,6 +3,9 @@ import { CheckIcon } from '../icons'
 import { PRIORITY_RING_CLASS } from '../../lib/priorityColor'
 import type { Priority } from '../../types/task'
 
+/** 完了の印の形。To-Do は丸、チェックリスト（買い物）は四角、いつか（Wish）は ☆（かなえたら ★） */
+export type CompletionShape = 'circle' | 'square' | 'star'
+
 /**
  * タスクの完了の丸（To-Do 一覧・今日の計画で共通）。
  * - 見た目は 20px（サブタスクは 16px）、枠 1.5px。優先度があれば枠をその色に、完了は墨の塗り＋✓
@@ -12,6 +15,7 @@ export function CompletionCircle({
   completed,
   priority,
   small = false,
+  shape = 'circle',
   label,
   onClick,
 }: {
@@ -19,10 +23,32 @@ export function CompletionCircle({
   priority?: Priority
   /** サブタスク */
   small?: boolean
+  shape?: CompletionShape
   label: string
   onClick: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
   const ring = priority ? PRIORITY_RING_CLASS[priority] : undefined
+  if (shape === 'star') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        className={`flex-shrink-0 touch-manipulation ${small ? '-m-2 p-2' : '-m-2.5 p-2.5'}`}
+      >
+        <span
+          aria-hidden
+          className={`flex items-center justify-center leading-none transition-colors ${small ? 'h-4 w-4 text-sm' : 'h-5 w-5 text-base'} ${
+            completed
+              ? 'text-amber-500 hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600'
+              : 'text-zinc-300 hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400'
+          }`}
+        >
+          {completed ? '★' : '☆'}
+        </span>
+      </button>
+    )
+  }
   return (
     <button
       type="button"
@@ -31,7 +57,7 @@ export function CompletionCircle({
       className={`group/check flex-shrink-0 touch-manipulation ${small ? '-m-2 p-2' : '-m-2.5 p-2.5'}`}
     >
       <span
-        className={`flex items-center justify-center rounded-full border-[1.5px] transition-colors ${small ? 'h-4 w-4' : 'h-5 w-5'} ${
+        className={`flex items-center justify-center ${shape === 'square' ? 'rounded-[5px]' : 'rounded-full'} border-[1.5px] transition-colors ${small ? 'h-4 w-4' : 'h-5 w-5'} ${
           completed
             ? 'border-accent-500 bg-accent-500 text-on-accent'
             : ring

@@ -220,8 +220,6 @@ export interface TaskState {
 
   addTask: (title: string, listId?: string, parentId?: string) => string | undefined
   addTaskAfter: (afterTaskId: string, title: string) => string | undefined
-  /** 子を末尾に足す（いつか・チェックリストの行の下の欄。上から書いた順に並ぶ） */
-  addChildAtEnd: (title: string, parentId: string) => string | undefined
   addTaskWithDate: (title: string, dueDate: string, listId?: string) => void
   addTaskWithTime: (title: string, dueDate: string, startTime: string, endTime: string, listId?: string) => void
   /** 予定から記録を作る。`color` は元の予定の色（Google の予定から写すとき） */
@@ -253,9 +251,8 @@ export interface TaskState {
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
   setExtraTimeZones: (zones: string[]) => void
+  /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
-  /** チェックリストのチェック。子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`）。Undo は 1 段 */
-  toggleChecklistItem: (id: string) => void
   updateTask: (
     id: string,
     patch: Partial<

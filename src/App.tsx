@@ -67,8 +67,6 @@ const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((
 const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
 const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
 const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
-const ChecklistView = lazy(() => import('./components/ChecklistView').then((m) => ({ default: m.ChecklistView })))
-const SomedayView = lazy(() => import('./components/SomedayView').then((m) => ({ default: m.SomedayView })))
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
@@ -567,9 +565,7 @@ export default function App() {
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
       default:
-        // いつか・チェックリストのリストは専用画面（日付や優先度を出さない）
-        if (selectedView == null && selectedList?.kind === 'checklist') return <ChecklistView list={selectedList} />
-        if (selectedView == null && selectedList?.kind === 'someday') return <SomedayView list={selectedList} />
+        // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
         return <TaskList />
     }
   })()

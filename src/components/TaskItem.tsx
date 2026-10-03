@@ -19,6 +19,7 @@ import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 import { chipClass } from './ui/chipClass'
+import { useScheduleWish } from '../hooks/useScheduleWish'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -86,6 +87,11 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
+  const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
+  const scheduleWish = useScheduleWish()
+  // 「記録も付ける」を聞くのは To-Do のリストだけ
+  const askLog = listKind === 'tasks' ? onCompleteRequest : undefined
   const [editing, setEditing] = useState(Boolean(autoEdit))
   /** 右クリック・≡ で開くタスクのメニュー（一覧がメニューを持たない所で使う） */
   const [ownMenu, setOwnMenu] = useState<{ x: number; y: number } | null>(null)
@@ -308,16 +314,19 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         completed={task.completed}
         priority={task.priority}
         small={isSubtask}
+        shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
         onClick={(e) => {
           e.stopPropagation()
-          if (!task.completed && !timeLog && onCompleteRequest) {
-            onCompleteRequest(task)
+          if (!task.completed && !timeLog && askLog) {
+            askLog(task)
             return
           }
           toggleTask(task.id)
         }}
         label={
-          !task.completed && !timeLog && onCompleteRequest
+          listKind === 'someday'
+            ? t(task.completed ? 'someday.unfulfillItem' : 'someday.fulfillItem', { title: task.title })
+            : !task.completed && !timeLog && askLog
             ? t('taskItem.completeWithLog')
             : task.completed
             ? timeLog
@@ -415,7 +424,35 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         </div>
       </div>
 
-      {!hideDueDatePicker && (
+      {listKind === 'someday' && !task.completed && (
+        // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
+        <DueDatePopover
+          value={null}
+          onChange={(v) => scheduleWish([task.id], v)}
+          kind="scheduled"
+          align="right"
+          wrapperClassName="relative hidden flex-shrink-0 md:flex"
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              aria-label={t('someday.scheduleItem', { title: task.title })}
+              {...tip(t('someday.schedule'))}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggle()
+              }}
+              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+                ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
+            >
+              <CalendarIcon className="w-5 h-5 md:w-4 md:h-4 text-zinc-400" />
+            </button>
+          )}
+        />
+      )}
+
+      {!hideDueDatePicker && listKind === 'tasks' && (
         <DueDatePopover
           value={task.dueDate ?? null}
           onChange={(v) => updateTask(task.id, { dueDate: v })}

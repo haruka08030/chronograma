@@ -5,7 +5,7 @@ import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { InlineAddInput } from './ui/InlineAddInput'
 
 /** To-Do 一覧の上の追加欄（今日画面と同じ形）。N キーなど「追加して」の合図でフォーカスする */
-export function QuickAdd() {
+export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
   const { t } = useTranslation()
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -35,7 +35,7 @@ export function QuickAdd() {
       value={value}
       onValueChange={setValue}
       onSubmit={submit}
-      placeholder={t('quickAdd.placeholder')}
+      placeholder={placeholder ?? t('quickAdd.placeholder')}
     />
   )
 }

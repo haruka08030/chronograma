@@ -3,18 +3,6 @@ import { expandDescendantIds } from '../store/taskHelpers'
 
 const live = (t: Task) => !t.deletedAt && !t.archivedAt
 
-/** いつか・チェックリストの子（親 id → 子の並び順）。画面は 1 段だけ下げて出す */
-export function childrenByParent(tasks: readonly Task[], listId: string): Map<string, Task[]> {
-  const out = new Map<string, Task[]>()
-  for (const t of tasks) {
-    if (t.listId !== listId || !t.parentId || !live(t) || t.isTimeLog) continue
-    const arr = out.get(t.parentId)
-    if (arr) arr.push(t)
-    else out.set(t.parentId, [t])
-  }
-  for (const arr of out.values()) arr.sort((a, b) => a.order - b.order)
-  return out
-}
 
 /**
  * チェックリストのチェック（親子つき）。メニュー「カレー」の下に材料を並べる使い方。

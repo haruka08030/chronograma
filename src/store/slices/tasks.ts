@@ -15,8 +15,6 @@ type TasksActions = Pick<
   | 'addTaskWithDate'
   | 'addTaskWithTime'
   | 'toggleTask'
-  | 'addChildAtEnd'
-  | 'toggleChecklistItem'
   | 'updateTask'
   | 'rescheduleTasks'
   | 'bulkUpdateTasks'
@@ -35,6 +33,16 @@ type TasksActions = Pick<
   | 'undoDelete'
   | 'clearDeletedTasks'
 >
+
+/**
+ * 完了の切り替え。チェックリストは親子をまとめて（`toggleChecklistTree`）、
+ * それ以外は繰り返しの次回を作る／片付ける（`taskRecurrence.ts`）
+ */
+function toggleByListKind(s: Pick<TaskState, 'tasks' | 'lists'>, id: string, now: string): Task[] | null {
+  const listId = s.tasks.find((t) => t.id === id)?.listId
+  const kind = s.lists.find((l) => l.id === listId)?.kind
+  return kind === 'checklist' ? toggleChecklistTree(s.tasks, id, now) : toggleTaskCompletion(s.tasks, id, now)
+}
 
 export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions {
   const { pushUndo, isUnnamedJustCreated } = undo
@@ -94,17 +102,6 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       set((st) => ({ tasks: [...st.tasks, task] }))
       return task.id
     },
-    addChildAtEnd: (title, parentId) => {
-      const parent = get().tasks.find((t) => t.id === parentId)
-      if (!parent) return undefined
-      const siblings = get().tasks.filter((t) => t.parentId === parentId)
-      const order = siblings.length ? Math.max(...siblings.map((t) => t.order)) + 1 : 0
-      const task = makeTask({ title, listId: parent.listId }, order)
-      task.parentId = parentId
-      pushUndo()
-      set((st) => ({ tasks: [...st.tasks, task] }))
-      return task.id
-    },
     addTaskWithDate: (title, dueDate, listId) => {
       pushUndo()
       const targetList = listId ?? get().selectedListId ?? INBOX_ID
@@ -126,16 +123,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       if (!task) return
       pushUndo()
       set((s) => {
-        // 繰り返しは完了で次回を作り、取り消しでまだ手を付けていない次回を片付ける（`taskRecurrence.ts`）
-        const tasks = toggleTaskCompletion(s.tasks, id, new Date().toISOString())
-        return tasks ? { tasks } : s
-      })
-    },
-    toggleChecklistItem: (id) => {
-      if (!get().tasks.some((t) => t.id === id)) return
-      pushUndo()
-      set((s) => {
-        const tasks = toggleChecklistTree(s.tasks, id, new Date().toISOString())
+        const tasks = toggleByListKind(s, id, new Date().toISOString())
         return tasks ? { tasks } : s
       })
     },
@@ -165,7 +153,11 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo(targets.length > 1 ? i18n.t('undo.tasksCompleted', { count: targets.length }) : undefined)
       const nowIso = new Date().toISOString()
       set((s) => ({
-        tasks: targets.reduce((tasks, id) => toggleTaskCompletion(tasks, id, nowIso) ?? tasks, s.tasks),
+        // 親と子を一緒に選んだチェックリストは、親で子も済みになる。済みになったものは切り替え直さない
+        tasks: targets.reduce(
+          (tasks, id) => (tasks.find((t) => t.id === id)?.completed ? tasks : toggleByListKind({ ...s, tasks }, id, nowIso) ?? tasks),
+          s.tasks,
+        ),
       }))
     },
     bulkUpdateTasks: (ids, patch, label) => {

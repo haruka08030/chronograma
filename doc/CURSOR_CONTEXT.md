@@ -104,12 +104,13 @@
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す
 
-- **いつか / チェックリストの専用画面**: リスト選択時に `kind` が `checklist` なら `ChecklistView`、`someday` なら `SomedayView`
-  （`App.tsx` の `mainContent`）。`uncheckTasks`（全部戻す）・`promoteToPlanned`（いつか → 未分類 + 今日の予定日）はどちらも Undo 1 段。
-  `TaskDetail` は `tasks` 以外のリストで優先度・締切・予定日の欄を出さない。カレンダー（月・週・日パネル）と予定 vs ログも除外
-  - 子は親の下に 1 段ずつ下げて出す（`childrenByParent`、`lib/listTree.ts`）。子のある行に「済/全部」の数。PC は行に乗せると「＋」（下に追加、`ChildAddInput`・`addChildAtEnd` で末尾へ）、スマホは詳細カードのサブタスク欄から足す
-  - チェックリストは `toggleChecklistItem`: 子のある行は子ごと、子がそろったら親もチェック済み（そのグループごと「チェック済み」へ）。「残り N 個」は子のある行を子で数える
-  - いつかの子は ☆ でかなえても親の下に ★ で残る（親は自分でかなえる）。子だけ「予定する」と親から外れて未分類の 1 件になる
+- **いつか / チェックリストの画面**: To-Do と同じ `TaskList` / `TaskItem`（名前の直し方・Enter で次の行・ドラッグで並べ替えと子にする・右クリックのメニュー・複数選択・キー操作は同じ）。
+  リストの種類で変えるのは次だけ:
+  - 完了の印（`CompletionCircle` の `shape`）: To-Do は丸、チェックリストは四角、いつかは ☆ / ★
+  - 締切・優先度の欄と並び順を出さない（行の日付ボタン、メニューの締切・優先度、`TaskDetail` の欄）。完了で「記録も付ける」を聞かない
+  - いつかは行のカレンダーとメニューの「予定する」（`useScheduleWish` → `promoteToPlanned`。未分類へ移してその日の予定に。子だけ予定すると親から外れて 1 件になる）。下の一覧は「かなえたこと」
+  - チェックリストは `toggleTask` が `toggleChecklistTree`（`lib/listTree.ts`）になる: 子のある行は子ごと、子がそろったら親もチェック済み。チェックした子は親の下に残す。下の「チェック済み」に「全部戻す」（`uncheckTasks`）「チェック済みを消す」
+  - 追加欄の例文（`QuickAdd` の `placeholder`）。カレンダー（月・週・日パネル）と予定 vs ログからは除外
 - **記録の分類**: 分類は 1 つ選ぶチップ（`TimeLogTagField`、同じチップで解除、＋で追加すると設定の分類にも保存）。既定の分類
   （`logCategories.defaults`、勉強・課題・就活…）を新規ユーザーに入れ、persist v26 で空の既存ユーザーにも入れる。分類なしで記録したら
   `inferLogCategory`（`src/lib/logCategory.ts`: 元タスクの先頭タグ → 同じタイトルの前回の分類）を `startTimer` / `addTimeLog` /

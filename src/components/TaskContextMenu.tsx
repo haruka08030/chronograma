@@ -12,6 +12,7 @@ import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import { ArchiveIcon, ArrowRightIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, SectionIcon, TrashIcon } from './icons'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { useScheduleWish } from '../hooks/useScheduleWish'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -46,6 +47,7 @@ export function TaskContextMenu({
   const sections = useTaskStore((s) => s.sections)
   const allTasks = useTaskStore((s) => s.tasks)
   const bulk = useBulkTaskActions()
+  const scheduleWish = useScheduleWish()
 
   const targets = useMemo(() => allTasks.filter((x) => taskIds.includes(x.id)), [allTasks, taskIds])
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -57,6 +59,10 @@ export function TaskContextMenu({
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
   const sharedSection = shared((x) => x.sectionId ?? null)
+  // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけなら代わりに「予定する」
+  const kindOf = (listId: string) => lists.find((l) => l.id === listId)?.kind ?? 'tasks'
+  const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
+  const allWishes = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'someday')
   const done = (fn: () => void) => () => {
     fn()
     onDone?.()
@@ -77,6 +83,16 @@ export function TaskContextMenu({
       run: done(() => bulk.setDue(taskIds, o.key, o.label)),
     }))
     .concat({ id: 'due-none', label: t('dueDatePicker.clear'), checked: sharedDue === null, run: done(() => bulk.setDue(taskIds, null, '')) })
+  const scheduleLeaves: ActionLeaf[] = [
+    { label: t('dueDatePicker.today'), key: toDateKey(today) },
+    { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
+    { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
+  ].map((o): ActionLeaf => ({
+    id: `schedule-${o.key}`,
+    label: o.label,
+    hint: dayHint(o.key),
+    run: done(() => scheduleWish(taskIds, o.key)),
+  }))
   const priorityLeaves: ActionLeaf[] = PRIORITIES.map((p) => ({
     id: `priority-${p}`,
     label: t(`common.${p}`),
@@ -112,7 +128,7 @@ export function TaskContextMenu({
           })),
         ]
 
-  const entries: ActionEntry[] = [
+  const plannedEntries: ActionEntry[] = [
     {
       kind: 'sub',
       id: 'due',
@@ -132,6 +148,31 @@ export function TaskContextMenu({
       ),
     },
     { kind: 'sub', id: 'priority', label: t('common.priority'), icon: <FlagIcon className={ICON} />, leaves: priorityLeaves },
+  ]
+  const wishEntries: ActionEntry[] = [
+    {
+      kind: 'sub',
+      id: 'schedule',
+      label: t('someday.schedule'),
+      icon: <CalendarIcon className={ICON} />,
+      leaves: scheduleLeaves,
+      width: 'lg',
+      extra: (close) => (
+        <DatePickerBody
+          footer={false}
+          kind="scheduled"
+          value={null}
+          onPick={(key) => {
+            done(() => scheduleWish(taskIds, key))()
+            close()
+          }}
+        />
+      ),
+    },
+  ]
+  const entries: ActionEntry[] = [
+    ...(allWishes ? wishEntries : []),
+    ...(plannable ? plannedEntries : []),
     { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
     ...(sectionLeaves.length > 0
       ? [{ kind: 'sub' as const, id: 'section', label: t('taskMenu.moveToSection'), icon: <SectionIcon className={ICON} />, leaves: sectionLeaves }]
@@ -140,7 +181,7 @@ export function TaskContextMenu({
       kind: 'leaf',
       id: 'complete',
       divider: true,
-      label: t('taskList.markComplete'),
+      label: allWishes ? t('someday.fulfill') : t('taskList.markComplete'),
       icon: <CheckIcon className={ICON} />,
       keys: shortcutLabel(['mod', '↵']),
       run: done(() => bulk.complete(taskIds)),
