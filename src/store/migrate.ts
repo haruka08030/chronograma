@@ -287,8 +287,8 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     if (r) state.dailyReminders = { planTime: typeof r.planTime === 'string' ? r.planTime : null }
   }
   if (version < 35) {
-    // Canvas の最初の版の id を学校名入りに（重複は利用者の書いたものを写してまとめる）。サーバーは 006 で同じことをする。
-    // ここだけは今の時刻にする: まとめた行が、サーバーに残る古い重複より新しくないと同期で負けるため（006 も now()）
+    // Canvas の最初の版の id を学校名入りに（重複は利用者の書いたものを写してまとめる。サーバーの行も同じ規則で書き換え済み）。
+    // ここだけは今の時刻にする: まとめた行が、サーバーに残る古い重複より新しくないと同期で負けるため
     const migrated = migrateLegacyCanvasIds(
       {
         lists: (state.lists as TaskList[]) ?? [],

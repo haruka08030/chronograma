@@ -1,5 +1,5 @@
 /**
- * Edge Function の呼び出し回数の上限（利用者ごと・機能ごと）。数えるのは DB の `hit_rate_limit`（migrations/009）。
+ * Edge Function の呼び出し回数の上限（利用者ごと・機能ごと）。数えるのは DB の `hit_rate_limit`（`001_chronograma_schema.sql`）。
  * ふつうの使い方（数分おきの同期・画面の切り替え）では届かない数にしてある。
  */
 
@@ -21,7 +21,7 @@ export const RATE_LIMITS = {
 } satisfies Record<string, RateLimit>
 
 /**
- * 1 回数え、上限以内なら true。数えられなかった（009 を流す前など）ときは止めずに通し、ログに残す
+ * 1 回数え、上限以内なら true。数えられなかった（関数が無い DB など）ときは止めずに通し、ログに残す
  */
 export async function withinRateLimit(admin: RpcClient, userId: string, rule: RateLimit): Promise<boolean> {
   const { data, error } = await admin.rpc('hit_rate_limit', {

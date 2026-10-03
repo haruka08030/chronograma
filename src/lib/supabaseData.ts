@@ -61,9 +61,9 @@ interface TaskRow {
   color?: string | null
   /** 古い DB には無い */
   habit_id?: string | null
-  /** 010 で追加。古い DB には無い */
+  /** 古い DB には無い */
   is_sleep?: boolean | null
-  /** 014 で追加。古い DB には無い */
+  /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
   /** 古い DB には無い */
@@ -243,7 +243,7 @@ function rowToSection(row: SectionRow): ListSection {
 }
 
 /**
- * DB の大きさの上限（`005_size_limits.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
+ * DB の大きさの上限（`001_chronograma_schema.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
  * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
  */
 const MAX_NAME = 500
@@ -647,8 +647,8 @@ export async function pushListsTasksHabits(
     return { rejected: out }
   }
 
-  // 012 で主キーが (user_id, id) になった。未適用の DB には一致する一意制約が無いので id で送り直す
-  // （その DB では 2 人目以降の利用者は同期できない。012 を必ず適用する）
+  // 主キーは (user_id, id)。主キーが id だけの古い DB には一致する一意制約が無いので id で送り直す
+  // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
   let onConflict = 'user_id,id'
   const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
     let { error } = await supabase.from(table).upsert(rows, { onConflict })

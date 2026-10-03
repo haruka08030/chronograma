@@ -41,8 +41,8 @@ npm run dev
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から番号順に `supabase/migrations/` の SQL を全部実行し、テーブルと RLS を作成します（一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
-   既存の DB も同じく全部実行すれば最新の形になります（どのファイルも何度流しても同じ形になります）。
+2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（いまは [`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) の 1 本。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
+   どのファイルも何度流しても同じ形になります。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、開発用（`http://localhost:5173`・`:4173`）と secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。
@@ -55,7 +55,7 @@ npm run dev
 
 ### 通知（Web Push、任意）
 
-アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。既存の DB には [`002_notifications.sql`](supabase/migrations/002_notifications.sql) を実行してください。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
 1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
