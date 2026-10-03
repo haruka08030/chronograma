@@ -5,6 +5,7 @@ import { fromAppWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
 import { pad2 } from '../lib/clockTime'
+import { chipClass } from './ui/chipClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -68,7 +69,7 @@ export function FloatingTimer() {
         {activeTimer.tags?.length > 0 && (
           <div className="flex gap-1 mt-0.5">
             {activeTimer.tags.map((tag) => (
-              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-500/20 text-accent-700 dark:text-accent-300">
+              <span key={tag} className={chipClass({ variant: 'fill' })}>
                 {tag}
               </span>
             ))}

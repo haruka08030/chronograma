@@ -22,7 +22,7 @@
 
 | 部品 | 決まり | 場所 |
 | --- | --- | --- |
-| ボタン | `buttonClass({ variant, size })`。variant: primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link。size: xs〜lg。形は角丸の四角（xs は 6px、ほかは 8px）。ピルはチップ（最近の記録・ラベル・分類）だけ | `components/ui/buttonClass.ts` |
+| ボタン | `buttonClass({ variant, size })`。variant: primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link。size: xs〜lg。形は角丸の四角（xs は 6px、ほかは 8px）。ピルはチップ（`chipClass`）だけ | `components/ui/buttonClass.ts` |
 | アイコン | `CheckIcon` などの部品と、パスの定義 `ICON_PATHS`。コンポーネントに `<path` を直書きしない。画面ごとに切り替わる path は `PathIcon`。意味を伝えるアイコンは `label` | `components/icons.tsx`・`lib/iconPaths.ts`・`components/PathIcon.tsx` |
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
 | モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`） | `components/ui/Modal.tsx` |
@@ -35,6 +35,7 @@
 | 予定の色・時刻の判断 | 色は `useTaskColor`（記録は色＝ラベル、予定は色だけ）、「予定どおり記録」「終わった予定」は `planTiming`。予定カードとメニューで同じ | `hooks/useTaskColor.ts`・`lib/planTiming.ts` |
 | 色選択 | 丸は 24px・選択中は ✓ でどこでも同じ。列の数は置き場所の幅で決める（広い所は 12 列、ポップオーバーは 6 列）。ラベル編集の「色を選択」は自由な色を作る別の役割なので別の格子 | `components/ui/ColorSwatches.tsx` |
 | 追加の入力欄 | `InlineAddInput`。細い枠に ＋ と文字、押すと薄い背景。Enter で追加して続けて書ける、Esc で書いた分を消す。外したときは書いた分を残す（カレンダーの中・サブタスクは足す）。今日・To-Do・買い物・いつか（印は ☆）・カレンダーの中（月のマス・終日行は小さい版）・サブタスク | `components/ui/InlineAddInput.tsx` |
+| チップ | `chipClass({ variant, size })`。形はピル。見るだけのもの（To-Do 行のタグ・絞り込み・タイマーのタグ）は `fill`（藍の薄い塗り）、押して選ぶもの（記録のラベル・最近の記録）は `outline`（細い枠、選んだら色の塗り）、足すもの（＋）は `add`（点線の枠） | `components/ui/chipClass.ts` |
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
@@ -83,7 +84,6 @@
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
 | 月カレンダー | `DatePickerBody` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `DatePickerBody` に寄せる |
 | 見出し・空状態 | 小見出しの文字サイズ・色が 9 通り。開閉する見出しは今日画面がボタン＋＞、`TaskList` が `<details>`。空状態はアイコンあり 3 種・文字だけ 9 種 | `SectionLabel`・`Disclosure`・`EmptyState` |
-| チップ | タスクのタグ（`TaskItem`）、絞り込み（`TaskList`）、タイマーのタグ（`FloatingTimer`）、分類（`TimeLogTagField`）、＋チップ（`TimeLogTagField`・`CategoryManager`）、最近の記録（`RecordPanel`） | `Chip` |
 
 ### 入力欄
 

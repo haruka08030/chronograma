@@ -18,6 +18,7 @@ import { tip } from '../lib/tooltip'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
+import { chipClass } from './ui/chipClass'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -404,8 +405,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 <button
                   key={tag}
                   onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent-50 dark:bg-accent-500/10
-                             text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
+                  className={chipClass({ variant: 'fill', hover: true })}
                 >
                   {tag}
                 </button>

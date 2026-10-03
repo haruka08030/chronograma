@@ -18,6 +18,7 @@ import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
+import { chipClass } from './ui/chipClass'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -264,8 +265,7 @@ export function RecordPanel({
               onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
               {...tip(t('quickLog.resume', { title: r.title }))}
               aria-label={t('quickLog.resume', { title: r.title })}
-              className="inline-flex min-h-9 max-w-[10rem] items-center gap-1.5 rounded-full border border-zinc-200 py-1 pl-2 pr-2.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 md:min-h-7
-                         dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 max-w-[10rem] gap-1.5 md:min-h-7')}
             >
               {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
               <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={colorVars(categoryHex(r.category, logCategoryColors))} />
