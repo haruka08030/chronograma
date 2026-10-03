@@ -12,10 +12,18 @@ let suppressWrites = false
 let lastKnownRaw: string | null = null
 /** 保存に失敗した（容量不足など）。この間は保存より手元のほうが新しいので、保存から取り込まない */
 let writeFailed = false
-let onWriteError: ((err: unknown) => void) | null = null
+interface WriteHandlers {
+  /** 保存に失敗した。場所を空けられたら true（もう一度だけ書いてみる） */
+  freeSpace: () => boolean
+  /** 空けても保存できなかった */
+  onFailed: (err: unknown) => void
+  /** 失敗のあと、また保存できるようになった */
+  onRecovered: () => void
+}
+let handlers: WriteHandlers | null = null
 
-export function setPersistWriteErrorHandler(handler: (err: unknown) => void) {
-  onWriteError = handler
+export function setPersistWriteHandlers(h: WriteHandlers) {
+  handlers = h
 }
 
 export const persistWriteFailed = () => writeFailed
@@ -59,13 +67,28 @@ export const persistStorage: StateStorage = {
   },
   setItem: (key, value) => {
     if (suppressWrites) return
-    try {
+    const write = () => {
       localStorage.setItem(key, value)
       lastKnownRaw = value
-      writeFailed = false
+      if (writeFailed) {
+        writeFailed = false
+        handlers?.onRecovered()
+      }
+    }
+    try {
+      write()
     } catch (err) {
+      // 容量不足（QuotaExceededError）など。投げると操作の途中で止まるので、ここで受けて知らせる
+      if (handlers?.freeSpace()) {
+        try {
+          write()
+          return
+        } catch {
+          /* 空けても足りなかった */
+        }
+      }
       writeFailed = true
-      onWriteError?.(err)
+      handlers?.onFailed(err)
     }
   },
   removeItem: (key) => {

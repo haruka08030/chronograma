@@ -187,6 +187,10 @@ export function useSupabaseSync() {
           rerun = false
           ok = await syncOnce()
         } while (ok && rerun && !cancelled)
+      } catch (err) {
+        // 想定外の例外でも「失敗」として表示し、再送の予約に進む（以前は黙って止まっていた）
+        console.error('[sync]', err)
+        ok = false
       } finally {
         running = false
       }

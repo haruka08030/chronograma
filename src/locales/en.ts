@@ -674,6 +674,10 @@ export default {
     shortcutMac: '⌘Z',
     shortcutWin: 'Ctrl+Z',
   },
+  storageFull: {
+    message: 'This device is out of storage, so changes aren’t being saved. Export your data before reloading.',
+    export: 'Export',
+  },
   account: {
     emailRequired: 'Enter your email address.',
     linkSent: 'Check your inbox for the sign-in link.',

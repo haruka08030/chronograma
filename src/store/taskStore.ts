@@ -34,7 +34,7 @@ import { clearImportRollback, loadImportRollback, saveImportRollback } from '../
 import { restoreMissing } from '../lib/autoBackup'
 import { appTimeZone, isValidTimeZone, setAppTimeZoneSetting, zonedNow } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
-import { markRawKnown, persistStorage, readChangedRaw, withoutPersisting } from '../lib/persistStorage'
+import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 
 /** 時間バーに並べられる別のタイムゾーンの数（多いとタイムラインが狭くなる） */
 export const MAX_EXTRA_TIME_ZONES = 2
@@ -184,6 +184,8 @@ interface TaskState {
   /** Quick Add 時に付与するセクション（そのリストを開いているときのみ有効） */
   quickAddSectionId: string | null
   setQuickAddSectionId: (id: string | null) => void
+  /** 端末の保存領域がいっぱいで、変更を保存できていない（保存しない） */
+  storageFull: boolean
 
   addSection: (listId: string, name?: string) => string
   renameSection: (id: string, name: string) => void
@@ -786,6 +788,7 @@ export const useTaskStore = create<TaskState>()(
       selectedListId: INBOX_ID,
       selectedView: 'planner' as SmartView | null,
       settingsScrollTarget: null as SettingsScrollTarget | null,
+      storageFull: false,
       sectionScrollTarget: null as string | null,
       calendarMode: 'week' as CalendarMode,
       selectedCalendarDateKey: format(zonedNow(), 'yyyy-MM-dd'),
@@ -2519,6 +2522,7 @@ export const useTaskStore = create<TaskState>()(
           lastSyncedAt,
           settingsScrollTarget,
           sectionScrollTarget,
+          storageFull,
           completePromptTaskId,
           recordPromptTaskId,
           ...rest
@@ -2541,6 +2545,7 @@ export const useTaskStore = create<TaskState>()(
         void syncState
         void lastSyncedAt
         void settingsScrollTarget
+        void storageFull
         void sectionScrollTarget
         return rest as unknown as TaskState
       },
@@ -2622,3 +2627,26 @@ if (typeof window !== 'undefined') {
     if (e.key === PERSIST_STORAGE_KEY) adoptOtherTabChanges()
   })
 }
+
+/**
+ * 保存領域がいっぱいのとき。以前は保存が黙って失敗し（操作も途中で例外になり）、
+ * 再読み込みすると、いっぱいになってからの編集がすべて消えていた
+ */
+setPersistWriteHandlers({
+  // 取り込み前の控え（全データの写し）がいちばん大きい。先に手放してもう一度書く
+  freeSpace: () => {
+    if (loadImportRollback() === null) return false
+    clearImportRollback()
+    return true
+  },
+  onFailed: (err) => {
+    console.error('[storage] save failed', err)
+    // 保存の途中なので、知らせるのは今の更新が終わってから（保存し直すとまた失敗するので保存しない）
+    queueMicrotask(() => {
+      if (!useTaskStore.getState().storageFull) withoutPersisting(() => useTaskStore.setState({ storageFull: true }))
+    })
+  },
+  onRecovered: () => {
+    queueMicrotask(() => withoutPersisting(() => useTaskStore.setState({ storageFull: false })))
+  },
+})

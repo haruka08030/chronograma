@@ -26,6 +26,7 @@ import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { SearchResults } from './components/SearchResults'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
+import { StorageFullBanner } from './components/StorageFullBanner'
 import { DndTaskDragShell, MOBILE_DROP_PREFIX } from './components/DndTaskDragShell'
 import { TaskItem } from './components/TaskItem'
 import { TimerDropZone } from './components/TimerDropZone'
@@ -628,6 +629,7 @@ export default function App() {
         {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
         <UndoToast />
         <MoveToast />
+        <StorageFullBanner />
         <FloatingTimer />
         <RecordPromptHost />
         <MobileBottomNav

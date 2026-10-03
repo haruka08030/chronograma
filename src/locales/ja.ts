@@ -674,6 +674,10 @@ export default {
     shortcutMac: '⌘Z',
     shortcutWin: 'Ctrl+Z',
   },
+  storageFull: {
+    message: '端末の保存領域がいっぱいで、変更を保存できていません。再読み込みする前に書き出してください。',
+    export: '書き出す',
+  },
   account: {
     emailRequired: 'メールアドレスを入力してください',
     linkSent: 'ログイン用のリンクをメールに送信しました。受信箱を確認してください。',
