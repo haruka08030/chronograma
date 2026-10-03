@@ -108,7 +108,7 @@ describe('pushListsTasksHabits', () => {
     const { client, upserts } = fakeSupabase({})
     const res = await pushListsTasksHabits(client, 'u2', [inbox], [], [], [], noDeletes)
     expect(res.error).toBeUndefined()
-    expect(upserts.map((u) => u.onConflict)).toEqual(['user_id,id', 'user_id,id', 'user_id,id', 'user_id,id'])
+    expect(upserts.map((u) => u.onConflict)).toEqual(['user_id,id'])
     expect(upserts[0].rows[0]).toMatchObject({ id: '__inbox__', user_id: 'u2' })
   })
 
@@ -125,5 +125,24 @@ describe('pushListsTasksHabits', () => {
     expect(deletes).toEqual([])
     await pushListsTasksHabits(client, 'u1', [inbox], [], [], [], { ...noDeletes, tasks: ['gone'] })
     expect(deletes).toEqual([{ table: 'tasks', ids: ['gone'] }])
+  })
+
+  it('sends only rows that differ from what the server already has', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const fetched = await fetchListsTasksHabits(fakeSupabase({ lists: [], list_sections: [], tasks: [task('same'), task('edited')], habits: [] }).client, 'u1')
+    if ('error' in fetched) throw new Error(fetched.error)
+    const same = fetched.tasks.find((t) => t.id === 'same')!
+    const edited = fetched.tasks.find((t) => t.id === 'edited')!
+    const local = [same, { ...edited, title: 'changed', updatedAt: new Date().toISOString() }, { ...same, id: 'new' }]
+    const remote = { lists: [inbox], tasks: fetched.tasks, habits: [], sections: [] }
+    await pushListsTasksHabits(client, 'u1', [inbox], local, [], [], noDeletes, remote)
+    expect(upserts.map((u) => [u.table, u.rows.map((r) => r.id)])).toEqual([['tasks', ['edited', 'new']]])
+  })
+
+  it('splits large deletes so the request URL stays short', async () => {
+    const { client, deletes } = fakeSupabase({})
+    const ids = Array.from({ length: 250 }, (_, i) => `t${i}`)
+    await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: ids }, { lists: [], tasks: [], habits: [], sections: [] })
+    expect(deletes.map((d) => d.ids.length)).toEqual([100, 100, 50])
   })
 })

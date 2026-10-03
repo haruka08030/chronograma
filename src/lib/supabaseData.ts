@@ -528,6 +528,9 @@ export function decideHydrate(
   return { kind: 'use_remote', lists: remoteLists, tasks: remoteTasks, habits: remoteHabits, sections: remoteSections }
 }
 
+const UPSERT_BATCH = 500
+const DELETE_BATCH = 100
+
 export async function pushListsTasksHabits(
   supabase: SupabaseClient,
   userId: string,
@@ -540,22 +543,41 @@ export async function pushListsTasksHabits(
    * 取得〜push の間に他端末が追加した行や、ゲストのデータでログインした端末からアカウントの行を消していた
    */
   deletes: SyncDeletes,
+  /**
+   * 直前に取得したサーバーの内容。渡すと、それと同じ行は送らない。以前は 1 分ごとの同期のたびに
+   * 全行を送っていて、通信量が大きいうえ、取得から送信までの間に他の端末で直した行を古い内容で上書きしていた
+   */
+  remote?: { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] },
 ): Promise<{ error?: string }> {
-  const listRows = lists.map((l) => listToRow(userId, l))
-  const sectionRows = sections.map((s) => sectionToRow(userId, s))
-  const taskRows = tasks.map((t) => taskToRow(userId, t))
-  const habitRows = habits.map((h) => habitToRow(userId, h))
+  const changedOnly = <T extends { id: string }, R>(items: T[], remoteItems: T[] | undefined, toRow: (x: T) => R): R[] => {
+    const rows = items.map(toRow)
+    if (!remoteItems) return rows
+    const sent = new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(x))]))
+    return rows.filter((row, i) => sent.get(items[i].id) !== JSON.stringify(row))
+  }
+  const listRows = changedOnly(lists, remote?.lists, (l) => listToRow(userId, l))
+  const sectionRows = changedOnly(sections, remote?.sections, (s) => sectionToRow(userId, s))
+  const taskRows = changedOnly(tasks, remote?.tasks, (t) => taskToRow(userId, t))
+  const habitRows = changedOnly(habits, remote?.habits, (h) => habitToRow(userId, h))
 
   // 012 で主キーが (user_id, id) になった。未適用の DB には一致する一意制約が無いので id で送り直す
   // （その DB では 2 人目以降の利用者は同期できない。012 を必ず適用する）
   let onConflict = 'user_id,id'
-  const upsert = async (table: string, rows: object[]) => {
+  const upsertBatch = async (table: string, rows: object[]) => {
     let { error } = await supabase.from(table).upsert(rows, { onConflict })
     if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
       onConflict = 'id'
       ;({ error } = await supabase.from(table).upsert(rows, { onConflict }))
     }
     return error?.message
+  }
+  // 初回などで行が多いと 1 回の本文が大きくなりすぎるので分けて送る
+  const upsert = async (table: string, rows: object[]) => {
+    for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
+      const error = await upsertBatch(table, rows.slice(i, i + UPSERT_BATCH))
+      if (error) return error
+    }
+    return undefined
   }
 
   let e1 = await upsert('lists', listRows)
@@ -663,9 +685,11 @@ export async function pushListsTasksHabits(
     ['list_sections', deletes.sections],
     ['lists', deletes.lists],
   ] as const) {
-    if (ids.length === 0) continue
-    const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
-    if (error) return { error: error.message }
+    // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
+    for (let i = 0; i < ids.length; i += DELETE_BATCH) {
+      const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids.slice(i, i + DELETE_BATCH))
+      if (error) return { error: error.message }
+    }
   }
   return {}
 }

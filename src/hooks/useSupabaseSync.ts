@@ -167,7 +167,7 @@ export function useSupabaseSync() {
       }
 
       const res = await pushListsTasksHabits(
-        supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes,
+        supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote,
       )
       if (cancelled) return true
       if (res.error) {
