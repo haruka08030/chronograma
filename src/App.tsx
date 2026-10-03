@@ -2,7 +2,7 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
@@ -11,19 +11,10 @@ import { Sidebar } from './components/Sidebar'
 import { TodoNavPanel } from './components/TodoNavPanel'
 import { LABEL_DROP_PREFIX, LIST_PREFIX } from './lib/listDnD'
 import { labelDroppedTasks, moveDroppedTasks } from './lib/navDrop'
-import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
-import { CalendarHubView } from './components/CalendarHubView'
 import { TodayPlannerView } from './components/TodayPlannerView'
 import { OPEN_TIMER_EVENT } from './components/RecordPanel'
-import { StatsView } from './components/StatsView'
-import { HabitsView } from './components/HabitsView'
-import { TaskBinView } from './components/TaskBinView'
-import { ChecklistView } from './components/ChecklistView'
-import { SomedayView } from './components/SomedayView'
-import { SettingsView } from './components/SettingsView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
-import { SearchResults } from './components/SearchResults'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { StorageFullBanner } from './components/StorageFullBanner'
@@ -52,7 +43,6 @@ import {
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
 import { dispatchNav, isTypingTarget } from './lib/shortcuts'
-import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
@@ -70,6 +60,18 @@ import {
   type DragEndEvent,
   type CollisionDetection,
 } from '@dnd-kit/core'
+
+// 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
+const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((m) => ({ default: m.CalendarHubView })))
+const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
+const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
+const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
+const ChecklistView = lazy(() => import('./components/ChecklistView').then((m) => ({ default: m.ChecklistView })))
+const SomedayView = lazy(() => import('./components/SomedayView').then((m) => ({ default: m.SomedayView })))
+const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
+const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
+const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
+const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })))
 import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
@@ -621,12 +623,16 @@ export default function App() {
                 useTaskStore.getState().selectView('planner')
               }}
             >
-              {mainContent}
+              <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
             </ErrorBoundary>
           </div>
         </div>
 
-        {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
+        {showShortcuts && (
+          <Suspense fallback={null}>
+            <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
+          </Suspense>
+        )}
         <UndoToast />
         <MoveToast />
         <StorageFullBanner />

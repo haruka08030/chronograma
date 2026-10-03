@@ -18,6 +18,21 @@ const launch: LaunchHandlers = {
     else s.openRecordPrompt(taskId)
   },
 }
+// デプロイ後に古いタブで別画面を開くと、古いファイル名がもう無くて読み込みに失敗する。
+// 1 回だけ読み込み直して新しい版にする（失敗し続けるときに再読み込みを繰り返さないよう、1 分は空ける）
+const PRELOAD_RELOAD_KEY = 'chronograma_preload_reload_at'
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    const last = Number(sessionStorage.getItem(PRELOAD_RELOAD_KEY) ?? 0)
+    if (Date.now() - last < 60_000) return
+    sessionStorage.setItem(PRELOAD_RELOAD_KEY, String(Date.now()))
+  } catch {
+    return
+  }
+  event.preventDefault()
+  window.location.reload()
+})
+
 setupPwa(launch)
 consumeLaunch(launch)
 
