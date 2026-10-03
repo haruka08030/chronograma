@@ -13,6 +13,7 @@
 | [`007_push_endpoint_hosts.sql`](007_push_endpoint_hosts.sql) | push 購読の `endpoint` をブラウザのプッシュサービスの URL だけにする（`push_subscriptions_endpoint_host_check`。合わない行は消す） |
 | [`008_task_is_sleep.sql`](008_task_is_sleep.sql) | 睡眠の印（`tasks.is_sleep`）を古い DB に足し、タイトルかラベルが「睡眠」の記録に印を付け直す |
 | [`009_edge_rate_limits.sql`](009_edge_rate_limits.sql) | Edge Function の呼び出し回数の上限（`edge_rate_limits` と `hit_rate_limit`） |
+| [`010_skip_stale_writes.sql`](010_skip_stale_writes.sql) | `lists` / `list_sections` / `tasks` / `habits` で、サーバーの行より `updated_at` が古い更新を捨てる（トリガー `skip_stale_write`） |
 
 テーブル（最新の形）:
 
