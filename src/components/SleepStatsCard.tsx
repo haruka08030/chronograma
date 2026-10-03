@@ -8,6 +8,7 @@ import { TODAY_TEXT } from '../lib/dayMarker'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { CARD_TITLE_CLASS } from './ui/headingClass'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -55,7 +56,7 @@ export function SleepStatsCard() {
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t('sleepStats.title')}</h2>
+        <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 

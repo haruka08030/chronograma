@@ -40,6 +40,7 @@ import { TaskContextMenu } from './TaskContextMenu'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { SECTION_HEADING_CLASS } from './ui/headingClass'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -263,7 +264,7 @@ export function TodayPlannerView() {
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
   const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
   /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
-  const sectionHeading = 'pb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100'
+  const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:flex-row">

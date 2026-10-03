@@ -10,6 +10,7 @@ import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { dateFnsLocale } from '../lib/dateKey'
+import { CARD_TITLE_CLASS } from './ui/headingClass'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -118,7 +119,7 @@ export function StatsView() {
 
         {/* タスク: ふりかえりと重複しない数字だけを 1 行に */}
         <section>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.tasksTitle')}</h2>
+          <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.tasksTitle')}</h2>
           <dl className="grid grid-cols-2 divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 sm:divide-x">
             {[
               { label: t('stats.completedThisMonth'), value: stats.completedThisMonth },
@@ -140,7 +141,7 @@ export function StatsView() {
         {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
         {tagsEnabled && stats.byTag.some((x) => x.tag !== '') && (
           <section>
-            <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byTagTitle')}</h2>
+            <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.byTagTitle')}</h2>
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
               {stats.byTag.map((x) => (
                 <li key={x.tag} className="flex items-center gap-3 px-4 py-2.5">
