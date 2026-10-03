@@ -259,7 +259,8 @@ export function TodayPlannerView() {
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
   const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
-  const sectionLabel = 'px-3 pb-1 text-xs font-medium text-zinc-400 dark:text-zinc-500'
+  /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
+  const sectionHeading = 'pb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100'
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:flex-row">
@@ -330,28 +331,7 @@ export function TodayPlannerView() {
           </div>
         </header>
 
-        <div className="relative px-3">
-          <h2 className={sectionLabel}>{t('planner.todoHeading')}</h2>
-          <InlineAddInput
-            data-quickadd
-            value={draft}
-            onValueChange={setDraft}
-            onSubmit={submitDraft}
-            onFocus={() => setDraftFocused(true)}
-            onBlur={() => setDraftFocused(false)}
-            placeholder={t('planner.addPlaceholder')}
-            aria-describedby="planner-add-hint"
-          />
-          {/* 浮かせて出す。行の流れに入れると、欄を離れた瞬間に下の行がずれて押し間違える */}
-          <p
-            id="planner-add-hint"
-            className={draftFocused
-              ? 'pointer-events-none absolute inset-x-3 top-full z-10 bg-white px-11 pb-1 text-xs text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500'
-              : 'sr-only'}
-          >
-            {t('planner.addHint')}
-          </p>
-        </div>
+        <h2 className={`${sectionHeading} px-6`}>{t('planner.todoHeading')}</h2>
 
         {leftOver.length > 0 && (
           <div className="mt-2 px-3">
@@ -377,10 +357,33 @@ export function TodayPlannerView() {
           </div>
         )}
 
-        <ul className="mt-2 px-3">
+        <ul className="px-3">
           {overdue.map((task) => renderRow(task, timerButton(task)))}
           {open.map((task) => renderRow(task, timerButton(task)))}
         </ul>
+
+        {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
+        <div className="relative mt-1 px-3">
+          <InlineAddInput
+            data-quickadd
+            value={draft}
+            onValueChange={setDraft}
+            onSubmit={submitDraft}
+            onFocus={() => setDraftFocused(true)}
+            onBlur={() => setDraftFocused(false)}
+            placeholder={t('planner.addPlaceholder')}
+            aria-describedby="planner-add-hint"
+          />
+          {/* 浮かせて出す。行の流れに入れると、欄を離れた瞬間に下の行がずれて押し間違える */}
+          <p
+            id="planner-add-hint"
+            className={draftFocused
+              ? 'pointer-events-none absolute inset-x-3 top-full z-10 bg-white px-11 pb-1 text-xs text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500'
+              : 'sr-only'}
+          >
+            {t('planner.addHint')}
+          </p>
+        </div>
 
         {totalCount > 0 && open.length === 0 && overdue.length === 0 && (
           <p className="px-6 pt-2 text-sm text-zinc-500 dark:text-zinc-400">{t('planner.allDone')}</p>
@@ -433,7 +436,7 @@ export function TodayPlannerView() {
 
         {dayHabits.length > 0 && (
           <div className="mt-6 px-3">
-            <h2 className={sectionLabel}>{t('planner.habitsHeading')}</h2>
+            <h2 className={`${sectionHeading} px-3`}>{t('planner.habitsHeading')}</h2>
             {/* 習慣はリング: 押すと達成（もう一度押すと外す）。▶ でその名前のタイマーを始める */}
             <ul className="flex flex-wrap gap-x-2 gap-y-3 px-1 pt-1">
               {dayHabits.map((h) => {

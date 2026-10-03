@@ -126,7 +126,7 @@ export default {
     hoursMinutes: '{{h}}時間{{m}}分',
     overCapacity: '目安の {{capacity}} を超えています。いくつか明日へ回しましょう。',
     overCapacityShort: '(超過)',
-    todoHeading: 'To-Do',
+    todoHeading: '今日の To-Do',
     addPlaceholder: '追加',
     addHint: '例: 15時 ES 1時間 ／ 金曜まで レポート ／ @買い物 牛乳',
     dueToday: '今日まで',

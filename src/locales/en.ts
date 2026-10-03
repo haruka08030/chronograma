@@ -128,7 +128,7 @@ export default {
     hoursMinutes: '{{h}}h {{m}}m',
     overCapacity: 'Over your {{capacity}} target. Move a few to tomorrow.',
     overCapacityShort: '(over)',
-    todoHeading: 'To-dos',
+    todoHeading: 'Today’s to-dos',
     addPlaceholder: 'Add',
     addHint: 'e.g. 3pm essay 1h / report by fri / @Shopping milk',
     dueToday: 'Due today',
