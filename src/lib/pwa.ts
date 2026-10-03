@@ -77,12 +77,33 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const view = (raw === 'activity-log' ? 'planner' : raw === 'plan-vs-actual' ? 'calendar' : raw) as SmartView | null
   const record = url.searchParams.get('record')
   const asPlanned = url.searchParams.get('as') === 'planned'
-  const keys = ['view', 'source', 'record', 'as']
+  const nonce = url.searchParams.get('launch')
+  const keys = ['view', 'source', 'record', 'as', 'launch']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (view && VIEWS.includes(view)) handlers.openView(view)
-  if (record) handlers.record({ taskId: record, asPlanned })
+  if (!record) return
+  if (!asPlanned) {
+    handlers.record({ taskId: record, asPlanned: false })
+    return
+  }
+  // 通知から開いたときだけ確かめずに記録する。印が無ければ（ただのリンク）時刻を直せる画面を開くだけ
+  void consumeLaunchMark(nonce).then((ok) => handlers.record({ taskId: record, asPlanned: ok }))
+}
+
+async function consumeLaunchMark(nonce: string | null): Promise<boolean> {
+  if (!nonce || typeof caches === 'undefined') return false
+  try {
+    const cache = await caches.open('chronograma-launch')
+    const key = `/__launch/${nonce}`
+    const hit = await cache.match(key)
+    if (!hit) return false
+    await cache.delete(key)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**

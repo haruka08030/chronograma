@@ -7,6 +7,8 @@
 const CACHE = 'chronograma-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png']
 const NAV_TIMEOUT_MS = 4000
+/** 通知から開いたことの印（`notificationclick` → ページの `consumeLaunch`） */
+const LAUNCH_CACHE = 'chronograma-launch'
 
 /**
  * いまの index.html から辿れない /assets/ の控えを消す（デプロイのたびに古いハッシュ付きファイルが溜まらないように）。
@@ -55,7 +57,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== LAUNCH_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   )
 })
@@ -153,8 +155,17 @@ self.addEventListener('notificationclick', (event) => {
   if (target.origin !== self.location.origin) target = new URL('/?view=planner', self.location.origin)
   const taskId = data.taskId || target.searchParams.get('record')
   const asPlanned = event.action === 'as-planned'
-  if (taskId && asPlanned) target.searchParams.set('as', 'planned')
-  event.waitUntil(
+  // 「予定どおり」は開いた画面で確かめずに記録する。同じ URL を他人のリンクから踏んでも記録されないよう、
+  // この通知から開いたことを 1 回きりの印（launch）で示す。ページは控えに印があるときだけそのまま記録する
+  const nonce = taskId && asPlanned ? self.crypto.randomUUID() : null
+  if (nonce) {
+    target.searchParams.set('as', 'planned')
+    target.searchParams.set('launch', nonce)
+  }
+  const markLaunch = nonce
+    ? caches.open(LAUNCH_CACHE).then((c) => c.put(`/__launch/${nonce}`, new Response('1')))
+    : Promise.resolve()
+  event.waitUntil(markLaunch.then(() =>
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
         if (new URL(w.url).origin === target.origin) {
@@ -164,5 +175,5 @@ self.addEventListener('notificationclick', (event) => {
       }
       return self.clients.openWindow(target.href)
     }),
-  )
+  ))
 })
