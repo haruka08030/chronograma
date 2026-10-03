@@ -155,7 +155,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       const finish = (ev: PointerEvent) => {
         window.removeEventListener('pointerup', finish)
         window.removeEventListener('pointercancel', finish)
-        if (Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+        // pointercancel はスクロールが始まった合図なので開かない
+        if (ev.type === 'pointerup' && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
           onBlockTapRef.current?.(id)
         }
       }
