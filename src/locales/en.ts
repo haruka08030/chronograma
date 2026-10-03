@@ -191,7 +191,7 @@ export default {
     noLogs: 'No logs yet',
     insightEmpty: 'Nothing logged this week yet. Start by blocking time for just one thing in Plan today.',
     insightFollowHigh: 'You followed most of your time blocks. Keep this rhythm next week.',
-    insightFollowLow: 'Plans and reality drifted apart. Next week, try planning a little less and leaving some slack.',
+    insightFollowLow: 'Plans and reality drifted apart. Next week, plan a little less and leave some slack.',
     insightNoBlocks: 'Tasks are moving. Next week, block time for the important ones to compare plan and actual.',
     insightSteady: 'Steady progress. Reuse how you planned your best days.',
   },
