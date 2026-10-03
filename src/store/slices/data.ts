@@ -16,6 +16,7 @@ import type { SliceContext } from './sliceTypes'
 type DataActions = Pick<
   TaskState,
   | 'setSyncState'
+  | 'setSyncRejected'
   | 'setDataOwner'
   | 'resetLocalData'
   | 'backupJson'
@@ -31,6 +32,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   return {
     setSyncState: (state, lastSyncedAt) =>
       set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
+
+    setSyncRejected: (rows) => set({ syncRejected: rows }),
 
     setDataOwner: (userId) => set({ dataOwner: userId }),
 

@@ -72,6 +72,11 @@ export default {
     error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
     errorWithLast:
       "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
+    rejectedShort: '{{count}} not saved',
+    rejected:
+      "{{count}} item(s) couldn't be saved to the cloud (too large or in an unexpected shape). They're still on this device and will be sent again once edited. Everything else is synced.",
+    rejectedItems: 'Items: {{names}}',
+    rejectedName: '"{{name}}"',
     justNow: 'just now',
     minutesAgo: '{{count}} min ago',
     hoursAgo: '{{count}} h ago',

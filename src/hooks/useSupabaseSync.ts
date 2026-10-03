@@ -10,6 +10,7 @@ import {
   mergeWithoutBaseline,
   withoutDuplicateDefaults,
   saveBaseline,
+  syncedSnapshot,
   type SyncSnapshot,
 } from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
@@ -59,6 +60,7 @@ export function useSupabaseSync() {
     if (!userId || loading) {
       // ログアウト時やロード中に「同期エラー」の表示が残らないようにする
       useTaskStore.getState().setSyncState('idle')
+      useTaskStore.getState().setSyncRejected([])
       return
     }
     const supabase = getSupabase()
@@ -149,6 +151,7 @@ export function useSupabaseSync() {
           // 以前はタスクが無ければこちらに来て、手元で作った空のリストやセクションが消えていた
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           done(localSnapshot())
+          useTaskStore.getState().setSyncRejected([])
           return true
         }
         if (decision.kind === 'use_remote') {
@@ -185,7 +188,12 @@ export function useSupabaseSync() {
         console.error('[sync]', res.error)
         return false
       }
-      done(toPush)
+      // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
+      if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
+      done(syncedSnapshot(toPush, remote, res.rejected))
+      const prevRejected = useTaskStore.getState().syncRejected
+      const key = (rows: typeof res.rejected) => rows.map((r) => `${r.op}:${r.table}:${r.id}`).join('|')
+      if (key(prevRejected) !== key(res.rejected)) useTaskStore.getState().setSyncRejected(res.rejected)
       return true
     }
 
@@ -239,7 +247,9 @@ export function useSupabaseSync() {
       // 実行中の同期に相乗りした場合は、それ（と予約した 1 回）が終わるまで待つ。回線が無いと長引くので 10 秒で諦める
       const until = Date.now() + 10_000
       while (running && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
-      return !running && useTaskStore.getState().syncState === 'idle'
+      // 拒否された行は手元にしか無いので、送れていない扱いにする（ログアウトの前に確かめる）
+      const s = useTaskStore.getState()
+      return !running && s.syncState === 'idle' && s.syncRejected.length === 0
     }
 
     const unsub = useTaskStore.subscribe((state, prev) => {

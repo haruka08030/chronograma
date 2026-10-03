@@ -175,6 +175,31 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
   }
 }
 
+const SNAPSHOT_KEY = { lists: 'lists', list_sections: 'sections', tasks: 'tasks', habits: 'habits' } as const
+
+/**
+ * 送り終えた内容から、前回同期の控えにするものを作る。サーバーに拒否された行は届いていないので、
+ * サーバーにあった版にする（無ければ控えに入れない）。送れた扱いで控えに入れると、次の同期で
+ * 「控えにあってサーバーに無い＝他の端末で消された」と読んで手元から消してしまう
+ */
+export function syncedSnapshot(
+  pushed: SyncSnapshot,
+  remote: SyncSnapshot,
+  rejected: readonly { table: keyof typeof SNAPSHOT_KEY; id: string; op: 'upsert' | 'delete' }[],
+): SyncSnapshot {
+  const ups = rejected.filter((r) => r.op === 'upsert')
+  if (ups.length === 0) return pushed
+  const out: SyncSnapshot = { ...pushed }
+  for (const key of ['lists', 'sections', 'tasks', 'habits'] as const) {
+    const ids = new Set(ups.filter((r) => SNAPSHOT_KEY[r.table] === key).map((r) => r.id))
+    if (ids.size === 0) continue
+    const remoteById = new Map<string, { id: string }>(remote[key].map((x) => [x.id, x]))
+    const items = pushed[key] as { id: string }[]
+    out[key] = items.flatMap((x) => (ids.has(x.id) ? (remoteById.has(x.id) ? [remoteById.get(x.id)!] : []) : [x])) as never
+  }
+  return out
+}
+
 const baselineKey = (userId: string) => `chronograma-sync-baseline-v1:${userId}`
 
 export function loadBaseline(userId: string): SyncBaseline | null {

@@ -117,6 +117,7 @@ export const useTaskStore = create<TaskState>()(
       taskDragHoverListId: null as string | null,
       syncState: 'idle' as 'idle' | 'syncing' | 'error',
       lastSyncedAt: null as string | null,
+      syncRejected: [],
       dataOwner: null as string | null,
       quickAddRequested: false,
       filterTag: null,
@@ -208,6 +209,7 @@ export const useTaskStore = create<TaskState>()(
           taskDragHoverListId,
           syncState,
           lastSyncedAt,
+          syncRejected,
           settingsScrollTarget,
           sectionScrollTarget,
           storageFull,
@@ -232,6 +234,7 @@ export const useTaskStore = create<TaskState>()(
         void taskDragHoverListId
         void syncState
         void lastSyncedAt
+        void syncRejected
         void settingsScrollTarget
         void storageFull
         void sectionScrollTarget

@@ -539,6 +539,28 @@ export function decideHydrate(
 
 const UPSERT_BATCH = 500
 const DELETE_BATCH = 100
+/**
+ * 1 回の送信で切り分ける行と問い合わせの上限。超えたら 1 行ずつの問題ではなく全体の問題として送信を止める
+ * （全行が落ちるときに数百回問い合わせない）
+ */
+const MAX_REJECTED = 20
+const MAX_ISOLATE_REQUESTS = 80
+
+export type SyncTable = 'lists' | 'list_sections' | 'tasks' | 'habits'
+
+/** サーバーに受け付けられなかった行。手元には残り、直すまで同じ内容は送り直さない */
+export type SyncRejectedRow = { table: SyncTable; id: string; op: 'upsert' | 'delete'; message: string }
+
+/**
+ * その行だけの問題か（値の形・大きさ・参照先が無いなど。Postgres の 22xxx・23xxx）。
+ * 列が無い・回線・認証などは全体の問題なので、行を切り分けずに送信を止める
+ */
+function isRowLevelError(code: string | undefined): boolean {
+  return !!code && (code.startsWith('22') || code.startsWith('23'))
+}
+
+/** 拒否された行と、そのとき送った内容。同じ内容なら次の同期で送り直さない（毎分切り分け直さない） */
+const knownRejected = new Map<string, { row: string; message: string }>()
 
 export async function pushListsTasksHabits(
   supabase: SupabaseClient,
@@ -557,36 +579,105 @@ export async function pushListsTasksHabits(
    * 全行を送っていて、通信量が大きいうえ、取得から送信までの間に他の端末で直した行を古い内容で上書きしていた
    */
   remote?: { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] },
-): Promise<{ error?: string }> {
-  const changedOnly = <T extends { id: string }, R>(items: T[], remoteItems: T[] | undefined, toRow: (x: T) => R): R[] => {
-    const rows = items.map(toRow)
-    if (!remoteItems) return rows
-    const sent = new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(x))]))
-    return rows.filter((row, i) => sent.get(items[i].id) !== JSON.stringify(row))
+): Promise<{ error?: string; rejected: SyncRejectedRow[] }> {
+  /** この送信で受け付けられなかった行（キーは `table:id`） */
+  const rejected = new Map<string, SyncRejectedRow>()
+  const rejectKey = (table: SyncTable, id: string) => `${userId}:${table}:${id}`
+  const changedOnly = <T extends { id: string }, R>(
+    table: SyncTable,
+    items: T[],
+    remoteItems: T[] | undefined,
+    toRow: (x: T) => R,
+  ): R[] => {
+    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(x))])) : null
+    const rows: R[] = []
+    items.forEach((item) => {
+      const row = toRow(item)
+      const json = JSON.stringify(row)
+      if (sent?.get(item.id) === json) return
+      const known = knownRejected.get(rejectKey(table, item.id))
+      if (known?.row === json) {
+        rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
+        return
+      }
+      rows.push(row)
+    })
+    return rows
   }
-  const listRows = changedOnly(lists, remote?.lists, (l) => listToRow(userId, l))
-  const sectionRows = changedOnly(sections, remote?.sections, (s) => sectionToRow(userId, s))
-  const taskRows = changedOnly(tasks, remote?.tasks, (t) => taskToRow(userId, t))
-  const habitRows = changedOnly(habits, remote?.habits, (h) => habitToRow(userId, h))
+  const listRows = changedOnly('lists', lists, remote?.lists, (l) => listToRow(userId, l))
+  const sectionRows = changedOnly('list_sections', sections, remote?.sections, (s) => sectionToRow(userId, s))
+  const taskRows = changedOnly('tasks', tasks, remote?.tasks, (t) => taskToRow(userId, t))
+  const habitRows = changedOnly('habits', habits, remote?.habits, (h) => habitToRow(userId, h))
+  let isolateRequests = 0
+  /** 行だけの問題なら切り分けを続けてよいか。上限を超えたら全体の失敗にする */
+  const canIsolate = (code: string | undefined) =>
+    isRowLevelError(code) && rejected.size < MAX_REJECTED && isolateRequests < MAX_ISOLATE_REQUESTS
+  const finish = (error?: string): { error?: string; rejected: SyncRejectedRow[] } => {
+    const out = [...rejected.values()]
+    if (error) return { error, rejected: out }
+    // 送れた行は覚えを消し、拒否された行は送った内容を覚える
+    const sentRows: [SyncTable, { id: string }[]][] = [
+      ['lists', listRows],
+      ['list_sections', sectionRows],
+      ['tasks', taskRows],
+      ['habits', habitRows],
+    ]
+    for (const [table, rows] of sentRows) {
+      for (const row of rows) {
+        const r = rejected.get(`${table}:${row.id}`)
+        if (r?.op === 'upsert') knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
+        else knownRejected.delete(rejectKey(table, row.id))
+      }
+    }
+    return { rejected: out }
+  }
 
   // 012 で主キーが (user_id, id) になった。未適用の DB には一致する一意制約が無いので id で送り直す
   // （その DB では 2 人目以降の利用者は同期できない。012 を必ず適用する）
   let onConflict = 'user_id,id'
-  const upsertBatch = async (table: string, rows: object[]) => {
+  const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
     let { error } = await supabase.from(table).upsert(rows, { onConflict })
     if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
       onConflict = 'id'
       ;({ error } = await supabase.from(table).upsert(rows, { onConflict }))
     }
-    return error?.message
+    return error ?? undefined
+  }
+  /**
+   * 1 行でも拒否されるとまとめて落ちる。行だけの問題なら半分ずつに分けて拒否された行を見つけ、
+   * ほかの行は送る（以前は 1 行のせいで同期がずっと止まっていた）
+   */
+  const upsertIsolating = async (table: SyncTable, rows: { id: string }[]): Promise<string | undefined> => {
+    const error = await upsertBatch(table, rows)
+    if (!error) return undefined
+    if (!canIsolate(error.code)) return error.message
+    if (rows.length === 1) {
+      rejected.set(`${table}:${rows[0].id}`, { table, id: rows[0].id, op: 'upsert', message: error.message })
+      return undefined
+    }
+    isolateRequests += 2
+    const mid = Math.ceil(rows.length / 2)
+    return (await upsertIsolating(table, rows.slice(0, mid))) ?? (await upsertIsolating(table, rows.slice(mid)))
   }
   // 初回などで行が多いと 1 回の本文が大きくなりすぎるので分けて送る
-  const upsert = async (table: string, rows: object[]) => {
+  const upsert = async (table: SyncTable, rows: { id: string }[]) => {
     for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
-      const error = await upsertBatch(table, rows.slice(i, i + UPSERT_BATCH))
+      const error = await upsertIsolating(table, rows.slice(i, i + UPSERT_BATCH))
       if (error) return error
     }
     return undefined
+  }
+  const deleteIsolating = async (table: SyncTable, ids: string[]): Promise<string | undefined> => {
+    const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
+    if (!error) return undefined
+    if (!canIsolate(error.code)) return error.message
+    if (ids.length === 1) {
+      rejected.set(`${table}:${ids[0]}`, { table, id: ids[0], op: 'delete', message: error.message })
+      return undefined
+    }
+    isolateRequests += 2
+    const mid = Math.ceil(ids.length / 2)
+    return (await deleteIsolating(table, ids.slice(0, mid))) ?? (await deleteIsolating(table, ids.slice(mid)))
   }
 
   let e1 = await upsert('lists', listRows)
@@ -594,10 +685,10 @@ export async function pushListsTasksHabits(
   if (e1 && /kind/.test(e1)) {
     e1 = await upsert('lists', listRows.map((row) => ({ ...row, kind: undefined })))
   }
-  if (e1) return { error: e1 }
+  if (e1) return finish(e1)
 
   const eSec = await upsert('list_sections', sectionRows)
-  if (eSec) return { error: eSec }
+  if (eSec) return finish(eSec)
 
   // 列が無い古い DB 互換。フラグは「この push 呼び出し内」だけで持ち、
   // 毎回フル列で送り直すので、後から列を追加すれば次回同期で自動復帰する
@@ -681,11 +772,11 @@ export async function pushListsTasksHabits(
       stripDeletedAt = true
       continue
     }
-    return { error: errMsg }
+    return finish(errMsg)
   }
 
   const eH = await upsert('habits', habitRows)
-  if (eH) return { error: eH }
+  if (eH) return finish(eH)
 
   // 子 → 親の順（tasks → habits → sections → lists）
   for (const [table, ids] of [
@@ -696,9 +787,9 @@ export async function pushListsTasksHabits(
   ] as const) {
     // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
     for (let i = 0; i < ids.length; i += DELETE_BATCH) {
-      const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids.slice(i, i + DELETE_BATCH))
-      if (error) return { error: error.message }
+      const error = await deleteIsolating(table, ids.slice(i, i + DELETE_BATCH))
+      if (error) return finish(error)
     }
   }
-  return {}
+  return finish()
 }

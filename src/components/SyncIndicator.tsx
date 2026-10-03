@@ -12,16 +12,18 @@ import { relativeSyncKey } from './syncIndicatorLabel'
  * - 成功している間は何も出さない（最後の同期時刻は title だけ）
  * - 送信中は小さなドットのみ
  * - 失敗している間だけ、未送信だと分かる 1 行を出す（消えると気づけないので自動では消さない）
+ * - 一部の行だけサーバーに拒否されたときは、その件数を出す（ほかの行は同期できている）
  */
 export function SyncIndicator() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const syncState = useTaskStore((s) => s.syncState)
   const lastSyncedAt = useTaskStore((s) => s.lastSyncedAt)
+  const rejected = useTaskStore((s) => s.syncRejected)
   /** 「3 分前」を据え置かないよう 1 分ごとに読み直す */
   const [now, setNow] = useState(() => Date.now())
 
-  const showing = Boolean(user) && syncState !== 'idle'
+  const showing = Boolean(user) && (syncState !== 'idle' || rejected.length > 0)
   // 表示に入った瞬間と 1 分ごとに読み直す。マウント時刻のまま据え置くと、
   // 長く開いたタブで「最後の同期」が実際より古く（または未来に）見える
   useEffect(() => {
@@ -46,6 +48,26 @@ export function SyncIndicator() {
     return (
       <span className="flex shrink-0 items-center" title={title} aria-label={title} role="status">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400 dark:bg-zinc-500" />
+      </span>
+    )
+  }
+
+  if (syncState === 'idle') {
+    // 一部の行だけサーバーに拒否された。ほかは同期できているので、件数と対象だけ伝える
+    const s = useTaskStore.getState()
+    const names = rejected.slice(0, 3).map((r) => {
+      const item =
+        r.table === 'tasks' ? s.tasks.find((x) => x.id === r.id)?.title
+        : r.table === 'habits' ? s.habits.find((x) => x.id === r.id)?.title
+        : r.table === 'lists' ? s.lists.find((x) => x.id === r.id)?.name
+        : s.sections.find((x) => x.id === r.id)?.name
+      return t('sync.rejectedName', { name: (item || r.id).slice(0, 40) })
+    })
+    const title = [t('sync.rejected', { count: rejected.length }), t('sync.rejectedItems', { names: names.join(' ') })].join('\n')
+    return (
+      <span className="flex shrink-0 items-center gap-1 text-amber-600 dark:text-amber-500" title={title} role="status">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+        <span className="truncate text-[11px]">{t('sync.rejectedShort', { count: rejected.length })}</span>
       </span>
     )
   }

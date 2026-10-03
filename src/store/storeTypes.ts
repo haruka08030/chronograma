@@ -7,6 +7,7 @@ import type { Habit } from '../types/habit'
 import type { ListColorPaletteId } from '../lib/listColorPalettes'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
+import type { SyncRejectedRow } from '../lib/supabaseData'
 
 export type CalendarMode = 'month' | 'week'
 
@@ -356,6 +357,9 @@ export interface TaskState {
   /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
   lastSyncedAt: string | null
   setSyncState: (state: 'idle' | 'syncing' | 'error', lastSyncedAt?: string) => void
+  /** 最後の同期でサーバーに受け付けられなかった行（永続化しない）。手元には残っている */
+  syncRejected: SyncRejectedRow[]
+  setSyncRejected: (rows: SyncRejectedRow[]) => void
   /**
    * 手元のタスク・リスト・習慣が誰のものか（ユーザー ID）。null はログインせずに作ったデータ。
    * 以前は記録が無く、ログアウト後に別の人がログインすると前の人のデータがその人のアカウントに混ざった

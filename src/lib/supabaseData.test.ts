@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
+import type { Task } from '../types/task'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
@@ -9,8 +10,11 @@ type Row = { id: string; user_id: string } & Record<string, unknown>
  * PostgREST の最小限の偽物。select は range と count、upsert は onConflict を見る。
  * `maxRows` はサーバーの 1 回あたりの上限、`uniqueOn` は DB にある一意制約
  */
-function fakeSupabase(tables: Record<string, Row[]>, opts: { maxRows?: number; uniqueOn?: string } = {}) {
-  const { maxRows = 1000, uniqueOn = 'user_id,id' } = opts
+function fakeSupabase(
+  tables: Record<string, Row[]>,
+  opts: { maxRows?: number; uniqueOn?: string; rejectRow?: (table: string, row: Row) => { code: string; message: string } | null } = {},
+) {
+  const { maxRows = 1000, uniqueOn = 'user_id,id', rejectRow } = opts
   const upserts: { table: string; onConflict: string; rows: Row[] }[] = []
   const deletes: { table: string; ids: string[] }[] = []
   const client = {
@@ -34,6 +38,9 @@ function fakeSupabase(tables: Record<string, Row[]>, opts: { maxRows?: number; u
           if (onConflict !== uniqueOn) {
             return { error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } }
           }
+          // Postgres と同じく、1 行でも拒否されたらまとめて落ちる
+          const bad = rejectRow && rows.map((r) => rejectRow(table, r)).find(Boolean)
+          if (bad) return { error: bad }
           upserts.push({ table, onConflict, rows })
           return { error: null }
         },
@@ -145,4 +152,67 @@ describe('pushListsTasksHabits', () => {
     await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: ids }, { lists: [], tasks: [], habits: [], sections: [] })
     expect(deletes.map((d) => d.ids.length)).toEqual([100, 100, 50])
   })
+
+  it('sends the other rows when the server rejects one, and reports the rejected one', async () => {
+    const tooBig = { code: '23514', message: 'violates check constraint "tasks_size_check"' }
+    const { client, upserts } = fakeSupabase({}, { rejectRow: (table, r) => (table === 'tasks' && r.id === 't3' ? tooBig : null) })
+    const local = fetchedTasks(['t0', 't1', 't2', 't3', 't4', 't5'])
+    const res = await pushListsTasksHabits(client, 'u-iso', [inbox], local, [], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    expect(res.rejected).toEqual([{ table: 'tasks', id: 't3', op: 'upsert', message: tooBig.message }])
+    const sent = upserts.filter((u) => u.table === 'tasks').flatMap((u) => u.rows.map((r) => r.id))
+    expect(sent.sort()).toEqual(['t0', 't1', 't2', 't4', 't5'])
+  })
+
+  it('does not resend a rejected row until it changes', async () => {
+    const reject = { code: '22001', message: 'value too long' }
+    const { client, upserts } = fakeSupabase({}, { rejectRow: (table, r) => (table === 'tasks' && r.title === 'bad' ? reject : null) })
+    const [ok, bad] = fetchedTasks(['ok', 'bad'])
+    const local = [ok, { ...bad, title: 'bad' }]
+    await pushListsTasksHabits(client, 'u-memo', [inbox], local, [], [], noDeletes)
+    upserts.length = 0
+    const again = await pushListsTasksHabits(client, 'u-memo', [inbox], local, [], [], noDeletes)
+    expect(again.rejected.map((r) => r.id)).toEqual(['bad'])
+    expect(upserts.filter((u) => u.table === 'tasks').flatMap((u) => u.rows.map((r) => r.id))).toEqual(['ok'])
+    const fixed = await pushListsTasksHabits(client, 'u-memo', [inbox], [ok, { ...bad, title: 'fixed' }], [], [], noDeletes)
+    expect(fixed.rejected).toEqual([])
+  })
+
+  it('stops instead of isolating when every row fails for the same reason', async () => {
+    const { client } = fakeSupabase({}, { rejectRow: () => ({ code: '23514', message: 'nope' }) })
+    const local = fetchedTasks(Array.from({ length: 60 }, (_, i) => `t${i}`))
+    const res = await pushListsTasksHabits(client, 'u-all', [], local, [], [], noDeletes)
+    expect(res.error).toBe('nope')
+  })
+
+  it('does not isolate errors that are not about a single row', async () => {
+    const { client } = fakeSupabase({}, { rejectRow: () => ({ code: 'PGRST301', message: 'JWT expired' }) })
+    const res = await pushListsTasksHabits(client, 'u-jwt', [inbox], [], [], [], noDeletes)
+    expect(res.error).toBe('JWT expired')
+    expect(res.rejected).toEqual([])
+  })
 })
+
+/** 行の形からアプリのタスクに戻したもの（push に渡す形） */
+function fetchedTasks(ids: string[]): Task[] {
+  return ids.map((id) => ({
+    id,
+    listId: '__inbox__',
+    parentId: null,
+    title: id,
+    description: '',
+    completed: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    order: 0,
+    dueDate: null,
+    startTime: null,
+    endTime: null,
+    priority: 'none',
+    tags: [],
+    recurrence: null,
+    isTimeLog: false,
+    completedAt: null,
+    sectionId: null,
+  }))
+}

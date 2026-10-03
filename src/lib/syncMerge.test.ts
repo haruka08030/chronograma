@@ -8,6 +8,7 @@ import {
   mergeSnapshots,
   mergeWithoutBaseline,
   SYNC_INBOX_LIST_ID,
+  syncedSnapshot,
   withoutDuplicateDefaults,
   type SyncSnapshot,
 } from './syncMerge'
@@ -365,5 +366,31 @@ describe('withoutDuplicateDefaults（ログインせずに使っていた端末�
     const local: SyncSnapshot = { lists: [inbox, mine], sections: [], tasks: [], habits: [] }
     const remote: SyncSnapshot = { lists: [inbox, { ...mine, id: 'other' }], sections: [], tasks: [], habits: [] }
     expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'mine'])
+  })
+})
+
+describe('syncedSnapshot（拒否された行を控えに入れない）', () => {
+  it('a new row the server rejected stays on this device on the next sync', () => {
+    const local = snapshot({ tasks: [task('ok', { updatedAt: T1 }), task('rejected', { updatedAt: T1 })] })
+    const remote = snapshot()
+    const synced = syncedSnapshot(local, remote, [{ table: 'tasks', id: 'rejected', op: 'upsert' }])
+    // サーバーには ok だけが届いた
+    const next = mergeSnapshots(local, snapshot({ tasks: [task('ok', { updatedAt: T1 })] }), baselineFrom(synced))
+    expect(titles(next.merged)).toEqual(['ok', 'rejected'])
+    expect(next.deletes.tasks).toEqual([])
+  })
+
+  it('an edit the server rejected is kept over the older server version', () => {
+    const remote = snapshot({ tasks: [task('a', { title: 'old', updatedAt: T0 })] })
+    const local = snapshot({ tasks: [task('a', { title: 'new', updatedAt: T1 })] })
+    const synced = syncedSnapshot(local, remote, [{ table: 'tasks', id: 'a', op: 'upsert' }])
+    expect(synced.tasks[0].title).toBe('old')
+    const next = mergeSnapshots(local, remote, baselineFrom(synced))
+    expect(next.merged.tasks[0].title).toBe('new')
+  })
+
+  it('returns the pushed snapshot as is when nothing was rejected', () => {
+    const local = snapshot({ tasks: [task('a')] })
+    expect(syncedSnapshot(local, snapshot(), [])).toBe(local)
   })
 })
