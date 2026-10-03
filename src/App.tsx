@@ -461,7 +461,7 @@ export default function App() {
     // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
     if (state.googleUndo && undoGoogleDelete()) return
     if (state.undoLastOperation()) return
-    if (state.deletedTasks.length === 0) return false
+    if (state.recentDeletes.length === 0) return false
     state.undoDelete()
   }, { scope: 'always' })
   useHotkey('mod+shift+z', () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })

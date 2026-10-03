@@ -52,11 +52,11 @@ export function completeHabitAsPlannedPatch(
  * 習慣が無ければ null。`deletedAt` は「元に戻す」で使う削除の時刻（ミリ秒）
  */
 export function uncheckHabitDatePatch(
-  s: Pick<TaskState, 'habits' | 'tasks' | 'deletedTasks'>,
+  s: Pick<TaskState, 'habits' | 'tasks' | 'recentDeletes'>,
   habitId: string,
   dateKey: string,
   env: { now: string; deletedAt: number },
-): Pick<TaskState, 'habits' | 'tasks' | 'deletedTasks'> | null {
+): Pick<TaskState, 'habits' | 'tasks' | 'recentDeletes'> | null {
   const habit = s.habits.find((h) => h.id === habitId)
   if (!habit) return null
   const removeIds = new Set(habitRecordsFor(buildHabitRecordIndex(s.tasks), habit, dateKey).map((t) => t.id))
@@ -68,9 +68,6 @@ export function uncheckHabitDatePatch(
         : h,
     ),
     tasks: s.tasks.map((t) => (removeIds.has(t.id) ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
-    deletedTasks: [
-      ...s.deletedTasks,
-      ...s.tasks.filter((t) => removeIds.has(t.id)).map((t) => ({ task: t, deletedAt: env.deletedAt })),
-    ],
+    recentDeletes: removeIds.size > 0 ? [...s.recentDeletes, { ids: [...removeIds], at: env.deletedAt }] : s.recentDeletes,
   }
 }

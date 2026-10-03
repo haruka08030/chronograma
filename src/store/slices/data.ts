@@ -46,7 +46,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         lists: initialLists(),
         sections: [],
         habits: [],
-        deletedTasks: [],
+        recentDeletes: [],
         activeTimer: null,
         selectedListId: INBOX_ID,
         quickAddSectionId: null,

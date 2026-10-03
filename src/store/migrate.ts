@@ -39,7 +39,9 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     }))
     state.searchQuery = state.searchQuery ?? ''
     state.sortMode = state.sortMode ?? 'manual'
-    state.deletedTasks = state.deletedTasks ?? []
+    // 直近の削除は保存しない（前の版の deletedTasks は捨てる）
+    delete state.deletedTasks
+    state.recentDeletes = []
   }
   if (version < 4) {
     const tasks = (state.tasks as Record<string, unknown>[]) ?? []

@@ -29,7 +29,7 @@ function record(fields: Partial<Task> = {}): Task {
 }
 
 const state = (h: Habit, tasks: Task[] = []) => ({
-  habits: [h], tasks, deletedTasks: [], timeLogTagPresets: presets, logCategoryColors: colors,
+  habits: [h], tasks, recentDeletes: [], timeLogTagPresets: presets, logCategoryColors: colors,
 })
 
 describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
@@ -104,6 +104,6 @@ describe('uncheckHabitDatePatch', () => {
     expect(patch.habits[0]!.completedDates).toEqual(['2026-10-01'])
     expect(patch.tasks.find((t) => t.id === 'r1')!.deletedAt).toBe(NOW)
     expect(patch.tasks.find((t) => t.id === 'r2')!.deletedAt).toBeUndefined()
-    expect(patch.deletedTasks).toEqual([{ task: expect.objectContaining({ id: 'r1' }), deletedAt: 42 }])
+    expect(patch.recentDeletes).toEqual([{ ids: ['r1'], at: 42 }])
   })
 })

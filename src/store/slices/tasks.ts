@@ -44,6 +44,11 @@ function toggleByListKind(s: Pick<TaskState, 'tasks' | 'lists'>, id: string, now
   return kind === 'checklist' ? toggleChecklistTree(s.tasks, id, now) : toggleTaskCompletion(s.tasks, id, now)
 }
 
+/** 直近の削除から、もう削除でなくなった（戻した・完全に消した）タスクを外す。空になった回は捨てる */
+function withoutIds(batches: TaskState['recentDeletes'], ids: Set<string>): TaskState['recentDeletes'] {
+  return batches.map((b) => ({ ...b, ids: b.ids.filter((id) => !ids.has(id)) })).filter((b) => b.ids.length > 0)
+}
+
 export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions {
   const { pushUndo, isUnnamedJustCreated } = undo
   return {
@@ -198,10 +203,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.map((t) =>
           del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
         ),
-        deletedTasks: [
-          ...s.deletedTasks,
-          ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
-        ],
+        recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt }],
       }))
     },
     uncheckTasks: (ids) => {
@@ -248,10 +250,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.map((t) =>
           del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
         ),
-        deletedTasks: [
-          ...s.deletedTasks,
-          ...toSoftDelete.map((t) => ({ task: t, deletedAt })),
-        ],
+        recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt }],
       }))
     },
     restoreDeletedTask: (id) => {
@@ -264,7 +263,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.map((t) =>
           ids.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
         ),
-        deletedTasks: s.deletedTasks.filter((d) => !ids.has(d.task.id)),
+        recentDeletes: withoutIds(s.recentDeletes, ids),
       }))
     },
     permanentlyDeleteTask: (id) => {
@@ -274,7 +273,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo()
       set((s) => ({
         tasks: s.tasks.filter((t) => !del.has(t.id)),
-        deletedTasks: s.deletedTasks.filter((d) => !del.has(d.task.id)),
+        recentDeletes: withoutIds(s.recentDeletes, del),
       }))
     },
     discardBlankTask: (id) => {
@@ -292,7 +291,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo()
       set((s) => ({
         tasks: s.tasks.filter((t) => !t.deletedAt),
-        deletedTasks: [],
+        recentDeletes: [],
       }))
     },
     archiveTask: (id) => {
@@ -328,19 +327,17 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     undoDelete: () =>
       set((s) => {
-        if (s.deletedTasks.length === 0) return s
-        const lastDeletedAt = Math.max(...s.deletedTasks.map((d) => d.deletedAt))
-        const restoreIds = new Set(
-          s.deletedTasks.filter((d) => d.deletedAt === lastDeletedAt).map((d) => d.task.id),
-        )
+        const last = s.recentDeletes.at(-1)
+        if (!last) return s
+        const restoreIds = new Set(last.ids)
         const nowIso = new Date().toISOString()
         return {
           tasks: s.tasks.map((t) =>
             restoreIds.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
           ),
-          deletedTasks: s.deletedTasks.filter((d) => d.deletedAt !== lastDeletedAt),
+          recentDeletes: s.recentDeletes.slice(0, -1),
         }
       }),
-    clearDeletedTasks: () => set({ deletedTasks: [] }),
+    clearDeletedTasks: () => set({ recentDeletes: [] }),
   }
 }

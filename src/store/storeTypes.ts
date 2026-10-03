@@ -73,7 +73,11 @@ export interface TaskState {
   /** 並び順。リスト・ビューごと（鍵は `sortKeyOf`）。無い鍵は手動 */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
-  deletedTasks: { task: Task; deletedAt: number }[]
+  /**
+   * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
+   * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
+   */
+  recentDeletes: { ids: string[]; at: number }[]
   quickAddRequested: boolean
   filterTag: string | null
   /** To‑Do を色（ラベル）で絞っているときの `#RRGGBB`（大文字）。「すべて」と組み合わせて「ラベルを開いた」状態になる */
@@ -292,7 +296,7 @@ export interface TaskState {
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
   completeTasks: (ids: string[]) => void
-  /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
+  /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
   /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */

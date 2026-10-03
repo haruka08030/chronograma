@@ -33,7 +33,7 @@ type PendingEntry = { before: DataView; entry: UndoEntry | null }
 export interface UndoHistory {
   /**
    * 直前の状態を控える。`label` を渡した操作だけ「元に戻す」トーストを出す。
-   * 削除は従来どおり `deletedTasks` 由来のトーストが出るので渡さない
+   * 削除は `recentDeletes` 由来のトーストが出るので渡さない
    * （二重に出さないため）。
    */
   pushUndo: (label?: string) => void
@@ -173,9 +173,9 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
   /** 取り消し・やり直しで戻した削除は、削除のトーストの一覧からも外す */
   const pruneDeletedTasks = () => {
     const stillDeleted = new Set(get().tasks.filter((t) => t.deletedAt).map((t) => t.id))
-    const deleted = get().deletedTasks
-    if (deleted.some((d) => !stillDeleted.has(d.task.id))) {
-      set({ deletedTasks: deleted.filter((d) => stillDeleted.has(d.task.id)) })
+    const batches = get().recentDeletes
+    if (batches.some((b) => b.ids.some((id) => !stillDeleted.has(id)))) {
+      set({ recentDeletes: batches.map((b) => ({ ...b, ids: b.ids.filter((id) => stillDeleted.has(id)) })).filter((b) => b.ids.length > 0) })
     }
   }
 

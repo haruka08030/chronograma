@@ -13,13 +13,14 @@ const MOBILE_FLOAT_BOTTOM =
 /**
  * 取り消せる操作のトースト。
  *
- * 削除は `deletedTasks`（ゴミ箱に入ったもの）から、それ以外の取り消せる操作は
+ * 削除は `recentDeletes`（直近にゴミ箱へ入れた id。中身は tasks から読む）から、それ以外の取り消せる操作は
  * `undoBanner`（`pushUndo` にラベルを渡した操作）から出す。以前は削除専用で、
  * 一括アーカイブやセクション削除が戻せることが画面から分からなかった。
  */
 export function UndoToast() {
   const { t } = useTranslation()
-  const deletedTasks = useTaskStore((s) => s.deletedTasks)
+  const recentDeletes = useTaskStore((s) => s.recentDeletes)
+  const tasks = useTaskStore((s) => s.tasks)
   const undoBanner = useTaskStore((s) => s.undoBanner)
   const googleUndo = useTaskStore((s) => s.googleUndo)
   const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
@@ -30,7 +31,8 @@ export function UndoToast() {
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const [visible, setVisible] = useState(false)
 
-  const deletedCount = deletedTasks.length
+  const deletedIds = recentDeletes.flatMap((b) => b.ids)
+  const deletedCount = deletedIds.length
   /** 削除のトーストを優先する（ゴミ箱からの復元という別の戻し方があるため） */
   // 消したばかりの Google の予定を最優先（トーストが消えると Google に送られ、戻せなくなる）
   const kind = googleUndo ? 'google' : deletedCount > 0 ? 'deleted' : undoBanner ? 'operation' : null
@@ -55,9 +57,10 @@ export function UndoToast() {
 
   /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
   function deletedMessage() {
-    const ids = new Set(deletedTasks.map((d) => d.task.id))
-    const roots = deletedTasks.filter((d) => !d.task.parentId || !ids.has(d.task.parentId))
-    if (roots.length === 1 && roots[0].task.title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].task.title) })
+    const ids = new Set(deletedIds)
+    const deleted = tasks.filter((x) => ids.has(x.id))
+    const roots = deleted.filter((x) => !x.parentId || !ids.has(x.parentId))
+    if (roots.length === 1 && roots[0].title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].title) })
     if (roots.length > 1) return t('undo.tasksDeleted', { count: roots.length })
     return t('undo.message')
   }

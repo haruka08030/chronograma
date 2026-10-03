@@ -27,7 +27,7 @@ const titles = () => useTaskStore.getState().tasks.map((t) => t.title).sort()
 const tick = () => new Promise((r) => queueMicrotask(() => r(null)))
 
 beforeEach(() => {
-  useTaskStore.setState({ tasks: [task('a', 'A'), task('b', 'B')], deletedTasks: [], activeTimer: null })
+  useTaskStore.setState({ tasks: [task('a', 'A'), task('b', 'B')], recentDeletes: [], activeTimer: null })
   // 前のテストの履歴を残さない
   while (useTaskStore.getState().undoLastOperation()) { /* 空にする */ }
 })
@@ -56,10 +56,10 @@ describe('⌘Z は変えた行だけを戻す', () => {
   it('削除を取り消すと戻り、削除のトーストの一覧からも外れる', async () => {
     useTaskStore.getState().deleteTasks(['a'])
     await tick()
-    expect(useTaskStore.getState().deletedTasks).toHaveLength(1)
+    expect(useTaskStore.getState().recentDeletes).toHaveLength(1)
     useTaskStore.getState().undoLastOperation()
     expect(useTaskStore.getState().tasks.find((t) => t.id === 'a')!.deletedAt ?? null).toBeNull()
-    expect(useTaskStore.getState().deletedTasks).toHaveLength(0)
+    expect(useTaskStore.getState().recentDeletes).toHaveLength(0)
   })
 
   it('作ったタスクを取り消すと消え、やり直すと戻る', async () => {

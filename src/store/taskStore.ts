@@ -110,7 +110,7 @@ export const useTaskStore = create<TaskState>()(
       searchQuery: '',
       sortByKey: {} as Record<string, SortMode>,
       sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
-      deletedTasks: [],
+      recentDeletes: [],
       moveBannerText: null as string | null,
       undoBanner: null as { text: string; at: number } | null,
       googleUndo: null as { id: string; text: string; at: number } | null,
@@ -195,7 +195,7 @@ export const useTaskStore = create<TaskState>()(
       partialize: (state) => {
         const {
           searchQuery,
-          deletedTasks,
+          recentDeletes,
           quickAddRequested,
           filterTag,
           calendarEvents,
@@ -220,7 +220,7 @@ export const useTaskStore = create<TaskState>()(
         void completePromptTaskId
         void recordPromptTaskId
         void searchQuery
-        void deletedTasks
+        void recentDeletes
         void quickAddRequested
         void filterTag
         void calendarEvents
