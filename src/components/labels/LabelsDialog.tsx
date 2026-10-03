@@ -7,6 +7,7 @@ import { Modal, ModalTitle } from '../ui/Modal'
 import { SelectColorDialog } from './SelectColorDialog'
 import { CaretDownIcon, PlusIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { iconButtonClass } from '../ui/iconButtonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 
@@ -96,7 +97,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                     onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
                     aria-label={t('labels.remove')}
                     {...tip(t('labels.remove'))}
-                    className="shrink-0 rounded-full p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                    className={iconButtonClass('md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100')}
                   >
                     <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
                   </button>

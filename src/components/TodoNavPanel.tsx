@@ -25,6 +25,7 @@ import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
 import { ListContextMenu } from './ListContextMenu'
+import { SectionLabel } from './ui/SectionLabel'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -441,9 +442,9 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
       {colorLabels.length > 0 && (
         <>
           <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-          <div className="px-3 pb-1 pt-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+          <SectionLabel as="div" className="px-3 pb-1 pt-1">
             {t('labels.title')}
-          </div>
+          </SectionLabel>
           {colorLabels.map((label) => (
             <ColorLabelRow
               key={label.hex}

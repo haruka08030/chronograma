@@ -25,6 +25,8 @@ import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
+import { sectionLabelClass } from './ui/sectionLabelClass'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -263,7 +265,7 @@ export function TaskDetail({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.location')}</label>
+            <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.location')}</label>
             <div className="flex items-center gap-2">
               <input
                 value={task.location ?? ''}
@@ -294,7 +296,7 @@ export function TaskDetail({
           {!isLog && plannable && (
             <>
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.priority')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.priority')}</label>
                 <div className="flex gap-2">
                   {PRIORITY_OPTIONS.map((p) => (
                     <button
@@ -314,7 +316,7 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.deadline')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.deadline')}</label>
                 <div className="flex flex-wrap items-center gap-2">
                   <DueDatePopover
                     value={tv.dueDate ?? null}
@@ -406,7 +408,7 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.scheduled')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.scheduled')}</label>
                 <DueDatePopover
                   value={tv.scheduledDate ?? null}
                   onChange={(v) => updateTimes({ scheduledDate: v })}
@@ -472,12 +474,12 @@ export function TaskDetail({
                            p-3 space-y-2"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                  <SectionLabel as="p" level="field">{t('common.start')}</SectionLabel>
                   {(task.startTime || zone) && <TaskTimeZoneButton task={task} view={tv} compact />}
                 </div>
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.logDate')}
                     </label>
                     <DateField
@@ -488,7 +490,7 @@ export function TaskDetail({
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
@@ -506,10 +508,10 @@ export function TaskDetail({
                 className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/30
                            p-3 space-y-2"
               >
-                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.end')}</p>
+                <SectionLabel as="p" level="field">{t('common.end')}</SectionLabel>
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.logEndDate')}
                     </label>
                     <DateField
@@ -525,7 +527,7 @@ export function TaskDetail({
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
@@ -557,7 +559,7 @@ export function TaskDetail({
             <ColorLabelPicker task={task} />
           ) : tagsEnabled && (
           <div>
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.tags')}</label>
+            <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.tags')}</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {task.tags.map((tag) => (
                 <span
@@ -598,7 +600,7 @@ export function TaskDetail({
           {!isLog && (
             <>
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.list')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.list')}</label>
                 <div className="flex items-center gap-2">
                   <span
                     className="w-3 h-3 rounded-full flex-shrink-0"
@@ -639,7 +641,7 @@ export function TaskDetail({
                 </div>
                 {!task.parentId && sectionsForTaskList.length > 0 && (
                   <div className="mt-3">
-                    <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.section')}</label>
+                    <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.section')}</label>
                     <select
                       value={task.sectionId ?? ''}
                       onChange={(e) => {
@@ -660,7 +662,7 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">
+                <label className={sectionLabelClass('field', 'mb-2 block')}>
                   {t('taskDetail.subtasks', { count: subtasks.length })}
                 </label>
                 <div className="space-y-1">

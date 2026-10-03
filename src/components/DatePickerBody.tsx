@@ -28,8 +28,9 @@ function monthGridDays(viewMonth: Date): Date[] {
 }
 
 /**
- * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバーとタスクの右クリックメニューで共通。
- * 開くたびに作り直す前提で、選んでいる日（なければ今日）の月から始める
+ * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
+ * カレンダー画面の見出しの日付ジャンプで共通。
+ * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める
  */
 export function DatePickerBody({
   value,
@@ -37,6 +38,7 @@ export function DatePickerBody({
   kind = 'due',
   min,
   footer = true,
+  month,
 }: {
   value: string | null
   onPick: (key: string | null) => void
@@ -44,10 +46,12 @@ export function DatePickerBody({
   min?: string
   /** 下の「今日・明日・なし」。上に同じ項目を並べるとき（右クリックメニュー）は出さない */
   footer?: boolean
+  /** 最初に見せる月（カレンダー画面の月表示では、選んでいる日ではなく見ている月から始める） */
+  month?: Date
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ? fromDateKey(value) : appToday()))
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(month ?? (value ? fromDateKey(value) : appToday())))
   const pick = onPick
   const days = monthGridDays(viewMonth)
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]

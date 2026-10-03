@@ -30,7 +30,7 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
@@ -47,6 +47,10 @@ const SCREENS = [
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   // 夜中に開いたとき（日付が変わった直後のタイムライン）
   { name: 'planner-midnight', view: 'planner', at: '00:30' },
+  // 見出しの期間を押したときの月のカレンダー（期限のカレンダーと同じ DatePickerBody）
+  { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
+  // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
+  { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
@@ -60,6 +64,8 @@ const SCREENS = [
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
+  // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
+  { name: 'habits-new-weekly', view: 'habits', click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'], scrollToBottom: true },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
   { name: 'someday', list: 'seed-someday' },
@@ -259,8 +265,12 @@ async function main() {
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
             if (screen.click) {
-              await page.click(screen.click, screen.clickAt ? { position: screen.clickAt } : undefined)
-              await page.waitForTimeout(300)
+              // 配列なら順に押す（フォームを開いてから中の選択肢を押す、など）。clickAt は最初の 1 つだけ
+              const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
+              for (const [i, sel] of clicks.entries()) {
+                await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
+                await page.waitForTimeout(300)
+              }
             }
             if (screen.hover && !vp.hasTouch) {
               // マウスを乗せたときのヒント（TooltipHost は 0.5 秒後に出す）

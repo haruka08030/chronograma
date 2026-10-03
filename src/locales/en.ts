@@ -780,8 +780,6 @@ export default {
     navNextMonthAria: 'Next month',
     navPrevWeekAria: 'Previous week',
     navNextWeekAria: 'Next week',
-    miniPickerPrevMonthAria: 'Previous month',
-    miniPickerNextMonthAria: 'Next month',
   },
   calendarDock: {
     unscheduled: 'Tasks without a time',

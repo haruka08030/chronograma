@@ -14,6 +14,7 @@ import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { PillToggle } from '../ui/PillToggle'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
@@ -130,27 +131,19 @@ export function QuickCreatePopover({
       }}
     >
       {googleWritable && !asLog && (
-        <div role="tablist" aria-label={t('googleEdit.destination')} className="mb-3 flex gap-1 text-xs">
-          {(['todo', 'google'] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              role="tab"
-              aria-selected={destination === d}
-              onClick={() => {
-                setDestination(d)
-                inputRef.current?.focus()
-              }}
-              className={`rounded-full px-3 py-1 transition-colors ${
-                destination === d
-                  ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700'
-              }`}
-            >
-              {t(d === 'todo' ? 'googleEdit.destTodo' : 'googleEdit.destGoogle')}
-            </button>
-          ))}
-        </div>
+        <PillToggle
+          ariaLabel={t('googleEdit.destination')}
+          options={[
+            { value: 'todo', label: t('googleEdit.destTodo') },
+            { value: 'google', label: t('googleEdit.destGoogle') },
+          ]}
+          value={destination}
+          onChange={(d) => {
+            setDestination(d)
+            inputRef.current?.focus()
+          }}
+          className="mb-3"
+        />
       )}
       <input
         ref={inputRef}

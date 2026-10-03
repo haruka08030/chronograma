@@ -22,6 +22,7 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -227,9 +228,9 @@ export function CalendarDayPanel({
                     plannedItems.length > 0 ||
                     executedItems.length > 0) && (
                     <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
-                      <p className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <SectionLabel as="p" className="mb-2 px-2">
                         {t('calendarDayPanel.executedSection', { count: executedItems.length })}
-                      </p>
+                      </SectionLabel>
                       {executedItems.length > 0 ? (
                         <div className="space-y-0">
                           {executedItems.map((task) => (

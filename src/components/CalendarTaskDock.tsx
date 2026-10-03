@@ -18,6 +18,7 @@ import { useSelectAllShortcut } from '../lib/shortcuts'
 import { TaskContextMenu } from './TaskContextMenu'
 import { EmptyState } from './ui/EmptyState'
 import { CheckCircleIcon } from './icons'
+import { sectionLabelClass } from './ui/sectionLabelClass'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -106,7 +107,7 @@ export function CalendarTaskDock() {
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-          <label htmlFor="calendar-dock-list" className="shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+          <label htmlFor="calendar-dock-list" className={sectionLabelClass('field', 'shrink-0')}>
             {t('calendarDock.listHeading')}
           </label>
           <select
