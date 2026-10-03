@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
+import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
@@ -434,6 +435,20 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 /** md 以上でサイドバーの右に常設する細い To‑Do パネル（To‑Do 系ビューのときだけ表示） */
 export function TodoNavPanel() {
   const { t } = useTranslation()
+  // タスクをつかんでいる間、下のラベル・上のリストへ届くよう、端に寄せたらナビを送る
+  const navRef = useRef<HTMLElement>(null)
+  const { active, droppableContainers, measureDroppableContainers } = useDndContext()
+  const nativeDragActive = useTaskNativeDragActive()
+  const draggingTask = (active != null && String(active.id).startsWith(TASK_PREFIX)) || nativeDragActive
+  const remeasure = useCallback(() => {
+    // dnd-kit は落とし先の位置を覚えているので、ナビを送ったら測り直す
+    const ids = [...droppableContainers.keys()].filter((id) => {
+      const s = String(id)
+      return s.startsWith('drop::') || s.startsWith(LIST_PREFIX) || s.startsWith(LABEL_DROP_PREFIX)
+    })
+    measureDroppableContainers(ids)
+  }, [droppableContainers, measureDroppableContainers])
+  useDragEdgeScroll(navRef, draggingTask, remeasure)
   return (
     <aside className="flex h-full w-52 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/30
                       dark:border-zinc-800 dark:bg-zinc-900/30">
@@ -442,7 +457,7 @@ export function TodoNavPanel() {
           {t('sidebar.todo')}
         </span>
       </div>
-      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
+      <nav ref={navRef} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
         <TodoNavContent />
       </nav>
     </aside>

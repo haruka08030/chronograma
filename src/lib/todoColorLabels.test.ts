@@ -76,11 +76,11 @@ describe('todoColorLabels', () => {
     expect(labels).toEqual([])
   })
 
-  it('adds labels not on any task yet, with 0, when asked (drop targets while dragging)', () => {
-    expect(todoColorLabels([task({ color: '#F6BF26' })], new Set(), presets, colors, true)).toEqual([
-      { hex: SAGE, name: '授業', count: 0 },
-      { hex: TOMATO, name: '就活', count: 0 },
+  it('adds labels not on any task yet, with 0, below the shown ones when asked (drop targets while dragging)', () => {
+    expect(todoColorLabels([task({ color: TOMATO }), task({ color: '#F6BF26' })], new Set(), presets, colors, true)).toEqual([
+      { hex: TOMATO, name: '就活', count: 1 },
       { hex: '#F6BF26', name: null, count: 1 },
+      { hex: SAGE, name: '授業', count: 0 },
     ])
   })
 })
