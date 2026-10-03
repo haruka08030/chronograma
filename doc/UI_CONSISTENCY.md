@@ -61,7 +61,6 @@
 
 ### 色
 
-- 色選択の選択中の印が 3 種類: 墨色の枠（`TodoNavPanel.tsx`）、黒/白の枠（`settings/CategoryManager.tsx`）、✓（`HabitsView`・`labels/ColorPalette`・`labels/SelectColorDialog`）
 - 11 色パレット（`GOOGLE_COLORS`）は色選択では使われず、新しいリストの自動割り当てだけ（`taskStore.ts` の `addList`・移行、`useNotionSync.ts`）。`lib/googleColors.ts` 冒頭のコメント「リスト・習慣は 11 色のまま」は事実と違う
 - 日パネルの Google の予定だけ青で固定（`CalendarDayPanel.tsx`）。カレンダー本体は予定ごとの色
 - `TimeInput.tsx` の候補のハイライトだけ青
@@ -77,9 +76,9 @@
 | アイコンボタン | `iconButton` を EventPopover と GoogleEventPopover が別々に定義 | `IconButton` |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
 | 月カレンダー | `DatePickerBody` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `DatePickerBody` に寄せる |
-| 色選択 | 5 か所（`ColorPalette`、`HabitsView` の `ColorPicker`、`SelectColorDialog`、`TodoNavPanel` の `ColorPicker`、`CategoryManager`）で列数・大きさ・選択中の印が違う | `SwatchGrid` |
+| 色選択 | `ColorPalette`・`HabitsView`・`TodoNavPanel` は `ui/ColorSwatches`（選択中は ✓）を使うが、列数（12 / 12 / 6）と丸の大きさ（約 27 / 24 / 26px）が違う。`SelectColorDialog` は 8 列・約 34px の自前の格子 | `ui/ColorSwatches` |
 | 見出し・空状態 | 小見出しの文字サイズ・色が 9 通り。開閉する見出しは今日画面がボタン＋＞、`TaskList` が `<details>`。空状態はアイコンあり 3 種・文字だけ 9 種 | `SectionLabel`・`Disclosure`・`EmptyState` |
-| 追加の入力欄 | 今日画面（線なし）、買い物（下線）、いつか（点線の枠）、`QuickAdd`（押すと開く・追加/キャンセルボタンつき）、分類・リスト・カレンダー内・サブタスクがそれぞれ別 | `InlineAddInput`（Enter・IME・Esc を内側で扱う） |
+| 追加の入力欄 | 今日画面・買い物（線なし）、いつか（点線の枠）、`QuickAdd`（押すと開く・追加/キャンセルボタンつき）、分類・リスト・カレンダー内・サブタスクがそれぞれ別 | `InlineAddInput`（Enter・IME・Esc を内側で扱う） |
 | チップ | タスクのタグ（`TaskItem`）、絞り込み（`TaskList`）、タイマーのタグ（`FloatingTimer`）、分類（`TimeLogTagField`）、＋チップ（`TimeLogTagField`・`CategoryManager`）、最近の記録（`RecordPanel`） | `Chip` |
 
 ### 入力欄
