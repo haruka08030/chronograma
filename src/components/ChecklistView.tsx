@@ -11,6 +11,9 @@ import type { Task } from '../types/task'
 import { CheckIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { groupBySection } from '../lib/sectionGroups'
+import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
+import { ListSectionHeading } from './ListSectionHeading'
 
 /**
  * チェックリスト（買い物・持ち物）用の画面。店の中で片手で使う前提で、
@@ -24,6 +27,9 @@ export function ChecklistView({ list }: { list: TaskList }) {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
+  const sections = useTaskStore((s) => s.sections)
+  const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [draft, setDraft] = useState('')
 
@@ -36,6 +42,9 @@ export function ChecklistView({ list }: { list: TaskList }) {
       checked: items.filter((x) => x.completed).sort((a, b) => (a.completedAt ?? '').localeCompare(b.completedAt ?? '')),
     }
   }, [tasks, list.id])
+  // 未チェックはセクションごと。チェック済みは下にまとめたまま
+  const openGroups = useMemo(() => groupBySection(open, sections, list.id), [open, sections, list.id])
+  useSectionScrollTarget(openGroups)
 
   const submit = () => {
     const title = draft.trim()
@@ -118,7 +127,18 @@ export function ChecklistView({ list }: { list: TaskList }) {
           />
         </div>
 
-        <ul className="mt-2">{open.map(row)}</ul>
+        {openGroups.map(({ section, items }) => (
+          <div key={section?.id ?? 'none'}>
+            {section && (
+              <ListSectionHeading
+                section={section}
+                isTarget={quickAddSectionId === section.id}
+                onToggleTarget={() => setQuickAddSectionId(quickAddSectionId === section.id ? null : section.id)}
+              />
+            )}
+            <ul className={section ? '' : 'mt-2'}>{items.map(row)}</ul>
+          </div>
+        ))}
 
         {checked.length > 0 && (
           <section className="mt-8">

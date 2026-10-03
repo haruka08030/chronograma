@@ -11,6 +11,9 @@ import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { appTodayKey } from '../lib/timeZone'
 import { isSubmitEnter } from '../lib/keyboard'
+import { groupBySection } from '../lib/sectionGroups'
+import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
+import { ListSectionHeading } from './ListSectionHeading'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -23,6 +26,9 @@ export function SomedayView({ list }: { list: TaskList }) {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const promoteToPlanned = useTaskStore((s) => s.promoteToPlanned)
   const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
+  const sections = useTaskStore((s) => s.sections)
+  const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [draft, setDraft] = useState('')
 
@@ -35,6 +41,10 @@ export function SomedayView({ list }: { list: TaskList }) {
         .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
     }
   }, [tasks, list.id])
+  // まだのものはセクションごと。かなえたものは下にまとめたまま
+  const wishGroups = useMemo(() => groupBySection(wishes, sections, list.id), [wishes, sections, list.id])
+  const hasSections = wishGroups.length > 1
+  useSectionScrollTarget(wishGroups)
 
   const submit = () => {
     const title = draft.trim()
@@ -49,6 +59,39 @@ export function SomedayView({ list }: { list: TaskList }) {
   }
 
   const notePreview = (item: Task) => item.description.split('\n').find((l) => l.trim())?.trim() ?? ''
+
+  const wishRow = (item: Task) => {
+    const note = notePreview(item)
+    return (
+      <li
+        key={item.id}
+        className="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+      >
+        <button
+          type="button"
+          onClick={() => toggleTask(item.id)}
+          title={t('someday.fulfill')}
+          aria-label={t('someday.fulfillItem', { title: item.title })}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-lg text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
+        >
+          <span aria-hidden>☆</span>
+        </button>
+        <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 flex-1 py-2.5 text-left">
+          <span className="block truncate text-[15px] text-zinc-800 dark:text-zinc-100">{item.title}</span>
+          {note && <span className="mt-0.5 block truncate text-xs text-zinc-400 dark:text-zinc-500">{note}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={() => doToday(item)}
+          className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
+                     md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100
+                     dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400"
+        >
+          {t('someday.doToday')}
+        </button>
+      </li>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -76,43 +119,21 @@ export function SomedayView({ list }: { list: TaskList }) {
           />
         </div>
 
-        {wishes.length === 0 ? (
+        {wishes.length === 0 && !hasSections ? (
           <p className="mt-6 text-sm leading-relaxed text-zinc-400 dark:text-zinc-500">{t('someday.empty')}</p>
         ) : (
-          <ul className="mt-3">
-            {wishes.map((item) => {
-              const note = notePreview(item)
-              return (
-                <li
-                  key={item.id}
-                  className="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(item.id)}
-                    title={t('someday.fulfill')}
-                    aria-label={t('someday.fulfillItem', { title: item.title })}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-lg text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
-                  >
-                    <span aria-hidden>☆</span>
-                  </button>
-                  <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 flex-1 py-2.5 text-left">
-                    <span className="block truncate text-[15px] text-zinc-800 dark:text-zinc-100">{item.title}</span>
-                    {note && <span className="mt-0.5 block truncate text-xs text-zinc-400 dark:text-zinc-500">{note}</span>}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => doToday(item)}
-                    className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
-                               md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100
-                               dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400"
-                  >
-                    {t('someday.doToday')}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          wishGroups.map(({ section, items }) => (
+            <div key={section?.id ?? 'none'}>
+              {section && (
+                <ListSectionHeading
+                  section={section}
+                  isTarget={quickAddSectionId === section.id}
+                  onToggleTarget={() => setQuickAddSectionId(quickAddSectionId === section.id ? null : section.id)}
+                />
+              )}
+              <ul className={section ? '' : 'mt-3'}>{items.map(wishRow)}</ul>
+            </div>
+          ))
         )}
 
         {fulfilled.length > 0 && (

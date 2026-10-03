@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type MouseEvent } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +24,8 @@ import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtas
 import { isIndentIntent } from '../lib/taskDragIntent'
 import { getIndentTargetId } from '../lib/taskDepth'
 import { SectionHeaderDnD } from './SectionHeaderDnD'
+import { SECTION_HEADING_TEXT } from './ListSectionHeading'
+import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
@@ -233,8 +235,6 @@ export function TaskList() {
   const deleteSectionStore = useTaskStore((s) => s.deleteSection)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  const sectionScrollTarget = useTaskStore((s) => s.sectionScrollTarget)
-  const clearSectionScrollTarget = useTaskStore((s) => s.clearSectionScrollTarget)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const [showSort, setShowSort] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
@@ -792,7 +792,7 @@ export function TaskList() {
     ) : (
       <button
         type="button"
-        className="w-full text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 truncate"
+        className={`w-full text-left ${SECTION_HEADING_TEXT} truncate`}
         onClick={() => {
           if (canQuickTarget) setQuickAddSectionId(sectionId)
         }}
@@ -828,13 +828,7 @@ export function TaskList() {
     </span>
   )
 
-  // サイドバーでセクションを押したら、その見出しまでスクロールする（描画したあとで）
-  useLayoutEffect(() => {
-    if (!sectionScrollTarget) return
-    const el = document.querySelector(`[data-section-anchor="${CSS.escape(sectionScrollTarget)}"]`)
-    el?.scrollIntoView({ block: 'start' })
-    clearSectionScrollTarget()
-  }, [sectionScrollTarget, clearSectionScrollTarget, sectionBlocks])
+  useSectionScrollTarget(sectionBlocks)
 
   const activeContent = canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
@@ -873,7 +867,7 @@ export function TaskList() {
                     className={`min-w-0 flex-1 text-left truncate ${
                       block.headerKind === 'list-only'
                         ? 'text-xs font-semibold tracking-tight'
-                        : 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+                        : SECTION_HEADING_TEXT
                     }`}
                     onClick={() => {
                       if (canQuickTarget && block.headerKind === 'section-none') setQuickAddSectionId('')
@@ -969,7 +963,7 @@ export function TaskList() {
           className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
             block.headerKind === 'list-only'
               ? 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
-              : 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+              : SECTION_HEADING_TEXT
           }`}
           onClick={() => {
             if (selectedListId === block.listId) {
@@ -1329,7 +1323,7 @@ function SectionNameInput({ value, onChange, onCommit, onCancel }: {
           onCancel()
         }
       }}
-      className="w-full rounded bg-transparent text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent-400/50"
+      className={`w-full rounded bg-transparent text-left ${SECTION_HEADING_TEXT} focus:outline-none focus:ring-1 focus:ring-accent-400/50`}
     />
   )
 }
