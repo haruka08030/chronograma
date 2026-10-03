@@ -12,9 +12,12 @@ import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { displayListName } from '../lib/displayListName'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
+  // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const sortMode = useTaskStore((s) => s.sortMode)
@@ -128,6 +131,7 @@ export function CalendarTaskDock() {
               task={t}
               hideDueDatePicker
               onRowClick={makeRowClick(t.id)}
+              onCompleteRequest={openCompleteWithLog}
               selection={{
                 selected: selected.has(t.id),
                 reveal: selected.size > 0,
@@ -140,6 +144,7 @@ export function CalendarTaskDock() {
         </div>
       </div>
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+      {completeWithLogModal}
     </div>
   )
 }

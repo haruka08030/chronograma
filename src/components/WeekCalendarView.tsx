@@ -78,7 +78,8 @@ import { isAppToday, zonedNow, appTodayKey, isNowOnDay } from '../lib/timeZone'
 import { TimeGutter, TimeGutterHeader } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
-import { CheckIcon } from './icons'
+import { CalendarCheck } from './timeline/CalendarCheck'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -113,8 +114,10 @@ function blockGeometry(task: TimeBlockTask, dayKey: string | undefined, isLog: b
  * 終わった・完了した予定は灰色（`gc-missed`）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  */
-function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sleep, hStyle, colorHex }: {
+function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sleep, hStyle, colorHex, withCheck }: {
   task: TimeBlockTask
+  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避け、完了は ✓ の塗りで見せる */
+  withCheck?: boolean
   /** クリック・タップで開く（ドラッグしない Google の予定用） */
   onTap?: () => void
   /** 週グリッド上の列の日付（ログのセグメント表示用） */
@@ -151,7 +154,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
       <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
     </svg>
   )
-  const doneMark = state === 'done' ? '✓ ' : ''
+  const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
 
@@ -167,7 +170,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden rounded-[5px] px-1.5 py-0.5 text-left text-[11px] leading-tight
+      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-5' : 'pr-1.5'} text-left text-[11px] leading-tight
         cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
@@ -200,25 +203,13 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
 }
 
 /**
- * 予定ブロックの右上に重ねる ✓（習慣の「予定どおりやった」、Google の予定を記録にする）。
+ * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
-function SlotCheck({ top, hStyle, label, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; onCheck: () => void }) {
+function SlotCheck({ top, hStyle, label, done, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
   return (
     <div className="pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
-      <button
-        type="button"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation()
-          onCheck()
-        }}
-        title={label}
-        aria-label={label}
-        className="pointer-events-auto flex h-4 w-4 items-center justify-center rounded-full border border-current bg-white/70 opacity-70 transition-opacity hover:opacity-100 dark:bg-zinc-900/60"
-      >
-        <CheckIcon className="h-2.5 w-2.5" strokeWidth={3} />
-      </button>
+      <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} className="pointer-events-auto" />
     </div>
   )
 }
@@ -256,6 +247,8 @@ export function WeekCalendarView({
   onNavigateWeek?: (dir: -1 | 1) => void
 }) {
   const { t, i18n } = useTranslation()
+  /** 予定を `t` で回す箇所でも使えるように */
+  const tr = t
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -273,6 +266,8 @@ export function WeekCalendarView({
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
+  // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const dropLaneRef = useRef<CreateIntent>('schedule')
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const isDesktop = useIsDesktop()
@@ -766,11 +761,16 @@ export function WeekCalendarView({
                         }}
                         onDragEnd={() => setAllDayDragOver(null)}
                         onClick={() => openDetail(t.id)}
-                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} cursor-grab active:cursor-grabbing truncate rounded px-1.5 py-0.5
-                          text-[10px] leading-tight transition-all hover:brightness-95`}
+                        className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
+                          text-[10px] leading-tight transition-all hover:brightness-95 active:cursor-grabbing`}
                         style={colorVars(planHex(t, listColorById))}
                       >
-                        {t.completed ? '✓ ' : ''}{t.title}
+                        <CalendarCheck
+                          done={t.completed}
+                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                          onCheck={() => openCompleteWithLog(t)}
+                        />
+                        <span className="truncate">{t.title}</span>
                       </div>
                     ))}
                     {allDayAddDate === key && (
@@ -918,6 +918,14 @@ export function WeekCalendarView({
                           onOpenDetail={() => openCard(t.id)}
                           hStyle={planStyle(t.id)}
                           colorHex={planHex(t, listColorById)}
+                          withCheck
+                        />
+                        <SlotCheck
+                          top={blockGeometry(t as TimeBlockTask, key, false).top}
+                          hStyle={planStyle(t.id)}
+                          done={t.completed}
+                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.completeWithLog')}
+                          onCheck={() => openCompleteWithLog(t)}
                         />
                       </div>
                     ))}
@@ -955,6 +963,7 @@ export function WeekCalendarView({
                             evt.stopPropagation()
                           }}
                           onOpenDetail={() => {}}
+                          withCheck={!done && hasStarted(slot.startTime)}
                         />
                         {!done && hasStarted(slot.startTime) && (
                           <SlotCheck
@@ -995,6 +1004,7 @@ export function WeekCalendarView({
                         }}
                         onTap={editable ? undefined : () => openGoogleCard(e.id)}
                         onOpenDetail={() => openGoogleCard(e.id)}
+                        withCheck={hasStarted(e.startTime!) && !recorded}
                       />
                       {hasStarted(e.startTime!) && !recorded && (
                         <SlotCheck
@@ -1056,6 +1066,7 @@ export function WeekCalendarView({
         </div>
       </div>
 
+      {completeWithLogModal}
       {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
       {eventCard && (
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />

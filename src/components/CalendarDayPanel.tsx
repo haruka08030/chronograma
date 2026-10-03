@@ -16,6 +16,7 @@ import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -30,6 +31,8 @@ export function CalendarDayPanel({
   selectedDateKey: string
 }) {
   const { t, i18n } = useTranslation()
+  // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
@@ -214,7 +217,7 @@ export function CalendarDayPanel({
                     </div>
                   )}
                   {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
+                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
                   ))}
                   {(externalEvents.length > 0 ||
                     plannedItems.length > 0 ||
@@ -226,7 +229,7 @@ export function CalendarDayPanel({
                       {executedItems.length > 0 ? (
                         <div className="space-y-0">
                           {executedItems.map((task) => (
-                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
+                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
                           ))}
                         </div>
                       ) : (
@@ -272,6 +275,7 @@ export function CalendarDayPanel({
         )}
       </div>
       {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
+      {completeWithLogModal}
     </div>
   )
 }

@@ -17,6 +17,8 @@ import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
+import { CalendarCheck } from './timeline/CalendarCheck'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
@@ -70,6 +72,10 @@ export function CalendarView({
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
+  /** 予定を `t` で回す箇所でも使えるように */
+  const tr = t
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const dragTaskIdRef = useRef<string | null>(null)
   const days = useMemo(() => {
@@ -267,10 +273,15 @@ export function CalendarView({
                         ${itemClass(!t.startTime, planVisualState(t, key))}`}
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t, listColorById) : '#BDBDBD')}
                     >
-                      {/* Google と同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯 */}
-                      {t.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
+                      {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
+                      <CalendarCheck
+                        done={t.completed}
+                        label={t.completed ? tr('taskItem.markIncomplete') : t.startTime ? tr('taskItem.completeWithLog') : tr('taskItem.markComplete')}
+                        onCheck={() => openCompleteWithLog(t)}
+                        className={t.startTime ? 'text-(--c)' : ''}
+                      />
                       {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
-                      <span className="truncate">{t.completed ? '✓ ' : ''}{t.title}</span>
+                      <span className="truncate">{t.title}</span>
                     </div>
                   ))}
                   {(dayTasks.length > 3 || dayEvents.length > 2) && (
@@ -289,6 +300,7 @@ export function CalendarView({
         </div>
       </div>
 
+      {completeWithLogModal}
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
     </div>
   )
