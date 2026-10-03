@@ -861,6 +861,7 @@ export default {
     networkError: 'Could not reach the server. Check your connection and try again.',
     supabaseNotConfigured: 'Cloud sync is not set up. Sign in first, then connect.',
     notConnected: 'Google Calendar is not connected. Use the connect button to link again.',
+    rateLimited: 'Too many requests to Google Calendar. Wait a moment, then try again.',
     tokenExpired:
       'Google Calendar authorization expired. Disconnect and reconnect.',
     oauthRefreshMissing:

@@ -860,6 +860,7 @@ export default {
     networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     supabaseNotConfigured: 'クラウド連携が未設定です。先にログインしてから接続してください。',
     notConnected: 'Google Calendar が未接続です。接続ボタンから再度リンクしてください。',
+    rateLimited: 'Google カレンダーへのアクセスが多すぎます。少し待ってからもう一度お試しください。',
     tokenExpired:
       'Google Calendar の認証が期限切れです。一度「切断」してから再接続してください。',
     oauthRefreshMissing:

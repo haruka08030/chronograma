@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // 使うのは primary カレンダーだけなので、いちばん狭いものにしている。`src/lib/googleCalendar.ts` とそろえる
@@ -246,6 +247,9 @@ Deno.serve(withCors(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.google))) {
+      return jsonResponse({ ok: false, error: 'Too many requests. Wait a moment, then try again.' }, 429)
+    }
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
 

@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
 
 /**
@@ -292,6 +293,11 @@ Deno.serve(withCors(async (req) => {
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
     const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
+    // 学校のサイトを新しく確かめに行く connect は、ほかより少なく
+    const limited =
+      !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvas)) ||
+      (action === 'connect' && !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvasConnect)))
+    if (limited) return jsonResponse({ ok: false, code: 'canvas_rate_limited', error: 'canvas_rate_limited' }, 429)
 
     type Row = {
       id: string

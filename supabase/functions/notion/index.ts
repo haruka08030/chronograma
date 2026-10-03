@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -206,6 +207,9 @@ Deno.serve(withCors(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.notion))) {
+      return jsonResponse({ ok: false, code: 'notion_rate_limited', error: 'notion_rate_limited' }, 429)
+    }
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
 

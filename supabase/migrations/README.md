@@ -12,6 +12,7 @@
 | [`006_canvas_legacy_ids.sql`](006_canvas_legacy_ids.sql) | Canvas の最初の版の id（学校名なし）を学校名入りに書き換え、重複をまとめる（データの書き換えのみ。各端末は保存データの版 35 で同じことをする） |
 | [`007_push_endpoint_hosts.sql`](007_push_endpoint_hosts.sql) | push 購読の `endpoint` をブラウザのプッシュサービスの URL だけにする（`push_subscriptions_endpoint_host_check`。合わない行は消す） |
 | [`008_task_is_sleep.sql`](008_task_is_sleep.sql) | 睡眠の印（`tasks.is_sleep`）を古い DB に足し、タイトルかラベルが「睡眠」の記録に印を付け直す |
+| [`009_edge_rate_limits.sql`](009_edge_rate_limits.sql) | Edge Function の呼び出し回数の上限（`edge_rate_limits` と `hit_rate_limit`） |
 
 テーブル（最新の形）:
 
@@ -24,6 +25,7 @@
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders` |
 | `google_oauth` | Google カレンダーのリフレッシュトークン。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |
 | `notion_connection` | Notion の統合トークンと対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |
+| `edge_rate_limits` | Edge Function の呼び出し回数（利用者ごと・機能ごとの固定の時間枠）。クライアント向けポリシーなし。数えるのは `hit_rate_limit`（service_role だけが呼べる） |
 | `canvas_connection` | Canvas LMS のアクセストークンと学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 
 **メモ**

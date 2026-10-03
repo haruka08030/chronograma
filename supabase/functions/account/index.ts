@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
@@ -37,6 +38,9 @@ Deno.serve(withCors(async (req) => {
     if (body.action !== 'delete') return jsonResponse({ ok: false, error: 'Unknown action' }, 400)
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.account))) {
+      return jsonResponse({ ok: false, error: 'Too many requests' }, 429)
+    }
 
     // Google のトークンを無効にする。失敗しても削除は続ける（行は cascade で消え、トークンは使われなくなる）
     const { data: google } = await admin

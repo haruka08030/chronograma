@@ -450,7 +450,7 @@
 SQL Editor で `001` から順に全部流す（どれも何度流しても同じ形）。変更は次の番号の新しいファイルで足し、コミット済みのファイルは書き換えない。
 利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
-付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。一覧の短い説明は **`supabase/migrations/README.md`**。
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`009` の `hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
 ## 環境変数（`.env.example`）

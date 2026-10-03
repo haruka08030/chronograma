@@ -197,6 +197,7 @@ export function localizeGoogleError(
   if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
   if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
   if (lower.includes('not connected')) return t('planVsActual.notConnected')
+  if (lower.includes('too many requests')) return t('planVsActual.rateLimited')
   if (lower.includes('authorization expired') || lower.includes('invalid_grant')) {
     return t('planVsActual.tokenExpired')
   }
