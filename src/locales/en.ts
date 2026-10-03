@@ -372,6 +372,7 @@ export default {
     search: 'Search',
     edit: 'Open details of the selected event',
     delete: 'Delete the selected event',
+    selectAll: 'Select all tasks',
     close: 'Close',
     undo: 'Undo',
     help: 'This list',

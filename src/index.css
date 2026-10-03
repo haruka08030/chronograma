@@ -197,3 +197,40 @@ body {
   color: #a1a1aa;
   border: 1px solid #3f3f46;
 }
+
+/*
+ * 文字の選択: 画面の部品（ボタン・見出し・行・タイムライン）はドラッグしても選択しない。
+ * 入力欄・メモなど「中身」だけ選べる（コピーしたい所は select-text を付ける）
+ */
+@layer base {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-date-500) 22%, transparent);
+  }
+
+  /* キーボードで動かしたときだけ、いまどこにいるかを枠で見せる */
+  :where(button, a, [role="button"], [role="checkbox"], [role="tab"], summary):focus-visible {
+    outline: 2px solid var(--color-date-400);
+    outline-offset: 2px;
+  }
+}
+
+/* アイコンだけのボタンは押した瞬間に少し縮んで、押せたことが分かる */
+button:not(:disabled):has(> svg:only-child) {
+  transition-property: color, background-color, border-color, opacity, scale;
+}
+button:not(:disabled):has(> svg:only-child):active {
+  scale: 0.9;
+}
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):has(> svg:only-child):active { scale: none; }
+}

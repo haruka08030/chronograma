@@ -42,7 +42,7 @@ import {
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
 import { isModKey, isTextFieldUndoTarget } from './lib/keyboard'
-import { dispatchNav, isTypingTarget } from './lib/shortcuts'
+import { dispatchNav, dispatchSelectAll, isTypingTarget } from './lib/shortcuts'
 import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
@@ -462,6 +462,17 @@ export default function App() {
       } else {
         useTaskStore.getState().requestQuickAdd()
       }
+    }
+    if (isModKey(e) && (e.key === 'a' || e.key === 'A') && !e.shiftKey && !e.altKey) {
+      if (isTypingTarget(e.target)) return
+      // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
+      // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
+      e.preventDefault()
+      if (dispatchSelectAll()) return
+      const anchor = window.getSelection()?.anchorNode
+      const box = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('.select-text')
+      if (box) window.getSelection()?.selectAllChildren(box)
+      return
     }
     if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
       if (isTextFieldUndoTarget(e.target)) return

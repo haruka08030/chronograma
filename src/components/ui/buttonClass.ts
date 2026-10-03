@@ -13,7 +13,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 font-medium transition-colors touch-manipulation disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 font-medium transition-[color,background-color,border-color,scale] touch-manipulation active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100 disabled:opacity-40'
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-accent-600 text-on-accent hover:bg-accent-700',

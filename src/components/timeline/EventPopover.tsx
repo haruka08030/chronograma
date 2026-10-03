@@ -146,7 +146,7 @@ export function EventPopover({
         {task.description.trim() && (
           <>
             <span />
-            <p className="line-clamp-3 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">{task.description.trim()}</p>
+            <p className="select-text line-clamp-3 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">{task.description.trim()}</p>
           </>
         )}
       </div>

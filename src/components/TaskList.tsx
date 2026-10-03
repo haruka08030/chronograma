@@ -17,6 +17,7 @@ import { isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
+import { useSelectAllShortcut } from '../lib/shortcuts'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
@@ -681,6 +682,14 @@ export function TaskList() {
     }),
     [selected, toggleInSelection],
   )
+
+  // ⌘A: 表示中の未完了のタスクをすべて選ぶ（そのまま一括操作のバーが出る）
+  useSelectAllShortcut(() => {
+    if (flatActiveIds.length === 0) return false
+    setSelected(new Set(flatActiveIds))
+    lastAnchorRef.current = flatActiveIds[flatActiveIds.length - 1]
+    return true
+  })
 
   const selectedIds = useMemo(() => [...selected], [selected])
 

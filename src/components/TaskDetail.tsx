@@ -217,8 +217,12 @@ export function TaskDetail({
               />
             ) : task.description.trim() ? (
               <div
-                onClick={() => setEditingMemo(true)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+                onClick={() => {
+                  // 文字を選んでコピーしたいときは編集に切り替えない
+                  if (window.getSelection()?.toString()) return
+                  setEditingMemo(true)
+                }}
+                className="select-text w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 min-h-[4rem]
                            whitespace-pre-wrap break-words cursor-text
                            hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"

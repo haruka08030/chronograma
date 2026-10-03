@@ -371,6 +371,7 @@ export default {
     search: '検索',
     edit: '開いている予定の詳細',
     delete: '開いている予定を削除',
+    selectAll: 'To-Do をすべて選択',
     close: '閉じる',
     undo: '元に戻す',
     help: 'この一覧',

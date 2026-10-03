@@ -223,7 +223,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       draggable={rowNativeDraggable}
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
-      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none md:select-auto
+      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2.5 py-1.5' : 'px-2.5 py-2'}
                   ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
