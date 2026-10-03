@@ -18,6 +18,7 @@ export const TASK_DEFAULTS = {
   isSleep: false,
   archivedAt: null,
   deletedAt: null,
+  category: null,
 } satisfies Partial<Task>
 
 /** 前の版の保存・バックアップのタスクで、無い（undefined の）項目を既定値で埋める */
@@ -29,5 +30,17 @@ export function withTaskDefaults(t: Task): Task {
       ;(out as unknown as Record<string, unknown>)[k] = v
     }
   }
-  return out ?? t
+  return withLogCategory(out ?? t)
+}
+
+/**
+ * 記録の分類をそろえる。正は `category`（無ければ前の版の書き方の tags の先頭）で、tags にも同じ名前を 1 つだけ写す
+ * （まだ更新していない端末が tags の先頭を分類として読むため）。To-Do は category を持たない。
+ * 何も変わらなければ同じオブジェクト
+ */
+export function withLogCategory(t: Task): Task {
+  if (!t.isTimeLog) return t.category == null ? t : { ...t, category: null }
+  const category = t.category ?? t.tags[0] ?? null
+  const same = category === t.category && (category ? t.tags.length === 1 && t.tags[0] === category : t.tags.length === 0)
+  return same ? t : { ...t, category, tags: category ? [category] : [] }
 }

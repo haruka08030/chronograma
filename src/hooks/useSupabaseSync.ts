@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getSupabase } from '../lib/supabase'
-import { decideHydrate, fetchListsTasksHabits, pushListsTasksHabits } from '../lib/supabaseData'
+import { decideHydrate, fetchListsTasksHabits, fetchLogLabels, pushListsTasksHabits, pushLogLabels } from '../lib/supabaseData'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -16,6 +16,7 @@ import {
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
+import { planLabelSync } from '../lib/labelSync'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -104,6 +105,27 @@ export function useSupabaseSync() {
       }
     }
 
+    /** ラベル表（名前・並び・色）を合わせる。失敗してもタスクの同期は止めない（次の同期でまた合わせる） */
+    const syncLabels = async () => {
+      const remoteLabels = await fetchLogLabels(supabase, userId)
+      if (cancelled) return
+      if (remoteLabels && 'error' in remoteLabels) {
+        console.error('[sync] labels', remoteLabels.error)
+        return
+      }
+      const s = useTaskStore.getState()
+      const plan = planLabelSync({ presets: s.timeLogTagPresets, colors: s.logCategoryColors, updatedAt: s.logLabelsUpdatedAt }, remoteLabels)
+      if (plan.apply) {
+        const { presets, colors, updatedAt } = plan.apply
+        asIncomingChange(() => useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }))
+      }
+      if (plan.push) {
+        const res = await pushLogLabels(supabase, userId, plan.push)
+        if (res.error) console.error('[sync] labels', res.error)
+        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: plan.push!.updatedAt }))
+      }
+    }
+
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
@@ -155,6 +177,7 @@ export function useSupabaseSync() {
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           done(localSnapshot())
           useTaskStore.getState().setSyncRejected([])
+          await syncLabels()
           return true
         }
         if (decision.kind === 'use_remote') {
@@ -194,6 +217,7 @@ export function useSupabaseSync() {
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
       if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
       done(syncedSnapshot(toPush, remote, res.rejected))
+      await syncLabels()
       const prevRejected = useTaskStore.getState().syncRejected
       const key = (rows: typeof res.rejected) => rows.map((r) => `${r.op}:${r.table}:${r.id}`).join('|')
       if (key(prevRejected) !== key(res.rejected)) useTaskStore.getState().setSyncRejected(res.rejected)
@@ -260,7 +284,9 @@ export function useSupabaseSync() {
         state.tasks === prev.tasks &&
         state.lists === prev.lists &&
         state.habits === prev.habits &&
-        state.sections === prev.sections
+        state.sections === prev.sections &&
+        state.timeLogTagPresets === prev.timeLogTagPresets &&
+        state.logCategoryColors === prev.logCategoryColors
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return

@@ -7,6 +7,8 @@ import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habi
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
+import { withLogCategory } from './taskDefaults'
+import type { RemoteLabels } from './labelSync'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -68,6 +70,7 @@ interface TaskRow {
   reminders?: unknown
   priority: string
   tags: unknown
+  category?: string | null
   recurrence: unknown
   is_time_log: boolean
   completed_at?: string | null
@@ -332,7 +335,12 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
   )
 }
 
+/** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
+  return withLogCategory(rowToTaskFields(row))
+}
+
+function rowToTaskFields(row: TaskRow): Task {
   const tags = Array.isArray(row.tags) ? row.tags.filter((t): t is string => typeof t === 'string') : []
   let recurrence: Task['recurrence'] = null
   if (row.recurrence && typeof row.recurrence === 'object' && row.recurrence !== null) {
@@ -378,6 +386,7 @@ function rowToTask(row: TaskRow): Task {
     color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
+    category: typeof row.category === 'string' ? row.category : null,
     recurrence,
     isTimeLog: row.is_time_log === true,
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
@@ -426,6 +435,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     color: task.color ?? null,
     priority: task.priority,
     tags: task.tags,
+    category: task.isTimeLog ? task.category : null,
     recurrence: task.recurrence,
     is_time_log: task.isTimeLog ?? false,
     habit_id: task.habitId ?? null,
@@ -797,4 +807,27 @@ export async function pushListsTasksHabits(
     }
   }
   return finish()
+}
+
+/** ラベル表（`user_settings.log_labels`）。行が無ければ null */
+export async function fetchLogLabels(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RemoteLabels | null | { error: string }> {
+  const { data, error } = await supabase.from('user_settings').select('log_labels, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  const rows = Array.isArray(data.log_labels) ? (data.log_labels as unknown[]) : []
+  const labels = rows.flatMap((r) => {
+    const x = r as { name?: unknown; color?: unknown }
+    return typeof x.name === 'string' ? [{ name: x.name, color: typeof x.color === 'string' ? x.color : '' }] : []
+  })
+  return { labels, updatedAt: String(data.updated_at) }
+}
+
+export async function pushLogLabels(supabase: SupabaseClient, userId: string, labels: RemoteLabels): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, { onConflict: 'user_id' })
+  return error ? { error: error.message } : {}
 }

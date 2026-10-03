@@ -100,11 +100,11 @@ describe('colorLabelText', () => {
 describe('recordLabelKey', () => {
   const t = (key: string) => `t:${key}`
   it('groups a record by its label, then by its unnamed color, like the timeline color', () => {
-    expect(recordLabelKey({ tags: ['就活'], color: null }, presets, colors)).toBe('就活')
+    expect(recordLabelKey({ category: '就活', color: null }, presets, colors)).toBe('就活')
     // 名前の付いた色だけ持つ記録はそのラベルにまとめる
-    expect(recordLabelKey({ tags: [], color: SAGE.toLowerCase() }, presets, colors)).toBe('授業')
-    expect(recordLabelKey({ tags: [], color: '#f6bf26' }, presets, colors)).toBe('#F6BF26')
-    expect(recordLabelKey({ tags: [], color: null }, presets, colors)).toBe('')
+    expect(recordLabelKey({ category: null, color: SAGE.toLowerCase() }, presets, colors)).toBe('授業')
+    expect(recordLabelKey({ category: null, color: '#f6bf26' }, presets, colors)).toBe('#F6BF26')
+    expect(recordLabelKey({ category: null, color: null }, presets, colors)).toBe('')
   })
   it('gives the same color and name as the To-Do color labels', () => {
     expect(recordLabelKeyHex('#F6BF26', colors)).toBe('#F6BF26')

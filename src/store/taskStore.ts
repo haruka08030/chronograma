@@ -55,6 +55,7 @@ export {
   normalizeListColorPaletteId,
 } from '../lib/listColorPalettes'
 import { withTaskDefaults } from '../lib/taskDefaults'
+import { isIncomingChange } from '../lib/changeOrigin'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -124,6 +125,7 @@ export const useTaskStore = create<TaskState>()(
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
       logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+      logLabelsUpdatedAt: null,
 
       calendarEvents: [],
       googleEventColors: {},
@@ -238,6 +240,13 @@ function applyTimeZoneState() {
 }
 restoreViewState()
 applyTimeZoneState()
+
+// ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
+useTaskStore.subscribe((s, prev) => {
+  if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
+})
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })

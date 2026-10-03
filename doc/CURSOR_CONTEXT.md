@@ -448,7 +448,7 @@
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）に、`002` 以降の変更を番号順に積む。
 SQL Editor で `001` から順に全部流す（どれも何度流しても同じ形）。変更は次の番号の新しいファイルで足し、コミット済みのファイルは書き換えない。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、サーバーの行より `updated_at` が古い更新を捨てる（`010` のトリガー `skip_stale_write`）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、サーバーの行より `updated_at` が古い更新を捨てる（`010` のトリガー `skip_stale_write`）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（`011`、同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
 付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`009` の `hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。

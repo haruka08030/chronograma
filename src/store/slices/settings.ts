@@ -6,6 +6,7 @@ import { reanchorTasks } from '../../lib/taskTimeZone'
 import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { withLogCategory } from '../../lib/taskDefaults'
 
 type SettingsActions = Pick<
   TaskState,
@@ -109,12 +110,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
             const next = t.color ? recolor.get(t.color.toUpperCase()) : undefined
             return next ? { ...t, color: next, updatedAt: now } : t
           }
-          const tag = t.tags[0]
-          if (tag && rename.has(tag)) return { ...t, tags: [rename.get(tag)!], updatedAt: now }
-          if (tag && removedHex.has(tag)) return { ...t, tags: [], color: removedHex.get(tag)!, updatedAt: now }
+          const tag = t.category
+          if (tag && rename.has(tag)) return withLogCategory({ ...t, category: rename.get(tag)!, updatedAt: now })
+          if (tag && removedHex.has(tag)) return withLogCategory({ ...t, category: null, color: removedHex.get(tag)!, updatedAt: now })
           if (!tag && t.color) {
             const label = labelForHex(t.color, presets, colors)
-            if (label) return { ...t, tags: [label], color: null, updatedAt: now }
+            if (label) return withLogCategory({ ...t, category: label, color: null, updatedAt: now })
           }
           return t
         })

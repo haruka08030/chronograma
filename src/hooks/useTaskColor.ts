@@ -17,17 +17,17 @@ export function useTaskColor(task: Task, plan = false) {
   const isPlan = plan
   const current = isPlan
     ? task.color?.toUpperCase() ?? null
-    : task.tags[0] || task.color ? recordHex(task, colors).toUpperCase() : null
+    : task.category || task.color ? recordHex(task, colors).toUpperCase() : null
   // 予定は色だけ持つが、その色にラベル（分類名）が付いていれば色名ではなくラベル名で出す
-  const label = isPlan ? labelForHex(current, presets, colors) : task.tags[0] ?? null
+  const label = isPlan ? labelForHex(current, presets, colors) : task.category
   const currentKey = colorKeyForHex(current)
   const defaultLabel = t('labels.none')
   const choose = (hex: string | null) => {
     if (isPlan) updateTask(task.id, { color: hex })
-    else if (hex === null) updateTask(task.id, { tags: [], color: null })
+    else if (hex === null) updateTask(task.id, { category: null, color: null })
     else {
       const name = labelForHex(hex, presets, colors)
-      updateTask(task.id, name ? { tags: [name], color: null } : { tags: [], color: hex })
+      updateTask(task.id, name ? { category: name, color: null } : { category: null, color: hex })
     }
   }
   return {

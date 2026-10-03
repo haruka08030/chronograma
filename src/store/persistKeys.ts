@@ -21,6 +21,7 @@ export const DATA_KEYS = [
   'listColorPaletteId',
   'timeLogTagPresets',
   'logCategoryColors',
+  'logLabelsUpdatedAt',
   'googleEventColors',
   'activeTimer',
   'dailyReminders',

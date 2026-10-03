@@ -39,7 +39,7 @@ export function CategoryManager() {
       let minutes = 0
       for (const d of days) minutes += minutesOfLogOnCalendarDay(task, d)
       if (minutes <= 0) continue
-      const key = task.tags[0] ?? ''
+      const key = task.category ?? ''
       map.set(key, (map.get(key) ?? 0) + minutes)
     }
     return map
@@ -48,7 +48,7 @@ export function CategoryManager() {
   const unlisted = useMemo(() => {
     const set = new Set<string>()
     for (const task of tasks) {
-      if (task.isTimeLog && isActiveTask(task) && task.tags[0] && !presets.includes(task.tags[0])) set.add(task.tags[0])
+      if (task.isTimeLog && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
     }
     return [...set]
   }, [tasks, presets])

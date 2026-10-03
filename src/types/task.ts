@@ -49,7 +49,10 @@ export interface Task {
   /** 記録の色（`#RRGGBB`）。Google カレンダーの予定から記録にしたとき元の色を引き継ぐ。null は分類の色 */
   color: string | null
   priority: Priority
+  /** To-Do のタグ。記録では分類名を 1 つだけ写す（前の版の端末が tags の先頭を分類として読むため。正は `category`） */
   tags: string[]
+  /** 記録の分類（ラベル）名。null はラベルなし。To-Do では使わない（null） */
+  category: string | null
   recurrence: Recurrence | null
   isTimeLog: boolean
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */

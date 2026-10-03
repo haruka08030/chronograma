@@ -21,7 +21,7 @@ export function isSleepRecord(t: Task): boolean {
 /** 印の無い古い記録のうち、タイトルかラベルが「睡眠」のもの */
 export function looksLikeSleep(t: Task): boolean {
   if (!t.isTimeLog || t.isSleep) return false
-  return SLEEP_WORDS.has(norm(t.title)) || (t.tags[0] !== undefined && SLEEP_WORDS.has(norm(t.tags[0])))
+  return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))
 }
 
 

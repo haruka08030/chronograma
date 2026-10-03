@@ -119,8 +119,8 @@ export function assignColorsInOrder(names: readonly string[]): Record<string, Ca
 }
 
 /** 記録（ログ）の色: 記録自体の色（Google の予定から写した色など）があればそれ、無ければ分類の色 */
-export function recordHex(task: { color?: string | null; tags: string[] }, colors: Readonly<Record<string, string>>): string {
-  return task.color || categoryHex(task.tags[0], colors)
+export function recordHex(task: { color?: string | null; category: string | null }, colors: Readonly<Record<string, string>>): string {
+  return task.color || categoryHex(task.category ?? undefined, colors)
 }
 
 /**
@@ -128,11 +128,11 @@ export function recordHex(task: { color?: string | null; tags: string[] }, color
  * ラベル名 → 名前の無い色は `#RRGGBB`（その色に名前が付いていればその名前）→ どちらも無ければ空（ラベルなし）
  */
 export function recordLabelKey(
-  task: { color?: string | null; tags: string[] },
+  task: { color?: string | null; category: string | null },
   presets: readonly string[],
   colors: Readonly<Record<string, string>>,
 ): string {
-  if (task.tags[0]) return task.tags[0]
+  if (task.category) return task.category
   if (!task.color) return ''
   return labelForHex(task.color, presets, colors) ?? task.color.toUpperCase()
 }

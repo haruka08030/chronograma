@@ -104,6 +104,8 @@ export interface TaskState {
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
   logCategoryColors: Record<string, string>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  logLabelsUpdatedAt: string | null
 
   calendarEvents: CalendarEvent[]
   /** Google の予定にアプリで付けた色（`googleEventColors.ts`）。API に出ない新しい色（アボカドなど）の代わり */
@@ -272,6 +274,7 @@ export interface TaskState {
       Pick<
         Task,
         | 'title'
+        | 'category'
         | 'description'
         | 'dueDate'
         | 'dueTime'

@@ -50,7 +50,7 @@ export function getWeekReview(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   /** 記録のラベル（タグ無しは空文字）。既定は先頭のタグ。画面は `recordLabelKey` で名前の無い色も分ける */
-  labelOf: (log: Task) => string = (log) => log.tags[0] ?? '',
+  labelOf: (log: Task) => string = (log) => log.category ?? '',
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = toDateKey(now)
