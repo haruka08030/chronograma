@@ -241,6 +241,13 @@ export function TodayPlannerView() {
     </RowActionButton>
   )
 
+  const moveAllLeftOver = () =>
+    rescheduleTasks(
+      leftOver.map((x) => x.id),
+      dateKey,
+      leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
+    )
+
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
   const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -353,6 +360,7 @@ export function TodayPlannerView() {
 
         {leftOver.length > 0 && (
           <div className="mt-2 px-3">
+            {/* 閉じているときは見出しの右でまとめて移す。開いたら行ごとに移し、まとめては下へ（「To-Do から追加」と同じ形） */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -363,24 +371,23 @@ export function TodayPlannerView() {
                 <ChevronRightIcon className={`h-3 w-3 shrink-0 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  rescheduleTasks(
-                    leftOver.map((x) => x.id),
-                    dateKey,
-                    leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
-                  )
-                }
-                className={`mr-3 shrink-0 ${textButton}`}
-              >
-                {leftOver.length > 1 ? t('planner.moveAllToToday') : t('planner.doToday')}
-              </button>
+              {!showLeftOver && (
+                <button type="button" onClick={moveAllLeftOver} className={`mr-3 shrink-0 ${textButton}`}>
+                  {leftOver.length > 1 ? t('planner.moveAllToToday') : t('planner.doToday')}
+                </button>
+              )}
             </div>
             {showLeftOver && (
-              <ul>
-                {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
-              </ul>
+              <>
+                <ul>
+                  {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
+                </ul>
+                {leftOver.length > 1 && (
+                  <button type="button" onClick={moveAllLeftOver} className={`ml-11 mt-1 ${textButton}`}>
+                    {t('planner.moveAllToToday')}
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
