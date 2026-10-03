@@ -141,8 +141,9 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, session: Sess
  * その人のアカウントにも送られていた。送れていなかった変更が消えないよう、先に端末内に控えを取る。
  * Google の連携はサーバー側のアカウントに付いているので切らない（以前はここで切っていて、
  * 1 台でログアウトすると全端末の連携が外れた）
+ * 控えの持ち主はログアウトした人（一度も同期できていないデータもその人のもの）。ログアウト後に開いた人には見せない
  */
-function clearLocalAccountState() {
+function clearLocalAccountState(userId: string | null) {
   const store = useTaskStore.getState()
   store.setGoogleConnected(false)
   store.setGoogleAccessToken(null)
@@ -152,9 +153,12 @@ function clearLocalAccountState() {
   void detachWebPush()
   // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
   if (store.dataOwner === null && store.tasks.length === 0 && store.habits.length === 0) return
-  backupNow('beforeSignOut')
+  backupNow('beforeSignOut', store.dataOwner ?? userId)
   store.resetLocalData()
 }
+
+/** 最後にログインしていた人。SIGNED_OUT のときはもうセッションが無いので、控えの持ち主はここから取る */
+let lastUserId: string | null = null
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -171,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     sb.auth.getSession()
       .then(({ data: { session: s } }) => {
+        if (s) lastUserId = s.user.id
         setSession(s)
         if (s) {
           enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION', s))
@@ -185,12 +190,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
       setSession(s)
+      if (s) lastUserId = s.user.id
 
       if (s && GOOGLE_AUTH_EVENTS.has(event)) {
         enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s))
       }
 
-      if (event === 'SIGNED_OUT') clearLocalAccountState()
+      if (event === 'SIGNED_OUT') clearLocalAccountState(lastUserId)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -257,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sb) await signOutThisDevice(sb)
         setSession(null)
         // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
-        clearLocalAccountState()
+        clearLocalAccountState(session?.user.id ?? null)
       },
       deleteAccount: async () => {
         const sb = getSupabase()
@@ -279,11 +285,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
         useTaskStore.getState().resetLocalData()
         clearBaseline(userId)
-        await clearAutoBackups()
+        await clearAutoBackups(userId)
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)
         setSession(null)
-        clearLocalAccountState()
+        clearLocalAccountState(userId)
         return {}
       },
     }),
