@@ -115,7 +115,13 @@ export function appToday(): Date {
 
 /** アプリの「今日」の `yyyy-MM-dd` */
 export function appTodayKey(): string {
-  const d = appToday()
+  return appDayKeyOf(Date.now())
+}
+
+/** 瞬間（完了した時刻など）がアプリのどの日か（`yyyy-MM-dd`）。夜中の 0〜4 時は前の日 */
+export function appDayKeyOf(instant: Date | string | number): string {
+  const d = toAppWall(instant)
+  d.setHours(d.getHours() - DAY_START_HOUR)
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 

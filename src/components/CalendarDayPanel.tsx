@@ -13,6 +13,7 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
+import { completionDayKey } from '../lib/dayPlan'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
@@ -21,11 +22,6 @@ import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail } from '../lib/overlays'
-
-function completionDateKey(t: Task): string {
-  const raw = t.completedAt ?? t.updatedAt
-  return typeof raw === 'string' ? raw.slice(0, 10) : ''
-}
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -101,7 +97,7 @@ export function CalendarDayPanel({
             t.completed &&
             isActiveTask(t) &&
             !excludedListIds.has(t.listId) &&
-            completionDateKey(t) === selectedDateKey,
+            completionDayKey(t) === selectedDateKey,
         )
         .sort((a, b) => {
           const ta = new Date(a.completedAt ?? a.updatedAt).getTime()

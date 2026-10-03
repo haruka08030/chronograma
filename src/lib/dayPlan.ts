@@ -5,6 +5,7 @@ import { isListedTimeLog } from './timeLogTask'
 import { isSleepRecord } from './sleep'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
+import { appDayKeyOf } from './timeZone'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -17,6 +18,11 @@ export interface DayPlan {
   done: Task[]
   plannedMinutes: number
   loggedMinutes: number
+}
+
+/** 完了したタスクを出す日（完了した日。置いた日・締切より優先）。古い保存で完了時刻が無ければ最後に変えた日 */
+export function completionDayKey(task: Pick<Task, 'completedAt' | 'updatedAt'>): string {
+  return appDayKeyOf(task.completedAt ?? task.updatedAt)
 }
 
 /** 開始時刻つきを時刻順で先に、残りは元の並び順 */
@@ -53,15 +59,17 @@ export function getDayPlan(
     }
     if (task.parentId || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
-    if (placed === dateKey) {
-      if (task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
-      if (task.completed) done.push(task)
-      else open.push(task)
-    } else if (!task.completed && task.dueDate && task.dueDate < dateKey) {
+    if (placed === dateKey && task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
+    if (task.completed) {
+      // やった日が優先: 置いた日・締切ではなく、完了した日の「完了」に出す
+      if (completionDayKey(task) === dateKey) done.push(task)
+    } else if (placed === dateKey) {
+      open.push(task)
+    } else if (task.dueDate && task.dueDate < dateKey) {
       overdue.push(task)
-    } else if (placed && placed < dateKey && !task.completed) {
+    } else if (placed && placed < dateKey) {
       carryOver.push(task)
-    } else if (placed && !task.completed && task.dueDate && task.dueDate > dateKey && task.dueDate <= dueSoonLimit) {
+    } else if (placed && task.dueDate && task.dueDate > dateKey && task.dueDate <= dueSoonLimit) {
       dueSoon.push(task)
     }
   }

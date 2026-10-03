@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { getDayPlan, getMoreSuggestions } from './dayPlan'
+import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
@@ -81,5 +82,33 @@ describe('getDayPlan overdue', () => {
 
   it('keeps past-due tasks out of the later suggestions', () => {
     expect(getMoreSuggestions(tasks, DAY).map((t) => t.id)).toEqual([])
+  })
+})
+
+describe('getDayPlan done', () => {
+  afterEach(() => setAppTimeZoneSetting(null))
+  const doneAt = (iso: string, over: Partial<Task> = {}) => task(iso, { completed: true, completedAt: iso, ...over })
+
+  it('lists a finished task on the day it was done, not the day it was placed', () => {
+    setAppTimeZoneSetting('Asia/Tokyo')
+    const tasks = [
+      // 前の日に置いて今日やった
+      doneAt('2026-09-30T03:00:00Z', { scheduledDate: '2026-09-29' }),
+      // 日付なしを今日やった
+      doneAt('2026-09-30T05:00:00Z'),
+      // 今日に置いたが前の日に先にやった
+      doneAt('2026-09-29T05:00:00Z', { scheduledDate: DAY }),
+      // 東京の 10/1 2:00 は夜中なので 9/30
+      doneAt('2026-09-30T17:00:00Z'),
+      // 東京の 9/30 7:00（UTC ではまだ 9/29）
+      doneAt('2026-09-29T22:00:00Z'),
+    ]
+    expect(getDayPlan(tasks, DAY).done.map((t) => t.id).sort()).toEqual([
+      '2026-09-29T22:00:00Z',
+      '2026-09-30T03:00:00Z',
+      '2026-09-30T05:00:00Z',
+      '2026-09-30T17:00:00Z',
+    ])
+    expect(getDayPlan(tasks, '2026-09-29').done.map((t) => t.id)).toEqual(['2026-09-29T05:00:00Z'])
   })
 })
