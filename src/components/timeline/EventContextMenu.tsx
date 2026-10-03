@@ -42,16 +42,14 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
   onOpenDetail: (taskId: string) => void
 }) {
   const { t } = useTranslation()
-  const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
   const isLog = task.isTimeLog === true
-  const list = lists.find((l) => l.id === task.listId)
-  const color = useTaskColor(task, isLog ? undefined : list?.color ?? NEUTRAL_HEX)
-  const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
+  const color = useTaskColor(task, !isLog)
+  const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { canLogAsPlanned, ended } = planTiming(task)
 
   const entries: ActionEntry[] = [

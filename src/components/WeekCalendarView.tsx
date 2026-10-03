@@ -230,7 +230,7 @@ function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup; onAnc
     <div
       ref={onAnchor}
       className={`gc-solid pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
-      style={{ top, height, ...colorVars(popup.intent === 'log' ? NEUTRAL_HEX : '#7986CB') }}
+      style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
     >
       <span className="block font-medium">{t('quickCreate.untitled')}</span>
       <span className="block text-[10px] opacity-80">{popup.startTime} – {popup.endTime}</span>
@@ -259,7 +259,6 @@ export function WeekCalendarView({
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -777,7 +776,7 @@ export function WeekCalendarView({
                         onClick={() => openDetail(t.id)}
                         className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
                           text-[10px] leading-tight transition-all hover:brightness-95 active:cursor-grabbing`}
-                        style={colorVars(planHex(t, listColorById))}
+                        style={colorVars(planHex(t))}
                       >
                         <CalendarCheck
                           done={t.completed}
@@ -931,7 +930,7 @@ export function WeekCalendarView({
                           dayKey={key}
                           onOpenDetail={() => openCard(t.id)}
                           hStyle={planStyle(t.id)}
-                          colorHex={planHex(t, listColorById)}
+                          colorHex={planHex(t)}
                           withCheck
                         />
                         <SlotCheck

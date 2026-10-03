@@ -94,7 +94,6 @@ export function CalendarView({
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   /** 日ごとの記録（分類 → 分）。月のマスでは記録を一番上に色で見せる（記録と可視化が主役） */
@@ -288,7 +287,7 @@ export function CalendarView({
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
                         ${itemClass(!t.startTime, planVisualState(t, key))}`}
-                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t, listColorById) : '#BDBDBD')}
+                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
                       {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
                       <CalendarCheck

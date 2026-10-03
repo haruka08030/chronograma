@@ -23,7 +23,7 @@ export function planVisualState(
   return end.getTime() < now.getTime() ? 'missed' : 'upcoming'
 }
 
-/** カレンダーでの予定の色: タスク自身の色（Google の予定から作ったものなど）→ リストの色 */
-export function planHex(task: Pick<Task, 'color' | 'listId'>, listColorById: ReadonlyMap<string, string>): string {
-  return task.color || listColorById.get(task.listId) || NEUTRAL_HEX
+/** カレンダーでの予定の色: タスク自身の色（＝ラベル）。リストの色は使わない（色なしは「ラベルなし」の灰色） */
+export function planHex(task: Pick<Task, 'color'>): string {
+  return task.color || NEUTRAL_HEX
 }

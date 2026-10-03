@@ -283,7 +283,6 @@ export default {
     remove: 'Delete label',
     edit: 'Edit labels',
     none: 'No label',
-    listColor: 'List color',
     changeColor: 'Change color',
     pickerAria: 'Color and label',
     selectColor: 'Select a color',

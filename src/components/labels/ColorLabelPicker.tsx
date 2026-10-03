@@ -11,25 +11,25 @@ import { CaretDownIcon } from '../icons'
  * 押すと ✎（ラベルを編集）・24 色＋自分で作った色・「分類なし」が開く。
  * 名前の付いた色を選ぶとその分類に、名前の無い色は色だけ付く（名前を付ければ後からまとめて分類になる）。
  *
- * 予定（`planDefaultHex` あり）は色だけを付ける。ToDo のタグは分類とは別物なので書き換えない。
- * 「既定」はリストの色（Google の予定の色の既定＝カレンダーの色と同じ考え方）。
+ * 予定（`plan`）は色だけを付ける。ToDo のタグは分類とは別物なので書き換えない。
+ * 「既定」はどちらも「ラベルなし」。リストの色はラベルではないので使わない。
  */
 export function ColorLabelPicker({
   task,
   compact,
-  planDefaultHex,
+  plan,
   label: rowLabel,
 }: {
   task: Task
   compact?: boolean
-  planDefaultHex?: string
+  plan?: boolean
   /** 行の頭に出す見出し（カードの中で、上のリスト名と続いて見えないように） */
   label?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const color = useTaskColor(task, planDefaultHex)
+  const color = useTaskColor(task, plan)
 
   // ラベル編集・色選択のダイアログ（body 直下・data-popover-keep）の中は「内側」
   useDismiss({ open, onClose: () => setOpen(false), inside: [ref] })

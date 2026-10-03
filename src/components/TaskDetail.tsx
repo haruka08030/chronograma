@@ -632,7 +632,7 @@ export function TaskDetail({
                 <div className="mt-3">
                   <ColorLabelPicker
                     task={task}
-                    planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}
+                    plan
                   />
                 </div>
                 {!task.parentId && sectionsForTaskList.length > 0 && (

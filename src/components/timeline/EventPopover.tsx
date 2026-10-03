@@ -70,7 +70,7 @@ export function EventPopover({
   const isLog = task.isTimeLog === true
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
-  const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
+  const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const dateText = dateKey ? format(fromDateKey(dateKey), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
@@ -148,7 +148,7 @@ export function EventPopover({
           task={task}
           compact
           label={t('labels.pickerAria')}
-          planDefaultHex={isLog ? undefined : list?.color ?? NEUTRAL_HEX}
+          plan={!isLog}
         />
       </div>
 

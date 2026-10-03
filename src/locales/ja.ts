@@ -281,7 +281,6 @@ export default {
     remove: 'ラベルを削除',
     edit: 'ラベルを編集',
     none: 'ラベルなし',
-    listColor: 'リストの色',
     changeColor: '色を変える',
     pickerAria: '色とラベル',
     selectColor: '色を選択',
