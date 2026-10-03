@@ -67,6 +67,8 @@ export const persistStorage: StateStorage = {
   },
   setItem: (key, value) => {
     if (suppressWrites) return
+    // 中身が変わっていなければ書かない（画面の状態だけの変更で、全データを書き直して他のタブに読み直させない）
+    if (value === lastKnownRaw && !writeFailed) return
     const write = () => {
       localStorage.setItem(key, value)
       lastKnownRaw = value
