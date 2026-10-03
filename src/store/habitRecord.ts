@@ -3,6 +3,7 @@
  * 時間を決めた習慣は、達成にすると予定どおりの時刻の記録（完了した時間ログ）を作り、外すとその日の記録をゴミ箱へ入れる
  */
 import { buildHabitRecordIndex, habitRecordFor, habitRecordsFor, plannedRecordTimes } from '../lib/habitTiming'
+import { logLabelFromTask } from '../lib/logCategoryColors'
 import { completedRecordPatch, type CategoryInferenceState } from './taskHelpers'
 import type { TaskState } from './storeTypes'
 
@@ -36,8 +37,13 @@ export function completeHabitAsPlannedPatch(
   if (!needsRecord) return { habits }
   return {
     habits,
-    // 習慣の色を記録にも引き継ぐ。ラベルの色ならそのラベル（分類）になる
-    ...completedRecordPatch(s, { title: habit.title, dueDate: dateKey, ...times, color: habit.color, habitId }, env.colorNames, env.now),
+    // 習慣の色＝ラベル。タイトルから推定せず、名前の付いた色ならそのラベル、名前の無い色は色のまま記録する
+    ...completedRecordPatch(
+      s,
+      { title: habit.title, dueDate: dateKey, ...times, habitId, label: logLabelFromTask(habit, s.timeLogTagPresets, s.logCategoryColors) },
+      env.colorNames,
+      env.now,
+    ),
   }
 }
 

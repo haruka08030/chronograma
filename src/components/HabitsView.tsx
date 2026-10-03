@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { CALENDAR_COLORS } from '../lib/googleColors'
+import { hexForGoogleKey } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
@@ -11,7 +11,6 @@ import {
   toggleHabitWeekdaySelection,
 } from '../lib/habitDraft'
 import {
-  colorIndexForPalette,
   completionRatioOnDate,
   consistencyForLast7Days,
   currentStreakDays,
@@ -29,7 +28,7 @@ import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
-import { ColorSwatches } from './ui/ColorSwatches'
+import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
@@ -40,28 +39,23 @@ const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 
-/** 習慣の色は記録のラベルと同じ Google カレンダーの 24 色（以前の 11 色はすべてこの中にある） */
-const HABIT_COLORS: readonly string[] = CALENDAR_COLORS.map((c) => c.hex)
-const DEFAULT_HABIT_COLOR_INDEX = CALENDAR_COLORS.findIndex((c) => c.key === 'sage')
+/** 習慣の色＝ラベル（記録のラベルと同じ色選び。名前の付いた色を選ぶと、その習慣の記録はそのラベルになる） */
+const DEFAULT_HABIT_COLOR = hexForGoogleKey('sage')!
 
 const iconTrash = ICON_PATHS.trash
 
 function ColorPicker({
-  colorIndex,
+  color,
   onPick,
 }: {
-  colorIndex: number
-  onPick: (i: number) => void
+  color: string
+  onPick: (hex: string) => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
-      <ColorSwatches
-        ariaLabel={t('habits.color')}
-        selectedHex={CALENDAR_COLORS[colorIndex]?.hex ?? null}
-        onChoose={(hex) => onPick(CALENDAR_COLORS.findIndex((c) => c.hex === hex))}
-      />
+      <ColorPalette bare selectedHex={color} onChoose={onPick} />
     </div>
   )
 }
@@ -206,8 +200,7 @@ export function HabitsView() {
   const [newTimeMode, setNewTimeMode] = useState<HabitTimeMode>('range')
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
-  const [newColorIndex, setNewColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
-  const newColor = HABIT_COLORS[newColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
+  const [newColor, setNewColor] = useState(DEFAULT_HABIT_COLOR)
   const newTitleInputRef = useRef<HTMLInputElement>(null)
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null)
@@ -218,8 +211,7 @@ export function HabitsView() {
   const [editTimeMode, setEditTimeMode] = useState<HabitTimeMode>('range')
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
-  const [editColorIndex, setEditColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
-  const editColor = HABIT_COLORS[editColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
+  const [editColor, setEditColor] = useState(DEFAULT_HABIT_COLOR)
 
   const cancelEdit = useCallback(() => {
     setEditingHabitId(null)
@@ -239,7 +231,7 @@ export function HabitsView() {
       setEditTimeMode(h.timeMode)
       setEditStartTime(h.startTime ?? '09:00')
       setEditEndTime(h.endTime ?? '10:00')
-      setEditColorIndex(colorIndexForPalette(h.color, HABIT_COLORS, DEFAULT_HABIT_COLOR_INDEX))
+      setEditColor(h.color)
     },
     [],
   )
@@ -439,7 +431,7 @@ export function HabitsView() {
                 placeholder={t('habits.nameShort')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
               />
-              <ColorPicker colorIndex={editColorIndex} onPick={setEditColorIndex} />
+              <ColorPicker color={editColor} onPick={setEditColor} />
               <div className="flex gap-6 text-sm">
                 <label className="flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300">
                   <input
@@ -667,7 +659,7 @@ export function HabitsView() {
                 placeholder={t('habits.placeholderName')}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
-              <ColorPicker colorIndex={newColorIndex} onPick={setNewColorIndex} />
+              <ColorPicker color={newColor} onPick={setNewColor} />
               <div className="flex gap-6 text-sm">
                 <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
                   <input

@@ -60,6 +60,15 @@ describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
     expect(tasks[0]).toMatchObject({ tags: ['運動'], color: null })
   })
 
+  it('習慣の色＝ラベル。同じ名前の過去の記録のラベルより習慣の色を優先する', () => {
+    const past = record({ id: 'old', dueDate: '2026-09-30', tags: ['勉強'] })
+    const named = completeHabitAsPlannedPatch(state(habit({ color: categoryHex('運動', colors) }), [past]), 'h1', '2026-10-02', env)!
+    expect(('tasks' in named ? named.tasks : []).at(-1)).toMatchObject({ tags: ['運動'], color: null })
+    // 名前の無い色でも推定せず、色のまま残す
+    const unnamed = completeHabitAsPlannedPatch(state(habit(), [past]), 'h1', '2026-10-02', env)!
+    expect(('tasks' in unnamed ? unnamed.tasks : []).at(-1)).toMatchObject({ tags: [], color: '#123456' })
+  })
+
   it('同じ名前の記録が既にあれば、達成だけにして記録は作らない', () => {
     const patch = completeHabitAsPlannedPatch(state(habit(), [record()]), 'h1', '2026-10-02', env)!
     expect(patch.habits[0]!.completedDates).toEqual(['2026-10-02'])

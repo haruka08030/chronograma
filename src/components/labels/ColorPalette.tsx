@@ -10,7 +10,8 @@ import { tip } from '../../lib/tooltip'
 
 /**
  * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
- * 色の丸のツールチップは「ラベル名（色名）」。記録の色と Google の予定の色の両方で使う。
+ * 色の丸のツールチップは「ラベル名（色名）」。記録・予定・習慣の色と Google の予定の色で使う。
+ * 色が必ずあるもの（習慣）は `onDefault` を渡さず、既定ボタンを出さない。
  */
 export function ColorPalette({
   selectedHex,
@@ -22,10 +23,10 @@ export function ColorPalette({
 }: {
   selectedHex: string | null
   onChoose: (hex: string) => void
-  onDefault: () => void
-  defaultLabel: string
+  onDefault?: () => void
+  defaultLabel?: string
   /** 既定ボタンの輪の色 */
-  defaultHex: string
+  defaultHex?: string
   /** 枠なし（メニューの中など、すでに浮く面の上に置くとき） */
   bare?: boolean
 }) {
@@ -64,14 +65,14 @@ export function ColorPalette({
           return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
         })}
       />
-      <button
+      {onDefault && <button
         type="button"
         onClick={onDefault}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-200/70 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-700"
       >
         <span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: defaultHex }} aria-hidden />
         {defaultLabel}
-      </button>
+      </button>}
       {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
     </div>
   )

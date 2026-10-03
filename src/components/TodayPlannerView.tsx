@@ -24,7 +24,7 @@ import { RecordPanel } from './RecordPanel'
 import { SleepRow } from './SleepRow'
 import type { Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
-import { colorVars } from '../lib/logCategoryColors'
+import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon } from './icons'
@@ -63,6 +63,8 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
   const anyNotification = useTaskStore((s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled)
@@ -468,7 +470,8 @@ export function TodayPlannerView() {
                       <button
                         type="button"
                         onClick={() => {
-                          startTimer(h.title)
+                          const label = logLabelFromTask(h, labelPresets, logCategoryColors)
+                          startTimer(h.title, label.tags, null, label.color)
                           // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする
                           if (!isTimedHabit(h)) toggleHabitDate(h.id, dateKey)
                         }}

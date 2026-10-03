@@ -5,7 +5,7 @@
 import type { Task } from '../types/task'
 import { newId } from '../lib/id'
 import { inferLogCategory } from '../lib/logCategory'
-import { categoryHex } from '../lib/logCategoryColors'
+import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appTimeZone } from '../lib/timeZone'
 import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
@@ -182,13 +182,18 @@ export function inferCategoryTags(
 /** 予定から作る記録（完了した時間ログ） */
 export function completedRecordPatch(
   s: CategoryInferenceState,
-  fields: { title: string; dueDate: string; startTime: string; endTime: string; color?: string | null; habitId?: string | null },
+  fields: {
+    title: string; dueDate: string; startTime: string; endTime: string; color?: string | null; habitId?: string | null
+    /** 決まっているラベル（習慣の色）。あれば推定しない */
+    label?: LogLabel
+  },
   colorNames: ReadonlySet<string>,
   now: string = new Date().toISOString(),
 ): Pick<TaskState, 'tasks'> {
-  const { title, dueDate, startTime, endTime, color, habitId } = fields
+  const { title, dueDate, startTime, endTime, habitId, label } = fields
+  const color = label ? label.color : fields.color
   const maxOrder = Math.max(0, ...s.tasks.map((t) => t.order))
-  const tags = inferCategoryTags([], s, title, colorNames, { colorHex: color })
+  const tags = label ? label.tags : inferCategoryTags([], s, title, colorNames, { colorHex: color })
   return {
     tasks: [
       ...s.tasks,

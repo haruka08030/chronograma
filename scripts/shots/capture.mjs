@@ -58,6 +58,8 @@ const SCREENS = [
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
   { name: 'task-detail-scheduled', view: 'all', click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))', clickAt: { x: 4, y: 12 } },
   { name: 'habits', view: 'habits' },
+  // 習慣の追加欄（色選びはラベル付きの色選び）
+  { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
   { name: 'someday', list: 'seed-someday' },

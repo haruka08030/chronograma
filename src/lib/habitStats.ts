@@ -5,12 +5,6 @@ import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appToday } from './timeZone'
 import { toDateKey } from './dateKey'
 
-export function colorIndexForPalette(habitColor: string, listColors: readonly string[], fallback = 4): number {
-  const normalized = habitColor.trim().toLowerCase()
-  const i = listColors.findIndex((c) => c.trim().toLowerCase() === normalized)
-  return i >= 0 ? i : Math.min(fallback, listColors.length - 1)
-}
-
 /** 達成率・連続日数に数える日か。時間を決めた習慣は時間どおりの日だけ（`records` を渡したとき） */
 function achieved(h: Habit, key: string, records?: HabitRecordIndex): boolean {
   return habitDayStatus(h, key, records) === 'done'
