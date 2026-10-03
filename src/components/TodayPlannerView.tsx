@@ -17,6 +17,7 @@ import { DUE_TONE_CLASS } from './ui/dueTone'
 import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { TaskDetail } from './TaskDetail'
 import { WeekCalendarView } from './WeekCalendarView'
@@ -59,7 +60,6 @@ export function TodayPlannerView() {
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const activeTimer = useTaskStore((s) => s.activeTimer)
-  const toggleTask = useTaskStore((s) => s.toggleTask)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -70,6 +70,7 @@ export function TodayPlannerView() {
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
   const [dateKey, setDateKey] = useState(() => dayKeyOf(appToday()))
   useNavShortcut({
@@ -198,8 +199,9 @@ export function TodayPlannerView() {
         <CompletionCircle
           completed={task.completed}
           priority={task.priority}
-          onClick={() => toggleTask(task.id)}
-          label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
+          // To-Do 画面と同じ: 時刻つきの予定は「記録して完了」を開く（時刻なし・完了済みはそのまま切り替え）
+          onClick={() => openCompleteWithLog(task)}
+          label={task.completed ? t('taskItem.markIncomplete') : task.startTime && task.endTime ? t('taskItem.completeWithLog') : t('taskItem.markComplete')}
         />
         <button
           type="button"
@@ -566,6 +568,7 @@ export function TodayPlannerView() {
       </section>
 
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+      {completeWithLogModal}
     </div>
   )
 }
