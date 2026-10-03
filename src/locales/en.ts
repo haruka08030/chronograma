@@ -643,6 +643,7 @@ export default {
     actions: 'Actions',
     nextWeek: 'Next week',
     moveTo: 'Move to list',
+    moveToSection: 'Move to section',
     open: 'Open details',
   },
   taskBin: {
@@ -708,6 +709,7 @@ export default {
     tasksCompleted: 'Completed {{count}} tasks',
     taskMoved: 'Moved “{{title}}” to {{name}}',
     tasksMoved: 'Moved {{count}} tasks to {{name}}',
+    tasksMovedToSection: 'Moved {{count}} tasks to the section {{name}}',
     dueSet: 'Set {{count}} tasks due {{label}}',
     dueCleared: 'Cleared the due date of {{count}} tasks',
     prioritySet: 'Set {{count}} tasks to {{label}} priority',

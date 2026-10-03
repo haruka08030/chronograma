@@ -642,6 +642,7 @@ export default {
     actions: '操作',
     nextWeek: '来週',
     moveTo: 'リストへ移動',
+    moveToSection: 'セクションへ移動',
     open: '詳細を開く',
   },
   taskBin: {
@@ -707,6 +708,7 @@ export default {
     tasksCompleted: '{{count}} 件を完了にしました',
     taskMoved: '「{{title}}」を「{{name}}」に移動しました',
     tasksMoved: '{{count}} 件を「{{name}}」に移動しました',
+    tasksMovedToSection: '{{count}} 件をセクション「{{name}}」に移しました',
     dueSet: '{{count}} 件の期限を{{label}}にしました',
     dueCleared: '{{count}} 件の期限をなしにしました',
     prioritySet: '{{count}} 件の優先度を「{{label}}」にしました',

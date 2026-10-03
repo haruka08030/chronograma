@@ -31,6 +31,8 @@ export function useBulkTaskActions() {
         ),
       setPriority: (ids: string[], priority: Priority) =>
         bulkUpdateTasks(ids, { priority }, many(ids, t('undo.prioritySet', { count: ids.length, label: t(`common.${priority}`) }))),
+      moveToSection: (ids: string[], sectionId: string | null, name: string) =>
+        bulkUpdateTasks(ids, { sectionId }, many(ids, t('undo.tasksMovedToSection', { count: ids.length, name }))),
       moveToList: (ids: string[], listId: string) => {
         const { lists, tasks } = useTaskStore.getState()
         const list = lists.find((l) => l.id === listId)

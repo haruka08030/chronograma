@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
-import { useDismiss } from '../hooks/useDismiss'
-import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
@@ -11,11 +9,11 @@ import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
-import { displayListName } from '../lib/displayListName'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { TaskContextMenu } from './TaskContextMenu'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -93,10 +91,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
-  const [rowMenuOpen, setRowMenuOpen] = useState(false)
-  const rowMenuRef = useRef<HTMLDivElement>(null)
+  /** 右クリック・≡ で開くタスクのメニュー（一覧がメニューを持たない所で使う） */
+  const [ownMenu, setOwnMenu] = useState<{ x: number; y: number } | null>(null)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -111,15 +109,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     }
   }, [editing])
 
-  useDismiss({ open: rowMenuOpen, onClose: () => setRowMenuOpen(false), inside: [rowMenuRef] })
-
-  const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
-  const sections = useTaskStore((s) => s.sections)
-  /** このタスクのリストのセクション（メニューで移す先） */
-  const sectionsForTaskList = useMemo(
-    () => sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
-    [sections, task.listId],
-  )
 
   /** 名前のないまま離れたら作らなかったことにする（Enter で増やした行など） */
   const discardIfBlank = () => {
@@ -215,6 +204,12 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     setEditing(true)
   }, [onRowClick, selection?.reveal, task.title])
 
+  /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
+  const openMenuAt = (p: { clientX: number; clientY: number }) => {
+    if (selection?.onContextMenu) selection.onContextMenu(p as React.MouseEvent)
+    else setOwnMenu({ x: p.clientX, y: p.clientY })
+  }
+
   const rowRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (selection?.cursor) rowRef.current?.scrollIntoView({ block: 'nearest' })
@@ -246,9 +241,9 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           e.preventDefault()
           return
         }
-        if (editing || !selection?.onContextMenu) return
+        if (editing) return
         e.preventDefault()
-        selection.onContextMenu(e)
+        openMenuAt(e)
       }}
       onClickCapture={(e) => {
         // 長押しで選択した直後の click で詳細・編集が開かないように
@@ -445,100 +440,29 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         />
       )}
 
-      {/* スマホだけ: アーカイブ・削除・リストの移動をこのメニューに畳む。PC は行の横のボタン・詳細・サイドバーへのドラッグで足りる */}
-      <div className="relative flex-shrink-0 md:hidden" ref={rowMenuRef}>
-        <button
-          type="button"
-          className="rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-1"
-          aria-expanded={rowMenuOpen}
-          aria-haspopup="true"
-          aria-label={t('taskItem.moreMenuAria')}
-          onClick={(e) => {
-            e.stopPropagation()
-            setRowMenuOpen((o) => !o)
-          }}
-        >
-          <ListBulletIcon className="h-5 w-5 md:h-4 md:w-4" />
-        </button>
-        {rowMenuOpen && (
-          <div
-            className={`absolute right-0 top-full z-30 mt-1 w-52 py-2 ${POPOVER_PANEL}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {!task.parentId && (
-              <div className="px-2">
-                <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">{t('taskDetail.list')}</label>
-                <select
-                  className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1"
-                  value={task.listId}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    const r = moveTaskToList(task.id, next)
-                    setRowMenuOpen(false)
-                    if (r.moved && r.listName) {
-                      showMoveBanner(
-                        t('toast.taskMovedToList', {
-                          name: displayListName(r.listId ?? next, r.listName),
-                        }),
-                      )
-                    }
-                  }}
-                >
-                  {sortedLists.map((l) => (
-                    <option key={l.id} value={l.id}>{displayListName(l.id, l.name)}</option>
-                  ))}
-                </select>
-                {/* ドラッグできない並べ替え中やスマホでも、セクションを移せるように */}
-                {sectionsForTaskList.length > 0 && (
-                  <>
-                    <label className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 block mt-2 mb-1">{t('taskDetail.section')}</label>
-                    <select
-                      className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1"
-                      value={task.sectionId ?? ''}
-                      onChange={(e) => {
-                        updateTask(task.id, { sectionId: e.target.value || null })
-                        setRowMenuOpen(false)
-                      }}
-                    >
-                      <option value="">{t('taskDetail.sectionNone')}</option>
-                      {sectionsForTaskList.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </>
-                )}
-              </div>
-            )}
-            <div className={`md:hidden ${!task.parentId ? 'mt-2 border-t border-zinc-200 pt-2 dark:border-zinc-700' : ''}`}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setRowMenuOpen(false)
-                  archiveTask(task.id)
-                  showMoveBanner(t('toast.taskArchived'))
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
-              >
-                <ArchiveIcon className="h-4 w-4 shrink-0 text-zinc-400" />
-                {t('taskItem.archive')}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setRowMenuOpen(false)
-                  deleteTask(task.id)
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
-              >
-                <TrashIcon className="h-4 w-4 shrink-0 text-zinc-400" />
-                {t('common.delete')}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* スマホだけ: 右クリックの代わり。PC と同じタスクのメニューを開く（PC は右クリック・行の横のボタン） */}
+      <button
+        type="button"
+        className="flex-shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
+        aria-haspopup="menu"
+        aria-label={t('taskItem.moreMenuAria')}
+        onClick={(e) => {
+          e.stopPropagation()
+          const r = e.currentTarget.getBoundingClientRect()
+          openMenuAt({ clientX: r.left, clientY: r.bottom + 4 })
+        }}
+      >
+        <ListBulletIcon className="h-5 w-5" />
+      </button>
+      {ownMenu && (
+        <TaskContextMenu
+          x={ownMenu.x}
+          y={ownMenu.y}
+          taskIds={[task.id]}
+          onClose={() => setOwnMenu(null)}
+          onOpenDetail={onClick ? () => onClick() : undefined}
+        />
+      )}
 
       {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}
       <button

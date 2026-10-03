@@ -32,4 +32,5 @@ export const ICON_PATHS = {
   pencilSquare: 'M15 4.5l4.5 4.5M13.5 6l4.5 4.5-9 9H4.5V15l9-9zM16.5 3a2.121 2.121 0 013 3',
   chevronUp: 'M4.5 15.75l7.5-7.5 7.5 7.5',
   chevronDown: 'M19.5 8.25l-7.5 7.5-7.5-7.5',
+  section: 'M3.75 6.75h16.5M3.75 12H12m-8.25 5.25h16.5',
 } as const

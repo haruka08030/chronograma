@@ -13,6 +13,8 @@ import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { displayListName } from '../lib/displayListName'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
+import { useSelectAllShortcut } from '../lib/shortcuts'
+import { TaskContextMenu } from './TaskContextMenu'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -39,6 +41,7 @@ export function CalendarTaskDock() {
   }, [])
 
   const clearSelected = useCallback(() => setSelected(new Set()), [])
+  const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -67,6 +70,13 @@ export function CalendarTaskDock() {
   )
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+
+  // ⌘A: 置き場のタスクをすべて選ぶ（To-Do 一覧と同じ）
+  useSelectAllShortcut(() => {
+    if (active.length === 0) return false
+    setSelected(new Set(active.map((x) => x.id)))
+    return true
+  })
 
   const selectedInOrder = useMemo(
     () => active.map((t) => t.id).filter((id) => selected.has(id)),
@@ -136,6 +146,9 @@ export function CalendarTaskDock() {
                 selected: selected.has(t.id),
                 reveal: selected.size > 0,
                 onToggle: () => toggleSelected(t.id),
+                // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる（To-Do 一覧と同じ）
+                onContextMenu: (e) =>
+                  setMenu({ x: e.clientX, y: e.clientY, taskIds: selected.has(t.id) && selected.size > 1 ? [...selected] : [t.id] }),
               }}
               dragGroupIds={getDragGroupIds(t.id)}
               onNativeDragEnd={clearSelected}
@@ -145,6 +158,7 @@ export function CalendarTaskDock() {
       </div>
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
       {completeWithLogModal}
+      {menu && <TaskContextMenu {...menu} onClose={() => setMenu(null)} onDone={clearSelected} onOpenDetail={openDetail} />}
     </div>
   )
 }

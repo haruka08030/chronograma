@@ -22,6 +22,7 @@ import {
   ChevronRightIcon,
   FlagIcon,
   OpenPanelIcon,
+  SectionIcon,
   SearchIcon,
   TrashIcon,
 } from './icons'
@@ -35,7 +36,7 @@ const SUB_OPEN_DELAY_MS = 120
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
-type SubId = 'due' | 'priority' | 'list'
+type SubId = 'due' | 'priority' | 'list' | 'section'
 
 /** 押すと実行する項目 */
 type Leaf = {
@@ -87,11 +88,13 @@ export function TaskContextMenu({
   onClose: () => void
   /** 何か実行したあと（選択の解除など） */
   onDone?: () => void
-  onOpenDetail: (taskId: string) => void
+  /** 詳細を開く（無い所では「詳細を開く」を出さない） */
+  onOpenDetail?: (taskId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const lists = useTaskStore((s) => s.lists)
+  const sections = useTaskStore((s) => s.sections)
   const allTasks = useTaskStore((s) => s.tasks)
   const bulk = useBulkTaskActions()
 
@@ -114,6 +117,7 @@ export function TaskContextMenu({
   const sharedDue = shared((x) => x.dueDate ?? null)
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
+  const sharedSection = shared((x) => x.sectionId ?? null)
 
   const run = (fn: () => void) => {
     fn()
@@ -161,6 +165,30 @@ export function TaskContextMenu({
       checked: sharedList === l.id,
       run: () => run(() => bulk.moveToList(taskIds, l.id)),
     }))
+  // セクション: 全部が同じリストの親タスクで、そのリストにセクションがあるときだけ
+  const sectionNone = t('taskDetail.sectionNone')
+  const sectionLeaves: Leaf[] =
+    sharedList && targets.every((x) => !x.parentId)
+      ? [...sections]
+          .filter((sec) => sec.listId === sharedList)
+          .sort((a, b) => a.order - b.order)
+          .map((sec): Leaf => ({
+            id: `section-${sec.id}`,
+            label: sec.name,
+            group: t('taskDetail.section'),
+            checked: sharedSection === sec.id,
+            run: () => run(() => bulk.moveToSection(taskIds, sec.id, sec.name)),
+          }))
+      : []
+  if (sectionLeaves.length > 0) {
+    sectionLeaves.unshift({
+      id: 'section-none',
+      label: sectionNone,
+      group: t('taskDetail.section'),
+      checked: sharedSection === null,
+      run: () => run(() => bulk.moveToSection(taskIds, null, sectionNone)),
+    })
+  }
   const actionLeaves: Leaf[] = [
     {
       id: 'complete',
@@ -169,7 +197,7 @@ export function TaskContextMenu({
       keys: shortcutLabel(['mod', '↵']),
       run: () => run(() => bulk.complete(taskIds)),
     },
-    ...(taskIds.length === 1
+    ...(taskIds.length === 1 && onOpenDetail
       ? [{
           id: 'open',
           label: t('taskMenu.open'),
@@ -188,17 +216,20 @@ export function TaskContextMenu({
       run: () => run(() => bulk.remove(taskIds)),
     },
   ]
-  const subLeaves: Record<SubId, Leaf[]> = { due: dueLeaves, priority: priorityLeaves, list: listLeaves }
+  const subLeaves: Record<SubId, Leaf[]> = { due: dueLeaves, priority: priorityLeaves, list: listLeaves, section: sectionLeaves }
 
   const mainItems: MainItem[] = [
     { kind: 'sub', id: 'due', label: t('common.due'), icon: <CalendarIcon className={ICON} /> },
     { kind: 'sub', id: 'priority', label: t('common.priority'), icon: <FlagIcon className={ICON} /> },
     { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} /> },
+    ...(sectionLeaves.length > 0
+      ? [{ kind: 'sub' as const, id: 'section' as const, label: t('taskMenu.moveToSection'), icon: <SectionIcon className={ICON} /> }]
+      : []),
     ...actionLeaves.map((leaf): MainItem => ({ kind: 'leaf', leaf })),
   ]
   const q = query.trim().toLowerCase()
   const results = q
-    ? [...actionLeaves, ...dueLeaves, ...priorityLeaves, ...listLeaves].filter((l) =>
+    ? [...actionLeaves, ...dueLeaves, ...priorityLeaves, ...listLeaves, ...sectionLeaves].filter((l) =>
         `${l.group ?? ''} ${l.label}`.toLowerCase().includes(q),
       )
     : []
@@ -358,7 +389,7 @@ export function TaskContextMenu({
           onMouseEnter={keepSub}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <div className={sub === 'list' ? 'max-h-72 overflow-y-auto' : ''}>
+          <div className={sub === 'list' || sub === 'section' ? 'max-h-72 overflow-y-auto' : ''}>
             {subLeaves[sub].map((leaf, j) => <LeafRow key={leaf.id} leaf={leaf} active={j === subActive} onHover={() => setSubActive(j)} />)}
           </div>
           {sub === 'due' && (
