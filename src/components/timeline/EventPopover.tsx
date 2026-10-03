@@ -49,7 +49,7 @@ export function EventPopover({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
+  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const ref = useRef<HTMLDivElement>(null)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
@@ -76,8 +76,9 @@ export function EventPopover({
   const sourceLink = sourceLinkOf(task.description)
   const memo = sourceLink ? '' : task.description.trim()
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
-  const logAsPlanned = () => {
-    logPlanAsPlanned(task.id)
+  // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに
+  const recordAndComplete = () => {
+    openRecordPrompt(task.id)
     onClose()
   }
 
@@ -156,25 +157,25 @@ export function EventPopover({
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+          {canLogAsPlanned && (
+            <button
+              type="button"
+              onClick={recordAndComplete}
+              className={buttonClass({ variant: 'primary', size: 'sm' })}
+            >
+              {t('eventCard.recordAndComplete')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
               toggleTask(task.id)
               onClose()
             }}
-            className={buttonClass({ variant: 'primary', size: 'sm' })}
+            className={buttonClass({ variant: canLogAsPlanned ? 'secondary' : 'primary', size: 'sm' })}
           >
-            {task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone')}
+            {task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone')}
           </button>
-          {canLogAsPlanned && (
-            <button
-              type="button"
-              onClick={logAsPlanned}
-              className={buttonClass({ variant: 'secondary', size: 'sm' })}
-            >
-              {t('eventCard.logAsPlanned')}
-            </button>
-          )}
           {!task.completed && !planEnded && (
             <button
               type="button"

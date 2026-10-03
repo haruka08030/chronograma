@@ -9,7 +9,7 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CheckIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CheckIcon, ClockIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -46,7 +46,7 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
+  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const isLog = isLogTask(task)
   const color = useTaskColor(task, !isLog)
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
@@ -80,17 +80,18 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
     ...(isLog
       ? []
       : ([
+          // 始まった予定は「記録して完了」を先に（予定どおり / ずれた時刻を選ぶ画面）。完了だけは記録を残さない
+          ...(canLogAsPlanned
+            ? [{ kind: 'leaf' as const, id: 'record-complete', divider: true, label: t('eventCard.recordAndComplete'), icon: <ClockIcon className={ICON} />, run: () => openRecordPrompt(task.id) }]
+            : []),
           {
             kind: 'leaf',
             id: 'toggle',
-            divider: true,
-            label: task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone'),
+            divider: !canLogAsPlanned,
+            label: task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone'),
             icon: <CheckIcon className={ICON} />,
             run: () => toggleTask(task.id),
           },
-          ...(canLogAsPlanned
-            ? [{ kind: 'leaf' as const, id: 'log-as-planned', label: t('eventCard.logAsPlanned'), icon: <CheckIcon className={ICON} />, run: () => logPlanAsPlanned(task.id) }]
-            : []),
           ...(!task.completed && !ended && activeTimer?.taskId !== task.id
             ? [{ kind: 'leaf' as const, id: 'start', label: t('eventCard.startLog'), icon: <PlayIcon className="h-3.5 w-3.5" />, run: () => void startTimerForTask(task.id) }]
             : []),
