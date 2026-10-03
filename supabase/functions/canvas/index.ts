@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
+import { isPrivateAddress, parseBaseUrl } from './host.ts'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
@@ -49,54 +50,28 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-/**
- * 学校の Canvas の URL（`xxx.instructure.com` やダッシュボードのリンク）から origin を取り出す。
- * サーバーから任意の宛先へトークンを送らないよう、https のドメイン名だけを受け付ける。
- */
-function parseBaseUrl(input: string): string | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-  let url: URL
-  try {
-    url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
-  } catch {
-    return null
-  }
-  const host = url.hostname.toLowerCase()
-  if (url.protocol !== 'https:' || url.port || !host.includes('.')) return null
-  if (/^[\d.]+$/.test(host) || host.startsWith('[') || host === 'localhost' || host.endsWith('.local')) return null
-  return `https://${host}`
-}
-
-/** IPv4 / IPv6 の内部・ループバック・リンクローカルのアドレスか */
-function isPrivateAddress(ip: string): boolean {
-  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])]
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224
-  }
-  const v6 = ip.toLowerCase()
-  if (v6.startsWith('::ffff:')) return isPrivateAddress(v6.slice(7))
-  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6)
-}
-
-const checkedHosts = new Map<string, boolean>()
+/** 確かめた結果を覚えておく時間。長く覚えると、確かめたあとで名前の向き先を内部へ変えられる */
+const HOST_CHECK_TTL_MS = 30_000
+const checkedHosts = new Map<string, { ok: boolean; at: number }>()
 
 /**
  * 名前が内部のアドレスを指していないか確かめる（ドメイン名で内部のサーバーへ届かせないため）。
+ * 送るたびに確かめ直し、結果は短い間だけ覚える。名前解決の API が無い環境では送らない。
  * 名前解決そのものに失敗したときは fetch に任せる（それも失敗して canvas_bad_url になる）
  */
 async function assertPublicHost(host: string): Promise<void> {
-  let ok = checkedHosts.get(host)
-  // 実行環境に名前解決の API が無ければ、ドメイン名の検査（parseBaseUrl）とリダイレクトの検査だけに頼る
-  if (ok === undefined && typeof Deno.resolveDns !== 'function') ok = true
+  if (typeof Deno.resolveDns !== 'function') {
+    console.error('[canvas] Deno.resolveDns is unavailable; refusing to call school sites')
+    throw new CanvasError('canvas_api', 'DNS lookup unavailable')
+  }
+  const hit = checkedHosts.get(host)
+  let ok = hit && Date.now() - hit.at < HOST_CHECK_TTL_MS ? hit.ok : undefined
   if (ok === undefined) {
     const lookups = await Promise.all(
       (['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])),
     )
     ok = !lookups.flat().some(isPrivateAddress)
-    checkedHosts.set(host, ok)
+    checkedHosts.set(host, { ok, at: Date.now() })
   }
   if (!ok) throw new CanvasError('canvas_bad_url', 'Private address')
 }

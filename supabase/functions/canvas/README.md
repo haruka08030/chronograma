@@ -15,6 +15,15 @@ supabase functions deploy canvas
 No secrets to set: each user pastes their school's Canvas URL and a personal access token (Account → Settings → New Access Token, max 90 days) in Settings → Canvas.
 Several schools can be connected; all their assignments go into one "Canvas" list, each tagged with its course code (`CSE-101`), and connecting turns on tags in To-Do so the course shows on every row. Course sections made by earlier versions are turned into these tags on the next sync. When a token expires, that school's sync fails with `canvas_unauthorized` and Settings shows a field under it to paste a new token (the URL is kept).
 
+## Which hosts it will call
+
+The token is sent only to the school's own origin, so the function refuses internal destinations (`host.ts`):
+
+- `parseBaseUrl` accepts only `https://` domain names: no IPs, ports, user info, or internal names (`localhost`, `.local`, `.internal`, single-label names…).
+- Before every request, `assertPublicHost` resolves the name (A / AAAA) and refuses loopback, private, link-local (cloud metadata), CGNAT, multicast and other reserved addresses, including IPv4 written inside IPv6 (`::ffff:`, NAT64, 6to4). Results are cached for 30 seconds only, so pointing the name at an internal address later doesn't slip through for long.
+- If the runtime has no `Deno.resolveDns`, no school site is called (`canvas_api`, logged as `Deno.resolveDns is unavailable`).
+- Redirects are not followed automatically; a feed follows at most 3 hops, each checked the same way.
+
 ## Calendar feed (schools that don't allow tokens)
 
 Some schools (e.g. UC Santa Cruz) disable personal access tokens. Those users paste the Calendar Feed URL instead
