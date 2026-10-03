@@ -57,7 +57,6 @@ function ColorPicker({
       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
       <ColorSwatches
         ariaLabel={t('habits.color')}
-        className="max-w-sm"
         selectedHex={CALENDAR_COLORS[colorIndex]?.hex ?? null}
         onChoose={(hex) => onPick(CALENDAR_COLORS.findIndex((c) => c.hex === hex))}
       />

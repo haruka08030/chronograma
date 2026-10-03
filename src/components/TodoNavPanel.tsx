@@ -227,7 +227,6 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
       <ColorSwatches
         ariaLabel={t('sidebar.listColorDialog')}
         columns={6}
-        className="w-44"
         selectedHex={current}
         onChoose={(hex) => { onChange(hex); onClose() }}
       />
