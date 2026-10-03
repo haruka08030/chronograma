@@ -31,6 +31,7 @@ import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { TaskContextMenu } from './TaskContextMenu'
+import { MenuDivider, MenuItem } from './ui/Menu'
 import { QuickAdd } from './QuickAdd'
 import type { Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
@@ -40,7 +41,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { CheckCircleIcon, CheckIcon, CloseIcon, PencilIcon, SortIcon } from './icons'
+import { CheckCircleIcon, CloseIcon, PencilIcon, SortIcon } from './icons'
 import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
 
@@ -1163,32 +1164,25 @@ export function TaskList() {
             {showSort && (
               <>
                 {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
-                <div role="menu" className={`absolute right-0 top-full z-20 mt-1 flex min-w-40 flex-col py-1 ${POPOVER_PANEL}`}>
-                  {sortOptions.map((opt) => {
-                    const selected = sortMode === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={selected}
-                        onClick={() => { setSortMode(opt.value); setShowSort(false) }}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700
-                          ${selected ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-300'}`}
-                      >
-                        <CheckIcon className={`h-4 w-4 shrink-0 ${selected ? 'text-accent-600 dark:text-accent-400' : 'invisible'}`} />
-                        {opt.label}
-                      </button>
-                    )
-                  })}
+                <div role="menu" className={`absolute right-0 top-full z-20 mt-1 flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}>
+                  {sortOptions.map((opt) => (
+                    <MenuItem
+                      key={opt.value}
+                      role="menuitemradio"
+                      checked={sortMode === opt.value}
+                      onClick={() => { setSortMode(opt.value); setShowSort(false) }}
+                    >
+                      {opt.label}
+                    </MenuItem>
+                  ))}
                   {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
                   {sortMode !== 'manual' && (
                     <>
-                      <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
+                      <MenuDivider />
                       {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
-                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
                         <span
-                          className="cursor-pointer select-none text-sm text-zinc-600 dark:text-zinc-300"
+                          className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200"
                           onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
                         >
                           {t('taskList.groupBySection')}

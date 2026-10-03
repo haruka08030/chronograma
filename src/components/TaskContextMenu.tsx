@@ -13,6 +13,7 @@ import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { POPOVER_PANEL } from './ui/surface'
 import { DatePickerBody } from './DatePickerBody'
+import { MenuDivider, MenuItem, MenuLabel } from './ui/Menu'
 import {
   ArchiveIcon,
   ArrowRightIcon,
@@ -54,25 +55,12 @@ type Leaf = {
 
 type MainItem = { kind: 'sub'; id: SubId; label: string; icon: ReactNode } | { kind: 'leaf'; leaf: Leaf }
 
-const row = (isActive: boolean, danger = false) =>
-  `flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-    isActive ? 'bg-zinc-100 dark:bg-zinc-700' : ''
-  } ${danger ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'}`
-
 function LeafRow({ leaf, active, onHover, withGroup = false }: { leaf: Leaf; active: boolean; onHover: () => void; withGroup?: boolean }) {
   return (
-    <button type="button" role="menuitem" className={row(active, leaf.danger)} onMouseEnter={onHover} onClick={leaf.run}>
-      <span className={`flex w-4 justify-center ${leaf.danger ? '' : 'text-zinc-500 dark:text-zinc-400'}`}>{leaf.icon}</span>
-      <span className="min-w-0 flex-1 truncate">
-        {withGroup && leaf.group && <span className="text-zinc-400 dark:text-zinc-500">{leaf.group} › </span>}
-        {leaf.label}
-      </span>
-      {leaf.hint && <span className="flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">{leaf.hint}</span>}
-      {leaf.keys && (
-        <span className="hidden flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500 [@media(hover:hover)]:inline">{leaf.keys}</span>
-      )}
-      {leaf.checked && <CheckIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-500 dark:text-zinc-300" strokeWidth={2.5} />}
-    </button>
+    <MenuItem icon={leaf.icon} hint={leaf.hint} keys={leaf.keys} checked={leaf.checked} danger={leaf.danger} active={active} onMouseEnter={onHover} onClick={leaf.run}>
+      {withGroup && leaf.group && <span className="text-zinc-400 dark:text-zinc-500">{leaf.group} › </span>}
+      {leaf.label}
+    </MenuItem>
   )
 }
 
@@ -324,9 +312,9 @@ export function TaskContextMenu({
             className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-zinc-800 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
         </div>
-        <div className="px-2 pb-0.5 pt-1.5 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+        <MenuLabel>
           {taskIds.length > 1 ? t('taskMenu.count', { count: taskIds.length }) : (targets[0]?.title || t('taskMenu.one'))}
-        </div>
+        </MenuLabel>
         {q ? (
           results.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
@@ -338,24 +326,22 @@ export function TaskContextMenu({
         ) : (
           mainItems.map((item, i) =>
             item.kind === 'sub' ? (
-              <button
+              <MenuItem
                 key={item.id}
                 data-sub={item.id}
-                type="button"
-                role="menuitem"
                 aria-haspopup="menu"
                 aria-expanded={sub === item.id}
-                className={row(i === activeIndex || sub === item.id)}
+                icon={item.icon}
+                active={i === activeIndex || sub === item.id}
+                trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
                 onMouseEnter={() => hoverSub(i, item.id)}
                 onClick={() => openSub(item.id, false)}
               >
-                <span className="flex w-4 justify-center text-zinc-500 dark:text-zinc-400">{item.icon}</span>
-                <span className="flex-1">{item.label}</span>
-                <ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />
-              </button>
+                {item.label}
+              </MenuItem>
             ) : (
               <div key={item.leaf.id}>
-                {item.leaf.id === 'complete' && <div className="mx-1 my-1 border-t border-zinc-100 dark:border-zinc-700" />}
+                {item.leaf.id === 'complete' && <MenuDivider />}
                 <LeafRow leaf={item.leaf} active={i === activeIndex} onHover={() => hoverLeaf(i)} />
               </div>
             ),
