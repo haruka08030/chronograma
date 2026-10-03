@@ -10,6 +10,8 @@ import {
   SYNC_INBOX_LIST_ID,
   syncedSnapshot,
   withoutDuplicateDefaults,
+  withServerStamps,
+  adoptServerStamps,
   type SyncSnapshot,
 } from './syncMerge'
 import { TASK_DEFAULTS } from './taskDefaults'
@@ -477,5 +479,101 @@ describe('syncedSnapshot（拒否された行を控えに入れない）', () =>
   it('returns the pushed snapshot as is when nothing was rejected', () => {
     const local = snapshot({ tasks: [task('a')] })
     expect(syncedSnapshot(local, snapshot(), [])).toBe(local)
+  })
+})
+
+describe('サーバーの時刻を基準にする（#77）', () => {
+  // サーバーが付けた時刻（Postgres の書き方）
+  const S1 = '2026-09-02T00:00:00.000001+00:00'
+
+  it('時計が遅れた端末でも、他の端末で消された後に編集したタスクは残す（時刻でなく中身で見る）', () => {
+    const base = snapshot({ tasks: [task('t1', { updatedAt: S1 })] })
+    const baseline = baselineFrom(base)
+    // 時計が 1 日遅れているので、編集の時刻が前回同期より前に見える
+    const local = snapshot({ tasks: [task('t1', { title: 'edited', updatedAt: T0 })] })
+    const { merged, deletes } = mergeSnapshots(local, snapshot(), baseline)
+    expect(merged.tasks.map((t) => t.title)).toEqual(['edited'])
+    expect(deletes.tasks).toEqual([])
+  })
+
+  it('時計が進んだ端末でも、変えていないタスクは他の端末の削除に従う', () => {
+    const base = snapshot({ tasks: [task('t1', { updatedAt: S1 })] })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1', { updatedAt: '2099-01-01T00:00:00.000Z' })] })
+    expect(mergeSnapshots(local, snapshot(), baseline).merged.tasks).toEqual([])
+  })
+
+  it('この端末で消したタスクは、他の端末が時刻だけ変えていても消す', () => {
+    const base = snapshot({ tasks: [task('t1', { updatedAt: T0 })] })
+    const baseline = baselineFrom(base)
+    const remote = snapshot({ tasks: [task('t1', { updatedAt: S1 })] })
+    expect(mergeSnapshots(snapshot(), remote, baseline).deletes.tasks).toEqual(['t1'])
+  })
+
+  it('控えの後に増えた項目に値が入っていれば、変えたものとみなす', () => {
+    const base = snapshot({ habits: [habit('h1', { updatedAt: S1 })] })
+    const baseline = baselineFrom(base)
+    // 控えの habits には archivedAt が無かった（前の版）
+    const { archivedAt: _a, ...plain } = habit('h1')
+    void _a
+    const b2: typeof baseline = { ...baseline, fields: { ...baseline.fields, habits: baselineFrom(snapshot({ habits: [plain as Habit] })).fields!.habits } }
+    const remote = snapshot({ habits: [habit('h1', { archivedAt: T2, updatedAt: S1 })] })
+    const { merged, deletes } = mergeSnapshots(snapshot(), remote, b2)
+    expect(merged.habits.map((h) => h.id)).toEqual(['h1'])
+    expect(deletes.habits).toEqual([])
+  })
+
+  it('同じ項目を両方で変えたら、手元の時刻をサーバーの時計に直して比べる', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', updatedAt: S1 })] })
+    // この端末の時計はサーバーより 2 日進んでいる
+    const baseline = { ...baselineFrom(base), clockOffsetMs: -2 * 86_400_000 }
+    const local = snapshot({ tasks: [task('t1', { title: 'こちら', updatedAt: '2026-09-04T00:00:00.000Z' })] })
+    const remote = snapshot({ tasks: [task('t1', { title: 'あちら', updatedAt: '2026-09-02T12:00:00.000000+00:00' })] })
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]!.title).toBe('あちら')
+    // ずれを直さなければ、時計の進んだこちらが勝っていた
+    expect(mergeSnapshots(local, remote, { ...baseline, clockOffsetMs: 0 }).merged.tasks[0]!.title).toBe('こちら')
+  })
+
+  it('手元で変えていなければサーバーの行をそのまま使う（時刻もサーバーの値）', () => {
+    const base = snapshot({ tasks: [task('t1', { updatedAt: S1 })] })
+    const baseline = baselineFrom(base)
+    const r = task('t1', { completed: true, updatedAt: '2026-09-03T00:00:00.5+00:00' })
+    // 手元は時刻だけ新しい（時計が進んだ端末）
+    const local = snapshot({ tasks: [task('t1', { updatedAt: '2099-01-01T00:00:00.000Z' })] })
+    expect(mergeSnapshots(local, snapshot({ tasks: [r] }), baseline).merged.tasks[0]).toMatchObject({ completed: true, updatedAt: r.updatedAt })
+  })
+
+  it('withServerStamps: 届いた行にサーバーの時刻を入れる', () => {
+    const pushed = snapshot({ tasks: [task('a', { updatedAt: T1 }), task('b', { updatedAt: T1 })] })
+    const stamped = withServerStamps(pushed, [{ table: 'tasks', id: 'a', updatedAt: S1 }])
+    expect(stamped.tasks.map((t) => t.updatedAt)).toEqual([S1, T1])
+    expect(stamped.lists).toBe(pushed.lists)
+    expect(withServerStamps(pushed, [])).toBe(pushed)
+  })
+
+  it('adoptServerStamps: 送っている間に編集した行は手元のまま', () => {
+    const a = task('a', { updatedAt: T1 })
+    const b = task('b', { updatedAt: T1 })
+    const pushed = snapshot({ tasks: [a, b] })
+    const stamped = withServerStamps(pushed, [
+      { table: 'tasks', id: 'a', updatedAt: S1 },
+      { table: 'tasks', id: 'b', updatedAt: S1 },
+    ])
+    const bEdited = { ...b, title: 'typing', updatedAt: T2 }
+    const current = snapshot({ tasks: [a, bEdited, task('c')] })
+    const next = adoptServerStamps(current, pushed, stamped)
+    expect(next.tasks.map((t) => [t.id, t.updatedAt])).toEqual([['a', S1], ['b', T2], ['c', T0]])
+    expect(next.tasks[1]).toBe(bEdited)
+    expect(next.lists).toBe(current.lists)
+  })
+
+  it('断られた行（取得の後に他の端末が変えた）は、控えを取得した版にして次の同期で項目ごとに合わせる', () => {
+    const before = task('t1', { title: '課題', completed: false, updatedAt: S1 })
+    const local = snapshot({ tasks: [{ ...before, title: '課題（改）', updatedAt: T2 }] })
+    const fetched = snapshot({ tasks: [before] })
+    const synced = syncedSnapshot(local, fetched, [{ table: 'tasks', id: 't1', op: 'upsert' }])
+    // 次に取得すると、ほかの端末が完了にしていた
+    const next = mergeSnapshots(local, snapshot({ tasks: [{ ...before, completed: true, updatedAt: '2026-09-03T00:00:00.000001+00:00' }] }), baselineFrom(synced))
+    expect(next.merged.tasks[0]).toMatchObject({ title: '課題（改）', completed: true })
   })
 })

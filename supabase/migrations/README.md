@@ -1,12 +1,13 @@
 # Supabase migrations（Chronograma）
 
-スキーマは `001` から番号順に積み重ねる（いまは `001` の 1 本）。新しいプロジェクトは **SQL Editor で番号順に全部実行**すれば最新の形になる（Postgres 15 以上。Supabase は 15 以上）。各ファイルは何度流しても同じ形になる。本番（リンク済みのプロジェクト）へは Supabase CLI で流す: `supabase db query --linked -f supabase/migrations/<ファイル>`。
+スキーマは `001` から番号順に積み重ねる。新しいプロジェクトは **SQL Editor で番号順に全部実行**すれば最新の形になる（Postgres 15 以上。Supabase は 15 以上）。各ファイルは何度流しても同じ形になる。本番（リンク済みのプロジェクト）へは Supabase CLI で流す: `supabase db query --linked -f supabase/migrations/<ファイル>`。
 
 | ファイル | 内容 |
 |----------|------|
 | [`001_chronograma_schema.sql`](001_chronograma_schema.sql) | スキーマ一式（全テーブル・インデックス・大きさの上限・古い書き込みを捨てるトリガー・`hit_rate_limit`・RLS）。前の版の残り（サーバー専用の表のブラウザ向けポリシー・重なった索引）を消す処理も含む |
 | [`002_extra_time_zones.sql`](002_extra_time_zones.sql) | 時間バーに並べる他のタイムゾーンと付けた名前 `user_extra_time_zones`（利用者ごとに 1 行、RLS は本人だけ） |
 | [`003_habit_archived_at.sql`](003_habit_archived_at.sql) | 習慣のアーカイブ `habits.archived_at`（null は使用中） |
+| [`004_sync_server_time.sql`](004_sync_server_time.sql) | `lists` / `list_sections` / `tasks` / `habits` の書き込みをトリガー `sync_write_guard` で確かめる（001 の `skip_stale_write` をこの 4 つの表で置き換える）。`base_updated_at`（端末がもとにした版。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
 
 テーブル（最新の形）:
 
