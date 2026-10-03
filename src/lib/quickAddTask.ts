@@ -123,6 +123,21 @@ export function quickAddSchedule(
   return patch
 }
 
+/** 続けて足したときに、前に足した行のすぐ下へ入れるための記録（足した順に並ぶ。先頭に積むと逆順になる） */
+let lastQuickAdd: { id: string; at: number } | null = null
+const QUICK_ADD_BURST_MS = 2 * 60 * 1000
+
+/** 直前（2 分以内）に同じ所へ足した行があれば、そのすぐ下の order。無ければ null（ふつうどおり先頭） */
+function orderAfterLastQuickAdd(tasks: readonly Task[], added: Task, now: number): number | null {
+  if (!lastQuickAdd || now - lastQuickAdd.at > QUICK_ADD_BURST_MS) return null
+  const prev = tasks.find((t) => t.id === lastQuickAdd!.id)
+  if (!prev || prev.listId !== added.listId || prev.parentId !== added.parentId || prev.sectionId !== added.sectionId) return null
+  const next = tasks
+    .filter((t) => t.id !== added.id && t.listId === prev.listId && t.parentId === prev.parentId && t.sectionId === prev.sectionId && t.order > prev.order)
+    .reduce<number | null>((min, t) => (min === null || t.order < min ? t.order : min), null)
+  return next === null ? prev.order + 1 : (prev.order + next) / 2
+}
+
 /**
  * クイック追加の 1 行（「15時 ES 1時間」「明日まで 課題」「@買い物 牛乳」）からタスクを作る。
  * どの入力欄（上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスク）でも
@@ -148,6 +163,14 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     // サブタスクのリストは addTask が親のリストにそろえる
     id = state.addTask(parsed.title, listId, opts.parentId)
     if (!id) return
+    // 続けて足したものは足した順に（前に足した行のすぐ下）
+    const now = Date.now()
+    const added = useTaskStore.getState().tasks.find((t) => t.id === id)
+    const order = added ? orderAfterLastQuickAdd(useTaskStore.getState().tasks, added, now) : null
+    if (order !== null) {
+      useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, order } : t)) }))
+    }
+    lastQuickAdd = { id, at: now }
     // 入ったリスト（省略時は addTask が選ぶ）の種類で日付を付けるか決める
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId

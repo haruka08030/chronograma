@@ -38,6 +38,8 @@ export function useTaskListSelection({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const selectedRef = useRef(selected)
   const lastAnchorRef = useRef<string | null>(null)
+  /** Shift+↑↓ の起点。Shift なしで動かしたら外す */
+  const shiftAnchorRef = useRef<string | null>(null)
   /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [cursorVisible, setCursorVisible] = useState(false)
@@ -73,6 +75,7 @@ export function useTaskListSelection({
 
   const makeRowClick = useCallback(
     (id: string) => (e: MouseEvent) => {
+      goneCursorRef.current = null
       setCursorId(id)
       setCursorVisible(false)
       if (e.shiftKey && lastAnchorRef.current !== null) {
@@ -136,13 +139,22 @@ export function useTaskListSelection({
 
   // 完了・削除などで枠の行が一覧から消えたら、同じ位置の行（末尾なら前の行）へ移す
   const cursorIndexRef = useRef(-1)
+  /** 枠のあった行が消えたとき、その行。取り消しで戻ってきたら枠を戻す（次の Delete が別の行に効かないように） */
+  const goneCursorRef = useRef<string | null>(null)
   useEffect(() => {
+    const gone = goneCursorRef.current
+    if (gone && rowIds.includes(gone)) {
+      goneCursorRef.current = null
+      queueMicrotask(() => setCursorId(gone))
+      return
+    }
     if (!cursorId) return
     const i = rowIds.indexOf(cursorId)
     if (i >= 0) {
       cursorIndexRef.current = i
       return
     }
+    goneCursorRef.current = cursorId
     const fallback = rowIds[Math.min(cursorIndexRef.current, rowIds.length - 1)] ?? null
     queueMicrotask(() => setCursorId(fallback))
   }, [cursorId, rowIds])
@@ -158,9 +170,18 @@ export function useTaskListSelection({
     const down = e.key === 'ArrowDown'
     const i = cursor ? rowIds.indexOf(cursor) : -1
     const next = i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
+    goneCursorRef.current = null
     if (e.shiftKey) {
-      setSelected((prev) => new Set([...prev, ...(cursor ? [cursor] : []), next]))
-      lastAnchorRef.current = next
+      // 起点（最初に Shift を押した行）から枠までを選ぶ。戻れば選択も縮む（OS・Gmail と同じ）
+      const anchor = shiftAnchorRef.current ?? cursor ?? next
+      shiftAnchorRef.current = anchor
+      const a = rowIds.indexOf(anchor)
+      const b = rowIds.indexOf(next)
+      const [lo, hi] = a <= b ? [a, b] : [b, a]
+      setSelected(new Set(rowIds.slice(lo, hi + 1)))
+      lastAnchorRef.current = anchor
+    } else {
+      shiftAnchorRef.current = null
     }
     setCursorId(next)
     setCursorVisible(true)

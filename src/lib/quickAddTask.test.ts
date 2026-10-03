@@ -27,6 +27,9 @@ const store = vi.hoisted(() => {
         title,
         listId: parent?.listId ?? listId ?? s.selectedListId ?? '__inbox__',
         parentId: parentId ?? null,
+        sectionId: null,
+        // 本物と同じく先頭に積む
+        order: Math.min(0, ...s.tasks.map((t) => t.order)) - 1,
         scheduledDate: null,
         dueDate: null,
         startTime: null,
@@ -42,7 +45,12 @@ const store = vi.hoisted(() => {
   return s
 })
 
-vi.mock('../store/taskStore', () => ({ useTaskStore: { getState: () => store } }))
+vi.mock('../store/taskStore', () => ({
+  useTaskStore: {
+    getState: () => store,
+    setState: (fn: (s: typeof store) => Partial<typeof store>) => Object.assign(store, fn(store)),
+  },
+}))
 vi.mock('../i18n/config', () => ({
   default: { t: (k: string, o?: { date?: string }) => (o?.date ? `${k}:${o.date}` : k), resolvedLanguage: 'ja', getFixedT: () => () => 'M/d' },
 }))
@@ -347,5 +355,13 @@ describe('繰り返し（最初の回の日が締切）', () => {
     const t = added(addTaskFromQuickText('毎週 牛乳 @買い物'))
     expect(t).toMatchObject({ listId: 'shop', dueDate: null })
     expect(t.recurrence).toBeUndefined()
+  })
+})
+
+describe('続けて足す', () => {
+  it('続けて足したものは足した順に並ぶ（先頭に積んで逆順にならない）', () => {
+    for (const title of ['A', 'B', 'C']) addTaskFromQuickText(title)
+    const order = [...store.tasks].sort((a, b) => a.order - b.order).map((t) => t.title)
+    expect(order).toEqual(['A', 'B', 'C'])
   })
 })
