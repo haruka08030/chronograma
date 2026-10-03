@@ -3,10 +3,10 @@
  */
 import type { TaskList } from '../types/list'
 import i18n from '../i18n/config'
-import { newId } from '../lib/id'
 import { CATEGORY_COLOR_KEYS } from '../lib/logCategoryColors'
 import { INBOX_COLOR, INBOX_ID } from './storeConstants'
 import { inferCategoryTags, type CategoryInferenceState } from './taskHelpers'
+import { DEFAULT_LIST_IDS } from '../lib/syncMerge'
 
 export const defaultInbox: TaskList = {
   id: INBOX_ID,
@@ -43,7 +43,8 @@ export function withInferredCategory(
 export function initialLists(): TaskList[] {
   return [
     defaultInbox,
-    { id: newId(), name: i18n.t('lists.defaultSomeday'), color: '#F6BF26', order: 1, kind: 'someday' },
-    { id: newId(), name: i18n.t('lists.defaultShopping'), color: '#33B679', order: 2, kind: 'checklist' },
+    // id は決まったもの（どの端末・言語で作っても同じ。同期で 2 つにならない）。名前だけ言語に合わせる
+    { id: DEFAULT_LIST_IDS.someday, name: i18n.t('lists.defaultSomeday'), color: '#F6BF26', order: 1, kind: 'someday' },
+    { id: DEFAULT_LIST_IDS.checklist, name: i18n.t('lists.defaultShopping'), color: '#33B679', order: 2, kind: 'checklist' },
   ]
 }

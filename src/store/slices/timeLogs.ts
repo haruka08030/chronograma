@@ -97,7 +97,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         // 1 分未満は記録に残らない（stopTimer と同じ判定）ので「保存して」とは言わない
         const saved = timerRecordTimes(previous.startedAt, new Date().toISOString()) !== null
         get().stopTimer()
-        get().showMoveBanner(i18n.t(saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', { title: previous.taskTitle }))
+        get().showMoveBanner({ key: saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', params: { title: previous.taskTitle } })
       }
       set({
         activeTimer: {

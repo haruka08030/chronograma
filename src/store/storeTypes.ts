@@ -9,6 +9,12 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 
+/**
+ * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
+ * 画面で訳した文字列をそのまま渡すこともできる
+ */
+export type ToastText = string | { key: string; params?: Record<string, string | number> }
+
 export type CalendarMode = 'month' | 'week'
 
 export type SmartView =
@@ -287,12 +293,12 @@ export interface TaskState {
     >,
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
-  rescheduleTasks: (ids: string[], dateKey: string, label?: string) => void
+  rescheduleTasks: (ids: string[], dateKey: string, label?: ToastText) => void
   /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
-    label?: string,
+    label?: ToastText,
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
   completeTasks: (ids: string[]) => void
@@ -338,8 +344,8 @@ export interface TaskState {
     listId: string,
   ) => { moved: boolean; listName?: string; listId?: string; count?: number }
 
-  moveBannerText: string | null
-  showMoveBanner: (text: string) => void
+  moveBannerText: ToastText | null
+  showMoveBanner: (text: ToastText) => void
   clearMoveBanner: () => void
 
   /**
@@ -347,7 +353,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: string; at: number } | null
+  undoBanner: { text: ToastText; at: number } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null

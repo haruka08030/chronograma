@@ -387,6 +387,18 @@ describe('withoutDuplicateDefaults（ログインせずに使っていた端末�
     expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'local'])
   })
 
+  it('日本語と英語の端末でも、初期リストを二重にしない', () => {
+    const local: SyncSnapshot = { lists: [inbox, { ...someday('local'), name: 'Someday' }], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID])
+  })
+
+  it('同じ種類でも、自分で名前を付けた空のリストは残す', () => {
+    const local: SyncSnapshot = { lists: [inbox, { ...someday('local'), name: '行きたい場所' }], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'local'])
+  })
+
   it('自分で作ったふつうのリストは空でも残す', () => {
     const mine: TaskList = { id: 'mine', name: 'ゼミ', color: '#000', order: 3 }
     const local: SyncSnapshot = { lists: [inbox, mine], sections: [], tasks: [], habits: [] }

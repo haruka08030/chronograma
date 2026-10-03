@@ -3,6 +3,8 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
+import jaLocale from '../locales/ja'
+import enLocale from '../locales/en'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
 
@@ -186,17 +188,28 @@ export function mergeWithoutBaseline(local: SyncSnapshot, remote: SyncSnapshot):
   return mergeSnapshots(local, remote, empty).merged
 }
 
+/** 最初から作る「いつか」「買い物」の id。どの端末・どの言語で作っても同じ id にして、同期で 2 つにならないように */
+export const DEFAULT_LIST_IDS = { someday: 'default-someday', checklist: 'default-shopping' } as const
+
+/**
+ * 前の版の初期リストの名前（どの言語で作られたか分からないので、全部の言語の名前）。
+ * 前の版は初期リストを言語ごとの名前・ばらばらの id で作っていた
+ */
+const LEGACY_DEFAULT_NAMES = new Set<string>([jaLocale.lists.defaultSomeday, jaLocale.lists.defaultShopping, enLocale.lists.defaultSomeday, enLocale.lists.defaultShopping])
+
 /**
  * ログインせずに使っていた端末の初回同期で、最初から作られる「いつか」「買い物」が
- * アカウントにもあると 2 つずつになっていた。中身の無い初期リストで、アカウントに同じ種類・名前の
- * リストがあれば、手元のほうを外す
+ * アカウントにもあると 2 つずつになっていた。中身の無い初期リストで、アカウントに同じ種類のリストがあれば、手元のほうを外す。
+ * 初期リストかどうかは id（今の版）か、どれかの言語の初期の名前（前の版）で見分ける（日本語と英語の端末でも二重にしない）
  */
 export function withoutDuplicateDefaults(local: SyncSnapshot, remote: SyncSnapshot): SyncSnapshot {
   const used = new Set([...local.tasks.map((t) => t.listId), ...local.sections.map((s) => s.listId)])
   const lists = local.lists.filter((l) => {
     if (l.id === SYNC_INBOX_LIST_ID || used.has(l.id)) return true
     if (l.kind !== 'someday' && l.kind !== 'checklist') return true
-    return !remote.lists.some((r) => r.id !== l.id && r.kind === l.kind && r.name === l.name)
+    const isDefault = (Object.values(DEFAULT_LIST_IDS) as string[]).includes(l.id) || LEGACY_DEFAULT_NAMES.has(l.name)
+    if (!isDefault) return true
+    return !remote.lists.some((r) => r.id !== l.id && r.kind === l.kind)
   })
   return lists.length === local.lists.length ? local : { ...local, lists }
 }

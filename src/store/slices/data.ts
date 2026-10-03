@@ -1,6 +1,5 @@
 /** バックアップ・取り込み・同期の状態・ログアウト時の初期化 */
 import type { Task } from '../../types/task'
-import i18n from '../../i18n/config'
 import { newId } from '../../lib/id'
 import { assignColorsInOrder } from '../../lib/logCategoryColors'
 import { buildBackupPayload, parseBackupJson, withFreshStamps } from '../../lib/backupFormat'
@@ -84,7 +83,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         new Date().toISOString(),
       )
       if (addedTasks === 0 && next.lists.length === s.lists.length && next.habits.length === s.habits.length) return 0
-      pushUndo(i18n.t('undo.restoredFromBackup', { count: addedTasks }))
+      pushUndo({ key: 'undo.restoredFromBackup', params: { count: addedTasks } })
       set(next)
       return addedTasks
     },
@@ -122,7 +121,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         taskCount: before.tasks.length,
       })
       // 取り込みは全置換なので、戻せることを画面に出す
-      pushUndo(i18n.t('undo.imported', { count: parsed.tasks.length }))
+      pushUndo({ key: 'undo.imported', params: { count: parsed.tasks.length } })
       set({
         tasks: parsed.tasks,
         lists: parsed.lists,
@@ -204,7 +203,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         }
       })
       // 結果は「元に戻す」付きの通知で知らせる（JSON の取り込みと同じ）
-      pushUndo(i18n.t('alert.csvImported', { count: newTasks.length, skipped }))
+      pushUndo({ key: 'alert.csvImported', params: { count: newTasks.length, skipped } })
       set((st) => ({ tasks: [...st.tasks, ...newTasks] }))
       return { imported: newTasks.length, skipped, errors: [] }
     },

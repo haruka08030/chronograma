@@ -6,7 +6,6 @@ import { reanchorTasks } from '../../lib/taskTimeZone'
 import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
-import i18n from '../../i18n/config'
 
 type SettingsActions = Pick<
   TaskState,
@@ -73,9 +72,9 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       const removed = get().timeLogTagPresets.filter((n) => !nextNames.has(n))
       pushUndo(
         removed.length === 1
-          ? i18n.t('undo.labelDeleted', { name: removed[0] })
+          ? { key: 'undo.labelDeleted', params: { name: removed[0] } }
           : removed.length > 1
-            ? i18n.t('undo.labelsDeleted', { count: removed.length })
+            ? { key: 'undo.labelsDeleted', params: { count: removed.length } }
             : undefined,
       )
       const now = new Date().toISOString()

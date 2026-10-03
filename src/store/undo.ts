@@ -6,7 +6,7 @@
  * - 古い `updatedAt` のまま戻すと、次の同期でサーバー側が勝って取り消しが黙って元に戻る
  * - 戻すのはデータだけ。記録中のタイマーと見ている画面（絞り込み・日付など）は ⌘Z で変えない
  */
-import type { TaskState } from './storeTypes'
+import type { TaskState, ToastText } from './storeTypes'
 import type { StoreGet, StoreSet } from './slices/sliceTypes'
 
 const MAX_UNDO = 50
@@ -36,7 +36,7 @@ export interface UndoHistory {
    * 削除は `recentDeletes` 由来のトーストが出るので渡さない
    * （二重に出さないため）。
    */
-  pushUndo: (label?: string) => void
+  pushUndo: (label?: ToastText) => void
   /**
    * Enter で増やした空の行がまだ名前を持たないまま、取り消し履歴の一番上が
    * 「その行を作る直前」の控えになっているか。名前付けと作成を 1 手として扱うのに使う
@@ -146,7 +146,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
   /** `asOneUndo` の中では最初の 1 回だけ積む（複数の操作を 1 回の取り消しで戻す） */
   let undoGroupDepth = 0
   let undoGroupPushed = false
-  const pushUndo = (label?: string) => {
+  const pushUndo = (label?: ToastText) => {
     if (undoGroupDepth > 0) {
       if (undoGroupPushed) return
       undoGroupPushed = true

@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { undoGoogleDelete } from '../lib/googleEventEdit'
 import { UNDO_WINDOW_MS, toastTitle } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
+import { toastText } from '../lib/toastText'
 import { INVERSE_SURFACE } from './ui/surface'
 
 const MOBILE_FLOAT_BOTTOM =
@@ -66,7 +67,7 @@ export function UndoToast() {
   }
 
   const message =
-    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner?.text ?? '')
+    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner ? toastText(t, undoBanner.text) : '')
 
   // タイマー表示中は一段上へずらして重なりを避ける
   const stacked = activeTimer

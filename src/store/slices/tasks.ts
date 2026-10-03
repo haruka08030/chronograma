@@ -1,6 +1,5 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
 import type { Task } from '../../types/task'
-import i18n from '../../i18n/config'
 import { INBOX_ID } from '../storeConstants'
 import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
@@ -155,7 +154,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const s0 = get()
       const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
       if (targets.length === 0) return
-      pushUndo(targets.length > 1 ? i18n.t('undo.tasksCompleted', { count: targets.length }) : undefined)
+      pushUndo(targets.length > 1 ? { key: 'undo.tasksCompleted', params: { count: targets.length } } : undefined)
       const nowIso = new Date().toISOString()
       set((s) => ({
         // 親と子を一緒に選んだチェックリストは、親で子も済みになる。済みになったものは切り替え直さない
@@ -303,7 +302,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const target = expandDescendantIds(ids, s0.tasks)
       const toArchive = s0.tasks.filter((t) => target.has(t.id) && !t.archivedAt && !t.deletedAt)
       if (toArchive.length === 0) return
-      pushUndo(i18n.t('undo.tasksArchived', { count: toArchive.length }))
+      pushUndo({ key: 'undo.tasksArchived', params: { count: toArchive.length } })
       const nowIso = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) =>

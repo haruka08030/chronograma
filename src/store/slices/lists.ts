@@ -1,5 +1,4 @@
 /** リスト */
-import i18n from '../../i18n/config'
 import { newId } from '../../lib/id'
 import { paletteColors } from '../../lib/listColorPalettes'
 import { INBOX_ID } from '../storeConstants'
@@ -48,7 +47,7 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
     deleteList: (id) => {
       if (id === INBOX_ID) return
       const name = get().lists.find((l) => l.id === id)?.name ?? ''
-      pushUndo(i18n.t('undo.listDeleted', { name }))
+      pushUndo({ key: 'undo.listDeleted', params: { name } })
       const now = new Date().toISOString()
       set((s) => ({
         lists: s.lists.filter((l) => l.id !== id),
