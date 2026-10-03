@@ -1,0 +1,41 @@
+import { useTranslation } from 'react-i18next'
+import { useTaskStore } from '../store/taskStore'
+import type { Task } from '../types/task'
+import { NEUTRAL_HEX } from '../lib/googleColors'
+import { colorKeyForHex, labelForHex, recordHex } from '../lib/logCategoryColors'
+
+/**
+ * 予定・記録の色を選ぶ（予定カードの色ラベルと右クリックメニューで共通）。
+ * - 記録: 色＝ラベル。名前の付いた色を選ぶとその分類に、名前の無い色は色だけ付く。既定（null）は「分類なし」
+ * - 予定（`planDefaultHex` あり）: 色だけ付ける。既定（null）はリストの色
+ */
+export function useTaskColor(task: Task, planDefaultHex?: string) {
+  const { t } = useTranslation()
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  const updateTask = useTaskStore((s) => s.updateTask)
+  const isPlan = planDefaultHex !== undefined
+  const current = isPlan
+    ? task.color?.toUpperCase() ?? null
+    : task.tags[0] || task.color ? recordHex(task, colors).toUpperCase() : null
+  // 予定は色だけ持つが、その色にラベル（分類名）が付いていれば色名ではなくラベル名で出す
+  const label = isPlan ? labelForHex(current, presets, colors) : task.tags[0] ?? null
+  const currentKey = colorKeyForHex(current)
+  const defaultLabel = t(isPlan ? 'labels.listColor' : 'labels.none')
+  const choose = (hex: string | null) => {
+    if (isPlan) updateTask(task.id, { color: hex })
+    else if (hex === null) updateTask(task.id, { tags: [], color: null })
+    else {
+      const name = labelForHex(hex, presets, colors)
+      updateTask(task.id, name ? { tags: [name], color: null } : { tags: [], color: hex })
+    }
+  }
+  return {
+    current,
+    /** 今の色の呼び名（ラベル名 → 色名 → 既定） */
+    currentText: label ?? (currentKey ? t(`googleColors.${currentKey}`) : current ?? defaultLabel),
+    choose,
+    defaultLabel,
+    defaultHex: planDefaultHex ?? NEUTRAL_HEX,
+  }
+}

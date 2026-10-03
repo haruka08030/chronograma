@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
-import { taskPlacementDate } from '../../lib/taskTimeRange'
+import { planTiming } from '../../lib/planTiming'
 import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
@@ -11,12 +11,10 @@ import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { zonedNow } from '../../lib/timeZone'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { tip } from '../../lib/tooltip'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
-import { clockOf } from '../../lib/clockTime'
+import { dateFnsLocale, fromDateKey } from '../../lib/dateKey'
 
 const WIDTH = 320
 
@@ -73,19 +71,10 @@ export function EventPopover({
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
-  const dateKey = taskPlacementDate(task)
+  const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const dateText = dateKey ? format(fromDateKey(dateKey), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
-  // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
-  const now = zonedNow()
-  const nowHm = clockOf(now)
-  const todayKey = toDateKey(now)
-  const canLogAsPlanned =
-    !isLog && !task.completed && Boolean(dateKey && task.startTime && task.endTime) &&
-    (dateKey! < todayKey || (dateKey === todayKey && task.startTime! < nowHm))
-  /** 終わった予定は記録を始めても意味がないので、記録開始は出さない */
-  const planEnded = Boolean(dateKey && task.endTime) && (dateKey! < todayKey || (dateKey === todayKey && task.endTime! <= nowHm))
   const logAsPlanned = () => {
     logPlanAsPlanned(task.id)
     onClose()

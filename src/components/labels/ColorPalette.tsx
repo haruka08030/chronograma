@@ -18,6 +18,7 @@ export function ColorPalette({
   onDefault,
   defaultLabel,
   defaultHex,
+  bare = false,
 }: {
   selectedHex: string | null
   onChoose: (hex: string) => void
@@ -25,6 +26,8 @@ export function ColorPalette({
   defaultLabel: string
   /** 既定ボタンの輪の色 */
   defaultHex: string
+  /** 枠なし（メニューの中など、すでに浮く面の上に置くとき） */
+  bare?: boolean
 }) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -42,7 +45,7 @@ export function ColorPalette({
   }, [presets, colors, t])
 
   return (
-    <div className="rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700">
+    <div className={bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}>
       <button
         type="button"
         onClick={() => setEditingLabels(true)}

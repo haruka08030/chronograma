@@ -83,6 +83,7 @@ import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
 import { dateFnsLocale, toDateKey } from '../lib/dateKey'
 import { minutesToTime } from '../lib/clockTime'
+import { GoogleEventMenu, TaskEventMenu } from './timeline/EventContextMenu'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -161,7 +162,12 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
 
   return (
     <button
-      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e) }}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        // 右クリックはメニュー（ドラッグを始めない）
+        if (e.button !== 0) return
+        onPointerDown(e)
+      }}
       onPointerMove={handlePointerMoveLocal}
       onClick={onTap}
       onKeyDown={(e) => {
@@ -431,6 +437,8 @@ export function WeekCalendarView({
     if (anchor) setGoogleCard({ eventId, anchor })
   }, [])
   const closeGoogleCard = useCallback(() => setGoogleCard(null), [])
+  /** 右クリックのメニュー（`id` はブロックの data-block-id。Google の予定は event- で始まる） */
+  const [blockMenu, setBlockMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   // 安定した ref コールバック（毎回作り直すと描画のたびに state が変わって無限ループになる）
   const setCreateAnchorFromEl = useCallback((el: HTMLDivElement | null) => setCreateAnchor(el ? rectOf(el) : null), [])
   const openDetailFromCard = useCallback((taskId: string) => {
@@ -612,7 +620,18 @@ export function WeekCalendarView({
   }, [gridDays, singleDay, allDayByDate, eventsByDate])
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-row"
+      // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
+      onContextMenu={(e) => {
+        const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
+        if (!id) return
+        e.preventDefault()
+        setEventCard(null)
+        setGoogleCard(null)
+        setBlockMenu({ x: e.clientX, y: e.clientY, id })
+      }}
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {!singleDay && (
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 px-2 pt-1">
@@ -855,6 +874,8 @@ export function WeekCalendarView({
                       ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}`}
                     style={{ height: GRID_TOTAL_HEIGHT }}
                     onPointerDown={(e) => {
+                      // 右クリックで予定を作り始めない
+                      if (e.button !== 0) return
                       onSelectDate?.(key)
                       const lane = laneAt(e.clientX, e.currentTarget)
                       const limit = lane === 'log' ? logLimitMin(key) : null
@@ -1062,6 +1083,12 @@ export function WeekCalendarView({
       </div>
 
       {completeWithLogModal}
+      {blockMenu &&
+        (blockMenu.id.startsWith('event-') ? (
+          <GoogleEventMenu x={blockMenu.x} y={blockMenu.y} eventId={blockMenu.id.slice('event-'.length)} onClose={() => setBlockMenu(null)} />
+        ) : (
+          <TaskEventMenu x={blockMenu.x} y={blockMenu.y} taskId={blockMenu.id} onClose={() => setBlockMenu(null)} onOpenDetail={openDetail} />
+        ))}
       {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
       {eventCard && (
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />

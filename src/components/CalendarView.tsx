@@ -38,6 +38,8 @@ import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
+import { GoogleEventMenu, TaskEventMenu } from './timeline/EventContextMenu'
+import { TaskContextMenu } from './TaskContextMenu'
 
 /** 月のマス用の短い時間表記（3h20 / 45m） */
 function formatMinutesShort(m: number): string {
@@ -73,6 +75,8 @@ export function CalendarView({
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
+  /** 右クリックのメニュー（Google の予定 / 時刻つきの予定・記録 / 時刻なしのタスク） */
+  const [itemMenu, setItemMenu] = useState<{ x: number; y: number; kind: 'google' | 'event' | 'task'; id: string } | null>(null)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
@@ -246,6 +250,11 @@ export function CalendarView({
                         ev.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragEnd={() => { setDraggedGoogleEvent(null); setDragOverDate(null) }}
+                      onContextMenu={(ev) => {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        setItemMenu({ x: ev.clientX, y: ev.clientY, kind: 'google', id: e.id })
+                      }}
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
                         ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
@@ -269,6 +278,12 @@ export function CalendarView({
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
+                      // 時刻つきの予定・記録はタイムラインと同じメニュー、時刻なしのタスクは To-Do と同じメニュー
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setItemMenu({ x: e.clientX, y: e.clientY, kind: t.startTime || t.isTimeLog ? 'event' : 'task', id: t.id })
+                      }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
                         ${itemClass(!t.startTime, planVisualState(t, key))}`}
@@ -303,6 +318,13 @@ export function CalendarView({
 
       {completeWithLogModal}
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+      {itemMenu?.kind === 'google' && <GoogleEventMenu x={itemMenu.x} y={itemMenu.y} eventId={itemMenu.id} onClose={() => setItemMenu(null)} />}
+      {itemMenu?.kind === 'event' && (
+        <TaskEventMenu x={itemMenu.x} y={itemMenu.y} taskId={itemMenu.id} onClose={() => setItemMenu(null)} onOpenDetail={openDetail} />
+      )}
+      {itemMenu?.kind === 'task' && (
+        <TaskContextMenu x={itemMenu.x} y={itemMenu.y} taskIds={[itemMenu.id]} onClose={() => setItemMenu(null)} onOpenDetail={openDetail} />
+      )}
     </div>
   )
 }
