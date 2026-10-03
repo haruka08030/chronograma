@@ -252,15 +252,15 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     if (state.selectedView === 'activity-log') state.selectedView = 'planner'
   }
   if (version < 30) {
-    // 色＝ラベル: Google の色だけ写した記録は、同じ色のラベル（分類）があればそれにする
+    // 色＝ラベル: Google の色だけ写した記録は、同じ色のラベル（分類）があればそれにする。
+    // updatedAt は変えない（久しぶりに開いた端末の古い行が、ほかの端末の新しい編集に勝たないように）
     const presets = Array.isArray(state.timeLogTagPresets) ? (state.timeLogTagPresets as string[]) : []
     const colors = (state.logCategoryColors as Record<string, string> | undefined) ?? {}
-    const now = new Date().toISOString()
     const tasks = (state.tasks as Task[] | undefined) ?? []
     state.tasks = tasks.map((t) => {
       if (!t.isTimeLog || t.tags.length > 0) return t
       const name = labelForHex(t.color, presets, colors)
-      return name ? { ...t, tags: [name], color: null, updatedAt: now } : t
+      return name ? { ...t, tags: [name], color: null } : t
     })
   }
   if (version < 31) {
@@ -271,10 +271,9 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     }
   }
   if (version < 32) {
-    // 睡眠は専用の記録にした: 「睡眠」で付けていた記録に印を付ける
-    const now = new Date().toISOString()
+    // 睡眠は専用の記録にした: 「睡眠」で付けていた記録に印を付ける（updatedAt は変えない。v30 と同じ理由）
     const tasks = (state.tasks as Task[] | undefined) ?? []
-    state.tasks = tasks.map((t) => (looksLikeSleep(t) ? { ...t, isSleep: true, updatedAt: now } : t))
+    state.tasks = tasks.map((t) => (looksLikeSleep(t) ? { ...t, isSleep: true } : t))
   }
   if (version < 33) {
     // 持ち主の記録はこの版から。それまでのデータは、この端末で同期していた本人のものとみなす
@@ -286,7 +285,8 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     if (r) state.dailyReminders = { planTime: typeof r.planTime === 'string' ? r.planTime : null }
   }
   if (version < 35) {
-    // Canvas の最初の版の id を学校名入りに（重複は利用者の書いたものを写してまとめる）。サーバーは 006 で同じことをする
+    // Canvas の最初の版の id を学校名入りに（重複は利用者の書いたものを写してまとめる）。サーバーは 006 で同じことをする。
+    // ここだけは今の時刻にする: まとめた行が、サーバーに残る古い重複より新しくないと同期で負けるため（006 も now()）
     const migrated = migrateLegacyCanvasIds(
       {
         lists: (state.lists as TaskList[]) ?? [],
