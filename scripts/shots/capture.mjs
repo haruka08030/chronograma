@@ -73,6 +73,13 @@ const SCREENS = [
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
   { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
+  // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
+  { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
+  { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
+  { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
+  // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）
+  { name: 'trash-menu', view: 'deleted', deleted: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
+  { name: 'archive-menu', view: 'archived', archived: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
 ]
 
 const VIEWPORTS = [
@@ -234,6 +241,10 @@ async function main() {
             for (const x of seed.state.tasks) if (!['seed-someday', 'seed-shopping'].includes(x.listId)) x.completed = true
           }
           if (screen.filterColor) seed.state.filterColor = screen.filterColor
+          for (const x of seed.state.tasks) {
+            if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
+            if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()
+          }
           if (screen.list) {
             seed.state.selectedView = null
             seed.state.selectedListId = screen.list
@@ -276,6 +287,11 @@ async function main() {
               // マウスを乗せたときのヒント（TooltipHost は 0.5 秒後に出す）
               await page.hover(screen.hover)
               await page.waitForTimeout(800)
+            }
+
+            if (screen.rightClick && !vp.hasTouch) {
+              await page.click(screen.rightClick, { button: 'right' })
+              await page.waitForTimeout(300)
             }
 
             if (screen.scrollToBottom) {
