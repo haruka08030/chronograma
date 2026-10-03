@@ -7,6 +7,7 @@ import { TimeZonePicker } from './TimeZonePicker'
 import { GlobeIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { formatDate } from '../lib/dateFormat'
+import { HINT_TEXT } from './ui/textClass'
 
 /**
  * 詳細の「タイムゾーン」（Google カレンダーの予定のタイムゾーンと同じ）。
@@ -75,7 +76,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   if (!when) return null
 
   return (
-    <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className={`mt-1.5 ${HINT_TEXT}`}>
       {t('timeZone.inApp', { zone: zoneLongName(appTimeZone(), locale), when })}
     </p>
   )

@@ -15,6 +15,7 @@ import { EmptyState } from './ui/EmptyState'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { META_TEXT } from './ui/textClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -68,7 +69,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
-          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+          <p className={`mt-1 ${META_TEXT}`}>
             {t('taskBin.count', { count: rows.length })}
           </p>
         </div>
@@ -112,9 +113,9 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     {task.title || '\u00A0'}
                   </p>
                   {notePreview && (
-                    <p className="mt-0.5 truncate text-xs text-zinc-400 dark:text-zinc-500">{notePreview}</p>
+                    <p className={`mt-0.5 truncate ${META_TEXT}`}>{notePreview}</p>
                   )}
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+                  <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
                     {list && (
                       <span className="inline-flex items-center gap-1">
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: list.color }} />

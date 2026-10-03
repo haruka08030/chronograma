@@ -8,6 +8,7 @@ import { EmptyState } from './ui/EmptyState'
 import { openTaskDetail } from '../lib/overlays'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { META_TEXT } from './ui/textClass'
 
 export function SearchResults() {
   const { t } = useTranslation()
@@ -35,7 +36,7 @@ export function SearchResults() {
           <h1 className={PAGE_TITLE_CLASS}>
             {t('search.title')}
           </h1>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+          <p className={`mt-1 ${META_TEXT}`}>
             {t('search.countLine', { query, count: results.length })}
           </p>
         </div>

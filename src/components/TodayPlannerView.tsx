@@ -38,6 +38,7 @@ import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { SUBTLE_TEXT } from './ui/textClass'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -299,7 +300,7 @@ export function TodayPlannerView() {
             />
           </div>
           {viewingToday && (
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{df.monthDayWeekdayLong(date)}</p>
+            <p className={`mt-1 ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
           )}
           {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
           <div className="mt-3">
@@ -374,7 +375,7 @@ export function TodayPlannerView() {
         </div>
 
         {totalCount > 0 && open.length === 0 && overdue.length === 0 && (
-          <p className="px-6 pt-2 text-sm text-zinc-500 dark:text-zinc-400">{t('planner.allDone')}</p>
+          <p className={`px-6 pt-2 ${SUBTLE_TEXT}`}>{t('planner.allDone')}</p>
         )}
 
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (

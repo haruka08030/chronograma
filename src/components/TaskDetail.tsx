@@ -28,6 +28,7 @@ import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { HINT_TEXT, META_TEXT } from './ui/textClass'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -524,12 +525,12 @@ export function TaskDetail({
               </div>
 
               {logDurationLabel && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className={META_TEXT}>
                   {t('taskDetail.logDuration', { label: logDurationLabel })}
                 </p>
               )}
               {isOvernightTimeLog(task) && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
+                <p className={HINT_TEXT}>{t('activityLog.overnightHint')}</p>
               )}
               <TaskTimeZoneNote task={task} />
             </div>

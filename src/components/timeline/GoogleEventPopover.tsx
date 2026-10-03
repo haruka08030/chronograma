@@ -22,6 +22,7 @@ import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
+import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 
 const WIDTH = 320
 
@@ -183,17 +184,17 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               )}
             </div>
           ) : (
-            <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
+            <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
               {dateText}
               {event.startTime && event.endTime && ` · ${event.startTime} – ${event.endTime}`}
             </p>
           )}
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <p className={`mt-1 ${META_TEXT}`}>
             {t('eventCard.google')}
             {editable && recurring && ` · ${t('googleEdit.thisEventOnly')}`}
           </p>
           {!googleCanWrite && (
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className={`mt-1 ${HINT_TEXT}`}>
               {t('googleEdit.reconnectHint')}
               <button
                 type="button"
@@ -205,7 +206,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             </p>
           )}
           {googleCanWrite && !editable && !event.id.startsWith('pending-') && (
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t('googleEdit.notEditable')}</p>
+            <p className={`mt-1 ${HINT_TEXT}`}>{t('googleEdit.notEditable')}</p>
           )}
         </div>
       </div>

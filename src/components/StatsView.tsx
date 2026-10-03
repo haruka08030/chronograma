@@ -12,6 +12,7 @@ import { isAppToday, appToday } from '../lib/timeZone'
 import { dateFnsLocale } from '../lib/dateKey'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { META_TEXT } from './ui/textClass'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -147,8 +148,8 @@ export function StatsView() {
               {stats.byTag.map((x) => (
                 <li key={x.tag} className="flex items-center gap-3 px-4 py-2.5">
                   <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
-                  <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: x.active })}</span>
-                  <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: x.completed })}</span>
+                  <span className={`tabular-nums ${META_TEXT}`}>{t('stats.listActive', { count: x.active })}</span>
+                  <span className={`tabular-nums ${META_TEXT}`}>{t('stats.listCompleted', { count: x.completed })}</span>
                 </li>
               ))}
             </ul>

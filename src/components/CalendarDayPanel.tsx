@@ -22,6 +22,7 @@ import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail } from '../lib/overlays'
+import { META_TEXT } from './ui/textClass'
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -231,7 +232,7 @@ export function CalendarDayPanel({
                           ))}
                         </div>
                       ) : (
-                        <p className="px-2 py-1 text-xs text-zinc-400 dark:text-zinc-500">
+                        <p className={`px-2 py-1 ${META_TEXT}`}>
                           {t('calendarDayPanel.noExecuted')}
                         </p>
                       )}
@@ -258,7 +259,7 @@ export function CalendarDayPanel({
                     className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800/70"
                   >
                     <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.title}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    <div className={`mt-0.5 ${META_TEXT}`}>
                       {item.startTime && item.endTime
                         ? `${item.startTime} - ${item.endTime}${
                             isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''

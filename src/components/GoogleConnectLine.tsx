@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useGoogleConnect } from '../hooks/useGoogleConnect'
+import { HINT_TEXT } from './ui/textClass'
 
 /**
  * カレンダー上の Google カレンダー連携の 1 行。
@@ -43,7 +44,7 @@ export function GoogleConnectLine() {
 
   // 未接続: 大きなボタンや警告を並べず 1 行だけ（予定と記録のグリッドを押し下げない）
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 md:px-6">
+    <div className={`flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 md:px-6 ${HINT_TEXT}`}>
       <span>{t('planVsActual.googleOneLine')}</span>
       <button
         type="button"

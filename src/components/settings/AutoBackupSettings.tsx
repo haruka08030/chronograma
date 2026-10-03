@@ -11,6 +11,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { useAuth } from '../../contexts/AuthContext'
+import { META_TEXT } from '../ui/textClass'
 
 const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
@@ -79,7 +80,7 @@ export function AutoBackupSettings() {
       {backups !== null && (
         <div className="px-4 pb-3">
           {backups.length === 0 ? (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('autoBackup.empty')}</p>
+            <p className={META_TEXT}>{t('autoBackup.empty')}</p>
           ) : (
             <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-100 px-3 dark:divide-zinc-800 dark:border-zinc-800">
               {backups.map((b) => (
@@ -87,11 +88,11 @@ export function AutoBackupSettings() {
                   <div className="min-w-[12rem] flex-1">
                     <p className="text-sm text-zinc-800 dark:text-zinc-200">
                       {when(b.savedAt)}
-                      <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className={`ml-2 ${META_TEXT}`}>
                         {t(`autoBackup.${KIND_LABEL[b.kind]}`)}
                       </span>
                     </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    <p className={META_TEXT}>
                       {t('autoBackup.counts', { todos: b.todoCount, logs: b.logCount })}
                     </p>
                   </div>

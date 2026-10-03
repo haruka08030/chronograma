@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
+import { HINT_TEXT } from '../ui/textClass'
 
 /** 設定のまとまり。見出しは枠の外、中身は 1 枚の枠に行を区切り線で並べる */
 export function SettingsGroup({
@@ -16,7 +17,7 @@ export function SettingsGroup({
   return (
     <section id={id} className="scroll-mt-6">
       <h2 className={`px-1 ${CARD_TITLE_CLASS}`}>{title}</h2>
-      {description && <p className="mt-0.5 px-1 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>}
+      {description && <p className={`mt-0.5 px-1 ${HINT_TEXT}`}>{description}</p>}
       <div className="mt-2 divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
         {children}
       </div>
@@ -42,7 +43,7 @@ export function SettingsRow({
       {/* 見出しは 4rem より細くしない。操作が入りきらなければ、見出しを潰さず操作を次の行へ回す */}
       <Label {...(htmlFor ? { htmlFor } : {})} className="min-w-0 flex-1 basis-16">
         <span className="block text-sm text-zinc-800 dark:text-zinc-200">{label}</span>
-        {help && <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{help}</span>}
+        {help && <span className={`mt-0.5 block ${HINT_TEXT}`}>{help}</span>}
       </Label>
       {children && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div>}
     </div>

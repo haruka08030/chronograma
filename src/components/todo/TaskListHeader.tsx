@@ -12,6 +12,7 @@ import { Switch } from '../settings/SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
+import { META_TEXT } from '../ui/textClass'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 /** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
@@ -68,7 +69,7 @@ export function TaskListHeader({
           {title}
         </h1>
         <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          <p className={META_TEXT}>
             {t('taskList.incompleteTasks', { count: incompleteCount })}
           </p>
           {filterTag && (

@@ -17,6 +17,7 @@ import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
+import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 
 const WIDTH = 320
 
@@ -111,13 +112,13 @@ export function EventPopover({
           <p className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}>
             {task.title}
           </p>
-          <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
+          <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
             {dateText}
             {task.startTime && task.endTime && ` · ${task.startTime} – ${task.endTime}`}
           </p>
         </div>
         <span />
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className={META_TEXT}>
           {isLog
             ? t('eventCard.log')
             : list
