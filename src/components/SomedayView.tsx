@@ -8,6 +8,7 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import { DueDatePopover } from './DueDatePopover'
+import { CalendarIcon } from './icons'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { appTodayKey } from '../lib/timeZone'
@@ -18,7 +19,7 @@ import { ListSectionHeading } from './ListSectionHeading'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
- * 行頭の ☆ で「かなえた」（下の★一覧へ）、右の「予定する」で日付を選んで今日の計画（その日）へ移す。
+ * 行頭の ☆ で「かなえた」（下の★一覧へ）、右のカレンダー（予定する）で日付を選んで今日の計画（その日）へ移す。
  */
 export function SomedayView({ list }: { list: TaskList }) {
   const { t } = useTranslation()
@@ -94,14 +95,16 @@ export function SomedayView({ list }: { list: TaskList }) {
           trigger={({ open, toggle }) => (
             <button
               type="button"
+              title={t('someday.schedule')}
+              aria-label={t('someday.scheduleItem', { title: item.title })}
               aria-expanded={open}
               aria-haspopup="dialog"
               onClick={toggle}
-              className={`rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
-                         dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400
-                         ${open ? 'bg-accent-50 text-accent-600 dark:bg-accent-500/10 dark:text-accent-400' : 'md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'}`}
+              // To-Do の行の日付ボタンと同じ。PC はホバー（か開いている間）だけ出す
+              className={`rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200 touch-manipulation md:p-1 dark:hover:bg-zinc-700
+                         ${open ? 'bg-zinc-200 dark:bg-zinc-700' : 'md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'}`}
             >
-              {t('someday.schedule')}
+              <CalendarIcon className="h-5 w-5 md:h-4 md:w-4" />
             </button>
           )}
         />

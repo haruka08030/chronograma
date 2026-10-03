@@ -261,6 +261,7 @@ export default {
     addPlaceholder: 'いつかやりたいことを追加',
     empty: '行きたい場所、やってみたいこと、読みたい本。思いついたら気軽に置いておきましょう。',
     schedule: '予定する',
+    scheduleItem: '「{{title}}」を予定する',
     fulfill: 'かなえた',
     fulfillItem: '「{{title}}」をかなえた',
     unfulfill: 'まだかなえていない',

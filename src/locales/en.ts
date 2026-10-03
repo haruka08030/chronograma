@@ -262,6 +262,7 @@ export default {
     addPlaceholder: 'Add something for someday',
     empty: 'Places to go, things to try, books to read. Drop them here whenever they come to mind.',
     schedule: 'Schedule',
+    scheduleItem: 'Schedule “{{title}}”',
     fulfill: 'Done it',
     fulfillItem: 'Mark “{{title}}” as done',
     unfulfill: 'Not yet',
