@@ -42,7 +42,7 @@ npm run dev
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
 2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（通知・Google・Notion・Canvas 用の表も含む）（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
-   既に 001 を適用済みの DB には、追加分の `002`〜`004` を番号順に実行します（何度流しても同じ形になります）。
+   既存の DB にも同じファイルを実行すれば、足りない列・制約が足されて最終形になります（何度流しても同じ形になります）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
@@ -52,7 +52,7 @@ npm run dev
 
 ### 通知（Web Push、任意）
 
-アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。既存の DB には [`002_notifications.sql`](supabase/migrations/002_notifications.sql) を適用してください。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。既存の DB には [`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) をもう一度実行してください（何度流しても同じ形になります）。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
 1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定

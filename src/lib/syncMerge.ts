@@ -105,7 +105,7 @@ export function mergeSnapshots(
   const mergedSections = sections.merged
     .map((s) => (listIds.has(s.listId) || fallbackList(s.listId) !== CANVAS_LIST_ID ? s : { ...s, listId: CANVAS_LIST_ID }))
     .filter((s) => listIds.has(s.listId))
-  // 消えたリストのセクションがサーバーに残っていると、リストの削除が外部キーで通らない（004）。一緒に消す
+  // 消えたリストのセクションがサーバーに残っていると、リストの削除が外部キー（on delete no action）で通らない。一緒に消す
   const keptSectionIds = new Set(mergedSections.map((s) => s.id))
   const remoteSectionIds = new Set(remote.sections.map((s) => s.id))
   const orphanSections = sections.merged

@@ -111,7 +111,7 @@ export async function syncWebPush({
     due_reminders: dueReminders,
     updated_at: new Date().toISOString(),
   }
-  // 002 の列（記録の確認・止め忘れ）。未適用の DB では外して送り直す
+  // 記録の確認・止め忘れの列。古い DB では外して送り直す
   const extra = {
     record_prompts: recordPrompts,
     timer_started_at: activeTimer?.startedAt ?? null,

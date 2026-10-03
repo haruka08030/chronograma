@@ -1,5 +1,6 @@
 -- Chronograma: Supabase のスキーマ一式。
--- 新しいプロジェクトの SQL Editor でこのファイル全体を 1 回実行すれば揃う（Postgres 15 以上）。
+-- SQL Editor でこのファイル全体を実行すれば、新しいプロジェクトでも既存の DB でも最終形になる。
+-- 何度流しても同じ形になる（Postgres 15 以上）。
 --
 -- 方針
 --   - 利用者の行は主キー (user_id, id)。未分類 '__inbox__' のように ID が全員で同じでもぶつからない。
@@ -37,7 +38,8 @@ create table if not exists public.list_sections (
   sort_order double precision not null default 0,
   updated_at timestamptz not null default now(),
   primary key (user_id, id),
-  -- リストを消しても中身は道連れにしない（004 を参照）。アカウントの削除では auth.users からの cascade で消える
+  -- リストを消しても中身は道連れにしない（下の「既存の DB を最終形にそろえる」を参照）。
+  -- アカウントの削除では auth.users からの cascade で消える
   constraint list_sections_list_fkey
     foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action
 );
@@ -208,6 +210,54 @@ create table if not exists public.canvas_connection (
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+
+
+-- ===========================================================================
+-- 既存の DB を最終形にそろえる
+-- 上の create table if not exists は、表が既にあると何もしない。古い形の表に足りない列・制約をここで足す。
+-- 新しいプロジェクトでは何も変わらない。
+-- ===========================================================================
+
+-- tasks: タスクごとの通知（null = 設定の既定）
+alter table public.tasks
+  add column if not exists reminders jsonb;
+
+-- push_subscriptions: 予定のあとの記録の確認、送った通知の鍵、タイマーの止め忘れ
+alter table public.push_subscriptions
+  add column if not exists record_prompts     boolean not null default false,
+  add column if not exists reminder_sent      jsonb,
+  add column if not exists timer_started_at   timestamptz,
+  add column if not exists timer_title        text,
+  add column if not exists timer_notified_for timestamptz;
+
+-- canvas_connection: 最初の版（1 人 1 つ、主キー user_id）を学校（ホスト名）ごとの行に変える
+alter table public.canvas_connection add column if not exists id text;
+update public.canvas_connection set id = regexp_replace(base_url, '^https://', '') where id is null;
+alter table public.canvas_connection alter column id set not null;
+alter table public.canvas_connection drop constraint if exists canvas_connection_pkey;
+alter table public.canvas_connection add primary key (user_id, id);
+alter table public.canvas_connection
+  add column if not exists kind text not null default 'token',
+  add column if not exists feed_url text,
+  alter column token drop not null,
+  add column if not exists token_expires_at timestamptz,
+  add column if not exists token_checked_at timestamptz;
+
+-- リストを消したときに、中のタスク・セクションをサーバー側で道連れにしない。
+-- cascade だと、端末 A がリスト L を消すのと同じころに端末 B が L にタスクを足すと、B のタスクがサーバーから消え、
+-- B も次の同期でそれを「消された」と読んで手元から消してしまう。no action なら A のリスト削除が失敗し、
+-- 次の同期で B のタスクを受け取って未分類へ移してから消し直す。
+-- restrict ではなく no action にするのは、アカウントの削除で auth.users から lists と tasks の両方へ
+-- cascade するときに、文の終わりで確かめるため。
+alter table public.tasks drop constraint if exists tasks_list_fkey;
+alter table public.tasks
+  add constraint tasks_list_fkey
+  foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action;
+
+alter table public.list_sections drop constraint if exists list_sections_list_fkey;
+alter table public.list_sections
+  add constraint list_sections_list_fkey
+  foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action;
 
 
 -- ===========================================================================
