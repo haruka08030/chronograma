@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SHORTCUT_LIST } from '../lib/shortcuts'
 import { modKeyLabel } from '../lib/keyboard'
@@ -7,16 +6,9 @@ import { Modal, ModalTitle } from './ui/Modal'
 /** 「?」で開くキーボードショートカット一覧 */
 export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  useEffect(() => {
-    // もう一度「?」で閉じる。ダイアログはキー入力を外へ流さないので、先回り（capture）して受ける
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === '?') onClose()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  // もう一度「?」でも閉じる
   return (
-    <Modal onClose={onClose} labelledBy="shortcuts-title" className="p-5">
+    <Modal onClose={onClose} closeKeys={['?']} labelledBy="shortcuts-title" className="p-5">
       <ModalTitle id="shortcuts-title">{t('shortcuts.title')}</ModalTitle>
       <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-700">
         {SHORTCUT_LIST.map((s) => (

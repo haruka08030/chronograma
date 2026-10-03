@@ -10,6 +10,7 @@ import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
 import { useDismiss } from '../../hooks/useDismiss'
+import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
@@ -42,27 +43,17 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }, [eventId])
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
-  useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）
-        if (e.key === 'Escape' && !e.isComposing) onClose()
-        return
-      }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
-        if (ev && canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) {
-          e.preventDefault()
-          removeGoogleEvent(ev)
-          onClose()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, eventId])
+  // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
+  // 入力欄の外の Esc は層の仕組みが閉じる。欄が自分で使った Esc（時刻の取り消し）では閉じない
+  useHotkey('Escape', () => onClose(), { scope: layer, allowInInputs: true })
+  useHotkey(['Delete', 'Backspace'], () => {
+    const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
+    if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
+    removeGoogleEvent(ev)
+    onClose()
+  }, { scope: layer })
 
   useEffect(() => {
     ref.current?.focus()

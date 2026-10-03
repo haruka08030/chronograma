@@ -377,7 +377,7 @@ export default {
     logView: 'Start logging (Today)',
     create: 'Add a task',
     search: 'Search',
-    edit: 'Open details of the selected event',
+    edit: 'Open details of the open event or task',
     delete: 'Delete the open event or selected tasks',
     completeSelected: 'Complete selected tasks',
     moveRow: 'Move between tasks (Shift to extend the selection)',

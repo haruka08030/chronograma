@@ -9,6 +9,7 @@ import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
+import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
@@ -43,23 +44,14 @@ export function EventPopover({
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
   const ref = useRef<HTMLDivElement>(null)
-  useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'e') {
-        e.preventDefault()
-        onOpenDetail(taskId)
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault()
-        deleteTask(taskId)
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [taskId, onClose, onOpenDetail, deleteTask])
+  // カードが一番上のときだけ（上に色の一覧などが重なっていれば効かない）
+  useHotkey('e', () => onOpenDetail(taskId), { scope: layer })
+  useHotkey(['Delete', 'Backspace'], () => {
+    deleteTask(taskId)
+    onClose()
+  }, { scope: layer })
 
   useEffect(() => {
     ref.current?.focus()
