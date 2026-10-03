@@ -203,12 +203,13 @@ function CompletedSubtreeRows({
   ))
 }
 
-function SectionDropZone({ listId, sectionId }: { listId: string; sectionId: string | null }) {
+/** セクションの末尾の落とし先。`empty` は中にタスクが無いとき（落とせる場所が分かるよう、点線の枠で大きく出す） */
+function SectionDropZone({ listId, sectionId, empty = false }: { listId: string; sectionId: string | null; empty?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: sectionDropId(listId, sectionId) })
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-3 mx-2 rounded-md transition-colors ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
+      className={`mx-2 rounded-md transition-colors ${empty ? 'min-h-12 border border-dashed border-zinc-300 dark:border-zinc-600' : 'min-h-3'} ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
       aria-hidden
     />
   )
@@ -295,11 +296,15 @@ export function TaskList() {
     })
   }, [selectedListId, selectedView])
 
+  /** タスクをドラッグ中か。空の「セクションなし」は、セクションの外へ戻す落とし先としてこの間だけ出す */
+  const [taskDragging, setTaskDragging] = useState(false)
+
   const dndMonitor = useMemo(
     () => ({
       onDragStart({ active }: DragStartEvent) {
         clearNestPreview()
         const id = String(active.id)
+        setTaskDragging(id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX))
         if (id.startsWith(DRAGSEC_PREFIX)) {
           clearSelection()
           return
@@ -335,11 +340,13 @@ export function TaskList() {
       },
       onDragEnd({ active }: DragEndEvent) {
         clearNestPreview()
+        setTaskDragging(false)
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
         if (group && group.length > 1) clearSelection()
       },
       onDragCancel({ active }: DragCancelEvent) {
         clearNestPreview()
+        setTaskDragging(false)
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
         if (group && group.length > 1) clearSelection()
       },
@@ -922,6 +929,8 @@ export function TaskList() {
             canQuickTarget &&
             ((sectionId === null && quickAddSectionId === '') ||
               (sectionId !== null && quickAddSectionId === sectionId))
+          // セクションの外にタスクが無いときの「セクションなし」は、ドラッグ中（外へ戻す落とし先）だけ出す
+          if (block.headerKind === 'section-none' && block.tasks.length === 0 && !taskDragging) return null
           return (
             <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
               {block.listTitle ? (
@@ -984,7 +993,11 @@ export function TaskList() {
                 }),
               ])}
               {block.headerKind !== 'list-only' ? (
-                <SectionDropZone listId={block.listId} sectionId={block.sectionId} />
+                <SectionDropZone
+                  listId={block.listId}
+                  sectionId={block.sectionId}
+                  empty={block.headerKind === 'section-none' && block.tasks.length === 0}
+                />
               ) : null}
             </div>
           )
