@@ -16,6 +16,11 @@
 | タスク行の「今日」 | 締切の今日はオレンジ（`DUE_TONE_CLASS`）、やる日の今日は藍（`SCHEDULED_TONE_CLASS`）。役割が違うので 2 色のまま | `TaskItem.tsx` |
 | 締切の色 | 期限切れ＝赤、今日まで＝オレンジ、明日まで＝薄いオレンジ。To-Do の行と今日の計画で同じ | `components/ui/dueTone.ts` `DUE_TONE_CLASS` |
 | 落とし先の光り方 | 藍の薄い塗り＋内側の枠 | `lib/taskDrag.ts` `DROP_HIGHLIGHT_CLASS` |
+| Google の予定の色 | 予定ごとの色、無ければピーコック。カレンダー本体・日パネルで共通 | `lib/googleColors.ts`（`DEFAULT_GOOGLE_EVENT_HEX`）・`colorVars` |
+| 優先度の色 | 高＝赤・中＝オレンジ・低＝青、なし＝グレー。完了の丸・詳細・右クリックメニューで共通 | `lib/priorityColor.ts`（`PRIORITY_RING_CLASS`・`PRIORITY_TEXT_CLASS`） |
+| 睡眠の色 | 夜の色 1 つ（ライト #5c6bc0、ダーク #7986cb）。`text-sleep`・`bg-sleep`・`.gc-sleep`。習慣画面の直近 28 日のマス目はデータの色なので藍のまま | `index.css`（`--color-sleep`） |
+| 習慣の達成・時間外 | 達成＝習慣の色の塗り＋✓、時間外＝35% の塗り＋✓。場所があれば丸の下にグレーで「時間外」、無いところ（習慣画面の週のマス）はツールチップ | `lib/habitMark.ts` |
+| メニュー・候補の行のハイライト | ↑↓ で選んでいる行とホバーは同じ薄いグレー（ダーク zinc-700）。メニューと時刻の候補で共通。今の値は ✓ | `components/ui/surface.ts`（`MENU_ROW_ACTIVE`・`MENU_ROW_HOVER`） |
 | 完了チェック | タスク・記録・買い物とも墨色。買い物はチェックリストなので四角、大きさ・文字・入力欄は今日の To-Do と同じ。いつかは ☆ | `CompletionCircle` の `shape` |
 
 ### 見た目の部品
@@ -46,20 +51,31 @@
 | マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。ボタンに `title` は使わない | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
 | タスクのまとめて操作 | 完了・削除・アーカイブ・期限・優先度・リスト移動。何件に何をしたかをトーストで出す | `hooks/useBulkTaskActions.ts` |
 
+### 日付・時刻
+
+| 役割 | 決まり | 場所 |
+| --- | --- | --- |
+| 日付キー | `yyyy-MM-dd` にするのは `toDateKey`、戻すのは `fromDateKey`（正午にして日付がずれないようにする）。date-fns の locale は `dateFnsLocale(i18n.resolvedLanguage)` | `lib/dateKey.ts` |
+| 時刻 `HH:MM` | 保存済みの時刻 → 分は `timeToMinutes`（欠けた分は 0）、入力の検証は `toMinutes`（不正なら null）。分 → 時刻は `minutesToTime`（折り返さず 24:00 も書ける）、24 時で折り返すのは `addClockMinutes`。Date の時刻は `clockOf`、0 埋めは `pad2` | `lib/clockTime.ts` |
+| 長さの表示 | `formatDuration`（1時間15分 / 1h 15m、言語に合わせる）。月のマスなど狭いところは `formatDurationShort`（3h20 / 45m） | `lib/timeGrid.ts` |
+| 日付の表示 | `useDateFormat()`（React の外は `formatDate(date, name)`）。名前: monthDay・monthDayWeekday・monthDayWeekdayLong・shortDate・shortDateWeekday・shortDateWeekdayYear・yearMonth・fullDate・monthDayTime・weekRange。形式は i18n の `dateFormat.*`。日本語の曜日は半角の括弧＋前に空白「10月3日 (土)」、英語は曜日が先「Sat, Oct 3」 | `hooks/useDateFormat.ts`・`lib/dateFormat.ts` |
+
 ### 挙動
 
 | 役割 | 決まり | 場所 |
 | --- | --- | --- |
-| 浮く面の閉じ方 | 外側を押す・Esc は一番上だけ・`data-popover-keep` の要素は内側扱い | `hooks/useDismiss.ts` |
-| Esc で閉じる層 | 一番上の層だけ閉じる（タスク詳細・完了＋記録・日付ピッカー・ミニカレンダー・予定カード・ラベルのダイアログ・ショートカット一覧） | `hooks/useEscapeLayer.ts` |
+| 浮く面の閉じ方 | 外側を押す・Esc は一番上だけ・`data-popover-keep` の要素は内側扱い。返す層を `useHotkey` の scope に使う | `hooks/useDismiss.ts` |
+| Esc で閉じる層 | 一番上の層だけ閉じる（タスク詳細・完了＋記録・日付ピッカー・ミニカレンダー・予定カード・ラベルのダイアログ・ショートカット一覧）。モーダルは Esc 以外の閉じるキーを `closeKeys` で足す | `hooks/useHotkey.ts` `useEscapeLayer`・`components/ui/Modal.tsx` |
+| ショートカット | `useHotkey(キー, 処理, { scope, allowInInputs, enabled })`。scope: `'global'`（層が開いていないときだけ）/ `'always'`（⌘Z・⌘K・⌘N・⌘A）/ 層（`useEscapeLayer`・`useDismiss` の戻り値。その層が一番上のときだけ）。入力中・変換中・部品が先に使ったキーでは動かない。false を返すと次に回す。To-Do 一覧の `e` はカーソルの行の詳細、Delete は削除 | `hooks/useHotkey.ts` |
+| キーの書き方 | `'e'`・`'Delete'`・`'mod+Enter'`・`'shift+ArrowDown'`・`'?'`・`'Space'`。修飾キーは書いたものだけ。? / は Shift を見ない | `lib/keyboard.ts` `matchesHotkey` |
+| 入力中か・変換中か | 入力中＝テキスト欄・選択・contenteditable（ショートカットも ⌘Z もこれで見る）。`isComposing` または keyCode 229 のキーではショートカット・Esc を動かさない | `lib/keyboard.ts` `isTypingTarget`・`isImeKeyEvent` |
 | Enter で確定 | 変換確定の Enter では送らない | `lib/keyboard.ts` `isSubmitEnter` |
+| 複数行の入力欄 | `useTextAreaEntry`: Enter で改行、⌘/Ctrl+Enter で確定して欄を離れる、Esc で欄を離れる（書いた分は捨てない・親のダイアログは閉じない）、外したら保存。変換中の Enter / Esc は何もしない。タスク詳細のメモと完了＋記録のメモ | `hooks/useTextEntry.ts` `useTextAreaEntry`・`lib/keyboard.ts` `textAreaKeyAction` |
 | 1 行の入力欄 | `useTextEntry`: Enter で確定、Esc で取り消し（親のダイアログは閉じない）、外したら確定。Esc / Enter のあとの blur は無視する | `hooks/useTextEntry.ts` |
 | ⌘ の表示 | Mac は ⌘、それ以外は Ctrl。`shortcutLabel(['mod', 'Z'])` | `lib/keyboard.ts` `modKeyLabel`・`shortcutLabel` |
 | 削除 | 戻せるもの（タスク・記録・セクション・リスト・習慣・ラベル・Google の予定）は確認なしで消して「元に戻す」トースト。戻せないもの（ゴミ箱から完全に削除・アカウント）だけ `askConfirm` | — |
-| 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切。時刻つきはタイムラインの予定 | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
+| 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切、時刻つき＝タイムラインの予定、「@リスト」＝リスト。上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスクで同じ。欄ごとに違うのは書かなかったときの既定値だけ（セル＝その日、予定作成カード＝ドラッグした日と時間帯、サブタスク＝親とそのリスト固定で @… は題名に残る）。書いた日付・時刻は既定値より優先。いつか・チェックリストには日付を付けない。足すのと日時を付けるのは 1 回で元に戻る | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
 | To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
-| 日付キー | `yyyy-MM-dd` にするのは `toDateKey`、戻すのは `fromDateKey`（正午にして日付がずれないようにする）。date-fns の locale は `dateFnsLocale(i18n.resolvedLanguage)` | `lib/dateKey.ts` |
-| 時刻 `HH:MM` | 保存済みの時刻 → 分は `timeToMinutes`（欠けた分は 0）、入力の検証は `toMinutes`（不正なら null）。分 → 時刻は `minutesToTime`（折り返さず 24:00 も書ける）、24 時で折り返すのは `addClockMinutes`。Date の時刻は `clockOf`、0 埋めは `pad2` | `lib/clockTime.ts` |
 | 習慣の達成 | 習慣画面・今日画面・週カレンダーとも、押すと付き、もう一度押すと外す（その日の習慣の記録も外れる） | ストアの `toggleHabitDate` |
 | 記録を足して完了 | 時刻つきの予定の完了の丸は「記録して完了」を開く（To-Do・今日・カレンダー・日パネル）。予定カードは「完了」と「予定どおり記録」を別のボタンにする。買い物・いつかは記録に関係しないので聞かない。記録の追加と完了は 1 つの操作で、元に戻すも 1 回 | `hooks/useCompleteWithLog.tsx` |
 | タイマーの切り替え | どこからでも切り替えられる。前の記録は保存し「○○の記録を保存して切り替えました」と知らせる。行・予定カードは `startTimerForTask` を通す | `lib/timerDrop.ts`・ストアの `startTimer` |
@@ -67,16 +83,6 @@
 ---
 
 ## まだ違うところ
-
-### 色
-
-- 11 色パレット（`GOOGLE_COLORS`）は色選択では使われず、新しいリストの自動割り当てだけ（`taskStore.ts` の `addList`・移行、`useNotionSync.ts`）。`lib/googleColors.ts` 冒頭のコメント「リスト・習慣は 11 色のまま」は事実と違う
-- 日パネルの Google の予定だけ青で固定（`CalendarDayPanel.tsx`）。カレンダー本体は予定ごとの色
-- `TimeInput.tsx` の候補のハイライトだけ青
-- 習慣の「時間外」: 習慣画面は白地＋色の枠＋△、今日画面は 35% の塗り＋オレンジの文字
-- 優先度の色が 2 か所で定義（`lib/priorityColor.ts` と `TaskDetail.tsx` の `PRIORITY_OPTIONS`）
-- 藍の直書き: `SleepRow.tsx` の `indigo-400`、`SleepStatsCard.tsx` の `#5c6bc0`、`lib/backupFormat.ts` の既定色 `#6366f1`。`HabitsView.tsx` のマス目 `rgba(99,102,241)` はデータの色なので藍のまま（[IDEAS](./IDEAS.md)）
-- 使われていない: `lib/tagColors.ts`（`getTagColor` など）
 
 ### 見た目の部品
 
@@ -87,26 +93,6 @@
 | 月カレンダー | `DatePickerBody` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `DatePickerBody` に寄せる |
 | 小見出し | 文字サイズ・色が 9 通り | `SectionLabel` |
 
-### 入力欄
+### 日付
 
-- 複数行の欄（メモ）はまだ欄ごとの書き方
-
-### 日付・時刻の処理の重複
-
-- 長さの表示: 共通は `lib/timeGrid.ts` `formatDuration`（言語に合わせる）。`SleepStatsCard`・`WeekReviewCard` は自前、`CalendarView` の `formatMinutesShort` は短い形
-- 日付の表示形式: i18n キー、`isJa ? … : …`、直書きが混在。「月日（曜）」の括弧が半角と全角で混在
-- → `useDateFormat()`
-
-### ショートカット
-
-
-- 仕組みが複数: `App.tsx` の全体リスナー、`lib/shortcuts.ts` のイベント、部品ごとの window リスナー（予定カード 2 種・`TaskList`・`DueDatePopover`・`CalendarDateNav`・`ShortcutsHelp`）
-- 「入力中か」の判定が 2 つ（`lib/shortcuts.ts` `isTypingTarget` と `lib/keyboard.ts` `isTextFieldUndoTarget`）＋各所の手書き
-- 一覧に載っている `e`・Delete は予定カードの中でしか効かない
-- 「ダイアログが開いているか」を DOM の `[role="dialog"]` で見ている
-- → `useHotkey(key, handler, { scope, allowInInputs })`
-
-### 入力の解釈（「15時 ES 1時間」「@リスト」）
-
-- 効くのは `QuickAdd`（To-Do・いつか・買い物）と今日画面だけ。カレンダー内の追加・予定作成カード・サブタスクでは効かない。いつか・買い物には日付を付けない
-- → `addTaskFromQuickText` をほかの入力欄にも広げる
+- クラッシュ画面（`ui/ErrorBoundary.tsx`）の時刻はブラウザの書式のまま
