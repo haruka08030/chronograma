@@ -8,6 +8,7 @@ import {
   mergeSnapshots,
   mergeWithoutBaseline,
   SYNC_INBOX_LIST_ID,
+  withoutDuplicateDefaults,
   type SyncSnapshot,
 } from './syncMerge'
 
@@ -340,5 +341,29 @@ describe('リスト・セクションの変更（更新時刻で新しい方を�
     const { merged, deletes } = mergeSnapshots(snapshot(), remote, base)
     expect(merged.sections).toEqual([])
     expect(deletes.sections).toEqual(['old'])
+  })
+})
+
+describe('withoutDuplicateDefaults（ログインせずに使っていた端末の初回同期）', () => {
+  const inbox: TaskList = { id: SYNC_INBOX_LIST_ID, name: '未分類', color: '#000', order: 0 }
+  const someday = (id: string): TaskList => ({ id, name: 'いつか', color: '#000', order: 1, kind: 'someday' })
+
+  it('中身の無い初期リストは、アカウントに同じものがあれば外す', () => {
+    const local: SyncSnapshot = { lists: [inbox, someday('local')], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID])
+  })
+
+  it('タスクが入っていれば残す', () => {
+    const local: SyncSnapshot = { lists: [inbox, someday('local')], sections: [], tasks: [task('t', { listId: 'local' })], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'local'])
+  })
+
+  it('自分で作ったふつうのリストは空でも残す', () => {
+    const mine: TaskList = { id: 'mine', name: 'ゼミ', color: '#000', order: 3 }
+    const local: SyncSnapshot = { lists: [inbox, mine], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, { ...mine, id: 'other' }], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'mine'])
   })
 })

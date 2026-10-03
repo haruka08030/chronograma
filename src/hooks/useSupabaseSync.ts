@@ -7,6 +7,7 @@ import {
   loadBaseline,
   mergeSnapshots,
   mergeWithoutBaseline,
+  withoutDuplicateDefaults,
   saveBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
@@ -129,13 +130,18 @@ export function useSupabaseSync() {
 
       if (!baseline) {
         // この端末で初めての同期
-        const local = localSnapshot()
+        const local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
           remote.lists, remote.tasks, remote.habits, remote.sections,
           local.lists, local.tasks, local.habits, local.sections,
         )
-        if (decision.kind === 'use_remote' && local.tasks.length === 0 && local.habits.length === 0) {
-          // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）
+        const remoteListIds = new Set(remote.lists.map((l) => l.id))
+        const onlyInitial =
+          local.tasks.length === 0 && local.habits.length === 0 && local.sections.length === 0 &&
+          local.lists.every((l) => l.id === INBOX_LIST_ID || remoteListIds.has(l.id))
+        if (decision.kind === 'use_remote' && onlyInitial) {
+          // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）。
+          // 以前はタスクが無ければこちらに来て、手元で作った空のリストやセクションが消えていた
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           done(localSnapshot())
           return true

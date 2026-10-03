@@ -149,6 +149,21 @@ export function mergeWithoutBaseline(local: SyncSnapshot, remote: SyncSnapshot):
   return mergeSnapshots(local, remote, empty).merged
 }
 
+/**
+ * ログインせずに使っていた端末の初回同期で、最初から作られる「いつか」「買い物」が
+ * アカウントにもあると 2 つずつになっていた。中身の無い初期リストで、アカウントに同じ種類・名前の
+ * リストがあれば、手元のほうを外す
+ */
+export function withoutDuplicateDefaults(local: SyncSnapshot, remote: SyncSnapshot): SyncSnapshot {
+  const used = new Set([...local.tasks.map((t) => t.listId), ...local.sections.map((s) => s.listId)])
+  const lists = local.lists.filter((l) => {
+    if (l.id === SYNC_INBOX_LIST_ID || used.has(l.id)) return true
+    if (l.kind !== 'someday' && l.kind !== 'checklist') return true
+    return !remote.lists.some((r) => r.id !== l.id && r.kind === l.kind && r.name === l.name)
+  })
+  return lists.length === local.lists.length ? local : { ...local, lists }
+}
+
 export function baselineFrom(s: SyncSnapshot): SyncBaseline {
   const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) =>
     Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
