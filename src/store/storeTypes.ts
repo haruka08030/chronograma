@@ -177,6 +177,8 @@ export interface TaskState {
   /** リストを開き、そのセクションを追加先にして見出しまでスクロールする（サイドバーのセクション） */
   selectListSection: (listId: string, sectionId: string) => void
   clearSectionScrollTarget: () => void
+  /** リストを開いてタグで絞る（サイドバーの Canvas の科目タグ） */
+  selectListTag: (listId: string, tag: string) => void
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void

@@ -18,6 +18,8 @@ import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/tod
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { groupsBySection, sortModeOf } from '../lib/todoSurfaceView'
+import { CANVAS_LIST_ID } from '../lib/canvasIds'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -192,6 +194,23 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
   )
 }
 
+/** リストの下に字下げして並べる行（セクション・科目タグ） */
+function SubNavRow({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={selected ? 'page' : undefined}
+      className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors
+        ${selected
+          ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+          : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  )
+}
+
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -233,11 +252,24 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
   const selectListSection = useTaskStore((s) => s.selectListSection)
+  const selectListTag = useTaskStore((s) => s.selectListTag)
+  const filterTag = useTaskStore((s) => s.filterTag)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
+  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない）。タグを使わない設定なら出さない */
+  const courseTags = useMemo(() => {
+    if (!tagsEnabled) return []
+    const tags = new Set<string>()
+    for (const t of tasks) {
+      if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
+      for (const tag of t.tags) tags.add(tag)
+    }
+    return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [tasks, tagsEnabled])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -334,30 +366,30 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             <div key={list.id} className="relative">
               <SortableListItem
                 list={list}
-                isSelected={isSelected && !quickAddSectionId}
+                isSelected={isSelected && !quickAddSectionId && !filterTag}
                 onSelect={() => handleNav(() => selectList(list.id))}
                 onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
                 onDelete={() => deleteList(list.id)}
                 onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
               />
-              {listSections.map((sec) => {
-                const secSelected =
-                  isSelected && quickAddSectionId === sec.id
-                return (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
-                    aria-current={secSelected ? 'page' : undefined}
-                    className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors
-                      ${secSelected
-                        ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
-                        : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{sec.name}</span>
-                  </button>
-                )
-              })}
+              {listSections.map((sec) => (
+                <SubNavRow
+                  key={sec.id}
+                  label={sec.name}
+                  selected={isSelected && quickAddSectionId === sec.id}
+                  onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
+                />
+              ))}
+              {/* Canvas の課題の科目タグ。押すと Canvas のリストをその科目で絞る */}
+              {list.id === CANVAS_LIST_ID &&
+                courseTags.map((tag) => (
+                  <SubNavRow
+                    key={`tag:${tag}`}
+                    label={tag}
+                    selected={isSelected && filterTag === tag}
+                    onClick={() => handleNav(() => selectListTag(list.id, tag))}
+                  />
+                ))}
               {colorPickId === list.id && (
                 <ColorPicker
                   current={list.color}
