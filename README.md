@@ -42,6 +42,7 @@ npm run dev
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
 2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) を**まとめて実行**し、テーブルと RLS を作成します（通知・Google・Notion・Canvas 用の表も含む）（概要は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
+   既に 001 を適用済みの DB には、追加分の `002`〜`004` を番号順に実行します（何度流しても同じ形になります）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。

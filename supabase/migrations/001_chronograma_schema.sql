@@ -37,8 +37,9 @@ create table if not exists public.list_sections (
   sort_order double precision not null default 0,
   updated_at timestamptz not null default now(),
   primary key (user_id, id),
+  -- リストを消しても中身は道連れにしない（004 を参照）。アカウントの削除では auth.users からの cascade で消える
   constraint list_sections_list_fkey
-    foreign key (user_id, list_id) references public.lists (user_id, id) on delete cascade
+    foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action
 );
 
 create index if not exists list_sections_user_list_idx on public.list_sections (user_id, list_id);
@@ -91,7 +92,7 @@ create table if not exists public.tasks (
 
   primary key (user_id, id),
   constraint tasks_list_fkey
-    foreign key (user_id, list_id) references public.lists (user_id, id) on delete cascade,
+    foreign key (user_id, list_id) references public.lists (user_id, id) on delete no action,
   -- セクションが消えたら section_id だけ null にする（user_id は残す）
   constraint tasks_section_fkey
     foreign key (user_id, section_id) references public.list_sections (user_id, id)

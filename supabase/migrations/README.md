@@ -19,6 +19,7 @@
 - `sort_order` は `double precision`（間に挿入すると中間値になるため）。
 - `002_notifications.sql`: タスクごとの通知（`tasks.reminders`）と、記録の確認・止め忘れの通知（`push_subscriptions`）。001 をこれより前に適用した DB だけに実行する。
 - `003_canvas.sql`: Canvas 連携（`canvas_connection`）。001 を 2026-10-03 より前に適用した DB だけに実行する。
+- `004_list_delete_no_cascade.sql`: リストを消してもサーバー側で中のタスク・セクションを道連れにしない（他の端末で同じころ足したタスクが消えていた）。001 を 2026-10-03 より前に適用した DB だけに実行する。
 - 以前は 001〜014 の追記型マイグレーションだった（2026-10 に 1 本へまとめた）。それらを適用済みの既存 DB はそのままでよい。まとめた後にスキーマを変えるときは、`001` を最終形に直したうえで、既存 DB 向けの `alter table` を `002_...sql` として追加する。
 
 ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。

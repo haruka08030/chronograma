@@ -105,6 +105,12 @@ export function mergeSnapshots(
   const mergedSections = sections.merged
     .map((s) => (listIds.has(s.listId) || fallbackList(s.listId) !== CANVAS_LIST_ID ? s : { ...s, listId: CANVAS_LIST_ID }))
     .filter((s) => listIds.has(s.listId))
+  // 消えたリストのセクションがサーバーに残っていると、リストの削除が外部キーで通らない（004）。一緒に消す
+  const keptSectionIds = new Set(mergedSections.map((s) => s.id))
+  const remoteSectionIds = new Set(remote.sections.map((s) => s.id))
+  const orphanSections = sections.merged
+    .filter((s) => !keptSectionIds.has(s.id) && remoteSectionIds.has(s.id))
+    .map((s) => s.id)
   const sectionListById = new Map(mergedSections.map((s) => [s.id, s.listId]))
   const taskIds = new Set(tasks.merged.map((t) => t.id))
   const mergedTasks = tasks.merged.map((t) => {
@@ -126,7 +132,7 @@ export function mergeSnapshots(
     merged: { lists: lists.merged, sections: mergedSections, tasks: mergedTasks, habits: habits.merged },
     deletes: {
       lists: lists.deleteRemote.filter((id) => id !== SYNC_INBOX_LIST_ID),
-      sections: sections.deleteRemote,
+      sections: [...sections.deleteRemote, ...orphanSections],
       tasks: tasks.deleteRemote,
       habits: habits.deleteRemote,
     },

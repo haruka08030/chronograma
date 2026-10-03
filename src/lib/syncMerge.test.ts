@@ -291,6 +291,21 @@ describe('mergeSnapshots の参照整合性', () => {
   })
 })
 
+describe('リストの削除と他端末の追加が重なったとき', () => {
+  it('消えたリストに他端末が足したセクションは、リストと一緒にサーバーから消す（残すとリストを消せない）', () => {
+    const inbox: TaskList = { id: SYNC_INBOX_LIST_ID, name: '未分類', color: '#000', order: 0, updatedAt: T0 }
+    const gone: TaskList = { id: 'L', name: 'ゼミ', color: '#000', order: 1, updatedAt: T0 }
+    const sec: ListSection = { id: 'S', listId: 'L', name: '発表', order: 0, updatedAt: T1 }
+    const baseline = baselineFrom({ lists: [inbox, gone], sections: [], tasks: [], habits: [] })
+    const local: SyncSnapshot = { lists: [inbox], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, gone], sections: [sec], tasks: [task('b', { listId: 'L', sectionId: 'S', updatedAt: T1 })], habits: [] }
+    const { merged, deletes } = mergeSnapshots(local, remote, baseline)
+    expect(deletes.lists).toEqual(['L'])
+    expect(deletes.sections).toEqual(['S'])
+    expect(merged.tasks.find((t) => t.id === 'b')).toMatchObject({ listId: SYNC_INBOX_LIST_ID, sectionId: null })
+  })
+})
+
 describe('mergeWithoutBaseline（前回同期が無い端末の初回同期）', () => {
   it('送れていなかった手元のタスクを、古いサーバーで上書きして消さない', () => {
     const local = snapshot({ tasks: [task('old', { updatedAt: T1 }), task('unsynced-es', { createdAt: T2, updatedAt: T2 })] })
