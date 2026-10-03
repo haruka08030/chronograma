@@ -7,6 +7,7 @@ import { tip } from '../lib/tooltip'
 import { pad2 } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
+import { HINT_TEXT } from './ui/textClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -168,7 +169,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
         {t('staleTimer.title')}
       </p>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className={`mt-1 ${HINT_TEXT}`}>
         {t('staleTimer.body', { title: taskTitle, since: formatStarted(started) })}
       </p>
 

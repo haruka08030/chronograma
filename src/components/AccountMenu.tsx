@@ -13,6 +13,7 @@ import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleLogo } from './ui/GoogleLogo'
+import { HINT_TEXT, META_TEXT } from './ui/textClass'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
@@ -143,7 +144,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
 
   if (loading) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 text-xs text-zinc-400">
+      <span className={`inline-flex items-center gap-1.5 px-2 ${META_TEXT}`}>
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" aria-hidden />
         {t('account.checking')}
       </span>
@@ -176,7 +177,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         </button>
         {isSettings && (
           <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t('account.deleteHelp')}</p>
+            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
             <button
               type="button"
               onClick={() => void handleDeleteAccount()}
@@ -210,10 +211,10 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+            <p className={`mb-2 ${HINT_TEXT}`}>
               {t('account.intro')}
             </p>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
+            <p className={`mb-2 ${META_TEXT}`}>
               {t('account.agreePrefix')}
               <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.terms')}</a>
               {t('account.agreeAnd')}
@@ -240,7 +241,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 break-all">{codeSentTo}</p>
+                <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
                 <input
                   type="text"
                   inputMode="numeric"

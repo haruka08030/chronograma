@@ -41,6 +41,7 @@ import { CheckIcon, RepeatIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { fieldClass } from './ui/fieldClass'
+import { HINT_TEXT, SUBTLE_TEXT } from './ui/textClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -172,7 +173,7 @@ function HabitTimeFields({
       ) : null}
 
       {mode !== 'none' ? (
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+        <p className={HINT_TEXT}>
           {t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
         </p>
       ) : null}
@@ -750,7 +751,7 @@ export function HabitsView() {
           </li>
         )}
         {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
-          <p className="py-2 text-sm text-zinc-400 dark:text-zinc-500">{t('habits.noneScheduledForDay')}</p>
+          <p className={`py-2 ${SUBTLE_TEXT}`}>{t('habits.noneScheduledForDay')}</p>
         )}
         {habitsScheduledForFocus.map((h) => renderHabitRow(h, false))}
         {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (

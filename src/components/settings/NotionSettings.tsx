@@ -17,6 +17,7 @@ import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
+import { HINT_TEXT } from '../ui/textClass'
 
 const select = fieldClass({ size: 'sm' }, 'max-w-[12rem]')
 const field = fieldClass({}, 'w-full')
@@ -147,7 +148,7 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         if (token.trim() && database.trim()) onConnect(token.trim(), database.trim())
       }}
     >
-      <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
+      <ol className={`list-decimal space-y-1 pl-5 ${HINT_TEXT}`}>
         <li>
           <a
             href="https://www.notion.so/profile/integrations"

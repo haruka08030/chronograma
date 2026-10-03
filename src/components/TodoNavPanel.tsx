@@ -26,6 +26,7 @@ import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
 import { ListContextMenu } from './ListContextMenu'
 import { SectionLabel } from './ui/SectionLabel'
+import { META_TEXT } from './ui/textClass'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -197,7 +198,7 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
       <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
       <span className="min-w-0 flex-1 truncate">{name}</span>
       {label.count > 0 && (
-        <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
+        <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>
       )}
     </button>
   )

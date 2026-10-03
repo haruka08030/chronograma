@@ -10,6 +10,7 @@ import {
 import { toReminderTask } from '../lib/localReminders'
 import { CloseIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { META_TEXT } from './ui/textClass'
 
 /** 追加できる通知（Google の「通知を追加」の候補を学生の使い方に寄せたもの） */
 const PRESETS: TaskReminder[] = [
@@ -103,7 +104,7 @@ export function TaskRemindersField({ task }: { task: Task }) {
             </button>
           </span>
         ))}
-        {current.length === 0 && <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('taskReminders.none')}</span>}
+        {current.length === 0 && <span className={META_TEXT}>{t('taskReminders.none')}</span>}
         {addable.length > 0 && (
           <select
             id={`reminders-${task.id}`}

@@ -13,6 +13,7 @@ import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
+import { META_TEXT } from './ui/textClass'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -59,7 +60,7 @@ export function WeekReviewCard() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className={META_TEXT}>
             {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
           </p>
         </div>
@@ -143,7 +144,7 @@ export function WeekReviewCard() {
         <div>
           <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
           {review.topTags.length === 0 ? (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('weekReview.noLogs')}</p>
+            <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
             <ul className="space-y-1.5">
               {review.topTags.map((x) => (

@@ -17,6 +17,7 @@ import { CheckCircleIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { fieldClass } from './ui/fieldClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { META_TEXT } from './ui/textClass'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -116,7 +117,7 @@ export function CalendarTaskDock() {
             <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />
           )}
           {selected.size > 0 && (
-            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <div className={`flex items-center justify-between px-2 py-1 ${META_TEXT}`}>
               <span>{t('taskList.selectedCount', { count: selected.size })}</span>
               <button
                 type="button"
