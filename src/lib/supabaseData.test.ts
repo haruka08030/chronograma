@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
+import type { Habit } from '../types/habit'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
@@ -246,3 +247,45 @@ function fetchedTasks(ids: string[]): Task[] {
     sectionId: null,
   }))
 }
+
+const habitRow = (id: string, patch: Record<string, unknown> = {}): Row => ({
+  id,
+  user_id: 'u1',
+  title: id,
+  color: '#33B679',
+  time_mode: 'none',
+  start_time: null,
+  end_time: null,
+  frequency: { type: 'daily' },
+  completed_dates: ['2026-10-01'],
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+  ...patch,
+})
+
+describe('habits.archived_at', () => {
+  it('reads rows without the column (before 003) as active, and keeps the archive stamp', async () => {
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [], habits: [habitRow('old'), habitRow('arch', { archived_at: '2026-10-02T00:00:00+00:00' })] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(res.habits.map((h) => [h.id, h.archivedAt])).toEqual([['arch', '2026-10-02T00:00:00+00:00'], ['old', null]])
+  })
+
+  it('sends archived_at, and resends without it when the DB has no column yet', async () => {
+    const h: Habit = {
+      id: 'h', title: 'h', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedDates: [], archivedAt: '2026-10-02T00:00:00.000Z',
+    }
+    const ok = fakeSupabase({})
+    await pushListsTasksHabits(ok.client, 'u-arch', [], [], [h], [], noDeletes)
+    expect(ok.upserts.find((u) => u.table === 'habits')?.rows[0]).toMatchObject({ archived_at: '2026-10-02T00:00:00.000Z' })
+
+    const missing = { code: 'PGRST204', message: "Could not find the 'archived_at' column of 'habits' in the schema cache" }
+    const old = fakeSupabase({}, { rejectRow: (table, r) => (table === 'habits' && 'archived_at' in r ? missing : null) })
+    const res = await pushListsTasksHabits(old.client, 'u-arch-old', [], [], [h], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    const sent = old.upserts.find((u) => u.table === 'habits')?.rows[0]
+    expect(sent).toMatchObject({ id: 'h' })
+    expect(sent && 'archived_at' in sent).toBe(false)
+  })
+})

@@ -38,3 +38,11 @@ describe('他のタイムゾーン', () => {
     expect(out.extraTimeZones).toEqual([])
   })
 })
+
+describe('習慣のアーカイブ（版 37）', () => {
+  it('前の版の習慣は使用中になり、updatedAt は変えない', () => {
+    const h = { id: 'h', title: 'ジム', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' }, createdAt: OLD, updatedAt: OLD, completedDates: ['2026-01-01'] }
+    const out = migrateTaskState({ tasks: [], lists: [], sections: [], habits: [h] }, 36)
+    expect(out.habits[0]).toMatchObject({ archivedAt: null, updatedAt: OLD, completedDates: ['2026-01-01'] })
+  })
+})

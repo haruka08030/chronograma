@@ -38,6 +38,8 @@ interface HabitRow {
   completed_dates: unknown
   created_at: string
   updated_at: string
+  /** 古い DB には無い（`003`）。無い・null は使用中 */
+  archived_at?: string | null
 }
 
 interface TaskRow {
@@ -307,6 +309,7 @@ function rowToHabit(row: HabitRow): Habit {
     completedDates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
   }
 }
 
@@ -323,6 +326,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     completed_dates: h.completedDates,
     created_at: h.createdAt,
     updated_at: h.updatedAt,
+    archived_at: h.archivedAt ?? null,
   }
 }
 
@@ -792,7 +796,14 @@ export async function pushListsTasksHabits(
     return finish(errMsg)
   }
 
-  const eH = await upsert('habits', habitRows)
+  let eH = await upsert('habits', habitRows)
+  // `003` を流す前の DB には archived_at が無い。アーカイブなしで送り直す（列を足せば次回から送る）
+  if (isMissingArchivedAtColumnError(eH)) {
+    eH = await upsert('habits', habitRows.map(({ archived_at, ...rest }) => {
+      void archived_at
+      return rest
+    }))
+  }
   if (eH) return finish(eH)
 
   // 子 → 親の順（tasks → habits → sections → lists）

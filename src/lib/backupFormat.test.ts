@@ -27,6 +27,21 @@ describe('parseBackupJson', () => {
     expect(h.completedDates).toEqual(['2026-10-01'])
     expect(h.frequency).toEqual({ type: 'weekly', weekdays: [1] })
     expect(Number.isFinite(Date.parse(h.updatedAt))).toBe(true)
+    expect(h.archivedAt).toBeNull()
+  })
+
+  it('keeps a habit archived, and treats a broken archive stamp as active', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: [{ id: '__inbox__', name: '未分類' }],
+        tasks: [],
+        habits: [
+          { id: 'a', title: '英単語', archivedAt: '2026-10-02T00:00:00.000Z' },
+          { id: 'b', title: 'ジム', archivedAt: 'yesterday' },
+        ],
+      }),
+    )
+    expect(parsed!.habits.map((h) => h.archivedAt)).toEqual(['2026-10-02T00:00:00.000Z', null])
   })
 
   it('keeps valid values as they are', () => {

@@ -12,6 +12,8 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'deleteHabit'
+  | 'archiveHabit'
+  | 'restoreHabit'
   | 'toggleHabitDate'
   | 'completeHabitAsPlanned'
 >
@@ -33,6 +35,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         createdAt: now,
         updatedAt: now,
         completedDates: [],
+        archivedAt: null,
       }
       set((s) => ({ habits: [...s.habits, habit] }))
     },
@@ -48,6 +51,19 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       const name = get().habits.find((h) => h.id === id)?.title ?? ''
       pushUndo({ key: 'undo.habitDeleted', params: { name } })
       return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
+    },
+    archiveHabit: (id) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit || habit.archivedAt) return
+      pushUndo({ key: 'undo.habitArchived', params: { name: habit.title } })
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, updatedAt: now } : h)) }))
+    },
+    restoreHabit: (id) => {
+      if (!get().habits.find((h) => h.id === id)?.archivedAt) return
+      pushUndo()
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: null, updatedAt: now } : h)) }))
     },
     toggleHabitDate: (habitId, dateKey) => {
       const s0 = get()

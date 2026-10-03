@@ -8,7 +8,7 @@
 
 const PERSIST_KEY = 'chronograma-storage'
 /** `taskStore.ts` の persist version と合わせる。古いと migrate が走って構図が変わる */
-const PERSIST_VERSION = 36
+const PERSIST_VERSION = 37
 
 const INBOX_ID = '__inbox__'
 const SOMEDAY_ID = 'seed-someday'
@@ -115,6 +115,7 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
       completedDates: [yesterday, dayKey(shift(now, -2)), dayKey(shift(now, -3))],
+      archivedAt: null,
     },
     {
       id: 'h2',
@@ -127,6 +128,21 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
       completedDates: [yesterday],
+      archivedAt: null,
+    },
+    // アーカイブした習慣（習慣の画面の下の「アーカイブ」にだけ出る）
+    {
+      id: 'h3',
+      title: '日記を書く',
+      color: '#F6BF26',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      completedDates: [dayKey(shift(now, -10))],
+      archivedAt: now.toISOString(),
     },
   ]
 

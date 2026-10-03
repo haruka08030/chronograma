@@ -67,6 +67,7 @@ function habit(id: string, patch: Partial<Habit> = {}): Habit {
     createdAt: T0,
     updatedAt: T0,
     completedDates: [],
+    archivedAt: null,
     ...patch,
   }
 }

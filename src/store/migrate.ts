@@ -305,5 +305,10 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // 他のタイムゾーンに名前を付けられるようにした: 文字列の配列から { tz, label } の並びに
     state.extraTimeZones = normalizeExtraTimeZones(state.extraTimeZones)
   }
+  if (version < 37) {
+    // 習慣のアーカイブはこの版から。それまでの習慣は使用中（updatedAt は変えない）
+    const habits = (state.habits as Record<string, unknown>[] | undefined) ?? []
+    state.habits = habits.map((h) => ({ ...h, archivedAt: typeof h.archivedAt === 'string' ? h.archivedAt : null }))
+  }
   return state as unknown as TaskState
 }

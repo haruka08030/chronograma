@@ -274,6 +274,8 @@ function normalizeHabitRow(raw: unknown): Habit | null {
     timeMode,
     startTime: readTime(startTime),
     endTime: readTime(endTime),
+    // 古いバックアップには無い（使用中）
+    archivedAt: typeof rec.archivedAt === 'string' && !Number.isNaN(Date.parse(rec.archivedAt)) ? rec.archivedAt : null,
   } as Habit
 }
 

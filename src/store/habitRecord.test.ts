@@ -15,7 +15,7 @@ const colors = assignColorsInOrder(presets)
 function habit(fields: Partial<Habit> = {}): Habit {
   return {
     id: 'h1', title: '朝ラン', color: '#123456', timeMode: 'range', startTime: '06:00', endTime: '06:30',
-    frequency: { type: 'daily' }, createdAt: NOW, updatedAt: NOW, completedDates: [],
+    frequency: { type: 'daily' }, createdAt: NOW, updatedAt: NOW, completedDates: [], archivedAt: null,
     ...fields,
   }
 }
