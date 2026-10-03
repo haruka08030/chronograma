@@ -277,6 +277,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         priority={task.priority}
         small={isSubtask}
         shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
+        inert={Boolean(selection?.reveal)}
         onClick={(e) => {
           e.stopPropagation()
           toggleTask(task.id)
