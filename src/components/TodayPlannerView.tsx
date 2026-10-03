@@ -40,8 +40,6 @@ import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { SUBTLE_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
-import { TaskSourceLink } from './ui/TaskSourceLink'
-import { sourceLinkOf } from '../lib/sourceLink'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -191,8 +189,7 @@ export function TodayPlannerView() {
 
   const renderRow = (task: Task, action?: React.ReactNode) => {
     const meta = rowMeta(task)
-    const sourceLink = sourceLinkOf(task.description)
-    const hasRowExtras = !task.completed && (sourceLink !== null || task.tags.length > 0)
+    const hasRowExtras = !task.completed && task.tags.length > 0
     return (
       <li
         key={task.id}
@@ -224,17 +221,12 @@ export function TodayPlannerView() {
           >
             {task.title}
           </button>
-          {/* To-Do 一覧の行と同じく、タイトルの下に「開く」アイコンとタグ */}
+          {/* タイトルの下にタグ。リンクの「開く」は幅が狭いので出さない（タイムラインのカード・詳細から開く） */}
           {hasRowExtras && (
-            <div className="flex flex-wrap items-center gap-2 pb-2 pt-0.5">
-              {sourceLink && <TaskSourceLink link={sourceLink} />}
-              {task.tags.length > 0 && (
-                <div className="flex gap-1">
-                  {task.tags.map((tag) => (
-                    <span key={tag} className={chipClass({ variant: 'fill' })}>{tag}</span>
-                  ))}
-                </div>
-              )}
+            <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
+              {task.tags.map((tag) => (
+                <span key={tag} className={chipClass({ variant: 'fill' })}>{tag}</span>
+              ))}
             </div>
           )}
         </div>
