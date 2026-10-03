@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { recordLabelKey, recordLabelKeyHex } from './logCategoryColors'
-import { colorLabelText, recordLabelKeyText, todoColorLabels } from './todoColorLabels'
+import { colorLabelEditRows, colorLabelText, recordLabelKeyText, todoColorLabels } from './todoColorLabels'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 function task(over: Partial<Task>): Task {
@@ -113,5 +113,31 @@ describe('recordLabelKey', () => {
     expect(recordLabelKeyText('#F6BF26', presets, colors, t)).toBe('t:googleColors.banana')
     expect(recordLabelKeyText('授業', presets, colors, t)).toBe('授業')
     expect(recordLabelKeyText('', presets, colors, t)).toBe('t:labels.none')
+  })
+})
+
+describe('colorLabelEditRows（ナビの色ラベルのカード）', () => {
+  const presets = ['勉強', 'バイト']
+  const colors = { 勉強: 'sage', バイト: 'tomato' }
+
+  it('ラベル名のある色は名前と色を変え、ほかのラベルはそのまま', () => {
+    expect(colorLabelEditRows('#33B679', { name: 'Study', hex: '#039BE5' }, presets, colors)).toEqual([
+      { from: '勉強', name: 'Study', color: 'peacock' },
+      { from: 'バイト', name: 'バイト', color: 'tomato' },
+    ])
+  })
+
+  it('名前を空にしても元の名前のまま（消すのは削除だけ）', () => {
+    expect(colorLabelEditRows('#33B679', { name: ' ', hex: '#33B679' }, presets, colors)[0]).toEqual({ from: '勉強', name: '勉強', color: 'sage' })
+  })
+
+  it('名前の無い色に名前を書くと、その色のラベルを作る', () => {
+    expect(colorLabelEditRows('#039BE5', { name: '読書', hex: '#039BE5' }, presets, colors).at(-1)).toEqual({
+      from: null, name: '読書', color: 'peacock', fromHex: '#039BE5',
+    })
+  })
+
+  it('削除はその色のラベルの行を外す', () => {
+    expect(colorLabelEditRows('#D50000', null, presets, colors)).toEqual([{ from: '勉強', name: '勉強', color: 'sage' }])
   })
 })

@@ -183,8 +183,9 @@ export interface TaskState {
    * - `from` は元の名前（新しい行は null）。名前を変えると記録も付け替える
    * - 消したラベルの記録は分類を外し、色だけ残す（Google と同じ）
    * - 分類の無い記録は、同じ色のラベルがあればその分類になる
+   * - `fromHex` は名前の無かった色（To‑Do ナビの色ラベル）。色を変えたらその色の予定・タスクも新しい色へ（名前が空なら色だけ変える）
    */
-  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string }>) => void
+  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string }>) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
