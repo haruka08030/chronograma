@@ -26,7 +26,8 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
+import { CalendarIcon, CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon, SunIcon } from './icons'
+import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
 import { isSubmitEnter } from '../lib/keyboard'
@@ -229,8 +230,8 @@ export function TodayPlannerView() {
     <button
       type="button"
       onClick={() => startTimerForTask(task.id)}
-      title={t('planner.startTimer')}
       aria-label={t('planner.startTimer')}
+      {...tip(t('planner.startTimer'))}
       className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-opacity touch-manipulation hover:text-accent-600 md:p-1.5
                  md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100
                  dark:text-zinc-600 dark:hover:text-accent-300"
@@ -238,6 +239,24 @@ export function TodayPlannerView() {
       <PlayIcon className="h-4 w-4" />
     </button>
   )
+
+  /** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。今日はナビの「今日の計画」と同じ太陽 */
+  const moveHereButton = (task: Task) => {
+    const label = viewingToday ? t('planner.doToday') : t('planner.doThisDay')
+    const Icon = viewingToday ? SunIcon : CalendarIcon
+    return (
+      <button
+        type="button"
+        onClick={() => rescheduleTasks([task.id], dateKey)}
+        aria-label={label}
+        {...tip(label)}
+        className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-colors touch-manipulation hover:bg-zinc-100 hover:text-accent-600 md:p-1.5
+                   dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-accent-300"
+      >
+        <Icon className="h-4 w-4" />
+      </button>
+    )
+  }
 
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
@@ -353,9 +372,9 @@ export function TodayPlannerView() {
                 type="button"
                 onClick={() => setShowLeftOver((v) => !v)}
                 aria-expanded={showLeftOver}
-                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
               >
-                <ChevronRightIcon className={`h-3 w-3 shrink-0 text-zinc-400 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+                <ChevronRightIcon className={`h-3 w-3 shrink-0 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </button>
               <button
@@ -374,14 +393,7 @@ export function TodayPlannerView() {
             </div>
             {showLeftOver && (
               <ul>
-                {leftOver.map((task) =>
-                  renderRow(
-                    task,
-                    <button type="button" onClick={() => rescheduleTasks([task.id], dateKey)} className={`shrink-0 ${textButton}`}>
-                      {t('planner.doToday')}
-                    </button>,
-                  ),
-                )}
+                {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
               </ul>
             )}
           </div>
@@ -415,9 +427,7 @@ export function TodayPlannerView() {
                   {suggestions.map((task) => (
                     renderRow(
                       task,
-                      <button type="button" onClick={() => rescheduleTasks([task.id], dateKey)} className={`shrink-0 ${textButton}`}>
-                        {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
-                      </button>,
+                      moveHereButton(task),
                     )
                   ))}
                 </ul>
@@ -437,9 +447,7 @@ export function TodayPlannerView() {
                       {moreSuggestions.slice(0, moreShown).map((task) => (
                         renderRow(
                           task,
-                          <button type="button" onClick={() => rescheduleTasks([task.id], dateKey)} className={`shrink-0 ${textButton}`}>
-                            {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
-                          </button>,
+                          moveHereButton(task),
                         )
                       ))}
                       {hasMoreToShow && <li ref={moreSentinelRef} aria-hidden className="h-px" />}

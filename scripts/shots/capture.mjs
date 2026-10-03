@@ -33,6 +33,8 @@ const DEFAULT_AT = '13:00'
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
+  // やり残しを開いた状態（行ごとの「今日やる」アイコン）
+  { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）
