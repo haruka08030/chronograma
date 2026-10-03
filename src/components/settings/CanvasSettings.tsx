@@ -19,6 +19,7 @@ import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync
 import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
+import { askConfirm } from '../../lib/confirmDialog'
 
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
 
@@ -111,8 +112,11 @@ export function CanvasSettings() {
           error={errors[c.id] ?? sync.connectionErrors[c.id] ?? null}
           errorText={errorText}
           onRenew={(token) => act(c.id, () => renewCanvasToken(c.id, token))}
-          onDisconnect={() => {
-            if (window.confirm(t('canvas.disconnectConfirm', { host: new URL(c.baseUrl).host }))) void act(c.id, () => disconnectCanvas(c.id))
+          onDisconnect={async () => {
+            const host = new URL(c.baseUrl).host
+            if (await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })) {
+              void act(c.id, () => disconnectCanvas(c.id))
+            }
           }}
         />
       ))}

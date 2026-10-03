@@ -20,6 +20,7 @@ import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
+import { askConfirm } from '../lib/confirmDialog'
 
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
@@ -192,7 +193,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
             const file = e.target.files?.[0]
             if (!file) return
             const reader = new FileReader()
-            reader.onload = () => {
+            reader.onload = async () => {
               // 先に中身を読んでから確認する。件数が分からないまま
               // 「上書きしますか？」だけ出しても判断できない
               const preview = previewBackupJson(reader.result as string)
@@ -201,14 +202,16 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
                 return
               }
               const current = useTaskStore.getState()
-              const ok = window.confirm(
-                i18n.t('confirm.importOverwriteCounts', {
+              const ok = await askConfirm({
+                message: i18n.t('confirm.importOverwriteCounts', {
                   currentTasks: current.tasks.length,
                   nextTasks: preview.tasks,
                   currentLists: current.lists.length,
                   nextLists: preview.lists,
                 }),
-              )
+                confirmLabel: i18n.t('sidebar.import'),
+                danger: true,
+              })
               if (!ok) return
               if (!importData(reader.result as string)) {
                 notify(i18n.t('alert.invalidImportFile'))
@@ -270,8 +273,8 @@ function RestoreBeforeImportRow() {
       <button
         type="button"
         className={buttonClass({ variant: 'secondary', size: 'md' })}
-        onClick={() => {
-          if (!window.confirm(i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }))) return
+        onClick={async () => {
+          if (!(await askConfirm({ message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }), confirmLabel: i18n.t('settings.restoreImportAction') }))) return
           if (restoreBeforeImport()) {
             setSaved(null)
             setReloadKey((n) => n + 1)

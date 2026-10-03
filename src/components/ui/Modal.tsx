@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useEscapeLayer } from '../../hooks/useEscapeLayer'
 import { FLOATING_SURFACE } from './surface'
@@ -19,6 +19,7 @@ export function Modal({
   label,
   width = 'md',
   className = '',
+  initialFocus,
 }: {
   children: ReactNode
   onClose: () => void
@@ -28,13 +29,17 @@ export function Modal({
   label?: string
   width?: 'sm' | 'md'
   className?: string
+  /** 開いたときにフォーカスする要素（省略するとダイアログ自体） */
+  initialFocus?: RefObject<HTMLElement | null>
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const isTopLayer = useEscapeLayer(onClose)
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
-    ref.current?.focus()
+    ;(initialFocus?.current ?? ref.current)?.focus()
     return () => prev?.focus?.()
+    // 開いたときだけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return createPortal(

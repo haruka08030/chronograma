@@ -10,6 +10,7 @@ import { disconnectCanvas, fetchCanvasStatus, type CanvasConnection } from '../.
 import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronRightIcon } from '../icons'
+import { askConfirm } from '../../lib/confirmDialog'
 
 /**
  * 設定のトップに置く外部連携のまとめ。使う人だけが使う機能なので、つなぐ・細かく設定するのは次のページ
@@ -68,8 +69,8 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
       )}
       {notion !== null && (
         <SettingsRow label="Notion" help={notion}>
-          {disconnectButton(() => {
-            if (!window.confirm(t('notion.disconnectConfirm'))) return
+          {disconnectButton(async () => {
+            if (!(await askConfirm({ message: t('notion.disconnectConfirm'), confirmLabel: t('notion.disconnect'), danger: true }))) return
             void run(async () => {
               await disconnectNotion()
               setNotion(null)
@@ -82,8 +83,8 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
         const host = new URL(c.baseUrl).host
         return (
           <SettingsRow key={c.id} label="Canvas" help={host}>
-            {disconnectButton(() => {
-              if (!window.confirm(t('canvas.disconnectConfirm', { host }))) return
+            {disconnectButton(async () => {
+              if (!(await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true }))) return
               void run(async () => {
                 setCanvas((await disconnectCanvas(c.id)).connections)
                 requestCanvasSync()

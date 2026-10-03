@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import i18n from '../../i18n/config'
 import { buttonClass } from './buttonClass'
 import { downloadRawData, latestAutoBackup } from '../../lib/crashRecovery'
+import { askConfirm } from '../../lib/confirmDialog'
 
 /**
  * 描画中のエラーで画面全体が真っ白にならないようにする。
@@ -20,7 +21,7 @@ async function restoreLatest() {
     window.alert(t('crash.noBackup'))
     return
   }
-  if (!window.confirm(t('crash.restoreConfirm', { date: new Date(backup.savedAt).toLocaleString(i18n.language) }))) return
+  if (!(await askConfirm({ message: t('crash.restoreConfirm', { date: new Date(backup.savedAt).toLocaleString(i18n.language) }), confirmLabel: t('crash.restore') }))) return
   const { useTaskStore } = await import('../../store/taskStore')
   if (!useTaskStore.getState().importData(backup.json)) {
     window.alert(t('crash.noBackup'))

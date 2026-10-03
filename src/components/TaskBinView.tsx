@@ -10,6 +10,7 @@ import type { Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
+import { askConfirm } from '../lib/confirmDialog'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -70,8 +71,8 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         {mode === 'deleted' && rows.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(t('taskBin.emptyConfirm'))) emptyDeleted()
+            onClick={async () => {
+              if (await askConfirm({ message: t('taskBin.emptyConfirm'), confirmLabel: t('taskBin.emptyTrash'), danger: true })) emptyDeleted()
             }}
             className={buttonClass({ variant: 'danger', size: 'sm' })}
           >
@@ -137,9 +138,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (mode === 'deleted') {
-                        if (window.confirm(t('taskBin.permanentConfirm'))) permanentlyDeleteTask(task.id)
+                        if (await askConfirm({ message: t('taskBin.permanentConfirm'), confirmLabel: t('taskBin.deleteForever'), danger: true })) {
+                          permanentlyDeleteTask(task.id)
+                        }
                       } else {
                         deleteTask(task.id)
                       }

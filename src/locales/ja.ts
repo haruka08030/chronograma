@@ -631,6 +631,9 @@ export default {
     archive: 'アーカイブ',
     archiveAria: 'アーカイブ',
   },
+  confirmDialog: {
+    ok: 'OK',
+  },
   taskMenu: {
     search: '操作を検索…',
     count: '{{count}} 件のタスク',
@@ -736,7 +739,6 @@ export default {
     deleteHelp: 'アカウントと、クラウドに保存したタスク・記録・習慣・連携をすべて削除します。取り消せません。必要なら先に「データ」から書き出してください。',
     deleteConfirm: 'アカウントとクラウドのデータをすべて削除します。この端末のデータと自動バックアップも消えます。取り消せません。続けますか？',
     deleteTypeEmail: '確認のため、メールアドレス（{{email}}）を入力してください',
-    deleteEmailMismatch: 'メールアドレスが一致しません。削除していません。',
     deleteFailed: 'アカウントを削除できませんでした。しばらくしてからもう一度お試しください。',
   },
   theme: {

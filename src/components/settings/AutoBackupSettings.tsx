@@ -7,6 +7,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { notify } from '../../lib/notify'
 import { SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
+import { askConfirm } from '../../lib/confirmDialog'
 
 const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
@@ -44,7 +45,7 @@ export function AutoBackupSettings() {
       notify(i18n.t('autoBackup.unreadable'))
       return
     }
-    if (!window.confirm(i18n.t('autoBackup.confirmRestore', { when: when(b.savedAt) }))) return
+    if (!(await askConfirm({ message: i18n.t('autoBackup.confirmRestore', { when: when(b.savedAt) }), confirmLabel: i18n.t('autoBackup.restoreMissing') }))) return
     const added = restoreMissingFromBackup(full.json)
     // 戻せたときは store が「元に戻す」付きの通知を出す
     if (added === null) notify(i18n.t('autoBackup.unreadable'))

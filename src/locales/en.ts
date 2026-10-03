@@ -632,6 +632,9 @@ export default {
     archive: 'Archive',
     archiveAria: 'Archive',
   },
+  confirmDialog: {
+    ok: 'OK',
+  },
   taskMenu: {
     search: 'Search actions…',
     count: '{{count}} tasks',
@@ -737,7 +740,6 @@ export default {
     deleteHelp: 'Deletes your account and everything stored in the cloud: tasks, records, habits and connections. This cannot be undone. Export from "Data" first if you want a copy.',
     deleteConfirm: 'This deletes your account and all cloud data, plus the data and automatic backups on this device. It cannot be undone. Continue?',
     deleteTypeEmail: 'To confirm, type your email address ({{email}})',
-    deleteEmailMismatch: 'The email address does not match. Nothing was deleted.',
     deleteFailed: 'Could not delete the account. Please try again later.',
   },
   theme: {

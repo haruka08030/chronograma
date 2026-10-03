@@ -8,6 +8,7 @@ import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
+import { askConfirm } from '../lib/confirmDialog'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
@@ -31,20 +32,21 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
     setPending(true)
     const synced = await flushPendingSync()
     setPending(false)
-    if (!synced && !window.confirm(t('account.signOutUnsynced'))) return
+    if (!synced && !(await askConfirm({ message: t('account.signOutUnsynced'), confirmLabel: t('account.signOut'), danger: true }))) return
     await signOut()
   }
 
-  /** 取り消せないので 2 回確かめる。2 回目はメールアドレスの入力で、押し間違いでは消えないようにする */
+  /** 取り消せないので、確認のダイアログでメールアドレスを打ってもらってから消す */
   const handleDeleteAccount = async () => {
     if (!user) return
-    if (!window.confirm(t('account.deleteConfirm'))) return
-    const typed = window.prompt(t('account.deleteTypeEmail', { email: user.email ?? '' }))
-    if (typed === null) return
-    if (user.email && typed.trim().toLowerCase() !== user.email.toLowerCase()) {
-      setError(t('account.deleteEmailMismatch'))
-      return
-    }
+    // 取り消せないので、メールアドレスを打つまで削除できない（押し間違いでは消えない）
+    const ok = await askConfirm({
+      message: t('account.deleteConfirm'),
+      confirmLabel: t('account.delete'),
+      danger: true,
+      requireText: user.email ? { label: t('account.deleteTypeEmail', { email: user.email }), expected: user.email } : undefined,
+    })
+    if (!ok) return
     setError(null)
     setPending(true)
     const res = await deleteAccount()
