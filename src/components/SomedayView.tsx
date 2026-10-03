@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
+import { DueDatePopover } from './DueDatePopover'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { appTodayKey } from '../lib/timeZone'
@@ -17,7 +18,7 @@ import { ListSectionHeading } from './ListSectionHeading'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
- * 行頭の ☆ で「かなえた」（下の★一覧へ）、右の「今日やる」で今日の計画へ移す。
+ * 行頭の ☆ で「かなえた」（下の★一覧へ）、右の「予定する」で日付を選んで今日の計画（その日）へ移す。
  */
 export function SomedayView({ list }: { list: TaskList }) {
   const { t } = useTranslation()
@@ -53,9 +54,14 @@ export function SomedayView({ list }: { list: TaskList }) {
     setDraft('')
   }
 
-  const doToday = (item: Task) => {
-    promoteToPlanned(item.id, appTodayKey())
-    showMoveBanner(t('someday.movedToToday', { title: item.title }))
+  const schedule = (item: Task, dateKey: string | null) => {
+    if (!dateKey) return
+    promoteToPlanned(item.id, dateKey)
+    showMoveBanner(
+      dateKey === appTodayKey()
+        ? t('someday.movedToToday', { title: item.title })
+        : t('someday.movedToDate', { title: item.title, date: format(parseISO(`${dateKey}T12:00:00`), t('someday.dateFormat')) }),
+    )
   }
 
   const notePreview = (item: Task) => item.description.split('\n').find((l) => l.trim())?.trim() ?? ''
@@ -80,15 +86,25 @@ export function SomedayView({ list }: { list: TaskList }) {
           <span className="block truncate text-[15px] text-zinc-800 dark:text-zinc-100">{item.title}</span>
           {note && <span className="mt-0.5 block truncate text-xs text-zinc-400 dark:text-zinc-500">{note}</span>}
         </button>
-        <button
-          type="button"
-          onClick={() => doToday(item)}
-          className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
-                     md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100
-                     dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400"
-        >
-          {t('someday.doToday')}
-        </button>
+        <DueDatePopover
+          value={null}
+          onChange={(key) => schedule(item, key)}
+          kind="scheduled"
+          wrapperClassName="relative shrink-0"
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={toggle}
+              className={`rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-accent-50 hover:text-accent-600
+                         dark:text-zinc-400 dark:hover:bg-accent-500/10 dark:hover:text-accent-400
+                         ${open ? 'bg-accent-50 text-accent-600 dark:bg-accent-500/10 dark:text-accent-400' : 'md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'}`}
+            >
+              {t('someday.schedule')}
+            </button>
+          )}
+        />
       </li>
     )
   }
