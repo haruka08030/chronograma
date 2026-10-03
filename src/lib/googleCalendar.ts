@@ -201,6 +201,9 @@ export function localizeGoogleError(
   if (lower.includes('write scope not granted')) return t('googleEdit.needWriteAccess')
   if (lower.includes('read-only for you')) return t('googleEdit.readOnlyEvent')
   if (lower.includes('scope not granted')) return t('planVsActual.scopeNotGranted')
+  // ここから下はサーバーやアプリの設定の誤り。利用者には直せないので、開発中だけ詳しく出す
+  console.error('[google]', message)
+  if (!import.meta.env.DEV) return t('planVsActual.connectFailed')
   if (lower.includes('redirect_uri_mismatch')) {
     return t('planVsActual.redirectUriMismatch', { uri: getGoogleRedirectUri() })
   }

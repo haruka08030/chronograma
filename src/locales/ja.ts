@@ -487,7 +487,7 @@ export default {
     tagsEnabled: 'To-Do でタグを使う',
     data: 'データ',
     account: 'アカウント',
-    supabaseOff: 'Supabase が未設定のため、クラウドログインは利用できません。',
+    supabaseOff: 'このバージョンではクラウド同期を使えません。データはこの端末に保存されます。',
     paletteTitle: 'リスト色パレット',
     paletteHelp:
       'リストの色チップと新規リストの候補に使うパレットを選べます。既存リストの色は変わりません。',
@@ -678,7 +678,7 @@ export default {
     emailRequired: 'メールアドレスを入力してください',
     linkSent: 'ログイン用のリンクをメールに送信しました。受信箱を確認してください。',
     genericError: 'エラーが発生しました。もう一度お試しください。',
-    networkError: 'サーバーに接続できませんでした。ネットワーク接続、または Supabase プロジェクトが一時停止していないかを確認してください。',
+    networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     signOut: 'ログアウト',
     signOutUnsynced: 'まだクラウドに送れていない変更があります。ログアウトするとこの端末からは消えます（設定 → データ の自動バックアップ「ログアウトの直前」から戻せます）。ログアウトしますか？',
     signIn: 'ログイン',
@@ -799,8 +799,9 @@ export default {
     connectTimeout: '接続がタイムアウトしました。ページを再読み込みしてもう一度お試しください。',
     alreadyLinked:
       'Google アカウントは既にリンク済みです。Google アカウントの連携アプリから権限を削除してから再接続してください。',
+    connectFailed: 'Google カレンダーにつなげませんでした。少し待ってからもう一度お試しください。',
     storeTokenFailed: 'Google の認証情報を保存できませんでした。しばらくしてから再接続してください。',
-    networkError: 'サーバーに接続できませんでした。ネットワーク接続、または Supabase プロジェクトが一時停止していないかを確認してください。',
+    networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     supabaseNotConfigured: 'クラウド連携が未設定です。先にログインしてから接続してください。',
     notConnected: 'Google Calendar が未接続です。接続ボタンから再度リンクしてください。',
     tokenExpired:

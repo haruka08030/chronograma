@@ -488,7 +488,7 @@ export default {
     tagsEnabled: 'Use tags in To-Do',
     data: 'Data',
     account: 'Account',
-    supabaseOff: 'Supabase is not configured; cloud sign-in is unavailable.',
+    supabaseOff: 'Cloud sync isn’t available in this version. Your data is saved on this device.',
     paletteTitle: 'List color palette',
     paletteHelp: 'Palette used for color chips and new lists. Existing list colors stay the same.',
     selected: 'Selected',
@@ -678,7 +678,7 @@ export default {
     emailRequired: 'Enter your email address.',
     linkSent: 'Check your inbox for the sign-in link.',
     genericError: 'Something went wrong. Please try again.',
-    networkError: 'Could not reach the server. Check your network, or whether the Supabase project is paused.',
+    networkError: 'Could not reach the server. Check your connection and try again.',
     signOut: 'Sign out',
     signOutUnsynced: 'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
     signIn: 'Sign in',
@@ -799,8 +799,9 @@ export default {
     connectTimeout: 'Connection timed out. Reload the page and try again.',
     alreadyLinked:
       'Google is already linked. Remove app access from your Google account settings, then reconnect.',
+    connectFailed: 'Couldn’t connect to Google Calendar. Try again in a moment.',
     storeTokenFailed: 'Could not save Google credentials. Try reconnecting in a moment.',
-    networkError: 'Could not reach the server. Check your network, or whether the Supabase project is paused.',
+    networkError: 'Could not reach the server. Check your connection and try again.',
     supabaseNotConfigured: 'Cloud sync is not set up. Sign in first, then connect.',
     notConnected: 'Google Calendar is not connected. Use the connect button to link again.',
     tokenExpired:

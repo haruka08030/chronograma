@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
           user_id: user.id,
           refresh_token: refreshToken,
           // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
-          scope: tokenData.scope ?? (body.scope as string) ?? SCOPES,
+          scope: tokenData.scope ?? SCOPES,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' },
@@ -316,6 +316,19 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'disconnect') {
+      // 行を消すだけでは Google 側の許可が残るので、先に取り消す（失敗しても切断は進める）
+      const { data: current } = await admin
+        .from('google_oauth')
+        .select('refresh_token')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (current?.refresh_token) {
+        await fetch('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token: current.refresh_token as string }),
+        }).catch((err) => console.error('[google] revoke failed', err))
+      }
       const { error } = await admin
         .from('google_oauth')
         .delete()
@@ -344,9 +357,16 @@ Deno.serve(async (req) => {
       try {
         await refreshGoogleAccessToken(row.refresh_token)
         return jsonResponse({ connected: true })
-      } catch {
-        await admin.from('google_oauth').delete().eq('user_id', user.id)
-        return jsonResponse({ connected: false, stale: true })
+      } catch (e) {
+        // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
+        // サーバーの設定ミスで全員の連携を外さない
+        const message = e instanceof Error ? e.message : String(e)
+        if (message.includes('invalid_grant')) {
+          await admin.from('google_oauth').delete().eq('user_id', user.id)
+          return jsonResponse({ connected: false, stale: true })
+        }
+        console.error('[google] status refresh failed', message)
+        return jsonResponse({ connected: true, error: 'Google is temporarily unavailable' })
       }
     }
 
