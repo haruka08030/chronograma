@@ -44,7 +44,7 @@ import {
 import { isModKey, isTextFieldUndoTarget, shortcutLabel } from './lib/keyboard'
 import { TooltipHost } from './components/ui/Tooltip'
 import { dispatchNav, dispatchSelectAll, isTypingTarget } from './lib/shortcuts'
-import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
+import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
 import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
@@ -344,7 +344,7 @@ export default function App() {
         tasks: state.tasks,
         selectedView: state.selectedView,
         selectedListId: state.selectedListId,
-        sortMode: state.sortMode,
+        sortMode: sortModeOf(state.sortByKey, sortKeyOf(state.selectedListId, state.selectedView)),
         filterTag: state.filterTag,
         filterColor: state.filterColor,
         sections: state.sections,

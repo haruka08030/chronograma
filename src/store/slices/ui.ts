@@ -1,4 +1,5 @@
 /** 画面の選択・絞り込み・トーストなど、表示の状態 */
+import { sortKeyOf } from '../../lib/todoSurfaceView'
 import { INBOX_ID } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
@@ -76,7 +77,7 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
     setSearchQuery: (q) => set({ searchQuery: q }),
     setSortMode: (mode) => {
       pushUndo()
-      set({ sortMode: mode })
+      set((s) => ({ sortByKey: { ...s.sortByKey, [sortKeyOf(s.selectedListId, s.selectedView)]: mode } }))
     },
     setSectionGrouping: (scope, on) =>
       set((s) => ({

@@ -70,7 +70,8 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  sortMode: SortMode
+  /** 並び順。リスト・ビューごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
   deletedTasks: { task: Task; deletedAt: number }[]
   quickAddRequested: boolean
@@ -179,6 +180,7 @@ export interface TaskState {
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
+  /** いま開いているリスト・ビューの並び順を変える */
   setSortMode: (mode: SortMode) => void
   setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
   requestQuickAdd: () => void
@@ -410,7 +412,7 @@ export interface ChronogramaUndoSnapshot {
   selectedListId: string | null
   selectedView: SmartView | null
   quickAddSectionId: string | null
-  sortMode: SortMode
+  sortByKey: Record<string, SortMode>
   filterTag: string | null
   filterColor: string | null
   calendarMode: CalendarMode

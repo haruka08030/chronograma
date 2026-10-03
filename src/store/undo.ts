@@ -43,7 +43,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
       selectedListId: s.selectedListId,
       selectedView: s.selectedView,
       quickAddSectionId: s.quickAddSectionId,
-      sortMode: s.sortMode,
+      sortByKey: { ...s.sortByKey },
       filterTag: s.filterTag,
       filterColor: s.filterColor,
       calendarMode: s.calendarMode,

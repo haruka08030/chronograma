@@ -1,3 +1,4 @@
+import { sortModeOf } from '../lib/todoSurfaceView'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
@@ -22,7 +23,7 @@ export function CalendarTaskDock() {
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const sortMode = useTaskStore((s) => s.sortMode)
+  const sortByKey = useTaskStore((s) => s.sortByKey)
   const filterTag = useTaskStore((s) => s.filterTag)
   const sections = useTaskStore((s) => s.sections)
 
@@ -62,11 +63,12 @@ export function CalendarTaskDock() {
         tasks,
         selectedView: null,
         selectedListId: dockListId,
-        sortMode,
+        // そのリストを To‑Do で開いたときと同じ並び順
+        sortMode: sortModeOf(sortByKey, dockListId),
         filterTag,
         sections,
       }),
-    [tasks, dockListId, sortMode, filterTag, sections, excludedListIds],
+    [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
   const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))

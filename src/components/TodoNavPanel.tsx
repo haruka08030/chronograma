@@ -17,7 +17,7 @@ import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
-import { groupsBySection } from '../lib/todoSurfaceView'
+import { groupsBySection, sortModeOf } from '../lib/todoSurfaceView'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -228,7 +228,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  const sortMode = useTaskStore((s) => s.sortMode)
+  const sortByKey = useTaskStore((s) => s.sortByKey)
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
@@ -312,7 +312,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
           // 「セクションで分ける」がオフのリストは一覧に見出しが無いので、下のセクション行も出さない
-          const listSections = groupsBySection(sortMode, sectionGrouping, { listId: list.id })
+          const listSections = groupsBySection(sortModeOf(sortByKey, list.id), sectionGrouping, { listId: list.id })
             ? sectionsByList.get(list.id) ?? []
             : []
 

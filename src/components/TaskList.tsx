@@ -14,7 +14,7 @@ import {
 } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
+import { groupsBySection, isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey } from '../lib/keyboard'
@@ -220,7 +220,8 @@ export function TaskList() {
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
   const lists = useTaskStore((s) => s.lists)
-  const sortMode = useTaskStore((s) => s.sortMode)
+  // 並び順はリスト・ビューごと
+  const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView)))
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const setSectionGrouping = useTaskStore((s) => s.setSectionGrouping)
   const setSortMode = useTaskStore((s) => s.setSortMode)
