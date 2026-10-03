@@ -29,6 +29,7 @@
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
 | タスクのメニュー | 右クリック・スマホの行の ≡・⌘/ で開く。検索・期限（カレンダー付き）・優先度・リスト/セクションへ移動・完了・詳細・アーカイブ・削除。選択中の行なら選択中のすべてに効く。`TaskItem` のある所ならどこでも出る | `components/TaskContextMenu.tsx` |
+| 色選択 | 丸は 24px・選択中は ✓ でどこでも同じ。列の数は置き場所の幅で決める（広い所は 12 列、ポップオーバーは 6 列）。ラベル編集の「色を選択」は自由な色を作る別の役割なので別の格子 | `components/ui/ColorSwatches.tsx` |
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
@@ -76,7 +77,6 @@
 | アイコンボタン | `iconButton` を EventPopover と GoogleEventPopover が別々に定義 | `IconButton` |
 | ピル選択 | 予定/タスク（`QuickCreatePopover`）は選択中が薄い墨、範囲（`GoogleEventPopover`）は黒塗り、曜日（`HabitsView`）は角丸 | `PillToggle` |
 | 月カレンダー | `DatePickerBody` の `monthGridDays` と `CalendarDateNav` の `miniMonthDays` がほぼ同じ。大きさ・見出し・＜＞の位置も違う | `DatePickerBody` に寄せる |
-| 色選択 | `ColorPalette`・`HabitsView`・`TodoNavPanel` は `ui/ColorSwatches`（選択中は ✓）を使うが、列数（12 / 12 / 6）と丸の大きさ（約 27 / 24 / 26px）が違う。`SelectColorDialog` は 8 列・約 34px の自前の格子 | `ui/ColorSwatches` |
 | 見出し・空状態 | 小見出しの文字サイズ・色が 9 通り。開閉する見出しは今日画面がボタン＋＞、`TaskList` が `<details>`。空状態はアイコンあり 3 種・文字だけ 9 種 | `SectionLabel`・`Disclosure`・`EmptyState` |
 | 追加の入力欄 | 今日画面・買い物（線なし）、いつか（点線の枠）、`QuickAdd`（押すと開く・追加/キャンセルボタンつき）、分類・リスト・カレンダー内・サブタスクがそれぞれ別 | `InlineAddInput`（Enter・IME・Esc を内側で扱う） |
 | チップ | タスクのタグ（`TaskItem`）、絞り込み（`TaskList`）、タイマーのタグ（`FloatingTimer`）、分類（`TimeLogTagField`）、＋チップ（`TimeLogTagField`・`CategoryManager`）、最近の記録（`RecordPanel`） | `Chip` |
