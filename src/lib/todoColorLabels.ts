@@ -80,3 +80,37 @@ export function recordLabelKeyText(
   if (!key) return t('labels.none')
   return isHexColor(key) ? colorLabelText(key, presets, colors, t) : key
 }
+
+/** ラベルの保存（`saveLogLabels`）に渡す 1 行 */
+export interface LabelRow {
+  from: string | null
+  name: string
+  color: string
+  fromHex?: string
+}
+
+/**
+ * To‑Do ナビの色ラベル 1 つを書き換えたときの、ラベル全体の行（「ラベルを編集」と同じ保存に渡す）。
+ * - ラベル名のある色: 名前と色を変える。名前を空にしたら元の名前のまま（消すのは削除だけ）
+ * - 名前の無い色: 名前を書くとその色のラベルを作る。色を変えたらその色の予定・タスクも新しい色へ
+ * - `edit` が null なら、その色のラベルを消す
+ */
+export function colorLabelEditRows(
+  hex: string,
+  edit: { name: string; hex: string } | null,
+  presets: readonly string[],
+  colors: Readonly<Record<string, string>>,
+): LabelRow[] {
+  const toColor = (h: string) => colorKeyForHex(h) ?? h.toUpperCase()
+  const current = labelForHex(hex, presets, colors)
+  const rows: LabelRow[] = []
+  for (const n of presets) {
+    if (n !== current) {
+      rows.push({ from: n, name: n, color: toColor(categoryHex(n, colors)) })
+    } else if (edit) {
+      rows.push({ from: n, name: edit.name.trim() || n, color: toColor(edit.hex) })
+    }
+  }
+  if (!current && edit) rows.push({ from: null, name: edit.name.trim(), color: toColor(edit.hex), fromHex: hex })
+  return rows
+}

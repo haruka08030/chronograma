@@ -289,6 +289,8 @@ export default {
     add: 'Add a label',
     remove: 'Delete label',
     edit: 'Edit labels',
+    editOne: 'Label name and color',
+    name: 'Label name',
     none: 'No label',
     changeColor: 'Change color',
     pickerAria: 'Color and label',

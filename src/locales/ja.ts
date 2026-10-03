@@ -287,6 +287,8 @@ export default {
     add: 'ラベルを追加',
     remove: 'ラベルを削除',
     edit: 'ラベルを編集',
+    editOne: 'ラベルの名前と色',
+    name: 'ラベル名',
     none: 'ラベルなし',
     changeColor: '色を変える',
     pickerAria: '色とラベル',

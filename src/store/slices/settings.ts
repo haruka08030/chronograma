@@ -1,6 +1,7 @@
 /** 設定（テーマ・色・ラベル・通知・タイムゾーン） */
 import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
-import { categoryHex, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
+import { categoryHex, isHexColor, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
+import { hexForGoogleKey } from '../../lib/googleColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
 import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
@@ -95,6 +96,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
         const recolor = new Map<string, string>()
         for (const row of rows) {
           const name = row.name.trim()
+          if (row.fromHex) {
+            const oldHex = row.fromHex.toUpperCase()
+            const newHex = (isHexColor(row.color) ? row.color : hexForGoogleKey(row.color) ?? oldHex).toUpperCase()
+            if (oldHex !== newHex) recolor.set(oldHex, newHex)
+            continue
+          }
           const from = row.from ?? name
           if (!name || !s.timeLogTagPresets.includes(from)) continue
           const oldHex = categoryHex(from, s.logCategoryColors).toUpperCase()
@@ -111,6 +118,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
             return next ? { ...t, color: next, updatedAt: now } : t
           }
           const tag = t.category
+          // 名前の無い色の記録も、その色を変えたら新しい色へ（新しい色にラベルがあればその分類になる）
+          const moved = !tag && t.color ? recolor.get(t.color.toUpperCase()) : undefined
+          if (moved) {
+            const label = labelForHex(moved, presets, colors)
+            return withLogCategory({ ...t, category: label, color: label ? null : moved, updatedAt: now })
+          }
           if (tag && rename.has(tag)) return withLogCategory({ ...t, category: rename.get(tag)!, updatedAt: now })
           if (tag && removedHex.has(tag)) return withLogCategory({ ...t, category: null, color: removedHex.get(tag)!, updatedAt: now })
           if (!tag && t.color) {
@@ -119,7 +132,9 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           }
           return t
         })
-        return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks }
+        // To‑Do をその色で絞っていたら、新しい色で絞り直す
+        const filterColor = s.filterColor ? recolor.get(s.filterColor.toUpperCase()) ?? s.filterColor : s.filterColor
+        return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks, filterColor }
       })
     },
 

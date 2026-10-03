@@ -30,7 +30,7 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
@@ -54,6 +54,13 @@ const SCREENS = [
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
+  // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す
+  {
+    name: 'todo-label-card',
+    view: 'all',
+    mobileClick: 'nav[aria-label] button:has-text("その他")',
+    click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
+  },
   { name: 'calendar', view: 'calendar' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
@@ -264,6 +271,11 @@ async function main() {
             await page.goto(server.baseUrl, { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
+            if (screen.mobileClick && vp.hasTouch) {
+              // スマホ幅だけ先に押すもの（ナビのドロワーを開く、など）
+              await page.click(screen.mobileClick)
+              await page.waitForTimeout(300)
+            }
             if (screen.click) {
               // 配列なら順に押す（フォームを開いてから中の選択肢を押す、など）。clickAt は最初の 1 つだけ
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]

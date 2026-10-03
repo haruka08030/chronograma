@@ -27,6 +27,8 @@ import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
 import { ListContextMenu } from './ListContextMenu'
 import { SectionLabel } from './ui/SectionLabel'
 import { META_TEXT } from './ui/textClass'
+import { ColorLabelCard } from './labels/ColorLabelCard'
+import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -160,23 +162,26 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 }
 
 /**
- * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。
+ * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。丸を押すと名前と色を変えるカード（`ColorLabelCard`）。
  * 手動並びは ⋮⋮（dnd-kit）、並べ替え中は行ごとのネイティブ D&D でつかむので、両方を受ける
  */
-function ColorLabelRow({ label, name, isSelected, onSelect }: {
+function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }: {
   label: TodoColorLabel
   name: string
   isSelected: boolean
+  /** この色のカードを開いている */
+  isEditing: boolean
   onSelect: () => void
+  /** 行の要素（カードの出る位置） */
+  onEdit: (row: HTMLElement) => void
 }) {
+  const { t } = useTranslation()
   const { setNodeRef, isOver: isOverDndKit } = useDroppable({ id: `${LABEL_DROP_PREFIX}${label.hex}` })
   const [isOverNative, setIsOverNative] = useState(false)
   const isOver = isOverDndKit || isOverNative
   return (
-    <button
+    <div
       ref={setNodeRef}
-      type="button"
-      onClick={onSelect}
       onDragOver={(e) => {
         if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
@@ -187,20 +192,38 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
         e.preventDefault()
         labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
       }}
-      aria-current={isSelected ? 'page' : undefined}
-      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
+      className={`flex w-full items-center rounded-lg text-sm transition-colors
         ${isOver
           ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
           : isSelected
             ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
             : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
     >
-      <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-      {label.count > 0 && (
-        <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>
-      )}
-    </button>
+      <button
+        type="button"
+        // 開いているカードの丸は「内側」（押しても閉じて開き直さない）
+        data-popover-keep={isEditing || undefined}
+        // カードは行の横に出す（丸の横だと名前に重なる）
+        onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
+        aria-label={t('labels.editOne')}
+        aria-expanded={isEditing}
+        {...tip(t('labels.editOne'))}
+        className="ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 touch-manipulation
+          dark:ring-white/10 md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
+        style={{ backgroundColor: label.hex }}
+      />
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={isSelected ? 'page' : undefined}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2 pr-3 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        {label.count > 0 && (
+          <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>
+        )}
+      </button>
+    </div>
   )
 }
 
@@ -298,6 +321,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
   const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
+  const [labelCard, setLabelCard] = useState<{ hex: string; anchor: AnchorRect } | null>(null)
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
@@ -452,7 +476,12 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
               label={label}
               name={colorLabelText(label.hex, presets, categoryColors, t)}
               isSelected={selectedView === 'all' && filterColor === label.hex}
+              isEditing={labelCard?.hex === label.hex}
               onSelect={() => handleNav(() => selectColor(label.hex))}
+              onEdit={(row) => {
+                const anchor = rectOf(row)
+                if (anchor) setLabelCard({ hex: label.hex, anchor })
+              }}
             />
           ))}
         </>
@@ -469,6 +498,9 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
+      {labelCard && (
+        <ColorLabelCard key={labelCard.hex} {...labelCard} onClose={() => setLabelCard(null)} />
+      )}
       {listMenu && (
         <ListContextMenu
           {...listMenu}
