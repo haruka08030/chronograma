@@ -27,15 +27,12 @@ import { SECTION_HEADING_TEXT } from './ListSectionHeading'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
-import { TaskContextMenu } from './TaskContextMenu'
 import { MenuDivider, MenuItem } from './ui/Menu'
 import { ActionMenu } from './ui/ActionMenu'
 import { QuickAdd } from './QuickAdd'
 import type { Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -49,6 +46,7 @@ import { chipClass } from './ui/chipClass'
 import { DisclosureButton } from './ui/Disclosure'
 import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 /** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
@@ -246,7 +244,7 @@ export function TaskList() {
   const deleteSectionStore = useTaskStore((s) => s.deleteSection)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   const [showSort, setShowSort] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
   useDismiss({ open: showSort, onClose: () => setShowSort(false), inside: [sortMenuRef] })
@@ -262,7 +260,6 @@ export function TaskList() {
   const clearSelectionRef = useRef<() => void>(() => {})
   /** セクションの見出しの右クリックメニュー */
   const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number; sectionId: string; title: string; canQuickTarget: boolean } | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
 
   const clearNestPreview = useCallback(() => {
     if (previewParentIdRef.current === null) return
@@ -628,7 +625,7 @@ export function TaskList() {
   }, [tasks, openCompleteWithLog, toggleTask, listKind])
 
   // 選択とキー操作（カレンダーの置き場と同じ）
-  const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => setContextMenu(menu), [])
+  const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }), [])
   const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
@@ -1164,17 +1161,7 @@ export function TaskList() {
           )}
         </div>
       </div>
-
-      {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
       {completeWithLogModal}
-      {contextMenu && (
-        <TaskContextMenu
-          {...contextMenu}
-          onClose={() => setContextMenu(null)}
-          onDone={clearSelection}
-          onOpenDetail={openDetail}
-        />
-      )}
       {sectionMenu && (
         <ActionMenu
           x={sectionMenu.x}
@@ -1221,7 +1208,7 @@ export function TaskList() {
               className="rounded-full px-3 py-1.5 font-semibold touch-manipulation"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect()
-                setContextMenu({ x: r.left, y: r.top, taskIds: [...selected], above: true })
+                openTaskMenu({ kind: 'task', x: r.left, y: r.top, taskIds: [...selected], above: true, onDone: clearSelection })
               }}
             >
               {t('taskMenu.actions')}

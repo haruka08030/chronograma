@@ -10,7 +10,6 @@ import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ExternalLinkIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
-import { TaskContextMenu } from './TaskContextMenu'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -20,6 +19,7 @@ import { fromDateKey } from '../lib/dateKey'
 import { formatDate } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
 import { useScheduleWish } from '../hooks/useScheduleWish'
+import { openTaskMenu } from '../lib/overlays'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -97,8 +97,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   // 「記録も付ける」を聞くのは To-Do のリストだけ
   const askLog = listKind === 'tasks' ? onCompleteRequest : undefined
   const [editing, setEditing] = useState(Boolean(autoEdit))
-  /** 右クリック・≡ で開くタスクのメニュー（一覧がメニューを持たない所で使う） */
-  const [ownMenu, setOwnMenu] = useState<{ x: number; y: number } | null>(null)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -228,7 +226,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
   const openMenuAt = (p: { clientX: number; clientY: number }) => {
     if (selection?.onContextMenu) selection.onContextMenu(p as React.MouseEvent)
-    else setOwnMenu({ x: p.clientX, y: p.clientY })
+    else openTaskMenu({ kind: 'task', x: p.clientX, y: p.clientY, taskIds: [task.id] })
   }
 
   const rowRef = useRef<HTMLDivElement>(null)
@@ -495,15 +493,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       >
         <ListBulletIcon className="h-5 w-5" />
       </button>
-      {ownMenu && (
-        <TaskContextMenu
-          x={ownMenu.x}
-          y={ownMenu.y}
-          taskIds={[task.id]}
-          onClose={() => setOwnMenu(null)}
-          onOpenDetail={onClick ? () => onClick() : undefined}
-        />
-      )}
 
       {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}
       <button

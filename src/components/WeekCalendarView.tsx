@@ -10,7 +10,6 @@ import {
   parseISO,
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { TaskDetail } from './TaskDetail'
 import {
   HOUR_HEIGHT,
   HOURS,
@@ -58,7 +57,6 @@ import { googleEventTiming } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import type { Task } from '../types/task'
 import { layoutPlanAndLog } from '../lib/overlapLayout'
@@ -83,7 +81,7 @@ import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
 import { dateFnsLocale, toDateKey } from '../lib/dateKey'
 import { minutesToTime } from '../lib/clockTime'
-import { GoogleEventMenu, TaskEventMenu } from './timeline/EventContextMenu'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -275,7 +273,7 @@ export function WeekCalendarView({
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const dropLaneRef = useRef<CreateIntent>('schedule')
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   const isDesktop = useIsDesktop()
   const [allDayAddDate, setAllDayAddDate] = useState<string | null>(null)
   /** 終日の行で ToDo を別の日へドラッグ中に、落とし先の日を光らせる */
@@ -449,8 +447,6 @@ export function WeekCalendarView({
     if (anchor) setGoogleCard({ eventId, anchor })
   }, [])
   const closeGoogleCard = useCallback(() => setGoogleCard(null), [])
-  /** 右クリックのメニュー（`id` はブロックの data-block-id。Google の予定は event- で始まる） */
-  const [blockMenu, setBlockMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   // 安定した ref コールバック（毎回作り直すと描画のたびに state が変わって無限ループになる）
   const setCreateAnchorFromEl = useCallback((el: HTMLDivElement | null) => setCreateAnchor(el ? rectOf(el) : null), [])
   const openDetailFromCard = useCallback((taskId: string) => {
@@ -647,7 +643,7 @@ export function WeekCalendarView({
         e.preventDefault()
         setEventCard(null)
         setGoogleCard(null)
-        setBlockMenu({ x: e.clientX, y: e.clientY, id })
+        openTaskMenu(id.startsWith('event-') ? { kind: 'google', x: e.clientX, y: e.clientY, eventId: id.slice('event-'.length) } : { kind: 'event', x: e.clientX, y: e.clientY, taskId: id })
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -1101,12 +1097,6 @@ export function WeekCalendarView({
       </div>
 
       {completeWithLogModal}
-      {blockMenu &&
-        (blockMenu.id.startsWith('event-') ? (
-          <GoogleEventMenu x={blockMenu.x} y={blockMenu.y} eventId={blockMenu.id.slice('event-'.length)} onClose={() => setBlockMenu(null)} />
-        ) : (
-          <TaskEventMenu x={blockMenu.x} y={blockMenu.y} taskId={blockMenu.id} onClose={() => setBlockMenu(null)} onOpenDetail={openDetail} />
-        ))}
       {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
       {eventCard && (
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
@@ -1125,7 +1115,6 @@ export function WeekCalendarView({
           }}
         />
       )}
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
     </div>
   )
 }

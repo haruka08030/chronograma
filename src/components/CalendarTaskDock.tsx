@@ -1,5 +1,5 @@
 import { sortModeOf } from '../lib/todoSurfaceView'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
@@ -9,16 +9,14 @@ import { isActiveTask } from '../lib/taskLifecycle'
 const UNSCHEDULED = '__unscheduled__'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { displayListName } from '../lib/displayListName'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import { TaskContextMenu } from './TaskContextMenu'
 import { EmptyState } from './ui/EmptyState'
 import { CheckCircleIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -32,11 +30,10 @@ export function CalendarTaskDock() {
 
   // 既定は「時間が未定のタスク」（全リスト横断）。カレンダーに置く候補を探す場所なので 1 リストに絞らない
   const [dockListId, setDockListId] = useState<string>(UNSCHEDULED)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const bulk = useBulkTaskActions()
-  const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -77,6 +74,8 @@ export function CalendarTaskDock() {
     },
     [active, openCompleteWithLog, toggleTask],
   )
+  // メニューの「実行したら選択を解除」は、選択のフックを作ったあとに入れる
+  const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection: clearSelected, makeRowClick, makeSelection } = useTaskListSelection({
     rowIds: activeIds,
     openDetail,
@@ -84,9 +83,12 @@ export function CalendarTaskDock() {
     toggleRow: toggleTask,
     removeRows: deleteTasks,
     completeRows: bulk.complete,
-    openMenu: setMenu,
+    openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     resetOn: [dockListId],
   })
+  useEffect(() => {
+    clearSelectedRef.current = clearSelected
+  }, [clearSelected])
 
   const selectedInOrder = useMemo(
     () => active.map((t) => t.id).filter((id) => selected.has(id)),
@@ -149,9 +151,7 @@ export function CalendarTaskDock() {
           ))}
         </div>
       </div>
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
       {completeWithLogModal}
-      {menu && <TaskContextMenu {...menu} onClose={() => setMenu(null)} onDone={clearSelected} onOpenDetail={openDetail} />}
     </div>
   )
 }

@@ -44,6 +44,7 @@ import {
 } from './lib/subtaskDnD'
 import { shortcutLabel } from './lib/keyboard'
 import { TooltipHost } from './components/ui/Tooltip'
+import { OverlayHost } from './components/OverlayHost'
 import { dispatchNav, dispatchSelectAll } from './lib/shortcuts'
 import { useHotkey } from './hooks/useHotkey'
 import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
@@ -605,6 +606,7 @@ export default function App() {
             <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
           </Suspense>
         )}
+        <OverlayHost />
         <UndoToast />
         <TooltipHost />
         <MoveToast />

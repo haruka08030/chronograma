@@ -16,7 +16,6 @@ import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategory
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
-import { TaskDetail } from './TaskDetail'
 import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -32,15 +31,13 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
-import { GoogleEventMenu, TaskEventMenu } from './timeline/EventContextMenu'
-import { TaskContextMenu } from './TaskContextMenu'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -69,9 +66,7 @@ export function CalendarView({
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
-  /** 右クリックのメニュー（Google の予定 / 時刻つきの予定・記録 / 時刻なしのタスク） */
-  const [itemMenu, setItemMenu] = useState<{ x: number; y: number; kind: 'google' | 'event' | 'task'; id: string } | null>(null)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   /** 予定を `t` で回す箇所でも使えるように */
@@ -247,7 +242,7 @@ export function CalendarView({
                       onContextMenu={(ev) => {
                         ev.preventDefault()
                         ev.stopPropagation()
-                        setItemMenu({ x: ev.clientX, y: ev.clientY, kind: 'google', id: e.id })
+                        openTaskMenu({ kind: 'google', x: ev.clientX, y: ev.clientY, eventId: e.id })
                       }}
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
@@ -276,7 +271,7 @@ export function CalendarView({
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        setItemMenu({ x: e.clientX, y: e.clientY, kind: t.startTime || t.isTimeLog ? 'event' : 'task', id: t.id })
+                        openTaskMenu(t.startTime || t.isTimeLog ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
                       }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
@@ -311,14 +306,6 @@ export function CalendarView({
       </div>
 
       {completeWithLogModal}
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
-      {itemMenu?.kind === 'google' && <GoogleEventMenu x={itemMenu.x} y={itemMenu.y} eventId={itemMenu.id} onClose={() => setItemMenu(null)} />}
-      {itemMenu?.kind === 'event' && (
-        <TaskEventMenu x={itemMenu.x} y={itemMenu.y} taskId={itemMenu.id} onClose={() => setItemMenu(null)} onOpenDetail={openDetail} />
-      )}
-      {itemMenu?.kind === 'task' && (
-        <TaskContextMenu x={itemMenu.x} y={itemMenu.y} taskIds={[itemMenu.id]} onClose={() => setItemMenu(null)} onOpenDetail={openDetail} />
-      )}
     </div>
   )
 }

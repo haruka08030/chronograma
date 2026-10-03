@@ -3,16 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { TaskItem } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { SearchIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
+import { openTaskDetail } from '../lib/overlays'
 
 export function SearchResults() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const query = useTaskStore((s) => s.searchQuery)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -49,8 +48,6 @@ export function SearchResults() {
           )}
         </div>
       </div>
-
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
     </div>
   )
 }

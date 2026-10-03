@@ -4,14 +4,12 @@ import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isSleepRecord } from '../lib/sleep'
 import { colorVars } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
@@ -23,6 +21,7 @@ import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
+import { openTaskDetail } from '../lib/overlays'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -46,7 +45,7 @@ export function CalendarDayPanel({
   const [dragOver, setDragOver] = useState(false)
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   const df = useDateFormat()
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
@@ -279,7 +278,6 @@ export function CalendarDayPanel({
           </div>
         )}
       </div>
-      {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
       {completeWithLogModal}
     </div>
   )

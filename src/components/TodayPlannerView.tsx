@@ -15,10 +15,8 @@ import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS } from './ui/dueTone'
 import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
-import { TaskDetail } from './TaskDetail'
 import { WeekCalendarView } from './WeekCalendarView'
 import { RecordPanel } from './RecordPanel'
 import { SleepRow } from './SleepRow'
@@ -36,11 +34,11 @@ import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { TaskContextMenu } from './TaskContextMenu'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SECTION_HEADING_CLASS } from './ui/headingClass'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -74,8 +72,7 @@ export function TodayPlannerView() {
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-  const [rowMenu, setRowMenu] = useState<{ x: number; y: number; taskId: string } | null>(null)
+  const openDetail = openTaskDetail
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
   const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
@@ -203,7 +200,7 @@ export function TodayPlannerView() {
         // To-Do 一覧と同じタスクのメニュー
         onContextMenu={(e) => {
           e.preventDefault()
-          setRowMenu({ x: e.clientX, y: e.clientY, taskId: task.id })
+          openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
         }}
       >
         <CompletionCircle
@@ -538,11 +535,6 @@ export function TodayPlannerView() {
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
         <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
       </section>
-
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
-      {rowMenu && (
-        <TaskContextMenu x={rowMenu.x} y={rowMenu.y} taskIds={[rowMenu.taskId]} onClose={() => setRowMenu(null)} onOpenDetail={openDetail} />
-      )}
       {completeWithLogModal}
     </div>
   )
