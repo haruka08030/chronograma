@@ -27,6 +27,7 @@ export type AuthContextValue = {
   user: User | null
   loading: boolean
   signInWithOtp: (email: string) => Promise<{ error?: string }>
+  verifyEmailOtp: (email: string, token: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
 }
 
@@ -37,6 +38,7 @@ const noopAuth: AuthContextValue = {
   user: null,
   loading: false,
   signInWithOtp: async () => ({ error: 'Supabase が設定されていません' }),
+  verifyEmailOtp: async () => ({ error: 'Supabase が設定されていません' }),
   signOut: async () => {},
 }
 
@@ -212,6 +214,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!error) return {}
           if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
           return { error: error.message }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : ''
+          if (isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }
+          return { error: message || i18n.t('account.genericError') }
+        }
+      },
+      // ホーム画面に追加した PWA ではメールのリンクが Safari 側で開き、
+      // セッションが PWA に渡らない。メール内のコードをアプリ内で入力して検証する。
+      verifyEmailOtp: async (email: string, token: string) => {
+        const sb = getSupabase()
+        if (!sb) return { error: 'Supabase が設定されていません' }
+        try {
+          const { error } = await sb.auth.verifyOtp({
+            email: email.trim(),
+            token: token.trim(),
+            type: 'email',
+          })
+          if (!error) return {}
+          if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
+          return { error: i18n.t('account.invalidCode') }
         } catch (err) {
           const message = err instanceof Error ? err.message : ''
           if (isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }

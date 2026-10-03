@@ -8,9 +8,11 @@ import { isSupabaseConfigured } from '../lib/supabase'
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
-  const { user, loading, signInWithOtp, signOut } = useAuth()
+  const { user, loading, signInWithOtp, verifyEmailOtp, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
+  const [code, setCode] = useState('')
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -30,8 +32,9 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       const res = await signInWithOtp(email)
       if (res.error) setError(res.error)
       else {
-        setMessage(t('account.linkSent'))
-        setEmail('')
+        setMessage(t('account.codeSent'))
+        setCodeSentTo(email.trim())
+        setCode('')
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
@@ -39,6 +42,36 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
     } finally {
       setPending(false)
     }
+  }
+
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!codeSentTo || !code.trim()) return
+    setError(null)
+    setPending(true)
+    try {
+      const res = await verifyEmailOtp(codeSentTo, code)
+      if (res.error) setError(res.error)
+      else {
+        setCodeSentTo(null)
+        setCode('')
+        setEmail('')
+        setMessage(null)
+        setOpen(false)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      setError(isNetworkErrorMessage(message) ? t('account.networkError') : t('account.genericError'))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const resetToEmail = () => {
+    setCodeSentTo(null)
+    setCode('')
+    setError(null)
+    setMessage(null)
   }
 
   if (loading) {
@@ -103,25 +136,58 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
               {t('account.intro')}
             </p>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-              <input
-                type="email"
-                autoComplete="email"
-                placeholder={t('account.emailPlaceholder')}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none"
-              />
-              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-              {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-              <button
-                type="submit"
-                disabled={pending}
-                className="text-sm py-2 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 disabled:opacity-50"
-              >
-                {pending ? t('account.sending') : t('account.sendLink')}
-              </button>
-            </form>
+            {codeSentTo ? (
+              <form onSubmit={handleVerify} className="flex flex-col gap-2">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 break-all">{codeSentTo}</p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  placeholder={t('account.codePlaceholder')}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none tracking-widest"
+                />
+                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+                <button
+                  type="submit"
+                  disabled={pending || !code.trim()}
+                  className="text-sm py-2 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 disabled:opacity-50"
+                >
+                  {pending ? t('account.verifying') : t('account.verifyCode')}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetToEmail}
+                  className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  {t('account.changeEmail')}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder={t('account.emailPlaceholder')}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent-400 outline-none"
+                />
+                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="text-sm py-2 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 disabled:opacity-50"
+                >
+                  {pending ? t('account.sending') : t('account.sendLink')}
+                </button>
+              </form>
+            )}
           </div>
         </>
       )}
