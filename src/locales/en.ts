@@ -42,6 +42,8 @@ export default {
     reorderAria: 'Reorder section',
     renameTitle: 'Rename',
     renamePrompt: 'Section name',
+    addHere: 'Add a task here',
+    delete: 'Delete section',
   },
   toast: {
     addedToList: 'Added to “{{name}}”',

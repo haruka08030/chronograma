@@ -32,6 +32,7 @@ import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { TaskContextMenu } from './TaskContextMenu'
 import { MenuDivider, MenuItem } from './ui/Menu'
+import { ActionMenu } from './ui/ActionMenu'
 import { QuickAdd } from './QuickAdd'
 import type { Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
@@ -41,7 +42,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { CheckCircleIcon, CloseIcon, PencilIcon, SortIcon } from './icons'
+import { CheckCircleIcon, CloseIcon, PencilIcon, PlusIcon, SortIcon, TrashIcon } from './icons'
 import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
 import { useTextEntry } from '../hooks/useTextEntry'
@@ -256,6 +257,8 @@ export function TaskList() {
   /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [cursorVisible, setCursorVisible] = useState(false)
+  /** セクションの見出しの右クリックメニュー */
+  const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number; sectionId: string; title: string; canQuickTarget: boolean } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
 
   const clearNestPreview = useCallback(() => {
@@ -886,6 +889,10 @@ export function TaskList() {
         }}
         // 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（リストと同じ）
         onDoubleClick={() => beginSectionRename(sectionId, title)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setSectionMenu({ x: e.clientX, y: e.clientY, sectionId, title, canQuickTarget })
+        }}
       >
         {title}
       </button>
@@ -1291,6 +1298,42 @@ export function TaskList() {
           onClose={() => setContextMenu(null)}
           onDone={clearSelection}
           onOpenDetail={openDetail}
+        />
+      )}
+      {sectionMenu && (
+        <ActionMenu
+          x={sectionMenu.x}
+          y={sectionMenu.y}
+          header={sectionMenu.title}
+          searchable={false}
+          onClose={() => setSectionMenu(null)}
+          entries={[
+            {
+              kind: 'leaf',
+              id: 'rename',
+              label: t('sections.renameTitle'),
+              icon: <PencilIcon className="h-4 w-4" />,
+              run: () => beginSectionRename(sectionMenu.sectionId, sectionMenu.title),
+            },
+            ...(sectionMenu.canQuickTarget
+              ? [{
+                  kind: 'leaf' as const,
+                  id: 'add',
+                  label: t('sections.addHere'),
+                  icon: <PlusIcon className="h-4 w-4" />,
+                  run: () => setQuickAddSectionId(sectionMenu.sectionId),
+                }]
+              : []),
+            {
+              kind: 'leaf',
+              id: 'delete',
+              divider: true,
+              label: t('sections.delete'),
+              icon: <TrashIcon className="h-4 w-4" />,
+              danger: true,
+              run: () => deleteSectionStore(sectionMenu.sectionId),
+            },
+          ]}
         />
       )}
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}

@@ -42,6 +42,8 @@ export default {
     reorderAria: 'セクションを並べ替え',
     renameTitle: '名前を変更',
     renamePrompt: 'セクション名',
+    addHere: 'ここにタスクを追加',
+    delete: 'セクションを削除',
   },
   toast: {
     addedToList: '「{{name}}」に追加しました',
