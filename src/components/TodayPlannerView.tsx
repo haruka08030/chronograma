@@ -316,6 +316,18 @@ export function TodayPlannerView() {
       leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
     )
 
+  const dayNav = (
+    <DayNav
+      onToday={() => setDateKey(toDateKey(appToday()))}
+      onPrev={() => setDateKey(toDateKey(addDays(date, -1)))}
+      onNext={() => setDateKey(tomorrowKey)}
+      prevLabel={t('planner.prevDay')}
+      nextLabel={t('planner.nextDay')}
+      atToday={viewingToday}
+      shortcuts
+    />
+  )
+
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
   const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -349,15 +361,7 @@ export function TodayPlannerView() {
             <h1 className={PAGE_TITLE_CLASS}>
               {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
             </h1>
-            <DayNav
-              onToday={() => setDateKey(toDateKey(appToday()))}
-              onPrev={() => setDateKey(toDateKey(addDays(date, -1)))}
-              onNext={() => setDateKey(tomorrowKey)}
-              prevLabel={t('planner.prevDay')}
-              nextLabel={t('planner.nextDay')}
-              atToday={viewingToday}
-              shortcuts
-            />
+            {dayNav}
           </div>
           {viewingToday && (
             <p className={`mt-1 ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
@@ -593,6 +597,11 @@ export function TodayPlannerView() {
       </section>
 
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
+        {/* スマホのタイムラインのタブにも、何日を見ているかと前後の日へ（PC は左の見出しにある） */}
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 md:hidden">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{df.monthDayWeekdayLong(date)}</p>
+          {dayNav}
+        </div>
         <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
       </section>
     </div>
