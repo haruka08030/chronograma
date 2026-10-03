@@ -2,7 +2,7 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
@@ -79,6 +79,8 @@ import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
 import { undoGoogleDelete } from './lib/googleEventEdit'
+import { searchTasks } from './lib/searchTasks'
+import { openTaskDetail } from './lib/overlays'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -436,8 +438,35 @@ export default function App() {
   })
   useHotkey(SHORTCUTS.help.hotkeys, () => setShowShortcuts(true))
 
+  // 検索欄: Esc 1 回で文字を消し、2 回目で欄から出る。↓ で結果の一覧へ（最初の行に枠）、Enter で最初の結果を開く
+  const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (searchQuery) setSearchQuery('')
+      else e.currentTarget.blur()
+    } else if (e.key === 'ArrowDown' && searchQuery.trim()) {
+      e.preventDefault()
+      e.currentTarget.blur()
+      // 一覧のキー操作（useTaskListSelection）に ↓ を渡し、最初の行に枠を出す
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      const first = searchTasks(useTaskStore.getState().tasks, searchQuery)[0]
+      if (!first) return
+      e.preventDefault()
+      // 欄から出しておく（残すと、詳細を閉じる Esc が欄の「文字を消す」になる）
+      e.currentTarget.blur()
+      openTaskDetail(first.id)
+    }
+  }
+
   // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
-  useHotkey('mod+k', () => searchRef.current?.focus(), { scope: 'always', allowInInputs: true })
+  useHotkey('mod+k', () => {
+    // `/` と同じ: 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから入る
+    if (!searchRef.current) useTaskStore.getState().selectView('all')
+    whenElement(() => searchRef.current, (el) => el.focus())
+  }, { scope: 'always', allowInInputs: true })
   useHotkey('mod+n', () => {
     const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
     if (quickAdd instanceof HTMLInputElement) {
@@ -570,6 +599,7 @@ export default function App() {
                   ref={searchRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
                   placeholder={isLargeScreen ? t('app.searchPlaceholder', { key: shortcutLabel(['mod', 'K']) }) : t('app.searchPlaceholderTouch')}
                   className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-zinc-900/[0.04] dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
                 />
