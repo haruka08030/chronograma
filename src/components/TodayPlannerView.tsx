@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { tip } from '../lib/tooltip'
 import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
@@ -27,11 +26,12 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
+import { CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
 import { isSubmitEnter } from '../lib/keyboard'
 import { CompletionCircle } from './ui/CompletionCircle'
+import { DayNav } from './ui/DayNav'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -272,36 +272,15 @@ export function TodayPlannerView() {
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
               {viewingToday ? t('planner.todayTitle') : format(date, t('planner.titleFormat'), { locale: dateLocale })}
             </h1>
-            <div className="-mr-2 flex items-center">
-              <button
-                type="button"
-                onClick={() => setDateKey(dayKeyOf(addDays(date, -1)))}
-                {...tip(t('planner.prevDay'), 'K')}
-                aria-label={t('planner.prevDay')}
-                className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <ChevronLeftIcon className="h-4 w-4" />
-              </button>
-              {!viewingToday && (
-                <button
-                  type="button"
-                  onClick={() => setDateKey(dayKeyOf(appToday()))}
-                  {...tip(t('shortcuts.today'), 'T')}
-                  className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  {t('common.today')}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setDateKey(tomorrowKey)}
-                {...tip(t('planner.nextDay'), 'J')}
-                aria-label={t('planner.nextDay')}
-                className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <ChevronRightIcon className="h-4 w-4" />
-              </button>
-            </div>
+            <DayNav
+              onToday={() => setDateKey(dayKeyOf(appToday()))}
+              onPrev={() => setDateKey(dayKeyOf(addDays(date, -1)))}
+              onNext={() => setDateKey(tomorrowKey)}
+              prevLabel={t('planner.prevDay')}
+              nextLabel={t('planner.nextDay')}
+              atToday={viewingToday}
+              shortcuts
+            />
           </div>
           {viewingToday && (
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{format(date, t('planner.titleFormat'), { locale: dateLocale })}</p>

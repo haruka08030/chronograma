@@ -1,6 +1,5 @@
 import { useCallback, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { tip } from '../lib/tooltip'
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,8 +18,8 @@ import { POPOVER_PANEL } from './ui/surface'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
-import { buttonClass } from './ui/buttonClass'
 import { GoogleStatusDot } from './GoogleStatusDot'
+import { DayNav } from './ui/DayNav'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -102,35 +101,15 @@ export function CalendarDateNav({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 sm:px-4">
-      <button
-        type="button"
-        onClick={onGoToday}
-        {...tip(t('shortcuts.today'), 'T')}
-        className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
-      >
-        {t('calendarHub.today')}
-      </button>
-
-      <div className="flex shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={onPrevPeriod}
-          {...tip(mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria'), 'K')}
-          aria-label={mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria')}
-          className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onNextPeriod}
-          {...tip(mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria'), 'J')}
-          aria-label={mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria')}
-          className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          <ChevronRightIcon className="h-4 w-4" />
-        </button>
-      </div>
+      <DayNav
+        onToday={onGoToday}
+        onPrev={onPrevPeriod}
+        onNext={onNextPeriod}
+        todayLabel={t('calendarHub.today')}
+        prevLabel={mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria')}
+        nextLabel={mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria')}
+        shortcuts
+      />
 
       <div className="relative flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
         <button

@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { tip } from '../lib/tooltip'
 import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
@@ -28,12 +27,12 @@ const ISO_MONDAY = new Date(2024, 0, 1)
 import { addClockMinutes } from '../lib/clockTime'
 import { appToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
-import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
+import { DayNav } from './ui/DayNav'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -716,38 +715,16 @@ export function HabitsView() {
           <div className="space-y-2">
             <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.listForDayTitle')}</h2>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-1 items-center justify-center gap-1 sm:justify-start">
-                <button
-                  type="button"
-                  onClick={() => shiftFocusDay(-1)}
-                  {...tip(t('habits.prevDayAria'), 'K')}
-                  className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  aria-label={t('habits.prevDayAria')}
-                >
-                  <ChevronLeftIcon className="h-5 w-5" />
-                </button>
-                <span className="min-w-[9.5rem] text-center text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {focusDateLabel}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => shiftFocusDay(1)}
-                  {...tip(t('habits.nextDayAria'), 'J')}
-                  className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  aria-label={t('habits.nextDayAria')}
-                >
-                  <ChevronRightIcon className="h-5 w-5" />
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={goFocusToday}
-                {...tip(t('shortcuts.today'), 'T')}
-                disabled={isFocusToday}
-                className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
-              >
-                {t('common.today')}
-              </button>
+              <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{focusDateLabel}</span>
+              <DayNav
+                onToday={goFocusToday}
+                onPrev={() => shiftFocusDay(-1)}
+                onNext={() => shiftFocusDay(1)}
+                prevLabel={t('habits.prevDayAria')}
+                nextLabel={t('habits.nextDayAria')}
+                atToday={isFocusToday}
+                shortcuts
+              />
             </div>
             <div className="grid grid-cols-7 gap-1.5">
               {weekDates.map((d, i) => {

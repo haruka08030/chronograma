@@ -7,7 +7,7 @@ import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { appToday } from '../lib/timeZone'
-import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { DayNav } from './ui/DayNav'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -60,33 +60,16 @@ export function WeekReviewCard() {
             {t('weekReview.range', { start: format(weekStart, t('weekReview.dateFormat'), { locale: dateLocale }) })}
           </p>
         </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => setWeekOffset((w) => w - 1)}
-            aria-label={t('weekReview.prevWeek')}
-            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekOffset(0)}
-            disabled={weekOffset === 0}
-            className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            {t('weekReview.thisWeek')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekOffset((w) => Math.min(0, w + 1))}
-            disabled={weekOffset === 0}
-            aria-label={t('weekReview.nextWeek')}
-            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-          >
-            <ChevronRightIcon className="h-4 w-4" />
-          </button>
-        </div>
+        <DayNav
+          onToday={() => setWeekOffset(0)}
+          onPrev={() => setWeekOffset((w) => w - 1)}
+          onNext={() => setWeekOffset((w) => Math.min(0, w + 1))}
+          todayLabel={t('weekReview.thisWeek')}
+          prevLabel={t('weekReview.prevWeek')}
+          nextLabel={t('weekReview.nextWeek')}
+          atToday={weekOffset === 0}
+          nextDisabled={weekOffset === 0}
+        />
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
