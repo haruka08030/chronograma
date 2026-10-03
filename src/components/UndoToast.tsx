@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { undoGoogleDelete } from '../lib/googleEventEdit'
 import { UNDO_WINDOW_MS } from '../lib/undoWindow'
+import { shortcutLabel } from '../lib/keyboard'
 
 const MOBILE_FLOAT_BOTTOM =
   'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
@@ -89,7 +90,7 @@ export function UndoToast() {
           {t('undo.button')}
         </button>
         <span className="ml-1 hidden shrink-0 text-xs text-zinc-400 dark:text-zinc-500 sm:inline">
-          {navigator.platform.toLowerCase().includes('mac') ? t('undo.shortcutMac') : t('undo.shortcutWin')}
+          {shortcutLabel(['mod', 'Z'])}
         </span>
       </div>
     </div>

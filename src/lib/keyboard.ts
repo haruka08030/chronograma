@@ -1,3 +1,20 @@
+/** Mac（と iPad・iPhone）か。キーの表示（⌘ / Ctrl）を決める */
+export const IS_MAC = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)
+
+/** 修飾キーの表示。Mac は ⌘、それ以外は Ctrl */
+export function modKeyLabel(): string {
+  return IS_MAC ? '⌘' : 'Ctrl'
+}
+
+/**
+ * ショートカットの表示。'mod' は ⌘ / Ctrl に置き換える。Mac は詰めて（⌘Z）、それ以外は + でつなぐ（Ctrl+Z）
+ *   shortcutLabel(['mod', 'Z'])
+ */
+export function shortcutLabel(keys: string[]): string {
+  const parts = keys.map((k) => (k === 'mod' ? modKeyLabel() : k))
+  return parts.join(IS_MAC ? '' : '+')
+}
+
 /** ⌘（mac）または Ctrl（Windows/Linux）が押されているか */
 export function isModKey(e: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey'>): boolean {
   return e.metaKey || e.ctrlKey

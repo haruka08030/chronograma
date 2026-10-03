@@ -55,7 +55,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
 }
 
-/** ヘルプに出す一覧（キー → 説明の i18n キー） */
+/** ヘルプに出す一覧（キー → 説明の i18n キー）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
 export const SHORTCUT_LIST: { keys: string[]; label: string }[] = [
   { keys: ['t'], label: 'shortcuts.today' },
   { keys: ['j', 'n'], label: 'shortcuts.next' },
@@ -71,10 +71,10 @@ export const SHORTCUT_LIST: { keys: string[]; label: string }[] = [
   { keys: ['↑', '↓'], label: 'shortcuts.moveRow' },
   { keys: ['Enter'], label: 'shortcuts.openRow' },
   { keys: ['Space'], label: 'shortcuts.completeRow' },
-  { keys: ['⌘', 'A'], label: 'shortcuts.selectAll' },
-  { keys: ['⌘', '/'], label: 'shortcuts.openMenu' },
-  { keys: ['⌘', 'Enter'], label: 'shortcuts.completeSelected' },
+  { keys: ['mod', 'A'], label: 'shortcuts.selectAll' },
+  { keys: ['mod', '/'], label: 'shortcuts.openMenu' },
+  { keys: ['mod', 'Enter'], label: 'shortcuts.completeSelected' },
   { keys: ['Esc'], label: 'shortcuts.close' },
-  { keys: ['⌘', 'Z'], label: 'shortcuts.undo' },
+  { keys: ['mod', 'Z'], label: 'shortcuts.undo' },
   { keys: ['?'], label: 'shortcuts.help' },
 ]

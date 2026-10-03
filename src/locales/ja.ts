@@ -402,7 +402,7 @@ export default {
   },
   app: {
     searchPlaceholderTouch: '検索',
-    searchPlaceholder: '検索… (⌘K)',
+    searchPlaceholder: '検索… ({{key}})',
     clearSearch: '検索をクリア',
   },
   nav: {
@@ -706,8 +706,6 @@ export default {
     dueCleared: '{{count}} 件の期限をなしにしました',
     prioritySet: '{{count}} 件の優先度を「{{label}}」にしました',
     button: '元に戻す',
-    shortcutMac: '⌘Z',
-    shortcutWin: 'Ctrl+Z',
   },
   storageFull: {
     message: '端末の保存領域がいっぱいで、変更を保存できていません。再読み込みする前に書き出してください。',

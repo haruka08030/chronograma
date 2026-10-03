@@ -5,6 +5,7 @@ import { addDays, format, nextMonday, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { useDismiss } from '../hooks/useDismiss'
+import { IS_MAC, shortcutLabel } from '../lib/keyboard'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
@@ -31,7 +32,6 @@ const EDGE = 8
 /** 項目に乗せてから中のメニューが開くまで（斜めに通り過ぎただけで切り替わらないように） */
 const SUB_OPEN_DELAY_MS = 120
 
-const IS_MAC = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform)
 const ICON = 'h-4 w-4 flex-shrink-0'
 
 type SubId = 'due' | 'priority' | 'list'
@@ -178,7 +178,7 @@ export function TaskContextMenu({
       id: 'complete',
       label: t('taskList.markComplete'),
       icon: <CheckIcon className={ICON} />,
-      keys: IS_MAC ? '⌘↵' : 'Ctrl+↵',
+      keys: shortcutLabel(['mod', '↵']),
       run: () => run(() => bulk.complete(taskIds)),
     },
     ...(taskIds.length === 1

@@ -404,7 +404,7 @@ export default {
   },
   app: {
     searchPlaceholderTouch: 'Search',
-    searchPlaceholder: 'Search… (⌘K)',
+    searchPlaceholder: 'Search… ({{key}})',
     clearSearch: 'Clear search',
   },
   nav: {
@@ -707,8 +707,6 @@ export default {
     dueCleared: 'Cleared the due date of {{count}} tasks',
     prioritySet: 'Set {{count}} tasks to {{label}} priority',
     button: 'Undo',
-    shortcutMac: '⌘Z',
-    shortcutWin: 'Ctrl+Z',
   },
   storageFull: {
     message: 'This device is out of storage, so changes aren’t being saved. Export your data before reloading.',
