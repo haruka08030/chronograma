@@ -1,10 +1,11 @@
 import type { FormEvent } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
+import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../lib/authLinkError'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
@@ -14,11 +15,16 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
   const { user, loading, signInWithOtp, signOut, deleteAccount } = useAuth()
-  const [open, setOpen] = useState(false)
+  // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
+  const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
   const [email, setEmail] = useState('')
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() => {
+    const code = pendingAuthLinkError()
+    return code ? t(authLinkErrorKey(code)) : null
+  })
+  useEffect(() => clearAuthLinkError(), [])
   const wrapRef = useRef<HTMLDivElement>(null)
   useDismiss({ open, onClose: () => setOpen(false), inside: [wrapRef] })
 

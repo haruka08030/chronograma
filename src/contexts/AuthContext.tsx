@@ -16,6 +16,7 @@ import {
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
+import { pendingAuthLinkError } from '../lib/authLinkError'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
@@ -159,6 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
+
+    // ログイン用リンクが使えなかった（期限切れ・使用済み）。理由はアカウント欄に出す
+    if (pendingAuthLinkError()) useTaskStore.getState().openSettingsWithScroll('account')
 
     const sb = getSupabase()
     if (!sb) return
