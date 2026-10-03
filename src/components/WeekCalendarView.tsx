@@ -379,7 +379,8 @@ export function WeekCalendarView({
    */
   const scrollKey = toDateKey(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }))
   useEffect(() => {
-    if (!scrollRef.current) return
+    const el = scrollRef.current
+    if (!el) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
     const now = zonedNow()
     const showNow = singleDay ? isNowOnDay(anchor) : days.some((d) => isNowOnDay(d))
@@ -391,7 +392,19 @@ export function WeekCalendarView({
       keepScrollOnFlipRef.current = false
       return
     }
-    scrollRef.current.scrollTop = HOUR_HEIGHT * hours
+    const top = HOUR_HEIGHT * hours
+    // 隠れている間（スマホの「やること」タブ）は scrollTop が効かないので、見えた時点で合わせる
+    if (el.clientHeight > 0) {
+      el.scrollTop = top
+      return
+    }
+    const ro = new ResizeObserver(() => {
+      if (el.clientHeight === 0) return
+      el.scrollTop = top
+      ro.disconnect()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 表示週が変わったときだけ合わせる
   }, [singleDay, scrollKey])
 
