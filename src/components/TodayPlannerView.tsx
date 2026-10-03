@@ -405,9 +405,15 @@ export function TodayPlannerView() {
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </DisclosureButton>
               {leftOver.length > 1 ? (
-                <RowActionButton label={t('planner.moveAllToToday')} onClick={moveAllLeftOver}>
-                  <CalendarDoubleArrowIcon className="h-4 w-4" />
-                </RowActionButton>
+                // 一覧が組み変わる操作なので、印だけでなく文字でも何をするか出す
+                <button
+                  type="button"
+                  onClick={moveAllLeftOver}
+                  className={buttonClass({ variant: 'secondary', size: 'xs' }, 'shrink-0 text-zinc-600 pointer-coarse:min-h-9 dark:text-zinc-300')}
+                >
+                  <CalendarDoubleArrowIcon className="h-3.5 w-3.5" />
+                  {t('planner.moveAllToToday')}
+                </button>
               ) : (
                 // 1 件なら行の「今日やる」と同じ。開いたら行の方だけにする
                 !showLeftOver && moveHereButton(leftOver[0]!)

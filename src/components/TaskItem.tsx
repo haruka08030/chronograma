@@ -8,7 +8,7 @@ import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -80,7 +80,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
@@ -454,14 +454,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
 
-      <button
-        onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
-        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
-        aria-label={t('taskItem.deleteAria')}
-        {...tip(t('taskItem.deleteAria'))}
-      >
-        <TrashIcon className="h-4 w-4 text-zinc-400" />
-      </button>
+      {/* 削除はホバーに置かない（アーカイブのすぐ隣で押し間違える）。Delete キー・右クリック・≡ のメニューから */}
     </div>
   )
 }

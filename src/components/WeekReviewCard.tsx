@@ -20,6 +20,8 @@ export function WeekReviewCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
+  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const selectView = useTaskStore((s) => s.selectView)
   const [weekOffset, setWeekOffset] = useState(0)
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
@@ -92,7 +94,7 @@ export function WeekReviewCard() {
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
           <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
-          <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700" role="list">
+          <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
               const date = fromDateKey(toDateKey(weekStart))
@@ -110,7 +112,18 @@ export function WeekReviewCard() {
                   })
                 : label
               return (
-                <div key={i} role="listitem" title={tip} aria-label={tip} className="group flex h-full flex-1 flex-col justify-end">
+                // 押すとその日の今日の計画を開く（記録の中身を見に行ける）
+                <button
+                  key={i}
+                  type="button"
+                  title={tip}
+                  aria-label={tip}
+                  onClick={() => {
+                    setSelectedCalendarDateKey(toDateKey(date))
+                    selectView('planner')
+                  }}
+                  className="group flex h-full flex-1 cursor-pointer flex-col justify-end"
+                >
                   {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色） */}
                   <div
                     className="flex w-full flex-col-reverse overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
@@ -124,7 +137,7 @@ export function WeekReviewCard() {
                       />
                     ))}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>

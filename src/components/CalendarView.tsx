@@ -51,6 +51,9 @@ function itemClass(allDay: boolean, state: PlanVisualState): string {
   return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'
 }
 
+/** 月のマスに並べる行の数（これを超えると最後の行を「他 N 件」にする） */
+const MONTH_CELL_ROWS = 3
+
 export function CalendarView({
   displayMonth,
   selectedDateKey,
@@ -150,6 +153,12 @@ export function CalendarView({
             const key = toDateKey(day)
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
+            // 予定と To-Do を合わせて 3 行まで。あと 1 件だけなら「他 1 件」の行の代わりにそれを出す（空きがあるのに隠さない）
+            const totalItems = dayEvents.length + dayTasks.length
+            const room = totalItems <= MONTH_CELL_ROWS + 1 ? totalItems : MONTH_CELL_ROWS
+            const shownEvents = dayEvents.slice(0, room)
+            const shownTasks = dayTasks.slice(0, room - shownEvents.length)
+            const hiddenCount = totalItems - shownEvents.length - shownTasks.length
             const inMonth = isSameMonth(day, displayMonth)
             const today = isAppToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
@@ -231,7 +240,7 @@ export function CalendarView({
                       </div>
                     )
                   })()}
-                  {dayEvents.slice(0, 2).map((e) => (
+                  {shownEvents.map((e) => (
                     <div
                       key={`event-${e.id}`}
                       title={e.summary}
@@ -259,7 +268,7 @@ export function CalendarView({
                       <span className="truncate">{e.summary}</span>
                     </div>
                   ))}
-                  {dayTasks.slice(0, 3).map((t) => (
+                  {shownTasks.map((t) => (
                     <div
                       key={t.id}
                       draggable
@@ -293,10 +302,10 @@ export function CalendarView({
                       <span className="truncate">{t.title}</span>
                     </div>
                   ))}
-                  {(dayTasks.length > 3 || dayEvents.length > 2) && (
+                  {hiddenCount > 0 && (
                     // 件数だけ。押すとマス全体と同じくその日が開く
                     <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-                      {t('calendar.moreItems', { count: Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0) })}
+                      {t('calendar.moreItems', { count: hiddenCount })}
                     </span>
                   )}
                   {addingDate === key && (
