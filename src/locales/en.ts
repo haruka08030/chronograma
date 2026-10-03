@@ -1018,6 +1018,7 @@ export default {
       notFeed: 'This isn’t a calendar feed URL. Paste the one ending in …/feeds/calendars/….ics',
     },
     feedHelp: 'Calendar feed (read-only)',
+    feedCompleteNotice: 'This assignment comes from a calendar feed, so it isn’t marked done in Canvas',
     urlLabel: 'Canvas URL',
     tokenLabel: 'Access token',
     connect: 'Connect',

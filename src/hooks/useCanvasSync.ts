@@ -15,6 +15,7 @@ import {
   reconcileCanvasItems,
 } from '../lib/canvas'
 import { useTaskStore } from '../store/taskStore'
+import { notify } from '../lib/notify'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -39,6 +40,22 @@ let requestSync: (() => void) | null = null
 function setSyncState(patch: Partial<CanvasSyncState>) {
   syncState = { ...syncState, ...patch }
   listeners.forEach((l) => l())
+}
+
+const FEED_NOTICE_KEY = 'chronograma-canvas-feed-notice'
+
+/**
+ * カレンダーフィードでつないだ学校の課題は読むだけなので、ここで完了にしても Canvas は変わらない。
+ * 最初に完了にしたときだけ、この端末で一度知らせる
+ */
+function noticeFeedIsReadOnly() {
+  try {
+    if (localStorage.getItem(FEED_NOTICE_KEY)) return
+    localStorage.setItem(FEED_NOTICE_KEY, '1')
+  } catch {
+    return
+  }
+  notify(i18n.t('canvas.feedCompleteNotice'))
 }
 
 /** 設定画面の「今すぐ同期」や、接続の直後に呼ぶ */
@@ -180,7 +197,10 @@ export function useCanvasSync() {
         // 新しく現れたタスク（取り込み・他の端末からの同期）や、完了が変わっていないものは対象外
         if (before === undefined || before === t.completed) continue
         if (t.completed && autoCompleted.delete(t.id)) continue
-        if (readOnly.has(parsed.connectionId)) continue
+        if (readOnly.has(parsed.connectionId)) {
+          if (t.completed) noticeFeedIsReadOnly()
+          continue
+        }
         write(t.id, parsed.connectionId, parsed.type, parsed.id)
       }
     })

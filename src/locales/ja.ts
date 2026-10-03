@@ -1017,6 +1017,7 @@ export default {
       notFeed: 'カレンダーフィードの URL ではありません。…/feeds/calendars/….ics で終わる URL を貼ってください',
     },
     feedHelp: 'カレンダーフィード（読むだけ）',
+    feedCompleteNotice: 'カレンダーフィードでつないだ課題なので、Canvas 側は完了になりません',
     urlLabel: 'Canvas の URL',
     tokenLabel: 'アクセストークン',
     connect: '接続する',
