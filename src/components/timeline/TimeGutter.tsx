@@ -1,8 +1,11 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { HOUR_HEIGHT, HOURS, formatTimeLabel } from '../../lib/timeGrid'
 import { GUTTER_EXTRA_WIDTH, GUTTER_PRIMARY_WIDTH, useTimeGutterWidth } from '../../hooks/useTimeGutterWidth'
 import { appTimeZone, gmtLabel, instantFromWall, wallInZone } from '../../lib/timeZone'
+import { extraZoneFullLabel } from '../../lib/extraTimeZones'
+import { tip } from '../../lib/tooltip'
 
 const PRIMARY_WIDTH = GUTTER_PRIMARY_WIDTH
 const EXTRA_WIDTH = GUTTER_EXTRA_WIDTH
@@ -19,7 +22,7 @@ export function TimeGutter({ dateKey }: { dateKey: string }) {
   const appZoneSetting = useTaskStore((s) => s.appTimeZone)
   const columns = useMemo(() => {
     const zone = appTimeZone()
-    return extra.map((tz) =>
+    return extra.map(({ tz }) =>
       HOURS.map((h) => {
         const { time } = wallInZone(instantFromWall(dateKey, `${String(h).padStart(2, '0')}:00`, zone), tz)
         return `${Number(time.slice(0, 2))}:${time.slice(3)}`
@@ -31,7 +34,7 @@ export function TimeGutter({ dateKey }: { dateKey: string }) {
   return (
     <div className="flex flex-shrink-0">
       {columns.map((labels, i) => (
-        <div key={extra[i]} style={{ width: EXTRA_WIDTH }} className="relative">
+        <div key={extra[i].tz} style={{ width: EXTRA_WIDTH }} className="relative">
           {labels.map((label, h) => (
             <div key={h} className={`${labelClass} right-1.5 text-zinc-400/80 dark:text-zinc-500/80`} style={{ top: h * HOUR_HEIGHT - 6 }}>
               {h > 0 ? label : ''}
@@ -55,13 +58,21 @@ export function TimeGutterHeader({ dateKey }: { dateKey: string }) {
   const extra = useTaskStore((s) => s.extraTimeZones)
   useTaskStore((s) => s.appTimeZone)
   const width = useTimeGutterWidth()
+  const { i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('ja') ? 'ja' : 'en'
   if (extra.length === 0) return <div style={{ width }} className="flex-shrink-0" />
   const at = instantFromWall(dateKey, '12:00', appTimeZone())
   return (
     <div style={{ width }} className="flex flex-shrink-0 items-end pb-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500">
-      {extra.map((tz) => (
-        <span key={tz} style={{ width: EXTRA_WIDTH }} className="truncate pr-1.5 text-right" title={tz}>
-          {gmtLabel(tz, at)}
+      {extra.map((z) => (
+        // 付けた名前は列が細いので 2 行まで折り返し、それでも長ければ切る（全体はヒント）
+        <span
+          key={z.tz}
+          style={{ width: EXTRA_WIDTH }}
+          className={`pr-1.5 text-right ${z.label ? 'line-clamp-2 break-all' : 'truncate'}`}
+          {...tip(extraZoneFullLabel(z, locale, at))}
+        >
+          {z.label || gmtLabel(z.tz, at)}
         </span>
       ))}
       <span style={{ width: PRIMARY_WIDTH }} className="truncate pr-2 text-right font-medium" title={appTimeZone()}>

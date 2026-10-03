@@ -940,6 +940,8 @@ export default {
     extra: 'Show other time zones',
     add: 'Add time zone',
     remove: 'Remove {{zone}}',
+    labelPlaceholder: 'Name (optional)',
+    labelFor: 'Name for {{zone}}',
     search: 'Search city or time zone',
     noMatch: 'No matches',
     field: 'Time zone',

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MAX_EXTRA_TIME_ZONES, useTaskStore } from '../../store/taskStore'
 import { deviceTimeZone, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
@@ -5,6 +6,8 @@ import { TimeZonePicker } from '../TimeZonePicker'
 import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { CloseIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { fieldClass } from '../ui/fieldClass'
+import { EXTRA_TIME_ZONE_LABEL_MAX } from '../../lib/extraTimeZones'
 
 /** 設定「日付と時刻」: アプリのタイムゾーンと、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
 export function TimeZoneSettings() {
@@ -14,6 +17,7 @@ export function TimeZoneSettings() {
   const setZone = useTaskStore((s) => s.setAppTimeZone)
   const extra = useTaskStore((s) => s.extraTimeZones)
   const setExtra = useTaskStore((s) => s.setExtraTimeZones)
+  const setLabel = useTaskStore((s) => s.setExtraTimeZoneLabel)
   const device = deviceTimeZone()
 
   return (
@@ -31,8 +35,8 @@ export function TimeZoneSettings() {
           <TimeZonePicker
             ariaLabel={t('timeZone.add')}
             value={null}
-            exclude={[...extra, zone ?? device]}
-            onChange={(tz) => tz && setExtra([...extra, tz])}
+            exclude={[...extra.map((z) => z.tz), zone ?? device]}
+            onChange={(tz) => tz && setExtra([...extra, { tz, label: '' }])}
             trigger={({ open, toggle }) => (
               <button type="button" aria-expanded={open} onClick={toggle} className={buttonClass({ variant: 'secondary', size: 'md' })}>
                 {t('timeZone.add')}
@@ -41,13 +45,21 @@ export function TimeZoneSettings() {
           />
         )}
       </SettingsRow>
-      {extra.map((tz) => (
-        <div key={tz} className="flex items-center justify-between gap-3 px-4 py-2.5">
-          <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-200">{zoneOptionLabel(tz, locale)}</span>
+      {extra.map(({ tz, label }) => (
+        <div key={tz} className="flex items-center gap-3 px-4 py-2.5">
+          <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-200">{zoneOptionLabel(tz, locale)}</span>
+          {/* 付けた名前が変わったら（ほかの端末・タブで）書きかけを捨てて入れ直す */}
+          <ZoneLabelInput
+            key={label}
+            value={label}
+            ariaLabel={t('timeZone.labelFor', { zone: zoneOptionLabel(tz, locale) })}
+            placeholder={t('timeZone.labelPlaceholder')}
+            onCommit={(next) => setLabel(tz, next)}
+          />
           <button
             type="button"
             aria-label={t('timeZone.remove', { zone: zoneOptionLabel(tz, locale) })}
-            onClick={() => setExtra(extra.filter((z) => z !== tz))}
+            onClick={() => setExtra(extra.filter((z) => z.tz !== tz))}
             className="shrink-0 rounded-full p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <CloseIcon className="h-4 w-4" />
@@ -55,5 +67,44 @@ export function TimeZoneSettings() {
         </div>
       ))}
     </SettingsGroup>
+  )
+}
+
+/** 他のタイムゾーンの名前。書き終えたら（フォーカスを外す・Enter）保存し、Esc で元に戻す */
+function ZoneLabelInput({
+  value,
+  ariaLabel,
+  placeholder,
+  onCommit,
+}: {
+  value: string
+  ariaLabel: string
+  placeholder: string
+  onCommit: (label: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  return (
+    <input
+      type="text"
+      value={draft}
+      maxLength={EXTRA_TIME_ZONE_LABEL_MAX}
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft.trim() !== value) onCommit(draft)
+        else setDraft(value)
+      }}
+      onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing) return
+        if (e.key === 'Enter') e.currentTarget.blur()
+        // 書きかけがあれば Esc はそれを戻すだけ（設定の画面は閉じない）
+        if (e.key === 'Escape' && draft !== value) {
+          setDraft(value)
+          e.stopPropagation()
+        }
+      }}
+      className={fieldClass({ size: 'sm' }, 'w-28 shrink-0 sm:w-44')}
+    />
   )
 }

@@ -68,6 +68,9 @@ const SCREENS = [
   { name: 'habits-new-weekly', view: 'habits', click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'], scrollToBottom: true },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
+  // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
+  { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
+  { name: 'calendar-time-zones', view: 'calendar', extraTimeZones: true, hover: '[data-tip^="ロンドンの友達"]' },
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
@@ -240,6 +243,12 @@ async function main() {
           if (screen.allDone) {
             for (const x of seed.state.tasks) if (!['seed-someday', 'seed-shopping'].includes(x.listId)) x.completed = true
           }
+          if (screen.extraTimeZones) {
+            seed.state.extraTimeZones = [
+              { tz: 'Europe/London', label: 'ロンドンの友達（大学）' },
+              { tz: 'America/New_York', label: '' },
+            ]
+          }
           if (screen.filterColor) seed.state.filterColor = screen.filterColor
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
@@ -292,6 +301,12 @@ async function main() {
             if (screen.rightClick && !vp.hasTouch) {
               await page.click(screen.rightClick, { button: 'right' })
               await page.waitForTimeout(300)
+            }
+
+            if (screen.scrollTo) {
+              await page.locator(screen.scrollTo).scrollIntoViewIfNeeded()
+              await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'start' }), screen.scrollTo)
+              await page.waitForTimeout(200)
             }
 
             if (screen.scrollToBottom) {

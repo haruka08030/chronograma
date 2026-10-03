@@ -23,3 +23,18 @@ describe('データの移行は updatedAt を変えない', () => {
     expect(sleep.updatedAt).toBe(OLD)
   })
 })
+
+describe('他のタイムゾーン', () => {
+  it('文字列の配列（名前の無い前の版）は名前なしの { tz, label } に', () => {
+    const out = migrateTaskState({ tasks: [], lists: [], sections: [], habits: [], extraTimeZones: ['Europe/London', 'America/New_York'] }, 35)
+    expect(out.extraTimeZones).toEqual([
+      { tz: 'Europe/London', label: '' },
+      { tz: 'America/New_York', label: '' },
+    ])
+  })
+
+  it('保存が無ければ空', () => {
+    const out = migrateTaskState({ tasks: [], lists: [], sections: [], habits: [] }, 35)
+    expect(out.extraTimeZones).toEqual([])
+  })
+})

@@ -8,6 +8,7 @@ import type { ListColorPaletteId } from '../lib/listColorPalettes'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
+import type { ExtraTimeZone } from '../lib/extraTimeZones'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
@@ -127,7 +128,9 @@ export interface TaskState {
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
   appTimeZone: string | null
   /** タイムラインの時間バーに並べて出す別のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」） */
-  extraTimeZones: string[]
+  extraTimeZones: ExtraTimeZone[]
+  /** 他のタイムゾーン（並び・名前）をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  extraTimeZonesUpdatedAt: string | null
 
   habits: Habit[]
 
@@ -263,7 +266,9 @@ export interface TaskState {
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
-  setExtraTimeZones: (zones: string[]) => void
+  setExtraTimeZones: (zones: ExtraTimeZone[]) => void
+  /** 他のタイムゾーンに名前を付ける（空にすると外す） */
+  setExtraTimeZoneLabel: (tz: string, label: string) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (

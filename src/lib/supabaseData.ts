@@ -9,6 +9,7 @@ import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
+import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -829,5 +830,23 @@ export async function pushLogLabels(supabase: SupabaseClient, userId: string, la
   const { error } = await supabase
     .from('user_settings')
     .upsert({ user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, { onConflict: 'user_id' })
+  return error ? { error: error.message } : {}
+}
+
+/** 他のタイムゾーンと付けた名前（`user_extra_time_zones.zones`）。行が無ければ null */
+export async function fetchExtraTimeZones(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RemoteExtraTimeZones | null | { error: string }> {
+  const { data, error } = await supabase.from('user_extra_time_zones').select('zones, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { zones: normalizeExtraTimeZones(data.zones), updatedAt: String(data.updated_at) }
+}
+
+export async function pushExtraTimeZones(supabase: SupabaseClient, userId: string, value: RemoteExtraTimeZones): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('user_extra_time_zones')
+    .upsert({ user_id: userId, zones: value.zones, updated_at: value.updatedAt }, { onConflict: 'user_id' })
   return error ? { error: error.message } : {}
 }

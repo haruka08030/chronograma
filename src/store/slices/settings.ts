@@ -3,7 +3,7 @@ import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
 import { categoryHex, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
-import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
+import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { withLogCategory } from '../../lib/taskDefaults'
@@ -22,6 +22,7 @@ type SettingsActions = Pick<
   | 'setDailyCapacityMinutes'
   | 'setAppTimeZone'
   | 'setExtraTimeZones'
+  | 'setExtraTimeZoneLabel'
   | 'setEventReminderMinutes'
   | 'toggleNotifications'
   | 'setRecordPrompts'
@@ -131,8 +132,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       // 時刻のある予定・記録は、すべて同じ瞬間のまま新しいタイムゾーンの時刻に（Google と同じ）
       set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
     },
-    setExtraTimeZones: (zones) =>
-      set({ extraTimeZones: [...new Set(zones.filter((z) => isValidTimeZone(z)))].slice(0, MAX_EXTRA_TIME_ZONES) }),
+    setExtraTimeZones: (zones) => set({ extraTimeZones: normalizeExtraTimeZones(zones) }),
+    setExtraTimeZoneLabel: (tz, label) =>
+      set((s) => {
+        const next = normalizeExtraTimeZones(s.extraTimeZones.map((z) => (z.tz === tz ? { ...z, label } : z)))
+        return next.every((z, i) => z.label === s.extraTimeZones[i]?.label) ? {} : { extraTimeZones: next }
+      }),
     setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
 
     toggleNotifications: () =>

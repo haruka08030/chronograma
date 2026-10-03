@@ -939,6 +939,8 @@ export default {
     extra: '他のタイムゾーンを表示',
     add: 'タイムゾーンを追加',
     remove: '{{zone}} を外す',
+    labelPlaceholder: '名前（任意）',
+    labelFor: '{{zone}} の名前',
     search: '都市・タイムゾーンで検索',
     noMatch: '見つかりません',
     field: 'タイムゾーン',
