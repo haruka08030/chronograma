@@ -4,6 +4,7 @@ import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
+import type { SectionGroupingScope } from '../store/storeTypes'
 import { unplannedListIds } from '../lib/listKind'
 import { ListKindPicker } from './ListKindPicker'
 import {
@@ -402,8 +403,10 @@ export function TaskList() {
   // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
   // リストにセクションがあるとき、リスト横断でセクションブロックを出す。
   const multiListSectionMode = !selectedListId && isTodoSurfaceView(selectedView)
-  /** 手動以外の並び順でセクションの塊を出すか。リストと「すべて」は lists、今日・近日中・期限切れは dueViews */
-  const groupingScope = selectedListId || selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
+  /** 手動以外の並び順でセクションの塊を出すか。リストはリストごと、「すべて」は lists、今日・近日中・期限切れは dueViews */
+  const groupingScope: SectionGroupingScope = selectedListId
+    ? { listId: selectedListId }
+    : selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
   const groupBySection = groupsBySection(sortMode, sectionGrouping, groupingScope)
   const showSectionBlocks = useMemo(() => {
     if (!groupBySection) return false

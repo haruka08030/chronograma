@@ -78,7 +78,13 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
       pushUndo()
       set({ sortMode: mode })
     },
-    setSectionGrouping: (scope, on) => set((s) => ({ sectionGrouping: { ...s.sectionGrouping, [scope]: on } })),
+    setSectionGrouping: (scope, on) =>
+      set((s) => ({
+        sectionGrouping:
+          typeof scope === 'object'
+            ? { ...s.sectionGrouping, byList: { ...s.sectionGrouping.byList, [scope.listId]: on } }
+            : { ...s.sectionGrouping, [scope]: on },
+      })),
     setFilterTag: (tag) => {
       pushUndo()
       set({ filterTag: tag })
