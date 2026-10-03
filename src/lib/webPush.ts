@@ -127,3 +127,26 @@ export async function syncWebPush({
   }
   pushActive = true
 }
+
+/**
+ * この端末の購読を外す（ログアウト・アカウント削除のとき）。外さないと、共有の PC で前の人の
+ * 予定や締切の通知が届き続け、次にログインした人は同じ endpoint の行を RLS で上書きできず通知が来ない。
+ * 行は消せるうち（ログアウト前）に消し、消せなくても購読を解除すれば endpoint が失効してサーバーが片付ける。
+ */
+export async function detachWebPush(): Promise<void> {
+  pushActive = false
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+  try {
+    const reg = await readyRegistration()
+    const sub = await reg?.pushManager.getSubscription()
+    if (!sub) return
+    const supabase = getSupabase()
+    if (supabase) {
+      const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      if (error) console.error('[push] delete on sign-out failed', error.message)
+    }
+    await sub.unsubscribe()
+  } catch (err) {
+    console.error('[push] detach failed', err)
+  }
+}

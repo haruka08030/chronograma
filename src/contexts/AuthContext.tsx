@@ -21,6 +21,7 @@ import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
 import { clearAutoBackups } from '../lib/autoBackup'
 import { clearBaseline } from '../lib/syncMerge'
+import { detachWebPush } from '../lib/webPush'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 
 export type AuthContextValue = {
@@ -144,6 +145,8 @@ function clearLocalAccountState() {
   store.setGoogleAccessToken(null)
   store.setCalendarEvents([])
   store.setGoogleConnectionError(null)
+  // 他のタブでのログアウトなど、ここに来た時点で行を消せなくても購読は解除する
+  void detachWebPush()
   // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
   if (store.dataOwner === null && store.tasks.length === 0 && store.habits.length === 0) return
   backupNow('beforeSignOut')
@@ -212,6 +215,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: async () => {
         const sb = getSupabase()
+        // 通知の行は RLS 上ログイン中にしか消せないので、セッションを切る前に外す
+        await detachWebPush()
         if (sb) await sb.auth.signOut()
         // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
         clearLocalAccountState()
