@@ -95,8 +95,6 @@ export interface TaskState {
   notificationsEnabled: boolean
   /** 予定が終わったら「予定どおり / 記録する」を聞く */
   recordPrompts: boolean
-  /** To-Do のタグ（自由な文字の目印）を使うか。既定はオフで、詳細・行・統計に出さない */
-  tagsEnabled: boolean
   /** 通知の「記録する」から開く、記録を入れる予定（永続化しない） */
   recordPromptTaskId: string | null
   listColorPaletteId: ListColorPaletteId
@@ -392,7 +390,6 @@ export interface TaskState {
 
   toggleNotifications: () => void
   setRecordPrompts: (on: boolean) => void
-  setTagsEnabled: (on: boolean) => void
   /** おすすめの通知をまとめてオン（朝のまとめ 8:00・予定の 10 分前・締切の前・記録の確認） */
   enableRecommendedNotifications: () => void
   openRecordPrompt: (taskId: string | null) => void

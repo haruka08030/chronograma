@@ -22,7 +22,6 @@ import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
-import { useTaskStore } from '../../store/taskStore'
 import { STEPS_LIST_CLASS } from '../ui/textClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 
@@ -72,8 +71,6 @@ export function CanvasSettings() {
     try {
       setStatus(await fn())
       setAdding(false)
-      // 科目はタグで出すので、新しくつないだらタグを見えるようにする（あとでオフにしても戻さない）
-      if (key === 'new') useTaskStore.getState().setTagsEnabled(true)
       requestCanvasSync()
     } catch (e) {
       setErrors({ [key]: toMessage(e) })

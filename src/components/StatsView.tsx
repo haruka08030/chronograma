@@ -22,7 +22,6 @@ export function StatsView() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
 
   const stats = useMemo(() => {
     // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
@@ -141,7 +140,7 @@ export function StatsView() {
         </section>
 
         {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
-        {tagsEnabled && stats.byTag.some((x) => x.tag !== '') && (
+        {stats.byTag.some((x) => x.tag !== '') && (
           <section>
             <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.byTagTitle')}</h2>
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">

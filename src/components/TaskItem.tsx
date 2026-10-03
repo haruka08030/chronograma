@@ -80,7 +80,6 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
@@ -392,7 +391,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
               <ExternalLinkIcon className="h-3.5 w-3.5" />
             </a>
           )}
-          {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
+          {task.tags.length > 0 && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
                 <button

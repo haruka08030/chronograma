@@ -14,7 +14,6 @@ const TODAY = '2026-09-30'
 /** 画面の状態の代わり（リスト・タスクと、追加・更新だけ） */
 const store = vi.hoisted(() => {
   const s = {
-    tagsEnabled: true,
     selectedListId: '__inbox__' as string | null,
     lists: [] as TaskList[],
     tasks: [] as Task[],

@@ -263,22 +263,20 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectListSection = useTaskStore((s) => s.selectListSection)
   const selectListTag = useTaskStore((s) => s.selectListTag)
   const filterTag = useTaskStore((s) => s.filterTag)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
-  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない）。タグを使わない設定なら出さない */
+  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない） */
   const courseTags = useMemo(() => {
-    if (!tagsEnabled) return []
     const tags = new Set<string>()
     for (const t of tasks) {
       if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
       for (const tag of t.tags) tags.add(tag)
     }
     return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
-  }, [tasks, tagsEnabled])
+  }, [tasks])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)

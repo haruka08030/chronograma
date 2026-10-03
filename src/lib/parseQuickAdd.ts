@@ -154,8 +154,8 @@ export function parseQuickAddTitle(
   localeJa: boolean,
   /** 「今日」「明日」の基準の日（夜中はまだ前の日。`appToday`） */
   now: Date = appToday(),
-  /** タグを使わない設定なら `#…` も題名のまま残す。リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
-  opts: { tags?: boolean; lists?: boolean } = {},
+  /** リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
+  opts: { lists?: boolean } = {},
 ): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
@@ -186,7 +186,7 @@ export function parseQuickAddTitle(
       listName = token.slice(1).trim()
       continue
     }
-    if (opts.tags !== false && token.startsWith('#') && token.length > 1) {
+    if (token.startsWith('#') && token.length > 1) {
       const name = token.slice(1).trim()
       if (name && !tags.includes(name)) tags.push(name)
       continue

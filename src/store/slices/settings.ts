@@ -25,7 +25,6 @@ type SettingsActions = Pick<
   | 'setEventReminderMinutes'
   | 'toggleNotifications'
   | 'setRecordPrompts'
-  | 'setTagsEnabled'
   | 'enableRecommendedNotifications'
 >
 
@@ -139,7 +138,6 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     toggleNotifications: () =>
       set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
     setRecordPrompts: (on) => set({ recordPrompts: on }),
-    setTagsEnabled: (on) => set(on ? { tagsEnabled: true } : { tagsEnabled: false, filterTag: null }),
     enableRecommendedNotifications: () =>
       set((s) => ({
         dailyReminders: { planTime: s.dailyReminders.planTime ?? '08:00' },

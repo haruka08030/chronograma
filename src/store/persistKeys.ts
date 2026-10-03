@@ -17,7 +17,6 @@ export const DATA_KEYS = [
   'theme',
   'notificationsEnabled',
   'recordPrompts',
-  'tagsEnabled',
   'listColorPaletteId',
   'timeLogTagPresets',
   'logCategoryColors',

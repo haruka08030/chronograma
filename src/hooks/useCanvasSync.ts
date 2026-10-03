@@ -129,13 +129,11 @@ export function useCanvasSync() {
             changed = true
             if (selectedListId && merged.mergedIds.includes(selectedListId)) selectedListId = CANVAS_LIST_ID
           }
-          // 科目ごとのセクションだった版の課題を、科目のタグに移す。タグが見えるよう「タグを使う」を一度だけオンにする
-          let tagsEnabled = s.tagsEnabled
+          // 科目ごとのセクションだった版の課題を、科目のタグに移す
           const toTags = canvasCourseSectionsToTags(next, new Date().toISOString())
           if (toTags.converted) {
             next = { ...next, sections: toTags.sections, tasks: toTags.tasks }
             changed = true
-            tagsEnabled = true
           }
           const connectionErrors: Record<string, string> = {}
           const pulled = loadPulled(pulledKey(userId))
@@ -164,7 +162,7 @@ export function useCanvasSync() {
             }
           }
           savePulled(pulledKey(userId), pulled)
-          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId, tagsEnabled }))
+          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId }))
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {
