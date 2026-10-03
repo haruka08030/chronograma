@@ -6,6 +6,7 @@ import { paletteColors } from '../lib/listColorPalettes'
 import { appTimeZone } from '../lib/timeZone'
 import {
   CANVAS_LIST_ID,
+  dropLegacyCanvasCopies,
   mergeCanvasLists,
   CanvasRequestError,
   fetchCanvasItems,
@@ -124,6 +125,12 @@ export function useCanvasSync() {
               next = { lists: result.lists, sections: result.sections, tasks: result.tasks }
               changed = true
             }
+          }
+          // 最初の版の id で取り込んだ重複（新しい id のものが揃った後で）をゴミ箱へ
+          const cleaned = dropLegacyCanvasCopies(next, new Date().toISOString())
+          if (cleaned) {
+            next = { ...next, ...cleaned }
+            changed = true
           }
           if (changed) useTaskStore.setState({ ...next, selectedListId })
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })

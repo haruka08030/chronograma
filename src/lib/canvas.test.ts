@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
+import type { ListSection } from '../types/section'
 import {
+  dropLegacyCanvasCopies,
   canvasDue,
   canvasFeedUrlProblem,
   canvasExpiryWarning,
@@ -216,5 +218,25 @@ describe('canvasFeedUrlProblem', () => {
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/calendar#view_name=month&view_start=2026-10-02')).toBe('calendarPage')
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/courses/77')).toBe('notFeed')
     expect(canvasFeedUrlProblem('')).toBeNull()
+  })
+})
+
+describe('dropLegacyCanvasCopies', () => {
+  const sec = (id: string): ListSection => ({ id, listId: '__inbox__', name: id, order: 0 })
+  it('trashes first-version copies that have a new twin, and drops their empty course sections', () => {
+    const [fresh] = imported([item('1')])
+    const legacy = { ...fresh, id: 'canvas-assignment-1', listId: '__inbox__', sectionId: 'canvas-course-101' }
+    const orphan = { ...fresh, id: 'canvas-assignment-9', listId: '__inbox__', sectionId: null }
+    const r = dropLegacyCanvasCopies({ sections: [sec('canvas-course-101'), sec(canvasSectionId(CONN, '101'))], tasks: [fresh, legacy, orphan] }, NOW)!
+    expect(r.tasks.map((t) => [t.id, t.deletedAt ?? null])).toEqual([
+      [fresh.id, null],
+      ['canvas-assignment-1', NOW],
+      ['canvas-assignment-9', null],
+    ])
+    expect(r.sections.map((s) => s.id)).toEqual([canvasSectionId(CONN, '101')])
+  })
+
+  it('does nothing when there are no first-version copies', () => {
+    expect(dropLegacyCanvasCopies({ sections: [], tasks: imported([item('1')]) }, NOW)).toBeNull()
   })
 })

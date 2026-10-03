@@ -158,6 +158,38 @@ export function parseCanvasTaskId(id: string): { connectionId: string; type: str
   return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
 }
 
+/** 最初の版の id（学校名なし）: タスク `canvas-<種類>-<ID>`、セクション `canvas-course-<コースID>` */
+const LEGACY_TASK_ID_RE = /^canvas-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
+const LEGACY_SECTION_ID_RE = /^canvas-course-\d+$/
+
+/**
+ * 最初の版（id に学校名が無い）で取り込んだ課題の重複を片付ける。
+ * 学校名入りの id に変わったとき移し替えなかったので、同じ課題が新しい id でもう 1 つ作られている。
+ * 新しい方があるものだけゴミ箱へ（戻せる）。空になった古い科目のセクションも消す。
+ */
+export function dropLegacyCanvasCopies(
+  state: { sections: ListSection[]; tasks: Task[] },
+  now: string,
+): { sections: ListSection[]; tasks: Task[] } | null {
+  const current = new Set<string>()
+  for (const t of state.tasks) {
+    const p = parseCanvasTaskId(t.id)
+    if (p) current.add(`${p.type}-${p.id}`)
+  }
+  let dropped = false
+  const tasks = state.tasks.map((t) => {
+    if (t.deletedAt) return t
+    const m = LEGACY_TASK_ID_RE.exec(t.id)
+    if (!m || !current.has(`${m[1]}-${m[2]}`)) return t
+    dropped = true
+    return { ...t, deletedAt: now, updatedAt: now }
+  })
+  const used = new Set(tasks.filter((t) => !t.deletedAt && t.sectionId).map((t) => t.sectionId))
+  const sections = state.sections.filter((sec) => !LEGACY_SECTION_ID_RE.test(sec.id) || used.has(sec.id))
+  if (!dropped && sections.length === state.sections.length) return null
+  return { sections, tasks: dropped ? tasks : state.tasks }
+}
+
 export function canvasSectionId(connectionId: string, courseId: string): string {
   return `canvas-course-${connectionId}-${courseId}`
 }
