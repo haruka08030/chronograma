@@ -218,6 +218,13 @@
 
 ## 状態管理（`src/store/taskStore.ts`）
 
+ファイルの分け方: `taskStore.ts` は作成・保存の設定（persist）と公開する名前の再エクスポートだけ。
+操作は `src/store/slices/*.ts`（sections / taskTree / tasks / lists / habits / timeLogs / google / settings / ui / data）、
+⌘Z の履歴は `undo.ts`（各 slice に `pushUndo` を渡す）、型は `storeTypes.ts`、定数は `storeConstants.ts`、
+保存データの移行は `migrate.ts`、i18n を使う初期値は `storeDefaults.ts`。
+純粋な関数（localStorage・i18n を読まないので単体テストできる）は `taskHelpers.ts`・`taskRecurrence.ts`（繰り返しの次回）・
+`habitRecord.ts`（習慣の達成と記録化）。画面からは今までどおり `../store/taskStore` だけを import する
+
 ### 主要 state（抜粋）
 
 - `tasks`, `lists` — 既定リスト「未分類」ID: `__inbox__`（`INBOX_LIST_ID`）
