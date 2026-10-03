@@ -26,6 +26,43 @@ describe('nextDueDate', () => {
     expect(nextDueDate('2026-01-31', { type: 'monthly', interval: 1 })).toBe('2026-02-28')
     expect(nextDueDate('2028-02-29', { type: 'yearly', interval: 1 })).toBe('2029-02-28')
   })
+
+  it('曜日つきの毎週は、選んだ曜日のうち次に来る日', () => {
+    // 2026-10-05 は月曜
+    const monWedFri = { type: 'weekly' as const, interval: 1, weekdays: [1, 3, 5] }
+    expect(nextDueDate('2026-10-05', monWedFri)).toBe('2026-10-07')
+    expect(nextDueDate('2026-10-07', monWedFri)).toBe('2026-10-09')
+    expect(nextDueDate('2026-10-09', monWedFri)).toBe('2026-10-12')
+    // 選んでいない曜日（締切を動かした）からでも次の選んだ曜日
+    expect(nextDueDate('2026-10-06', monWedFri)).toBe('2026-10-07')
+    expect(nextDueDate('2026-10-10', monWedFri)).toBe('2026-10-12')
+  })
+
+  it('曜日つきで 2 週ごとなら、週の最後の曜日の後は 2 週先の最初の曜日', () => {
+    const r = { type: 'weekly' as const, interval: 2, weekdays: [1, 3] }
+    expect(nextDueDate('2026-10-05', r)).toBe('2026-10-07')
+    expect(nextDueDate('2026-10-07', r)).toBe('2026-10-19')
+    // 日曜（7）は週の終わり
+    expect(nextDueDate('2026-10-11', { type: 'weekly', interval: 1, weekdays: [6, 7] })).toBe('2026-10-17')
+    expect(nextDueDate('2026-10-10', { type: 'weekly', interval: 1, weekdays: [6, 7] })).toBe('2026-10-11')
+  })
+
+  it('平日（月〜金）は金曜の次が月曜', () => {
+    const weekdays = { type: 'weekly' as const, interval: 1, weekdays: [1, 2, 3, 4, 5] }
+    expect(nextDueDate('2026-10-08', weekdays)).toBe('2026-10-09')
+    expect(nextDueDate('2026-10-09', weekdays)).toBe('2026-10-12')
+  })
+})
+
+describe('曜日つきの毎週の次回', () => {
+  it('やる日は締切と同じ日数だけずらす', () => {
+    const r = { type: 'weekly' as const, interval: 1, weekdays: [1, 3] }
+    // 月曜締切・前日の日曜にやる → 水曜締切・火曜にやる
+    const next = toggleTaskCompletion(
+      [task({ dueDate: '2026-10-05', scheduledDate: '2026-10-04', recurrence: r })], 'gym', T1,
+    )!.find((t) => t.id !== 'gym')!
+    expect(next).toMatchObject({ id: 'gym@2026-10-07', dueDate: '2026-10-07', scheduledDate: '2026-10-06', recurrence: r })
+  })
 })
 
 describe('recurrenceNextId', () => {

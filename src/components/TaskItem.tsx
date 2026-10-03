@@ -13,6 +13,7 @@ import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, Repeat
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
@@ -142,6 +143,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const timeLog = isListedTimeLog(task)
   // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
   const sourceLink = sourceLinkOf(task.description)
+  const repeatText = task.recurrence ? recurrenceLabel(t, task.recurrence, task.dueDate) : null
   const notePreview = sourceLink ? '' : task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
@@ -376,8 +378,10 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
           {sectionLabel && (
             <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>
           )}
-          {task.recurrence && (
-            <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+          {repeatText && (
+            <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
+              <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+            </span>
           )}
           {sourceLink && <TaskSourceLink link={sourceLink} />}
           {task.tags.length > 0 && (

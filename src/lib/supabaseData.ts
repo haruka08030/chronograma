@@ -10,6 +10,7 @@ import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
+import { buildRecurrence } from './recurrence'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -352,7 +353,7 @@ function rowToTaskFields(row: TaskRow): Task {
       (type === 'daily' || type === 'weekly' || type === 'monthly' || type === 'yearly') &&
       typeof interval === 'number'
     ) {
-      recurrence = { type, interval }
+      recurrence = buildRecurrence(type, interval, r.weekdays)
     }
   }
   const priority =

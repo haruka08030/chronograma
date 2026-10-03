@@ -638,6 +638,15 @@ export default {
       monthly: '毎月',
       yearly: '毎年',
     },
+    recurrenceWeekdays: '繰り返す曜日',
+    recurrenceSummary: {
+      daily: '{{count}}日ごと',
+      weekly: '{{count}}週ごと',
+      monthly: '{{count}}か月ごと',
+      yearly: '{{count}}年ごと',
+      withDays: '{{repeat}} {{days}}',
+      everyWorkday: '平日',
+    },
   },
   taskItem: {
     bulkSelectAria: '一括選択に含める',

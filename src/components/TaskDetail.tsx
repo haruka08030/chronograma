@@ -16,6 +16,7 @@ import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
+import { RepeatWeekdays } from './RepeatWeekdays'
 import { useEscapeLayer } from '../hooks/useHotkey'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -381,6 +382,14 @@ export function TaskDetail({
                       </>
                     )}
                   </div>
+                )}
+                {/* 毎週は曜日を選べる（Google カレンダーのカスタムの繰り返しと同じ）。既定は締切の曜日 */}
+                {task.dueDate && task.recurrence?.type === 'weekly' && (
+                  <RepeatWeekdays
+                    recurrence={task.recurrence}
+                    dueDate={task.dueDate}
+                    onChange={(recurrence) => updateTask(task.id, { recurrence })}
+                  />
                 )}
               </div>
 

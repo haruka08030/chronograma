@@ -46,7 +46,7 @@ function task(fields, now) {
     color: fields.color ?? null,
     priority: fields.priority ?? 'none',
     tags: fields.tags ?? [],
-    recurrence: null,
+    recurrence: fields.recurrence ?? null,
     isTimeLog: fields.isTimeLog ?? false,
     isSleep: fields.isSleep ?? false,
     habitId: null,
@@ -68,7 +68,8 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     // 期限切れ（赤）と今日（オレンジ）が並ぶように置く
     task({ id: 's1', title: '統計学レポート 提出', dueDate: yesterday, priority: 'high', order: 0, color: '#33B679' }, now),
     task({ id: 's2', title: 'ES 書く（第一志望）', dueDate: today, dueTime: '18:00', priority: 'high', order: 1, color: '#F6BF26' }, now),
-    task({ id: 's3', title: 'バイトのシフト提出', dueDate: today, order: 2, color: '#7986CB' }, now),
+    // 曜日つきの毎週（月・木）。詳細の曜日のピルを撮る
+    task({ id: 's3', title: 'バイトのシフト提出', dueDate: today, order: 2, color: '#7986CB', recurrence: { type: 'weekly', interval: 1, weekdays: [1, 4] } }, now),
     task({ id: 's4', title: 'TOEIC 申し込み', dueDate: inTwoDays, order: 3, color: '#F6BF26' }, now),
     task({ id: 's5', title: '研究室のゼミ資料を読む', order: 4 }, now),
     // 予定（タイムラインに出る薄い枠）
