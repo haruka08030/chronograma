@@ -2,9 +2,6 @@ import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } fr
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
-import { isTodoSurfaceView } from '../lib/todoSurfaceView'
-import { labelForHex } from '../lib/logCategoryColors'
-import { colorLabelText } from '../lib/todoColorLabels'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
@@ -96,12 +93,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const selectColor = useTaskStore((s) => s.selectColor)
-  const selectedView = useTaskStore((s) => s.selectedView)
-  const presets = useTaskStore((s) => s.timeLogTagPresets)
-  const categoryColors = useTaskStore((s) => s.logCategoryColors)
-  // 記録の色は分類で決まるので、ここで出すのは予定・タスクに付けた色（ラベル）だけ
-  const colorLabel = !isListedTimeLog(task) && task.color ? labelForHex(task.color, presets, categoryColors) : null
   const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, lists, moveTaskToList, showMoveBanner } = useTaskStore()
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [rowMenuOpen, setRowMenuOpen] = useState(false)
@@ -151,6 +142,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const timeLog = isListedTimeLog(task)
   const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   const priorityColor = PRIORITY_RING_CLASS[task.priority]
+  // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
+  const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
@@ -234,7 +227,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       draggable={rowNativeDraggable}
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
-      className={`group flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
+      className={`group relative flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40
                   ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
                   ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
@@ -270,6 +263,9 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         else onClick?.()
       }}
     >
+      {rowHex && (
+        <span aria-hidden className="absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={{ backgroundColor: rowHex }} />
+      )}
       {hasSortableHandle ? (
         <span className="touch-none flex-shrink-0">{dragHandle}</span>
       ) : null}
@@ -404,19 +400,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           )}
           {task.recurrence && (
             <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-          )}
-          {!timeLog && task.color && (
-            <button
-              type="button"
-              // To‑Do ではその色ラベルを開く（カレンダー横の一覧などでは何もしない）
-              onClick={(e) => { e.stopPropagation(); if (isTodoSurfaceView(selectedView)) selectColor(task.color!) }}
-              title={colorLabelText(task.color, presets, categoryColors, t)}
-              aria-label={colorLabelText(task.color, presets, categoryColors, t)}
-              className="inline-flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-            >
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.color }} aria-hidden />
-              {colorLabel}
-            </button>
           )}
           {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
             <div className="flex gap-1">
