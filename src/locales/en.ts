@@ -127,6 +127,7 @@ export default {
     listColorDialog: 'List color',
     reorderList: 'Reorder list',
     deleteList: 'Delete list',
+    listMenuAria: 'List menu',
     renameList: 'Rename list',
     views: {
       planner: 'Plan today',

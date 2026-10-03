@@ -11,7 +11,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
-import { CartIcon, CloseIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
+import { CartIcon, CloseIcon, ListBulletIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
@@ -49,8 +49,8 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
-  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない） */
-  onContextMenu: (e: React.MouseEvent) => void
+  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない）。スマホは行の ≡ から開く */
+  onContextMenu: (at: { clientX: number; clientY: number }) => void
 }) {
   const { t } = useTranslation()
   const isInbox = list.id === INBOX_LIST_ID
@@ -120,7 +120,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
       {!isInbox ? (
         // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
-        // スマホはホバーが無いので常に出す
+        // スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう
         <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
           <button
             {...attributes}
@@ -141,8 +141,21 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              const r = e.currentTarget.getBoundingClientRect()
+              onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
+            }}
+            className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
+            aria-haspopup="menu"
+            aria-label={t('sidebar.listMenuAria')}
+          >
+            <ListBulletIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onStartEdit() }}
-            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
+            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.renameList')}
           >
             <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
@@ -150,7 +163,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
+            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.deleteList')}
           >
             <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />

@@ -125,6 +125,7 @@ export default {
     listColorDialog: 'リストの色',
     reorderList: 'リストを並べ替え',
     deleteList: 'リストを削除',
+    listMenuAria: 'リストのメニュー',
     renameList: 'リスト名を変更',
     views: {
       planner: '今日の計画',
