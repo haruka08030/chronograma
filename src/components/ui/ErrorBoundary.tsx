@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import i18n from '../../i18n/config'
 import { buttonClass } from './buttonClass'
+import { downloadRawData, latestAutoBackup } from '../../lib/crashRecovery'
 
 /**
  * 描画中のエラーで画面全体が真っ白にならないようにする。
@@ -8,6 +9,26 @@ import { buttonClass } from './buttonClass'
  * - `scope="app"`: いちばん外側。ここまで来たら再読み込みだけを出す
  * 文言は i18n のインスタンスから直接引く（フックの手前で落ちていても出せるように）
  */
+/**
+ * 保存したデータが原因で毎回落ちるときの逃げ道。いちばん新しい自動バックアップで置き換えて開き直す
+ * （置き換える前の状態は取り込みの控えに残るので、開けたら設定から戻せる）
+ */
+async function restoreLatest() {
+  const t = i18n.t.bind(i18n)
+  const backup = await latestAutoBackup()
+  if (!backup) {
+    window.alert(t('crash.noBackup'))
+    return
+  }
+  if (!window.confirm(t('crash.restoreConfirm', { date: new Date(backup.savedAt).toLocaleString(i18n.language) }))) return
+  const { useTaskStore } = await import('../../store/taskStore')
+  if (!useTaskStore.getState().importData(backup.json)) {
+    window.alert(t('crash.noBackup'))
+    return
+  }
+  window.location.reload()
+}
+
 export class ErrorBoundary extends Component<
   { scope: 'app' | 'screen'; resetKey?: string; onLeave?: () => void; children: ReactNode },
   { error: Error | null }
@@ -48,6 +69,16 @@ export class ErrorBoundary extends Component<
           <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => window.location.reload()}>
             {t('crash.reload')}
           </button>
+          {scope === 'app' && (
+            <>
+              <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={downloadRawData}>
+                {t('crash.export')}
+              </button>
+              <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restoreLatest()}>
+                {t('crash.restore')}
+              </button>
+            </>
+          )}
           {scope === 'screen' && onLeave && (
             <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={onLeave}>
               {t('crash.goToday')}

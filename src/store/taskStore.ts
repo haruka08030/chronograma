@@ -720,6 +720,16 @@ function completedRecordPatch(
   }
 }
 
+/** 読めなかった保存データを、上書きされる前に別のキーへ写す */
+function preserveUnreadableStorage() {
+  try {
+    const raw = localStorage.getItem(PERSIST_STORAGE_KEY)
+    if (raw) localStorage.setItem(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+  } catch {
+    /* 写せなくても続ける */
+  }
+}
+
 /** 他のタブの変更を取り込んだとき、手元の ⌘Z の履歴（取り込む前の状態）を捨てる */
 let clearUndoHistory = () => {}
 
@@ -2254,6 +2264,29 @@ export const useTaskStore = create<TaskState>()(
       name: PERSIST_STORAGE_KEY,
       version: STORE_VERSION,
       storage: createJSONStorage(() => persistStorage),
+      // 読み込み（migrate）に失敗すると初期状態のまま動き、次の保存で元のデータを上書きしていた。
+      // 上書きされる前に、保存されていた中身を別のキーへ写しておく（設定 → データ の書き出しとは別に残る）
+      onRehydrateStorage: () => (_state, error) => {
+        if (!error) return
+        console.error('[storage] could not load saved data', error)
+        preserveUnreadableStorage()
+      },
+      // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
+      // 読める行だけ使い、元の中身は別のキーに写しておく
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<TaskState>) } as TaskState
+        let broken = false
+        for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
+          const value = merged[key] as unknown
+          const rows = Array.isArray(value)
+            ? value.filter((x) => typeof x === 'object' && x !== null && typeof (x as { id?: unknown }).id === 'string')
+            : null
+          if (!rows || rows.length !== (value as unknown[]).length) broken = true
+          ;(merged as unknown as Record<string, unknown>)[key] = rows ?? current[key]
+        }
+        if (broken) preserveUnreadableStorage()
+        return merged
+      },
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version < 2) {
