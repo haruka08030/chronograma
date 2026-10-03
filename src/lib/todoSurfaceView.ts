@@ -1,4 +1,4 @@
-import type { SectionGrouping, SortMode } from '../store/storeTypes'
+import type { SectionGrouping, SectionGroupingScope, SortMode } from '../store/storeTypes'
 
 const TODO_SURFACE_VIEWS = new Set(['all', 'today', 'upcoming', 'overdue'])
 
@@ -20,7 +20,9 @@ export function isTodoNavView(selectedView: string | null | undefined): boolean 
 export function groupsBySection(
   sortMode: SortMode,
   sectionGrouping: SectionGrouping,
-  scope: keyof SectionGrouping,
+  scope: SectionGroupingScope,
 ): boolean {
-  return sortMode === 'manual' || sectionGrouping[scope]
+  if (sortMode === 'manual') return true
+  if (typeof scope === 'object') return sectionGrouping.byList?.[scope.listId] ?? true
+  return sectionGrouping[scope]
 }

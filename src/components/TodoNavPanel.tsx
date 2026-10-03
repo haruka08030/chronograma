@@ -236,8 +236,8 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  // 「セクションで分ける」がオフなら一覧に見出しが無いので、リストの下のセクション行も出さない
-  const showSections = useTaskStore((s) => groupsBySection(s.sortMode, s.sectionGrouping, 'lists'))
+  const sortMode = useTaskStore((s) => s.sortMode)
+  const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
   const selectListSection = useTaskStore((s) => s.selectListSection)
@@ -311,7 +311,10 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
       <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
-          const listSections = showSections ? sectionsByList.get(list.id) ?? [] : []
+          // 「セクションで分ける」がオフのリストは一覧に見出しが無いので、下のセクション行も出さない
+          const listSections = groupsBySection(sortMode, sectionGrouping, { listId: list.id })
+            ? sectionsByList.get(list.id) ?? []
+            : []
 
           if (editingId === list.id) {
             return (

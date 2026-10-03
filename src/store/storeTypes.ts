@@ -29,10 +29,14 @@ export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'googl
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 
 /**
- * 手動以外の並び順のとき、セクションの塊で分けるか。リストと、期限で絞った一覧（今日・近日中・期限切れ）で別に持つ。
+ * 手動以外の並び順のとき、セクションの塊で分けるか。リストごと（`byList`、未設定は分ける）、
+ * 「すべて」（`lists`）、期限で絞った一覧（今日・近日中・期限切れ、`dueViews`）で別に持つ。
  * 期限の一覧は「科目をまたいで締切順に見たい」ので、最初から分けない
  */
-export type SectionGrouping = { lists: boolean; dueViews: boolean }
+export type SectionGrouping = { lists: boolean; dueViews: boolean; byList?: Record<string, boolean> }
+
+/** どの一覧の設定か。リストを開いているときはそのリストの ID */
+export type SectionGroupingScope = 'lists' | 'dueViews' | { listId: string }
 
 export interface ActiveTimer {
   taskTitle: string
@@ -175,7 +179,7 @@ export interface TaskState {
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   setSortMode: (mode: SortMode) => void
-  setSectionGrouping: (scope: keyof SectionGrouping, on: boolean) => void
+  setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
