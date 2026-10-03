@@ -146,7 +146,7 @@ export function CompleteWithLogModal({
         )}
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">{t('task.completeModal.memo')}</label>
+          <label className={sectionLabelClass('field', 'mb-1 block')}>{t('task.completeModal.memo')}</label>
           <textarea
             value={draft.memo}
             onChange={(e) => onChange({ memo: e.target.value })}

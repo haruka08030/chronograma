@@ -7,6 +7,7 @@ import { CheckIcon, PencilSquareIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { tip } from '../../lib/tooltip'
+import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const CHECK = (
   <CheckIcon className="h-4 w-4" strokeWidth={3} />
@@ -145,7 +146,7 @@ export function SelectColorDialog({
         />
 
         <label className="mt-4 block">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">Hex</span>
+          <span className={sectionLabelClass('field')}>Hex</span>
           <input
             value={hexDraft}
             onChange={(e) => {

@@ -339,7 +339,7 @@ export function TaskDetail({
                   />
                   {tv.dueDate && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('taskDetail.deadlineTime')}</span>
+                      <span className={sectionLabelClass('field')}>{t('taskDetail.deadlineTime')}</span>
                       <TimeInput
                         value={tv.dueTime ?? ''}
                         onChange={(v) => updateTimes({ dueTime: v || null })}

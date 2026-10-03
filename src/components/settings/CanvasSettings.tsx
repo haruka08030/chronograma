@@ -23,7 +23,8 @@ import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
 import { useTaskStore } from '../../store/taskStore'
-import { HINT_TEXT } from '../ui/textClass'
+import { STEPS_LIST_CLASS } from '../ui/textClass'
+import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const field = fieldClass({}, 'w-full')
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
@@ -242,12 +243,12 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
         if (ready) onSubmit(url.trim())
       }}
     >
-      <ol className={`list-decimal space-y-1 pl-5 ${HINT_TEXT}`}>
+      <ol className={STEPS_LIST_CLASS}>
         <li>{t('canvas.feedStep1')}</li>
         <li>{t('canvas.feedStep2')}</li>
       </ol>
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.feedLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.feedLabel')}</span>
         <input
           type="text"
           inputMode="url"
@@ -323,7 +324,7 @@ function TokenForm({
       }}
     >
       {notice && <p className="text-xs text-amber-600 dark:text-amber-400">{notice}</p>}
-      <ol className={`list-decimal space-y-1 pl-5 ${HINT_TEXT}`}>
+      <ol className={STEPS_LIST_CLASS}>
         <li>
           {settingsUrl ? (
             <a href={settingsUrl} target="_blank" rel="noreferrer" className="text-accent-600 underline-offset-2 hover:underline dark:text-accent-400">
@@ -338,7 +339,7 @@ function TokenForm({
       </ol>
       {!renew && (
         <label className="block">
-          <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.urlLabel')}</span>
+          <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.urlLabel')}</span>
           <input
             type="text"
             inputMode="url"
@@ -351,7 +352,7 @@ function TokenForm({
         </label>
       )}
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.tokenLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.tokenLabel')}</span>
         <input
           type="password"
           autoComplete="off"

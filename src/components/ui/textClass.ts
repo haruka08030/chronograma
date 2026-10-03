@@ -14,3 +14,6 @@ export const HINT_TEXT = 'text-xs text-zinc-500 dark:text-zinc-400'
 export const META_TEXT = 'text-xs text-zinc-400 dark:text-zinc-500'
 
 export const SUBTLE_TEXT = 'text-sm text-zinc-500 dark:text-zinc-400'
+
+/** 連携の設定などの「1. 2. 3.」の手順。文字は HINT_TEXT */
+export const STEPS_LIST_CLASS = `list-decimal space-y-1 pl-5 ${HINT_TEXT}`

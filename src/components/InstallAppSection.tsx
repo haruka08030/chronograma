@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { installAvailability, promptInstall, subscribeInstallAvailability } from '../lib/pwa'
 import { SettingsRow } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
+import { STEPS_LIST_CLASS } from './ui/textClass'
 
 /** 設定の 1 行: ホーム画面 / Dock に追加して「アプリとして」使う案内 */
 export function InstallAppSection() {
@@ -26,7 +27,7 @@ export function InstallAppSection() {
       label={t('install.title')}
       help={
         availability === 'ios' ? (
-          <ol className="list-decimal space-y-0.5 pl-4">
+          <ol className={STEPS_LIST_CLASS}>
             <li>{t('install.iosStep1')}</li>
             <li>{t('install.iosStep2')}</li>
             <li>{t('install.iosStep3')}</li>

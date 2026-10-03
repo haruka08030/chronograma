@@ -17,7 +17,8 @@ import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
-import { HINT_TEXT } from '../ui/textClass'
+import { STEPS_LIST_CLASS } from '../ui/textClass'
+import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const select = fieldClass({ size: 'sm' }, 'max-w-[12rem]')
 const field = fieldClass({}, 'w-full')
@@ -148,7 +149,7 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         if (token.trim() && database.trim()) onConnect(token.trim(), database.trim())
       }}
     >
-      <ol className={`list-decimal space-y-1 pl-5 ${HINT_TEXT}`}>
+      <ol className={STEPS_LIST_CLASS}>
         <li>
           <a
             href="https://www.notion.so/profile/integrations"
@@ -164,7 +165,7 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         <li>{t('notion.step3')}</li>
       </ol>
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('notion.tokenLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('notion.tokenLabel')}</span>
         <input
           type="password"
           autoComplete="off"
@@ -175,7 +176,7 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('notion.databaseLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('notion.databaseLabel')}</span>
         <input
           type="url"
           value={database}
