@@ -34,6 +34,23 @@ export function isTextFieldUndoTarget(target: EventTarget | null): boolean {
  * （Safari は確定直後の Enter を isComposing=false で送ることがあるので keyCode 229 も見る）。
  * テンキーの Enter も key は 'Enter' で来る
  */
-export function isSubmitEnter(e: { key: string; nativeEvent: KeyboardEvent }): boolean {
+export function isSubmitEnter(e: { key: string; nativeEvent: Pick<KeyboardEvent, 'isComposing' | 'keyCode'> }): boolean {
   return e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229
+}
+
+/**
+ * 複数行の欄（メモ）でのキーの意味。Enter はふつうに改行（null）
+ * - ⌘/Ctrl+Enter: 'commit'（確定して欄を離れる）
+ * - Esc: 'leave'（欄を離れる。書いた分は捨てない）
+ * 変換中の Enter / Esc は変換のためのものなので何もしない
+ */
+export function textAreaKeyAction(e: {
+  key: string
+  metaKey: boolean
+  ctrlKey: boolean
+  nativeEvent: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>
+}): 'commit' | 'leave' | null {
+  if (isModKey(e) && isSubmitEnter(e)) return 'commit'
+  if (e.key === 'Escape' && !e.nativeEvent.isComposing) return 'leave'
+  return null
 }

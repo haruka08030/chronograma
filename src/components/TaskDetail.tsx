@@ -19,7 +19,7 @@ import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
-import { useTextEntry } from '../hooks/useTextEntry'
+import { useTextAreaEntry, useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import { InlineAddInput } from './ui/InlineAddInput'
@@ -109,6 +109,8 @@ export function TaskDetail({
   })
   // 追加の欄の Esc は書きかけを消す（欄は出たまま）
   const tagEntry = useTextEntry({ onSubmit: () => addTag(), onCancel: () => setTagInput('') })
+  // メモは打つたびに保存している。離れたら表示に戻すだけ
+  const memoEntry = useTextAreaEntry({ onCommit: () => setEditingMemo(false) })
 
   const subtasks = useMemo(
     () =>
@@ -210,7 +212,7 @@ export function TaskDetail({
                 ref={memoTextareaRef}
                 value={task.description}
                 onChange={(e) => updateTask(task.id, { description: e.target.value })}
-                onBlur={() => setEditingMemo(false)}
+                {...memoEntry}
                 placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
                 rows={isLog ? 4 : 2}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700

@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isSubmitEnter, textAreaKeyAction } from '../lib/keyboard'
 
 /**
  * 1 行の入力欄の Enter / Esc / フォーカス外しを、どの欄でも同じ意味にする。
@@ -56,5 +56,28 @@ export function useTextEntry({
       if (onBlurSubmit) onBlurSubmit()
       else if (commitOnBlur) onSubmit()
     },
+  }
+}
+
+/**
+ * 複数行の欄（メモ）のキーを、どの欄でも同じ意味にする。保存の道はフォーカスが外れたとき（`onCommit`）の 1 本だけ。
+ * - Enter: 改行
+ * - ⌘/Ctrl+Enter（変換の確定は除く）: 確定して欄を離れる
+ * - Esc（変換中は除く）: 欄を離れる。書いた分は捨てない。親（ダイアログ）は閉じない。閉じるのは次の Esc
+ * - フォーカスが外れた: `onCommit`（打つたびに保存している欄は、編集の表示を閉じるだけでよい）
+ *
+ *   const memoEntry = useTextAreaEntry({ onCommit: () => setEditing(false) })
+ *   <textarea value={v} onChange={...} {...memoEntry} />
+ */
+export function useTextAreaEntry({ onCommit }: { onCommit?: () => void } = {}) {
+  return {
+    onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (!textAreaKeyAction(e)) return
+      // ⌘Enter（選択中を完了）や Esc（ダイアログを閉じる）を外側のショートカットに渡さない
+      e.preventDefault()
+      e.stopPropagation()
+      e.currentTarget.blur()
+    },
+    onBlur: () => onCommit?.(),
   }
 }

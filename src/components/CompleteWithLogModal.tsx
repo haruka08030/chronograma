@@ -5,6 +5,7 @@ import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { buttonClass } from './ui/buttonClass'
 import { Modal, ModalTitle } from './ui/Modal'
 import { DateField } from './DateField'
+import { useTextAreaEntry } from '../hooks/useTextEntry'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -39,6 +40,8 @@ export function CompleteWithLogModal({
   onSubmit: () => void
 }) {
   const { t } = useTranslation()
+  // メモは下書きにそのまま入る。⌘Enter / Esc は欄を離れるだけ（Esc でこのダイアログを閉じない）
+  const memoEntry = useTextAreaEntry()
   const valid = isCompleteDraftValid(draft)
   const overnight = draft.endDate === draft.date && draft.endTime < draft.startTime
   return (
@@ -145,6 +148,7 @@ export function CompleteWithLogModal({
           <textarea
             value={draft.memo}
             onChange={(e) => onChange({ memo: e.target.value })}
+            {...memoEntry}
             rows={4}
             placeholder={t('task.completeModal.memoPlaceholder')}
             className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
