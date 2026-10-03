@@ -17,6 +17,7 @@ type TasksActions = Pick<
   | 'updateTask'
   | 'rescheduleTasks'
   | 'bulkUpdateTasks'
+  | 'completeTasks'
   | 'deleteTask'
   | 'uncheckTasks'
   | 'promoteToPlanned'
@@ -135,9 +136,19 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         ),
       }))
     },
-    bulkUpdateTasks: (ids, patch) => {
+    completeTasks: (ids) => {
+      const s0 = get()
+      const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
+      if (targets.length === 0) return
+      pushUndo(targets.length > 1 ? i18n.t('undo.tasksCompleted', { count: targets.length }) : undefined)
+      const nowIso = new Date().toISOString()
+      set((s) => ({
+        tasks: targets.reduce((tasks, id) => toggleTaskCompletion(tasks, id, nowIso) ?? tasks, s.tasks),
+      }))
+    },
+    bulkUpdateTasks: (ids, patch, label) => {
       if (ids.length === 0) return
-      pushUndo()
+      pushUndo(label)
       set((s) => {
         const selected = new Set(ids)
         const listTargets =

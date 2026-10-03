@@ -278,10 +278,14 @@ export interface TaskState {
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
   rescheduleTasks: (ids: string[], dateKey: string) => void
+  /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
+    label?: string,
   ) => void
+  /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
+  completeTasks: (ids: string[]) => void
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void

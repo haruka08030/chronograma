@@ -51,8 +51,17 @@ export function UndoToast() {
 
   if (!visible || !kind) return null
 
+  /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
+  function deletedMessage() {
+    const ids = new Set(deletedTasks.map((d) => d.task.id))
+    const roots = deletedTasks.filter((d) => !d.task.parentId || !ids.has(d.task.parentId))
+    if (roots.length === 1 && roots[0].task.title.trim()) return t('undo.taskDeleted', { title: roots[0].task.title })
+    if (roots.length > 1) return t('undo.tasksDeleted', { count: roots.length })
+    return t('undo.message')
+  }
+
   const message =
-    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? t('undo.message') : (undoBanner?.text ?? '')
+    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner?.text ?? '')
 
   // タイマー表示中は一段上へずらして重なりを避ける
   const stacked = activeTimer

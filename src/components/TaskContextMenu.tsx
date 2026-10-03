@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays, format, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useDismiss } from '../hooks/useDismiss'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
@@ -39,9 +40,7 @@ export function TaskContextMenu({
 }) {
   const { t } = useTranslation()
   const lists = useTaskStore((s) => s.lists)
-  const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
-  const archiveTasks = useTaskStore((s) => s.archiveTasks)
-  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const bulk = useBulkTaskActions()
   const [showLists, setShowLists] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: x, top: y })
@@ -99,7 +98,7 @@ export function TaskContextMenu({
                 type="button"
                 role="menuitem"
                 className={ITEM}
-                onClick={() => run(() => bulkUpdateTasks(taskIds, { listId: l.id }))}
+                onClick={() => run(() => bulk.moveToList(taskIds, l.id))}
               >
                 <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
                 <span className="truncate">{displayListName(l.id, l.name)}</span>
@@ -117,7 +116,7 @@ export function TaskContextMenu({
                 type="button"
                 role="menuitem"
                 className={CHIP}
-                onClick={() => run(() => bulkUpdateTasks(taskIds, { dueDate: o.value }))}
+                onClick={() => run(() => bulk.setDue(taskIds, o.value, o.label))}
               >
                 {o.label}
               </button>
@@ -131,7 +130,7 @@ export function TaskContextMenu({
                 type="button"
                 role="menuitem"
                 className={`${CHIP} inline-flex items-center gap-1`}
-                onClick={() => run(() => bulkUpdateTasks(taskIds, { priority: p }))}
+                onClick={() => run(() => bulk.setPriority(taskIds, p))}
               >
                 {p !== 'none' && <span className={`h-2 w-2 rounded-full bg-current ${PRIORITY_RING_CLASS[p]}`} />}
                 {t(`common.${p}`)}
@@ -148,14 +147,14 @@ export function TaskContextMenu({
               {t('taskMenu.open')}
             </button>
           )}
-          <button type="button" role="menuitem" className={ITEM} onClick={() => run(() => archiveTasks(taskIds))}>
+          <button type="button" role="menuitem" className={ITEM} onClick={() => run(() => bulk.archive(taskIds))}>
             {t('taskItem.archive')}
           </button>
           <button
             type="button"
             role="menuitem"
             className={`${ITEM_BASE} text-red-600 dark:text-red-400`}
-            onClick={() => run(() => deleteTasks(taskIds))}
+            onClick={() => run(() => bulk.remove(taskIds))}
           >
             {t('taskItem.deleteAria')}
           </button>

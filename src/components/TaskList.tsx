@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
+import { format, parseISO } from 'date-fns'
 import { tip } from '../lib/tooltip'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
@@ -35,6 +36,7 @@ import { TaskContextMenu } from './TaskContextMenu'
 import { QuickAdd } from './QuickAdd'
 import type { Priority, Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import {
   SortableContext,
@@ -229,7 +231,6 @@ export function TaskList() {
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
-  const bulkUpdateTasks = useTaskStore((s) => s.bulkUpdateTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const archiveTasks = useTaskStore((s) => s.archiveTasks)
   const sections = useTaskStore((s) => s.sections)
@@ -702,11 +703,11 @@ export function TaskList() {
 
   const selectedIds = useMemo(() => [...selected], [selected])
 
+  const bulk = useBulkTaskActions()
   const bulkComplete = useCallback(() => {
-    const ids = [...selected]
-    for (const id of ids) toggleTask(id)
+    bulk.complete([...selected])
     clearSelection()
-  }, [selected, toggleTask, clearSelection])
+  }, [selected, bulk, clearSelection])
 
   const bulkDelete = useCallback(() => {
     if (selected.size === 0) return
@@ -1258,7 +1259,7 @@ export function TaskList() {
                   const listId = e.target.value
                   e.target.value = ''
                   if (!listId) return
-                  bulkUpdateTasks(selectedIds, { listId })
+                  bulk.moveToList(selectedIds, listId)
                 }}
               >
                 <option value="">{t('taskList.moveEllipsis')}</option>
@@ -1276,7 +1277,7 @@ export function TaskList() {
                   const v = e.target.value as Priority | ''
                   e.target.value = ''
                   if (!v) return
-                  bulkUpdateTasks(selectedIds, { priority: v })
+                  bulk.setPriority(selectedIds, v)
                 }}
               >
                 <option value="">{t('taskList.priorityEllipsis')}</option>
@@ -1291,7 +1292,7 @@ export function TaskList() {
                 <DateField
                   value={null}
                   placeholder={t('dueDatePicker.dateTitle')}
-                  onChange={(v) => bulkUpdateTasks(selectedIds, { dueDate: v })}
+                  onChange={(v) => bulk.setDue(selectedIds, v, format(parseISO(v), 'M/d'))}
                   ariaLabel={t('common.due')}
                   className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs"
                 />
@@ -1299,7 +1300,7 @@ export function TaskList() {
             </div>
             <button
               type="button"
-              onClick={() => bulkUpdateTasks(selectedIds, { dueDate: null })}
+              onClick={() => bulk.setDue(selectedIds, null, '')}
               className={buttonClass({ variant: 'secondary', size: 'xs' })}
             >
               {t('taskList.noDue')}
