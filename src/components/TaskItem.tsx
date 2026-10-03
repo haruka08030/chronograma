@@ -422,7 +422,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           onChange={(v) => updateTask(task.id, { dueDate: v })}
           align="right"
           // md 未満はタイトル幅を確保するため出さない（期限は詳細シートで編集）
-          wrapperClassName="relative hidden flex-shrink-0 md:block"
+          wrapperClassName="relative hidden flex-shrink-0 md:flex"
           trigger={({ open, toggle }) => (
             <button
               type="button"
@@ -433,7 +433,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-1.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
@@ -541,13 +541,14 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         )}
       </div>
 
+      {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}
       <button
         onClick={(e) => {
           e.stopPropagation()
           archiveTask(task.id)
           showMoveBanner(t('toast.taskArchived'))
         }}
-        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
+        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.archiveAria')}
         title={t('taskItem.archive')}
       >
@@ -558,7 +559,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
 
       <button
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
-        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
+        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.deleteAria')}
         title={t('taskItem.deleteAria')}
       >
