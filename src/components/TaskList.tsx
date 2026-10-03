@@ -2,8 +2,6 @@ import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, type
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { tip } from '../lib/tooltip'
 import { useDndMonitor, useDroppable, type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../store/taskStore'
 import type { SectionGroupingScope } from '../store/storeTypes'
@@ -34,7 +32,7 @@ import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { TaskContextMenu } from './TaskContextMenu'
 import { QuickAdd } from './QuickAdd'
-import type { Priority, Task } from '../types/task'
+import type { Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -45,7 +43,6 @@ import {
 import { CheckIcon, CloseIcon, PencilIcon } from './icons'
 import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
-import { DateField } from './DateField'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -214,8 +211,6 @@ function SectionDropZone({ listId, sectionId }: { listId: string; sectionId: str
   )
 }
 
-const BULK_PRIORITY_OPTIONS: Priority[] = ['high', 'medium', 'low', 'none']
-
 export function TaskList() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -232,7 +227,6 @@ export function TaskList() {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
-  const archiveTasks = useTaskStore((s) => s.archiveTasks)
   const sections = useTaskStore((s) => s.sections)
   const addSectionStore = useTaskStore((s) => s.addSection)
   const renameSectionStore = useTaskStore((s) => s.renameSection)
@@ -257,7 +251,7 @@ export function TaskList() {
   /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [cursorVisible, setCursorVisible] = useState(false)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
 
   const clearNestPreview = useCallback(() => {
     if (previewParentIdRef.current === null) return
@@ -353,10 +347,6 @@ export function TaskList() {
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const sortOptions = useMemo(
     () => SORT_OPTIONS.map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
-    [t],
-  )
-  const bulkPriorityOptions = useMemo(
-    () => BULK_PRIORITY_OPTIONS.map((value) => ({ value, label: t(`common.${value}`) })),
     [t],
   )
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -701,8 +691,6 @@ export function TaskList() {
     return true
   })
 
-  const selectedIds = useMemo(() => [...selected], [selected])
-
   const bulk = useBulkTaskActions()
   const bulkComplete = useCallback(() => {
     bulk.complete([...selected])
@@ -714,13 +702,6 @@ export function TaskList() {
     deleteTasks([...selected])
     clearSelection()
   }, [selected, deleteTasks, clearSelection])
-
-  const bulkArchive = useCallback(() => {
-    if (selected.size === 0) return
-    // 件数の知らせは `archiveTasks` が「元に戻す」付きのトーストで出す（二重に出さない）
-    archiveTasks([...selected])
-    clearSelection()
-  }, [selected, archiveTasks, clearSelection])
 
   // 完了・削除などで枠の行が一覧から消えたら、同じ位置の行（末尾なら前の行）へ移す
   const cursorIndexRef = useRef(-1)
@@ -791,6 +772,14 @@ export function TaskList() {
         if (hasSelection) k.bulkComplete()
         else if (target) k.toggleTask(target)
         else return
+      } else if ((e.key === '/' && isModKey(e)) || e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+        // ⌘/（Notion と同じ）: 選択中（なければ枠の行）の右クリックメニューを、その行の下に開く
+        const ids = hasSelection ? [...selectedRef.current] : target ? [target] : []
+        if (ids.length === 0) return
+        const anchor = (target && ids.includes(target) ? target : ids[0])
+        const row = document.querySelector(`[data-task-row="${anchor}"]`)?.getBoundingClientRect()
+        if (!row) return
+        setContextMenu({ x: row.left + 48, y: row.bottom + 4, taskIds: ids })
       } else if (e.key === 'Enter' && !onButton && target) {
         k.openDetail(target)
       } else if (e.key === ' ' && !onButton && target) {
@@ -801,8 +790,6 @@ export function TaskList() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
   const beginSectionRename = useCallback((sectionId: string, currentName: string) => {
     setEditingSectionId(sectionId)
@@ -1223,98 +1210,6 @@ export function TaskList() {
           </div>
         </div>
 
-        {selected.size > 0 && (
-          <div className="mx-4 mb-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/90 dark:bg-zinc-800/80
-                          flex flex-wrap items-center gap-2 text-xs text-zinc-700 dark:text-zinc-200">
-            <span className="font-medium text-zinc-600 dark:text-zinc-300 mr-1">{t('taskList.selectedCount', { count: selected.size })}</span>
-            <button
-              type="button"
-              onClick={bulkComplete}
-              {...tip(t('shortcuts.completeSelected'), '⌘Enter')}
-              className={buttonClass({ variant: 'secondary', size: 'xs' })}
-            >
-              {t('taskList.markComplete')}
-            </button>
-            <button
-              type="button"
-              onClick={bulkArchive}
-              className={buttonClass({ variant: 'secondary', size: 'xs' })}
-            >
-              {t('taskList.bulkArchive')}
-            </button>
-            <button
-              type="button"
-              onClick={bulkDelete}
-              {...tip(t('taskList.bulkDelete'), 'Delete')}
-              className={buttonClass({ variant: 'danger', size: 'xs' })}
-            >
-              {t('taskList.bulkDelete')}
-            </button>
-            <label className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">{t('common.list')}</span>
-              <select
-                className="max-w-[140px] rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
-                value=""
-                onChange={(e) => {
-                  const listId = e.target.value
-                  e.target.value = ''
-                  if (!listId) return
-                  bulk.moveToList(selectedIds, listId)
-                }}
-              >
-                <option value="">{t('taskList.moveEllipsis')}</option>
-                {sortedLists.map((l) => (
-                  <option key={l.id} value={l.id}>{displayListName(l.id, l.name)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">{t('common.priority')}</span>
-              <select
-                className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-1 text-xs"
-                value=""
-                onChange={(e) => {
-                  const v = e.target.value as Priority | ''
-                  e.target.value = ''
-                  if (!v) return
-                  bulk.setPriority(selectedIds, v)
-                }}
-              >
-                <option value="">{t('taskList.priorityEllipsis')}</option>
-                {bulkPriorityOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
-            <div className="inline-flex items-center gap-1">
-              <span className="text-zinc-500 dark:text-zinc-400">{t('common.due')}</span>
-              <div className="w-[118px]">
-                <DateField
-                  value={null}
-                  placeholder={t('dueDatePicker.dateTitle')}
-                  onChange={(v) => bulk.setDue(selectedIds, v, format(parseISO(v), 'M/d'))}
-                  ariaLabel={t('common.due')}
-                  className="rounded-md border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs"
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => bulk.setDue(selectedIds, null, '')}
-              className={buttonClass({ variant: 'secondary', size: 'xs' })}
-            >
-              {t('taskList.noDue')}
-            </button>
-            <button
-              type="button"
-              onClick={clearSelection}
-              className="px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 hover:underline"
-            >
-              {t('taskList.clearSelection')}
-            </button>
-          </div>
-        )}
-
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
             <div className="mb-1.5">
@@ -1388,8 +1283,35 @@ export function TaskList() {
         <TaskContextMenu
           {...contextMenu}
           onClose={() => setContextMenu(null)}
+          onDone={clearSelection}
           onOpenDetail={openDetail}
         />
+      )}
+      {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6 [@media(hover:hover)]:hidden">
+          <div className="flex items-center gap-1 rounded-full bg-zinc-900 py-1 pl-4 pr-1 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+            <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
+            <button
+              type="button"
+              className="rounded-full px-3 py-1.5 font-semibold touch-manipulation"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect()
+                setContextMenu({ x: r.left, y: r.top, taskIds: [...selected], above: true })
+              }}
+            >
+              {t('taskMenu.actions')}
+            </button>
+            <button
+              type="button"
+              aria-label={t('taskList.clearSelection')}
+              className="rounded-full p-2 touch-manipulation"
+              onClick={clearSelection}
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -72,6 +72,7 @@ export const SHORTCUT_LIST: { keys: string[]; label: string }[] = [
   { keys: ['Enter'], label: 'shortcuts.openRow' },
   { keys: ['Space'], label: 'shortcuts.completeRow' },
   { keys: ['⌘', 'A'], label: 'shortcuts.selectAll' },
+  { keys: ['⌘', '/'], label: 'shortcuts.openMenu' },
   { keys: ['⌘', 'Enter'], label: 'shortcuts.completeSelected' },
   { keys: ['Esc'], label: 'shortcuts.close' },
   { keys: ['⌘', 'Z'], label: 'shortcuts.undo' },

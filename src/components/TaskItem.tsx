@@ -224,6 +224,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   return (
     <div
       ref={rowRef}
+      data-task-row={task.id}
       draggable={rowNativeDraggable}
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
