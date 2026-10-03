@@ -3,6 +3,7 @@ import type { Habit } from '../types/habit'
 import type { Task } from '../types/task'
 import { assignColorsInOrder, categoryHex } from '../lib/logCategoryColors'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from './habitRecord'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // localStorage・i18n を用意しなくても読める（色の名前と「今」は引数で渡す）
 
@@ -21,6 +22,7 @@ function habit(fields: Partial<Habit> = {}): Habit {
 
 function record(fields: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id: 'r1', title: '朝ラン', description: '', completed: true, completedAt: NOW, createdAt: NOW, updatedAt: NOW,
     order: 5, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
     priority: 'none', tags: [], recurrence: null, isTimeLog: true,
@@ -103,7 +105,7 @@ describe('uncheckHabitDatePatch', () => {
     const patch = uncheckHabitDatePatch(state(h, [record({ habitId: 'h1' }), other]), 'h1', '2026-10-02', { now: NOW, deletedAt: 42 })!
     expect(patch.habits[0]!.completedDates).toEqual(['2026-10-01'])
     expect(patch.tasks.find((t) => t.id === 'r1')!.deletedAt).toBe(NOW)
-    expect(patch.tasks.find((t) => t.id === 'r2')!.deletedAt).toBeUndefined()
+    expect(patch.tasks.find((t) => t.id === 'r2')!.deletedAt).toBeNull()
     expect(patch.recentDeletes).toEqual([{ ids: ['r1'], at: 42 }])
   })
 })

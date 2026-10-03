@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { toggleChecklistTree } from './listTree'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const NOW = '2026-10-03T10:00:00.000Z'
 const task = (id: string, parentId: string | null = null, completed = false): Task => ({
+  ...TASK_DEFAULTS,
   id, title: id, description: '', completed, completedAt: completed ? NOW : null, createdAt: NOW, updatedAt: NOW,
   order: 0, listId: 'shop', sectionId: null, parentId, dueDate: null, startTime: null, endTime: null,
   priority: 'none', tags: [], recurrence: null,

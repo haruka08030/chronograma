@@ -15,15 +15,7 @@ import {
   PERSIST_STORAGE_KEY,
   STORE_VERSION,
 } from './storeConstants'
-import type {
-  CalendarMode,
-  DailyReminders,
-  SectionGrouping,
-  SettingsScrollTarget,
-  SmartView,
-  SortMode,
-  TaskState,
-} from './storeTypes'
+import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, SyncState, TaskState } from './storeTypes'
 import { defaultLogCategories, initialLists } from './storeDefaults'
 import { migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'
@@ -62,6 +54,7 @@ export {
   LIST_COLOR_PALETTES,
   normalizeListColorPaletteId,
 } from '../lib/listColorPalettes'
+import { withTaskDefaults } from '../lib/taskDefaults'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -116,7 +109,7 @@ export const useTaskStore = create<TaskState>()(
       undoBanner: null as { text: string; at: number } | null,
       googleUndo: null as { id: string; text: string; at: number } | null,
       taskDragHoverListId: null as string | null,
-      syncState: 'idle' as 'idle' | 'syncing' | 'error',
+      syncState: 'idle' as SyncState,
       lastSyncedAt: null as string | null,
       syncRejected: [],
       dataOwner: null as string | null,
@@ -191,6 +184,8 @@ export const useTaskStore = create<TaskState>()(
           if (!rows || rows.length !== (value as unknown[]).length) broken = true
           ;(merged as unknown as Record<string, unknown>)[key] = rows ?? current[key]
         }
+        // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
+        merged.tasks = merged.tasks.map(withTaskDefaults)
         if (broken) preserveUnreadableStorage()
         return merged
       },

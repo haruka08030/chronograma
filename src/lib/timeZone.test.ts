@@ -11,6 +11,7 @@ import {
   zoneOffsetMinutes,
 } from './timeZone'
 import { convertTaskTimes, reanchorTask, timesPatchFromZone } from './taskTimeZone'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 afterEach(() => setAppTimeZoneSetting(null))
 
@@ -46,6 +47,7 @@ describe('timeZone', () => {
 })
 
 const base: Task = {
+  ...TASK_DEFAULTS,
   id: 't',
   title: 't',
   description: '',

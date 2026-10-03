@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { canViewBackup, idsToPrune, restoreMissing, type AutoBackupMeta, type RestorableData } from './autoBackup'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const T0 = '2026-09-25T00:00:00.000Z'
 const NOW = '2026-10-02T00:00:00.000Z'
 
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id, title: id, description: '', completed: false, completedAt: null, createdAt: T0, updatedAt: T0,
     order: 0, listId: SYNC_INBOX_LIST_ID, sectionId: null, parentId: null, dueDate: null,
     startTime: null, endTime: null, priority: 'none', tags: [], recurrence: null, ...patch,

@@ -13,6 +13,9 @@ import type { SyncRejectedRow } from '../lib/supabaseData'
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
  * 画面で訳した文字列をそのまま渡すこともできる
  */
+/** クラウド同期の状態 */
+export type SyncState = 'idle' | 'syncing' | 'error'
+
 export type ToastText = string | { key: string; params?: Record<string, string | number> }
 
 export type CalendarMode = 'month' | 'week'
@@ -368,10 +371,10 @@ export interface TaskState {
    * 預けたデータが届いているのか利用者から分からなかった。
    * `error` は「最後の同期が失敗して未送信の変更がある」という意味。
    */
-  syncState: 'idle' | 'syncing' | 'error'
+  syncState: SyncState
   /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
   lastSyncedAt: string | null
-  setSyncState: (state: 'idle' | 'syncing' | 'error', lastSyncedAt?: string) => void
+  setSyncState: (state: SyncState, lastSyncedAt?: string) => void
   /** 最後の同期でサーバーに受け付けられなかった行（永続化しない）。手元には残っている */
   syncRejected: SyncRejectedRow[]
   setSyncRejected: (rows: SyncRejectedRow[]) => void

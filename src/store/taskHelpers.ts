@@ -12,6 +12,7 @@ import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
 
 /** `updateTask` で書き換えられる列 */
+
 export type TaskPatch = Parameters<TaskState['updateTask']>[1]
 
 /** 子孫（任意の深さ）を含む。一括削除・リスト移動で親子の整合を取る */
@@ -147,6 +148,8 @@ export function makeTask(
     isSleep: fields.isSleep ?? false,
     archivedAt: null,
     deletedAt: null,
+    timeZone: null,
+    reminders: null,
     // 列を書いたタイムゾーン。アプリのタイムゾーンを変えたら同じ瞬間のまま書き直す（`taskTimeZone.ts`）
     timeZoneAnchor: appTimeZone(),
   }

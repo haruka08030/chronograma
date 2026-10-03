@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // ストアを node で読み込むための最小限の localStorage
 beforeAll(() => {
@@ -20,6 +21,7 @@ describe('繰り返しタスクの次回', () => {
     const now = new Date().toISOString()
     useTaskStore.setState({
       tasks: [{
+        ...TASK_DEFAULTS,
         id: 'gym', title: 'ジム', description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now,
         order: 0, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: null, endTime: null,
         priority: 'none', tags: [], recurrence: { type: 'weekly', interval: 1 },

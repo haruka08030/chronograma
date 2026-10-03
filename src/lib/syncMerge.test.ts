@@ -12,6 +12,7 @@ import {
   withoutDuplicateDefaults,
   type SyncSnapshot,
 } from './syncMerge'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * 同期マージはデータ消失の最後の砦なので、
@@ -24,6 +25,7 @@ const T2 = '2026-09-03T00:00:00.000Z'
 
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id,
     title: id,
     description: '',

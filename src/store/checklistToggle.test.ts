@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // ストアを node で読み込むための最小限の localStorage
 beforeAll(() => {
@@ -18,6 +19,7 @@ const { useTaskStore } = await import('./taskStore')
 const setup = (kind: 'tasks' | 'checklist') => {
   const now = new Date().toISOString()
   const base = {
+    ...TASK_DEFAULTS,
     description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now, order: 0,
     listId: 'l', sectionId: null, dueDate: null, startTime: null, endTime: null, priority: 'none' as const, tags: [], recurrence: null,
   }

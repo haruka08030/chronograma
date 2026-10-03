@@ -6,6 +6,7 @@ import { getSupabase } from './supabase'
 import { wallInZone } from './timeZone'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { externalPatch, type PulledFields } from './externalFields'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -302,6 +303,7 @@ export function reconcileCanvasItems(
     if (!existing) {
       pulled[id] = { title, dueDate, dueTime }
       additions.push({
+        ...TASK_DEFAULTS,
         id,
         title,
         description: item.url,

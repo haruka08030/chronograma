@@ -3,6 +3,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import { getSupabase, sendFunctionOnLeave } from './supabase'
 import { externalPatch, type PulledFields } from './externalFields'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * Notion 連携のクライアント側。Notion API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -186,6 +187,7 @@ export function reconcileNotionPages(
     if (!existing) {
       pulled[id] = { title, dueDate, dueTime }
       additions.push({
+        ...TASK_DEFAULTS,
         id,
         title,
         description: page.url,

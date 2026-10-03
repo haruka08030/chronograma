@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { inferLogCategory } from './logCategory'
 import { logLabelFromTask } from './logCategoryColors'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 function task(over: Partial<Task>): Task {
   return {
+    ...TASK_DEFAULTS,
     id: Math.random().toString(36).slice(2),
     title: 't',
     description: '',

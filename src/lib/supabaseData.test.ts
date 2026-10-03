@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
@@ -196,6 +197,7 @@ describe('pushListsTasksHabits', () => {
 /** 行の形からアプリのタスクに戻したもの（push に渡す形） */
 function fetchedTasks(ids: string[]): Task[] {
   return ids.map((id) => ({
+    ...TASK_DEFAULTS,
     id,
     listId: '__inbox__',
     parentId: null,

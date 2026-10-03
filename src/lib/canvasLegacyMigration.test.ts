@@ -3,6 +3,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { migrateLegacyCanvasIds } from './canvasLegacyMigration'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const T0 = '2026-10-01T00:00:00.000Z'
 const NOW = '2026-10-03T00:00:00.000Z'
@@ -11,6 +12,7 @@ const URL1 = `https://${HOST}/courses/101/assignments/1`
 
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id,
     title: id,
     description: '',

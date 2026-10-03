@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // ストアを node で読み込むための最小限の localStorage
 beforeAll(() => {
@@ -18,6 +19,7 @@ const OLD = '2026-01-01T00:00:00.000Z'
 
 function task(id: string, title: string) {
   return {
+    ...TASK_DEFAULTS,
     id, title, description: '', completed: false, completedAt: null, createdAt: OLD, updatedAt: OLD, order: 0,
     listId: '__inbox__', sectionId: null, parentId: null, dueDate: null, startTime: null, endTime: null,
     priority: 'none' as const, tags: [], recurrence: null,

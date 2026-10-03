@@ -11,6 +11,7 @@ import { initialLists } from '../storeDefaults'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
+import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 
 type DataActions = Pick<
   TaskState,
@@ -123,7 +124,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       // 取り込みは全置換なので、戻せることを画面に出す
       pushUndo({ key: 'undo.imported', params: { count: parsed.tasks.length } })
       set({
-        tasks: parsed.tasks,
+        tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
         listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
@@ -146,7 +147,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const parsed = withFreshStamps(read)
       pushUndo()
       set({
-        tasks: parsed.tasks,
+        tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
         listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
@@ -176,6 +177,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const newTasks: Task[] = rows.map((row) => {
         baseOrder += 1
         return {
+          ...TASK_DEFAULTS,
           id: newId(),
           title: row.title,
           description: row.description,
