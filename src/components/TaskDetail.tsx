@@ -18,7 +18,7 @@ import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
 import { RepeatWeekdays } from './RepeatWeekdays'
 import { useEscapeLayer } from '../hooks/useHotkey'
-import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
+import { CalendarIcon, ChevronLeftIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { DateField } from './DateField'
@@ -206,7 +206,8 @@ export function TaskDetail({
               type="button"
               onClick={onClose}
               aria-label={t('common.close')}
-              className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+              // スマホは上に固定した「戻る」で閉じる（ここはスクロールで消え、右上は親指が届きにくい）
+              className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
             >
               <CloseIcon className="w-5 h-5 text-zinc-400" />
             </button>
@@ -679,6 +680,17 @@ export function TaskDetail({
                    h-full overflow-y-auto shadow-xl animate-slide-in"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* スマホだけ: 上に固定した戻る（Google Tasks と同じ）。下までスクロールしても閉じられる */}
+        <div className="sticky top-0 z-10 flex items-center border-b border-zinc-100 bg-white/95 px-1 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 md:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 touch-manipulation active:bg-zinc-100 dark:text-zinc-300 dark:active:bg-zinc-800"
+          >
+            <ChevronLeftIcon className="h-6 w-6" />
+          </button>
+        </div>
         {detailBody}
       </div>
     </div>
