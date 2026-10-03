@@ -18,10 +18,12 @@ export const InlineAddInput = forwardRef<HTMLInputElement, {
   /** ＋ の代わりの印（いつかは ☆） */
   icon?: ReactNode
   size?: 'md' | 'sm'
+  /** 枠の代わりに下線だけ（今日の計画の追加欄） */
+  underline?: boolean
   className?: string
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onKeyDown' | 'size' | 'className'>>(
   function InlineAddInput(
-    { value, onValueChange, onSubmit, onCancel, onBlurSubmit, icon, size = 'md', className = '', onBlur, ...inputProps },
+    { value, onValueChange, onSubmit, onCancel, onBlurSubmit, icon, size = 'md', underline = false, className = '', onBlur, ...inputProps },
     ref,
   ) {
     const entry = useTextEntry({
@@ -52,10 +54,12 @@ export const InlineAddInput = forwardRef<HTMLInputElement, {
     )
     return (
       <div
-        className={`flex items-center rounded-lg border border-zinc-200 bg-white transition-colors
-                    focus-within:border-zinc-300 focus-within:bg-zinc-50
-                    dark:border-zinc-700 dark:bg-transparent dark:focus-within:border-zinc-600 dark:focus-within:bg-zinc-800/60
-                    ${size === 'sm' ? 'rounded' : 'gap-3 px-3'} ${className}`}
+        className={`flex items-center transition-colors ${
+          underline
+            ? 'border-b border-zinc-200 focus-within:border-zinc-500 dark:border-zinc-700 dark:focus-within:border-zinc-400'
+            : `border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:bg-zinc-50
+               dark:border-zinc-700 dark:bg-transparent dark:focus-within:border-zinc-600 dark:focus-within:bg-zinc-800/60 ${size === 'sm' ? 'rounded' : 'rounded-lg'}`
+        } ${size === 'sm' ? '' : 'gap-3 px-3'} ${className}`}
       >
         {size === 'md' && (icon ?? <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />)}
         {input}

@@ -365,6 +365,7 @@ export function TodayPlannerView() {
         {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
         <div className="relative mt-1 px-3">
           <InlineAddInput
+            underline
             data-quickadd
             value={draft}
             onValueChange={setDraft}
