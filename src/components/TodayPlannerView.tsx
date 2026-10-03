@@ -27,7 +27,7 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CalendarArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
+import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
@@ -354,8 +354,8 @@ export function TodayPlannerView() {
 
         {leftOver.length > 0 && (
           <div className="mt-2 px-3">
-            {/* 閉じているときは見出しの右でまとめて移す。開いたら行ごとに移し、まとめては下へ（「To-Do から追加」と同じ形） */}
-            <div className="flex items-center gap-2">
+            {/* 見出しの右に「すべて今日へ」（» の二重矢印）、開くと行ごとに「今日やる」（→）。どちらも行のアイコンと同じ列 */}
+            <div className="flex items-center gap-3 pr-3">
               <button
                 type="button"
                 onClick={() => setShowLeftOver((v) => !v)}
@@ -365,23 +365,19 @@ export function TodayPlannerView() {
                 <ChevronRightIcon className={`h-3 w-3 shrink-0 transition-transform ${showLeftOver ? 'rotate-90' : ''}`} strokeWidth={2.5} />
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </button>
-              {!showLeftOver && (
-                <button type="button" onClick={moveAllLeftOver} className={`mr-3 shrink-0 ${textButton}`}>
-                  {leftOver.length > 1 ? t('planner.moveAllToToday') : t('planner.doToday')}
-                </button>
+              {leftOver.length > 1 ? (
+                <RowActionButton label={t('planner.moveAllToToday')} onClick={moveAllLeftOver}>
+                  <CalendarDoubleArrowIcon className="h-4 w-4" />
+                </RowActionButton>
+              ) : (
+                // 1 件なら行の「今日やる」と同じ。開いたら行の方だけにする
+                !showLeftOver && moveHereButton(leftOver[0]!)
               )}
             </div>
             {showLeftOver && (
-              <>
-                <ul>
-                  {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
-                </ul>
-                {leftOver.length > 1 && (
-                  <button type="button" onClick={moveAllLeftOver} className={`ml-11 mt-1 ${textButton}`}>
-                    {t('planner.moveAllToToday')}
-                  </button>
-                )}
-              </>
+              <ul>
+                {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
+              </ul>
             )}
           </div>
         )}
