@@ -31,6 +31,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
+import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -76,6 +77,9 @@ export function TaskDetail({
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState(task.title)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const titleTextRef = useRef<HTMLHeadingElement>(null)
+  // 題名の編集を Enter・Esc で閉じたら、フォーカスを題名に戻す
+  useFocusBackOnClose(editingTitle, titleTextRef)
   const [editingMemo, setEditingMemo] = useState(false)
   const memoTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -185,6 +189,7 @@ export function TaskDetail({
                 />
               ) : (
                 <h2
+                  ref={titleTextRef}
                   onClick={() => setEditingTitle(true)}
                   tabIndex={0}
                   role="button"

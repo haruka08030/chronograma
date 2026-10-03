@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { shortcutTip, tip } from '../lib/tooltip'
@@ -22,6 +22,7 @@ import { fieldClass } from './ui/fieldClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -58,6 +59,11 @@ export function RecordPanel({
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
 
   const [mode, setMode] = useState<'idle' | 'timer' | 'manual'>('idle')
+  // 入力を閉じたら（始めた・記録した・やめた）、開いたボタンにフォーカスを戻す
+  const timerButtonRef = useRef<HTMLButtonElement>(null)
+  const laterButtonRef = useRef<HTMLButtonElement>(null)
+  useFocusBackOnClose(mode === 'timer', timerButtonRef)
+  useFocusBackOnClose(mode === 'manual', laterButtonRef)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [start, setStart] = useState('')
@@ -238,6 +244,7 @@ export function RecordPanel({
         {canStartTimer && (
           <button
             type="button"
+            ref={timerButtonRef}
             onClick={() => setMode('timer')}
             {...shortcutTip(t('quickLog.start'), 'logView')}
             className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
@@ -249,6 +256,7 @@ export function RecordPanel({
         {canLogLater && (
           <button
             type="button"
+            ref={laterButtonRef}
             onClick={openManual}
             className={buttonClass({ variant: 'secondary', size: 'lg' }, 'flex-1')}
           >
