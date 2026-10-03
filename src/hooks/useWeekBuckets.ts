@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { logOverlapsDateKey, taskPlacementDate } from '../lib/taskTimeRange'
@@ -17,7 +17,7 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
     const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
       if (t.parentId || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-      if (t.isTimeLog) {
+      if (isLogTask(t)) {
         if (!t.dueDate || !t.startTime || !t.endTime) continue
         for (const day of days) {
           const dk = toDateKey(day)

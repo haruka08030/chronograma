@@ -3,7 +3,7 @@
  * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ。
  */
 import i18n from '../i18n/config'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import type { ActiveTimer, DailyReminders } from '../store/taskStore'
 import {
   dailyDue,
@@ -55,20 +55,20 @@ export function toReminderTask(t: Task): ReminderTask {
     id: t.id,
     title: t.title,
     list_id: t.listId,
-    scheduled_date: t.scheduledDate ?? null,
+    scheduled_date: t.scheduledDate,
     due_date: t.dueDate,
-    due_time: t.dueTime ?? null,
+    due_time: t.dueTime,
     start_time: t.startTime,
     end_time: t.endTime,
-    end_date: t.endDate ?? null,
-    reminders: t.reminders ?? null,
+    end_date: t.endDate,
+    reminders: t.reminders,
   }
 }
 
 /** 通知の対象になる未完了のタスク */
 export function reminderCandidates(tasks: readonly Task[], excludedListIds: ReadonlySet<string>): ReminderTask[] {
   return tasks
-    .filter((t) => !t.completed && !t.isTimeLog && !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId))
+    .filter((t) => !t.completed && !isLogTask(t) && !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId))
     .map(toReminderTask)
 }
 

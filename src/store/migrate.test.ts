@@ -19,8 +19,28 @@ describe('データの移行は updatedAt を変えない', () => {
   it('睡眠の印を付けても、元の updatedAt のまま（古い端末の行がほかの端末の新しい編集に勝たない）', () => {
     const out = migrateTaskState({ tasks: [log('s', '睡眠')], lists: [], sections: [], habits: [] }, 31)
     const sleep = out.tasks.find((t) => t.id === 's')!
-    expect(sleep.isSleep).toBe(true)
+    expect(sleep.kind).toBe('sleep')
     expect(sleep.updatedAt).toBe(OLD)
+  })
+})
+
+describe('タスクの種類（v38）', () => {
+  it('2 つの印（記録か・睡眠か）を kind 1 つにし、印は残さない', () => {
+    const todo = { ...log('t', '買い物'), isTimeLog: false }
+    const sleep = { ...log('s', '夜'), isSleep: true }
+    const out = migrateTaskState({ tasks: [todo, log('l', 'ゼミ'), sleep], lists: [], sections: [], habits: [] }, 37)
+    expect(out.tasks.map((t) => t.kind)).toEqual(['todo', 'log', 'sleep'])
+    for (const t of out.tasks) {
+      expect(t).not.toHaveProperty('isTimeLog')
+      expect(t).not.toHaveProperty('isSleep')
+      expect(t.updatedAt).toBe(OLD)
+    }
+  })
+
+  it('睡眠の印だけで記録の印が無いものは To-Do のまま', () => {
+    const odd = { ...log('x', '夜'), isTimeLog: false, isSleep: true }
+    const out = migrateTaskState({ tasks: [odd], lists: [], sections: [], habits: [] }, 37)
+    expect(out.tasks[0].kind).toBe('todo')
   })
 })
 

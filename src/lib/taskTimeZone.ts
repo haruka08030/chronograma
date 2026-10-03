@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { appTimeZone, convertWall } from './timeZone'
 import { pad2 } from './clockTime'
 
@@ -15,7 +15,7 @@ import { pad2 } from './clockTime'
 
 export type TaskTimeFields = Pick<
   Task,
-  'isTimeLog' | 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'
+  'kind' | 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'
 >
 
 
@@ -45,7 +45,7 @@ function convertRange(
 export function convertTaskTimes<T extends TaskTimeFields>(fields: T, from: string, to: string): T {
   if (from === to) return fields
   const out = { ...fields }
-  if (fields.isTimeLog) {
+  if (isLogTask(fields)) {
     if (fields.dueDate && fields.startTime) {
       const r = convertRange(fields.dueDate, fields.startTime, fields.endTime, fields.endDate, from, to)
       out.dueDate = r.date
@@ -107,7 +107,7 @@ type TimePatch = Partial<Pick<Task, (typeof TIME_KEYS)[number]>>
 export function timesPatchFromZone(view: TaskTimeFields, patch: TimePatch, zone: string): TimePatch {
   const merged = { ...view, ...patch }
   // 予定には終了日の入力が無いので、日をまたぐかは時刻から決め直す（古い終了日を残すと 1 日ずれる）
-  if (!view.isTimeLog && !('endDate' in patch)) merged.endDate = null
+  if (!isLogTask(view) && !('endDate' in patch)) merged.endDate = null
   const back = convertTaskTimes(merged, zone, appTimeZone())
   const out: TimePatch = {}
   for (const k of TIME_KEYS) {

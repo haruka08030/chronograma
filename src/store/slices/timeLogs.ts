@@ -12,6 +12,7 @@ import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { clockOf } from '../../lib/clockTime'
+import { isLogTask } from '../../types/task'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -46,7 +47,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           endDate,
           startTime,
           endTime,
-          isTimeLog: true,
+          kind: 'log',
           completed: true,
           tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title),
           color: color ?? null,
@@ -82,9 +83,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           endDate,
           startTime: bedTime,
           endTime: wakeTime,
-          isTimeLog: true,
+          kind: 'sleep',
           completed: true,
-          isSleep: true,
         },
         maxOrder + 1,
       )
@@ -130,7 +130,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
             title: timer.taskTitle,
             listId: INBOX_ID,
             ...times,
-            isTimeLog: true,
+            kind: 'log',
             completed: true,
             tags: timer.tags,
             color: timer.color ?? null,
@@ -166,7 +166,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
             endDate,
             startTime,
             endTime,
-            isTimeLog: true,
+            kind: 'log',
             completed: true,
             tags: timer.tags,
             color: timer.color ?? null,
@@ -179,7 +179,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
     logPlanAsPlanned: (taskId) => {
       const task = get().tasks.find((t) => t.id === taskId)
       const date = task ? taskPlacementDate(task) : null
-      if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
+      if (!task || task.completed || isLogTask(task) || !date || !task.startTime || !task.endTime) return
       const now = zonedNow()
       const today = toDateKey(now)
       const nowHm = clockOf(now)

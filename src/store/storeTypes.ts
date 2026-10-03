@@ -9,13 +9,12 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { SyncState } from '../types/sync'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
  * 画面で訳した文字列をそのまま渡すこともできる
  */
-/** クラウド同期の状態 */
-export type SyncState = 'idle' | 'syncing' | 'error'
 
 export type ToastText = string | { key: string; params?: Record<string, string | number> }
 
@@ -299,7 +298,7 @@ export interface TaskState {
         | 'listId'
         | 'parentId'
         | 'recurrence'
-        | 'isTimeLog'
+        | 'kind'
         | 'completed'
         | 'completedAt'
         | 'sectionId'

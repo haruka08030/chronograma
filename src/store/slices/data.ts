@@ -199,7 +199,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           priority: row.priority,
           tags: row.tags,
           recurrence: null,
-          isTimeLog: false,
+          kind: 'todo',
           archivedAt: null,
           deletedAt: null,
         }

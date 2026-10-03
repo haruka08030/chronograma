@@ -67,7 +67,7 @@ describe('todoColorLabels', () => {
   it('leaves out records, subtasks, deleted tasks and someday/checklist lists', () => {
     const labels = todoColorLabels(
       [
-        task({ color: SAGE, isTimeLog: true }),
+        task({ color: SAGE, kind: 'log' }),
         task({ color: SAGE, parentId: 'p' }),
         task({ color: SAGE, deletedAt: '2026-10-01T00:00:00.000Z' }),
         task({ color: SAGE, listId: 'shop' }),

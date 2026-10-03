@@ -105,7 +105,7 @@ export function WeekAllDayRow({
                 asOneUndo(() => {
                   const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false }, label)
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind: 'todo' }, label)
                   }
                 })
               }}

@@ -57,10 +57,10 @@ export function TaskContextMenu({
     const values = new Set(targets.map(pick))
     return values.size === 1 ? [...values][0] : undefined
   }
-  const sharedDue = shared((x) => x.dueDate ?? null)
+  const sharedDue = shared((x) => x.dueDate)
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
-  const sharedSection = shared((x) => x.sectionId ?? null)
+  const sharedSection = shared((x) => x.sectionId)
   // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけ・チェックリストだけなら専用の短いメニューにする
   const kindOf = (listId: string) => lists.find((l) => l.id === listId)?.kind ?? 'tasks'
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')

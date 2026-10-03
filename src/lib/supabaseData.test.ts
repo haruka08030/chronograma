@@ -206,6 +206,36 @@ describe('repeat weekdays (recurrence JSON)', () => {
   })
 })
 
+describe('task kind (is_time_log / is_sleep columns)', () => {
+  it('reads the two columns as the kind', async () => {
+    const rows = [
+      task('todo'),
+      { ...task('log'), is_time_log: true },
+      { ...task('sleep'), is_time_log: true, is_sleep: true },
+      // 睡眠の印だけで記録の印が無い行は To-Do
+      { ...task('odd'), is_sleep: true },
+    ]
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: rows, habits: [] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(Object.fromEntries(res.tasks.map((t) => [t.id, t.kind]))).toEqual({ todo: 'todo', log: 'log', sleep: 'sleep', odd: 'todo' })
+  })
+
+  it('writes the kind as the two columns older apps read', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const [todo, log, sleep] = fetchedTasks(['todo', 'log', 'sleep'])
+    const local: Task[] = [todo!, { ...log!, kind: 'log' }, { ...sleep!, kind: 'sleep' }]
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    const sent = upserts.find((u) => u.table === 'tasks')!.rows.map((r) => [r.id, r.is_time_log, r.is_sleep, 'kind' in r])
+    expect(sent).toEqual([
+      ['todo', false, false, false],
+      ['log', true, false, false],
+      ['sleep', true, true, false],
+    ])
+  })
+})
+
 describe('pushListsTasksHabits', () => {
   const inbox: TaskList = { id: '__inbox__', name: '未分類', color: '#7986CB', order: 0 }
 
@@ -310,7 +340,7 @@ function fetchedTasks(ids: string[]): Task[] {
     priority: 'none',
     tags: [],
     recurrence: null,
-    isTimeLog: false,
+    kind: 'todo',
     completedAt: null,
     sectionId: null,
   }))

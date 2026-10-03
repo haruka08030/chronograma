@@ -11,7 +11,6 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
-import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -21,6 +20,7 @@ import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { usePendingAction } from '../lib/pendingAction'
+import { isLogTask, isSleepTask } from '../types/task'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -63,7 +63,7 @@ export function RecordPanel({
   const recent = useMemo(() => recentLogs(tasks, 2), [tasks])
 
   const dayLogs = useMemo(
-    () => tasks.filter((x) => x.isTimeLog && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
+    () => tasks.filter((x) => isLogTask(x) && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
     [tasks, dateKey],
   )
   const { totalMinutes, byCategory } = useMemo(() => {
@@ -71,7 +71,7 @@ export function RecordPanel({
     let total = 0
     for (const log of dayLogs) {
       // 睡眠は分類の帯に入れない（上の「睡眠」の行で見る）
-      if (isSleepRecord(log)) continue
+      if (isSleepTask(log)) continue
       const min = minutesOfLogOnCalendarDay(log, dateKey)
       total += min
       const cat = recordLabelKey(log, labelPresets, logCategoryColors)

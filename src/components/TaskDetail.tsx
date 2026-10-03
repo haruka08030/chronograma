@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, paletteColors } from '../store/taskStore'
-import type { Task, Priority, Recurrence } from '../types/task'
+import { isLogTask, type Task, type Priority, type Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
@@ -48,7 +48,7 @@ export function TaskDetail({
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
   const df = useDateFormat()
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const updateTask = useTaskStore((s) => s.updateTask)
   useTaskStore((s) => s.appTimeZone)
   // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）

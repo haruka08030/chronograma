@@ -19,6 +19,7 @@ import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { loadPulled, savePulled } from '../lib/externalFields'
+import type { SyncStatus } from '../types/sync'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -27,11 +28,7 @@ const WRITE_DELAY_MS = 5_000
 /** 初回はクラウド同期の取得を待つ（新しい端末で、取得前に作ったタスクが上書きされないように） */
 const FIRST_SYNC_WAIT_MS = 10_000
 
-export type CanvasSyncState = {
-  syncing: boolean
-  lastSyncedAt: string | null
-  /** 全体のエラー。サーバーのエラーコード（`canvas_api` など）か、その他のメッセージ */
-  error: string | null
+export type CanvasSyncState = SyncStatus & {
   /** 学校ごとのエラーコード（`canvas_unauthorized` など）。キーは接続 ID */
   connectionErrors: Record<string, string>
 }

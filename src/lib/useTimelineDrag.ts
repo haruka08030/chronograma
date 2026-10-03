@@ -4,6 +4,7 @@ import { dragBlockDurationMinutes } from './taskTimeRange'
 import { addDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime } from './clockTime'
+import type { TaskKind } from '../types/task'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -142,7 +143,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     blockDurationSource?: {
       startTime: string
       endTime: string
-      isTimeLog?: boolean
+      kind?: TaskKind
       dueDate?: string | null
       endDate?: string | null
     },

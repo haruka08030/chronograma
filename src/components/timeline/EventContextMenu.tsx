@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import type { Task } from '../../types/task'
+import { isLogTask, type Task } from '../../types/task'
 import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { recordHex } from '../../lib/logCategoryColors'
 import { planTiming } from '../../lib/planTiming'
@@ -47,7 +47,7 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const color = useTaskColor(task, !isLog)
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { canLogAsPlanned, ended } = planTiming(task)

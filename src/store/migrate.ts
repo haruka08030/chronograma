@@ -1,7 +1,7 @@
 /**
  * 保存データの移行。`STORE_VERSION`（`storeConstants.ts`）を上げたら、ここに手順を足す
  */
-import type { Task } from '../types/task'
+import { taskKindFromFlags, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode } from '../types/habit'
@@ -18,6 +18,15 @@ import type { TaskState } from './storeTypes'
 import { toDateKey } from '../lib/dateKey'
 
 const defaultPaletteColors = paletteColors(DEFAULT_LIST_COLOR_PALETTE_ID)
+
+/** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
+type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
+
+/** 2 つの印を kind に置き換える */
+function withKindFromFlags(t: LegacyTask): Task {
+  const { isTimeLog, isSleep, ...rest } = t
+  return { ...rest, kind: taskKindFromFlags(isTimeLog === true, isSleep === true) } as Task
+}
 
 /** persist の `migrate`。`version` は保存されていたデータの版 */
 export function migrateTaskState(persisted: unknown, version: number): TaskState {
@@ -259,7 +268,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // updatedAt は変えない（久しぶりに開いた端末の古い行が、ほかの端末の新しい編集に勝たないように）
     const presets = Array.isArray(state.timeLogTagPresets) ? (state.timeLogTagPresets as string[]) : []
     const colors = (state.logCategoryColors as Record<string, string> | undefined) ?? {}
-    const tasks = (state.tasks as Task[] | undefined) ?? []
+    const tasks = (state.tasks as LegacyTask[] | undefined) ?? []
     state.tasks = tasks.map((t) => {
       if (!t.isTimeLog || t.tags.length > 0) return t
       const name = labelForHex(t.color, presets, colors)
@@ -275,8 +284,8 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   }
   if (version < 32) {
     // 睡眠は専用の記録にした: 「睡眠」で付けていた記録に印を付ける（updatedAt は変えない。v30 と同じ理由）
-    const tasks = (state.tasks as Task[] | undefined) ?? []
-    state.tasks = tasks.map((t) => (looksLikeSleep(t) ? { ...t, isSleep: true } : t))
+    const tasks = (state.tasks as LegacyTask[] | undefined) ?? []
+    state.tasks = tasks.map((t) => (looksLikeSleep(withKindFromFlags(t)) ? { ...t, isSleep: true } : t))
   }
   if (version < 33) {
     // 持ち主の記録はこの版から。それまでのデータは、この端末で同期していた本人のものとみなす
@@ -309,6 +318,11 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // 習慣のアーカイブはこの版から。それまでの習慣は使用中（updatedAt は変えない）
     const habits = (state.habits as Record<string, unknown>[] | undefined) ?? []
     state.habits = habits.map((h) => ({ ...h, archivedAt: typeof h.archivedAt === 'string' ? h.archivedAt : null }))
+  }
+  if (version < 38) {
+    // タスクの種類は kind 1 つで持つ（それまでは「記録か」「睡眠か」の 2 つの印）。updatedAt は変えない（v30 と同じ理由）
+    const tasks = (state.tasks as LegacyTask[] | undefined) ?? []
+    state.tasks = tasks.map(withKindFromFlags)
   }
   return state as unknown as TaskState
 }

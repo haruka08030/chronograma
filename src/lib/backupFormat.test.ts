@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BACKUP_SCHEMA_VERSION, parseBackupJson, readBackupJson, withFreshStamps } from './backupFormat'
+import { BACKUP_SCHEMA_VERSION, buildBackupPayload, parseBackupJson, readBackupJson, withFreshStamps } from './backupFormat'
 import { backupProblemText } from './backupProblemText'
 import i18n from '../i18n/config'
 
@@ -74,6 +74,50 @@ describe('parseBackupJson', () => {
     )
     expect(parsed!.tasks[0].recurrence).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3, 5] })
     expect(parsed!.tasks[1].recurrence).toEqual({ type: 'daily', interval: 1 })
+  })
+})
+
+describe('task kind', () => {
+  const inbox = [{ id: '__inbox__', name: '未分類' }]
+
+  it('reads the two flags of an older backup (or a server row) as the kind, and drops the flags', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 't', title: 'todo', listId: '__inbox__' },
+          { id: 'l', title: 'log', listId: '__inbox__', isTimeLog: true },
+          { id: 's', title: 'sleep', listId: '__inbox__', isTimeLog: true, isSleep: true },
+          { id: 'r', title: 'row', list_id: '__inbox__', is_time_log: true, is_sleep: false },
+        ],
+      }),
+    )!
+    expect(parsed.tasks.map((t) => t.kind)).toEqual(['todo', 'log', 'sleep', 'log'])
+    for (const t of parsed.tasks) {
+      expect(t).not.toHaveProperty('isTimeLog')
+      expect(t).not.toHaveProperty('isSleep')
+    }
+  })
+
+  it('writes the flags next to the kind, so older app versions can read the file, and reads its own file back', () => {
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 'l', title: 'log', listId: '__inbox__', kind: 'log' },
+          { id: 's', title: 'sleep', listId: '__inbox__', kind: 'sleep' },
+        ],
+      }),
+    )!.tasks
+    const payload = buildBackupPayload({
+      tasks, lists: [], habits: [], sections: [], listColorPaletteId: 'pastel-rainbow', timeLogTagPresets: [], logCategoryColors: {},
+    })
+    expect(payload.tasks).toMatchObject([
+      { kind: 'log', isTimeLog: true, isSleep: false },
+      { kind: 'sleep', isTimeLog: true, isSleep: true },
+    ])
+    const back = parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!
+    expect(back.tasks.map((t) => t.kind)).toEqual(['log', 'sleep'])
   })
 })
 

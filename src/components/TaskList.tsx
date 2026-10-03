@@ -3,7 +3,6 @@ import { INVERSE_SURFACE } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
@@ -11,7 +10,7 @@ import { TASK_PREFIX } from './SortableTaskItem'
 import { subtaskDragId } from '../lib/subtaskDnD'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { CheckCircleIcon, CloseIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
@@ -28,7 +27,7 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
   for (const st of childrenByParent.get(parentId) ?? []) {
-    if (!st.completed && !isListedTimeLog(st)) {
+    if (!st.completed && !isLogTask(st)) {
       n += 1 + countIncompleteDescendants(st.id, childrenByParent)
     }
   }
@@ -106,13 +105,13 @@ export function TaskList() {
   const incompleteCount = useMemo(() => {
     let n = 0
     for (const p of filtered) {
-      if (!p.completed && !isListedTimeLog(p)) n++
+      if (!p.completed && !isLogTask(p)) n++
       n += countIncompleteDescendants(p.id, childrenByParent)
     }
     return n
   }, [filtered, childrenByParent])
 
-  const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
+  const completedTodos = filtered.filter((t) => t.completed && !isLogTask(t))
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 
@@ -131,7 +130,7 @@ export function TaskList() {
     const out: string[] = []
     const walk = (parentId: string) => {
       for (const st of childrenByParent.get(parentId) ?? []) {
-        if ((listKind === 'checklist' || !st.completed) && !isListedTimeLog(st)) {
+        if ((listKind === 'checklist' || !st.completed) && !isLogTask(st)) {
           out.push(st.id)
           walk(st.id)
         }
@@ -201,7 +200,7 @@ export function TaskList() {
   const keepDoneChildren = listKind === 'checklist'
   const incompleteSubtasks = useCallback(
     (parentId: string) =>
-      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isListedTimeLog(st)),
+      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isLogTask(st)),
     [childrenByParent, keepDoneChildren],
   )
 

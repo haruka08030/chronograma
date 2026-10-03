@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns'
-import type { Task } from '../types/task'
+import { isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime, timeToMinutes } from './clockTime'
@@ -13,14 +13,9 @@ const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 /** 印が付く前に「睡眠」として付けていた記録のタイトル・ラベル（変換用） */
 const SLEEP_WORDS = new Set(['睡眠', 'すいみん', '就寝', '寝る', 'ねる', 'sleep', 'sleeping'])
 
-/** 睡眠の記録か。睡眠は記録の時間・分類の集計に入れず、タイムラインでも落ち着いた色で描く */
-export function isSleepRecord(t: Task): boolean {
-  return t.isTimeLog === true && t.isSleep === true
-}
-
-/** 印の無い古い記録のうち、タイトルかラベルが「睡眠」のもの */
+/** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの */
 export function looksLikeSleep(t: Task): boolean {
-  if (!t.isTimeLog || t.isSleep) return false
+  if (t.kind !== 'log') return false
   return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))
 }
 
@@ -38,7 +33,7 @@ export function wakeDateOf(t: Task): string | null {
 export function sleepEndingOn(tasks: readonly Task[], wakeDateKey: string): Task | null {
   let best: Task | null = null
   for (const t of tasks) {
-    if (!isSleepRecord(t) || !isActiveTask(t) || wakeDateOf(t) !== wakeDateKey) continue
+    if (!isSleepTask(t) || !isActiveTask(t) || wakeDateOf(t) !== wakeDateKey) continue
     if (!best || (t.endTime ?? '') > (best.endTime ?? '')) best = t
   }
   return best
@@ -49,7 +44,7 @@ export function defaultSleepTimes(tasks: readonly Task[]): { bed: string; wake: 
   let latest: Task | null = null
   let latestKey = ''
   for (const t of tasks) {
-    if (!isSleepRecord(t) || !isActiveTask(t) || !t.startTime || !t.endTime) continue
+    if (!isSleepTask(t) || !isActiveTask(t) || !t.startTime || !t.endTime) continue
     const key = `${wakeDateOf(t) ?? ''} ${t.endTime}`
     if (key > latestKey) {
       latest = t

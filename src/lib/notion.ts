@@ -210,7 +210,7 @@ export function reconcileNotionPages(
         priority: 'none',
         tags: [],
         recurrence: null,
-        isTimeLog: false,
+        kind: 'todo',
         habitId: null,
         archivedAt: null,
         deletedAt: null,

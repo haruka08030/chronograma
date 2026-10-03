@@ -289,6 +289,30 @@ describe('同じ行を両方の端末で変えたとき（項目ごと）', () =
   })
 })
 
+describe('前の版の控え（種類を isTimeLog・isSleep で持っていた）', () => {
+  /** 前の版の形のタスク（kind の代わりに 2 つの印） */
+  const legacy = (t: Task) => {
+    const { kind, ...rest } = t
+    return { ...rest, isTimeLog: kind !== 'todo', isSleep: kind === 'sleep' } as unknown as Task
+  }
+
+  it('他端末で消した行は、手元で変えていなければ消える（控えの形が違っても変えたと読み違えない）', () => {
+    const base = snapshot({ tasks: [task('t1'), task('l1', { kind: 'log' }), task('s1', { kind: 'sleep' })].map(legacy) })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1'), task('l1', { kind: 'log' }), task('s1', { kind: 'sleep' })] })
+
+    expect(mergeSnapshots(local, snapshot(), baseline).merged.tasks).toEqual([])
+  })
+
+  it('片方で種類・もう片方でタイトルを変えたら両方残す', () => {
+    const baseline = baselineFrom(snapshot({ tasks: [legacy(task('t1', { title: '課題' }))] }))
+    const local = snapshot({ tasks: [task('t1', { title: '課題', kind: 'log', updatedAt: T2 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題（改）', updatedAt: T1 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]).toMatchObject({ title: '課題（改）', kind: 'log' })
+  })
+})
+
 describe('mergeSnapshots の参照整合性', () => {
   it('消えたリストを参照するタスクは未分類に付け替える', () => {
     const other = list('other-list')

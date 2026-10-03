@@ -2,12 +2,11 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SortMode } from '../store/taskStore'
 import type { SectionGrouping, SectionGroupingScope, SmartView } from '../store/storeTypes'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { unplannedListIds } from '../lib/listKind'
 import { getFilteredRootTasks, getOrderedActiveRootTasksForDnD } from '../lib/mainListTasks'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 
@@ -85,13 +84,13 @@ export function useTaskListRows({
     if (selectedListId) return listSectionsOrdered.length > 0
     if (!multiListSectionMode || sections.length === 0) return false
     const listIds = new Set(
-      filtered.filter((t) => !t.completed && !isListedTimeLog(t)).map((t) => t.listId),
+      filtered.filter((t) => !t.completed && !isLogTask(t)).map((t) => t.listId),
     )
     return sections.some((s) => listIds.has(s.listId))
   }, [groupBySection, selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
 
   const active = useMemo(() => {
-    const incomplete = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+    const incomplete = filtered.filter((t) => !t.completed && !isLogTask(t))
     // 手動以外は filtered が既にソート済みなので、その順序を維持したまま
     // セクションごとにバケット分けする（下の sectionBlocks で分割）。
     if (!showSectionBlocks || sortMode !== 'manual') return incomplete
@@ -116,7 +115,7 @@ export function useTaskListRows({
       map.set(null, [])
       for (const s of listSectionsOrdered) map.set(s.id, [])
       for (const t of active) {
-        const sid = t.sectionId ?? null
+        const sid = t.sectionId
         const bucket = map.get(sid)
         if (bucket) bucket.push(t)
         else map.get(null)!.push(t)
@@ -179,7 +178,7 @@ export function useTaskListRows({
       map.set(null, [])
       for (const s of listSecs) map.set(s.id, [])
       for (const t of listTasks) {
-        const sid = t.sectionId ?? null
+        const sid = t.sectionId
         const bucket = map.get(sid)
         if (bucket) bucket.push(t)
         else map.get(null)!.push(t)

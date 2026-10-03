@@ -2,7 +2,7 @@
  * ストアの操作が使う純粋な関数（localStorage・i18n を読まない）。
  * 文言（色の名前など）や「今」は呼ぶ側から渡す
  */
-import type { Task } from '../types/task'
+import { isLogTask, type Task, type TaskKind } from '../types/task'
 import { newId } from '../lib/id'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
@@ -69,9 +69,9 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.sectionId = null
   }
   // 記録の分類は category が正。前の書き方（tags の先頭）で来た分類も category にする
-  if (task.isTimeLog && patch.tags !== undefined && patch.category === undefined) applied.category = patch.tags[0] ?? null
+  if (isLogTask(task) && patch.tags !== undefined && patch.category === undefined) applied.category = patch.tags[0] ?? null
   // 色＝分類: 記録の分類を選び直したら、Google から写した色より分類の色を優先する
-  if (task.isTimeLog && patch.color === undefined && applied.category && applied.category !== task.category) {
+  if (isLogTask(task) && patch.color === undefined && applied.category && applied.category !== task.category) {
     applied.color = null
   }
   // 期限（dueDate）を外したら締め切り時刻と繰り返しもクリア（予定の時間幅は予定日側に紐づくので残す）
@@ -96,7 +96,7 @@ export function orderForNewSiblingAtFront(
   const siblings = tasks.filter((t) => {
     if (t.listId !== listId || t.parentId !== parentId) return false
     if (parentId !== null) return true
-    return (t.sectionId ?? null) === (sectionId ?? null)
+    return t.sectionId === (sectionId ?? null)
   })
   if (siblings.length === 0) return 0
   return Math.min(...siblings.map((t) => t.order)) - 1
@@ -113,12 +113,12 @@ export function makeTask(
     endDate?: string | null
     startTime?: string | null
     endTime?: string | null
-    isTimeLog?: boolean
+    /** 無ければ To-Do */
+    kind?: TaskKind
     completed?: boolean
     tags?: string[]
     color?: string | null
     habitId?: string | null
-    isSleep?: boolean
   },
   order: number,
   now: string = new Date().toISOString(),
@@ -146,9 +146,8 @@ export function makeTask(
     priority: 'none',
     tags: fields.tags ?? [],
     recurrence: null,
-    isTimeLog: fields.isTimeLog ?? false,
+    kind: fields.kind ?? 'todo',
     habitId: fields.habitId ?? null,
-    isSleep: fields.isSleep ?? false,
     archivedAt: null,
     deletedAt: null,
     timeZone: null,
@@ -158,8 +157,7 @@ export function makeTask(
     timeZoneAnchor: appTimeZone(),
   }
   // 「睡眠」と付けた記録（後から記録・タイマー）も睡眠として扱う
-  if (looksLikeSleep(task)) task.isSleep = true
-  return withLogCategory(task)
+  return withLogCategory(looksLikeSleep(task) ? { ...task, kind: 'sleep' } : task)
 }
 
 /** 記録の分類を推定するのに使う状態 */
@@ -205,7 +203,7 @@ export function completedRecordPatch(
     tasks: [
       ...s.tasks,
       makeTask({
-        title, listId: INBOX_ID, dueDate, startTime, endTime, isTimeLog: true, completed: true,
+        title, listId: INBOX_ID, dueDate, startTime, endTime, kind: 'log', completed: true,
         tags,
         // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
         color: tags.length > 0 ? null : color ?? null,

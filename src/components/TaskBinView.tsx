@@ -3,9 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { displayListName } from '../lib/displayListName'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
@@ -116,7 +115,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           rows.map(({ task, stamp, childCount }) => {
             const list = lists.find((l) => l.id === task.listId)
             const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
-            const timeLog = isListedTimeLog(task)
+            const timeLog = isLogTask(task)
             let stampLabel = ''
             try {
               stampLabel = df.monthDayTime(parseISO(stamp))

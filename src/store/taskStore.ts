@@ -16,7 +16,8 @@ import {
   PERSIST_STORAGE_KEY,
   STORE_VERSION,
 } from './storeConstants'
-import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, SyncState, TaskState } from './storeTypes'
+import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
+import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
 import { migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'

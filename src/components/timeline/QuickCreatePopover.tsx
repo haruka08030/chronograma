@@ -106,7 +106,7 @@ export function QuickCreatePopover({
       // 別のタイムゾーンで作るときは、書いた（またはドラッグした）時刻をそのタイムゾーンの時刻として読む
       const times = { scheduledDate: created.scheduledDate, startTime: created.startTime, endTime: created.endTime }
       updateTask(id, {
-        ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
+        ...timesPatchFromZone({ ...times, kind: 'todo', dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
         timeZone: zone,
       })
     })

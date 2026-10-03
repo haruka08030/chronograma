@@ -84,7 +84,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         .filter((t) => {
           if (t.listId !== afterTask.listId || t.parentId !== afterTask.parentId) return false
           if (afterTask.parentId !== null) return true
-          return (t.sectionId ?? null) === (afterTask.sectionId ?? null)
+          return t.sectionId === afterTask.sectionId
         })
         .sort((a, b) => a.order - b.order)
       const afterIndex = siblings.findIndex((t) => t.id === afterTaskId)

@@ -22,7 +22,7 @@ export function externalPatch(
   prev: PulledFields | undefined,
   { remember, due = true }: { remember: boolean; due?: boolean },
 ): Partial<Task> {
-  const localDue = { dueDate: existing.dueDate, dueTime: existing.dueTime ?? null }
+  const localDue = { dueDate: existing.dueDate, dueTime: existing.dueTime }
   const applyTitle = !remember || (prev !== undefined && prev.title !== incoming.title && existing.title === prev.title)
   const applyDue = !remember || (prev !== undefined && !sameDue(prev, incoming) && sameDue(localDue, prev))
   const patch: Partial<Task> = {}

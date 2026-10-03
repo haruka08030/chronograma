@@ -8,6 +8,7 @@ import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { withLogCategory } from '../../lib/taskDefaults'
+import { isLogTask } from '../../types/task'
 
 type SettingsActions = Pick<
   TaskState,
@@ -113,7 +114,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           s.timeLogTagPresets.filter((n) => !kept.has(n)).map((n) => [n, categoryHex(n, s.logCategoryColors)] as const),
         )
         const tasks = s.tasks.map((t) => {
-          if (!t.isTimeLog) {
+          if (!isLogTask(t)) {
             const next = t.color ? recolor.get(t.color.toUpperCase()) : undefined
             return next ? { ...t, color: next, updatedAt: now } : t
           }

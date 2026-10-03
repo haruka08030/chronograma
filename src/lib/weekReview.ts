@@ -1,5 +1,5 @@
 import { addDays, startOfWeek } from 'date-fns'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import type { Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
@@ -9,7 +9,6 @@ import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
-import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
@@ -94,7 +93,7 @@ export function getWeekReview(
     }
     const logs = tasks.filter(
       (t) =>
-        t.isTimeLog && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepRecord(t) && logOverlapsDateKey(t, key),
+        isLogTask(t) && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepTask(t) && logOverlapsDateKey(t, key),
     )
     const dayTagMinutes = new Map<string, number>()
     for (const log of logs) {
