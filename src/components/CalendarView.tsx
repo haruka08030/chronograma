@@ -210,8 +210,9 @@ export function CalendarView({
                       onSelectDate?.(key)
                       setAddingDate(key)
                     }}
-                    className={`h-4 w-4 p-px opacity-0 transition-opacity focus-visible:opacity-100
-                      group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
+                    // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
+                    className={`h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                      selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'}`}
                   />
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>

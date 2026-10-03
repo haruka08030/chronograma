@@ -14,6 +14,7 @@ import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
 import { HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { isLogTask } from '../../types/task'
+import { REVEAL_ON_HOVER } from '../ui/revealClass'
 
 const USAGE_DAYS = 30
 
@@ -71,7 +72,7 @@ export function CategoryManager() {
               <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
                 {minutes > 0 ? formatDuration(minutes) : t('categories.unused')}
               </span>
-              <div className="flex shrink-0 items-center opacity-100 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100">
+              <div className={`flex shrink-0 items-center ${REVEAL_ON_HOVER}`}>
                 <button
                   type="button"
                   disabled={i === 0}
