@@ -20,3 +20,17 @@ export function getSupabase(): SupabaseClient | null {
   }
   return client
 }
+
+/**
+ * タブを閉じる・隠れる瞬間に Edge Function を呼ぶ。`functions.invoke` はセッションの読み出しを待ち、
+ * ページが消えると送信ごと捨てられるので、手元のアクセストークンで `keepalive` の fetch を送る。応答は待たない。
+ */
+export function sendFunctionOnLeave(name: string, body: Record<string, unknown>, accessToken: string): void {
+  if (!url || !anonKey) return
+  void fetch(`${url}/functions/v1/${name}`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { Authorization: `Bearer ${accessToken}`, apikey: anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(() => {})
+}

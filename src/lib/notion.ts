@@ -1,7 +1,7 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
-import { getSupabase } from './supabase'
+import { getSupabase, sendFunctionOnLeave } from './supabase'
 
 /**
  * Notion 連携のクライアント側。Notion API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -92,6 +92,10 @@ export const disconnectNotion = () => invokeNotion<{ ok: true }>({ action: 'disc
 export const fetchNotionPages = () => invokeNotion<NotionPagesPayload>({ action: 'pages' })
 export const advanceNotionPage = (pageId: string, fromStatus: string) =>
   invokeNotion<{ advanced: boolean; to?: string }>({ action: 'advance', pageId, fromStatus })
+
+/** タブを閉じるときの `advanceNotionPage`。応答は待たない */
+export const advanceNotionPageOnLeave = (pageId: string, fromStatus: string, accessToken: string) =>
+  sendFunctionOnLeave('notion', { action: 'advance', pageId, fromStatus }, accessToken)
 
 function toBase64Url(text: string): string {
   let bin = ''

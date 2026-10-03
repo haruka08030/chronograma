@@ -1,10 +1,11 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { paletteColors } from '../lib/listColorPalettes'
 import {
   advanceNotionPage,
+  advanceNotionPageOnLeave,
   fetchNotionPages,
   NotionRequestError,
   parseNotionTaskId,
@@ -14,7 +15,7 @@ import { useTaskStore } from '../store/taskStore'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
-/** 完了にしてから Notion を進めるまでの猶予。この間に戻せば（⌘Z も）Notion は触らない */
+/** 完了にしてから Notion を進めるまでの猶予。この間に戻せば（⌘Z も）Notion は触らない。タブを閉じる・隠れるときは待たずに送る */
 const ADVANCE_DELAY_MS = 5_000
 /** 初回はクラウド同期の取得を待つ（新しい端末で、取得前に作ったタスクが上書きされないように） */
 const FIRST_SYNC_WAIT_MS = 10_000
@@ -58,8 +59,13 @@ export function useNotionSyncState(): NotionSyncState {
  * そのリストのタスクを完了にしたら Notion のステータスを次へ進める。
  */
 export function useNotionSync() {
-  const { user, loading } = useAuth()
+  const { user, session, loading } = useAuth()
   const userId = user?.id ?? null
+  // タブを閉じるときはセッションの読み出しを待てないので、手元に持っておく
+  const accessTokenRef = useRef<string | null>(null)
+  useEffect(() => {
+    accessTokenRef.current = session?.access_token ?? null
+  }, [session])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !userId || loading) {
@@ -72,7 +78,7 @@ export function useNotionSync() {
     let rerun = false
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Notion に書き戻さない */
     const autoCompleted = new Set<string>()
-    const pendingAdvance = new Map<string, ReturnType<typeof setTimeout>>()
+    const pendingAdvance = new Map<string, { timer: ReturnType<typeof setTimeout>; pageId: string; status: string }>()
 
     const run = async () => {
       if (running) {
@@ -121,10 +127,11 @@ export function useNotionSync() {
     }
 
     const advance = (taskId: string, pageId: string, status: string) => {
-      clearTimeout(pendingAdvance.get(taskId))
-      pendingAdvance.set(
-        taskId,
-        setTimeout(() => {
+      clearTimeout(pendingAdvance.get(taskId)?.timer)
+      pendingAdvance.set(taskId, {
+        pageId,
+        status,
+        timer: setTimeout(() => {
           pendingAdvance.delete(taskId)
           const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
           if (!task?.completed) return
@@ -138,7 +145,20 @@ export function useNotionSync() {
               if (!cancelled) setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : String(e) })
             })
         }, ADVANCE_DELAY_MS),
-      )
+      })
+    }
+
+    /** 猶予中のものを待たずに送る（届かなければ Notion は元のまま。次に開いても進めはしない） */
+    const flushPending = () => {
+      const token = accessTokenRef.current
+      if (!token) return
+      for (const [taskId, p] of [...pendingAdvance]) {
+        clearTimeout(p.timer)
+        pendingAdvance.delete(taskId)
+        if (useTaskStore.getState().tasks.find((t) => t.id === taskId)?.completed) {
+          advanceNotionPageOnLeave(p.pageId, p.status, token)
+        }
+      }
     }
 
     const unsub = useTaskStore.subscribe((state, prev) => {
@@ -177,10 +197,13 @@ export function useNotionSync() {
       firstTimer = setTimeout(start, FIRST_SYNC_WAIT_MS)
     }
 
+    // スマホではタブを閉じても pagehide が来ないことがあるので、隠れたときにも送る
     const onVisible = () => {
       if (document.visibilityState === 'visible') void run()
+      else flushPending()
     }
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pagehide', flushPending)
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible') void run()
     }, POLL_MS)
@@ -191,8 +214,9 @@ export function useNotionSync() {
       clearTimeout(firstTimer)
       unsubFirst?.()
       clearInterval(poll)
-      pendingAdvance.forEach((t) => clearTimeout(t))
+      pendingAdvance.forEach((p) => clearTimeout(p.timer))
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pagehide', flushPending)
       unsub()
     }
   }, [userId, loading])
