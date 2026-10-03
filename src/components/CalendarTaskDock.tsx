@@ -10,7 +10,6 @@ const UNSCHEDULED = '__unscheduled__'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
 import { displayListName } from '../lib/displayListName'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { EmptyState } from './ui/EmptyState'
@@ -21,7 +20,6 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 export function CalendarTaskDock() {
   const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const sortByKey = useTaskStore((s) => s.sortByKey)
@@ -66,20 +64,11 @@ export function CalendarTaskDock() {
   const activeIds = useMemo(() => active.map((t) => t.id), [active])
 
   // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
-  const completeRow = useCallback(
-    (id: string) => {
-      const task = active.find((x) => x.id === id)
-      if (task && !task.completed) openCompleteWithLog(task)
-      else toggleTask(id)
-    },
-    [active, openCompleteWithLog, toggleTask],
-  )
   // メニューの「実行したら選択を解除」は、選択のフックを作ったあとに入れる
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection: clearSelected, makeRowClick, makeSelection } = useTaskListSelection({
     rowIds: activeIds,
     openDetail,
-    completeRow,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
     completeRows: bulk.complete,
@@ -143,7 +132,6 @@ export function CalendarTaskDock() {
               task={t}
               hideDueDatePicker
               onRowClick={makeRowClick(t.id)}
-              onCompleteRequest={openCompleteWithLog}
               selection={makeSelection(t.id)}
               dragGroupIds={getDragGroupIds(t.id)}
               onNativeDragEnd={clearSelected}
@@ -151,7 +139,6 @@ export function CalendarTaskDock() {
           ))}
         </div>
       </div>
-      {completeWithLogModal}
     </div>
   )
 }

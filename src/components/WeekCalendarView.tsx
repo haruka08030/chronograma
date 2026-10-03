@@ -46,7 +46,6 @@ import { QuickCreatePopover } from './timeline/QuickCreatePopover'
 import { appTodayKey } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
 import { minutesToTime } from '../lib/clockTime'
@@ -87,7 +86,6 @@ export function WeekCalendarView({
   const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const dropLaneRef = useRef<CreateIntent>('schedule')
   const openDetail = openTaskDetail
   const isDesktop = useIsDesktop()
@@ -380,7 +378,6 @@ export function WeekCalendarView({
             allDayAddDate={allDayAddDate}
             setAllDayAddDate={setAllDayAddDate}
             openGoogleCard={openGoogleCard}
-            openCompleteWithLog={openCompleteWithLog}
           />
         )}
 
@@ -445,7 +442,6 @@ export function WeekCalendarView({
                   unscheduleHover={unscheduleHover}
                   openCard={openCard}
                   openGoogleCard={openGoogleCard}
-                  openCompleteWithLog={openCompleteWithLog}
                   setCreateAnchorFromEl={setCreateAnchorFromEl}
                 />
               ))}
@@ -455,7 +451,6 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      {completeWithLogModal}
       {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
       {eventCard && (
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />

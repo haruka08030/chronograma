@@ -625,7 +625,6 @@ export default {
   },
   taskItem: {
     bulkSelectAria: 'Include in multi-select',
-    completeWithLog: 'Complete and log time',
     unlogIncomplete: 'Remove time log and mark incomplete',
     markIncomplete: 'Mark incomplete',
     markComplete: 'Mark complete',

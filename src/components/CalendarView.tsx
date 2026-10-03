@@ -17,7 +17,6 @@ import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarCheck } from './timeline/CalendarCheck'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
@@ -64,11 +63,11 @@ export function CalendarView({
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
   const openDetail = openTaskDetail
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
@@ -281,8 +280,8 @@ export function CalendarView({
                       {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
                       <CalendarCheck
                         done={t.completed}
-                        label={t.completed ? tr('taskItem.markIncomplete') : t.startTime ? tr('taskItem.completeWithLog') : tr('taskItem.markComplete')}
-                        onCheck={() => openCompleteWithLog(t)}
+                        label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                        onCheck={() => toggleTask(t.id)}
                         className={t.startTime ? 'text-(--c)' : ''}
                       />
                       {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
@@ -305,7 +304,6 @@ export function CalendarView({
         </div>
       </div>
 
-      {completeWithLogModal}
     </div>
   )
 }

@@ -15,7 +15,6 @@ export function useTaskListSelection({
   rowIds,
   rangeIds = rowIds,
   openDetail,
-  completeRow,
   toggleRow,
   removeRows,
   completeRows,
@@ -27,9 +26,7 @@ export function useTaskListSelection({
   /** Shift で範囲を選ぶときの並び（完了済みも含めるなど）。省略すると rowIds */
   rangeIds?: string[]
   openDetail: (id: string) => void
-  /** Space: 丸を押したときと同じ完了 */
-  completeRow: (id: string) => void
-  /** ⌘Enter（枠の行だけのとき）: 完了の付け外し */
+  /** Space・⌘Enter（枠の行だけのとき）: 丸を押したときと同じ完了の付け外し */
   toggleRow: (id: string) => void
   removeRows: (ids: string[]) => void
   completeRows: (ids: string[]) => void
@@ -204,7 +201,7 @@ export function useTaskListSelection({
   useHotkey(SHORTCUTS.completeRow.hotkeys, (e) => {
     const target = targetRow()
     if (!target || onButton(e)) return false
-    completeRow(target)
+    toggleRow(target)
   })
 
   return { selected, clearSelection, makeRowClick, makeSelection, completeSelected, removeSelected }

@@ -37,7 +37,6 @@ export function WeekAllDayRow({
   allDayAddDate,
   setAllDayAddDate,
   openGoogleCard,
-  openCompleteWithLog,
 }: {
   gridDays: Date[]
   singleDay: boolean
@@ -51,13 +50,13 @@ export function WeekAllDayRow({
   allDayAddDate: string | null
   setAllDayAddDate: (dateKey: string | null) => void
   openGoogleCard: (eventId: string) => void
-  openCompleteWithLog: (task: Task) => void
 }) {
   const { t } = useTranslation()
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const openDetail = openTaskDetail
   return (
@@ -150,7 +149,7 @@ export function WeekAllDayRow({
                   <CalendarCheck
                     done={t.completed}
                     label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                    onCheck={() => openCompleteWithLog(t)}
+                    onCheck={() => toggleTask(t.id)}
                   />
                   <span className="truncate">{t.title}</span>
                 </div>

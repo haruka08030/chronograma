@@ -9,7 +9,6 @@ export function DnDSubtreeRows({
   incompleteSubtasks,
   makeRowClick,
   makeSelection,
-  openCompleteWithLog,
   onEnterCreateSibling,
   pendingAutoEditTaskId,
   subtaskNestWithDrag,
@@ -20,7 +19,6 @@ export function DnDSubtreeRows({
   incompleteSubtasks: (id: string) => Task[]
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
   pendingAutoEditTaskId: string | null
   subtaskNestWithDrag: string
@@ -31,7 +29,6 @@ export function DnDSubtreeRows({
       <SortableSubtaskItem
         task={st}
         onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
         autoEdit={pendingAutoEditTaskId === st.id}
@@ -44,7 +41,6 @@ export function DnDSubtreeRows({
       incompleteSubtasks,
       makeRowClick,
       makeSelection,
-      openCompleteWithLog,
       onEnterCreateSibling,
       pendingAutoEditTaskId,
       subtaskNestWithDrag,
@@ -59,7 +55,6 @@ export function StaticSubtreeRows({
   incompleteSubtasks,
   makeRowClick,
   makeSelection,
-  openCompleteWithLog,
   onEnterCreateSibling,
   pendingAutoEditTaskId,
   subtaskNestNoDrag,
@@ -69,7 +64,6 @@ export function StaticSubtreeRows({
   incompleteSubtasks: (id: string) => Task[]
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
   pendingAutoEditTaskId: string | null
   subtaskNestNoDrag: string
@@ -80,7 +74,6 @@ export function StaticSubtreeRows({
         task={st}
         isSubtask
         onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
         autoEdit={pendingAutoEditTaskId === st.id}
@@ -91,7 +84,6 @@ export function StaticSubtreeRows({
         incompleteSubtasks,
         makeRowClick,
         makeSelection,
-        openCompleteWithLog,
         onEnterCreateSibling,
         pendingAutoEditTaskId,
         subtaskNestNoDrag,
@@ -106,7 +98,6 @@ export function CompletedSubtreeRows({
   childrenByParent,
   makeRowClick,
   makeSelection,
-  openCompleteWithLog,
   onEnterCreateSibling,
   pendingAutoEditTaskId,
   subtaskNestNoDrag,
@@ -116,7 +107,6 @@ export function CompletedSubtreeRows({
   childrenByParent: Map<string, Task[]>
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
   onEnterCreateSibling: (task: Task) => void
   pendingAutoEditTaskId: string | null
   subtaskNestNoDrag: string
@@ -127,7 +117,6 @@ export function CompletedSubtreeRows({
         task={st}
         isSubtask
         onRowClick={makeRowClick(st.id)}
-        onCompleteRequest={openCompleteWithLog}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
         autoEdit={pendingAutoEditTaskId === st.id}
@@ -138,7 +127,6 @@ export function CompletedSubtreeRows({
         childrenByParent,
         makeRowClick,
         makeSelection,
-        openCompleteWithLog,
         onEnterCreateSibling,
         pendingAutoEditTaskId,
         subtaskNestNoDrag,

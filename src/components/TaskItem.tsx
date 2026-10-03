@@ -60,13 +60,12 @@ export type TaskItemSelection = {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
+export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
   onRowClick?: (e: React.MouseEvent) => void
   /** 未完了タスクを完了する直前のフック。指定時は通常トグルより優先。 */
-  onCompleteRequest?: (task: Task) => void
   /** タイトル編集中 Enter で、同階層の次タスクを作成する */
   onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
@@ -94,8 +93,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
-  // 「記録も付ける」を聞くのは To-Do のリストだけ
-  const askLog = listKind === 'tasks' ? onCompleteRequest : undefined
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -318,17 +315,11 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
         onClick={(e) => {
           e.stopPropagation()
-          if (!task.completed && !timeLog && askLog) {
-            askLog(task)
-            return
-          }
           toggleTask(task.id)
         }}
         label={
           listKind === 'someday'
             ? t(task.completed ? 'someday.unfulfillItem' : 'someday.fulfillItem', { title: task.title })
-            : !task.completed && !timeLog && askLog
-            ? t('taskItem.completeWithLog')
             : task.completed
             ? timeLog
               ? t('taskItem.unlogIncomplete')

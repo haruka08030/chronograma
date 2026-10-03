@@ -12,7 +12,6 @@ import { subtaskDragId } from '../lib/subtaskDnD'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
 import type { Task } from '../types/task'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { CheckCircleIcon, CloseIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
@@ -116,7 +115,6 @@ export function TaskList() {
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const [showCompleted, setShowCompleted] = useState(false)
 
   const handleEnterCreateSibling = useCallback((task: Task) => {
@@ -167,24 +165,12 @@ export function TaskList() {
 
   const bulk = useBulkTaskActions()
 
-  const completeByKey = useCallback((taskId: string) => {
-    const task = tasks.find((x) => x.id === taskId)
-    if (!task) return
-    // 丸を押したときと同じ: 未完了の To-Do は「記録して完了」を開く（いつか・チェックリストは聞かない）
-    if (!task.completed && !isListedTimeLog(task) && listKind === 'tasks') {
-      openCompleteWithLog(task)
-      return
-    }
-    toggleTask(taskId)
-  }, [tasks, openCompleteWithLog, toggleTask, listKind])
-
   // 選択とキー操作（カレンダーの置き場と同じ）
   const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }), [])
   const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
     openDetail,
-    completeRow: completeByKey,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
     completeRows: bulk.complete,
@@ -292,7 +278,6 @@ export function TaskList() {
             getDragGroupRootIds={getDragGroupRootIds}
             makeRowClick={makeRowClick}
             makeSelection={makeSelection}
-            openCompleteWithLog={openCompleteWithLog}
             handleEnterCreateSibling={handleEnterCreateSibling}
             incompleteSubtasks={incompleteSubtasks}
             subtaskNestWithDrag={subtaskNestWithDrag}
@@ -311,7 +296,6 @@ export function TaskList() {
               childrenByParent={childrenByParent}
               makeRowClick={makeRowClick}
               makeSelection={makeSelection}
-              openCompleteWithLog={openCompleteWithLog}
               handleEnterCreateSibling={handleEnterCreateSibling}
               pendingAutoEditTaskId={pendingAutoEditTaskId}
               subtaskNestNoDrag={subtaskNestNoDrag}
@@ -320,7 +304,6 @@ export function TaskList() {
 
         </div>
       </div>
-      {completeWithLogModal}
       {sectionMenuElement}
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
       {selected.size > 0 && (

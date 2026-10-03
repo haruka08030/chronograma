@@ -624,7 +624,6 @@ export default {
   },
   taskItem: {
     bulkSelectAria: '一括選択に含める',
-    completeWithLog: '完了にして記録する',
     unlogIncomplete: '記録を取り消して未完了に戻す',
     markIncomplete: 'タスクを未完了に戻す',
     markComplete: 'タスクを完了にする',

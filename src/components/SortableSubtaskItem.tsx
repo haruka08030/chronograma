@@ -12,7 +12,6 @@ export function SortableSubtaskItem({
   task,
   onClick,
   onRowClick,
-  onCompleteRequest,
   onEnterCreateSibling,
   selection,
   autoEdit,
@@ -22,7 +21,6 @@ export function SortableSubtaskItem({
   task: Task
   onClick?: () => void
   onRowClick?: (e: MouseEvent) => void
-  onCompleteRequest?: (task: Task) => void
   onEnterCreateSibling?: (task: Task) => void
   selection?: TaskItemSelection
   autoEdit?: boolean
@@ -77,7 +75,6 @@ export function SortableSubtaskItem({
         isSubtask
         onClick={onClick}
         onRowClick={onRowClick}
-        onCompleteRequest={onCompleteRequest}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={selection}
         autoEdit={autoEdit}

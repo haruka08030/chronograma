@@ -15,7 +15,6 @@ import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
@@ -37,7 +36,6 @@ export function CalendarDayPanel({
 }) {
   const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
@@ -221,7 +219,7 @@ export function CalendarDayPanel({
                     </div>
                   )}
                   {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
+                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                   ))}
                   {(externalEvents.length > 0 ||
                     plannedItems.length > 0 ||
@@ -233,7 +231,7 @@ export function CalendarDayPanel({
                       {executedItems.length > 0 ? (
                         <div className="space-y-0">
                           {executedItems.map((task) => (
-                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
+                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                           ))}
                         </div>
                       ) : (
@@ -278,7 +276,6 @@ export function CalendarDayPanel({
           </div>
         )}
       </div>
-      {completeWithLogModal}
     </div>
   )
 }

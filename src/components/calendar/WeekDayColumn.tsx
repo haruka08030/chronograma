@@ -52,7 +52,6 @@ export function WeekDayColumn({
   unscheduleHover,
   openCard,
   openGoogleCard,
-  openCompleteWithLog,
   setCreateAnchorFromEl,
 }: {
   day: Date
@@ -82,7 +81,6 @@ export function WeekDayColumn({
   unscheduleHover: boolean
   openCard: (taskId: string) => void
   openGoogleCard: (eventId: string) => void
-  openCompleteWithLog: (task: Task) => void
   setCreateAnchorFromEl: (el: HTMLDivElement | null) => void
 }) {
   const { t } = useTranslation()
@@ -92,6 +90,7 @@ export function WeekDayColumn({
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const habits = useTaskStore((s) => s.habits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const key = toDateKey(day)
   const dayTimed = timedByDate.get(key) ?? []
@@ -202,8 +201,8 @@ export function WeekDayColumn({
             top={blockGeometry(t as TimeBlockTask, key, false).top}
             hStyle={planStyle(t.id)}
             done={t.completed}
-            label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.completeWithLog')}
-            onCheck={() => openCompleteWithLog(t)}
+            label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+            onCheck={() => toggleTask(t.id)}
           />
         </div>
       ))}

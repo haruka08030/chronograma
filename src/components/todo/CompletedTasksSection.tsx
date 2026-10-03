@@ -18,7 +18,6 @@ export function CompletedTasksSection({
   childrenByParent,
   makeRowClick,
   makeSelection,
-  openCompleteWithLog,
   handleEnterCreateSibling,
   pendingAutoEditTaskId,
   subtaskNestNoDrag,
@@ -31,7 +30,6 @@ export function CompletedTasksSection({
   childrenByParent: Map<string, Task[]>
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
   handleEnterCreateSibling: (task: Task) => void
   pendingAutoEditTaskId: string | null
   subtaskNestNoDrag: string
@@ -76,7 +74,6 @@ export function CompletedTasksSection({
             <TaskItem
               task={t}
               onRowClick={makeRowClick(t.id)}
-              onCompleteRequest={openCompleteWithLog}
               onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
               autoEdit={pendingAutoEditTaskId === t.id}
@@ -87,7 +84,6 @@ export function CompletedTasksSection({
               childrenByParent,
               makeRowClick,
               makeSelection,
-              openCompleteWithLog,
               onEnterCreateSibling: handleEnterCreateSibling,
               pendingAutoEditTaskId,
               subtaskNestNoDrag,

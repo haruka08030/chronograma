@@ -15,7 +15,6 @@ import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS } from './ui/dueTone'
 import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { WeekCalendarView } from './WeekCalendarView'
 import { RecordPanel } from './RecordPanel'
@@ -63,6 +62,7 @@ export function TodayPlannerView() {
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const startTimer = useTaskStore((s) => s.startTimer)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -73,7 +73,6 @@ export function TodayPlannerView() {
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
   const openDetail = openTaskDetail
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
   const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
   useNavShortcut({
@@ -206,9 +205,8 @@ export function TodayPlannerView() {
         <CompletionCircle
           completed={task.completed}
           priority={task.priority}
-          // To-Do 画面と同じ: 時刻つきの予定は「記録して完了」を開く（時刻なし・完了済みはそのまま切り替え）
-          onClick={() => openCompleteWithLog(task)}
-          label={task.completed ? t('taskItem.markIncomplete') : task.startTime && task.endTime ? t('taskItem.completeWithLog') : t('taskItem.markComplete')}
+          onClick={() => toggleTask(task.id)}
+          label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
         />
         <button
           type="button"
@@ -535,7 +533,6 @@ export function TodayPlannerView() {
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
         <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
       </section>
-      {completeWithLogModal}
     </div>
   )
 }

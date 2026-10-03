@@ -30,7 +30,6 @@ export function TaskListActiveContent({
   getDragGroupRootIds,
   makeRowClick,
   makeSelection,
-  openCompleteWithLog,
   handleEnterCreateSibling,
   incompleteSubtasks,
   subtaskNestWithDrag,
@@ -51,7 +50,6 @@ export function TaskListActiveContent({
   getDragGroupRootIds: (taskId: string) => string[]
   makeRowClick: (id: string) => (e: MouseEvent) => void
   makeSelection: (id: string) => TaskItemSelection
-  openCompleteWithLog: (task: Task) => void
   handleEnterCreateSibling: (task: Task) => void
   incompleteSubtasks: (parentId: string) => Task[]
   subtaskNestWithDrag: string
@@ -114,7 +112,6 @@ export function TaskListActiveContent({
                   task={t}
                   dragGroupRootIds={getDragGroupRootIds(t.id)}
                   onRowClick={makeRowClick(t.id)}
-                  onCompleteRequest={openCompleteWithLog}
                   onEnterCreateSibling={handleEnterCreateSibling}
                   selection={makeSelection(t.id)}
                   autoEdit={pendingAutoEditTaskId === t.id}
@@ -126,7 +123,6 @@ export function TaskListActiveContent({
                   incompleteSubtasks,
                   makeRowClick,
                   makeSelection,
-                  openCompleteWithLog,
                   onEnterCreateSibling: handleEnterCreateSibling,
                   pendingAutoEditTaskId,
                   subtaskNestWithDrag,
@@ -150,7 +146,6 @@ export function TaskListActiveContent({
             task={t}
             dragGroupRootIds={getDragGroupRootIds(t.id)}
             onRowClick={makeRowClick(t.id)}
-            onCompleteRequest={openCompleteWithLog}
             onEnterCreateSibling={handleEnterCreateSibling}
             selection={makeSelection(t.id)}
             autoEdit={pendingAutoEditTaskId === t.id}
@@ -162,7 +157,6 @@ export function TaskListActiveContent({
             incompleteSubtasks,
             makeRowClick,
             makeSelection,
-            openCompleteWithLog,
             onEnterCreateSibling: handleEnterCreateSibling,
             pendingAutoEditTaskId,
             subtaskNestWithDrag,
@@ -214,7 +208,6 @@ export function TaskListActiveContent({
             <TaskItem
               task={t}
               onRowClick={makeRowClick(t.id)}
-              onCompleteRequest={openCompleteWithLog}
               onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
               autoEdit={pendingAutoEditTaskId === t.id}
@@ -226,7 +219,6 @@ export function TaskListActiveContent({
               incompleteSubtasks,
               makeRowClick,
               makeSelection,
-              openCompleteWithLog,
               onEnterCreateSibling: handleEnterCreateSibling,
               pendingAutoEditTaskId,
               subtaskNestNoDrag,
@@ -241,7 +233,6 @@ export function TaskListActiveContent({
         <TaskItem
           task={t}
           onRowClick={makeRowClick(t.id)}
-          onCompleteRequest={openCompleteWithLog}
           onEnterCreateSibling={handleEnterCreateSibling}
           selection={makeSelection(t.id)}
           autoEdit={pendingAutoEditTaskId === t.id}
@@ -254,7 +245,6 @@ export function TaskListActiveContent({
           incompleteSubtasks,
           makeRowClick,
           makeSelection,
-          openCompleteWithLog,
           onEnterCreateSibling: handleEnterCreateSibling,
           pendingAutoEditTaskId,
           subtaskNestNoDrag,
