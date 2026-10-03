@@ -47,6 +47,8 @@ const SCREENS = [
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   // 夜中に開いたとき（日付が変わった直後のタイムライン）
   { name: 'planner-midnight', view: 'planner', at: '00:30' },
+  // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
+  { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },

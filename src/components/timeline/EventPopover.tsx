@@ -13,6 +13,7 @@ import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { iconButtonClass } from '../ui/iconButtonClass'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 
@@ -71,9 +72,6 @@ export function EventPopover({
     onClose()
   }
 
-  const iconButton =
-    'rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100'
-
   return (
     <div
       ref={ref}
@@ -86,7 +84,7 @@ export function EventPopover({
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
-        <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButton} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
+        <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButtonClass()} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
         <button
@@ -95,13 +93,13 @@ export function EventPopover({
             deleteTask(task.id)
             onClose()
           }}
-          className={iconButton}
+          className={iconButtonClass()}
           aria-label={t('common.delete')}
           {...tip(t('common.delete'), 'Delete')}
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        <button type="button" onClick={onClose} className={iconButton} aria-label={t('common.close')} {...tip(t('common.close'), 'Esc')}>
+        <button type="button" onClick={onClose} className={iconButtonClass()} aria-label={t('common.close')} {...tip(t('common.close'), 'Esc')}>
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>

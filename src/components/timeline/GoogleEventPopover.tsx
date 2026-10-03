@@ -12,6 +12,7 @@ import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEve
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
+import { iconButtonClass } from '../ui/iconButtonClass'
 import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
@@ -68,8 +69,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0))
-  const iconButton =
-    'rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100'
   const fieldClass =
     'rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-600 dark:text-zinc-100'
 
@@ -114,7 +113,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
-          <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButton} aria-label={t('googleEdit.openInGoogle')} {...tip(t('googleEdit.openInGoogle'))}>
+          <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButtonClass()} aria-label={t('googleEdit.openInGoogle')} {...tip(t('googleEdit.openInGoogle'))}>
             <OpenPanelIcon className="h-4 w-4" strokeWidth={1.75} />
           </a>
         )}
@@ -125,7 +124,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               removeGoogleEvent(event)
               onClose()
             }}
-            className={iconButton}
+            className={iconButtonClass()}
             aria-label={t('common.delete')}
             {...tip(t('common.delete'), 'Delete')}
           >
@@ -137,7 +136,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           onClick={onClose}
           aria-label={t('common.close')}
           {...tip(t('common.close'), 'Esc')}
-          className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+          className={iconButtonClass()}
         >
           <CloseIcon className="h-4 w-4" />
         </button>
