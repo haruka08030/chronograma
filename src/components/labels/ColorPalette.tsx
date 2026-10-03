@@ -49,7 +49,8 @@ export function ColorPalette({
   }, [presets, colors, t])
 
   return (
-    <div className={bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}>
+    // 6 列のときは丸の幅に合わせて真ん中に置く（カードの幅いっぱいだと丸が左に寄って右が空く）
+    <div className={`${columns === 6 ? 'mx-auto w-fit' : ''} ${bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}`}>
       <button
         type="button"
         onClick={() => setEditingLabels(true)}
