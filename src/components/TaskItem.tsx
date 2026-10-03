@@ -10,6 +10,7 @@ import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
+import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
@@ -81,6 +82,10 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const { toggleTask, updateTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  const deferredComplete = useDeferredComplete(toggleTask)
+  /** 押した直後は、完了の欄へ移る前からこの行を完了の見た目にする */
+  const justCompleted = deferredComplete.isPending(task.id)
+  const shownCompleted = task.completed || justCompleted
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
@@ -273,14 +278,15 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
       ) : null}
 
       <CompletionCircle
-        completed={task.completed}
+        completed={shownCompleted}
+        justCompleted={justCompleted}
         priority={task.priority}
         small={isSubtask}
         shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
         inert={Boolean(selection?.reveal)}
         onClick={(e) => {
           e.stopPropagation()
-          toggleTask(task.id)
+          deferredComplete.toggle(task.id, task.completed)
         }}
         label={
           listKind === 'someday'
@@ -318,7 +324,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
             }}
             className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
-                        ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                        transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
             {task.title || '\u00A0'}
           </span>

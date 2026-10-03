@@ -43,6 +43,7 @@ import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
 import { SUBTLE_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
 import { planTiming } from '../lib/planTiming'
+import { useDeferredComplete } from '../hooks/useDeferredComplete'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -68,6 +69,7 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deferredComplete = useDeferredComplete(toggleTask)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const bulk = useBulkTaskActions()
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -256,10 +258,11 @@ export function TodayPlannerView() {
         }}
       >
         <CompletionCircle
-          completed={task.completed}
+          completed={task.completed || deferredComplete.isPending(task.id)}
+          justCompleted={deferredComplete.isPending(task.id)}
           priority={task.priority}
           inert={selected.size > 0}
-          onClick={() => toggleTask(task.id)}
+          onClick={() => deferredComplete.toggle(task.id, task.completed)}
           label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
         />
         <div className="min-w-0 flex-1">
@@ -267,8 +270,8 @@ export function TodayPlannerView() {
             type="button"
             // ⌘・Shift で選ぶ、選んでいる間は押すと選ぶ・外す、ふだんは詳細（To-Do 一覧と同じ）
             onClick={(e) => (sel ? makeRowClick(task.id)(e) : openDetail(task.id))}
-            className={`block w-full truncate text-left text-[15px] ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
-              task.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
+            className={`block w-full truncate text-left text-[15px] transition-colors ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
+              task.completed || deferredComplete.isPending(task.id) ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
             }`}
           >
             {task.title}
