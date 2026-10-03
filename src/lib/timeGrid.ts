@@ -24,7 +24,6 @@ export function formatTimeLabel(hour: number): string {
 }
 
 
-/** 分単位の長さを日本語表示（例: 1時間15分） */
 /** 分を「1時間15分」/「1h 15m」のように表示の言語で書く */
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)
@@ -34,3 +33,9 @@ export function formatDuration(minutes: number): string {
   return i18n.t('planner.hoursMinutes', { h, m })
 }
 
+/** 狭いところ（月のマス）用の短い長さ。言語によらず「3h20」「2h」「45m」 */
+export function formatDurationShort(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}h${m ? String(m).padStart(2, '0') : ''}` : `${m}m`
+}

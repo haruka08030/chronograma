@@ -9,6 +9,7 @@ import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { formatDuration } from '../lib/timeGrid'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -29,13 +30,6 @@ export function WeekReviewCard() {
   )
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
-  const fmtMin = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
   const pct = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`)
   // 棒は分類ごとの記録を積んだ高さ（ツールチップの合計は記録時間そのもの）
   const barMinutes = (d: { tagMinutes: { minutes: number }[] }) => d.tagMinutes.reduce((a, x) => a + x.minutes, 0)
@@ -52,7 +46,7 @@ export function WeekReviewCard() {
   const tiles = [
     { label: t('weekReview.done'), value: `${review.done}/${review.total}` },
     { label: t('weekReview.followRate'), value: pct(review.followRate) },
-    { label: t('weekReview.logged'), value: fmtMin(review.loggedMinutes) },
+    { label: t('weekReview.logged'), value: formatDuration(review.loggedMinutes) },
     { label: t('weekReview.habits'), value: pct(review.habitRate) },
   ]
 
@@ -104,8 +98,8 @@ export function WeekReviewCard() {
               const tip = day
                 ? t('weekReview.dayTooltip', {
                     day: label,
-                    logged: fmtMin(day.loggedMinutes),
-                    planned: fmtMin(day.plannedMinutes),
+                    logged: formatDuration(day.loggedMinutes),
+                    planned: formatDuration(day.plannedMinutes),
                     done: day.done,
                     total: day.total,
                   })
@@ -154,7 +148,7 @@ export function WeekReviewCard() {
                     <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
                     <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
                   </span>
-                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{fmtMin(x.minutes)}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>
                 </li>
               ))}
             </ul>

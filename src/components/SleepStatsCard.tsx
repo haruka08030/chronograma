@@ -6,6 +6,7 @@ import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { formatDuration } from '../lib/timeGrid'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -38,18 +39,11 @@ export function SleepStatsCard() {
   const y = (off: number) => ((off - lo) / span) * CHART_HEIGHT
   const clockLabel = (off: number) => `${((off / 60 + 12) % 24).toFixed(0)}:00`
 
-  const fmtMin = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
   const dayLabel = (key: string) => format(fromDateKey(key), t('sleepStats.dayFormat'), { locale: dateLocale })
   const spreadText = (m: number | null) => (summary.count >= 2 && m != null ? t('sleepStats.spread', { m }) : null)
 
   const tiles = [
-    { label: t('sleepStats.avgSleep'), value: fmtMin(summary.avgMinutes ?? 0), sub: null },
+    { label: t('sleepStats.avgSleep'), value: formatDuration(summary.avgMinutes ?? 0), sub: null },
     { label: t('sleepStats.avgBed'), value: summary.avgBed ?? '—', sub: spreadText(summary.bedSpread) },
     { label: t('sleepStats.avgWake'), value: summary.avgWake ?? '—', sub: spreadText(summary.wakeSpread) },
   ]
@@ -80,7 +74,7 @@ export function SleepStatsCard() {
         <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-xs">
           <span className="font-medium text-zinc-600 dark:text-zinc-300">{t('sleepStats.chartTitle')}</span>
           <span className="tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
-            {dayLabel(focused.dateKey)} {focused.bed}–{focused.wake} · {fmtMin(focused.minutes)}
+            {dayLabel(focused.dateKey)} {focused.bed}–{focused.wake} · {formatDuration(focused.minutes)}
           </span>
         </figcaption>
         <div className="flex gap-2">
@@ -105,7 +99,7 @@ export function SleepStatsCard() {
                     disabled={!n}
                     tabIndex={n ? 0 : -1}
                     aria-hidden={!n}
-                    aria-label={n ? `${dayLabel(n.dateKey)} ${n.bed}–${n.wake} ${fmtMin(n.minutes)}` : undefined}
+                    aria-label={n ? `${dayLabel(n.dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}` : undefined}
                     onPointerEnter={() => n && setFocusKey(n.dateKey)}
                     onFocus={() => n && setFocusKey(n.dateKey)}
                     onClick={() => n && setFocusKey(n.dateKey)}
@@ -154,7 +148,7 @@ export function SleepStatsCard() {
                 <td>{dayLabel(n.dateKey)}</td>
                 <td>{n.bed}</td>
                 <td>{n.wake}</td>
-                <td>{fmtMin(n.minutes)}</td>
+                <td>{formatDuration(n.minutes)}</td>
               </tr>
             ))}
           </tbody>

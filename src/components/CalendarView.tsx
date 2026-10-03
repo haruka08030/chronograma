@@ -38,15 +38,9 @@ import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
+import { formatDurationShort } from '../lib/timeGrid'
 import { GoogleEventMenu, TaskEventMenu } from './timeline/EventContextMenu'
 import { TaskContextMenu } from './TaskContextMenu'
-
-/** 月のマス用の短い時間表記（3h20 / 45m） */
-function formatMinutesShort(m: number): string {
-  const h = Math.floor(m / 60)
-  const min = m % 60
-  return h > 0 ? `${h}h${min ? String(min).padStart(2, '0') : ''}` : `${min}m`
-}
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -229,13 +223,13 @@ export function CalendarView({
                     if (!recs) return null
                     const total = [...recs.values()].reduce((a, b) => a + b, 0)
                     return (
-                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatMinutesShort(total) })}>
+                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatDurationShort(total) })}>
                         <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
                           {[...recs.entries()].map(([cat, min]) => (
                             <div key={cat} className="gc-dot" style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / total) * 100}%` }} />
                           ))}
                         </div>
-                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatMinutesShort(total)}</span>
+                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatDurationShort(total)}</span>
                       </div>
                     )
                   })()}
