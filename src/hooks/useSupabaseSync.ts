@@ -4,6 +4,7 @@ import { getSupabase } from '../lib/supabase'
 import { decideHydrate, fetchListsTasksHabits, pushListsTasksHabits } from '../lib/supabaseData'
 import {
   baselineFrom,
+  hasOtherUsersBaseline,
   loadBaseline,
   mergeSnapshots,
   mergeWithoutBaseline,
@@ -112,7 +113,11 @@ export function useSupabaseSync() {
       }
 
       const owner = useTaskStore.getState().dataOwner
-      if (owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) {
+      // 持ち主の記録が無い古い版のデータ（*legacy*）は、この人として同期したことがあればこの人のもの。
+      // この人としては無く、ほかの人として同期した控えがあれば、その人のもの（混ぜずに外す）
+      const legacyOfOther =
+        owner === LEGACY_DATA_OWNER && !loadBaseline(userId) && hasOtherUsersBaseline(userId)
+      if ((owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) || legacyOfOther) {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
         backupNow('beforeSignOut')

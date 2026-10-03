@@ -186,6 +186,20 @@ export function loadBaseline(userId: string): SyncBaseline | null {
   }
 }
 
+/** この端末で、ほかの人として同期したことがあるか（前回同期の控えが残っているか） */
+export function hasOtherUsersBaseline(userId: string): boolean {
+  try {
+    const prefix = baselineKey('')
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(prefix) && key !== baselineKey(userId)) return true
+    }
+  } catch {
+    /* 読めなければ、無いものとして扱う */
+  }
+  return false
+}
+
 export function clearBaseline(userId: string) {
   try {
     localStorage.removeItem(baselineKey(userId))
