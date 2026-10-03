@@ -10,7 +10,8 @@ import { ColorLabelPicker } from './labels/ColorLabelPicker'
 import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
-import { linkifySegments, googleMapsUrl } from '../lib/linkify'
+import { googleMapsUrl } from '../lib/linkify'
+import { LinkifiedText } from './ui/LinkifiedText'
 import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
@@ -233,22 +234,7 @@ export function TaskDetail({
                            whitespace-pre-wrap break-words cursor-text
                            hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
               >
-                {linkifySegments(task.description).map((seg, i) =>
-                  seg.type === 'url' ? (
-                    <a
-                      key={i}
-                      href={seg.value}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-accent-600 dark:text-accent-400 hover:underline break-all"
-                    >
-                      {seg.value}
-                    </a>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
+                <LinkifiedText text={task.description} />
               </div>
             ) : (
               <div

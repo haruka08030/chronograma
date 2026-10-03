@@ -39,6 +39,9 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { SUBTLE_TEXT } from './ui/textClass'
+import { chipClass } from './ui/chipClass'
+import { TaskSourceLink } from './ui/TaskSourceLink'
+import { sourceLinkOf } from '../lib/sourceLink'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -188,6 +191,8 @@ export function TodayPlannerView() {
 
   const renderRow = (task: Task, action?: React.ReactNode) => {
     const meta = rowMeta(task)
+    const sourceLink = sourceLinkOf(task.description)
+    const hasRowExtras = !task.completed && (sourceLink !== null || task.tags.length > 0)
     return (
       <li
         key={task.id}
@@ -209,15 +214,30 @@ export function TodayPlannerView() {
           onClick={() => toggleTask(task.id)}
           label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
         />
-        <button
-          type="button"
-          onClick={() => openDetail(task.id)}
-          className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] ${
-            task.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
-          }`}
-        >
-          {task.title}
-        </button>
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => openDetail(task.id)}
+            className={`block w-full truncate text-left text-[15px] ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
+              task.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
+            }`}
+          >
+            {task.title}
+          </button>
+          {/* To-Do 一覧の行と同じく、タイトルの下に「開く」アイコンとタグ */}
+          {hasRowExtras && (
+            <div className="flex flex-wrap items-center gap-2 pb-2 pt-0.5">
+              {sourceLink && <TaskSourceLink link={sourceLink} />}
+              {task.tags.length > 0 && (
+                <div className="flex gap-1">
+                  {task.tags.map((tag) => (
+                    <span key={tag} className={chipClass({ variant: 'fill' })}>{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {meta && !task.completed && (
           <span
             className={`shrink-0 text-xs tabular-nums ${

@@ -18,6 +18,9 @@ import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { sourceLinkOf } from '../../lib/sourceLink'
+import { TaskSourceLink } from '../ui/TaskSourceLink'
+import { LinkifiedText } from '../ui/LinkifiedText'
 
 const WIDTH = 320
 
@@ -68,6 +71,9 @@ export function EventPopover({
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
   const dateText = dateKey ? df.monthDayWeekdayLong(dateKey) : ''
+  // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
+  const sourceLink = sourceLinkOf(task.description)
+  const memo = sourceLink ? '' : task.description.trim()
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   const logAsPlanned = () => {
     logPlanAsPlanned(task.id)
@@ -86,6 +92,8 @@ export function EventPopover({
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
+        {/* Google の予定のカードの「Google カレンダーで開く」と同じ位置 */}
+        {sourceLink && <TaskSourceLink link={sourceLink} className={iconButtonClass()} iconClassName="h-4 w-4" />}
         <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButtonClass()} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
@@ -125,10 +133,12 @@ export function EventPopover({
               ? displayListName(list.id, list.name)
               : ''}
         </p>
-        {task.description.trim() && (
+        {memo && (
           <>
             <span />
-            <p className="select-text line-clamp-3 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">{task.description.trim()}</p>
+            <p className="select-text line-clamp-3 whitespace-pre-line break-words text-xs text-zinc-500 dark:text-zinc-400">
+              <LinkifiedText text={memo} />
+            </p>
           </>
         )}
       </div>

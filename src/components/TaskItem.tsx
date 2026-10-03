@@ -9,7 +9,7 @@ import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ExternalLinkIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -18,6 +18,7 @@ import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTon
 import { fromDateKey } from '../lib/dateKey'
 import { formatDate } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
+import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
 
@@ -378,19 +379,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
           {task.recurrence && (
             <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
           )}
-          {sourceLink && (
-            <a
-              href={sourceLink.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
-              aria-label={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
-              className="inline-flex items-center rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-            >
-              <ExternalLinkIcon className="h-3.5 w-3.5" />
-            </a>
-          )}
+          {sourceLink && <TaskSourceLink link={sourceLink} />}
           {task.tags.length > 0 && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
