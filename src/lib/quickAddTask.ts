@@ -1,7 +1,9 @@
+import { addDays } from 'date-fns'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import { parseQuickAddTitle, type ParsedQuickAdd } from './parseQuickAdd'
+import { parseQuickAddTitle, type ParsedQuickAdd, type QuickAddRepeat } from './parseQuickAdd'
+import { fromDateKey, toDateKey } from './dateKey'
 import { findListByName } from './listKind'
 import { displayListName } from './displayListName'
 import { appTodayKey } from './timeZone'
@@ -31,18 +33,64 @@ export interface QuickAddOptions {
   color?: string
 }
 
-type SchedulePatch = Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime'>>
+type SchedulePatch = Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence'>>
+
+/** `from` の日から数えて、繰り返しの曜日・日に最初に当たる日（`from` 自身も含む）。指定が無ければ `from` */
+export function firstRepeatDay(repeat: QuickAddRepeat, from: string): string {
+  const d = fromDateKey(from)
+  if (repeat.weekday != null) return toDateKey(addDays(d, (repeat.weekday - d.getDay() + 7) % 7))
+  if (repeat.monthDay != null) {
+    // 31日のように無い月は飛ばす
+    for (let i = repeat.monthDay >= d.getDate() ? 0 : 1; i < 13; i++) {
+      const c: Date = new Date(d.getFullYear(), d.getMonth() + i, repeat.monthDay, 12)
+      if (c.getDate() === repeat.monthDay) return toDateKey(c)
+    }
+  }
+  return from
+}
+
+/**
+ * 繰り返しつきの日時。繰り返しは締切の日で回る（完了すると次の締切の回ができる）ので、最初の回の日を締切にする。
+ * - 最初の回 = 書いた日付。無ければ既定のやる日（無ければ今日）から数えて最初に当たる日
+ * - 「毎週金曜まで」のように締切として書いたら、やる日は既定のまま（日付だけのときと同じ）
+ * - そうでなければ、やる日や時刻を付けるときは最初の回の日に置く
+ */
+function repeatSchedule(
+  parsed: Pick<ParsedQuickAdd, 'date' | 'dateIsDeadline' | 'startTime' | 'endTime'>,
+  repeat: QuickAddRepeat,
+  opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultTime'>,
+  todayKey: string,
+): SchedulePatch {
+  const first = parsed.date ?? firstRepeatDay(repeat, opts.defaultDate ?? todayKey)
+  const patch: SchedulePatch = { dueDate: first, recurrence: { type: repeat.type, interval: repeat.interval } }
+  const typedTime = parsed.startTime != null
+  const startTime = typedTime ? parsed.startTime : opts.defaultTime?.startTime
+  const endTime = typedTime ? parsed.endTime : opts.defaultTime?.endTime
+  if (parsed.dateIsDeadline) {
+    if (startTime) patch.scheduledDate = opts.defaultDate ?? todayKey
+    else if (opts.defaultDate) patch.scheduledDate = opts.defaultDate
+  } else if (startTime || opts.defaultDate) {
+    patch.scheduledDate = first
+  }
+  if (startTime) {
+    patch.startTime = startTime
+    patch.endTime = endTime ?? null
+  }
+  return patch
+}
 
 /**
  * 読み取った日時から、やる日・締切・予定の時間帯を決める（純粋な計算。テスト用に分けている）。
  * - 日付だけ → やる日。「まで」「by」つき → 締切（やる日は `defaultDate`）
  * - 時刻つき（書いた時刻、無ければ `defaultTime`）→ その日のタイムラインの予定
+ * - 繰り返しつき → 最初の回の日が締切（`repeatSchedule`）
  */
 export function quickAddSchedule(
-  parsed: Pick<ParsedQuickAdd, 'date' | 'dateIsDeadline' | 'startTime' | 'endTime'>,
+  parsed: Pick<ParsedQuickAdd, 'date' | 'dateIsDeadline' | 'startTime' | 'endTime'> & Partial<Pick<ParsedQuickAdd, 'repeat'>>,
   opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultTime'>,
   todayKey: string,
 ): SchedulePatch {
+  if (parsed.repeat) return repeatSchedule(parsed, parsed.repeat, opts, todayKey)
   const patch: SchedulePatch = {}
   const typedTime = parsed.startTime != null
   const startTime = typedTime ? parsed.startTime : opts.defaultTime?.startTime
@@ -90,10 +138,10 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
-    const patch: Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'tags' | 'color'>> = {}
+    const patch: Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence' | 'tags' | 'color'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
     if (opts.color) patch.color = opts.color
-    // いつか・チェックリストには日付を付けない（付けると期限のビューに戻ってきてしまう）
+    // いつか・チェックリストには日付も繰り返しも付けない（付けると期限のビューに戻ってきてしまう）
     if (kind === 'tasks') Object.assign(patch, quickAddSchedule(parsed, opts, appTodayKey()))
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
   })

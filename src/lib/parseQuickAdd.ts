@@ -2,6 +2,18 @@ import { addDays, isValid, startOfDay } from 'date-fns'
 import { appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { pad2 } from './clockTime'
+import type { Recurrence } from '../types/task'
+
+/**
+ * 「毎日」「毎週金」「毎月15日」「every 2 weeks」で書いた繰り返し。
+ * 繰り返しの型（`Recurrence`）は種類と間隔だけなので、曜日・日は最初の回の日を決めるのに使う
+ */
+export type QuickAddRepeat = Recurrence & {
+  /** 「毎週金」の曜日（0=日）。null は曜日の指定なし */
+  weekday: number | null
+  /** 「毎月15日」の日。null は日の指定なし */
+  monthDay: number | null
+}
 
 export type ParsedQuickAdd = {
   title: string
@@ -15,6 +27,8 @@ export type ParsedQuickAdd = {
   endTime: string | null
   /** `@買い物` のようなリスト指定（名前そのまま。解決は呼び出し側で） */
   listName: string | null
+  /** 繰り返し（「毎日」「毎週金」「every fri」など） */
+  repeat: QuickAddRepeat | null
 }
 
 /** 時刻だけで長さの指定がないときの予定の長さ */
@@ -30,7 +44,76 @@ function nextWeekday(today: Date, dow: number): Date {
   return addDays(today, (dow - today.getDay() + 7) % 7)
 }
 
+const repeatOf = (type: Recurrence['type'], interval: number, weekday: number | null = null, monthDay: number | null = null): QuickAddRepeat => ({
+  type,
+  interval,
+  weekday,
+  monthDay,
+})
+
+/** 「3日ごと」「2週間ごと」「6か月ごと」の単位 */
+const JA_REPEAT_UNITS: [RegExp, Recurrence['type']][] = [
+  [/^日$/, 'daily'],
+  [/^週間?$/, 'weekly'],
+  [/^[かカヵヶケ]月$/, 'monthly'],
+  [/^年$/, 'yearly'],
+]
+
+/** 先頭の繰り返しの語を読む（毎日 / 隔日 / 毎週 / 毎週金 / 毎週金曜 / 隔週 / 毎月 / 毎月15日 / 毎年 / 3日ごと / 2週間ごと） */
+function readJaRepeat(s: string): { repeat: QuickAddRepeat; rest: string } | null {
+  let m: RegExpMatchArray | null
+  if ((m = s.match(/^(毎|隔)日/))) return { repeat: repeatOf('daily', m[1] === '隔' ? 2 : 1), rest: s.slice(m[0].length) }
+  // 「毎週月水」のように曜日を 2 つ以上は繰り返しの型で表せないので、残りが読めずタイトルのままになる
+  if ((m = s.match(/^(毎|隔)週(?:([日月火水木金土])(?:曜日?)?)?/))) {
+    const weekday = m[2] ? JA_WEEKDAYS.indexOf(m[2]) : null
+    return { repeat: repeatOf('weekly', m[1] === '隔' ? 2 : 1, weekday), rest: s.slice(m[0].length) }
+  }
+  if ((m = s.match(/^毎月(?:(\d{1,2})日)?/))) {
+    const day = m[1] ? Number(m[1]) : null
+    if (day != null && (day < 1 || day > 31)) return null
+    return { repeat: repeatOf('monthly', 1, null, day), rest: s.slice(m[0].length) }
+  }
+  if ((m = s.match(/^毎年/))) return { repeat: repeatOf('yearly', 1), rest: s.slice(m[0].length) }
+  if ((m = s.match(/^(\d{1,3})(日|週間?|[かカヵヶケ]月)(?:ごと|毎)/)) || (m = s.match(/^(\d{1,3})(年)(?:ごと|毎)/))) {
+    const interval = Number(m[1])
+    const type = JA_REPEAT_UNITS.find(([re]) => re.test(m![2]!))?.[1]
+    if (!type || interval < 1) return null
+    return { repeat: repeatOf(type, interval), rest: s.slice(m[0].length) }
+  }
+  return null
+}
+
+const EN_REPEAT_UNITS: Record<string, Recurrence['type']> = { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' }
+const EN_WEEKDAY_WORD = /^(sun|mon|tue|wed|thu|fri|sat)(?:day|s|nesday|sday|rsday|r|rs|urday)?$/
+
+/**
+ * 「every」の後ろの語を読む（every day / every week / every fri / every other week / every 2 weeks / every 3days）。
+ * `used` は every の後ろで使った語の数。読めなければ null（every はタイトルに残す）
+ */
+function readEnRepeat(next: string[]): { repeat: QuickAddRepeat; used: number } | null {
+  const unit = (w: string | undefined) => {
+    const m = w?.toLowerCase().match(/^(day|week|month|year)s?$/)
+    return m ? EN_REPEAT_UNITS[m[1]!]! : null
+  }
+  const w0 = next[0]?.toLowerCase()
+  if (!w0) return null
+  let m: RegExpMatchArray | null
+  const single = unit(w0)
+  if (single) return { repeat: repeatOf(single, 1), used: 1 }
+  if ((m = w0.match(EN_WEEKDAY_WORD))) {
+    return { repeat: repeatOf('weekly', 1, EN_WEEKDAYS.indexOf(m[1]!)), used: 1 }
+  }
+  if ((m = w0.match(/^(\d{1,3})(days?|weeks?|months?|years?)$/)) && Number(m[1]) >= 1) {
+    return { repeat: repeatOf(unit(m[2])!, Number(m[1])), used: 1 }
+  }
+  const second = unit(next[1])
+  if (second && w0 === 'other') return { repeat: repeatOf(second, 2), used: 2 }
+  if (second && /^\d{1,3}$/.test(w0) && Number(w0) >= 1) return { repeat: repeatOf(second, Number(w0)), used: 2 }
+  return null
+}
+
 type Piece =
+  | { kind: 'repeat'; repeat: QuickAddRepeat }
   | { kind: 'date'; date: Date }
   | { kind: 'time'; min: number }
   | { kind: 'range'; start: number; end: number }
@@ -66,6 +149,10 @@ function readClock(s: string, localeJa: boolean): { min: number; rest: string; e
 
 /** トークン先頭から 1 片だけ読む。読めなければ null */
 function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; rest: string } | null {
+  // 繰り返しを先に読む（「毎週月曜」を月曜の日付として読まない）
+  const repeat = localeJa ? readJaRepeat(s) : null
+  if (repeat) return { piece: { kind: 'repeat', repeat: repeat.repeat }, rest: repeat.rest }
+
   const low = s.toLowerCase()
   const words: [string, number][] = [['today', 0], ['tomorrow', 1], ['tmr', 1]]
   if (localeJa) words.push(['明後日', 2], ['あさって', 2], ['明日', 1], ['あした', 1], ['今日', 0], ['きょう', 0])
@@ -145,9 +232,10 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
 }
 
 /**
- * クイック追加の入力から #タグ・日付・時刻・長さを取り出す。
+ * クイック追加の入力から #タグ・日付・時刻・長さ・繰り返しを取り出す。
  * 日時表現は空白で区切られた語として書く（例: 「明日15時 企画会議 1時間 #仕事」「mtg fri 3pm-4pm」）。
  * 日付は「やる日」。締切にしたいときは「明日まで 課題」「essay by fri」と書く。
+ * 繰り返しは「毎日」「毎週金」「毎月15日」「every fri」「every 2 weeks」（最初の回の決め方は `quickAddTask.ts`）
  */
 export function parseQuickAddTitle(
   raw: string,
@@ -167,10 +255,13 @@ export function parseQuickAddTitle(
   let start: number | null = null
   let end: number | null = null
   let duration: number | null = null
+  let repeat: QuickAddRepeat | null = null
   /** 長さだけの語は、時刻が無ければタイトルに戻すので位置を覚えておく */
   const titleParts: { text: string; durationOnly: boolean }[] = []
 
-  for (const token of raw.trim().split(/\s+/).filter(Boolean)) {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean)
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!
     if (pendingDeadlineWord !== null) {
       const word = pendingDeadlineWord
       pendingDeadlineWord = null
@@ -181,6 +272,15 @@ export function parseQuickAddTitle(
     if (/^(by|due)$/i.test(token)) {
       pendingDeadlineWord = token
       continue
+    }
+    // 英語の繰り返し（every fri / every 2 weeks）。表示言語を問わず読む
+    if (/^every$/i.test(token)) {
+      const r = readEnRepeat(tokens.slice(i + 1, i + 3))
+      if (r) {
+        repeat = r.repeat
+        i += r.used
+        continue
+      }
     }
     if (opts.lists !== false && (token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
       listName = token.slice(1).trim()
@@ -200,7 +300,8 @@ export function parseQuickAddTitle(
       titleParts.push({ text: token, durationOnly: true })
     }
     for (const p of pieces) {
-      if (p.kind === 'date') date = p.date
+      if (p.kind === 'repeat') repeat = p.repeat
+      else if (p.kind === 'date') date = p.date
       else if (p.kind === 'time') start = p.min
       else if (p.kind === 'range') { start = p.start; end = p.end }
       else if (p.kind === 'duration') duration = p.min
@@ -220,10 +321,12 @@ export function parseQuickAddTitle(
   return {
     title,
     date: date ? toDateKey(date) : null,
-    dateIsDeadline: deadline && date != null,
+    // 繰り返しの「毎週金曜まで」は日付が無くても締切（最初の回の日は繰り返しから決める）
+    dateIsDeadline: deadline && (date != null || repeat != null),
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
     listName,
+    repeat,
   }
 }

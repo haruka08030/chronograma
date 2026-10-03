@@ -53,7 +53,7 @@ vi.mock('./timeZone', async (importOriginal) => ({
   appTodayKey: () => TODAY,
 }))
 
-const { addTaskFromQuickText, quickAddSchedule } = await import('./quickAddTask')
+const { addTaskFromQuickText, firstRepeatDay, quickAddSchedule } = await import('./quickAddTask')
 
 const list = (id: string, name: string, kind: TaskList['kind'] = 'tasks') => ({ id, name, kind }) as TaskList
 const added = (id: string | undefined) => store.tasks.find((t) => t.id === id)!
@@ -201,5 +201,134 @@ describe('サブタスク（親とリストは固定）', () => {
   it('親がいつかのリストなら日付を付けない', () => {
     store.tasks = [{ id: 'p', title: '親', listId: 'someday', parentId: null } as unknown as Task]
     expect(added(addTaskFromQuickText('明日 下調べ', { parentId: 'p' }))).toMatchObject({ listId: 'someday', scheduledDate: null })
+  })
+})
+
+describe('繰り返し（最初の回の日が締切）', () => {
+  const rep = (type: 'daily' | 'weekly' | 'monthly' | 'yearly', interval = 1, weekday: number | null = null, monthDay: number | null = null) => ({
+    type,
+    interval,
+    weekday,
+    monthDay,
+  })
+
+  describe('firstRepeatDay（最初に当たる日）', () => {
+    it('曜日・日の指定が無ければその日', () => {
+      expect(firstRepeatDay(rep('daily'), TODAY)).toBe(TODAY)
+      expect(firstRepeatDay(rep('weekly'), TODAY)).toBe(TODAY)
+    })
+
+    it('曜日は次に来るその曜日（同じ曜日ならその日）', () => {
+      // 2026-09-30 は水曜
+      expect(firstRepeatDay(rep('weekly', 1, 5), TODAY)).toBe('2026-10-02')
+      expect(firstRepeatDay(rep('weekly', 1, 3), TODAY)).toBe(TODAY)
+      expect(firstRepeatDay(rep('weekly', 1, 1), TODAY)).toBe('2026-10-05')
+    })
+
+    it('毎月◯日は次に来るその日。無い月は飛ばす', () => {
+      expect(firstRepeatDay(rep('monthly', 1, null, 15), TODAY)).toBe('2026-10-15')
+      expect(firstRepeatDay(rep('monthly', 1, null, 30), TODAY)).toBe(TODAY)
+      expect(firstRepeatDay(rep('monthly', 1, null, 31), TODAY)).toBe('2026-10-31')
+      expect(firstRepeatDay(rep('monthly', 1, null, 31), '2026-11-01')).toBe('2026-12-31')
+      expect(firstRepeatDay(rep('monthly', 1, null, 29), '2027-02-01')).toBe('2027-03-29')
+    })
+  })
+
+  describe('quickAddSchedule', () => {
+    const none = { date: null, dateIsDeadline: false, startTime: null, endTime: null }
+
+    it('上部の追加欄: 今日から数えた最初の回が締切。やる日は付けない', () => {
+      expect(quickAddSchedule({ ...none, repeat: rep('daily') }, {}, TODAY)).toEqual({
+        dueDate: TODAY,
+        recurrence: { type: 'daily', interval: 1 },
+      })
+      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 2, 5) }, {}, TODAY)).toEqual({
+        dueDate: '2026-10-02',
+        recurrence: { type: 'weekly', interval: 2 },
+      })
+    })
+
+    it('書いた日付が最初の回', () => {
+      expect(quickAddSchedule({ ...none, date: '2026-10-09', repeat: rep('weekly') }, {}, TODAY)).toEqual({
+        dueDate: '2026-10-09',
+        recurrence: { type: 'weekly', interval: 1 },
+      })
+    })
+
+    it('既定のやる日があればその日から数え、やる日も最初の回に置く', () => {
+      expect(quickAddSchedule({ ...none, repeat: rep('weekly', 1, 5) }, { defaultDate: '2026-10-05' }, TODAY)).toEqual({
+        dueDate: '2026-10-09',
+        scheduledDate: '2026-10-09',
+        recurrence: { type: 'weekly', interval: 1 },
+      })
+    })
+
+    it('時刻つきなら最初の回の日の予定', () => {
+      expect(quickAddSchedule({ ...none, startTime: '15:00', endTime: '16:00', repeat: rep('weekly', 1, 5) }, {}, TODAY)).toEqual({
+        dueDate: '2026-10-02',
+        scheduledDate: '2026-10-02',
+        startTime: '15:00',
+        endTime: '16:00',
+        recurrence: { type: 'weekly', interval: 1 },
+      })
+    })
+
+    it('締切として書いたら、やる日は既定のまま', () => {
+      const parsed = { ...none, dateIsDeadline: true, repeat: rep('weekly', 1, 5) }
+      expect(quickAddSchedule(parsed, { defaultDate: TODAY }, TODAY)).toEqual({
+        dueDate: '2026-10-02',
+        scheduledDate: TODAY,
+        recurrence: { type: 'weekly', interval: 1 },
+      })
+      expect(quickAddSchedule(parsed, {}, TODAY)).toEqual({ dueDate: '2026-10-02', recurrence: { type: 'weekly', interval: 1 } })
+      expect(quickAddSchedule({ ...parsed, startTime: '09:00', endTime: '10:00' }, {}, TODAY)).toMatchObject({
+        dueDate: '2026-10-02',
+        scheduledDate: TODAY,
+        startTime: '09:00',
+      })
+    })
+  })
+
+  it('「毎週金 ゴミ出し」は金曜締切の毎週', () => {
+    expect(added(addTaskFromQuickText('毎週金 ゴミ出し'))).toMatchObject({
+      title: 'ゴミ出し',
+      dueDate: '2026-10-02',
+      scheduledDate: null,
+      recurrence: { type: 'weekly', interval: 1 },
+    })
+  })
+
+  it('「毎日 日記」は今日締切の毎日', () => {
+    expect(added(addTaskFromQuickText('毎日 日記 #習慣'))).toMatchObject({
+      title: '日記',
+      dueDate: TODAY,
+      tags: ['習慣'],
+      recurrence: { type: 'daily', interval: 1 },
+    })
+  })
+
+  it('「毎月15日 家賃」は次の 15 日', () => {
+    expect(added(addTaskFromQuickText('毎月15日 家賃'))).toMatchObject({
+      title: '家賃',
+      dueDate: '2026-10-15',
+      recurrence: { type: 'monthly', interval: 1 },
+    })
+  })
+
+  it('「毎週月水」は繰り返しで表せないのでタイトルのまま', () => {
+    expect(added(addTaskFromQuickText('毎週月水 ジム'))).toMatchObject({ title: '毎週月水 ジム', dueDate: null })
+    expect(added(addTaskFromQuickText('毎週月水 ジム')).recurrence).toBeUndefined()
+  })
+
+  it('カレンダーのセルで別の日に入ったら知らせる', () => {
+    const cell = { defaultListId: '__inbox__', currentListId: '__inbox__', defaultDate: '2026-10-05' }
+    expect(added(addTaskFromQuickText('毎週金 ゴミ出し', cell))).toMatchObject({ scheduledDate: '2026-10-09', dueDate: '2026-10-09' })
+    expect(store.showMoveBanner.mock.calls).toEqual([['toast.addedToDay:10/9']])
+  })
+
+  it('いつか・買い物には繰り返しも付けない', () => {
+    const t = added(addTaskFromQuickText('毎週 牛乳 @買い物'))
+    expect(t).toMatchObject({ listId: 'shop', dueDate: null })
+    expect(t.recurrence).toBeUndefined()
   })
 })
