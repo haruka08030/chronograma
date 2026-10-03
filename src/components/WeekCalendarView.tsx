@@ -625,6 +625,12 @@ export function WeekCalendarView({
       onContextMenu={(e) => {
         const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
         if (!id) return
+        // 習慣の枠なども同じ属性を持つ。メニューを出せるもの（タスク・Google の予定）のときだけブラウザのメニューを止める
+        const { tasks, calendarEvents } = useTaskStore.getState()
+        const known = id.startsWith('event-')
+          ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
+          : tasks.some((x) => x.id === id)
+        if (!known) return
         e.preventDefault()
         setEventCard(null)
         setGoogleCard(null)
