@@ -83,7 +83,7 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
         }
       }}
       className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px] leading-tight
-        cursor-grab select-none touch-none pointer-coarse:touch-auto transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
+        cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
       title={`${task.title}  ${task.startTime} – ${task.endTime}`}
@@ -94,7 +94,6 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
         right: 2,
         ...hStyle,
         ...colorVars(colorHex),
-        boxShadow: '0 0 0 1px var(--gc-surface)',
       }}
     >
       {compact ? (
