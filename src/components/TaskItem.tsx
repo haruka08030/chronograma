@@ -5,7 +5,6 @@ import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
 import { format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
-import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
@@ -16,20 +15,11 @@ import { TaskContextMenu } from './TaskContextMenu'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { startTaskDrag } from '../lib/taskDrag'
+import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
-
-/** 日付ラベルの緊急度。色は「期限切れ > 今日 > 明日 > それ以外」の順に強くする */
-type DateTone = 'overdue' | 'today' | 'tomorrow' | 'future' | 'past'
-
-const DUE_TONE_CLASS: Record<DateTone, string> = {
-  overdue: 'text-red-500 dark:text-red-400 font-medium',
-  today: 'text-amber-600 dark:text-amber-400 font-medium',
-  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
-  future: 'text-zinc-500 dark:text-zinc-400',
-  past: 'text-zinc-400 dark:text-zinc-500',
-}
 
 const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
   overdue: 'text-zinc-400 dark:text-zinc-500',
@@ -174,11 +164,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       dragGroupIds && dragGroupIds.length > 1 && dragGroupIds.includes(task.id)
         ? dragGroupIds
         : [task.id]
-    e.dataTransfer.setData(TASK_DND_TYPE, task.id)
-    e.dataTransfer.setData('text/plain', task.id)
-    if (group.length > 1) e.dataTransfer.setData(TASK_MULTI_DND_TYPE, JSON.stringify(group))
+    startTaskDrag(e, task.id, group)
     startNativeTaskDragGhost(e, task.title || '', group.length)
-    e.dataTransfer.effectAllowed = 'copy'
     setIsDragging(true)
   }, [task.id, task.title, dragGroupIds])
 

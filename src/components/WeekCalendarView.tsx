@@ -37,7 +37,7 @@ import {
   setTimerDropHover,
   startTimerForTask,
 } from '../lib/timerDrop'
-import { useTimelineDrop, readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
+import { useTimelineDrop, readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
   beginCalendarItemNativeDrag,
   getCalendarItemDrag,
@@ -81,6 +81,7 @@ import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../li
 import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -685,13 +686,9 @@ export function WeekCalendarView({
                   <div
                     key={key}
                     className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
-                      ${allDayDragOver === key || allDayMoveKey === key ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10' : ''}`}
+                      ${allDayDragOver === key || allDayMoveKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                     onDragOver={(e) => {
-                      if (!e.dataTransfer.types.includes(TASK_DND_TYPE) && !e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE)) return
-                      e.preventDefault()
-                      // ToDo 一覧の行は effectAllowed が copy、Google の予定は move。合わないと落とせない
-                      e.dataTransfer.dropEffect = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? 'move' : 'copy'
-                      setAllDayDragOver(key)
+                      if (acceptTaskDrag(e, { googleEvents: true })) setAllDayDragOver(key)
                     }}
                     onDragLeave={(e) => {
                       if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
@@ -753,9 +750,7 @@ export function WeekCalendarView({
                         key={t.id}
                         draggable
                         onDragStart={(e) => {
-                          e.dataTransfer.setData(TASK_DND_TYPE, t.id)
-                          e.dataTransfer.setData('text/plain', t.id)
-                          e.dataTransfer.effectAllowed = 'copyMove'
+                          startTaskDrag(e, t.id)
                           beginCalendarItemNativeDrag()
                         }}
                         onDragEnd={() => setAllDayDragOver(null)}

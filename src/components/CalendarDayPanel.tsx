@@ -12,11 +12,12 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { isSleepRecord } from '../lib/sleep'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
-import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -130,14 +131,11 @@ export function CalendarDayPanel({
       <div
         className={`flex h-full min-h-0 min-w-0 flex-1 flex-col transition-colors ${
           dragOver
-            ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+            ? DROP_HIGHLIGHT_CLASS
             : 'bg-zinc-50/70 dark:bg-zinc-900/70'
         }`}
         onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'copy'
-          setDragOver(true)
+          if (acceptTaskDrag(e)) setDragOver(true)
         }}
         onDragLeave={(e) => {
           if (e.currentTarget.contains(e.relatedTarget as Node | null)) return

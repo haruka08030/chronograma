@@ -16,11 +16,12 @@ import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
-import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { groupsBySection } from '../lib/todoSurfaceView'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -72,15 +73,12 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-        setIsOverNative(true)
+        if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
       onDragLeave={() => setIsOverNative(false)}
       onDrop={(e) => {
         setIsOverNative(false)
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        if (!isTaskDrag(e)) return
         e.preventDefault()
         moveDroppedTasks(readDraggedTaskIds(e.dataTransfer), list.id)
       }}
@@ -168,15 +166,12 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
       type="button"
       onClick={onSelect}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-        setIsOverNative(true)
+        if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
       onDragLeave={() => setIsOverNative(false)}
       onDrop={(e) => {
         setIsOverNative(false)
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        if (!isTaskDrag(e)) return
         e.preventDefault()
         labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
       }}

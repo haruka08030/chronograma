@@ -12,7 +12,8 @@ import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { unplannedListIds } from '../lib/listKind'
 import { requestPermission } from '../lib/notifications'
-import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { startTaskDrag } from '../lib/taskDrag'
+import { DUE_TONE_CLASS } from './ui/dueTone'
 import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
@@ -38,10 +39,10 @@ import { RowActionButton } from './ui/RowActionButton'
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
 const META_TONE_CLASS = {
-  muted: 'text-zinc-400 dark:text-zinc-500',
-  overdue: 'text-red-500 dark:text-red-400 font-medium',
-  today: 'text-amber-600 dark:text-amber-400 font-medium',
-  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
+  muted: DUE_TONE_CLASS.past,
+  overdue: DUE_TONE_CLASS.overdue,
+  today: DUE_TONE_CLASS.today,
+  tomorrow: DUE_TONE_CLASS.tomorrow,
 } as const
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
@@ -171,7 +172,6 @@ export function TodayPlannerView() {
   }
 
   /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
-  /** 締切は焦らせてよい: 期限切れ＝赤 / 今日まで＝オレンジ / 明日まで＝薄いオレンジ（To‑Do の行と同じ段階） */
   const rowMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (task.startTime && task.endTime && task.scheduledDate === dateKey) {
       return { text: `${task.startTime}–${task.endTime}`, tone: 'muted' }
@@ -190,10 +190,7 @@ export function TodayPlannerView() {
         key={task.id}
         draggable={!task.completed}
         onDragStart={(e) => {
-          e.dataTransfer.setData(TASK_DND_TYPE, task.id)
-          e.dataTransfer.setData('text/plain', task.id)
-          // タイムラインは copy、タイマーは move で受けるので両方許す（片方だけだと落とせない）
-          e.dataTransfer.effectAllowed = 'copyMove'
+          startTaskDrag(e, task.id)
           startNativeTaskDragGhost(e, task.title)
         }}
         className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
