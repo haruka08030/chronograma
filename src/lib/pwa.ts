@@ -111,7 +111,47 @@ export function setupPwa(handlers: LaunchHandlers) {
   )
   if (import.meta.env.PROD) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch((err) => console.error('[sw]', err))
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => watchForUpdates(reg))
+        .catch((err) => console.error('[sw]', err))
     })
   }
+}
+
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000
+
+/**
+ * 新しい版を取り込む。ホーム画面のアプリは開きっぱなしで再読み込みされないので、
+ * 画面に戻ってきたときに新しい sw.js があるか確かめ（30 分に 1 回まで）、
+ * 新しい Service Worker に切り替わったら、使っている最中を避けて画面が隠れたときに読み込み直す
+ */
+function watchForUpdates(reg: ServiceWorkerRegistration) {
+  let lastCheck = Date.now()
+  // 最初から Service Worker の下で開いていたときだけ（初回インストール時の切り替えでは読み込み直さない）
+  let hadController = navigator.serviceWorker.controller !== null
+  let reloadPending = false
+
+  const reloadIfHidden = () => {
+    if (reloadPending && document.visibilityState === 'hidden') window.location.reload()
+  }
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) {
+      hadController = true
+      return
+    }
+    reloadPending = true
+    reloadIfHidden()
+  })
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      reloadIfHidden()
+      return
+    }
+    if (Date.now() - lastCheck < UPDATE_CHECK_INTERVAL_MS) return
+    lastCheck = Date.now()
+    reg.update().catch(() => {})
+  })
 }

@@ -6,6 +6,46 @@
  */
 const CACHE = 'chronograma-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png']
+const NAV_TIMEOUT_MS = 4000
+
+/**
+ * いまの index.html から辿れない /assets/ の控えを消す（デプロイのたびに古いハッシュ付きファイルが溜まらないように）。
+ * 遅延読み込みの画面のファイルは index.html に直接は書かれず、読み込む側の JS に名前があるので、
+ * 控えてある JS の中身もたどって「使われている」側に数える
+ */
+async function pruneAssets(html) {
+  const cache = await caches.open(CACHE)
+  const keep = new Set()
+  const queue = []
+  const collect = (text) => {
+    // index.html は "/assets/x.js"、JS の中は "assets/x.js"（先読み一覧）や "./x.js"（import()）で書かれる
+    for (const m of text.matchAll(/(?:assets\/|["'`]\.\/)([\w.-]+\.\w+)/g)) {
+      const path = '/assets/' + m[1]
+      if (keep.has(path)) continue
+      keep.add(path)
+      if (path.endsWith('.js')) queue.push(path)
+    }
+  }
+  collect(html)
+  // 入口の JS が控えに無いときは判断できないので消さない
+  let foundEntry = false
+  while (queue.length) {
+    const hit = await cache.match(queue.shift())
+    if (!hit) continue
+    foundEntry = true
+    collect(await hit.text())
+  }
+  if (!foundEntry) return
+  const reqs = await cache.keys()
+  await Promise.all(
+    reqs
+      .filter((r) => {
+        const p = new URL(r.url).pathname
+        return p.startsWith('/assets/') && !keep.has(p)
+      })
+      .map((r) => cache.delete(r)),
+  )
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
@@ -30,16 +70,39 @@ self.addEventListener('fetch', (event) => {
     // アプリの画面だけを '/' に控える。/privacy.html などの別ページやエラー応答を控えると、
     // オフラインで開いたときにアプリの代わりにそれが出てしまう
     const isAppShell = !url.pathname.endsWith('.html')
+    const fallback = () => (isAppShell ? caches.match('/') : caches.match(req))
+    const network = fetch(req).then((res) => {
+      if (res.ok && isAppShell) {
+        const copy = res.clone()
+        event.waitUntil(
+          copy
+            .text()
+            .then((html) =>
+              caches
+                .open(CACHE)
+                .then((c) => c.put('/', new Response(html, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'text/html' } })))
+                .then(() => pruneAssets(html)),
+            )
+            .catch(() => {}),
+        )
+      }
+      return res
+    })
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok && isAppShell) {
-            const copy = res.clone()
-            caches.open(CACHE).then((c) => c.put('/', copy))
-          }
-          return res
-        })
-        .catch(() => (isAppShell ? caches.match('/') : caches.match(req))),
+      new Promise((resolve) => {
+        let settled = false
+        const settle = (res) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(res)
+        }
+        // 電波が弱いと fetch が失敗せずに待ち続けるので、一定時間で控えの画面を出す（控えが無ければそのまま待つ）
+        const timer = setTimeout(() => {
+          fallback().then((hit) => hit && settle(hit))
+        }, NAV_TIMEOUT_MS)
+        network.then(settle, () => fallback().then((hit) => settle(hit || Response.error())))
+      }),
     )
     return
   }
@@ -85,7 +148,9 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}
-  const target = new URL(data.url || '/?view=planner', self.location.origin)
+  let target = new URL(data.url || '/?view=planner', self.location.origin)
+  // 通知の中身に別サイトの URL が入っていても、このアプリの外へは開かない
+  if (target.origin !== self.location.origin) target = new URL('/?view=planner', self.location.origin)
   const taskId = data.taskId || target.searchParams.get('record')
   const asPlanned = event.action === 'as-planned'
   if (taskId && asPlanned) target.searchParams.set('as', 'planned')
