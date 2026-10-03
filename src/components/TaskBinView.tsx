@@ -12,6 +12,7 @@ import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale } from '../lib/dateKey'
+import { EmptyState } from './ui/EmptyState'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -84,12 +85,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
 
       <div className="flex-1 space-y-1 px-4 pb-6">
         {rows.length === 0 ? (
-          <div className="py-16 text-center">
-            <PathIcon d={boxIcon} className="mx-auto mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" strokeWidth={1} />
-            <p className="text-sm text-zinc-400 dark:text-zinc-500">
-              {mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
-            </p>
-          </div>
+          <EmptyState
+            icon={<PathIcon d={boxIcon} strokeWidth={1} />}
+            title={mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
+          />
         ) : (
           rows.map(({ task, stamp, childCount }) => {
             const list = lists.find((l) => l.id === task.listId)

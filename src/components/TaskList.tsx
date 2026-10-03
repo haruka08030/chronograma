@@ -49,6 +49,7 @@ import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { chipClass } from './ui/chipClass'
 import { DisclosureButton } from './ui/Disclosure'
+import { EmptyState } from './ui/EmptyState'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -1234,11 +1235,7 @@ export function TaskList() {
           )}
 
           {incompleteCount === 0 && !showQuickAdd && (
-            <div className="py-16 text-center">
-              <CheckCircleIcon className="w-16 h-16 mx-auto text-zinc-200 dark:text-zinc-700 mb-4" strokeWidth={1} />
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('taskList.allDoneTitle')}</p>
-              <p className="text-xs text-zinc-300 dark:text-zinc-600 mt-1">{t('taskList.allDoneSubtitle')}</p>
-            </div>
+            <EmptyState icon={<CheckCircleIcon strokeWidth={1} />} title={t('taskList.allDoneTitle')} hint={t('taskList.allDoneSubtitle')} />
           )}
 
           {activeContent}

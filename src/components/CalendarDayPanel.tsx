@@ -18,6 +18,8 @@ import { Segmented } from './ui/Segmented'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { dateFnsLocale } from '../lib/dateKey'
+import { EmptyState } from './ui/EmptyState'
+import { CalendarIcon, ClockIcon } from './icons'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -195,7 +197,7 @@ export function CalendarDayPanel({
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
               {externalEvents.length === 0 && plannedItems.length === 0 && executedItems.length === 0 ? (
-                <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noPlanned')}</p>
+                <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('calendarDayPanel.noPlanned')} />
               ) : (
                 <>
                   {externalEvents.length > 0 && (
@@ -247,7 +249,7 @@ export function CalendarDayPanel({
               {t('calendarDayPanel.totalLogged')}: <span className="font-semibold">{formatDuration(totalLoggedMinutes)}</span>
             </div>
             {logItems.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noLogs')}</p>
+              <EmptyState size="sm" icon={<ClockIcon strokeWidth={1} />} title={t('calendarDayPanel.noLogs')} />
             ) : (
               <div className="space-y-2">
                 {logItems.map((item) => (

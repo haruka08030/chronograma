@@ -33,6 +33,8 @@ import { ColorSwatches } from './ui/ColorSwatches'
 import { DayNav } from './ui/DayNav'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { EmptyState } from './ui/EmptyState'
+import { RepeatIcon } from './icons'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -757,9 +759,9 @@ export function HabitsView() {
 
         <ul className="space-y-3">
         {habits.length === 0 && (
-          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">
-            {t('habits.empty', { add: t('habits.addHabitCta') })}
-          </p>
+          <li>
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          </li>
         )}
         {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
           <p className="py-2 text-sm text-zinc-400 dark:text-zinc-500">{t('habits.noneScheduledForDay')}</p>

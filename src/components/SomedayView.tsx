@@ -8,7 +8,7 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import { DueDatePopover } from './DueDatePopover'
-import { CalendarIcon } from './icons'
+import { CalendarIcon, StarIcon } from './icons'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { appTodayKey } from '../lib/timeZone'
@@ -20,6 +20,7 @@ import { AddChildButton, ChildAddInput } from './ChildAddInput'
 import { childrenByParent } from '../lib/listTree'
 import { fromDateKey } from '../lib/dateKey'
 import { InlineAddInput } from './ui/InlineAddInput'
+import { EmptyState } from './ui/EmptyState'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -166,7 +167,7 @@ export function SomedayView({ list }: { list: TaskList }) {
         />
 
         {wishes.length === 0 && !hasSections ? (
-          <p className="mt-6 text-sm leading-relaxed text-zinc-400 dark:text-zinc-500">{t('someday.empty')}</p>
+          <EmptyState icon={<StarIcon strokeWidth={1} />} title={t('someday.empty')} />
         ) : (
           wishGroups.map(({ section, items }) => (
             <div key={section?.id ?? 'none'}>
