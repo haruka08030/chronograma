@@ -368,7 +368,7 @@
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
-- **push**: upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
+- **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除も取得した版のままの行だけ（`id` と `updated_at` の組で消す）。`base_updated_at` 列が無い DB では付けずに送り直す。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
   `scheduled_date` / `archived_at` / `deleted_at`
@@ -448,7 +448,7 @@
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、インデックス、トリガー、関数、RLS）。
 SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は 002 から番号順の新しいファイルで足し、コミット済みのファイルは書き換えない。本番への適用は Supabase CLI（`supabase db query --linked -f <ファイル>`）。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、サーバーの行より `updated_at` が古い更新を捨てる（トリガー `skip_stale_write`）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` は `skip_stale_write`（`001`）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
 付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
@@ -469,7 +469,7 @@ service_role で読み書き）。トークンの列（`google_oauth.refresh_tok
 
 ## 実装時の注意
 
-- 同期は **タスク単位の三方向マージ**（フィールド単位ではない。同じタスクを両端末で編集したら `updatedAt` の新しい方）
+- 同期は **項目ごとの三方向マージ**（前回同期の項目ハッシュと比べ、片方だけが変えた項目はその側。両方が変えた項目は手元の時刻をサーバーの時計に直して新しい方）。送信は取得した版つきで、他の端末が先に変えていればサーバーが断り、取り直して合わせる
 - Google Calendar: **Edge Function** `google-calendar`（authorization code を `exchange` で refresh token に交換し `google_oauth` 表に保存、サーバー側で access_token リフレッシュ）。Web は `VITE_GOOGLE_CLIENT_ID` で **直接 Google OAuth**（`linkIdentity` は使わない。Supabase の `provider_refresh_token` は PKCE で取れないため）。`signIn` → Google 同意 → コールバック `?code=` → `exchange` → `status` / `events`。invoke アクション: `exchange` / `store` / `status` / `events` / `disconnect`。`events` は `timeZone`（IANA）を受け取り `Intl` で HH:mm を算出。Web は取得後に `start` / `end` ISO からローカル TZ で `date` / `startTime` / `endTime` を再正規化（`normalizeCalendarEventTimes`）。Google Cloud の **Authorized redirect URIs** にアプリオリジン（`http://localhost:5173` 等）が必要。Supabase secrets: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。`googleConnected` は localStorage に永続化せず `status` で同期。`calendarEvents` はクライアントのみ。ログアウトで `disconnect` + リセット
 - 未分類（`__inbox__`）は削除不可（リスト DnD
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左

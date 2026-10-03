@@ -19,6 +19,8 @@ import {
   withoutDuplicateDefaults,
   saveBaseline,
   syncedSnapshot,
+  withServerStamps,
+  adoptServerStamps,
   type SyncSnapshot,
 } from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
@@ -30,6 +32,8 @@ import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
 const POLL_MS = 60_000
+/** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
+const MAX_STALE_RETRIES = 3
 
 /**
  * 同じ人の同期をタブ間で 1 本ずつにする。前回同期の控え（baseline）は端末で 1 つなので、
@@ -84,6 +88,8 @@ export function useSupabaseSync() {
     /** 失敗後の再送タイマーと現在の待ち時間（0 = 失敗していない） */
     let retry: ReturnType<typeof setTimeout> | undefined
     let retryMs = 0
+    /** この sync() の中で、断られた行のために取り直した回数 */
+    let staleRetries = 0
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -191,8 +197,9 @@ export function useSupabaseSync() {
       const baseline = useTaskStore.getState().dataOwner === null ? null : loadBaseline(userId)
       let toPush: SyncSnapshot
       let deletes: Parameters<typeof pushListsTasksHabits>[6] = { lists: [], tasks: [], habits: [], sections: [] }
-      const done = (synced: SyncSnapshot) => {
-        saveBaseline(userId, baselineFrom(synced))
+      const done = (synced: SyncSnapshot, clockOffsetMs?: number) => {
+        // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
+        saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
         useTaskStore.getState().setDataOwner(userId)
       }
 
@@ -252,7 +259,15 @@ export function useSupabaseSync() {
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
       if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
-      done(syncedSnapshot(toPush, remote, res.rejected))
+      // 届いた行はサーバーが付けた時刻にそろえる（手元も、送っている間に編集していない行だけ）
+      const stamped = withServerStamps(toPush, res.written)
+      if (stamped !== toPush) apply(adoptServerStamps(localSnapshot(), toPush, stamped))
+      // 取得した後に他の端末が変えていた行は届いていない。控えは取得した版にして（次の同期で項目ごとに合わせる）、すぐ取り直す
+      done(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale]), res.clockOffsetMs)
+      if (res.stale.length > 0 && staleRetries < MAX_STALE_RETRIES) {
+        staleRetries++
+        rerun = true
+      }
       await syncSettings()
       const prevRejected = useTaskStore.getState().syncRejected
       const key = (rows: typeof res.rejected) => rows.map((r) => `${r.op}:${r.table}:${r.id}`).join('|')
@@ -270,6 +285,7 @@ export function useSupabaseSync() {
         return
       }
       running = true
+      staleRetries = 0
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする

@@ -556,6 +556,7 @@ export function decideHydrate(
 
 const UPSERT_BATCH = 500
 const DELETE_BATCH = 100
+const CONDITIONAL_DELETE_BATCH = 25
 /**
  * 1 回の送信で切り分ける行と問い合わせの上限。超えたら 1 行ずつの問題ではなく全体の問題として送信を止める
  * （全行が落ちるときに数百回問い合わせない）
@@ -574,6 +575,32 @@ export type SyncRejectedRow = { table: SyncTable; id: string; op: 'upsert' | 'de
  */
 function isRowLevelError(code: string | undefined): boolean {
   return !!code && (code.startsWith('22') || code.startsWith('23'))
+}
+
+/** サーバーが受け付けた行と、サーバーが付けた更新時刻（`004` を流す前の DB では送った値のまま） */
+export type SyncWrittenRow = { table: SyncTable; id: string; updatedAt: string }
+
+/**
+ * 取得した後に他の端末が変えていたので、サーバーが断った行（書き込み・削除）。
+ * エラーではない。次の同期で新しい版を取り直し、項目ごとに合わせて送り直す
+ */
+export type SyncStaleRow = { table: SyncTable; id: string; op: 'upsert' | 'delete' }
+
+export interface SyncPushResult {
+  error?: string
+  rejected: SyncRejectedRow[]
+  written: SyncWrittenRow[]
+  stale: SyncStaleRow[]
+  /** サーバーの時計 − この端末の時計（ms）。サーバーが時刻を付けた行があったときだけ */
+  clockOffsetMs?: number
+}
+
+/** 取得に無かった行を送るときの「もとにした版」。サーバーに同じ id の行ができていたら断られる */
+const BASE_ABSENT = '-infinity'
+
+/** PostgREST の or / and の中で値をそのまま使えるように引用符で囲む */
+function quoteFilterValue(v: string): string {
+  return `"${v.replace(/["\\]/g, (c) => `\\${c}`)}"`
 }
 
 /** 拒否された行と、そのとき送った内容。同じ内容なら次の同期で送り直さない（毎分切り分け直さない） */
@@ -596,9 +623,26 @@ export async function pushListsTasksHabits(
    * 全行を送っていて、通信量が大きいうえ、取得から送信までの間に他の端末で直した行を古い内容で上書きしていた
    */
   remote?: { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] },
-): Promise<{ error?: string; rejected: SyncRejectedRow[] }> {
+): Promise<SyncPushResult> {
   /** この送信で受け付けられなかった行（キーは `table:id`） */
   const rejected = new Map<string, SyncRejectedRow>()
+  const written: SyncWrittenRow[] = []
+  const stale: SyncStaleRow[] = []
+  let clockOffsetMs: number | undefined
+  /**
+   * 行ごとの「もとにした版」＝取得したときのサーバーの updated_at（文字列のまま。マイクロ秒まで一致させる）。
+   * 取得を渡されないとき（古い呼び方）は送らない＝前と同じ書き込み
+   */
+  const bases: Record<SyncTable, Map<string, string>> | null = remote
+    ? {
+        lists: new Map(remote.lists.map((x) => [x.id, x.updatedAt ?? UNKNOWN_UPDATED_AT])),
+        list_sections: new Map(remote.sections.map((x) => [x.id, x.updatedAt ?? UNKNOWN_UPDATED_AT])),
+        tasks: new Map(remote.tasks.map((x) => [x.id, x.updatedAt])),
+        habits: new Map(remote.habits.map((x) => [x.id, x.updatedAt])),
+      }
+    : null
+  /** `004` を流す前の DB には base_updated_at 列が無い。この呼び出しの間は送らない（前と同じ書き込みになる） */
+  let sendBase = bases !== null
   const rejectKey = (table: SyncTable, id: string) => `${userId}:${table}:${id}`
   const changedOnly = <T extends { id: string }, R>(
     table: SyncTable,
@@ -608,12 +652,14 @@ export async function pushListsTasksHabits(
     /** 比べる前にそろえる（送る行そのものは変えない） */
     normalize: (x: T) => T = (x) => x,
   ): R[] => {
-    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(normalize(x)))])) : null
+    // 更新時刻は比べない（サーバーが付け直すので、中身が同じでも手元の時刻とは違う）
+    const content = (x: T) => JSON.stringify({ ...toRow(normalize(x)), updated_at: undefined })
+    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, content(x)])) : null
     const rows: R[] = []
     items.forEach((item) => {
       const row = toRow(item)
       const json = JSON.stringify(row)
-      if (sent?.get(item.id) === JSON.stringify(toRow(normalize(item)))) return
+      if (sent?.get(item.id) === content(item)) return
       const known = knownRejected.get(rejectKey(table, item.id))
       if (known?.row === json) {
         rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
@@ -633,9 +679,9 @@ export async function pushListsTasksHabits(
   /** 行だけの問題なら切り分けを続けてよいか。上限を超えたら全体の失敗にする */
   const canIsolate = (code: string | undefined) =>
     isRowLevelError(code) && rejected.size < MAX_REJECTED && isolateRequests < MAX_ISOLATE_REQUESTS
-  const finish = (error?: string): { error?: string; rejected: SyncRejectedRow[] } => {
+  const finish = (error?: string): SyncPushResult => {
     const out = [...rejected.values()]
-    if (error) return { error, rejected: out }
+    if (error) return { error, rejected: out, written, stale, clockOffsetMs }
     // 送れた行は覚えを消し、拒否された行は送った内容を覚える
     const sentRows: [SyncTable, { id: string }[]][] = [
       ['lists', listRows],
@@ -646,23 +692,54 @@ export async function pushListsTasksHabits(
     for (const [table, rows] of sentRows) {
       for (const row of rows) {
         const r = rejected.get(`${table}:${row.id}`)
-        if (r?.op === 'upsert') knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
+        // base_updated_at の制約で落ちたのは行の中身のせいではない（取得と送信の間に行が消えた）。覚えずに次も送る
+        if (r?.op === 'upsert' && !r.message.includes('base_updated_at')) knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
         else knownRejected.delete(rejectKey(table, row.id))
       }
     }
-    return { rejected: out }
+    return { rejected: out, written, stale, clockOffsetMs }
   }
 
   // 主キーは (user_id, id)。主キーが id だけの古い DB には一致する一意制約が無いので id で送り直す
   // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
   let onConflict = 'user_id,id'
+  const send = (table: SyncTable, rows: { id: string }[]) => {
+    const body = sendBase && bases
+      ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT }))
+      : rows
+    // 受け付けた行だけが返る。返らなかった行は、取得した後に他の端末が変えていた（サーバーが断った）
+    return supabase.from(table).upsert(body, { onConflict }).select('id, updated_at')
+  }
   const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
-    let { error } = await supabase.from(table).upsert(rows, { onConflict })
+    const startedAt = Date.now()
+    let { data, error } = await send(table, rows)
+    if (error && sendBase && /'base_updated_at'/.test(error.message)) {
+      sendBase = false
+      ;({ data, error } = await send(table, rows))
+    }
     if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
       onConflict = 'id'
-      ;({ error } = await supabase.from(table).upsert(rows, { onConflict }))
+      ;({ data, error } = await send(table, rows))
     }
-    return error ?? undefined
+    if (error) return error
+    const midpoint = (startedAt + Date.now()) / 2
+    const sentStamp = new Map(rows.map((r) => [r.id, Date.parse((r as { updated_at?: string }).updated_at ?? '')]))
+    const back = new Map(((data ?? []) as { id: string; updated_at: string }[]).map((r) => [r.id, String(r.updated_at)]))
+    for (const r of rows) {
+      const at = back.get(r.id)
+      if (at === undefined) {
+        stale.push({ table, id: r.id, op: 'upsert' })
+        continue
+      }
+      written.push({ table, id: r.id, updatedAt: at })
+      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う
+      const ms = Date.parse(at)
+      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id)) {
+        const offset = Math.round(ms - midpoint)
+        clockOffsetMs = clockOffsetMs === undefined ? offset : Math.min(clockOffsetMs, offset)
+      }
+    }
+    return undefined
   }
   /**
    * 1 行でも拒否されるとまとめて落ちる。行だけの問題なら半分ずつに分けて拒否された行を見つけ、
@@ -689,7 +766,20 @@ export async function pushListsTasksHabits(
     return undefined
   }
   const deleteIsolating = async (table: SyncTable, ids: string[]): Promise<string | undefined> => {
-    const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
+    const base = bases?.[table]
+    let error: { code?: string; message: string } | null
+    if (base && ids.every((id) => base.has(id))) {
+      // 取得したときのままの行だけ消す。取得した後に他の端末が変えた行は残し、次の同期で取り込む
+      const match = ids.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base.get(id)!)})`).join(',')
+      const res = await supabase.from(table).delete().eq('user_id', userId).or(match).select('id')
+      error = res.error
+      if (!error) {
+        const gone = new Set(((res.data ?? []) as { id: string }[]).map((r) => r.id))
+        for (const id of ids) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
+      }
+    } else {
+      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids))
+    }
     if (!error) return undefined
     if (!canIsolate(error.code)) return error.message
     if (ids.length === 1) {
@@ -814,8 +904,11 @@ export async function pushListsTasksHabits(
     ['lists', deletes.lists],
   ] as const) {
     // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
-    for (let i = 0; i < ids.length; i += DELETE_BATCH) {
-      const error = await deleteIsolating(table, ids.slice(i, i + DELETE_BATCH))
+    // 版を付けて消すときは 1 件あたりの URL が長いので、もっと細かく分ける
+    const base = bases?.[table]
+    const size = base && ids.every((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
+    for (let i = 0; i < ids.length; i += size) {
+      const error = await deleteIsolating(table, ids.slice(i, i + size))
       if (error) return finish(error)
     }
   }
