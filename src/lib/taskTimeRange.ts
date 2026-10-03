@@ -113,7 +113,7 @@ export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
 export function timeLogSegmentLayoutForDay(
   task: Task,
   dateKey: string,
-): { top: number; height: number } | null {
+): { top: number; height: number; span: number } | null {
   if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime) return null
   const iv = taskTimedInterval(task)
   if (!iv) return null
@@ -130,6 +130,8 @@ export function timeLogSegmentLayoutForDay(
   return {
     top: (startMin / 60) * HOUR_HEIGHT,
     height: Math.max((dur / 60) * HOUR_HEIGHT, HOUR_HEIGHT / 4),
+    /** 最小高さで引き伸ばす前の、実際の時間の長さ */
+    span: (dur / 60) * HOUR_HEIGHT,
   }
 }
 

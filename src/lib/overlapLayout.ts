@@ -4,6 +4,11 @@ export interface OverlapInput {
   id: string
   top: number
   height: number
+  /**
+   * 重なり判定に使う実際の時間の長さ（省略時は height）。短い項目は最小高さまで
+   * 引き伸ばして描くが、時間が重ならなければ列を分けない（後の項目が上に重なる）
+   */
+  span?: number
 }
 
 export interface OverlapSlot {
@@ -34,7 +39,7 @@ export function layoutOverlaps(items: readonly OverlapInput[]): Map<string, Over
   }
 
   for (const item of sorted) {
-    const bottom = item.top + item.height
+    const bottom = item.top + (item.span ?? item.height)
     if (item.top >= clusterEnd) {
       flush()
       clusterEnd = -Infinity
@@ -112,7 +117,7 @@ export function layoutPlanAndLog(
       clusterEnd = -Infinity
     }
     clusters[clusters.length - 1]!.push(item)
-    clusterEnd = Math.max(clusterEnd, item.top + item.height)
+    clusterEnd = Math.max(clusterEnd, item.top + (item.span ?? item.height))
   }
 
   const styles = new Map<string, CSSProperties>()
@@ -127,5 +132,21 @@ export function layoutPlanAndLog(
     place(p, 0, split ? 50 : 100)
     place(l, split ? 50 : 0, split ? 50 : 100)
   }
+
+  // 最小高さで引き伸ばした短い項目が次の項目にかぶるときは、後の項目を上に出す（タイトルが隠れないように）
+  let visualEnd = -Infinity
+  let lastZ = 0
+  for (const item of all) {
+    const key = `${item.isLog ? 'log' : 'plan'}:${item.id}`
+    const style = styles.get(key)!
+    const baseZ = Number(style.zIndex ?? 0)
+    const z = item.top < visualEnd ? Math.min(Math.max(baseZ, lastZ + 1), MAX_STACK_Z) : baseZ
+    if (z !== baseZ) styles.set(key, { ...style, zIndex: z })
+    lastZ = z
+    visualEnd = Math.max(visualEnd, item.top + item.height)
+  }
   return styles
 }
+
+/** ドラッグのプレビュー（z-20）より下に収める */
+const MAX_STACK_Z = 19
