@@ -12,7 +12,6 @@ import { CalendarIcon } from './icons'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import { appTodayKey } from '../lib/timeZone'
-import { isSubmitEnter } from '../lib/keyboard'
 import { groupBySection } from '../lib/sectionGroups'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { ListSectionHeading } from './ListSectionHeading'
@@ -20,6 +19,7 @@ import { tip } from '../lib/tooltip'
 import { AddChildButton, ChildAddInput } from './ChildAddInput'
 import { childrenByParent } from '../lib/listTree'
 import { fromDateKey } from '../lib/dateKey'
+import { InlineAddInput } from './ui/InlineAddInput'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -156,21 +156,14 @@ export function SomedayView({ list }: { list: TaskList }) {
           <ListKindPicker list={list} />
         </header>
 
-        <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-zinc-200 px-4 dark:border-zinc-700">
-          <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>☆</span>
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (isSubmitEnter(e)) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-            placeholder={t('someday.addPlaceholder')}
-            className="min-w-0 flex-1 bg-transparent py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
-          />
-        </div>
+        <InlineAddInput
+          className="mt-4"
+          value={draft}
+          onValueChange={setDraft}
+          onSubmit={submit}
+          icon={<span className="w-5 shrink-0 text-center text-zinc-300 dark:text-zinc-600" aria-hidden>☆</span>}
+          placeholder={t('someday.addPlaceholder')}
+        />
 
         {wishes.length === 0 && !hasSections ? (
           <p className="mt-6 text-sm leading-relaxed text-zinc-400 dark:text-zinc-500">{t('someday.empty')}</p>
