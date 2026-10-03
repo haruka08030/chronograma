@@ -11,6 +11,7 @@
 | [`005_size_limits.sql`](005_size_limits.sql) | 行の大きさの上限（`*_size_check`、`not valid`） |
 | [`006_canvas_legacy_ids.sql`](006_canvas_legacy_ids.sql) | Canvas の最初の版の id（学校名なし）を学校名入りに書き換え、重複をまとめる（データの書き換えのみ。各端末は保存データの版 35 で同じことをする） |
 | [`007_push_endpoint_hosts.sql`](007_push_endpoint_hosts.sql) | push 購読の `endpoint` をブラウザのプッシュサービスの URL だけにする（`push_subscriptions_endpoint_host_check`。合わない行は消す） |
+| [`008_task_is_sleep.sql`](008_task_is_sleep.sql) | 睡眠の印（`tasks.is_sleep`）を古い DB に足し、タイトルかラベルが「睡眠」の記録に印を付け直す |
 
 テーブル（最新の形）:
 
