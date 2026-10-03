@@ -6,7 +6,7 @@ import { IS_MAC, shortcutLabel } from '../lib/keyboard'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
-import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
+import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
@@ -96,7 +96,7 @@ export function TaskContextMenu({
   const priorityLeaves: ActionLeaf[] = PRIORITIES.map((p) => ({
     id: `priority-${p}`,
     label: t(`common.${p}`),
-    icon: <FlagIcon className={`${ICON} ${p === 'none' ? 'text-zinc-400' : PRIORITY_RING_CLASS[p]}`} />,
+    icon: <FlagIcon className={`${ICON} ${PRIORITY_TEXT_CLASS[p]}`} />,
     checked: sharedPriority === p,
     run: done(() => bulk.setPriority(taskIds, p)),
   }))

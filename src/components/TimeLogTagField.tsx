@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEventHandler } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { buildTimeLogTagUniverse } from '../lib/tagColors'
+import { buildTimeLogTagUniverse } from '../lib/timeLogTags'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'

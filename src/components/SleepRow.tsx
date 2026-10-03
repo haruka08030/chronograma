@@ -23,7 +23,7 @@ const floorTo5 = (min: number) => {
 }
 
 const MoonIcon = () => (
-  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-300" />
+  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 )
 
 /**

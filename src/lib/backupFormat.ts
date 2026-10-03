@@ -6,7 +6,8 @@ import {
   normalizeListColorPaletteId,
   type ListColorPaletteId,
 } from './listColorPalettes'
-import { normalizeTimeLogTagPresetList } from './tagColors'
+import { normalizeTimeLogTagPresetList } from './timeLogTags'
+import { INBOX_COLOR } from '../store/storeConstants'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -174,7 +175,8 @@ function normalizeListRow(raw: unknown): TaskList | null {
   return {
     id,
     name,
-    color: typeof row.color === 'string' ? row.color : '#6366f1',
+    // 色の無いリスト・習慣は「未分類」と同じラベンダー（Google の 11 色のひとつ）
+    color: typeof row.color === 'string' ? row.color : INBOX_COLOR,
     order: readOrder(row),
     kind: normalizeListKind(row.kind),
   }
@@ -213,7 +215,7 @@ function normalizeHabitRow(raw: unknown): Habit | null {
   return {
     ...h,
     ...rec,
-    color: typeof h.color === 'string' ? h.color : '#6366f1',
+    color: typeof h.color === 'string' ? h.color : INBOX_COLOR,
     frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
     createdAt: readStamp(now, h.createdAt),
     updatedAt: readStamp(now, h.updatedAt),

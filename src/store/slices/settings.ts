@@ -1,5 +1,5 @@
 /** 設定（テーマ・色・ラベル・通知・タイムゾーン） */
-import { normalizeTimeLogTagPresetList } from '../../lib/tagColors'
+import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
 import { categoryHex, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
