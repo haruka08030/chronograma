@@ -397,24 +397,3 @@ export interface TaskState {
   importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
 
-/** ⌘Z 用。永続化しない */
-export interface ChronogramaUndoSnapshot {
-  tasks: Task[]
-  lists: TaskList[]
-  sections: ListSection[]
-  habits: Habit[]
-  deletedTasks: { task: Task; deletedAt: number }[]
-  listColorPaletteId: ListColorPaletteId
-  timeLogTagPresets: string[]
-  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
-  logCategoryColors: Record<string, string>
-  selectedListId: string | null
-  selectedView: SmartView | null
-  quickAddSectionId: string | null
-  sortByKey: Record<string, SortMode>
-  filterTag: string | null
-  filterColor: string | null
-  calendarMode: CalendarMode
-  selectedCalendarDateKey: string
-  activeTimer: ActiveTimer | null
-}
