@@ -22,6 +22,7 @@ import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
@@ -63,7 +64,7 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
   }, [settingsScrollTarget, clearSettingsScrollTarget])
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
+    <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <div>
           <button
@@ -114,7 +115,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
 

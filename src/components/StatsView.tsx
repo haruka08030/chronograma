@@ -11,6 +11,7 @@ import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { dateFnsLocale } from '../lib/dateKey'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -108,7 +109,7 @@ export function StatsView() {
   }, [tasks, lists, i18n.resolvedLanguage])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="px-6 pt-8 pb-4">
         <h1 className={PAGE_TITLE_CLASS}>{t('stats.title')}</h1>
       </div>

@@ -14,6 +14,7 @@ import { tip } from '../lib/tooltip'
 import { EmptyState } from './ui/EmptyState'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -63,7 +64,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const boxIcon = mode === 'deleted' ? TRASH_BOX_ICON : ARCHIVE_BOX_ICON
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>

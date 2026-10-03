@@ -23,6 +23,7 @@ import { useSectionEditing } from '../hooks/useSectionEditing'
 import { TaskListHeader } from './todo/TaskListHeader'
 import { TaskListActiveContent } from './todo/TaskListActiveContent'
 import { CompletedTasksSection } from './todo/CompletedTasksSection'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -231,7 +232,7 @@ export function TaskList() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <TaskListHeader
           title={title}
           colorView={colorView}

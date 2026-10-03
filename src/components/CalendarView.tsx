@@ -37,6 +37,7 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from 
 import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -134,7 +135,7 @@ export function CalendarView({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <div className="grid grid-cols-7 px-4 pt-4">
           {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">

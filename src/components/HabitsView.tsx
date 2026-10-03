@@ -41,6 +41,7 @@ import { CheckIcon, RepeatIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { fieldClass } from './ui/fieldClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -583,7 +584,7 @@ export function HabitsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={PAGE_SCROLL_CLASS}>
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
