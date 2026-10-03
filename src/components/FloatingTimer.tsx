@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
@@ -29,6 +29,12 @@ const MOBILE_FLOAT_BOTTOM =
  * 1 コマ 90 分・バイト 1 本を通しで測ることはあるので、8 時間は超えない想定。
  */
 const STALE_TIMER_MS = 8 * 60 * 60 * 1000
+
+/**
+ * 「完了にしますか？」は止めるボタンと同じ位置に出て、「完了」がちょうど止めるの真上に来る。
+ * 止めるの 2 度押し・ダブルタップで完了にならないよう、出てすぐの押下は受けない。
+ */
+const COMPLETE_PROMPT_ARM_MS = 700
 
 export function FloatingTimer() {
   const { t } = useTranslation()
@@ -107,9 +113,11 @@ function CompletePrompt() {
   const task = useTaskStore((s) => (taskId ? s.tasks.find((x) => x.id === taskId) ?? null : null))
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const dismiss = useTaskStore((s) => s.dismissCompletePrompt)
+  const shownAt = useRef(0)
 
   useEffect(() => {
     if (!taskId) return
+    shownAt.current = Date.now()
     const id = setTimeout(dismiss, 12_000)
     return () => clearTimeout(id)
   }, [taskId, dismiss])
@@ -137,6 +145,7 @@ function CompletePrompt() {
       <button
         type="button"
         onClick={() => {
+          if (Date.now() - shownAt.current < COMPLETE_PROMPT_ARM_MS) return
           toggleTask(task.id)
           dismiss()
         }}
