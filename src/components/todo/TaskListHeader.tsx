@@ -11,6 +11,7 @@ import { CloseIcon, SortIcon } from '../icons'
 import { Switch } from '../settings/SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
+import { PAGE_TITLE_CLASS } from '../ui/headingClass'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 /** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
@@ -60,7 +61,7 @@ export function TaskListHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-8 pb-2 pt-6 md:pt-8">
       <div className="min-w-0">
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className={`flex items-center gap-2.5 ${PAGE_TITLE_CLASS}`}>
           {colorView && (
             <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: filterColor }} aria-hidden />
           )}

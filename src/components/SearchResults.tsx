@@ -6,6 +6,7 @@ import { TaskItem } from './TaskItem'
 import { SearchIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
 import { openTaskDetail } from '../lib/overlays'
+import { PAGE_TITLE_CLASS } from './ui/headingClass'
 
 export function SearchResults() {
   const { t } = useTranslation()
@@ -30,7 +31,7 @@ export function SearchResults() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-6 pt-8 pb-2">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className={PAGE_TITLE_CLASS}>
             {t('search.title')}
           </h1>
           <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">

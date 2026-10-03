@@ -36,7 +36,7 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
-import { SECTION_HEADING_CLASS } from './ui/headingClass'
+import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 const META_TONE_CLASS = {
@@ -285,7 +285,7 @@ export function TodayPlannerView() {
       >
         <header className="px-6 pb-5 pt-4 md:pt-8">
           <div className="flex items-start justify-between gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            <h1 className={PAGE_TITLE_CLASS}>
               {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
             </h1>
             <DayNav

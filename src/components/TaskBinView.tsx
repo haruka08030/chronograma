@@ -13,6 +13,7 @@ import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
 import { EmptyState } from './ui/EmptyState'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { PAGE_TITLE_CLASS } from './ui/headingClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -65,7 +66,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+          <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
           <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
             {t('taskBin.count', { count: rows.length })}
           </p>

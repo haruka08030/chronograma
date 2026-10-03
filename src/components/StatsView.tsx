@@ -10,7 +10,7 @@ import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { dateFnsLocale } from '../lib/dateKey'
-import { CARD_TITLE_CLASS } from './ui/headingClass'
+import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -110,7 +110,7 @@ export function StatsView() {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('stats.title')}</h1>
+        <h1 className={PAGE_TITLE_CLASS}>{t('stats.title')}</h1>
       </div>
 
       <div className="px-6 pb-8 space-y-8">

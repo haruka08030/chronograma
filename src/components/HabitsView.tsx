@@ -39,7 +39,7 @@ import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
 import { CheckIcon, RepeatIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
-import { CARD_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
+import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -585,7 +585,7 @@ export function HabitsView() {
     <div className="flex-1 overflow-y-auto">
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
+          <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
           <button
             type="button"
             onClick={() => {
