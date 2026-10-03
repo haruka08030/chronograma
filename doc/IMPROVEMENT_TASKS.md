@@ -10,12 +10,12 @@
 ## リリース前に手でやること
 
 1. プライバシーポリシー・利用規約（`public/privacy.html`・`public/terms.html`）のプレースホルダを埋める: 運営者名・連絡先メール・公開日・Supabase のリージョン・ホスティング事業者・管轄裁判所
-2. 本番の Supabase の SQL Editor で `supabase/migrations/` の `001`〜`005` を番号順に実行（どれも何度流してもよい）
-3. Edge Function を再デプロイ: `account` `canvas` `daily-reminders` `google-calendar` `notion`
-4. 本番で確認
+2. 本番で確認（DB は `005` まで適用・Edge Function 5 本はデプロイ済み、2026-10-03）
    - `vercel.json` のヘッダ: CSP で何も止まっていないか（DevTools のコンソール）。Supabase を独自ドメインにしたら CSP の `connect-src` に足す
    - ホーム画面アプリ（PWA）が新しい版に切り替わるか
    - ログアウト（オフライン時も）
+
+今後スキーマや Edge Function を変えたら、ターミナルで `supabase db push --linked` と `supabase functions deploy <名前>`（SQL Editor ではなく）。適用済みかは `supabase migration list --linked` で分かる。
 
 ## 画面・実機でまだ確かめていないもの
 
