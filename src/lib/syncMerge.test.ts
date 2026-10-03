@@ -240,6 +240,50 @@ describe('mergeSnapshots', () => {
   })
 })
 
+describe('同じ行を両方の端末で変えたとき（項目ごと）', () => {
+  it('違う項目を変えたなら両方残す（スマホでタイトル・PC で完了）', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', completed: false })] })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1', { title: '課題（第 3 回）', completed: false, updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題', completed: true, updatedAt: T2 })] })
+
+    const { merged } = mergeSnapshots(local, remote, baseline)
+
+    expect(merged.tasks[0]).toMatchObject({ title: '課題（第 3 回）', completed: true })
+    // 両方の変更を合わせた新しい版なので、ほかの端末にも行き渡るよう時刻を今にする
+    expect(Date.parse(merged.tasks[0]!.updatedAt)).toBeGreaterThan(Date.parse(T2))
+  })
+
+  it('同じ項目を両方で変えたら新しいほう', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題' })] })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1', { title: 'こちら', updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: 'あちら', updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]!.title).toBe('あちら')
+  })
+
+  it('片方だけ変えたなら、古い時刻でもその変更を残す', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', priority: 'none' })] })
+    const baseline = baselineFrom(base)
+    // こちらは優先度だけ（新しい時刻）、あちらはタイトルだけ（古い時刻）
+    const local = snapshot({ tasks: [task('t1', { title: '課題', priority: 'high', updatedAt: T2 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題（改）', priority: 'none', updatedAt: T1 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]).toMatchObject({ title: '課題（改）', priority: 'high' })
+  })
+
+  it('前回同期の項目の控えが無ければ、行ごと新しいほう（前の動き）', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', completed: false })] })
+    const { fields: _omit, ...oldBaseline } = baselineFrom(base)
+    void _omit
+    const local = snapshot({ tasks: [task('t1', { title: '課題（第 3 回）', completed: false, updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題', completed: true, updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, oldBaseline).merged.tasks[0]).toMatchObject({ title: '課題', completed: true })
+  })
+})
+
 describe('mergeSnapshots の参照整合性', () => {
   it('消えたリストを参照するタスクは未分類に付け替える', () => {
     const other = list('other-list')
