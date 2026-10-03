@@ -220,6 +220,15 @@ async function plannerItems(baseUrl: string, token: string) {
     token,
     `/api/v1/planner/items?start_date=${windowStart}&end_date=${windowEnd}&per_page=100`,
   )
+  // 科目はタグにするので、長い科目名（context_name）ではなく短い科目コード（CSE-101 など）を使う。
+  // カレンダーフィードの件名に付く科目コードと同じものになる。取れなければ科目名のまま
+  const courseCodes = new Map<string, string>()
+  try {
+    const courses = await canvasAll<{ id: number; course_code?: string | null }>(baseUrl, token, '/api/v1/users/self/courses?per_page=100')
+    for (const c of courses) if (c.course_code) courseCodes.set(String(c.id), c.course_code.trim())
+  } catch (e) {
+    console.warn('[canvas] courses', e instanceof Error ? e.message : e)
+  }
   const items = raw
     .filter((i) => PLANNABLE_TYPES.has(i.plannable_type))
     .map((i) => ({
@@ -227,7 +236,7 @@ async function plannerItems(baseUrl: string, token: string) {
       id: String(i.plannable_id),
       title: (i.plannable?.title ?? '').trim(),
       courseId: i.course_id != null ? String(i.course_id) : null,
-      courseName: i.course_id != null ? i.context_name ?? null : null,
+      courseName: i.course_id != null ? courseCodes.get(String(i.course_id)) ?? i.context_name ?? null : null,
       url: i.html_url ? new URL(i.html_url, baseUrl).toString() : baseUrl,
       dueAt: i.plannable?.due_at ?? i.plannable?.todo_date ?? i.plannable_date ?? null,
       done: isDone(i),

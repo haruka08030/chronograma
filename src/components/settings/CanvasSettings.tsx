@@ -20,6 +20,7 @@ import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './Setti
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
+import { useTaskStore } from '../../store/taskStore'
 
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
 
@@ -66,6 +67,8 @@ export function CanvasSettings() {
     try {
       setStatus(await fn())
       setAdding(false)
+      // 科目はタグで出すので、新しくつないだらタグを見えるようにする（あとでオフにしても戻さない）
+      if (key === 'new') useTaskStore.getState().setTagsEnabled(true)
       requestCanvasSync()
     } catch (e) {
       setErrors({ [key]: toMessage(e) })

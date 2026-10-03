@@ -10,9 +10,9 @@ import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
- * 学校（ホスト名）ごとに 1 つつなぐ。使う人が気にするのは「どの科目か」なので、どの学校の課題も 1 つの
- * 「Canvas」リスト（`canvas-list`）に入れ、科目ごとのセクションで分ける。
- * id は接続 ID（ホスト名）を入れて決め打ちする: セクション `canvas-course-<接続>-<コースID>`、タスク `canvas-<接続>-<種類>-<ID>`。
+ * 学校（ホスト名）ごとに 1 つつなぐ。どの学校の課題も 1 つの「Canvas」リスト（`canvas-list`）に入れ、
+ * 科目は入れ物（セクション）ではなく課題の属性なので、科目コードのタグ（`CSE-101` など）で一目で分かるようにする。
+ * タスクの id は接続 ID（ホスト名）を入れて決め打ちする: `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
 
@@ -156,6 +156,7 @@ export function parseCanvasTaskId(id: string): { connectionId: string; type: str
   return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
 }
 
+/** 以前の版が作っていた科目のセクションの id（`canvasCourseSectionsToTags` でタグに移す） */
 export function canvasSectionId(connectionId: string, courseId: string): string {
   return `canvas-course-${connectionId}-${courseId}`
 }
@@ -199,6 +200,28 @@ export function canvasDue(dueAt: string | null, timeZone: string): { dueDate: st
   return { dueDate: wall.date, dueTime: wall.time }
 }
 
+/** 科目のセクションの id（学校名入りと、最初の版の `canvas-course-<ID>` の両方） */
+const COURSE_SECTION_RE = /^canvas-course-/
+
+/**
+ * 以前の版が科目ごとに作ったセクションを、科目のタグに移す。中のタスクにセクション名のタグを付けてセクションの外へ出し、
+ * セクションを消す（別のリストへ移していたものも）。移したら `converted` が true（「タグを使う」を一度だけオンにする合図）。
+ */
+export function canvasCourseSectionsToTags(
+  state: { sections: ListSection[]; tasks: Task[] },
+  now: string,
+): { sections: ListSection[]; tasks: Task[]; converted: boolean } {
+  const course = new Map(state.sections.filter((s) => COURSE_SECTION_RE.test(s.id)).map((s) => [s.id, s.name]))
+  if (course.size === 0) return { sections: state.sections, tasks: state.tasks, converted: false }
+  const tasks = state.tasks.map((t) => {
+    const name = t.sectionId ? course.get(t.sectionId) : undefined
+    if (name === undefined) return t
+    const tags = name && !t.tags.includes(name) ? [...t.tags, name] : t.tags
+    return { ...t, sectionId: null, tags, updatedAt: now }
+  })
+  return { sections: state.sections.filter((s) => !course.has(s.id)), tasks, converted: true }
+}
+
 export type CanvasReconcileResult = {
   lists: TaskList[]
   sections: ListSection[]
@@ -210,8 +233,7 @@ export type CanvasReconcileResult = {
 
 /**
  * 1 校ぶんの Canvas の課題を、Canvas のリストのタスクに合わせる。
- * - 未提出で無いものは作る（コースごとのセクションに入れる。セクションを別のリストへ移していたら、そのリストに作る）。
- *   未完了のものはタイトル・期限を Canvas に合わせる
+ * - 未提出で無いものは作る（科目コードのタグを付ける）。未完了のものはタイトル・期限を Canvas に合わせる
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
@@ -231,17 +253,7 @@ export function reconcileCanvasItems(
     changed = true
   }
 
-  let sections = state.sections
-  /** 科目のセクション。無ければ Canvas のリストに作る。あれば、移した先のリストのまま使う */
-  const ensureSection = (courseId: string, name: string | null): ListSection => {
-    const id = canvasSectionId(conn, courseId)
-    const existing = sections.find((s) => s.id === id)
-    if (existing) return existing
-    const maxOrder = Math.max(-1, ...sections.filter((s) => s.listId === listId).map((s) => s.order))
-    const created = { id, listId, name: name || opts.untitled, order: maxOrder + 1, updatedAt: opts.now }
-    sections = [...sections, created]
-    return created
-  }
+  const sections = state.sections
 
   const skip = opts.skipIds ?? new Set<string>()
   const byId = new Map(state.tasks.map((t) => [t.id, t]))
@@ -272,7 +284,6 @@ export function reconcileCanvasItems(
     const { dueDate, dueTime } = item.dueDate ? { dueDate: item.dueDate, dueTime: null } : canvasDue(item.dueAt, opts.timeZone)
 
     if (!existing) {
-      const section = item.courseId ? ensureSection(item.courseId, item.courseName) : null
       additions.push({
         id,
         title,
@@ -282,8 +293,8 @@ export function reconcileCanvasItems(
         createdAt: opts.now,
         updatedAt: opts.now,
         order: nextOrder++,
-        listId: section?.listId ?? listId,
-        sectionId: section?.id ?? null,
+        listId,
+        sectionId: null,
         parentId: null,
         dueDate,
         dueTime,
@@ -294,7 +305,7 @@ export function reconcileCanvasItems(
         location: null,
         color: null,
         priority: 'none',
-        tags: [],
+        tags: item.courseName ? [item.courseName] : [],
         recurrence: null,
         isTimeLog: false,
         habitId: null,
@@ -321,7 +332,6 @@ export function reconcileCanvasItems(
     complete(t)
   }
 
-  if (sections !== state.sections) changed = true
   if (updates.size === 0 && additions.length === 0) {
     return { lists, sections, tasks: state.tasks, autoCompletedIds, changed }
   }

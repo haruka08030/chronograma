@@ -6,6 +6,7 @@ import { paletteColors } from '../lib/listColorPalettes'
 import { appTimeZone } from '../lib/timeZone'
 import {
   CANVAS_LIST_ID,
+  canvasCourseSectionsToTags,
   mergeCanvasLists,
   CanvasRequestError,
   fetchCanvasItems,
@@ -102,6 +103,14 @@ export function useCanvasSync() {
             changed = true
             if (selectedListId && merged.mergedIds.includes(selectedListId)) selectedListId = CANVAS_LIST_ID
           }
+          // 科目ごとのセクションだった版の課題を、科目のタグに移す。タグが見えるよう「タグを使う」を一度だけオンにする
+          let tagsEnabled = s.tagsEnabled
+          const toTags = canvasCourseSectionsToTags(next, new Date().toISOString())
+          if (toTags.converted) {
+            next = { ...next, sections: toTags.sections, tasks: toTags.tasks }
+            changed = true
+            tagsEnabled = true
+          }
           const connectionErrors: Record<string, string> = {}
           for (const conn of res.connections) {
             if ('error' in conn) {
@@ -125,7 +134,7 @@ export function useCanvasSync() {
               changed = true
             }
           }
-          if (changed) useTaskStore.setState({ ...next, selectedListId })
+          if (changed) useTaskStore.setState({ ...next, selectedListId, tagsEnabled })
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {
