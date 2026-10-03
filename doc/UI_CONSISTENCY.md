@@ -14,6 +14,8 @@
 | --- | --- | --- |
 | 今日・選んだ日 | 今日＝藍の塗り、選んだ日＝藍の枠、両方＝塗り＋外側の枠。塗れないところ（曜日の見出し、達成色で塗る習慣の丸、睡眠の目盛り）は今日を藍の文字で示す | `lib/dayMarker.ts`（`dayMarkerClass`・`TODAY_TEXT`・`TODAY_COLUMN`・`SELECTED_COLUMN`） |
 | タスク行の「今日」 | 締切の今日はオレンジ（`DUE_TONE_CLASS`）、やる日の今日は藍（`SCHEDULED_TONE_CLASS`）。役割が違うので 2 色のまま | `TaskItem.tsx` |
+| 締切の色 | 期限切れ＝赤、今日まで＝オレンジ、明日まで＝薄いオレンジ。To-Do の行と今日の計画で同じ | `components/ui/dueTone.ts` `DUE_TONE_CLASS` |
+| 落とし先の光り方 | 藍の薄い塗り＋内側の枠 | `lib/taskDrag.ts` `DROP_HIGHLIGHT_CLASS` |
 | 完了チェック | タスク・記録・買い物とも墨色。買い物はチェックリストなので四角、大きさ・文字・入力欄は今日の To-Do と同じ。いつかは ☆ | — |
 
 ### 見た目の部品
@@ -46,6 +48,7 @@
 | ⌘ の表示 | Mac は ⌘、それ以外は Ctrl。`shortcutLabel(['mod', 'Z'])` | `lib/keyboard.ts` `modKeyLabel`・`shortcutLabel` |
 | 削除 | 戻せるもの（タスク・記録・セクション・リスト・習慣・ラベル・Google の予定）は確認なしで消して「元に戻す」トースト。戻せないもの（ゴミ箱から完全に削除・アカウント）だけ `askConfirm` | — |
 | 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切。時刻つきはタイムラインの予定 | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
+| To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
 | タイマーの切り替え | どこからでも切り替えられる。前の記録は保存し「○○の記録を保存して切り替えました」と知らせる。行・予定カードは `startTimerForTask` を通す | `lib/timerDrop.ts`・ストアの `startTimer` |
 
 ---
@@ -54,7 +57,6 @@
 
 ### 色
 
-- `TodayPlannerView.tsx` の `META_TONE_CLASS` は `DUE_TONE_CLASS` の複製
 - 色選択の選択中の印が 3 種類: 墨色の枠（`TodoNavPanel.tsx`）、黒/白の枠（`settings/CategoryManager.tsx`）、✓（`HabitsView`・`labels/ColorPalette`・`labels/SelectColorDialog`）
 - 11 色パレット（`GOOGLE_COLORS`）は色選択では使われず、新しいリストの自動割り当てだけ（`taskStore.ts` の `addList`・移行、`useNotionSync.ts`）。`lib/googleColors.ts` 冒頭のコメント「リスト・習慣は 11 色のまま」は事実と違う
 - 日パネルの Google の予定だけ青で固定（`CalendarDayPanel.tsx`）。カレンダー本体は予定ごとの色
