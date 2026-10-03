@@ -779,8 +779,6 @@ export default {
     navNextMonthAria: '次の月',
     navPrevWeekAria: '前の週',
     navNextWeekAria: '次の週',
-    miniPickerPrevMonthAria: '前の月',
-    miniPickerNextMonthAria: '次の月',
   },
   calendarDock: {
     unscheduled: '時間が未定のタスク',
