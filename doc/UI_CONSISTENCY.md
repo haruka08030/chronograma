@@ -28,7 +28,11 @@
 | モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`） | `components/ui/Modal.tsx` |
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
-| タスクのメニュー | 右クリック・スマホの行の ≡・⌘/ で開く。検索・期限（カレンダー付き）・優先度・リスト/セクションへ移動・完了・詳細・アーカイブ・削除。選択中の行なら選択中のすべてに効く。`TaskItem` のある所ならどこでも出る | `components/TaskContextMenu.tsx` |
+| 右クリックのメニュー | `ActionMenu`（項目・中のメニュー・検索・↑↓→←Enter Esc・はみ出さない位置）。どの右クリックもこれの上に作る。色を選ぶ中のメニューは `ColorPalette`（`bare`）か `ColorSwatches` を入れる | `components/ui/ActionMenu.tsx` |
+| タスクのメニュー | 右クリック・スマホの行の ≡・⌘/ で開く。検索・期限（カレンダー付き）・優先度・リスト/セクションへ移動・完了・詳細・アーカイブ・削除。選択中の行なら選択中のすべてに効く。`TaskItem` のある所・今日の計画の To-Do 行・月カレンダーの時刻なしのタスクで出る | `components/TaskContextMenu.tsx` |
+| 予定・記録・Google の予定のメニュー | タイムライン（今日の計画・週）と月カレンダーで右クリック。予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・削除。記録: 色（＝ラベル）・詳細・削除。Google: 色・Google で開く・削除（書き込めない予定は開くだけ） | `components/timeline/EventContextMenu.tsx` |
+| リスト・セクションのメニュー | リスト: 名前の変更・色・種類・削除（未分類は出さない。色は丸を押しても選べる）。セクション: 名前の変更・ここにタスクを追加・削除 | `components/ListContextMenu.tsx`・`TaskList.tsx` |
+| 予定の色・時刻の判断 | 色は `useTaskColor`（記録は色＝ラベル、予定は色だけ）、「予定どおり記録」「終わった予定」は `planTiming`。予定カードとメニューで同じ | `hooks/useTaskColor.ts`・`lib/planTiming.ts` |
 | 色選択 | 丸は 24px・選択中は ✓ でどこでも同じ。列の数は置き場所の幅で決める（広い所は 12 列、ポップオーバーは 6 列）。ラベル編集の「色を選択」は自由な色を作る別の役割なので別の格子 | `components/ui/ColorSwatches.tsx` |
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
