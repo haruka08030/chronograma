@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../store/taskStore'
+import { INBOX_LIST_ID, useTaskStore } from '../store/taskStore'
+import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { unplannedListIds } from '../lib/listKind'
 import { PlusIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { InlineAddInput } from './ui/InlineAddInput'
@@ -34,7 +36,8 @@ export function CalendarAddTaskButton({
 
 /**
  * カレンダー各面（月セル / 週の終日行 / 選択日パネル）で共有するインライン ToDo 追加入力。
- * 追加はその日の「予定日」として扱われる（`addTaskWithDate`）。
+ * 書いた 1 行はクイック追加と同じに読む（`addTaskFromQuickText`）。日付を書かなければそのセルの日がやる日、
+ * 「15時」と書けばその日の予定、「明日」「金曜まで」「@リスト」と書けば書いたほうが勝つ。
  * タスクの追加欄はどこでも、Enter で追加したあとも開いたまま続けて書ける（空の Enter・Esc・外を押すと閉じる）。
  * 入れ物（リスト・セクション）を作る欄は 1 つ作ったら閉じる。
  */
@@ -52,7 +55,6 @@ export function CalendarInlineTaskAdd({
   const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
-  const addTaskWithDate = useTaskStore((s) => s.addTaskWithDate)
 
   useEffect(() => {
     if (autoFocus) ref.current?.focus()
@@ -61,7 +63,10 @@ export function CalendarInlineTaskAdd({
   const commit = (): boolean => {
     const trimmed = value.trim()
     if (!trimmed) return false
-    addTaskWithDate(trimmed, dateKey)
+    const { selectedListId, lists } = useTaskStore.getState()
+    // いつか・チェックリストを選んでいると日付が付かずカレンダーから消えるので、そのときは未分類へ
+    const defaultListId = selectedListId && !unplannedListIds(lists).has(selectedListId) ? selectedListId : INBOX_LIST_ID
+    addTaskFromQuickText(trimmed, { defaultListId, currentListId: defaultListId, defaultDate: dateKey })
     setValue('')
     return true
   }
