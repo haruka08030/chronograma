@@ -71,19 +71,19 @@ export function SomedayView({ list }: { list: TaskList }) {
     return (
       <li
         key={item.id}
-        className="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+        className="group flex min-h-10 items-center gap-1 rounded-xl pr-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
       >
         <button
           type="button"
           onClick={() => toggleTask(item.id)}
           title={t('someday.fulfill')}
           aria-label={t('someday.fulfillItem', { title: item.title })}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-lg text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-base text-zinc-300 transition-colors hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400"
         >
           <span aria-hidden>☆</span>
         </button>
-        <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 flex-1 py-2.5 text-left">
-          <span className="block truncate text-[15px] text-zinc-800 dark:text-zinc-100">{item.title}</span>
+        <button type="button" onClick={() => openDetail(item.id)} className="min-w-0 flex-1 py-2 text-left">
+          <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100">{item.title}</span>
           {note && <span className="mt-0.5 block truncate text-xs text-zinc-400 dark:text-zinc-500">{note}</span>}
         </button>
         <DueDatePopover
@@ -131,7 +131,7 @@ export function SomedayView({ list }: { list: TaskList }) {
               }
             }}
             placeholder={t('someday.addPlaceholder')}
-            className="min-w-0 flex-1 bg-transparent py-3.5 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+            className="min-w-0 flex-1 bg-transparent py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
         </div>
 
@@ -163,7 +163,7 @@ export function SomedayView({ list }: { list: TaskList }) {
                     onClick={() => toggleTask(item.id)}
                     title={t('someday.unfulfill')}
                     aria-label={t('someday.unfulfillItem', { title: item.title })}
-                    className="flex h-8 w-10 shrink-0 items-center justify-center rounded-md text-amber-500 transition-colors hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-amber-500 transition-colors hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600"
                   >
                     <span aria-hidden>★</span>
                   </button>

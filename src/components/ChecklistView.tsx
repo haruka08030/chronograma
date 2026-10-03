@@ -54,7 +54,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
   }
 
   const row = (item: Task) => (
-    <li key={item.id} className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+    <li key={item.id} className="group/row flex min-h-10 items-center gap-3 rounded-xl px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
       {/* 今日の To-Do の行と同じ大きさ。チェックリストなので四角（押せる範囲は周りに広げて 40px） */}
       <button
         type="button"
@@ -77,7 +77,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
       <button
         type="button"
         onClick={() => toggleTask(item.id)}
-        className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] touch-manipulation ${
+        className={`min-w-0 flex-1 truncate py-2 text-left text-sm touch-manipulation ${
           item.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
         }`}
       >
@@ -103,7 +103,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
         <header className="mb-4 flex items-start justify-between gap-3 px-3">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{displayListName(list.id, list.name)}</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
               {open.length > 0 ? t('checklist.remaining', { count: open.length }) : t('checklist.allChecked')}
             </p>
           </div>
@@ -123,7 +123,7 @@ export function ChecklistView({ list }: { list: TaskList }) {
             }}
             placeholder={t('checklist.addPlaceholder')}
             enterKeyHint="done"
-            className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+            className="min-w-0 flex-1 bg-transparent py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
         </div>
 
