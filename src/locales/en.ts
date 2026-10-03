@@ -863,7 +863,6 @@ export default {
     tabsAria: 'Switch between plans and records',
     noPlanned: 'No planned to-dos, tasks completed this day, or calendar events.',
     executedSection: 'Completed ({{count}})',
-    noExecuted: 'No to-dos were completed on this day.',
     totalLogged: 'Total logged',
     noLogs: 'No logs for this day yet.',
     timeUnset: 'Time not set',
