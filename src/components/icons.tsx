@@ -11,12 +11,19 @@ export interface IconProps {
   style?: CSSProperties
   /** 線の太さ（線のアイコンだけ。既定 2） */
   strokeWidth?: number
+  /** アイコンだけで意味を伝えるとき（ボタンの中でない所）。読み上げる名前 */
+  label?: string
+}
+
+/** 飾りなら読み上げない。`label` があれば画像として名前を読み上げる */
+function a11y(label?: string) {
+  return label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true }
 }
 
 function strokeIcon(d: string) {
-  return function StrokeIcon({ className, style, strokeWidth = 2 }: IconProps) {
+  return function StrokeIcon({ className, style, strokeWidth = 2, label }: IconProps) {
     return (
-      <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth} aria-hidden>
+      <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth} {...a11y(label)}>
         <path strokeLinecap="round" strokeLinejoin="round" d={d} />
       </svg>
     )
@@ -24,9 +31,9 @@ function strokeIcon(d: string) {
 }
 
 function filledIcon(d: string) {
-  return function FilledIcon({ className, style }: IconProps) {
+  return function FilledIcon({ className, style, label }: IconProps) {
     return (
-      <svg className={className} style={style} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <svg className={className} style={style} fill="currentColor" viewBox="0 0 24 24" {...a11y(label)}>
         <path d={d} />
       </svg>
     )
@@ -51,3 +58,17 @@ export const FlagIcon = strokeIcon(ICON_PATHS.flag)
 export const ArrowRightIcon = strokeIcon(ICON_PATHS.arrowRight)
 export const SearchIcon = strokeIcon(ICON_PATHS.search)
 export const OpenPanelIcon = strokeIcon(ICON_PATHS.openPanel)
+export const SunIcon = strokeIcon(ICON_PATHS.sun)
+export const CheckCircleIcon = strokeIcon(ICON_PATHS.checkCircle)
+export const MenuIcon = strokeIcon(ICON_PATHS.menu)
+export const MoonSolidIcon = filledIcon(ICON_PATHS.moonSolid)
+export const MapPinIcon = strokeIcon(ICON_PATHS.mapPin)
+export const ListBulletIcon = strokeIcon(ICON_PATHS.listBullet)
+export const SortIcon = strokeIcon(ICON_PATHS.sort)
+export const MoonIcon = strokeIcon(ICON_PATHS.moon)
+export const SunBrightIcon = strokeIcon(ICON_PATHS.sunBright)
+export const StarIcon = strokeIcon(ICON_PATHS.star)
+export const CartIcon = strokeIcon(ICON_PATHS.cart)
+export const PencilSquareIcon = strokeIcon(ICON_PATHS.pencilSquare)
+export const ChevronUpIcon = strokeIcon(ICON_PATHS.chevronUp)
+export const ChevronDownIcon = strokeIcon(ICON_PATHS.chevronDown)

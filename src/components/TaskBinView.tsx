@@ -9,6 +9,7 @@ import { displayListName } from '../lib/displayListName'
 import type { Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { PathIcon } from './PathIcon'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -82,9 +83,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       <div className="flex-1 space-y-1 px-4 pb-6">
         {rows.length === 0 ? (
           <div className="py-16 text-center">
-            <svg className="mx-auto mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={boxIcon} />
-            </svg>
+            <PathIcon d={boxIcon} className="mx-auto mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" strokeWidth={1} />
             <p className="text-sm text-zinc-400 dark:text-zinc-500">
               {mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
             </p>
@@ -131,9 +130,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
                     title={mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')}
                   >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={RESTORE_ICON} />
-                    </svg>
+                    <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
                     <span className="hidden sm:inline">
                       {mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')}
                     </span>
@@ -151,9 +148,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     title={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
                     aria-label={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
                   >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={DELETE_ICON} />
-                    </svg>
+                    <PathIcon d={DELETE_ICON} className="h-4 w-4" />
                   </button>
                 </div>
               </div>

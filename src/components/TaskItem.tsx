@@ -15,7 +15,7 @@ import { displayListName } from '../lib/displayListName'
 import { PRIORITY_RING_CLASS } from '../lib/priorityColor'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { CalendarIcon, CheckIcon, ClockIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -458,9 +458,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             setRowMenuOpen((o) => !o)
           }}
         >
-          <svg className="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Z" />
-          </svg>
+          <ListBulletIcon className="h-5 w-5 md:h-4 md:w-4" />
         </button>
         {rowMenuOpen && (
           <div
@@ -522,9 +520,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
                 }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200"
               >
-                <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
+                <ArchiveIcon className="h-4 w-4 shrink-0 text-zinc-400" />
                 {t('taskItem.archive')}
               </button>
               <button
@@ -555,9 +551,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         aria-label={t('taskItem.archiveAria')}
         title={t('taskItem.archive')}
       >
-        <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-        </svg>
+        <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
 
       <button

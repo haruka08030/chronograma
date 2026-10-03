@@ -80,6 +80,7 @@ import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
 import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
+import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -150,9 +151,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
   const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   const moon = sleep && (
-    <svg className="mr-0.5 inline h-2.5 w-2.5 -translate-y-px" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
-    </svg>
+    <MoonSolidIcon className="mr-0.5 inline h-2.5 w-2.5 -translate-y-px" />
   )
   const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
@@ -790,9 +789,7 @@ export function WeekCalendarView({
               ${activeEdge < 0 ? 'left-0' : 'right-0'}`}
             aria-hidden
           >
-            <svg className="h-5 w-5 text-accent-600 dark:text-accent-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={activeEdge < 0 ? 'M15.75 19.5 8.25 12l7.5-7.5' : 'm8.25 4.5 7.5 7.5-7.5 7.5'} />
-            </svg>
+            {activeEdge < 0 ? <ChevronLeftIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" /> : <ChevronRightIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" />}
           </div>
         )}
         <div

@@ -7,6 +7,7 @@ import { TodoNavContent } from './TodoNavPanel'
 import { SmartViewRow } from './SmartViewRow'
 import { SyncIndicator } from './SyncIndicator'
 import { ICON_PATHS } from '../lib/iconPaths'
+import { PathIcon } from './PathIcon'
 
 const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
   id: 'stats',
@@ -74,9 +75,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
         >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d={TODO_OPENER_ICON} />
-          </svg>
+          <PathIcon d={TODO_OPENER_ICON} className="w-4 h-4 flex-shrink-0" />
           <span className="flex-1">{t('sidebar.todo')}</span>
         </button>
 

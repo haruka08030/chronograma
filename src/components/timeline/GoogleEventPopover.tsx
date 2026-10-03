@@ -12,7 +12,7 @@ import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCal
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
-import { CloseIcon, TrashIcon } from '../icons'
+import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 
@@ -122,7 +122,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
           <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButton} aria-label={t('googleEdit.openInGoogle')} title={t('googleEdit.openInGoogle')}>
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+            <OpenPanelIcon className="h-4 w-4" strokeWidth={1.75} />
           </a>
         )}
         {editable && (

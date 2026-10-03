@@ -5,6 +5,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { TaskItem } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { SearchIcon } from './icons'
 
 export function SearchResults() {
   const { t } = useTranslation()
@@ -40,9 +41,7 @@ export function SearchResults() {
         <div className="flex-1 px-4 pb-4 space-y-1">
           {results.length === 0 ? (
             <div className="py-16 text-center">
-              <svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
+              <SearchIcon className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-700 mb-3" strokeWidth={1.5} />
               <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('search.empty')}</p>
             </div>
           ) : (

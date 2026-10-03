@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
-import { CalendarIcon } from './icons'
+import { CalendarIcon, CheckCircleIcon, MenuIcon, SunIcon } from './icons'
 
 type TabId = 'planner' | 'todo' | 'calendar' | 'more'
 
@@ -54,18 +54,14 @@ export function MobileBottomNav({
       id: 'planner',
       label: t('nav.planner'),
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-        </svg>
+        <SunIcon className="h-5 w-5" strokeWidth={1.75} />
       ),
     },
     {
       id: 'todo',
       label: t('nav.todo'),
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <CheckCircleIcon className="h-5 w-5" strokeWidth={1.75} />
       ),
     },
     {
@@ -79,9 +75,7 @@ export function MobileBottomNav({
       id: 'more',
       label: t('nav.more'),
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-        </svg>
+        <MenuIcon className="h-5 w-5" strokeWidth={1.75} />
       ),
     },
   ]

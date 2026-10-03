@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isSubmitEnter } from '../lib/keyboard'
+import { PlusIcon } from './icons'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -25,9 +26,7 @@ export function CalendarAddTaskButton({
                   hover:bg-zinc-200/70 hover:text-zinc-600 dark:hover:bg-zinc-700/70 dark:hover:text-zinc-200
                   ${className}`}
     >
-      <svg className="h-full w-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m-7-7h14" />
-      </svg>
+      <PlusIcon className="h-full w-full" />
     </button>
   )
 }

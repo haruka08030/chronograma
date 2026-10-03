@@ -19,7 +19,7 @@ import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/ta
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useEscapeLayer'
-import { CalendarIcon, ClockIcon, CloseIcon, RepeatIcon } from './icons'
+import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 
@@ -278,10 +278,7 @@ export function TaskDetail({
                              text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-500/10
                              transition-colors flex-shrink-0"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                  </svg>
+                  <MapPinIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">{t('taskDetail.openInMaps')}</span>
                 </a>
               )}

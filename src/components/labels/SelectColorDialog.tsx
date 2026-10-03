@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { hexToHsv, hsvToHex } from '../../lib/colorMath'
 import { Modal, ModalTitle } from '../ui/Modal'
-import { CheckIcon } from '../icons'
+import { CheckIcon, PencilSquareIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 
 const CHECK = (
@@ -105,9 +105,7 @@ export function SelectColorDialog({
                 title={t('labels.eyedropper')}
                 className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 4.5l4.5 4.5M13.5 6l4.5 4.5-9 9H4.5V15l9-9zM16.5 3a2.121 2.121 0 013 3" />
-                </svg>
+                <PencilSquareIcon className="h-5 w-5" strokeWidth={1.75} />
               </button>
             )}
           </div>

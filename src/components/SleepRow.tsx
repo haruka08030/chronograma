@@ -6,7 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
-import { CloseIcon } from './icons'
+import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 
@@ -25,9 +25,7 @@ const floorTo5 = (min: number) => {
 }
 
 const MoonIcon = () => (
-  <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-300" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-    <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
-  </svg>
+  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-300" />
 )
 
 /**

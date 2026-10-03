@@ -29,6 +29,7 @@ import { addClockMinutes } from '../lib/clockTime'
 import { appToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
@@ -422,9 +423,7 @@ export function HabitsView() {
                   title={t('common.delete')}
                   aria-label={t('common.delete')}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={iconTrash} />
-                  </svg>
+                  <PathIcon d={iconTrash} className="w-4 h-4" strokeWidth={1.5} />
                 </button>
               </div>
               <input

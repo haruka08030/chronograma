@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { tip } from '../lib/tooltip'
 import type { SmartView } from '../store/taskStore'
+import { PathIcon } from './PathIcon'
 
 /** サイドバーと To‑Do パネルで共通のスマートビュー行 */
 /** 1 文字ショートカットのある画面（マウスを乗せるとキーを出す） */
@@ -25,9 +26,7 @@ export function SmartViewRow({ view, icon, isSelected, onSelect }: {
           ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
           : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
     >
-      <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-      </svg>
+      <PathIcon d={icon} className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1">{t(`sidebar.views.${view}`)}</span>
     </button>
   )
