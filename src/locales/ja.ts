@@ -631,6 +631,11 @@ export default {
     archive: 'アーカイブ',
     archiveAria: 'アーカイブ',
   },
+  taskMenu: {
+    nextWeek: '来週',
+    moveTo: 'リストへ移動',
+    open: '詳細を開く',
+  },
   taskBin: {
     count: '{{count}} 件',
     subtaskCount: 'サブタスク {{count}} 件',

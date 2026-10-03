@@ -30,6 +30,7 @@ import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
 import { TaskDetail } from './TaskDetail'
+import { TaskContextMenu } from './TaskContextMenu'
 import { QuickAdd } from './QuickAdd'
 import type { Priority, Task } from '../types/task'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
@@ -254,6 +255,7 @@ export function TaskList() {
   /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [cursorVisible, setCursorVisible] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
 
   const clearNestPreview = useCallback(() => {
     if (previewParentIdRef.current === null) return
@@ -678,6 +680,13 @@ export function TaskList() {
       reveal: selected.size > 0,
       onToggle: () => toggleInSelection(taskId),
       cursor: cursorVisible && cursorId === taskId,
+      onContextMenu: (e) => {
+        setCursorId(taskId)
+        setCursorVisible(false)
+        // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる
+        const ids = selected.has(taskId) && selected.size > 1 ? [...selected] : [taskId]
+        setContextMenu({ x: e.clientX, y: e.clientY, taskIds: ids })
+      },
     }),
     [selected, toggleInSelection, cursorVisible, cursorId],
   )
@@ -747,7 +756,7 @@ export function TaskList() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing || e.altKey) return
-      if (isTypingTarget(document.activeElement) || document.querySelector('[role="dialog"]')) return
+      if (isTypingTarget(document.activeElement) || document.querySelector('[role="dialog"], [role="menu"]')) return
       const k = listKeysRef.current
       const hasSelection = selectedRef.current.size > 0
       const cursor = k.cursorId && k.flatActiveIds.includes(k.cursorId) ? k.cursorId : null
@@ -1371,6 +1380,13 @@ export function TaskList() {
 
       {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
       {completeWithLogModal}
+      {contextMenu && (
+        <TaskContextMenu
+          {...contextMenu}
+          onClose={() => setContextMenu(null)}
+          onOpenDetail={openDetail}
+        />
+      )}
     </div>
   )
 }

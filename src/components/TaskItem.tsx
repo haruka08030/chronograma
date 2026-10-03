@@ -62,6 +62,8 @@ export type TaskItemSelection = {
   reveal: boolean
   /** ↑↓ で選んでいる行（キー操作中だけ枠を出す） */
   cursor?: boolean
+  /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは選択に使う） */
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
@@ -246,7 +248,13 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       onPointerCancel={cancelLongPress}
       onContextMenu={(e) => {
         // 長押しで出る OS のメニューを抑える（選択に使う）
-        if (suppressClickRef.current || longPressRef.current) e.preventDefault()
+        if (suppressClickRef.current || longPressRef.current) {
+          e.preventDefault()
+          return
+        }
+        if (editing || !selection?.onContextMenu) return
+        e.preventDefault()
+        selection.onContextMenu(e)
       }}
       onClickCapture={(e) => {
         // 長押しで選択した直後の click で詳細・編集が開かないように
