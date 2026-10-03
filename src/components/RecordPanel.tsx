@@ -82,8 +82,6 @@ export function RecordPanel({
 
   // 記録中でも始められる（前の記録を保存して切り替える）
   const canStartTimer = viewingToday
-  // いま計っているものは「もう一度始める」に出さない
-  const recentChoices = recent.filter((r) => r.title !== activeTimer?.taskTitle)
   // 未来の日は「後から」記録できない
   const canLogLater = dateKey <= toDateKey(zonedNow())
 
@@ -255,22 +253,35 @@ export function RecordPanel({
           </button>
         )}
       </div>
-      {canStartTimer && recentChoices.length > 0 && (
+      {canStartTimer && recent.length > 0 && (
         <div className="-mt-1 flex flex-wrap items-center gap-1.5">
-          {recentChoices.map((r) => (
-            <button
-              key={r.title}
-              type="button"
-              onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
-              {...tip(t('quickLog.resume', { title: r.title }))}
-              aria-label={t('quickLog.resume', { title: r.title })}
-              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 max-w-[10rem] gap-1.5 md:min-h-7')}
-            >
-              {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
-              <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={colorVars(categoryHex(r.category, logCategoryColors))} />
-              <span className="truncate">{r.title}</span>
-            </button>
-          ))}
+          {/* いま計っているものも残し、記録中の見た目にする（外すと隣のチップが押した場所へ動き、二度押しで別の記録が始まる） */}
+          {recent.map((r) => {
+            const running = r.title === activeTimer?.taskTitle
+            const hexVars = colorVars(categoryHex(r.category, logCategoryColors))
+            return (
+              <button
+                key={r.title}
+                type="button"
+                aria-pressed={running}
+                onClick={() => {
+                  if (!running) startTimer(r.title, r.category ? [r.category] : [])
+                }}
+                {...tip(running ? t('activityLog.timerRunning') : t('quickLog.resume', { title: r.title }))}
+                aria-label={running ? `${r.title}（${t('activityLog.timerRunning')}）` : t('quickLog.resume', { title: r.title })}
+                style={running ? hexVars : undefined}
+                className={chipClass({ variant: 'outline', size: 'md', selected: running }, `min-h-9 max-w-[10rem] gap-1.5 md:min-h-7 ${running ? 'cursor-default' : ''}`)}
+              >
+                {running ? (
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-current" />
+                ) : (
+                  // 分類の色の ▶ — 押すとこの記録をもう一度始める
+                  <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={hexVars} />
+                )}
+                <span className="truncate">{r.title}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
