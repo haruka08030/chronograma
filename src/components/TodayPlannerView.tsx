@@ -208,18 +208,21 @@ export function TodayPlannerView() {
   }
 
   /**
-   * 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤）。
-   * 時刻を入れた行でも、明日までの締切は時刻の前に出す（締切は焦らせてよい。予定を入れても消さない）。
+   * 行の右端: 時刻があれば時刻、締切があれば締切（今日なら「今日まで」、過ぎていれば赤）。
+   * 今日やると決めた行（`committed`）は、過ぎた締切と今日の締切（明日へ回せない）だけ出す。
+   * 明日以降の締切は、今日やると決めたあとでは何も変えないので出さない。
+   * これから選ぶ行（やり残し・候補）は締切が選ぶ材料なので全部出す。
    * 予定の時間が過ぎても終わっていなければ時刻も赤くする
    */
-  const rowMeta = (task: Task): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
+  const rowMeta = (task: Task, committed: boolean): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
     const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
-    const due = dueMeta(task)
+    const dueAll = dueMeta(task)
+    const due = committed && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today' ? null : dueAll
     if (!timed) return { time: null, timeOver: false, due }
     return {
       time: `${task.startTime}–${task.endTime}`,
       timeOver: planTiming(task, now).ended,
-      due: due && due.tone !== 'muted' ? due : null,
+      due,
     }
   }
   const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
@@ -230,8 +233,8 @@ export function TodayPlannerView() {
     return { text, tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
   }
 
-  const renderRow = (task: Task, action?: React.ReactNode) => {
-    const meta = rowMeta(task)
+  const renderRow = (task: Task, action?: React.ReactNode, committed = false) => {
+    const meta = rowMeta(task, committed)
     const hasRowExtras = !task.completed && task.tags.length > 0
     const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
     return (
@@ -427,7 +430,7 @@ export function TodayPlannerView() {
 
         <ul className="px-3">
           {overdue.map((task) => renderRow(task, timerButton(task)))}
-          {open.map((task) => renderRow(task, timerButton(task)))}
+          {open.map((task) => renderRow(task, timerButton(task), true))}
         </ul>
 
         {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
