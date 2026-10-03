@@ -1,3 +1,5 @@
+import type { SectionGrouping, SortMode } from '../store/storeTypes'
+
 const TODO_SURFACE_VIEWS = new Set(['all', 'today', 'upcoming', 'overdue'])
 
 /** 検索ヘッダーを出す To‑Do 本体ビュー（リスト選択 = null を含む） */
@@ -12,4 +14,13 @@ export function isTodoNavView(selectedView: string | null | undefined): boolean 
     selectedView === 'archived' ||
     selectedView === 'deleted'
   )
+}
+
+/** セクションの塊で分けるか。手動はセクションの中で並べ替えるので常に分ける。サイドバーのセクション行もこれに合わせる */
+export function groupsBySection(
+  sortMode: SortMode,
+  sectionGrouping: SectionGrouping,
+  scope: keyof SectionGrouping,
+): boolean {
+  return sortMode === 'manual' || sectionGrouping[scope]
 }

@@ -13,7 +13,7 @@ import {
 } from '../lib/mainListTasks'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { isTodoSurfaceView } from '../lib/todoSurfaceView'
+import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
@@ -404,7 +404,7 @@ export function TaskList() {
   const multiListSectionMode = !selectedListId && isTodoSurfaceView(selectedView)
   /** 手動以外の並び順でセクションの塊を出すか。リストと「すべて」は lists、今日・近日中・期限切れは dueViews */
   const groupingScope = selectedListId || selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
-  const groupBySection = sortMode === 'manual' || sectionGrouping[groupingScope]
+  const groupBySection = groupsBySection(sortMode, sectionGrouping, groupingScope)
   const showSectionBlocks = useMemo(() => {
     if (!groupBySection) return false
     if (selectedListId) return listSectionsOrdered.length > 0
