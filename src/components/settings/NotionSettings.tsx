@@ -13,12 +13,13 @@ import {
   type NotionStatus,
 } from '../../lib/notion'
 import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync'
-import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
 
-const select =
-  'max-w-[12rem] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+const select = fieldClass({ size: 'sm' }, 'max-w-[12rem]')
+const field = fieldClass({}, 'w-full')
 
 type Connected = Extract<NotionStatus, { connected: true }>
 

@@ -18,6 +18,7 @@ import { TaskRemindersField } from './TaskRemindersField'
 import { useEscapeLayer } from '../hooks/useHotkey'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { fieldClass } from './ui/fieldClass'
 import { DateField } from './DateField'
 import { useTextAreaEntry, useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -218,10 +219,7 @@ export function TaskDetail({
                 {...memoEntry}
                 placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
                 rows={isLog ? 4 : 2}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
-                           resize-none min-h-[4rem]"
+                className={fieldClass({}, 'w-full resize-none min-h-[4rem]')}
               />
             ) : task.description.trim() ? (
               <div
@@ -271,9 +269,7 @@ export function TaskDetail({
                 value={task.location ?? ''}
                 onChange={(e) => updateTask(task.id, { location: e.target.value || null })}
                 placeholder={t('taskDetail.locationPlaceholder')}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
+                className={fieldClass({}, 'min-w-0 flex-1')}
               />
               {task.location?.trim() && (
                 <a
@@ -329,9 +325,7 @@ export function TaskDetail({
                         aria-expanded={open}
                         aria-haspopup="dialog"
                         onClick={toggle}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors
-                          bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                          ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
+                        className={fieldClass({ active: open }, 'flex items-center gap-2')}
                       >
                         <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
@@ -348,9 +342,7 @@ export function TaskDetail({
                       <TimeInput
                         value={tv.dueTime ?? ''}
                         onChange={(v) => updateTimes({ dueTime: v || null })}
-                        className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                   bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                   focus:ring-2 focus:ring-accent-500/40"
+                        className={fieldClass({}, 'w-[7rem]')}
                       />
                     </div>
                   )}
@@ -397,8 +389,7 @@ export function TaskDetail({
                               recurrence: { ...task.recurrence!, type: task.recurrence!.type, interval },
                             })
                           }}
-                          className="w-12 rounded-md border border-zinc-200 px-1.5 py-1 text-center text-xs text-zinc-900 outline-none
-                                     bg-transparent dark:border-zinc-700 dark:text-zinc-100 focus:ring-2 focus:ring-accent-500/40"
+                          className={fieldClass({ size: 'sm' }, 'w-14 text-center')}
                         />
                         <span>{t(`taskDetail.recurrenceTypes.${task.recurrence.type}`)}</span>
                       </>
@@ -421,9 +412,7 @@ export function TaskDetail({
                       aria-expanded={open}
                       aria-haspopup="dialog"
                       onClick={toggle}
-                      className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors
-                        bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                        ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
+                      className={fieldClass({ active: open }, 'flex items-center gap-2')}
                     >
                       <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
@@ -439,18 +428,14 @@ export function TaskDetail({
                     <TimeInput
                       value={tv.startTime ?? ''}
                       onChange={(v) => updateTimes({ startTime: v || null })}
-                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-[7rem]')}
                     />
                     <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
                     <TimeInput
                       value={tv.endTime ?? ''}
                       onChange={(v) => updateTimes({ endTime: v || null })}
                       pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
-                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-[7rem]')}
                     />
                     {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
                   </div>
@@ -486,7 +471,7 @@ export function TaskDetail({
                       value={tv.dueDate ?? null}
                       onChange={(v) => updateTimes({ dueDate: v })}
                       ariaLabel={t('taskDetail.logDate')}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
@@ -496,9 +481,7 @@ export function TaskDetail({
                     <TimeInput
                       value={tv.startTime ?? ''}
                       onChange={(v) => updateTimes({ startTime: v || null })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                 </div>
@@ -523,7 +506,7 @@ export function TaskDetail({
                         updateTimes({ endDate: v !== tv.dueDate ? v : null })
                       }}
                       ariaLabel={t('taskDetail.logEndDate')}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
@@ -534,9 +517,7 @@ export function TaskDetail({
                       value={tv.endTime ?? ''}
                       onChange={(v) => updateTimes({ endTime: v || null })}
                       pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                 </div>
@@ -581,9 +562,7 @@ export function TaskDetail({
                 // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
                 {...tagEntry}
                 placeholder={t('taskDetail.tagPlaceholder')}
-                className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
+                className={fieldClass({}, 'min-w-0 flex-1')}
               />
               <button
                 type="button"
@@ -619,9 +598,7 @@ export function TaskDetail({
                         )
                       }
                     }}
-                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40"
+                    className={fieldClass({}, 'min-w-0 flex-1')}
                   >
                     {lists
                       .slice()
@@ -648,9 +625,7 @@ export function TaskDetail({
                         const v = e.target.value
                         updateTask(task.id, { sectionId: v === '' ? null : v })
                       }}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     >
                       <option value="">{t('taskDetail.sectionNone')}</option>
                       {sectionsForTaskList.map((s) => (

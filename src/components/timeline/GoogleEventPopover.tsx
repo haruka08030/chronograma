@@ -21,6 +21,7 @@ import { shortcutTip, tip } from '../../lib/tooltip'
 import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
+import { fieldClass } from '../ui/fieldClass'
 
 const WIDTH = 320
 
@@ -71,8 +72,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0))
-  const fieldClass =
-    'rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-sm text-zinc-800 outline-none focus:ring-2 focus:ring-accent-500/40 dark:border-zinc-600 dark:text-zinc-100'
+  const smallField = fieldClass({ size: 'sm' })
 
   const commitTitle = () => {
     if (titleDraft !== null) void renameGoogleEvent(event, titleDraft)
@@ -171,14 +171,14 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
                   value={event.date}
                   onChange={(v) => commitTiming({ date: v })}
                   ariaLabel={t('googleEdit.date')}
-                  className={fieldClass}
+                  className={smallField}
                 />
               </div>
               {event.startTime && event.endTime && (
                 <div className="flex w-full items-center gap-1.5">
-                  <TimeInput value={event.startTime} onChange={(v) => v && commitTiming({ startTime: v })} className={`w-[5.5rem] ${fieldClass}`} />
+                  <TimeInput value={event.startTime} onChange={(v) => v && commitTiming({ startTime: v })} className={`w-[5.5rem] ${smallField}`} />
                   <span className="text-zinc-400">–</span>
-                  <TimeInput value={event.endTime} onChange={(v) => v && commitTiming({ endTime: v })} className={`w-[5.5rem] ${fieldClass}`} />
+                  <TimeInput value={event.endTime} onChange={(v) => v && commitTiming({ endTime: v })} className={`w-[5.5rem] ${smallField}`} />
                 </div>
               )}
             </div>

@@ -6,6 +6,7 @@ import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
 import { pad2 } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
+import { fieldClass } from './ui/fieldClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -178,9 +179,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
             value={endValue}
             min={toLocalInputValue(started)}
             onChange={(e) => setEndValue(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm
-                       text-zinc-900 outline-none focus:border-accent-500
-                       dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           />
           <button
             type="button"

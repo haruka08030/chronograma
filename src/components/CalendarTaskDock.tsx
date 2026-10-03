@@ -15,6 +15,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { EmptyState } from './ui/EmptyState'
 import { CheckCircleIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { fieldClass } from './ui/fieldClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 export function CalendarTaskDock() {
@@ -100,7 +101,7 @@ export function CalendarTaskDock() {
             id="calendar-dock-list"
             value={dockListId}
             onChange={(e) => setDockListId(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-900 outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           >
             <option value={UNSCHEDULED}>{t('calendarDock.unscheduled')}</option>
             {sortedLists.filter((l) => !excludedListIds.has(l.id)).map((l) => (

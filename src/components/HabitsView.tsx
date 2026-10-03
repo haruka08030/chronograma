@@ -40,6 +40,7 @@ import { EmptyState } from './ui/EmptyState'
 import { CheckIcon, RepeatIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
+import { fieldClass } from './ui/fieldClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -147,7 +148,7 @@ function HabitTimeFields({
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
         </div>
       ) : null}
@@ -158,14 +159,14 @@ function HabitTimeFields({
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
             value={endTime}
             onChange={onEndTimeChange}
             pickerDefault={startTime ? addClockMinutes(startTime, 60) : undefined}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
         </div>
       ) : null}
@@ -423,7 +424,7 @@ export function HabitsView() {
                   if (e.key === 'Escape') cancelEdit()
                 }}
                 placeholder={t('habits.nameShort')}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
+                className={fieldClass({}, 'w-full')}
               />
               <ColorPicker color={editColor} onPick={setEditColor} />
               <div className="flex gap-6 text-sm">
@@ -652,7 +653,7 @@ export function HabitsView() {
                   if (e.key === 'Escape') closeComposer()
                 }}
                 placeholder={t('habits.placeholderName')}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({}, 'w-full')}
               />
               <ColorPicker color={newColor} onPick={setNewColor} />
               <div className="flex gap-6 text-sm">

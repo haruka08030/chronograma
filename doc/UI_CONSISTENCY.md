@@ -40,6 +40,7 @@
 | 予定の色・時刻の判断 | 色は `useTaskColor`（記録は色＝ラベル、予定は色だけ）、「予定どおり記録」「終わった予定」は `planTiming`。予定カードとメニューで同じ | `hooks/useTaskColor.ts`・`lib/planTiming.ts` |
 | 色選択 | 丸は 24px・選択中は ✓ でどこでも同じ。列の数は置き場所の幅で決める（広い所は 12 列、ポップオーバーは 6 列）。ラベル編集の「色を選択」は自由な色を作る別の役割なので別の格子 | `components/ui/ColorSwatches.tsx` |
 | 追加の入力欄 | `InlineAddInput`。細い枠に ＋ と文字、押すと薄い背景（今日の計画だけ枠の代わりに下線、`underline`）。Enter で追加して続けて書ける、Esc で書いた分を消す。外したときは書いた分を残す（カレンダーの中・サブタスクは足す）。今日・To-Do・買い物・いつか（印は ☆）・カレンダーの中（月のマス・終日行は小さい版）・サブタスク | `components/ui/InlineAddInput.tsx` |
+| 入力欄 | `fieldClass({ size, active })`。地なし・細い枠（zinc-200、ダーク zinc-700）・角丸 8px・フォーカスで藍のリング・text-sm。size: md（px-3 py-2、詳細・ダイアログ・連携の設定・ログイン）/ sm（px-2 py-1.5、習慣の時刻・タイマーの終了時刻・設定の行の選択・カレンダーの横のリスト選択・リストの種類・記録の時刻・Google の予定の日時・時間帯）。`disabled` で薄く、`aria-invalid` で赤い枠、ポップオーバーを開いている欄は `active`。`input`・`select`・`textarea` と、欄のふりをするボタン（`DateField`・期限/予定日・時間帯）に使う。その場で名前を書き換える欄・`InlineAddInput`・チップやメニューの形の選択・検索の欄・ラベル編集の行・リスト名の欄（ナビ）・予定作成カードの題とリスト・睡眠の行の時刻には使わない | `components/ui/fieldClass.ts` |
 | チップ | `chipClass({ variant, size })`。形はピル。見るだけのもの（To-Do 行のタグ・絞り込み・タイマーのタグ）は `fill`（藍の薄い塗り）、押して選ぶもの（記録のラベル・最近の記録）は `outline`（細い枠、選んだら色の塗り）、足すもの（＋）は `add`（点線の枠） | `components/ui/chipClass.ts` |
 | 開閉する見出し | `DisclosureButton`。小さな ＞ が開くと下を向く。色は見出しの役割で `alert`（やり残し＝赤）/ `default`（候補）/ `muted`（完了）。今日の計画と To-Do の「完了」 | `components/ui/Disclosure.tsx` |
 | 空状態 | `EmptyState`。線のアイコン＋中央。画面（To-Do・ゴミ箱・検索・いつか・習慣）は `lg`、パネルの中（日パネル・時間未定のタスク）は `sm`。一覧の途中の一言（「この日の予定はなし」・メニューの「見つかりません」）は文字だけ | `components/ui/EmptyState.tsx` |
