@@ -82,6 +82,7 @@ import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
 import { dateFnsLocale, toDateKey } from '../lib/dateKey'
+import { minutesToTime } from '../lib/clockTime'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -468,7 +469,7 @@ export function WeekCalendarView({
         const limit = logLimitRef.current(prev.dueDate)
         if (limit !== null && timeToMinutes(endTime) > limit) {
           if (timeToMinutes(startTime) >= limit) return
-          endTime = `${String(Math.floor(limit / 60)).padStart(2, '0')}:${String(limit % 60).padStart(2, '0')}`
+          endTime = minutesToTime(limit)
         }
       }
       updateTask(taskId, { startTime, endTime })
@@ -585,7 +586,7 @@ export function WeekCalendarView({
         if (limit !== null) {
           if (timeToMinutes(startTime) >= limit) return
           if (timeToMinutes(endTime) > limit || endTime <= startTime) {
-            endTime = `${String(Math.floor(limit / 60)).padStart(2, '0')}:${String(limit % 60).padStart(2, '0')}`
+            endTime = minutesToTime(limit)
           }
         }
         asOneUndo(() => {
@@ -1008,7 +1009,7 @@ export function WeekCalendarView({
                           onCheck={() => {
                             // 今より先までの予定は、今までの分だけ記録にする
                             const end = limitMin !== null && timeToMinutes(e.endTime!) > limitMin
-                              ? `${String(Math.floor(limitMin / 60)).padStart(2, '0')}:${String(limitMin % 60).padStart(2, '0')}`
+                              ? minutesToTime(limitMin)
                               : e.endTime!
                             addCompletedTaskWithTime(e.summary, key, e.startTime!, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
                           }}

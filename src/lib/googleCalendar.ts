@@ -5,6 +5,7 @@ import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
+import { pad2 } from './clockTime'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -216,9 +217,6 @@ export function localizeGoogleError(
   return message
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, '0')
-}
 
 function formatYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`

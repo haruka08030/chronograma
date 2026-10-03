@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
+import { pad2 } from '../lib/clockTime'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -220,11 +221,9 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
 
 /** `datetime-local` が受け取るローカル時刻の文字列 */
 function toLocalInputValue(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
 function formatStarted(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }

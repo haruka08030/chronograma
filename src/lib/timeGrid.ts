@@ -1,4 +1,7 @@
 import i18n from '../i18n/config'
+import { minutesToTime } from './clockTime'
+
+export { timeToMinutes } from './clockTime'
 
 export const HOUR_HEIGHT = 60
 export const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -13,19 +16,13 @@ export function yToTime(y: number): string {
   const totalMinutes = (y / HOUR_HEIGHT) * 60
   const snapped = Math.round(totalMinutes / SNAP_MINUTES) * SNAP_MINUTES
   const clamped = Math.max(0, Math.min(snapped, 24 * 60 - SNAP_MINUTES))
-  const h = Math.floor(clamped / 60)
-  const m = clamped % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  return minutesToTime(clamped)
 }
 
 export function formatTimeLabel(hour: number): string {
   return `${hour}:00`
 }
 
-export function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
-}
 
 /** 分単位の長さを日本語表示（例: 1時間15分） */
 /** 分を「1時間15分」/「1h 15m」のように表示の言語で書く */

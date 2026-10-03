@@ -50,6 +50,7 @@
 | 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切。時刻つきはタイムラインの予定 | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
 | To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
 | 日付キー | `yyyy-MM-dd` にするのは `toDateKey`、戻すのは `fromDateKey`（正午にして日付がずれないようにする）。date-fns の locale は `dateFnsLocale(i18n.resolvedLanguage)` | `lib/dateKey.ts` |
+| 時刻 `HH:MM` | 保存済みの時刻 → 分は `timeToMinutes`（欠けた分は 0）、入力の検証は `toMinutes`（不正なら null）。分 → 時刻は `minutesToTime`（折り返さず 24:00 も書ける）、24 時で折り返すのは `addClockMinutes`。Date の時刻は `clockOf`、0 埋めは `pad2` | `lib/clockTime.ts` |
 | 習慣の達成 | 習慣画面・今日画面・週カレンダーとも、押すと付き、もう一度押すと外す（その日の習慣の記録も外れる） | ストアの `toggleHabitDate` |
 | 記録を足して完了 | 時刻つきの予定の完了の丸は「記録して完了」を開く（To-Do・今日・カレンダー・日パネル）。予定カードは「完了」と「予定どおり記録」を別のボタンにする。買い物・いつかは記録に関係しないので聞かない。記録の追加と完了は 1 つの操作で、元に戻すも 1 回 | `hooks/useCompleteWithLog.tsx` |
 | タイマーの切り替え | どこからでも切り替えられる。前の記録は保存し「○○の記録を保存して切り替えました」と知らせる。行・予定カードは `startTimerForTask` を通す | `lib/timerDrop.ts`・ストアの `startTimer` |
@@ -88,12 +89,8 @@
 ### 日付・時刻の処理の重複
 
 - 長さの表示: 共通は `lib/timeGrid.ts` `formatDuration`（言語に合わせる）。`SleepStatsCard`・`WeekReviewCard` は自前、`CalendarView` の `formatMinutesShort` は短い形
-- HH:MM → 分: `lib/clockTime.ts` `toMinutes`、`lib/timeGrid.ts` `timeToMinutes`、ほか 4 つの `toMin`
-- 分 → HH:MM: `useTimelineDrop`・`useTimelineDrag` の `minutesToTime`（同じ）、ほか 6 か所以上
-- 0 埋め: `pad2` が 2 つ、`pad`・`p2`・`p`
-- 今の HH:MM: `nowRounded`・`nowHm`・`hhmm`・`floorTo5`
 - 日付の表示形式: i18n キー、`isJa ? … : …`、直書きが混在。「月日（曜）」の括弧が半角と全角で混在
-- → `lib/clockTime.ts` を広げる、`useDateFormat()`
+- → `useDateFormat()`
 
 ### ショートカット
 

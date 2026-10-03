@@ -1,5 +1,6 @@
 import type { Task } from '../types/task'
 import { appTimeZone, convertWall } from './timeZone'
+import { pad2 } from './clockTime'
 
 /**
  * タスク・記録ごとのタイムゾーン（Google カレンダーの予定の「タイムゾーン」と同じ）。
@@ -17,12 +18,11 @@ export type TaskTimeFields = Pick<
   'isTimeLog' | 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'
 >
 
-const p2 = (n: number) => String(n).padStart(2, '0')
 
 function nextDay(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
   const dt = new Date(Date.UTC(y!, m! - 1, d! + 1))
-  return `${dt.getUTCFullYear()}-${p2(dt.getUTCMonth() + 1)}-${p2(dt.getUTCDate())}`
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`
 }
 
 /** 開始日＋開始〜終了の時刻を、別のタイムゾーンに。終了日は日をまたぐときだけ */

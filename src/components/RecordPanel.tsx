@@ -10,21 +10,17 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
-import { addClockMinutes } from '../lib/clockTime'
 import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
 
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
@@ -102,7 +98,7 @@ export function RecordPanel({
     if (viewingToday) {
       const e = nowRounded()
       const prevEnd = dayLogs
-        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && toMin(x.endTime) < toMin(e))
+        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
         .map((x) => x.endTime!)
         .sort()
         .at(-1)
@@ -116,10 +112,10 @@ export function RecordPanel({
   }
 
   const name = title.trim() || category.trim()
-  const overnight = Boolean(start && end && toMin(end) < toMin(start))
+  const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
   const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
-  const inFuture = viewingToday && Boolean(start && end) && (overnight || toMin(end) > nowMin)
+  const inFuture = viewingToday && Boolean(start && end) && (overnight || timeToMinutes(end) > nowMin)
   const canSaveManual = Boolean(name && start && end && start !== end && !inFuture)
 
   const submit = () => {

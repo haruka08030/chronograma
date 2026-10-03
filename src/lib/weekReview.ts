@@ -1,4 +1,4 @@
-import { addDays, format, startOfWeek } from 'date-fns'
+import { addDays, startOfWeek } from 'date-fns'
 import type { Task } from '../types/task'
 import type { Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
@@ -13,6 +13,7 @@ import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
+import { clockOf } from './clockTime'
 
 export interface WeekReviewDay {
   dateKey: string
@@ -51,7 +52,7 @@ export function getWeekReview(
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = toDateKey(now)
-  const nowHm = format(now, 'HH:mm')
+  const nowHm = clockOf(now)
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
   let timedPlanned = 0

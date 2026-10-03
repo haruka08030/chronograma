@@ -3,6 +3,7 @@ import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './ti
 import { dragBlockDurationMinutes } from './taskTimeRange'
 import { addDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
+import { minutesToTime } from './clockTime'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -68,11 +69,6 @@ export interface DragPreview {
   label: string
 }
 
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
 
 /**
  * ドラッグ作成の範囲（分）。Google カレンダーと同じく、押した 15 分枠の頭から始め、

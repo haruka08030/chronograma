@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { HOUR_HEIGHT, yToTime, timeToMinutes } from './timeGrid'
 import { markTimelineDragOver } from './nativeTaskDragGhost'
 import { acceptTaskDrag, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from './taskDrag'
+import { minutesToTime } from './clockTime'
 
 export { TASK_DND_TYPE, GOOGLE_EVENT_DND_TYPE, TASK_MULTI_DND_TYPE }
 const DEFAULT_DURATION_MIN = 60
@@ -55,11 +56,6 @@ export interface DropPreview {
   label: string
 }
 
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
 
 interface UseTimelineDropOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
