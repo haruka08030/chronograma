@@ -7,6 +7,7 @@ import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { MoonSolidIcon } from '../icons'
+import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 
 /**
@@ -54,6 +55,13 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
     <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   )
   const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
+  // 締切がこの日まで（過ぎていれば赤、当日はオレンジ）の予定は、題名の前に点を付ける（予定を入れても締切を見失わない）
+  const dueTone = !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
+    ? (task.dueDate < dayKey ? 'overdue' : 'today')
+    : null
+  const dueDot = dueTone && (
+    <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
+  )
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
   const compact = height < 32
 
@@ -91,12 +99,12 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
     >
       {compact ? (
         <span className="block truncate">
-          <span className="font-medium">{moon}{doneMark}{task.title}</span>
+          <span className="font-medium">{dueDot}{moon}{doneMark}{task.title}</span>
           <span className="opacity-80">{t('common.listSeparator')}{task.startTime}</span>
         </span>
       ) : (
         <>
-          <span className="block truncate font-medium">{moon}{doneMark}{task.title}</span>
+          <span className="block truncate font-medium">{dueDot}{moon}{doneMark}{task.title}</span>
           <span className="block text-[10px] opacity-80">
             {task.startTime} – {task.endTime}
           </span>

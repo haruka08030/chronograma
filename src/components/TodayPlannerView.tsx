@@ -206,11 +206,17 @@ export function TodayPlannerView() {
     dismissReminderPrompt()
   }
 
-  /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
-  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
-    if (task.startTime && task.endTime && task.scheduledDate === dateKey) {
-      return { text: `${task.startTime}–${task.endTime}`, tone: 'muted' }
-    }
+  /**
+   * 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤）。
+   * 時刻を入れた行でも、明日までの締切は時刻の前に出す（締切は焦らせてよい。予定を入れても消さない）
+   */
+  const rowMeta = (task: Task): { time: string | null; due: ReturnType<typeof dueMeta> } => {
+    const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
+    const due = dueMeta(task)
+    if (!timed) return { time: null, due }
+    return { time: `${task.startTime}–${task.endTime}`, due: due && due.tone !== 'muted' ? due : null }
+  }
+  const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (!task.dueDate) return null
     if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'today' }
     const text = t('planner.dueOn', { date: shortDate(task.dueDate) })
@@ -273,14 +279,11 @@ export function TodayPlannerView() {
             </div>
           )}
         </div>
-        {meta && !task.completed && (
-          <span
-            className={`shrink-0 text-xs tabular-nums ${
-              META_TONE_CLASS[meta.tone]
-            }`}
-          >
-            {meta.text}
-          </span>
+        {meta.due && !task.completed && (
+          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]}`}>{meta.due.text}</span>
+        )}
+        {meta.time && !task.completed && (
+          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted}`}>{meta.time}</span>
         )}
         {action}
       </li>
