@@ -19,6 +19,11 @@ export interface SyncBaseline {
   tasks: Record<string, number>
   habits: Record<string, number>
   sections: Record<string, number>
+  /**
+   * 前回同期した時点の習慣ごとの達成日。達成日だけは行ごとの勝ち負けでなく日ごとに合わせる
+   * （スマホで月曜・PC で火曜にチェックしたとき、どちらも残す）。古い控えには無い
+   */
+  habitDates?: Record<string, string[]>
 }
 
 /**
@@ -79,6 +84,37 @@ function mergeKind<T extends { id: string }>(
   return { merged, deleteRemote }
 }
 
+/**
+ * 習慣の達成日を日ごとに三方向で合わせる。どちらかにある日は残し、前回同期にあってどちらかで外した日は外す。
+ * 前回同期の控えが無ければ両方を合わせる（外した日が戻ることはあっても、付けた日は消さない）。
+ * 合わせた結果が勝った側と違えば `updatedAt` を今にして、ほかの端末にも行き渡らせる
+ */
+export function mergeHabitDates(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  baseDates: Record<string, string[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Habit[] {
+  const localById = new Map(local.map((h) => [h.id, h]))
+  const remoteById = new Map(remote.map((h) => [h.id, h]))
+  return merged.map((h) => {
+    const l = localById.get(h.id)
+    const r = remoteById.get(h.id)
+    if (!l || !r) return h
+    const ld = new Set(l.completedDates)
+    const rd = new Set(r.completedDates)
+    const base = baseDates?.[h.id]
+    const baseSet = base ? new Set(base) : null
+    const dates = [...new Set([...ld, ...rd])]
+      .filter((d) => !(baseSet?.has(d) && (!ld.has(d) || !rd.has(d))))
+      .sort()
+    const current = [...h.completedDates].sort()
+    const same = dates.length === current.length && dates.every((d, i) => d === current[i])
+    return same ? h : { ...h, completedDates: dates, updatedAt: nowIso }
+  })
+}
+
 /** ローカル・サーバー・前回同期の 3 点から、両端末の変更を取りこぼさない状態を作る */
 export function mergeSnapshots(
   local: SyncSnapshot,
@@ -89,6 +125,7 @@ export function mergeSnapshots(
   const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt))
   const tasks = mergeKind(local.tasks, remote.tasks, baseline.tasks, (t) => stampMs(t.updatedAt))
   const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt))
+  habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
   const listIds = new Set(lists.merged.map((l) => l.id))
@@ -172,6 +209,7 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     sections: ids(s.sections, (sec) => stampMs(sec.updatedAt)),
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
+    habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
   }
 }
 

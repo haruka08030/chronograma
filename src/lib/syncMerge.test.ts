@@ -200,7 +200,7 @@ describe('mergeSnapshots', () => {
     expect(deletes.tasks).toEqual([])
   })
 
-  it('習慣も updatedAt で解決する', () => {
+  it('習慣の達成日は両方の端末の分を残す（行の勝ち負けで片方を消さない）', () => {
     const base = snapshot({ habits: [habit('h1')] })
     const baseline = baselineFrom(base)
     const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T1 })] })
@@ -210,7 +210,33 @@ describe('mergeSnapshots', () => {
 
     const { merged } = mergeSnapshots(local, remote, baseline)
 
-    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-03'])
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
+    // ほかの端末にも行き渡るよう、勝った側より新しい時刻になる
+    expect(Date.parse(merged.habits[0]!.updatedAt)).toBeGreaterThan(Date.parse(T2))
+  })
+
+  it('片方で外した達成日は外す（もう片方で付けた日は残す）', () => {
+    const base = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-01', '2026-09-02'] })] })
+    const baseline = baselineFrom(base)
+    // この端末で 9/1 を外し、ほかの端末で 9/3 を付けた
+    const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T2 })] })
+    const remote = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-01', '2026-09-02', '2026-09-03'], updatedAt: T1 })] })
+
+    const { merged } = mergeSnapshots(local, remote, baseline)
+
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
+  })
+
+  it('前回同期の達成日の控えが無ければ、両方を合わせる', () => {
+    const base = snapshot({ habits: [habit('h1')] })
+    const { habitDates: _omit, ...oldBaseline } = baselineFrom(base)
+    void _omit
+    const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T2 })] })
+    const remote = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-03'], updatedAt: T1 })] })
+
+    const { merged } = mergeSnapshots(local, remote, oldBaseline)
+
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
   })
 })
 
