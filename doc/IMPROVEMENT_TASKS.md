@@ -10,7 +10,7 @@
 ## リリース前に手でやること
 
 1. プライバシーポリシー・利用規約（`public/privacy.html`・`public/terms.html`）のプレースホルダを埋める: 運営者名・連絡先メール・公開日・Supabase のリージョン・ホスティング事業者・管轄裁判所
-2. 既存の Supabase の DB に、足りないマイグレーション（`002_notifications.sql`・`003_canvas.sql`・`004_list_delete_no_cascade.sql`）を SQL Editor で実行。どの DB に要るかは [`supabase/migrations/README.md`](../supabase/migrations/README.md)
+2. 本番の Supabase の SQL Editor で `001_chronograma_schema.sql` を全体実行（既存の DB も最終形にそろう。何度流してもよい）
 3. Edge Function を再デプロイ: `account` `canvas` `daily-reminders` `google-calendar` `notion`
 4. 本番で確認
    - `vercel.json` のヘッダ: CSP で何も止まっていないか（DevTools のコンソール）。Supabase を独自ドメインにしたら CSP の `connect-src` に足す

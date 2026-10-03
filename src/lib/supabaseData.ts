@@ -16,7 +16,7 @@ interface ListRow {
   name: string
   color: string
   sort_order: number
-  /** 004 で追加。古い DB には無い */
+  /** 古い DB には無い */
   kind?: string | null
   updated_at: string
 }
@@ -54,16 +54,16 @@ interface TaskRow {
   start_time: string | null
   end_time: string | null
   location?: string | null
-  /** 006 で追加。古い DB には無い */
+  /** 古い DB には無い */
   color?: string | null
-  /** 007 で追加。古い DB には無い */
+  /** 古い DB には無い */
   habit_id?: string | null
   /** 010 で追加。古い DB には無い */
   is_sleep?: boolean | null
   /** 014 で追加。古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
-  /** 002 で追加。古い DB には無い */
+  /** 古い DB には無い */
   reminders?: unknown
   priority: string
   tags: unknown
@@ -581,7 +581,7 @@ export async function pushListsTasksHabits(
   }
 
   let e1 = await upsert('lists', listRows)
-  // 004 未適用の DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
+  // 古い DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
   if (e1 && /kind/.test(e1)) {
     e1 = await upsert('lists', listRows.map((row) => ({ ...row, kind: undefined })))
   }

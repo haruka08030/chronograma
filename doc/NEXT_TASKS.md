@@ -35,7 +35,7 @@ Wish や買い物が「やるべきこと」の横に並ぶと選択肢が多す
 | --- | --- |
 | **1 行でも DB に拒否されると同期全体が止まる** | ユーザーに見えるのは小さなドットだけ |
 | **ログアウトすると全端末の Google 連携が切れる** | |
-| **README の手順が足りない** | 既存 DB 向けの `003_canvas.sql`・`004_list_delete_no_cascade.sql` と、Notion の deploy 手順が無い |
+| **README の手順が足りない** | Notion の deploy 手順が無い |
 | **Notion: 完了後 5 秒以内にタブを閉じると** | Notion 側のステータスが進まない |
 | バックアップの検証エラーの理由が UI では一律メッセージ | 重複 ID・孤児参照などを詳しく出す |
 
@@ -60,7 +60,7 @@ Wish や買い物が「やるべきこと」の横に並ぶと選択肢が多す
 
 | 項目 | 内容 |
 | --- | --- |
-| Supabase | 各環境で `001_chronograma_schema.sql` と `002`〜`004` が適用済みか確認 |
+| Supabase | 各環境で `001_chronograma_schema.sql` を最新の内容で実行済みか確認 |
 | Web Push | VAPID 鍵、`daily-reminders` のデプロイ、pg_cron の登録（手順は README）。実際の送信は未確認 |
 | デバッグログ | ルート `.gitignore` の `*.log` で `.cursor/debug-*.log` は除外される |
 
