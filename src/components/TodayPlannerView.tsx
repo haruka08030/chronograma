@@ -36,6 +36,7 @@ import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { TaskContextMenu } from './TaskContextMenu'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -68,6 +69,7 @@ export function TodayPlannerView() {
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const [rowMenu, setRowMenu] = useState<{ x: number; y: number; taskId: string } | null>(null)
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
   const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
@@ -193,6 +195,11 @@ export function TodayPlannerView() {
           startNativeTaskDragGhost(e, task.title)
         }}
         className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+        // To-Do 一覧と同じタスクのメニュー
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setRowMenu({ x: e.clientX, y: e.clientY, taskId: task.id })
+        }}
       >
         <CompletionCircle
           completed={task.completed}
@@ -570,6 +577,9 @@ export function TodayPlannerView() {
       </section>
 
       {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
+      {rowMenu && (
+        <TaskContextMenu x={rowMenu.x} y={rowMenu.y} taskIds={[rowMenu.taskId]} onClose={() => setRowMenu(null)} onOpenDetail={openDetail} />
+      )}
       {completeWithLogModal}
     </div>
   )
