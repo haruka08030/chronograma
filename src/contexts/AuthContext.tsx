@@ -217,12 +217,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sb = getSupabase()
         // 通知の行は RLS 上ログイン中にしか消せないので、セッションを切る前に外す
         await detachWebPush()
-        if (sb) {
-          const { error } = await sb.auth.signOut()
-          // 回線が無いとサーバーでの取り消しに失敗し、セッションが残る。そのまま端末のデータだけ消すと
-          // 「ログインしたまま空」になっていた。この端末のセッションだけでも確実に消す
-          if (error) await sb.auth.signOut({ scope: 'local' })
-        }
+        // この端末のセッションだけを切る。既定（global）だとほかの端末もログアウトされ、
+        // そちらの Google 連携まで外れたように見えていた
+        if (sb) await sb.auth.signOut({ scope: 'local' })
         // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
         clearLocalAccountState()
       },
