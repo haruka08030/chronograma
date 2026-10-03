@@ -100,8 +100,9 @@ body {
 
 /* undo toast */
 @keyframes toast-in {
-  from { opacity: 0; transform: translate(-50%, 16px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  /* 中央寄せは要素側の -translate-x-1/2（translate プロパティ）。ここは縦の動きだけ */
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
 }
 .animate-toast-in {
   animation: toast-in 0.25s ease-out;
