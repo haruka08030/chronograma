@@ -314,8 +314,10 @@ Deno.serve(withCors(async (req) => {
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
+    // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
     if (e instanceof NotionError) {
-      return jsonResponse({ ok: false, code: e.code, error: e.message })
+      console.warn('[notion]', e.code, e.message)
+      return jsonResponse({ ok: false, code: e.code, error: e.code })
     }
     // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
     console.error('[notion]', e)
