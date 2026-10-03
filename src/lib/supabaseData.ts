@@ -6,6 +6,7 @@ import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
+import { reanchorTask } from './taskTimeZone'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -588,13 +589,15 @@ export async function pushListsTasksHabits(
     items: T[],
     remoteItems: T[] | undefined,
     toRow: (x: T) => R,
+    /** 比べる前にそろえる（送る行そのものは変えない） */
+    normalize: (x: T) => T = (x) => x,
   ): R[] => {
-    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(x))])) : null
+    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(normalize(x)))])) : null
     const rows: R[] = []
     items.forEach((item) => {
       const row = toRow(item)
       const json = JSON.stringify(row)
-      if (sent?.get(item.id) === json) return
+      if (sent?.get(item.id) === JSON.stringify(toRow(normalize(item)))) return
       const known = knownRejected.get(rejectKey(table, item.id))
       if (known?.row === json) {
         rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
@@ -606,7 +609,9 @@ export async function pushListsTasksHabits(
   }
   const listRows = changedOnly('lists', lists, remote?.lists, (l) => listToRow(userId, l))
   const sectionRows = changedOnly('list_sections', sections, remote?.sections, (s) => sectionToRow(userId, s))
-  const taskRows = changedOnly('tasks', tasks, remote?.tasks, (t) => taskToRow(userId, t))
+  // 端末ごとにアプリのタイムゾーンが違うと、同じ瞬間でも列の書き方（timeZoneAnchor と時刻）が違う。
+  // 両方をこの端末のタイムゾーンの書き方にそろえてから比べ、書き方の違いだけでは送らない（2 台で全件を送り合わない）
+  const taskRows = changedOnly('tasks', tasks, remote?.tasks, (t) => taskToRow(userId, t), (t) => reanchorTask(t))
   const habitRows = changedOnly('habits', habits, remote?.habits, (h) => habitToRow(userId, h))
   let isolateRequests = 0
   /** 行だけの問題なら切り分けを続けてよいか。上限を超えたら全体の失敗にする */
