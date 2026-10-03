@@ -10,6 +10,7 @@ import { LabelsDialog } from '../labels/LabelsDialog'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
 import { toDateKey } from '../../lib/dateKey'
+import { chipClass } from '../ui/chipClass'
 
 const USAGE_DAYS = 30
 
@@ -115,7 +116,7 @@ export function CategoryManager() {
                   key={name}
                   type="button"
                   onClick={() => addLogCategory(name)}
-                  className="rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-zinc-600 hover:border-accent-400 hover:text-accent-600 dark:border-zinc-600 dark:text-zinc-300"
+                  className={chipClass({ variant: 'add', size: 'sm' })}
                 >
                   ＋ {name}
                 </button>

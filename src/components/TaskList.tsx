@@ -47,6 +47,7 @@ import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { chipClass } from './ui/chipClass'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -1148,9 +1149,7 @@ export function TaskList() {
               {filterTag && (
                 <button
                   onClick={() => setFilterTag(null)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-md
-                             bg-accent-50 dark:bg-accent-500/10 text-accent-600 dark:text-accent-400
-                             hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
+                  className={chipClass({ variant: 'fill', hover: true })}
                 >
                   {filterTag}
                   <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
