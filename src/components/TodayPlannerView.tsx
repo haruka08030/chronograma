@@ -192,7 +192,8 @@ export function TodayPlannerView() {
         onDragStart={(e) => {
           e.dataTransfer.setData(TASK_DND_TYPE, task.id)
           e.dataTransfer.setData('text/plain', task.id)
-          e.dataTransfer.effectAllowed = 'move'
+          // タイムラインは copy、タイマーは move で受けるので両方許す（片方だけだと落とせない）
+          e.dataTransfer.effectAllowed = 'copyMove'
           startNativeTaskDragGhost(e, task.title)
         }}
         className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
