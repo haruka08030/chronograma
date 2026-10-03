@@ -15,14 +15,6 @@ import {
   patchAfterTimelineMove,
 } from '../lib/taskTimeRange'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
-import {
-  canStartTimerFor,
-  getTimerDrop,
-  isOverTimerDrop,
-  setTimerDragActive,
-  setTimerDropHover,
-  startTimerForTask,
-} from '../lib/timerDrop'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
   getCalendarItemDrag,
@@ -246,7 +238,6 @@ export function WeekCalendarView({
     setAllDayMoveKey(null)
     setEdgeDir(null)
     setCalendarItemDragActive(false)
-    setTimerDragActive(false)
   }
   const handleGridPointerMove = (e: React.PointerEvent) => {
     timelineDrag.handlePointerMove(e)
@@ -256,17 +247,9 @@ export function WeekCalendarView({
     // 記録は「やったこと」なので終日・ToDo には戻さない
     const task = tasks.find((x) => x.id === d.taskId)
     if (!task || isLogTask(task)) return
-    setCalendarItemDragActive(true)
-    if (canStartTimerFor(task)) {
-      setTimerDragActive(true)
-      const overTimer = isOverTimerDrop(e.clientX, e.clientY)
-      setTimerDropHover(overTimer)
-      if (overTimer) {
-        setAllDayMoveKey(null)
-        setUnscheduleHover(false)
-        return
-      }
-    }
+    // 今あるブロックを動かすときは「計測開始」「To-Do に戻す」の帯を出さない（格子に重なり、動かしすぎると誤って効く）。
+    // 開いている To-Do の置き場に落とせば To-Do に戻る（置き場は前から出ているので画面は動かない）。計測はカード・メニューから
+    setCalendarItemDragActive(true, { fromGrid: true })
     const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
     if (e.clientY < gridTop && !singleDay) {
       setAllDayMoveKey(getDateKeyFromX(e.clientX))
@@ -279,11 +262,7 @@ export function WeekCalendarView({
   const handleGridPointerUp = () => {
     const d = timelineDrag.drag
     const toUnschedule = getCalendarItemDrag().overUnschedule
-    if (d?.kind === 'move' && timelineDrag.didMove.current && getTimerDrop().over) {
-      // 上の「ここに落として計測開始」。予定の時刻はそのまま
-      startTimerForTask(d.taskId)
-      timelineDrag.handlePointerCancel()
-    } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
+    if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
       if (task && !isLogTask(task)) {
         updateTask(d.taskId, allDayMoveKey

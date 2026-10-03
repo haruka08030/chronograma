@@ -180,7 +180,7 @@ export function CalendarHubView() {
             >
               <CalendarTaskDock />
             </div>
-          ) : itemDrag.active && (
+          ) : itemDrag.active && !itemDrag.fromGrid && (
             <div
               {...unscheduleDropProps}
               className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors

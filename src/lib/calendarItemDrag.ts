@@ -7,20 +7,22 @@ import { useSyncExternalStore } from 'react'
 interface CalendarItemDragState {
   active: boolean
   overUnschedule: boolean
+  /** 時間の格子の上のブロックを動かしている（閉じた置き場の代わりの帯は出さない） */
+  fromGrid: boolean
 }
 
-let state: CalendarItemDragState = { active: false, overUnschedule: false }
+let state: CalendarItemDragState = { active: false, overUnschedule: false, fromGrid: false }
 const subscribers = new Set<() => void>()
 
 function patch(next: Partial<CalendarItemDragState>) {
   const merged = { ...state, ...next }
-  if (merged.active === state.active && merged.overUnschedule === state.overUnschedule) return
+  if (merged.active === state.active && merged.overUnschedule === state.overUnschedule && merged.fromGrid === state.fromGrid) return
   state = merged
   subscribers.forEach((f) => f())
 }
 
-export function setCalendarItemDragActive(active: boolean) {
-  patch(active ? { active } : { active, overUnschedule: false })
+export function setCalendarItemDragActive(active: boolean, { fromGrid = false }: { fromGrid?: boolean } = {}) {
+  patch(active ? { active, fromGrid } : { active, overUnschedule: false, fromGrid: false })
 }
 
 export function setUnscheduleHover(over: boolean) {
