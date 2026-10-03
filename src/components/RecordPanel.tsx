@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -133,13 +134,6 @@ export function RecordPanel({
     close()
   }
 
-  const formatMinutes = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
   const labelOf = (cat: string) => cat || t('labels.none')
 
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -158,7 +152,7 @@ export function RecordPanel({
           <span
             key={cat}
             className="gc-dot h-full"
-            title={`${labelOf(cat)} ${formatMinutes(min)}`}
+            title={`${labelOf(cat)} ${formatDuration(min)}`}
             style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
           />
         ))}
@@ -168,7 +162,7 @@ export function RecordPanel({
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(cat || null, logCategoryColors))} aria-hidden />
             <span className="max-w-[8rem] truncate">{labelOf(cat)}</span>
-            <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatMinutes(min)}</span>
+            <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
           </li>
         ))}
       </ul>

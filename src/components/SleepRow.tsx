@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -63,13 +64,6 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     setDraftFor(draftKey)
   }
 
-  const formatMinutes = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
 
   if (!open && record?.startTime && record.endTime) {
     return (
@@ -84,7 +78,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
         <span className="tabular-nums">
           {record.startTime}–{record.endTime}
         </span>
-        <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatMinutes(sleepMinutes(record.startTime, record.endTime))}</span>
+        <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(record.startTime, record.endTime))}</span>
       </button>
     )
   }
@@ -121,7 +115,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       {inFuture ? (
         <span className="text-red-500 dark:text-red-400">{t('sleep.noFuture')}</span>
       ) : (
-        bed && wake && bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatMinutes(sleepMinutes(bed, wake))}</span>
+        bed && wake && bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
       )}
       <span className="ml-auto inline-flex items-center gap-0.5">
         {record && (

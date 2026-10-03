@@ -7,6 +7,8 @@ export default {
     delete: 'Delete',
     edit: 'Edit',
     close: 'Close',
+    timeRangeSeparator: '–',
+    listSeparator: ', ',
     back: 'Back',
     loading: '…',
     today: 'Today',

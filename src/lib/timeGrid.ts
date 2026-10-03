@@ -1,3 +1,5 @@
+import i18n from '../i18n/config'
+
 export const HOUR_HEIGHT = 60
 export const HOURS = Array.from({ length: 24 }, (_, i) => i)
 export const SNAP_MINUTES = 15
@@ -26,11 +28,12 @@ export function timeToMinutes(time: string): number {
 }
 
 /** 分単位の長さを日本語表示（例: 1時間15分） */
+/** 分を「1時間15分」/「1h 15m」のように表示の言語で書く */
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  if (h > 0 && m > 0) return `${h}時間${m}分`
-  if (h > 0) return `${h}時間`
-  return `${m}分`
+  if (h === 0) return i18n.t('planner.minutes', { m })
+  if (m === 0) return i18n.t('planner.hours', { h })
+  return i18n.t('planner.hoursMinutes', { h, m })
 }
 

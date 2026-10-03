@@ -7,6 +7,8 @@ export default {
     delete: '削除',
     edit: '編集',
     close: '閉じる',
+    timeRangeSeparator: '〜',
+    listSeparator: '、',
     back: '戻る',
     loading: '…',
     today: '今日',

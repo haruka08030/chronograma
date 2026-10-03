@@ -167,7 +167,7 @@ function HabitTimeFields({
             onChange={onStartTimeChange}
             className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
-          <span className="text-zinc-400">〜</span>
+          <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
             value={endTime}
             onChange={onEndTimeChange}

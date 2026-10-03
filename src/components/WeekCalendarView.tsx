@@ -129,6 +129,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
   /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
   colorHex: string
 }) {
+  const { t } = useTranslation()
   const { top, height } = blockGeometry(task, dayKey, Boolean(isLog))
 
   const handlePointerMoveLocal = (e: React.PointerEvent) => {
@@ -184,7 +185,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
       {compact ? (
         <span className="block truncate">
           <span className="font-medium">{moon}{doneMark}{task.title}</span>
-          <span className="opacity-80">、{task.startTime}</span>
+          <span className="opacity-80">{t('common.listSeparator')}{task.startTime}</span>
         </span>
       ) : (
         <>

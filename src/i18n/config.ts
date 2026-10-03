@@ -12,7 +12,8 @@ void i18n
       ja: { translation: ja },
       en: { translation: en },
     },
-    fallbackLng: 'ja',
+    // ja-JP などは ja に寄せ、それ以外の言語のブラウザは英語で出す
+    fallbackLng: 'en',
     supportedLngs: ['ja', 'en'],
     react: { useSuspense: false },
     interpolation: { escapeValue: false },
@@ -22,5 +23,13 @@ void i18n
       lookupLocalStorage: 'chronograma-lang',
     },
   })
+
+// 読み上げ・自動翻訳・フォント選びが表示中の言語に合うよう、<html lang> を揃える
+function syncDocumentLang(lng: string | undefined) {
+  if (typeof document === 'undefined' || !lng) return
+  document.documentElement.lang = lng
+}
+syncDocumentLang(i18n.resolvedLanguage)
+i18n.on('languageChanged', () => syncDocumentLang(i18n.resolvedLanguage))
 
 export default i18n

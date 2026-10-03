@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
@@ -140,13 +141,6 @@ export function TodayPlannerView() {
 
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
 
-  const formatMinutes = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
   const shortDate = (key: string) => format(dateOfKey(key), t('planner.shortDateFormat'), { locale: dateLocale })
 
   const submitDraft = () => {
@@ -332,15 +326,15 @@ export function TodayPlannerView() {
             <div className="mt-5 flex items-baseline justify-between gap-3">
               {loggedMinutes > 0 ? (
                 <span className="text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
-                  {t('planner.summaryLogged', { time: formatMinutes(loggedMinutes) })}
+                  {t('planner.summaryLogged', { time: formatDuration(loggedMinutes) })}
                 </span>
               ) : <span />}
               {plannedMinutes > 0 && (
                 <span
                   className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'}`}
-                  title={overCapacity ? t('planner.overCapacity', { capacity: formatMinutes(dailyCapacityMinutes) }) : undefined}
+                  title={overCapacity ? t('planner.overCapacity', { capacity: formatDuration(dailyCapacityMinutes) }) : undefined}
                 >
-                  {t('planner.summaryPlanned', { time: formatMinutes(plannedMinutes) })}
+                  {t('planner.summaryPlanned', { time: formatDuration(plannedMinutes) })}
                   {overCapacity && ` ${t('planner.overCapacityShort')}`}
                 </span>
               )}

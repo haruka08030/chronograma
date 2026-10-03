@@ -433,7 +433,7 @@ export function TaskDetail({
                                  bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                                  focus:ring-2 focus:ring-accent-500/40"
                     />
-                    <span className="text-zinc-400 text-sm">〜</span>
+                    <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
                     <TimeInput
                       value={tv.endTime ?? ''}
                       onChange={(v) => updateTimes({ endTime: v || null })}
