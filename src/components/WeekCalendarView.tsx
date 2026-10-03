@@ -151,7 +151,7 @@ function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, isLog, sl
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
   const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   const moon = sleep && (
-    <MoonSolidIcon className="mr-0.5 inline h-2.5 w-2.5 -translate-y-px" />
+    <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   )
   const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
