@@ -9,7 +9,7 @@
 
 ## デプロイ
 
-スキーマや Edge Function を変えたら、ターミナルで `supabase db push --linked` と `supabase functions deploy <名前>`（SQL Editor ではなく）。適用済みかは `supabase migration list --linked` で分かる。
+スキーマを変えたら、足したファイルだけを `supabase db query --linked -f supabase/migrations/<ファイル>` で本番に流す。`supabase db push --linked` は使わない（本番の適用履歴がファイルと合っていない）。Edge Function は `supabase functions deploy <名前>`。
 
 スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
 
