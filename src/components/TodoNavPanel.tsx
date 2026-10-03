@@ -14,7 +14,7 @@ import { CloseIcon, PencilIcon, PlusIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
-import { labelDroppedTasks } from '../lib/labelDrop'
+import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
@@ -45,7 +45,9 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   const sortableId = `${LIST_PREFIX}${list.id}`
   const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId, disabled: isInbox })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
-  const dropHighlight = isOver || taskDragHoverListId === list.id
+  // 並べ替え中の行はネイティブ D&D でつかむので、dnd-kit とは別に受ける
+  const [isOverNative, setIsOverNative] = useState(false)
+  const dropHighlight = isOver || isOverNative || taskDragHoverListId === list.id
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -66,6 +68,19 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsOverNative(true)
+      }}
+      onDragLeave={() => setIsOverNative(false)}
+      onDrop={(e) => {
+        setIsOverNative(false)
+        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        e.preventDefault()
+        moveDroppedTasks(readDraggedTaskIds(e.dataTransfer), list.id)
+      }}
     >
       <button
         type="button"

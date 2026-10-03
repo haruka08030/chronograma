@@ -6,12 +6,11 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
-import { displayListName } from './lib/displayListName'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar } from './components/Sidebar'
 import { TodoNavPanel } from './components/TodoNavPanel'
 import { LABEL_DROP_PREFIX, LIST_PREFIX } from './lib/listDnD'
-import { labelDroppedTasks } from './lib/labelDrop'
+import { labelDroppedTasks, moveDroppedTasks } from './lib/navDrop'
 import { TaskList } from './components/TaskList'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { CalendarHubView } from './components/CalendarHubView'
@@ -375,16 +374,7 @@ export default function App() {
         const taskId = activeId.slice(TASK_PREFIX.length)
         const group =
           (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
-        const { moveTaskToList, moveTasksToList, showMoveBanner } = useTaskStore.getState()
-        const r =
-          group.length > 1 ? moveTasksToList(group, listId) : moveTaskToList(taskId, listId)
-        if (r.moved && r.listName && r.listId != null) {
-          showMoveBanner(
-            i18n.t('toast.taskMovedToList', {
-              name: displayListName(r.listId, r.listName),
-            }),
-          )
-        }
+        moveDroppedTasks(group, listId)
       }
     } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
       const state = useTaskStore.getState()
