@@ -305,6 +305,8 @@ export interface TaskState {
         | 'sectionId'
       >
     >,
+    /** 「元に戻す」トーストに出す文（ドラッグで動かしたときなど、変わったことが目に入りにくいとき） */
+    label?: ToastText,
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
   rescheduleTasks: (ids: string[], dateKey: string, label?: ToastText) => void

@@ -38,6 +38,7 @@ import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { movedToDateLabel } from '../lib/moveToast'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -176,6 +177,8 @@ export function CalendarView({
                   const ids = readDraggedTaskIds(e.dataTransfer)
                   const taskIds = ids.length ? ids : (dragTaskIdRef.current ? [dragTaskIdRef.current] : [])
                   asOneUndo(() => {
+                    // 取り消しの文は最初の 1 回の分が出る（asOneUndo）
+                    const label = movedToDateLabel(taskIds, tasks, key)
                     for (const taskId of taskIds) {
                       const existingTask = tasks.find((t) => t.id === taskId)
                       if (existingTask) {
@@ -184,7 +187,7 @@ export function CalendarView({
                           startTime: existingTask.startTime,
                           endTime: existingTask.endTime,
                           isTimeLog: false,
-                        })
+                        }, label)
                       }
                     }
                   })

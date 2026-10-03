@@ -48,6 +48,7 @@ import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
+import { shortDate } from '../lib/moveToast'
 import { minutesToTime } from '../lib/clockTime'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
@@ -195,7 +196,10 @@ export function WeekCalendarView({
         const crossesDay = isOvernightTimeLog({ ...prev, ...patch } as Task)
         if (limit !== null && (crossesDay || timeToMinutes(endTime) > limit)) return
       }
-      updateTask(taskId, patch)
+      updateTask(taskId, patch, {
+        key: 'undo.blockMoved',
+        params: { title: prev.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
+      })
     },
     onResizeDone: (taskId, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
@@ -211,7 +215,8 @@ export function WeekCalendarView({
           endTime = minutesToTime(limit)
         }
       }
-      updateTask(taskId, { startTime, endTime })
+      if (!prev) return
+      updateTask(taskId, { startTime, endTime }, { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } })
     },
     onBlockTap: useCallback((taskId: string) => {
       if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
@@ -283,7 +288,9 @@ export function WeekCalendarView({
       if (task && !task.isTimeLog) {
         updateTask(d.taskId, allDayMoveKey
           ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null }
-          : UNSCHEDULE_PATCH)
+          : UNSCHEDULE_PATCH, allDayMoveKey
+          ? { key: 'undo.blockToAllDay', params: { title: task.title, date: shortDate(allDayMoveKey) } }
+          : { key: 'undo.blockUnscheduled', params: { title: task.title } })
       }
       timelineDrag.handlePointerCancel()
     } else {

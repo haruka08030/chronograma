@@ -22,6 +22,7 @@ import { CalendarCheck } from '../timeline/CalendarCheck'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { toDateKey } from '../../lib/dateKey'
 import { openTaskDetail } from '../../lib/overlays'
+import { movedToDateLabel } from '../../lib/moveToast'
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
 export function WeekAllDayRow({
@@ -102,8 +103,9 @@ export function WeekAllDayRow({
                 if (!ids.length) return
                 // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
                 asOneUndo(() => {
+                  const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false })
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false }, label)
                   }
                 })
               }}
