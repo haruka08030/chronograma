@@ -15,15 +15,7 @@ import {
   PERSIST_STORAGE_KEY,
   STORE_VERSION,
 } from './storeConstants'
-import type {
-  CalendarMode,
-  DailyReminders,
-  SectionGrouping,
-  SettingsScrollTarget,
-  SmartView,
-  SortMode,
-  TaskState,
-} from './storeTypes'
+import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, SyncState, TaskState } from './storeTypes'
 import { defaultLogCategories, initialLists } from './storeDefaults'
 import { migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'
@@ -37,6 +29,7 @@ import { createGoogleSlice } from './slices/google'
 import { createSettingsSlice } from './slices/settings'
 import { createUiSlice } from './slices/ui'
 import { createDataSlice } from './slices/data'
+import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
  * タスク・リスト・習慣・記録・設定をまとめて持つストア（localStorage に保存）。
@@ -61,6 +54,8 @@ export {
   LIST_COLOR_PALETTES,
   normalizeListColorPaletteId,
 } from '../lib/listColorPalettes'
+import { withTaskDefaults } from '../lib/taskDefaults'
+import { isIncomingChange } from '../lib/changeOrigin'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -108,14 +103,14 @@ export const useTaskStore = create<TaskState>()(
       selectedCalendarDateKey: appTodayKey(),
       theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
-      sortMode: 'manual' as SortMode,
+      sortByKey: {} as Record<string, SortMode>,
       sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
-      deletedTasks: [],
+      recentDeletes: [],
       moveBannerText: null as string | null,
       undoBanner: null as { text: string; at: number } | null,
       googleUndo: null as { id: string; text: string; at: number } | null,
       taskDragHoverListId: null as string | null,
-      syncState: 'idle' as 'idle' | 'syncing' | 'error',
+      syncState: 'idle' as SyncState,
       lastSyncedAt: null as string | null,
       syncRejected: [],
       dataOwner: null as string | null,
@@ -130,6 +125,7 @@ export const useTaskStore = create<TaskState>()(
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
       logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+      logLabelsUpdatedAt: null,
 
       calendarEvents: [],
       googleEventColors: {},
@@ -178,7 +174,9 @@ export const useTaskStore = create<TaskState>()(
       // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
       // 読める行だけ使い、元の中身は別のキーに写しておく
       merge: (persisted, current) => {
-        const merged = { ...current, ...(persisted as Partial<TaskState>) } as TaskState
+        // 前の版は画面の状態や選んだ日も本体に保存していた。読むのはデータと画面の好みだけ（選んだ日などは今日から）
+        const saved = pickKeys((persisted ?? {}) as Record<string, unknown>, [...DATA_KEYS, ...VIEW_KEYS])
+        const merged = { ...current, ...(saved as Partial<TaskState>) } as TaskState
         let broken = false
         for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
           const value = merged[key] as unknown
@@ -188,61 +186,47 @@ export const useTaskStore = create<TaskState>()(
           if (!rows || rows.length !== (value as unknown[]).length) broken = true
           ;(merged as unknown as Record<string, unknown>)[key] = rows ?? current[key]
         }
+        // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
+        merged.tasks = merged.tasks.map(withTaskDefaults)
         if (broken) preserveUnreadableStorage()
         return merged
       },
       migrate: migrateTaskState,
-      partialize: (state) => {
-        const {
-          searchQuery,
-          deletedTasks,
-          quickAddRequested,
-          filterTag,
-          calendarEvents,
-          googleConnected,
-          googleAccessToken,
-          googleConnectionError,
-          googleCanWrite,
-          moveBannerText,
-          undoBanner,
-          googleUndo,
-          taskDragHoverListId,
-          syncState,
-          lastSyncedAt,
-          syncRejected,
-          settingsScrollTarget,
-          sectionScrollTarget,
-          storageFull,
-          completePromptTaskId,
-          recordPromptTaskId,
-          ...rest
-        } = state
-        void completePromptTaskId
-        void recordPromptTaskId
-        void searchQuery
-        void deletedTasks
-        void quickAddRequested
-        void filterTag
-        void calendarEvents
-        void googleConnected
-        void googleAccessToken
-        void googleConnectionError
-        void googleCanWrite
-        void moveBannerText
-        void undoBanner
-        void googleUndo
-        void taskDragHoverListId
-        void syncState
-        void lastSyncedAt
-        void syncRejected
-        void settingsScrollTarget
-        void storageFull
-        void sectionScrollTarget
-        return rest as unknown as TaskState
-      },
+      // 保存するのはデータと設定だけ（一覧は persistKeys.ts）。画面の状態は別の保存先、通知・同期の状態は保存しない
+      partialize: (state) => pickKeys(state as unknown as Record<string, unknown>, DATA_KEYS) as unknown as TaskState,
     },
   ),
 )
+
+/**
+ * 開いていた画面・並び順などの好み（`VIEW_KEYS`）は、データとは別の小さな保存先に置く。
+ * 画面を切り替えるたびに全データを書き直したり、他のタブに読み直させたりしないため
+ */
+const VIEW_STORAGE_KEY = 'chronograma-view-v1'
+function restoreViewState() {
+  try {
+    const raw = localStorage.getItem(VIEW_STORAGE_KEY)
+    if (raw) {
+      const saved = pickKeys(JSON.parse(raw) as Record<string, unknown>, VIEW_KEYS)
+      withoutPersisting(() => useTaskStore.setState(saved as Partial<TaskState>))
+    }
+  } catch {
+    /* 読めなければ既定の画面から */
+  }
+  let last = ''
+  const save = (s: TaskState) => {
+    const json = JSON.stringify(pickKeys(s as unknown as Record<string, unknown>, VIEW_KEYS))
+    if (json === last) return
+    last = json
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, json)
+    } catch {
+      /* 保存できなくても困らない */
+    }
+  }
+  save(useTaskStore.getState())
+  useTaskStore.subscribe(save)
+}
 
 /**
  * アプリのタイムゾーンを読み込み直後・変更時に反映する。タイムゾーンを決めたタスクの列が
@@ -254,25 +238,19 @@ function applyTimeZoneState() {
   const tasks = reanchorTasks(s.tasks)
   if (tasks !== s.tasks) useTaskStore.setState({ tasks })
 }
+restoreViewState()
 applyTimeZoneState()
+
+// ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
+useTaskStore.subscribe((s, prev) => {
+  if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
+})
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
 
-/**
- * タブごとに違ってよい表示の状態。他のタブの保存からは取り込まない
- * （取り込むと、別のタブで画面を切り替えただけでこのタブの画面も切り替わる）
- */
-const TAB_LOCAL_KEYS = [
-  'selectedListId',
-  'selectedView',
-  'calendarMode',
-  'selectedCalendarDateKey',
-  'sortMode',
-  'sectionGrouping',
-  'filterColor',
-  'quickAddSectionId',
-] as const
 
 let adoptingFromOtherTab = false
 /** いまの更新が他のタブからの取り込みか（同期はそのタブが送るので、こちらからは送らない） */
@@ -299,7 +277,8 @@ export function adoptOtherTabChanges(): void {
     return
   }
   const incoming: Record<string, unknown> = { ...parsed.state }
-  for (const key of TAB_LOCAL_KEYS) delete incoming[key]
+  // 取り込むのはデータだけ（画面の状態はタブごと。前の版の保存に残っていても無視する）
+  for (const key of Object.keys(incoming)) if (!(DATA_KEYS as readonly string[]).includes(key)) delete incoming[key]
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { format } from 'date-fns'
 import i18n from '../../i18n/config'
 import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
@@ -8,6 +9,8 @@ import { notify } from '../../lib/notify'
 import { SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
+import { useDateFormat } from '../../hooks/useDateFormat'
+import { useAuth } from '../../contexts/AuthContext'
 
 const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
@@ -17,30 +20,34 @@ const KIND_LABEL: Record<AutoBackupKind, string> = {
 
 /**
  * 自動バックアップの一覧。いまのデータは置き換えず「控えにあって今は無いもの」だけを戻すので、
- * どの控えを選んでも今日の入力は消えない。全部をそのまま見たいときは書き出して取り込む
+ * どの控えを選んでも今日の入力は消えない。全部をそのまま見たいときは書き出して取り込む。
+ * 出すのはいまログインしている人（していなければ、ログインせずに作ったデータ）の控えだけ
  */
 export function AutoBackupSettings() {
   const { t } = useTranslation()
   const restoreMissingFromBackup = useTaskStore((s) => s.restoreMissingFromBackup)
+  const viewer = useAuth().user?.id ?? null
   const [backups, setBackups] = useState<AutoBackupMeta[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    const load = () => void listAutoBackups().then((b) => !cancelled && setBackups(b))
+    const load = () => void listAutoBackups(viewer).then((b) => !cancelled && setBackups(b))
     load()
     const off = onAutoBackupSaved(load)
     return () => {
       cancelled = true
       off()
     }
-  }, [])
+  }, [viewer])
 
-  const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en-US' : 'ja-JP'
-  const when = (iso: string) =>
-    new Date(iso).toLocaleString(lang, { month: 'numeric', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  const df = useDateFormat()
+  const when = (iso: string) => {
+    const d = new Date(iso)
+    return `${df.shortDateWeekday(d)} ${format(d, 'HH:mm')}`
+  }
 
   const restore = async (b: AutoBackupMeta) => {
-    const full = await loadAutoBackup(b.id)
+    const full = await loadAutoBackup(b.id, viewer)
     if (!full) {
       notify(i18n.t('autoBackup.unreadable'))
       return
@@ -53,7 +60,7 @@ export function AutoBackupSettings() {
   }
 
   const download = async (b: AutoBackupMeta) => {
-    const full = await loadAutoBackup(b.id)
+    const full = await loadAutoBackup(b.id, viewer)
     if (!full) {
       notify(i18n.t('autoBackup.unreadable'))
       return

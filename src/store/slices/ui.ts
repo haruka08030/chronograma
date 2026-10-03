@@ -1,4 +1,5 @@
 /** 画面の選択・絞り込み・トーストなど、表示の状態 */
+import { sortKeyOf } from '../../lib/todoSurfaceView'
 import { INBOX_ID } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
@@ -6,6 +7,7 @@ import type { SliceContext } from './sliceTypes'
 type UiActions = Pick<
   TaskState,
   | 'selectList'
+  | 'selectListTag'
   | 'selectView'
   | 'selectColor'
   | 'openSettingsWithScroll'
@@ -30,7 +32,10 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
   const { pushUndo } = undo
   return {
     // 色ラベルの絞り込みはラベルを開いている間だけ。別のリスト・ビューへ移ったら外す
-    selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null, filterColor: null }),
+    // リストを開き直したらタグの絞り込みも外す（サイドバーの科目タグから戻れるように）
+    selectList: (id) => set({ selectedListId: id, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null, filterColor: null, filterTag: null }),
+    selectListTag: (listId, tag) =>
+      set({ selectedListId: listId, selectedView: null, quickAddSectionId: null, settingsScrollTarget: null, filterColor: null, filterTag: tag }),
     selectView: (view) =>
       set({
         selectedView: view,
@@ -76,7 +81,7 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
     setSearchQuery: (q) => set({ searchQuery: q }),
     setSortMode: (mode) => {
       pushUndo()
-      set({ sortMode: mode })
+      set((s) => ({ sortByKey: { ...s.sortByKey, [sortKeyOf(s.selectedListId, s.selectedView)]: mode } }))
     },
     setSectionGrouping: (scope, on) =>
       set((s) => ({

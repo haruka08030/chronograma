@@ -1,29 +1,31 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { tip } from '../lib/tooltip'
-import { addDays, format, parseISO } from 'date-fns'
+import { shortcutTip, tip } from '../lib/tooltip'
+import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { recentLogs } from '../lib/logCategory'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { categoryHex, colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
+import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
-import { addClockMinutes } from '../lib/clockTime'
 import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
+import { chipClass } from './ui/chipClass'
+import { fieldClass } from './ui/fieldClass'
+import { usePendingAction } from '../lib/pendingAction'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
-export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
+/** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
+export const OPEN_TIMER_ACTION = 'open-timer'
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
 
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
@@ -51,6 +53,7 @@ export function RecordPanel({
   const startTimer = useTaskStore((s) => s.startTimer)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
 
   const [mode, setMode] = useState<'idle' | 'timer' | 'manual'>('idle')
   const [title, setTitle] = useState('')
@@ -71,24 +74,20 @@ export function RecordPanel({
       if (isSleepRecord(log)) continue
       const min = minutesOfLogOnCalendarDay(log, dateKey)
       total += min
-      const cat = log.tags[0] ?? ''
+      const cat = recordLabelKey(log, labelPresets, logCategoryColors)
       m.set(cat, (m.get(cat) ?? 0) + min)
     }
     return { totalMinutes: total, byCategory: [...m.entries()].sort((a, b) => b[1] - a[1]) }
-  }, [dayLogs, dateKey])
+  }, [dayLogs, dateKey, labelPresets, logCategoryColors])
 
   // 記録中でも始められる（前の記録を保存して切り替える）
   const canStartTimer = viewingToday
   // いま計っているものは「もう一度始める」に出さない
   const recentChoices = recent.filter((r) => r.title !== activeTimer?.taskTitle)
   // 未来の日は「後から」記録できない
-  const canLogLater = dateKey <= format(zonedNow(), 'yyyy-MM-dd')
+  const canLogLater = dateKey <= toDateKey(zonedNow())
 
-  useEffect(() => {
-    const open = () => setMode('timer')
-    window.addEventListener(OPEN_TIMER_EVENT, open)
-    return () => window.removeEventListener(OPEN_TIMER_EVENT, open)
-  }, [])
+  usePendingAction(OPEN_TIMER_ACTION, () => setMode('timer'))
 
   const close = () => {
     setMode('idle')
@@ -101,7 +100,7 @@ export function RecordPanel({
     if (viewingToday) {
       const e = nowRounded()
       const prevEnd = dayLogs
-        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && toMin(x.endTime) < toMin(e))
+        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
         .map((x) => x.endTime!)
         .sort()
         .at(-1)
@@ -115,10 +114,10 @@ export function RecordPanel({
   }
 
   const name = title.trim() || category.trim()
-  const overnight = Boolean(start && end && toMin(end) < toMin(start))
+  const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
   const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
-  const inFuture = viewingToday && Boolean(start && end) && (overnight || toMin(end) > nowMin)
+  const inFuture = viewingToday && Boolean(start && end) && (overnight || timeToMinutes(end) > nowMin)
   const canSaveManual = Boolean(name && start && end && start !== end && !inFuture)
 
   const submit = () => {
@@ -129,13 +128,13 @@ export function RecordPanel({
     } else {
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
-      const endDate = overnight ? format(addDays(parseISO(`${dateKey}T12:00:00`), 1), 'yyyy-MM-dd') : null
+      const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
       addTimeLog(name, dateKey, start, end, tags, undefined, endDate)
     }
     close()
   }
 
-  const labelOf = (cat: string) => cat || t('labels.none')
+  const labelOf = (cat: string) => recordLabelKeyText(cat, labelPresets, logCategoryColors, t)
 
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isSubmitEnter(e)) {
@@ -154,14 +153,14 @@ export function RecordPanel({
             key={cat}
             className="gc-dot h-full"
             title={`${labelOf(cat)} ${formatDuration(min)}`}
-            style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
+            style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
           />
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
         {byCategory.map(([cat, min]) => (
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(cat || null, logCategoryColors))} aria-hidden />
+            <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(cat, logCategoryColors))} aria-hidden />
             <span className="max-w-[8rem] truncate">{labelOf(cat)}</span>
             <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
           </li>
@@ -188,14 +187,14 @@ export function RecordPanel({
               <TimeInput
                 value={start}
                 onChange={setStart}
-                className="w-[5.5rem] rounded-md bg-zinc-50 px-2 py-1 text-sm tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               <span aria-hidden>–</span>
               <TimeInput
                 value={end}
                 onChange={setEnd}
                 pickerDefault={start ? addClockMinutes(start, 60) : undefined}
-                className="w-[5.5rem] rounded-md bg-zinc-50 px-2 py-1 text-sm tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               {inFuture ? (
                 <span className="text-xs text-red-500 dark:text-red-400">{t('records.noFuture')}</span>
@@ -238,7 +237,7 @@ export function RecordPanel({
           <button
             type="button"
             onClick={() => setMode('timer')}
-            {...tip(t('quickLog.start'), 'L')}
+            {...shortcutTip(t('quickLog.start'), 'logView')}
             className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
           >
             <PlayIcon className="h-4 w-4" />
@@ -263,10 +262,9 @@ export function RecordPanel({
               key={r.title}
               type="button"
               onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
-              title={t('quickLog.resume', { title: r.title })}
+              {...tip(t('quickLog.resume', { title: r.title }))}
               aria-label={t('quickLog.resume', { title: r.title })}
-              className="inline-flex min-h-9 max-w-[10rem] items-center gap-1.5 rounded-full border border-zinc-200 py-1 pl-2 pr-2.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 md:min-h-7
-                         dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 max-w-[10rem] gap-1.5 md:min-h-7')}
             >
               {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
               <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={colorVars(categoryHex(r.category, logCategoryColors))} />

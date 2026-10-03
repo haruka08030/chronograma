@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { dragBlockDurationMinutes } from './taskTimeRange'
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays } from 'date-fns'
+import { fromDateKey, toDateKey } from './dateKey'
+import { minutesToTime } from './clockTime'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -67,11 +69,6 @@ export interface DragPreview {
   label: string
 }
 
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
 
 /**
  * ドラッグ作成の範囲（分）。Google カレンダーと同じく、押した 15 分枠の頭から始め、
@@ -296,7 +293,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
   const shiftMoveDragDate = useCallback((days: number) => {
     setDrag((prev) => prev && prev.kind === 'move'
-      ? { ...prev, dateKey: format(addDays(parseISO(`${prev.dateKey}T12:00:00`), days), 'yyyy-MM-dd') }
+      ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) }
       : prev)
   }, [])
 

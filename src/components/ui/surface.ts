@@ -11,6 +11,13 @@ export const FLOATING_SURFACE = 'border border-zinc-200 bg-white dark:border-zin
  */
 export const INVERSE_SURFACE = 'bg-zinc-900 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900'
 
+/**
+ * 浮く面の中の行（メニュー・時刻の候補）のハイライト。↑↓ で選んでいる行は `MENU_ROW_ACTIVE`、
+ * そうでない行はホバーで同じ色にする（キー操作とマウスで同じ見た目）
+ */
+export const MENU_ROW_ACTIVE = 'bg-zinc-100 dark:bg-zinc-700'
+export const MENU_ROW_HOVER = 'hover:bg-zinc-100 dark:hover:bg-zinc-700'
+
 /** ボタンの下に開くドロップダウン（日付・メニュー・色・アカウント） */
 export const POPOVER_PANEL = `${FLOATING_SURFACE} rounded-xl shadow-xl`
 

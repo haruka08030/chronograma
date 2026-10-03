@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName } from '../lib/timeZone'
 import { foreignTimeZone, timesPatchFromZone, type TaskTimeFields } from '../lib/taskTimeZone'
 import { TimeZonePicker } from './TimeZonePicker'
 import { GlobeIcon } from './icons'
+import { tip } from '../lib/tooltip'
+import { formatDate } from '../lib/dateFormat'
 
 /**
  * 詳細の「タイムゾーン」（Google カレンダーの予定のタイムゾーンと同じ）。
@@ -40,7 +41,7 @@ export function TaskTimeZoneButton({ task, view, compact = false }: {
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-label={t('timeZone.field')}
-          title={t('timeZone.field')}
+          {...tip(t('timeZone.field'))}
           onClick={toggle}
           className={`flex ${compact ? 'h-6' : 'h-[38px]'} min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
             zone ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300'
@@ -62,7 +63,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   const zone = foreignTimeZone(task)
   if (!zone) return null
 
-  const day = (ymd: string) => format(parseISO(`${ymd}T12:00:00`), 'M/d')
+  const day = (ymd: string) => formatDate(ymd, 'shortDate', i18n.resolvedLanguage)
   const date = task.isTimeLog ? task.dueDate : task.scheduledDate
   let when: string | null = null
   if (date && task.startTime) {

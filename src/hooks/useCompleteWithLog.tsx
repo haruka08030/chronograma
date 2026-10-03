@@ -9,21 +9,18 @@ import { logLabelFromTask } from '../lib/logCategoryColors'
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（予定どおり / ずれた時刻で）。
- * To‑Do の一覧のチェックと、通知の「記録する」で共有する。`modal` を描画しておくこと。
+ * 通知の「記録する」から開く（完了の丸は記録を足さず完了だけ）。`modal` を描画しておくこと。
  */
 export function useCompleteWithLog() {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [draft, setDraft] = useState<CompleteWithLogDraft | null>(null)
 
-  /** 時刻の無い予定・完了済みはそのまま切り替える（`toggleIfNoTimes` が false なら何もしない） */
+  /** 時刻の無い予定・完了済みは何もしない */
   const open = useCallback(
-    (task: Task, { toggleIfNoTimes = true }: { toggleIfNoTimes?: boolean } = {}) => {
+    (task: Task) => {
       const placement = taskPlacementDate(task)
-      if (task.completed || isListedTimeLog(task) || !placement || !task.startTime || !task.endTime) {
-        if (toggleIfNoTimes) toggleTask(task.id)
-        return
-      }
+      if (task.completed || isListedTimeLog(task) || !placement || !task.startTime || !task.endTime) return
       setDraft({
         taskId: task.id,
         title: task.title,
@@ -36,7 +33,7 @@ export function useCompleteWithLog() {
         ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
       })
     },
-    [toggleTask],
+    [],
   )
 
   const submit = useCallback(() => {
@@ -45,8 +42,11 @@ export function useCompleteWithLog() {
     if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
-    addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
-    toggleTask(draft.taskId)
+    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す
+    useTaskStore.getState().asOneUndo(() => {
+      addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
+      toggleTask(draft.taskId)
+    })
     setDraft(null)
   }, [draft, addTimeLog, toggleTask])
 

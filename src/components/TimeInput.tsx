@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pad2, toMinutes } from '../lib/clockTime'
 import { isSubmitEnter } from '../lib/keyboard'
 import { zonedNow } from '../lib/timeZone'
+import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER } from './ui/surface'
 
 interface TimeInputProps {
   value: string
@@ -246,7 +247,7 @@ export function TimeInput({
       {open && !disabled && (
         <div
           ref={listRef}
-          className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-zinc-300 bg-white p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] dark:border-zinc-700 dark:bg-zinc-900"
+          className={`absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
           role="listbox"
         >
           {options.map((option, idx) => {
@@ -259,13 +260,10 @@ export function TimeInput({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(option)}
+                // ハイライトはメニューと同じ色。今の値は ✓ と太字で示す
                 className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${
-                  active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200'
-                    : selected
-                      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
-                      : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                }`}
+                  active ? MENU_ROW_ACTIVE : MENU_ROW_HOVER
+                } ${selected ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-200'}`}
                 role="option"
                 aria-selected={selected}
               >

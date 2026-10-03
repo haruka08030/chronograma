@@ -1,6 +1,11 @@
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
 import { CheckIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
+
+/** 丸の直径（24px） */
+const SWATCH_SIZE = '1.5rem'
 
 export interface Swatch {
   hex: string
@@ -10,7 +15,7 @@ export interface Swatch {
 
 /**
  * 色の丸を並べる部品（リスト・習慣・ラベル・予定の色で共通）。Google カレンダーの 24 色を 12 列（狭い所は 6 列）で、
- * 選んでいる色にはチェック。外枠（ポップオーバー・カード）や前後のボタンは使う側で付ける。
+ * 選んでいる色にはチェック。丸の大きさはどこでも同じ（置き場所の幅で変えない）。外枠（ポップオーバー・カード）や前後のボタンは使う側で付ける。
  */
 export function ColorSwatches({
   selectedHex,
@@ -36,8 +41,9 @@ export function ColorSwatches({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={`grid gap-1 ${className}`}
-      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      // 12 列（幅 354px）はスマホのカードに収まらないので、狭い画面では 6 列で折り返す
+      className={`grid w-max gap-1.5 ${columns === 12 ? 'grid-cols-[repeat(6,var(--sw))] sm:grid-cols-[repeat(12,var(--sw))]' : 'grid-cols-[repeat(6,var(--sw))]'} ${className}`}
+      style={{ '--sw': SWATCH_SIZE } as CSSProperties}
     >
       {list.map((sw) => {
         const isSelected = selected === sw.hex.toUpperCase()
@@ -49,9 +55,9 @@ export function ColorSwatches({
             role="radio"
             aria-checked={isSelected}
             aria-label={name}
-            title={name}
+            {...tip(name)}
             onClick={() => onChoose(sw.hex)}
-            className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
+            className="flex aspect-square w-full items-center justify-center rounded-full transition-transform hover:scale-110"
             style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}
           >
             {isSelected && <CheckIcon className="h-3 w-3" strokeWidth={3.5} />}

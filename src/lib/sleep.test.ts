@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { defaultSleepTimes, looksLikeSleep, sleepEndingOn, sleepMinutes, sleepSpan, summarizeSleep, wakeDateOf } from './sleep'
 import { getDayPlan } from './dayPlan'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const log = (id: string, over: Partial<Task> = {}): Task => ({
+  ...TASK_DEFAULTS,
   id,
   title: id,
   description: '',

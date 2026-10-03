@@ -9,6 +9,15 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 
+/**
+ * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
+ * 画面で訳した文字列をそのまま渡すこともできる
+ */
+/** クラウド同期の状態 */
+export type SyncState = 'idle' | 'syncing' | 'error'
+
+export type ToastText = string | { key: string; params?: Record<string, string | number> }
+
 export type CalendarMode = 'month' | 'week'
 
 export type SmartView =
@@ -70,9 +79,14 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  sortMode: SortMode
+  /** 並び順。リスト・ビューごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
-  deletedTasks: { task: Task; deletedAt: number }[]
+  /**
+   * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
+   * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
+   */
+  recentDeletes: { ids: string[]; at: number }[]
   quickAddRequested: boolean
   filterTag: string | null
   /** To‑Do を色（ラベル）で絞っているときの `#RRGGBB`（大文字）。「すべて」と組み合わせて「ラベルを開いた」状態になる */
@@ -90,6 +104,8 @@ export interface TaskState {
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
   logCategoryColors: Record<string, string>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  logLabelsUpdatedAt: string | null
 
   calendarEvents: CalendarEvent[]
   /** Google の予定にアプリで付けた色（`googleEventColors.ts`）。API に出ない新しい色（アボカドなど）の代わり */
@@ -176,9 +192,12 @@ export interface TaskState {
   /** リストを開き、そのセクションを追加先にして見出しまでスクロールする（サイドバーのセクション） */
   selectListSection: (listId: string, sectionId: string) => void
   clearSectionScrollTarget: () => void
+  /** リストを開いてタグで絞る（サイドバーの Canvas の科目タグ） */
+  selectListTag: (listId: string, tag: string) => void
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
+  /** いま開いているリスト・ビューの並び順を変える */
   setSortMode: (mode: SortMode) => void
   setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
   requestQuickAdd: () => void
@@ -247,6 +266,7 @@ export interface TaskState {
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
   setExtraTimeZones: (zones: string[]) => void
+  /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (
     id: string,
@@ -254,6 +274,7 @@ export interface TaskState {
       Pick<
         Task,
         | 'title'
+        | 'category'
         | 'description'
         | 'dueDate'
         | 'dueTime'
@@ -278,21 +299,21 @@ export interface TaskState {
     >,
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
-  rescheduleTasks: (ids: string[], dateKey: string, label?: string) => void
+  rescheduleTasks: (ids: string[], dateKey: string, label?: ToastText) => void
   /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],
     patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
-    label?: string,
+    label?: ToastText,
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
   completeTasks: (ids: string[]) => void
-  /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に deletedTasks も更新 */
+  /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
   /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
   uncheckTasks: (ids: string[]) => void
-  /** いつか → 「やること」（未分類）へ移して予定日を付ける。Undo は 1 段 */
+  /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */
   promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
@@ -329,8 +350,8 @@ export interface TaskState {
     listId: string,
   ) => { moved: boolean; listName?: string; listId?: string; count?: number }
 
-  moveBannerText: string | null
-  showMoveBanner: (text: string) => void
+  moveBannerText: ToastText | null
+  showMoveBanner: (text: ToastText) => void
   clearMoveBanner: () => void
 
   /**
@@ -338,7 +359,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: string; at: number } | null
+  undoBanner: { text: ToastText; at: number } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null
@@ -353,10 +374,10 @@ export interface TaskState {
    * 預けたデータが届いているのか利用者から分からなかった。
    * `error` は「最後の同期が失敗して未送信の変更がある」という意味。
    */
-  syncState: 'idle' | 'syncing' | 'error'
+  syncState: SyncState
   /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
   lastSyncedAt: string | null
-  setSyncState: (state: 'idle' | 'syncing' | 'error', lastSyncedAt?: string) => void
+  setSyncState: (state: SyncState, lastSyncedAt?: string) => void
   /** 最後の同期でサーバーに受け付けられなかった行（永続化しない）。手元には残っている */
   syncRejected: SyncRejectedRow[]
   setSyncRejected: (rows: SyncRejectedRow[]) => void
@@ -392,24 +413,3 @@ export interface TaskState {
   importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
 
-/** ⌘Z 用。永続化しない */
-export interface ChronogramaUndoSnapshot {
-  tasks: Task[]
-  lists: TaskList[]
-  sections: ListSection[]
-  habits: Habit[]
-  deletedTasks: { task: Task; deletedAt: number }[]
-  listColorPaletteId: ListColorPaletteId
-  timeLogTagPresets: string[]
-  /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
-  logCategoryColors: Record<string, string>
-  selectedListId: string | null
-  selectedView: SmartView | null
-  quickAddSectionId: string | null
-  sortMode: SortMode
-  filterTag: string | null
-  filterColor: string | null
-  calendarMode: CalendarMode
-  selectedCalendarDateKey: string
-  activeTimer: ActiveTimer | null
-}

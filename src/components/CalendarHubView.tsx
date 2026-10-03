@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { addMonths, addWeeks, format, parseISO, startOfMonth, subMonths, subWeeks } from 'date-fns'
+import { addMonths, addWeeks, startOfMonth, subMonths, subWeeks } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
@@ -18,6 +18,9 @@ import {
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
 import { appToday } from '../lib/timeZone'
+import { tip } from '../lib/tooltip'
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -32,21 +35,21 @@ export function CalendarHubView() {
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
-    const d = parseISO(`${selectedDateKey}T12:00:00`)
+    const d = fromDateKey(selectedDateKey)
     if (mode === 'month') setMonthCursor(startOfMonth(d))
     else setWeekAnchor(d)
   }
 
   const applyPickedDate = useCallback((key: string) => {
     setSelectedCalendarDateKey(key)
-    const d = parseISO(`${key}T12:00:00`)
+    const d = fromDateKey(key)
     setMonthCursor(startOfMonth(d))
     setWeekAnchor(d)
   }, [setSelectedCalendarDateKey])
 
   const onGoToday = useCallback(() => {
     const today = appToday()
-    const key = format(today, 'yyyy-MM-dd')
+    const key = toDateKey(today)
     setSelectedCalendarDateKey(key)
     setMonthCursor(startOfMonth(today))
     setWeekAnchor(today)
@@ -57,7 +60,7 @@ export function CalendarHubView() {
       setMonthCursor((m) => subMonths(m, 1))
     } else {
       setWeekAnchor((w) => subWeeks(w, 1))
-      setSelectedCalendarDateKey(format(subWeeks(parseISO(`${selectedDateKey}T12:00:00`), 1), 'yyyy-MM-dd'))
+      setSelectedCalendarDateKey(toDateKey(subWeeks(fromDateKey(selectedDateKey), 1)))
     }
   }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
 
@@ -66,7 +69,7 @@ export function CalendarHubView() {
       setMonthCursor((m) => addMonths(m, 1))
     } else {
       setWeekAnchor((w) => addWeeks(w, 1))
-      setSelectedCalendarDateKey(format(addWeeks(parseISO(`${selectedDateKey}T12:00:00`), 1), 'yyyy-MM-dd'))
+      setSelectedCalendarDateKey(toDateKey(addWeeks(fromDateKey(selectedDateKey), 1)))
     }
   }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
 
@@ -77,9 +80,7 @@ export function CalendarHubView() {
   const unscheduleDropProps = {
     [UNSCHEDULE_DROP_ATTR]: '',
     onDragOver: (e: React.DragEvent) => {
-      if (!itemDrag.active) return
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
+      if (!itemDrag.active || !acceptTaskDrag(e)) return
       setUnscheduleHover(true)
     },
     onDragLeave: (e: React.DragEvent) => {
@@ -101,7 +102,7 @@ export function CalendarHubView() {
     },
   }
   const unscheduleHighlight = itemDrag.overUnschedule
-    ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+    ? DROP_HIGHLIGHT_CLASS
     : ''
 
   return (
@@ -124,7 +125,7 @@ export function CalendarHubView() {
           type="button"
           onClick={() => setDockOpen((o) => !o)}
           aria-pressed={dockOpen}
-          title={t('calendarHub.dockHint')}
+          {...tip(t('calendarHub.dockHint'))}
           // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             dockOpen

@@ -16,7 +16,6 @@ export function SortableTaskItem({
   dragGroupRootIds,
   onClick,
   onRowClick,
-  onCompleteRequest,
   onEnterCreateSibling,
   selection,
   autoEdit,
@@ -28,7 +27,6 @@ export function SortableTaskItem({
   dragGroupRootIds: string[]
   onClick?: () => void
   onRowClick?: (e: MouseEvent) => void
-  onCompleteRequest?: (task: Task) => void
   onEnterCreateSibling?: (task: Task) => void
   selection?: TaskItemSelection
   autoEdit?: boolean
@@ -85,7 +83,6 @@ export function SortableTaskItem({
         task={task}
         onClick={onClick}
         onRowClick={onRowClick}
-        onCompleteRequest={onCompleteRequest}
         onEnterCreateSibling={onEnterCreateSibling}
         selection={selection}
         autoEdit={autoEdit}

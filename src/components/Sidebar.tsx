@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
-import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { useEscapeLayer } from '../hooks/useHotkey'
 import { isTodoNavView } from '../lib/todoSurfaceView'
 import { TodoNavContent } from './TodoNavPanel'
 import { SmartViewRow } from './SmartViewRow'

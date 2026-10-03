@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { CALENDAR_COLORS } from '../lib/googleColors'
+import { hexForGoogleKey } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
 import {
@@ -12,14 +11,14 @@ import {
   toggleHabitWeekdaySelection,
 } from '../lib/habitDraft'
 import {
-  colorIndexForPalette,
-  habitDateKey,
   completionRatioOnDate,
   consistencyForLast7Days,
   currentStreakDays,
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
+import { colorVars } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
@@ -31,36 +30,39 @@ import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
-import { ColorSwatches } from './ui/ColorSwatches'
+import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
+import { PillToggle } from './ui/PillToggle'
+import { SectionLabel } from './ui/SectionLabel'
+import { tip } from '../lib/tooltip'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { EmptyState } from './ui/EmptyState'
+import { CheckIcon, RepeatIcon } from './icons'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
+import { fieldClass } from './ui/fieldClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 
-/** 習慣の色は記録のラベルと同じ Google カレンダーの 24 色（以前の 11 色はすべてこの中にある） */
-const HABIT_COLORS: readonly string[] = CALENDAR_COLORS.map((c) => c.hex)
-const DEFAULT_HABIT_COLOR_INDEX = CALENDAR_COLORS.findIndex((c) => c.key === 'sage')
+/** 習慣の色＝ラベル（記録のラベルと同じ色選び。名前の付いた色を選ぶと、その習慣の記録はそのラベルになる） */
+const DEFAULT_HABIT_COLOR = hexForGoogleKey('sage')!
 
 const iconTrash = ICON_PATHS.trash
 
 function ColorPicker({
-  colorIndex,
+  color,
   onPick,
 }: {
-  colorIndex: number
-  onPick: (i: number) => void
+  color: string
+  onPick: (hex: string) => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
-      <ColorSwatches
-        ariaLabel={t('habits.color')}
-        className="max-w-sm"
-        selectedHex={CALENDAR_COLORS[colorIndex]?.hex ?? null}
-        onChoose={(hex) => onPick(CALENDAR_COLORS.findIndex((c) => c.hex === hex))}
-      />
+      <SectionLabel as="span" level="field">{t('habits.color')}</SectionLabel>
+      <ColorPalette bare selectedHex={color} onChoose={onPick} />
     </div>
   )
 }
@@ -78,21 +80,12 @@ function WeekdayPicker({
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   if (freq !== 'weekly') return null
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {HABIT_WEEKDAY_ORDER.map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onToggle(v)}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
-            ${weekdays.includes(v)
-              ? 'bg-accent-500 text-on-accent'
-              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-        >
-          {labels[v - 1]}
-        </button>
-      ))}
-    </div>
+    <PillToggle
+      ariaLabel={t('habits.freqWeeklyLabel')}
+      options={HABIT_WEEKDAY_ORDER.map((v) => ({ value: v, label: labels[v - 1] }))}
+      values={weekdays}
+      onToggle={onToggle}
+    />
   )
 }
 
@@ -151,29 +144,29 @@ function HabitTimeFields({
 
       {mode === 'fixed' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.timeAt')}</span>
+          <SectionLabel as="span" level="field">{t('habits.timeAt')}</SectionLabel>
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
         </div>
       ) : null}
 
       {mode === 'range' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
+          <SectionLabel as="span" level="field">{t('habits.time')}</SectionLabel>
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
             value={endTime}
             onChange={onEndTimeChange}
             pickerDefault={startTime ? addClockMinutes(startTime, 60) : undefined}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
         </div>
       ) : null}
@@ -205,8 +198,7 @@ export function HabitsView() {
   const [newTimeMode, setNewTimeMode] = useState<HabitTimeMode>('range')
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
-  const [newColorIndex, setNewColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
-  const newColor = HABIT_COLORS[newColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
+  const [newColor, setNewColor] = useState(DEFAULT_HABIT_COLOR)
   const newTitleInputRef = useRef<HTMLInputElement>(null)
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null)
@@ -217,8 +209,7 @@ export function HabitsView() {
   const [editTimeMode, setEditTimeMode] = useState<HabitTimeMode>('range')
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
-  const [editColorIndex, setEditColorIndex] = useState(DEFAULT_HABIT_COLOR_INDEX)
-  const editColor = HABIT_COLORS[editColorIndex] ?? HABIT_COLORS[DEFAULT_HABIT_COLOR_INDEX]
+  const [editColor, setEditColor] = useState(DEFAULT_HABIT_COLOR)
 
   const cancelEdit = useCallback(() => {
     setEditingHabitId(null)
@@ -238,7 +229,7 @@ export function HabitsView() {
       setEditTimeMode(h.timeMode)
       setEditStartTime(h.startTime ?? '09:00')
       setEditEndTime(h.endTime ?? '10:00')
-      setEditColorIndex(colorIndexForPalette(h.color, HABIT_COLORS, DEFAULT_HABIT_COLOR_INDEX))
+      setEditColor(h.color)
     },
     [],
   )
@@ -338,31 +329,28 @@ export function HabitsView() {
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(appToday(), 27 - i)
-        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
+        return { key: toDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
     [habits, habitRecords],
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
   const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
   const focusDate = useMemo(
-    () => parseISO(`${selectedCalendarDateKey}T12:00:00`),
+    () => fromDateKey(selectedCalendarDateKey),
     [selectedCalendarDateKey],
   )
   const weekDates = useMemo(() => {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
-  const todayKey = habitDateKey(appToday())
+  const todayKey = toDateKey(appToday())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
   )
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const focusDateLabel = format(
-    focusDate,
-    i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)',
-    { locale: dateLocale },
-  )
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
+  const focusDateLabel = df.monthDayWeekday(focusDate)
   const isFocusToday = selectedCalendarDateKey === todayKey
 
   const habitsScheduledForFocus = useMemo(
@@ -375,7 +363,7 @@ export function HabitsView() {
   )
 
   const shiftFocusDay = useCallback((delta: number) => {
-    setSelectedCalendarDateKey(format(addDays(focusDate, delta), 'yyyy-MM-dd'))
+    setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta)))
   }, [focusDate, setSelectedCalendarDateKey])
 
   const goFocusToday = useCallback(() => {
@@ -414,12 +402,12 @@ export function HabitsView() {
           >
             <div className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.editTitle')}</h3>
+                <h3 className={CARD_TITLE_CLASS}>{t('habits.editTitle')}</h3>
                 <button
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
                   className="p-1.5 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
-                  title={t('common.delete')}
+                  {...tip(t('common.delete'))}
                   aria-label={t('common.delete')}
                 >
                   <PathIcon d={iconTrash} className="w-4 h-4" strokeWidth={1.5} />
@@ -436,9 +424,9 @@ export function HabitsView() {
                   if (e.key === 'Escape') cancelEdit()
                 }}
                 placeholder={t('habits.nameShort')}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100"
+                className={fieldClass({}, 'w-full')}
               />
-              <ColorPicker colorIndex={editColorIndex} onPick={setEditColorIndex} />
+              <ColorPicker color={editColor} onPick={setEditColor} />
               <div className="flex gap-6 text-sm">
                 <label className="flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300">
                   <input
@@ -543,7 +531,7 @@ export function HabitsView() {
 
           <div className="grid grid-cols-7 gap-1.5">
             {weekDates.map((d, di) => {
-              const key = habitDateKey(d)
+              const key = toDateKey(d)
               const isCellToday = key === todayKey
               const isCellFocus = key === selectedCalendarDateKey
               const isScheduled = isHabitScheduledOnDate(h, d)
@@ -569,20 +557,21 @@ export function HabitsView() {
                   className="flex justify-center"
                   aria-label={cellTitle}
                 >
+                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
-                        ? 'text-white'
+                        ? HABIT_DONE_FILL
                         : isOffTime
-                          ? 'border-2 bg-white font-semibold dark:bg-zinc-900'
+                          ? HABIT_OFF_TIME_FILL
                           : isScheduled
                             ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                             : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
-                    style={isDone ? { backgroundColor: h.color } : isOffTime ? { borderColor: h.color, color: h.color } : undefined}
+                    style={colorVars(h.color)}
                     title={cellTitle}
                   >
-                    {isDone ? '✓' : isOffTime ? '△' : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
+                    {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )
@@ -597,7 +586,7 @@ export function HabitsView() {
     <div className="flex-1 overflow-y-auto">
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl">{t('habits.title')}</h1>
+          <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
           <button
             type="button"
             onClick={() => {
@@ -650,7 +639,7 @@ export function HabitsView() {
 
         {showComposer ? (
           <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
-            <h2 className="mb-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('habits.newHabit')}</h2>
+            <h2 className={`mb-4 ${CARD_TITLE_CLASS}`}>{t('habits.newHabit')}</h2>
             <div className="space-y-3">
               <input
                 ref={newTitleInputRef}
@@ -664,9 +653,9 @@ export function HabitsView() {
                   if (e.key === 'Escape') closeComposer()
                 }}
                 placeholder={t('habits.placeholderName')}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className={fieldClass({}, 'w-full')}
               />
-              <ColorPicker colorIndex={newColorIndex} onPick={setNewColorIndex} />
+              <ColorPicker color={newColor} onPick={setNewColor} />
               <div className="flex gap-6 text-sm">
                 <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
                   <input
@@ -713,7 +702,7 @@ export function HabitsView() {
 
         {habits.length > 0 ? (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.listForDayTitle')}</h2>
+            <h2 className={SECTION_HEADING_CLASS}>{t('habits.listForDayTitle')}</h2>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{focusDateLabel}</span>
               <DayNav
@@ -728,13 +717,11 @@ export function HabitsView() {
             </div>
             <div className="grid grid-cols-7 gap-1.5">
               {weekDates.map((d, i) => {
-                const key = habitDateKey(d)
+                const key = toDateKey(d)
                 const isColToday = key === todayKey
                 const isColFocus = key === selectedCalendarDateKey
                 const labelTone = isColToday || isColFocus ? '' : 'text-zinc-400 dark:text-zinc-500'
-                const headerDateShort = format(d, i18n.resolvedLanguage?.startsWith('ja') ? 'M/d' : 'MMM d', {
-                  locale: dateLocale,
-                })
+                const headerDateShort = df.shortDate(d)
                 return (
                   <button
                     key={key}
@@ -758,9 +745,9 @@ export function HabitsView() {
 
         <ul className="space-y-3">
         {habits.length === 0 && (
-          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">
-            {t('habits.empty', { add: t('habits.addHabitCta') })}
-          </p>
+          <li>
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          </li>
         )}
         {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
           <p className="py-2 text-sm text-zinc-400 dark:text-zinc-500">{t('habits.noneScheduledForDay')}</p>
@@ -769,7 +756,7 @@ export function HabitsView() {
         {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
           <li className="list-none">
             <div className="pt-4 pb-1">
-              <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{t('habits.offDaySectionTitle')}</h3>
+              <SectionLabel as="h3">{t('habits.offDaySectionTitle')}</SectionLabel>
             </div>
           </li>
         ) : null}

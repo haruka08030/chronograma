@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { buttonClass } from './buttonClass'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip } from '../../lib/tooltip'
 
 const ARROW =
   'rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
@@ -43,12 +43,12 @@ export function DayNav({
         type="button"
         onClick={onToday}
         disabled={atToday}
-        {...tip(t('shortcuts.today'), shortcuts ? 'T' : undefined)}
+        {...shortcutTip(t('shortcuts.today'), shortcuts ? 'today' : undefined)}
         className={buttonClass({ variant: 'secondary', size: 'xs' }, 'mr-1')}
       >
         {today}
       </button>
-      <button type="button" onClick={onPrev} aria-label={prevLabel} {...tip(prevLabel, shortcuts ? 'K' : undefined)} className={ARROW}>
+      <button type="button" onClick={onPrev} aria-label={prevLabel} {...shortcutTip(prevLabel, shortcuts ? 'prev' : undefined)} className={ARROW}>
         <ChevronLeftIcon className="h-4 w-4" />
       </button>
       <button
@@ -56,7 +56,7 @@ export function DayNav({
         onClick={onNext}
         disabled={nextDisabled}
         aria-label={nextLabel}
-        {...tip(nextLabel, shortcuts ? 'J' : undefined)}
+        {...shortcutTip(nextLabel, shortcuts ? 'next' : undefined)}
         className={ARROW}
       >
         <ChevronRightIcon className="h-4 w-4" />

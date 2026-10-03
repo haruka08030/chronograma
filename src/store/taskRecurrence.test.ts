@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { nextDueDate, recurrenceNextId, toggleTaskCompletion } from './taskRecurrence'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // localStorage・i18n を用意しなくても読める（ストアを通さない）
 
@@ -9,6 +10,7 @@ const T1 = '2026-10-02T09:05:00.000Z'
 
 function task(fields: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id: 'gym', title: 'ジム', description: '', completed: false, completedAt: null, createdAt: T0, updatedAt: T0,
     order: 0, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: null, endTime: null,
     priority: 'none', tags: [], recurrence: { type: 'weekly', interval: 1 },

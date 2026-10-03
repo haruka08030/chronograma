@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
@@ -9,23 +8,22 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { tip } from '../lib/tooltip'
+import { toDateKey } from '../lib/dateKey'
+import { minutesToTime, timeToMinutes } from '../lib/clockTime'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
 
 /** 5 分単位に切り捨てた hh:mm */
 const floorTo5 = (min: number) => {
   const m = min - (min % 5)
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return minutesToTime(m)
 }
 
 const MoonIcon = () => (
-  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-300" />
+  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 )
 
 /**
@@ -45,7 +43,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const [draftFor, setDraftFor] = useState<string | null>(null)
   const now = useNowMinuteTick()
 
-  const todayKey = format(now, 'yyyy-MM-dd')
+  const todayKey = toDateKey(now)
   const nowMin = now.getHours() * 60 + now.getMinutes()
   if (dateKey > todayKey) return null
   const isToday = dateKey === todayKey
@@ -58,7 +56,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     const init = record?.startTime && record.endTime ? { bed: record.startTime, wake: record.endTime } : defaultSleepTimes(tasks)
     setBed(init.bed)
     // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
-    setWake(!record && isToday && toMin(init.wake) > nowMin ? floorTo5(nowMin) : init.wake)
+    setWake(!record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake)
     setDraftFor(draftKey)
   }
 
@@ -68,7 +66,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       <button
         type="button"
         onClick={() => setEditing(true)}
-        title={t('sleep.edit')}
+        {...tip(t('sleep.edit'))}
         className="-mx-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <MoonIcon />
@@ -81,7 +79,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     )
   }
 
-  const inFuture = isToday && Boolean(wake) && toMin(wake) > nowMin
+  const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {
     if (!canSave) return
@@ -121,7 +119,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
             type="button"
             onClick={() => setEditing(false)}
             aria-label={t('common.cancel')}
-            title={t('common.cancel')}
+            {...tip(t('common.cancel'))}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />

@@ -6,6 +6,7 @@ import { paletteColors } from '../lib/listColorPalettes'
 import { appTimeZone } from '../lib/timeZone'
 import {
   CANVAS_LIST_ID,
+  canvasCourseSectionsToTags,
   mergeCanvasLists,
   CanvasRequestError,
   fetchCanvasItems,
@@ -13,7 +14,11 @@ import {
   parseCanvasTaskId,
   reconcileCanvasItems,
 } from '../lib/canvas'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { notify } from '../lib/notify'
+import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
+import { isLeaderTab } from '../lib/tabLeader'
+import { loadPulled, savePulled } from '../lib/externalFields'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -40,10 +45,29 @@ function setSyncState(patch: Partial<CanvasSyncState>) {
   listeners.forEach((l) => l())
 }
 
+const FEED_NOTICE_KEY = 'chronograma-canvas-feed-notice'
+
+/**
+ * カレンダーフィードでつないだ学校の課題は読むだけなので、ここで完了にしても Canvas は変わらない。
+ * 最初に完了にしたときだけ、この端末で一度知らせる
+ */
+function noticeFeedIsReadOnly() {
+  try {
+    if (localStorage.getItem(FEED_NOTICE_KEY)) return
+    localStorage.setItem(FEED_NOTICE_KEY, '1')
+  } catch {
+    return
+  }
+  notify(i18n.t('canvas.feedCompleteNotice'))
+}
+
 /** 設定画面の「今すぐ同期」や、接続の直後に呼ぶ */
 export function requestCanvasSync() {
   requestSync?.()
 }
+
+/** 前回 Canvas から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
+const pulledKey = (userId: string) => `chronograma-canvas-pulled-v1:${userId}`
 
 export function useCanvasSyncState(): CanvasSyncState {
   return useSyncExternalStore(
@@ -77,7 +101,10 @@ export function useCanvasSync() {
     /** カレンダーフィードでつないだ学校。完了を書き戻さない */
     const readOnly = new Set<string>()
 
-    const run = async () => {
+    /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
+    const run = async (manual = false) => {
+      // 取り込みは代表の 1 つのタブだけ（ほかのタブは保存の共有で同じ結果を受け取る）
+      if (!manual && !isLeaderTab()) return
       if (running) {
         rerun = true
         return
@@ -102,7 +129,16 @@ export function useCanvasSync() {
             changed = true
             if (selectedListId && merged.mergedIds.includes(selectedListId)) selectedListId = CANVAS_LIST_ID
           }
+          // 科目ごとのセクションだった版の課題を、科目のタグに移す。タグが見えるよう「タグを使う」を一度だけオンにする
+          let tagsEnabled = s.tagsEnabled
+          const toTags = canvasCourseSectionsToTags(next, new Date().toISOString())
+          if (toTags.converted) {
+            next = { ...next, sections: toTags.sections, tasks: toTags.tasks }
+            changed = true
+            tagsEnabled = true
+          }
           const connectionErrors: Record<string, string> = {}
+          const pulled = loadPulled(pulledKey(userId))
           for (const conn of res.connections) {
             if ('error' in conn) {
               connectionErrors[conn.id] = conn.error
@@ -118,14 +154,17 @@ export function useCanvasSync() {
               untitled: i18n.t('canvas.untitled'),
               // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
               skipIds: new Set(pendingWrite.keys()),
+              pulled,
             })
+            Object.assign(pulled, result.pulled)
             result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
             if (result.changed) {
               next = { lists: result.lists, sections: result.sections, tasks: result.tasks }
               changed = true
             }
           }
-          if (changed) useTaskStore.setState({ ...next, selectedListId })
+          savePulled(pulledKey(userId), pulled)
+          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId, tagsEnabled }))
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {
@@ -161,6 +200,8 @@ export function useCanvasSync() {
 
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (state.tasks === prev.tasks) return
+      // 書き戻すのはこの端末でのユーザーの操作だけ（同期・他のタブ・取り込みで届いた完了は書き戻さない）
+      if (isIncomingChange() || isAdoptingFromOtherTab()) return
       let prevById: Map<string, boolean> | null = null
       for (const t of state.tasks) {
         if (!t.id.startsWith('canvas-')) continue
@@ -171,12 +212,15 @@ export function useCanvasSync() {
         // 新しく現れたタスク（取り込み・他の端末からの同期）や、完了が変わっていないものは対象外
         if (before === undefined || before === t.completed) continue
         if (t.completed && autoCompleted.delete(t.id)) continue
-        if (readOnly.has(parsed.connectionId)) continue
+        if (readOnly.has(parsed.connectionId)) {
+          if (t.completed) noticeFeedIsReadOnly()
+          continue
+        }
         write(t.id, parsed.connectionId, parsed.type, parsed.id)
       }
     })
 
-    requestSync = () => void run()
+    requestSync = () => void run(true)
 
     // 初回はクラウド同期が一度終わるのを待つ（時間切れなら待たずに始める）
     let firstTimer: ReturnType<typeof setTimeout> | undefined

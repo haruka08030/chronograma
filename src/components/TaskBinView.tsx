@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -11,6 +10,10 @@ import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
+import { tip } from '../lib/tooltip'
+import { EmptyState } from './ui/EmptyState'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { PAGE_TITLE_CLASS } from './ui/headingClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -24,7 +27,7 @@ const TRASH_BOX_ICON =
   ICON_PATHS.trash
 
 export function TaskBinView({ mode }: { mode: BinMode }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const restoreDeletedTask = useTaskStore((s) => s.restoreDeletedTask)
@@ -33,7 +36,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
 
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const df = useDateFormat()
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
 
   const rows = useMemo(() => {
@@ -63,7 +66,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+          <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
           <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
             {t('taskBin.count', { count: rows.length })}
           </p>
@@ -83,12 +86,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
 
       <div className="flex-1 space-y-1 px-4 pb-6">
         {rows.length === 0 ? (
-          <div className="py-16 text-center">
-            <PathIcon d={boxIcon} className="mx-auto mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" strokeWidth={1} />
-            <p className="text-sm text-zinc-400 dark:text-zinc-500">
-              {mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
-            </p>
-          </div>
+          <EmptyState
+            icon={<PathIcon d={boxIcon} strokeWidth={1} />}
+            title={mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
+          />
         ) : (
           rows.map(({ task, stamp, childCount }) => {
             const list = lists.find((l) => l.id === task.listId)
@@ -96,7 +97,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             const timeLog = isListedTimeLog(task)
             let stampLabel = ''
             try {
-              stampLabel = format(parseISO(stamp), i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 HH:mm' : 'MMM d, HH:mm', { locale: dateLocale })
+              stampLabel = df.monthDayTime(parseISO(stamp))
             } catch {
               stampLabel = ''
             }
@@ -129,7 +130,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     type="button"
                     onClick={() => (mode === 'deleted' ? restoreDeletedTask(task.id) : unarchiveTask(task.id))}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    title={mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')}
+                    {...tip(mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive'))}
                   >
                     <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
                     <span className="hidden sm:inline">
@@ -148,7 +149,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                       }
                     }}
                     className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                    title={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
+                    {...tip(mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete'))}
                     aria-label={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
                   >
                     <PathIcon d={DELETE_ICON} className="h-4 w-4" />

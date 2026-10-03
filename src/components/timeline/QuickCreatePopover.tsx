@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
@@ -16,7 +14,11 @@ import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { PillToggle } from '../ui/PillToggle'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { tip } from '../../lib/tooltip'
+import { addTaskFromQuickText } from '../../lib/quickAddTask'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -49,7 +51,6 @@ export function QuickCreatePopover({
 }) {
   const { t, i18n } = useTranslation()
   const lists = useTaskStore((s) => s.lists)
-  const addTask = useTaskStore((s) => s.addTask)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [title, setTitle] = useState('')
@@ -88,20 +89,33 @@ export function QuickCreatePopover({
       return
     }
     if (googleWritable) lastDestination = 'todo'
-    const id = addTask(name, listId)
+    // 題名はクイック追加と同じに読む。ドラッグした日・時間帯は「書かなかったときの既定値」で、
+    // 「明日」「16時」のように書いたらそちらが勝つ（書いたのはドラッグのあとなので、より新しい意図）。
+    // 「金曜まで」は締切だけ付き、予定はドラッグした枠のまま。`@リスト` は選んだリストより優先
+    let id: string | undefined
+    // 作成とタイムゾーンの書き直しは 1 回の取り消しで戻す
+    useTaskStore.getState().asOneUndo(() => {
+      id = addTaskFromQuickText(name, {
+        defaultListId: listId,
+        currentListId: listId,
+        defaultDate: dateKey,
+        defaultTime: { startTime, endTime },
+      })
+      const created = useTaskStore.getState().tasks.find((x) => x.id === id)
+      if (!id || !zone || !created?.scheduledDate || !created.startTime || !created.endTime) return
+      // 別のタイムゾーンで作るときは、書いた（またはドラッグした）時刻をそのタイムゾーンの時刻として読む
+      const times = { scheduledDate: created.scheduledDate, startTime: created.startTime, endTime: created.endTime }
+      updateTask(id, {
+        ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
+        timeZone: zone,
+      })
+    })
     if (!id) return
-    const times = { scheduledDate: dateKey, startTime, endTime }
-    updateTask(
-      id,
-      zone
-        ? { ...timesPatchFromZone({ ...times, isTimeLog: false, dueDate: null, dueTime: null, endDate: null }, {}, zone), timeZone: zone }
-        : times,
-    )
     lastListId = listId
     onCreated(id, openDetail)
   }
 
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const df = useDateFormat()
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, googleWritable && !asLog ? 270 : 230)
   const listColor = plannable.find((l) => l.id === listId)?.color ?? '#7986CB'
 
@@ -117,27 +131,19 @@ export function QuickCreatePopover({
       }}
     >
       {googleWritable && !asLog && (
-        <div role="tablist" aria-label={t('googleEdit.destination')} className="mb-3 flex gap-1 text-xs">
-          {(['todo', 'google'] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              role="tab"
-              aria-selected={destination === d}
-              onClick={() => {
-                setDestination(d)
-                inputRef.current?.focus()
-              }}
-              className={`rounded-full px-3 py-1 transition-colors ${
-                destination === d
-                  ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700'
-              }`}
-            >
-              {t(d === 'todo' ? 'googleEdit.destTodo' : 'googleEdit.destGoogle')}
-            </button>
-          ))}
-        </div>
+        <PillToggle
+          ariaLabel={t('googleEdit.destination')}
+          options={[
+            { value: 'todo', label: t('googleEdit.destTodo') },
+            { value: 'google', label: t('googleEdit.destGoogle') },
+          ]}
+          value={destination}
+          onChange={(d) => {
+            setDestination(d)
+            inputRef.current?.focus()
+          }}
+          className="mb-3"
+        />
       )}
       <input
         ref={inputRef}
@@ -155,7 +161,7 @@ export function QuickCreatePopover({
       <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
         <ClockIcon className="h-4 w-4 shrink-0 text-zinc-400" strokeWidth={1.75} />
         <span className="min-w-0">
-          {format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale })} · {startTime} – {endTime}
+          {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
         </span>
         {!asLog && (
           <TimeZonePicker
@@ -169,7 +175,7 @@ export function QuickCreatePopover({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 aria-label={t('timeZone.field')}
-                title={zone ? zoneOptionLabel(zone, i18n.resolvedLanguage) : t('timeZone.field')}
+                {...tip(zone ? zoneOptionLabel(zone, i18n.resolvedLanguage) : t('timeZone.field'))}
                 onClick={toggle}
                 className={`ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
                   zone ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'

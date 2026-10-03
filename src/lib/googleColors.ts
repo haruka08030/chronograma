@@ -1,6 +1,5 @@
 /**
- * Google カレンダーの予定の色（11 色）。リスト・習慣・記録の分類はすべてこのパレットから選ぶ。
- * 以前の HSL で作った 6 種のパレットは彩度が高く「パキパキ」していたので、落ち着いたこの 1 種に統一した。
+ * Google カレンダーの予定の色（11 色。API の colorId 1〜11）。リストの初期色・以前の色の読み替えに使う。
  */
 
 export const GOOGLE_COLORS = [
@@ -23,7 +22,7 @@ export const GOOGLE_COLOR_HEXES: readonly string[] = GOOGLE_COLORS.map((c) => c.
 
 /**
  * Google カレンダーの色選択（24 色、画面の並び順）。予定の 11 色はこの一部。
- * 記録のラベル（分類）はこの 24 色＋自由な色から選ぶ。リスト・習慣は 11 色のまま。
+ * リスト・習慣・タスク・ラベル・予定の色はこの 24 色から選ぶ（`ui/ColorSwatches`）。ラベルは自由な色も選べる。
  */
 export const CALENDAR_COLORS = [
   { key: 'radicchio', hex: '#AD1457' },

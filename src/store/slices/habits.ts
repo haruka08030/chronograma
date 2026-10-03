@@ -1,6 +1,5 @@
 /** 習慣 */
 import type { Habit } from '../../types/habit'
-import i18n from '../../i18n/config'
 import { newId } from '../../lib/id'
 import { buildHabitRecordIndex, habitDayStatus } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
@@ -47,7 +46,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     },
     deleteHabit: (id) => {
       const name = get().habits.find((h) => h.id === id)?.title ?? ''
-      pushUndo(i18n.t('undo.habitDeleted', { name }))
+      pushUndo({ key: 'undo.habitDeleted', params: { name } })
       return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
     },
     toggleHabitDate: (habitId, dateKey) => {

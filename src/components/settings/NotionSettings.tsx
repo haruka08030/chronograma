@@ -13,12 +13,13 @@ import {
   type NotionStatus,
 } from '../../lib/notion'
 import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync'
-import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
 
-const select =
-  'max-w-[12rem] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+const select = fieldClass({ size: 'sm' }, 'max-w-[12rem]')
+const field = fieldClass({}, 'w-full')
 
 type Connected = Extract<NotionStatus, { connected: true }>
 
@@ -117,7 +118,7 @@ export function NotionSettings() {
             sync.syncing
               ? t('notion.syncing')
               : sync.lastSyncedAt
-                ? t('notion.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
+                ? t('common.syncedAt', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
                 : status.config.actionStatuses.length === 0
                   ? t('notion.pickStatusesFirst')
                   : undefined
@@ -273,7 +274,7 @@ function ConnectedRows({
                       type="checkbox"
                       checked={on}
                       onChange={(e) => toggleAction(name, e.target.checked)}
-                      className="h-4 w-4 rounded border-zinc-300 accent-accent-600"
+                      className="h-4 w-4 rounded border-zinc-300"
                     />
                     <span className="truncate">{name}</span>
                   </label>

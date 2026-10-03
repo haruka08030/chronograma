@@ -2,8 +2,9 @@
  * 繰り返しタスクの次回（純粋な関数。localStorage・i18n を読まない）。
  * 完了したら次の期限の回を作り、完了を取り消したらまだ手を付けていない次回を片付ける
  */
-import { addDays, addMonths, addWeeks, addYears, format } from 'date-fns'
+import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
 import type { Task } from '../types/task'
+import { toDateKey } from '../lib/dateKey'
 
 /** 繰り返しの次回の id。元が次回（`…@日付`）でも、いちばん元の id に次の期限を付ける */
 export function recurrenceNextId(id: string, nextDue: string): string {
@@ -13,10 +14,10 @@ export function recurrenceNextId(id: string, nextDue: string): string {
 export function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']>): string {
   const d = new Date(current + 'T00:00:00')
   switch (recurrence.type) {
-    case 'daily': return format(addDays(d, recurrence.interval), 'yyyy-MM-dd')
-    case 'weekly': return format(addWeeks(d, recurrence.interval), 'yyyy-MM-dd')
-    case 'monthly': return format(addMonths(d, recurrence.interval), 'yyyy-MM-dd')
-    case 'yearly': return format(addYears(d, recurrence.interval), 'yyyy-MM-dd')
+    case 'daily': return toDateKey(addDays(d, recurrence.interval))
+    case 'weekly': return toDateKey(addWeeks(d, recurrence.interval))
+    case 'monthly': return toDateKey(addMonths(d, recurrence.interval))
+    case 'yearly': return toDateKey(addYears(d, recurrence.interval))
   }
 }
 

@@ -1,5 +1,7 @@
-import { addDays, format, isValid, parseISO, startOfDay } from 'date-fns'
+import { addDays, isValid, startOfDay } from 'date-fns'
 import { appToday } from './timeZone'
+import { fromDateKey, toDateKey } from './dateKey'
+import { pad2 } from './clockTime'
 
 export type ParsedQuickAdd = {
   title: string
@@ -21,8 +23,7 @@ export const DEFAULT_BLOCK_MINUTES = 60
 const JA_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const EN_WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-const pad = (n: number) => String(n).padStart(2, '0')
-const hm = (min: number) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`
+const hm = (min: number) => `${pad2(Math.floor(min / 60) % 24)}:${pad2(min % 60)}`
 
 /** 次に来るその曜日（今日と同じ曜日なら今日） */
 function nextWeekday(today: Date, dow: number): Date {
@@ -84,7 +85,7 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     return { piece: { kind: 'date', date: nextWeekday(today, EN_WEEKDAYS.indexOf(m[1]!)) }, rest: s.slice(m[0].length) }
   }
   if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) {
-    const d = parseISO(`${m[0]}T12:00:00`)
+    const d = fromDateKey(m[0])
     if (isValid(d)) return { piece: { kind: 'date', date: startOfDay(d) }, rest: s.slice(m[0].length) }
   }
   // 9/30, 10月3日（過ぎていれば来年）
@@ -153,8 +154,8 @@ export function parseQuickAddTitle(
   localeJa: boolean,
   /** 「今日」「明日」の基準の日（夜中はまだ前の日。`appToday`） */
   now: Date = appToday(),
-  /** タグを使わない設定なら `#…` も題名のまま残す */
-  opts: { tags?: boolean } = {},
+  /** タグを使わない設定なら `#…` も題名のまま残す。リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
+  opts: { tags?: boolean; lists?: boolean } = {},
 ): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
@@ -181,7 +182,7 @@ export function parseQuickAddTitle(
       pendingDeadlineWord = token
       continue
     }
-    if ((token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
+    if (opts.lists !== false && (token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
       listName = token.slice(1).trim()
       continue
     }
@@ -218,7 +219,7 @@ export function parseQuickAddTitle(
       .trim() || raw.trim()
   return {
     title,
-    date: date ? format(date, 'yyyy-MM-dd') : null,
+    date: date ? toDateKey(date) : null,
     dateIsDeadline: deadline && date != null,
     tags,
     startTime: start != null ? hm(start) : null,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { useEscapeLayer } from '../../hooks/useEscapeLayer'
+import { dispatchHotkey, useEscapeLayer, useHotkey } from '../../hooks/useHotkey'
 import { FLOATING_SURFACE } from './surface'
 
 /**
@@ -8,7 +8,8 @@ import { FLOATING_SURFACE } from './surface'
  * - body 直下に重ね、背景を暗くする。背景を押すか Esc で閉じる（Esc は一番上の層だけ）
  * - 開いたらダイアログにフォーカスし、閉じたら元の場所に戻す。Tab / Shift+Tab はダイアログの中だけを巡回する
  * - 予定カードの「外側クリックで閉じる」・1 文字ショートカットがダイアログ越しに効かないよう、
- *   キー入力はここで止め、`data-popover-keep` でカードに「内側」と知らせる
+ *   キー入力はここで止め、`data-popover-keep` でカードに「内側」と知らせる。
+ *   このダイアログが一番上のときのキー（`closeKeys` など）だけは止める前に `dispatchHotkey` へ渡す
  *
  * 中の余白・並べ方は `className` で（例: `p-5`、見出しと本文を分けるなら `flex flex-col`）。
  */
@@ -20,6 +21,7 @@ export function Modal({
   width = 'md',
   className = '',
   initialFocus,
+  closeKeys,
 }: {
   children: ReactNode
   onClose: () => void
@@ -31,9 +33,12 @@ export function Modal({
   className?: string
   /** 開いたときにフォーカスする要素（省略するとダイアログ自体） */
   initialFocus?: RefObject<HTMLElement | null>
+  /** Esc のほかに閉じるキー（ショートカット一覧の「?」） */
+  closeKeys?: string[]
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const isTopLayer = useEscapeLayer(onClose)
+  const layer = useEscapeLayer(onClose)
+  useHotkey(closeKeys ?? [], onClose, { scope: layer, enabled: Boolean(closeKeys?.length) })
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     ;(initialFocus?.current ?? ref.current)?.focus()
@@ -47,9 +52,10 @@ export function Modal({
       data-popover-keep
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 dark:bg-black/50"
       onKeyDown={(e) => {
+        dispatchHotkey(e.nativeEvent, { layerOnly: true })
         e.stopPropagation()
         // 入力欄の Esc は層の仕組みでは拾わない（欄の取り消しを優先）。欄が使わなかった Esc でダイアログを閉じる
-        if (e.key === 'Escape' && !e.defaultPrevented && !e.nativeEvent.isComposing && isTopLayer()) {
+        if (e.key === 'Escape' && !e.defaultPrevented && !e.nativeEvent.isComposing && layer.isTop()) {
           e.preventDefault()
           onClose()
         }

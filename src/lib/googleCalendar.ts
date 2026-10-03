@@ -4,6 +4,8 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
+import { fromDateKey } from './dateKey'
+import { pad2 } from './clockTime'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -195,6 +197,7 @@ export function localizeGoogleError(
   if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
   if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
   if (lower.includes('not connected')) return t('planVsActual.notConnected')
+  if (lower.includes('too many requests')) return t('planVsActual.rateLimited')
   if (lower.includes('authorization expired') || lower.includes('invalid_grant')) {
     return t('planVsActual.tokenExpired')
   }
@@ -215,9 +218,6 @@ export function localizeGoogleError(
   return message
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, '0')
-}
 
 function formatYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
@@ -236,18 +236,6 @@ export function normalizeCalendarEventTimes(event: CalendarEvent): CalendarEvent
     startTime: start.time,
     endTime: end.time,
   }
-}
-
-export function hasOAuthCallbackInUrl(): boolean {
-  if (typeof window === 'undefined') return false
-  const hash = window.location.hash
-  const search = window.location.search
-  return (
-    hash.includes('access_token') ||
-    hash.includes('error') ||
-    search.includes('code=') ||
-    search.includes('error=')
-  )
 }
 
 /** 最後に取れたカレンダーの色（色の付いていない新しい予定に使う） */
@@ -319,7 +307,7 @@ export interface GoogleEventTiming {
 }
 
 function addDaysYmd(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T12:00:00`)
+  const d = fromDateKey(ymd)
   d.setDate(d.getDate() + days)
   return formatYmdLocal(d)
 }

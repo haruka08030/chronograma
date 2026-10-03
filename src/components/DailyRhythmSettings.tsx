@@ -2,12 +2,12 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
 import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
+import { fieldClass } from './ui/fieldClass'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
 
-const selectClass =
-  'rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100'
+const selectClass = fieldClass({ size: 'sm' })
 
 /**
  * 設定「通知」: 放っておくと逃すことを、手を打てるときだけ知らせる。
@@ -49,7 +49,7 @@ export function DailyRhythmSettings() {
               value={dailyReminders.planTime}
               onChange={(e) => e.target.value && setDailyReminders({ planTime: e.target.value })}
               aria-label={t('settings.morningSummary')}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              className={selectClass}
             />
           )}
           <Switch

@@ -1,3 +1,5 @@
+import { pad2 } from './clockTime'
+
 /**
  * タイムゾーン。アプリの日付・時刻（`yyyy-MM-dd` / `HH:mm`）はすべて「アプリのタイムゾーン」の壁時計で持つ。
  * 既定は端末のタイムゾーン。設定で別のタイムゾーンにすると、「今」「今日」と Google の予定の時刻がそちらに合わせて動く。
@@ -96,7 +98,6 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-const p2 = (n: number) => String(n).padStart(2, '0')
 
 /**
  * 1 日の区切り（時）。これより前の夜中は、まだ前の日として扱う。
@@ -114,8 +115,14 @@ export function appToday(): Date {
 
 /** アプリの「今日」の `yyyy-MM-dd` */
 export function appTodayKey(): string {
-  const d = appToday()
-  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+  return appDayKeyOf(Date.now())
+}
+
+/** 瞬間（完了した時刻など）がアプリのどの日か（`yyyy-MM-dd`）。夜中の 0〜4 時は前の日 */
+export function appDayKeyOf(instant: Date | string | number): string {
+  const d = toAppWall(instant)
+  d.setHours(d.getHours() - DAY_START_HOUR)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
 /** date-fns の isToday / isTomorrow の、アプリの「今日」版（夜中はまだ前の日） */
@@ -150,8 +157,8 @@ export interface WallClock {
 export function wallInZone(at: number, tz: string): WallClock {
   const d = new Date(wallAsUtcMs(tz, at))
   return {
-    date: `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`,
-    time: `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`,
+    date: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`,
+    time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
   }
 }
 
@@ -178,7 +185,7 @@ export function gmtLabel(tz: string, at: number = Date.now()): string {
   const abs = Math.abs(off)
   const h = Math.floor(abs / 60)
   const m = abs % 60
-  return `GMT${sign}${h}${m ? `:${p2(m)}` : ''}`
+  return `GMT${sign}${h}${m ? `:${pad2(m)}` : ''}`
 }
 
 /** `America/New_York` → `New York` */

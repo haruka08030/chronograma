@@ -50,7 +50,7 @@ export const LIST_COLOR_PALETTES: readonly ListColorPalette[] = [
 export const DEFAULT_LIST_COLOR_PALETTE_ID: ListColorPaletteId = 'pastel-rainbow'
 
 /**
- * リスト・習慣の色の選択肢。パレットの切り替えはやめ、Google カレンダーの 11 色に統一した
+ * 新しいリストに順に振る初期色（Google カレンダーの予定の 11 色）。選べる色は `ui/ColorSwatches` の 24 色
  * （引数は旧 API 互換のため残しているが使わない）。
  */
 export function paletteColors(_paletteId?: string): readonly string[] {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { getWeekReview } from './weekReview'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
+  ...TASK_DEFAULTS,
   id,
   title: id,
   description: '',

@@ -48,7 +48,7 @@ export function inferLogCategory(
   if (opts.sourceTaskId) {
     const src = tasks.find((t) => t.id === opts.sourceTaskId)
     // To-Do のタグは分類ではない。To-Do からはラベル（色）で引く
-    if (src?.isTimeLog && src.tags[0]) return src.tags[0]
+    if (src?.isTimeLog && src.category) return src.category
     if (src && !src.isTimeLog && src.color) {
       const hex = src.color.toLowerCase()
       const hit = opts.categoryHexes?.find(([, h]) => h.toLowerCase() === hex)
@@ -64,7 +64,7 @@ export function inferLogCategory(
     if (norm(t.title) !== key) continue
     if (!best || logStamp(t) > logStamp(best)) best = t
   }
-  if (best) return best.tags[0]!
+  if (best) return best.category!
 
   const tokens = new Set(titleTokens(title))
   if (tokens.size > 0) {
@@ -72,7 +72,7 @@ export function inferLogCategory(
     for (const t of logs) {
       const shared = titleTokens(t.title).filter((x) => tokens.has(x)).length
       if (shared === 0) continue
-      const cat = t.tags[0]!
+      const cat = t.category!
       const v = votes.get(cat) ?? { score: 0, stamp: '' }
       v.score += shared
       const stamp = logStamp(t)
@@ -116,7 +116,7 @@ export function recentLogs(tasks: readonly Task[], limit = 4): RecentLog[] {
     const key = norm(t.title)
     if (seen.has(key)) continue
     seen.add(key)
-    out.push({ title: t.title, category: t.tags[0] ?? null })
+    out.push({ title: t.title, category: t.category })
     if (out.length >= limit) break
   }
   return out

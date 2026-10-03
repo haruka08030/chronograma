@@ -12,14 +12,12 @@ import {
 import { unplannedListIds } from '../lib/listKind'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
-import { TaskDetail } from './TaskDetail'
 import { CalendarCheck } from './timeline/CalendarCheck'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
   canEditGoogleEvent,
@@ -32,17 +30,13 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
-
-/** 月のマス用の短い時間表記（3h20 / 45m） */
-function formatMinutesShort(m: number): string {
-  const h = Math.floor(m / 60)
-  const min = m % 60
-  return h > 0 ? `${h}h${min ? String(min).padStart(2, '0') : ''}` : `${min}m`
-}
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
+import { toDateKey } from '../lib/dateKey'
+import { formatDurationShort } from '../lib/timeGrid'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -69,11 +63,11 @@ export function CalendarView({
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
+  const openDetail = openTaskDetail
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
@@ -88,25 +82,25 @@ export function CalendarView({
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  const listColorById = useMemo(() => new Map(lists.map((l) => [l.id, l.color])), [lists])
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   /** 日ごとの記録（分類 → 分）。月のマスでは記録を一番上に色で見せる（記録と可視化が主役） */
   const recordsByDate = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const t of tasks) {
       if (!isListedTimeLog(t) || !isActiveTask(t) || t.parentId) continue
       for (const day of days) {
-        const key = format(day, 'yyyy-MM-dd')
+        const key = toDateKey(day)
         const min = minutesOfLogOnCalendarDay(t, key)
         if (min <= 0) continue
         const byCat = map.get(key) ?? new Map<string, number>()
-        const cat = t.tags[0] ?? ''
+        const cat = recordLabelKey(t, labelPresets, logCategoryColors)
         byCat.set(cat, (byCat.get(cat) ?? 0) + min)
         map.set(key, byCat)
       }
     }
     return map
-  }, [tasks, days])
+  }, [tasks, days, labelPresets, logCategoryColors])
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
@@ -151,7 +145,7 @@ export function CalendarView({
 
         <div className="grid grid-cols-7 px-4 pb-4 flex-1">
           {days.map((day) => {
-            const key = format(day, 'yyyy-MM-dd')
+            const key = toDateKey(day)
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
             const inMonth = isSameMonth(day, displayMonth)
@@ -163,12 +157,13 @@ export function CalendarView({
                 key={key}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
-                            ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
+                            ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
                 onDoubleClick={() => setAddingDate(key)}
-                onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
+                onDragOver={(e) => { if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
                 onDrop={(e) => {
+                  if (!isTaskDrag(e, { googleEvents: true })) return
                   e.preventDefault()
                   setDragOverDate(null)
                   const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
@@ -221,13 +216,13 @@ export function CalendarView({
                     if (!recs) return null
                     const total = [...recs.values()].reduce((a, b) => a + b, 0)
                     return (
-                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatMinutesShort(total) })}>
+                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatDurationShort(total) })}>
                         <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
                           {[...recs.entries()].map(([cat, min]) => (
-                            <div key={cat} className="gc-dot" style={{ ...colorVars(categoryHex(cat || null, logCategoryColors)), width: `${(min / total) * 100}%` }} />
+                            <div key={cat} className="gc-dot" style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / total) * 100}%` }} />
                           ))}
                         </div>
-                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatMinutesShort(total)}</span>
+                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatDurationShort(total)}</span>
                       </div>
                     )
                   })()}
@@ -243,6 +238,11 @@ export function CalendarView({
                         ev.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragEnd={() => { setDraggedGoogleEvent(null); setDragOverDate(null) }}
+                      onContextMenu={(ev) => {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        openTaskMenu({ kind: 'google', x: ev.clientX, y: ev.clientY, eventId: e.id })
+                      }}
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
                         ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
@@ -261,23 +261,27 @@ export function CalendarView({
                       onDragStart={(e) => {
                         e.stopPropagation()
                         dragTaskIdRef.current = t.id
-                        e.dataTransfer.setData(TASK_DND_TYPE, t.id)
-                        e.dataTransfer.setData('text/plain', t.id)
-                        e.dataTransfer.effectAllowed = 'move'
+                        startTaskDrag(e, t.id)
                         beginCalendarItemNativeDrag()
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
                       onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
+                      // 時刻つきの予定・記録はタイムラインと同じメニュー、時刻なしのタスクは To-Do と同じメニュー
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        openTaskMenu(t.startTime || t.isTimeLog ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                      }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
                         ${itemClass(!t.startTime, planVisualState(t, key))}`}
-                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t, listColorById) : '#BDBDBD')}
+                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
                       {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
                       <CalendarCheck
                         done={t.completed}
-                        label={t.completed ? tr('taskItem.markIncomplete') : t.startTime ? tr('taskItem.completeWithLog') : tr('taskItem.markComplete')}
-                        onCheck={() => openCompleteWithLog(t)}
+                        label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                        onCheck={() => toggleTask(t.id)}
                         className={t.startTime ? 'text-(--c)' : ''}
                       />
                       {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
@@ -300,8 +304,6 @@ export function CalendarView({
         </div>
       </div>
 
-      {completeWithLogModal}
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
     </div>
   )
 }

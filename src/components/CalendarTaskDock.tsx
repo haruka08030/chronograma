@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
+import { sortModeOf } from '../lib/todoSurfaceView'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
@@ -7,41 +8,31 @@ import { isActiveTask } from '../lib/taskLifecycle'
 
 const UNSCHEDULED = '__unscheduled__'
 import { isListedTimeLog } from '../lib/timeLogTask'
-import { isModKey } from '../lib/keyboard'
 import { TaskItem } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { displayListName } from '../lib/displayListName'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-import { useSelectAllShortcut } from '../lib/shortcuts'
-import { TaskContextMenu } from './TaskContextMenu'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
+import { EmptyState } from './ui/EmptyState'
+import { CheckCircleIcon } from './icons'
+import { sectionLabelClass } from './ui/sectionLabelClass'
+import { fieldClass } from './ui/fieldClass'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const sortMode = useTaskStore((s) => s.sortMode)
+  const sortByKey = useTaskStore((s) => s.sortByKey)
   const filterTag = useTaskStore((s) => s.filterTag)
   const sections = useTaskStore((s) => s.sections)
 
   // 既定は「時間が未定のタスク」（全リスト横断）。カレンダーに置く候補を探す場所なので 1 リストに絞らない
   const [dockListId, setDockListId] = useState<string>(UNSCHEDULED)
-  const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-
-  const toggleSelected = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const clearSelected = useCallback(() => setSelected(new Set()), [])
-  const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[] } | null>(null)
+  const openDetail = openTaskDetail
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const bulk = useBulkTaskActions()
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
@@ -62,21 +53,32 @@ export function CalendarTaskDock() {
         tasks,
         selectedView: null,
         selectedListId: dockListId,
-        sortMode,
+        // そのリストを To‑Do で開いたときと同じ並び順
+        sortMode: sortModeOf(sortByKey, dockListId),
         filterTag,
         sections,
       }),
-    [tasks, dockListId, sortMode, filterTag, sections, excludedListIds],
+    [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
-  const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+  const active = useMemo(() => filtered.filter((t) => !t.completed && !isListedTimeLog(t)), [filtered])
+  const activeIds = useMemo(() => active.map((t) => t.id), [active])
 
-  // ⌘A: 置き場のタスクをすべて選ぶ（To-Do 一覧と同じ）
-  useSelectAllShortcut(() => {
-    if (active.length === 0) return false
-    setSelected(new Set(active.map((x) => x.id)))
-    return true
+  // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
+  // メニューの「実行したら選択を解除」は、選択のフックを作ったあとに入れる
+  const clearSelectedRef = useRef<() => void>(() => {})
+  const { selected, clearSelection: clearSelected, makeRowClick, makeSelection } = useTaskListSelection({
+    rowIds: activeIds,
+    openDetail,
+    toggleRow: toggleTask,
+    removeRows: deleteTasks,
+    completeRows: bulk.complete,
+    openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
+    resetOn: [dockListId],
   })
+  useEffect(() => {
+    clearSelectedRef.current = clearSelected
+  }, [clearSelected])
 
   const selectedInOrder = useMemo(
     () => active.map((t) => t.id).filter((id) => selected.has(id)),
@@ -87,29 +89,19 @@ export function CalendarTaskDock() {
       selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : [id],
     [selected, selectedInOrder],
   )
-  const makeRowClick = useCallback(
-    (id: string) => (e: React.MouseEvent) => {
-      if (e.shiftKey || isModKey(e) || selected.size > 0) {
-        toggleSelected(id)
-        return
-      }
-      openDetail(id)
-    },
-    [openDetail, selected.size, toggleSelected],
-  )
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-          <label htmlFor="calendar-dock-list" className="shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+          <label htmlFor="calendar-dock-list" className={sectionLabelClass('field', 'shrink-0')}>
             {t('calendarDock.listHeading')}
           </label>
           <select
             id="calendar-dock-list"
             value={dockListId}
             onChange={(e) => setDockListId(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-900 outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-400/40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           >
             <option value={UNSCHEDULED}>{t('calendarDock.unscheduled')}</option>
             {sortedLists.filter((l) => !excludedListIds.has(l.id)).map((l) => (
@@ -121,7 +113,7 @@ export function CalendarTaskDock() {
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
           {active.length === 0 && (
-            <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDock.empty')}</p>
+            <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />
           )}
           {selected.size > 0 && (
             <div className="flex items-center justify-between px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -141,24 +133,13 @@ export function CalendarTaskDock() {
               task={t}
               hideDueDatePicker
               onRowClick={makeRowClick(t.id)}
-              onCompleteRequest={openCompleteWithLog}
-              selection={{
-                selected: selected.has(t.id),
-                reveal: selected.size > 0,
-                onToggle: () => toggleSelected(t.id),
-                // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる（To-Do 一覧と同じ）
-                onContextMenu: (e) =>
-                  setMenu({ x: e.clientX, y: e.clientY, taskIds: selected.has(t.id) && selected.size > 1 ? [...selected] : [t.id] }),
-              }}
+              selection={makeSelection(t.id)}
               dragGroupIds={getDragGroupIds(t.id)}
               onNativeDragEnd={clearSelected}
             />
           ))}
         </div>
       </div>
-      {detailTask && <TaskDetail task={detailTask} onClose={closeDetail} />}
-      {completeWithLogModal}
-      {menu && <TaskContextMenu {...menu} onClose={() => setMenu(null)} onDone={clearSelected} onOpenDetail={openDetail} />}
     </div>
   )
 }

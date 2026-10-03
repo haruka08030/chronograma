@@ -16,10 +16,16 @@ import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
-import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
-import { groupsBySection } from '../lib/todoSurfaceView'
+import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
+import { groupsBySection, sortModeOf } from '../lib/todoSurfaceView'
+import { CANVAS_LIST_ID } from '../lib/canvasIds'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
+import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
+import { ListContextMenu } from './ListContextMenu'
+import { SectionLabel } from './ui/SectionLabel'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -33,13 +39,15 @@ const BIN_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'deleted', icon: ICON_PATHS.trash },
 ]
 
-function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick }: {
+function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick, onContextMenu }: {
   list: TaskList
   isSelected: boolean
   onSelect: () => void
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
+  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない） */
+  onContextMenu: (e: React.MouseEvent) => void
 }) {
   const { t } = useTranslation()
   const isInbox = list.id === INBOX_LIST_ID
@@ -70,16 +78,18 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
-      onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+      onContextMenu={(e) => {
+        if (isInbox) return
         e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-        setIsOverNative(true)
+        onContextMenu(e)
+      }}
+      onDragOver={(e) => {
+        if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
       onDragLeave={() => setIsOverNative(false)}
       onDrop={(e) => {
         setIsOverNative(false)
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        if (!isTaskDrag(e)) return
         e.preventDefault()
         moveDroppedTasks(readDraggedTaskIds(e.dataTransfer), list.id)
       }}
@@ -115,7 +125,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
             tabIndex={-1}
-            title={t('sidebar.reorderList')}
+            {...tip(t('sidebar.reorderList'))}
             aria-label={t('sidebar.reorderList')}
             onClick={(e) => e.stopPropagation()}
           >
@@ -167,15 +177,12 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
       type="button"
       onClick={onSelect}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-        setIsOverNative(true)
+        if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
       onDragLeave={() => setIsOverNative(false)}
       onDrop={(e) => {
         setIsOverNative(false)
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
+        if (!isTaskDrag(e)) return
         e.preventDefault()
         labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
       }}
@@ -196,6 +203,23 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
   )
 }
 
+/** リストの下に字下げして並べる行（セクション・科目タグ） */
+function SubNavRow({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={selected ? 'page' : undefined}
+      className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors
+        ${selected
+          ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+          : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  )
+}
+
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -212,7 +236,6 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
       <ColorSwatches
         ariaLabel={t('sidebar.listColorDialog')}
         columns={6}
-        className="w-44"
         selectedHex={current}
         onChoose={(hex) => { onChange(hex); onClose() }}
       />
@@ -232,16 +255,29 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectedListId = useTaskStore((s) => s.selectedListId)
   const selectedView = useTaskStore((s) => s.selectedView)
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
-  const sortMode = useTaskStore((s) => s.sortMode)
+  const sortByKey = useTaskStore((s) => s.sortByKey)
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
   const selectListSection = useTaskStore((s) => s.selectListSection)
+  const selectListTag = useTaskStore((s) => s.selectListTag)
+  const filterTag = useTaskStore((s) => s.filterTag)
+  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
+  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない）。タグを使わない設定なら出さない */
+  const courseTags = useMemo(() => {
+    if (!tagsEnabled) return []
+    const tags = new Set<string>()
+    for (const t of tasks) {
+      if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
+      for (const tag of t.tags) tags.add(tag)
+    }
+    return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [tasks, tagsEnabled])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -260,6 +296,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
+  const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
@@ -316,7 +353,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
           // 「セクションで分ける」がオフのリストは一覧に見出しが無いので、下のセクション行も出さない
-          const listSections = groupsBySection(sortMode, sectionGrouping, { listId: list.id })
+          const listSections = groupsBySection(sortModeOf(sortByKey, list.id), sectionGrouping, { listId: list.id })
             ? sectionsByList.get(list.id) ?? []
             : []
 
@@ -338,30 +375,31 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             <div key={list.id} className="relative">
               <SortableListItem
                 list={list}
-                isSelected={isSelected && !quickAddSectionId}
+                isSelected={isSelected && !quickAddSectionId && !filterTag}
                 onSelect={() => handleNav(() => selectList(list.id))}
                 onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
                 onDelete={() => deleteList(list.id)}
                 onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
+                onContextMenu={(e) => setListMenu({ x: e.clientX, y: e.clientY, listId: list.id })}
               />
-              {listSections.map((sec) => {
-                const secSelected =
-                  isSelected && quickAddSectionId === sec.id
-                return (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
-                    aria-current={secSelected ? 'page' : undefined}
-                    className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors
-                      ${secSelected
-                        ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
-                        : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{sec.name}</span>
-                  </button>
-                )
-              })}
+              {listSections.map((sec) => (
+                <SubNavRow
+                  key={sec.id}
+                  label={sec.name}
+                  selected={isSelected && quickAddSectionId === sec.id}
+                  onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
+                />
+              ))}
+              {/* Canvas の課題の科目タグ。押すと Canvas のリストをその科目で絞る */}
+              {list.id === CANVAS_LIST_ID &&
+                courseTags.map((tag) => (
+                  <SubNavRow
+                    key={`tag:${tag}`}
+                    label={tag}
+                    selected={isSelected && filterTag === tag}
+                    onClick={() => handleNav(() => selectListTag(list.id, tag))}
+                  />
+                ))}
               {colorPickId === list.id && (
                 <ColorPicker
                   current={list.color}
@@ -404,9 +442,9 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
       {colorLabels.length > 0 && (
         <>
           <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-          <div className="px-3 pb-1 pt-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+          <SectionLabel as="div" className="px-3 pb-1 pt-1">
             {t('labels.title')}
-          </div>
+          </SectionLabel>
           {colorLabels.map((label) => (
             <ColorLabelRow
               key={label.hex}
@@ -430,6 +468,17 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
+      {listMenu && (
+        <ListContextMenu
+          {...listMenu}
+          onClose={() => setListMenu(null)}
+          onRename={() => {
+            const l = sorted.find((x) => x.id === listMenu.listId)
+            setEditingId(listMenu.listId)
+            setEditName(l?.name ?? '')
+          }}
+        />
+      )}
     </>
   )
 }

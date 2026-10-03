@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { idsToPrune, restoreMissing, type AutoBackupMeta, type RestorableData } from './autoBackup'
+import { canViewBackup, idsToPrune, restoreMissing, type AutoBackupMeta, type RestorableData } from './autoBackup'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 const T0 = '2026-09-25T00:00:00.000Z'
 const NOW = '2026-10-02T00:00:00.000Z'
 
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id, title: id, description: '', completed: false, completedAt: null, createdAt: T0, updatedAt: T0,
     order: 0, listId: SYNC_INBOX_LIST_ID, sectionId: null, parentId: null, dueDate: null,
     startTime: null, endTime: null, priority: 'none', tags: [], recurrence: null, ...patch,
@@ -57,5 +59,32 @@ describe('idsToPrune', () => {
       ...Array.from({ length: 6 }, (_, i) => meta('beforeSync', i + 1)),
     ]
     expect(idsToPrune(all).sort()).toEqual(['beforeSync-1', 'daily-1', 'daily-2'])
+  })
+
+  it('持ち主ごとに数える（ほかの人の控えに押し出されない）', () => {
+    const all = [
+      ...Array.from({ length: 6 }, (_, i) => ({ ...meta('beforeSignOut', i + 1), owner: 'a' })),
+      { ...meta('beforeSignOut', 20), id: 'b-only', owner: 'b' },
+    ]
+    expect(idsToPrune(all)).toEqual(['beforeSignOut-1'])
+  })
+})
+
+describe('canViewBackup', () => {
+  it('本人の控えは本人だけ。ログアウト後（null）には前の人の控えを見せない', () => {
+    expect(canViewBackup({ owner: 'a' }, 'a')).toBe(true)
+    expect(canViewBackup({ owner: 'a' }, 'b')).toBe(false)
+    expect(canViewBackup({ owner: 'a' }, null)).toBe(false)
+  })
+
+  it('ログインせずに作ったデータの控えは、ログインしていないときだけ', () => {
+    expect(canViewBackup({ owner: null }, null)).toBe(true)
+    expect(canViewBackup({ owner: null }, 'a')).toBe(false)
+  })
+
+  it('持ち主の分からない控えは、ログインしている人だけ', () => {
+    expect(canViewBackup({}, 'a')).toBe(true)
+    expect(canViewBackup({ owner: '*legacy*' }, 'a')).toBe(true)
+    expect(canViewBackup({}, null)).toBe(false)
   })
 })

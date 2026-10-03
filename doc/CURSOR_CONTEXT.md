@@ -23,8 +23,8 @@
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
   `chronograma-storage`、スキーマ **version 28**）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
-- **オプション**: **Supabase** でメール **マジックリンク** ログインと、**リスト
-  / タスク / 習慣** のクラウド同期。未設定時は認証が noop 相当でローカルのみ
+- **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
+  / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ
 
 ## 技術スタック
 
@@ -104,9 +104,13 @@
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す
 
-- **いつか / チェックリストの専用画面**: リスト選択時に `kind` が `checklist` なら `ChecklistView`、`someday` なら `SomedayView`
-  （`App.tsx` の `mainContent`）。`uncheckTasks`（全部戻す）・`promoteToPlanned`（いつか → 未分類 + 今日の予定日）はどちらも Undo 1 段。
-  `TaskDetail` は `tasks` 以外のリストで優先度・締切・予定日の欄を出さない。カレンダー（月・週・日パネル）と予定 vs ログも除外
+- **いつか / チェックリストの画面**: To-Do と同じ `TaskList` / `TaskItem`（名前の直し方・Enter で次の行・ドラッグで並べ替えと子にする・右クリックのメニュー・複数選択・キー操作は同じ）。
+  リストの種類で変えるのは次だけ:
+  - 完了の印（`CompletionCircle` の `shape`）: To-Do は丸、チェックリストは四角、いつかは ☆ / ★
+  - 締切・優先度の欄と並び順を出さない（行の日付ボタン、メニューの締切・優先度、`TaskDetail` の欄）。完了で「記録も付ける」を聞かない
+  - いつかは行のカレンダーとメニューの「予定する」（`useScheduleWish` → `promoteToPlanned`。未分類へ移してその日の予定に。子だけ予定すると親から外れて 1 件になる）。下の一覧は「かなえたこと」
+  - チェックリストは `toggleTask` が `toggleChecklistTree`（`lib/listTree.ts`）になる: 子のある行は子ごと、子がそろったら親もチェック済み。チェックした子は親の下に残す。下の「チェック済み」に「全部戻す」（`uncheckTasks`）「チェック済みを消す」
+  - 追加欄の例文（`QuickAdd` の `placeholder`）。カレンダー（月・週・日パネル）と予定 vs ログからは除外
 - **記録の分類**: 分類は 1 つ選ぶチップ（`TimeLogTagField`、同じチップで解除、＋で追加すると設定の分類にも保存）。既定の分類
   （`logCategories.defaults`、勉強・課題・就活…）を新規ユーザーに入れ、persist v26 で空の既存ユーザーにも入れる。分類なしで記録したら
   `inferLogCategory`（`src/lib/logCategory.ts`: 元タスクの先頭タグ → 同じタイトルの前回の分類）を `startTimer` / `addTimeLog` /
@@ -431,7 +435,7 @@
 `todoSurfaceView.ts`（`isTodoSurfaceView` / `isTodoNavView`）, `habitStats.ts` /
 `habitDraft.ts`, `src/locales/ja.ts`・`en`（`displayListName` 用 `lists.inbox`
 等）,
-`tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`・**`buildTimeLogTagUniverse`（プリセット先頭）**・`parseTimeLogTagPresetLines`）,
+`timeLogTags.ts`（`timeLogTagUniverse`・**`buildTimeLogTagUniverse`（プリセット先頭）**・`parseTimeLogTagPresetLines`）,
 `TimeLogTagField.tsx`, `useTimelineDrag.ts`（ブロックの `setPointerCapture` 後は
 `click` が届かないため、タップで詳細/完了モーダルを開く処理は `onBlockTap` で
 `pointerup` 時に行う。タップ誤判定を減らすため、ドラッグ判定は `pointerdown`
@@ -444,9 +448,9 @@
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）に、`002` 以降の変更を番号順に積む。
 SQL Editor で `001` から順に全部流す（どれも何度流しても同じ形）。変更は次の番号の新しいファイルで足し、コミット済みのファイルは書き換えない。
-利用者の表は主キー `(user_id, id)`。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
-service_role で読み書き）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
-付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。一覧の短い説明は **`supabase/migrations/README.md`**。
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、サーバーの行より `updated_at` が古い更新を捨てる（`010` のトリガー `skip_stale_write`）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（`011`、同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`009` の `hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
 ## 環境変数（`.env.example`）

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
@@ -9,6 +9,9 @@ import { appToday } from '../../lib/timeZone'
 import { LabelsDialog } from '../labels/LabelsDialog'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
+import { toDateKey } from '../../lib/dateKey'
+import { formatDuration } from '../../lib/timeGrid'
+import { chipClass } from '../ui/chipClass'
 
 const USAGE_DAYS = 30
 
@@ -30,13 +33,13 @@ export function CategoryManager() {
   /** 分類 → 直近 30 日の分数（分類なしは ''） */
   const usage = useMemo(() => {
     const map = new Map<string, number>()
-    const days = Array.from({ length: USAGE_DAYS }, (_, i) => format(subDays(appToday(), i), 'yyyy-MM-dd'))
+    const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
     for (const task of tasks) {
       if (!task.isTimeLog || !isActiveTask(task)) continue
       let minutes = 0
       for (const d of days) minutes += minutesOfLogOnCalendarDay(task, d)
       if (minutes <= 0) continue
-      const key = task.tags[0] ?? ''
+      const key = task.category ?? ''
       map.set(key, (map.get(key) ?? 0) + minutes)
     }
     return map
@@ -45,18 +48,11 @@ export function CategoryManager() {
   const unlisted = useMemo(() => {
     const set = new Set<string>()
     for (const task of tasks) {
-      if (task.isTimeLog && isActiveTask(task) && task.tags[0] && !presets.includes(task.tags[0])) set.add(task.tags[0])
+      if (task.isTimeLog && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
     }
     return [...set]
   }, [tasks, presets])
 
-  const fmt = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
 
   const uncategorized = usage.get('') ?? 0
 
@@ -71,7 +67,7 @@ export function CategoryManager() {
               <span className="gc-dot h-4 w-4 shrink-0 rounded-full" style={vars} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
               <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
-                {minutes > 0 ? fmt(minutes) : t('categories.unused')}
+                {minutes > 0 ? formatDuration(minutes) : t('categories.unused')}
               </span>
               <div className="flex shrink-0 items-center opacity-100 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100">
                 <button
@@ -114,14 +110,14 @@ export function CategoryManager() {
                   key={name}
                   type="button"
                   onClick={() => addLogCategory(name)}
-                  className="rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-zinc-600 hover:border-accent-400 hover:text-accent-600 dark:border-zinc-600 dark:text-zinc-300"
+                  className={chipClass({ variant: 'add', size: 'sm' })}
                 >
                   ＋ {name}
                 </button>
               ))}
             </div>
           )}
-          {uncategorized > 0 && <p>{t('categories.uncategorizedTime', { time: fmt(uncategorized) })}</p>}
+          {uncategorized > 0 && <p>{t('categories.uncategorizedTime', { time: formatDuration(uncategorized) })}</p>}
         </div>
       )}
       {editorOpen && <LabelsDialog onClose={() => setEditorOpen(false)} />}

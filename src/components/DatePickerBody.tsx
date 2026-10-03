@@ -8,15 +8,15 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -27,14 +27,10 @@ function monthGridDays(viewMonth: Date): Date[] {
   return eachDayOfInterval({ start: calStart, end: calEnd })
 }
 
-/** 正午固定でパースし、タイムゾーンによる日付ズレを避ける。 */
-function parseDateKey(key: string): Date {
-  return parseISO(`${key}T12:00:00`)
-}
-
 /**
- * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバーとタスクの右クリックメニューで共通。
- * 開くたびに作り直す前提で、選んでいる日（なければ今日）の月から始める
+ * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
+ * カレンダー画面の見出しの日付ジャンプで共通。
+ * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める
  */
 export function DatePickerBody({
   value,
@@ -42,6 +38,7 @@ export function DatePickerBody({
   kind = 'due',
   min,
   footer = true,
+  month,
 }: {
   value: string | null
   onPick: (key: string | null) => void
@@ -49,22 +46,23 @@ export function DatePickerBody({
   min?: string
   /** 下の「今日・明日・なし」。上に同じ項目を並べるとき（右クリックメニュー）は出さない */
   footer?: boolean
+  /** 最初に見せる月（カレンダー画面の月表示では、選んでいる日ではなく見ている月から始める） */
+  month?: Date
 }) {
-  const { t, i18n } = useTranslation()
-  const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-  const dateLocale = isJa ? ja : enUS
-  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ? parseDateKey(value) : appToday()))
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(month ?? (value ? fromDateKey(value) : appToday())))
   const pick = onPick
   const days = monthGridDays(viewMonth)
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
   const todayKey = appTodayKey()
-  const tomorrowKey = format(addDays(appToday(), 1), 'yyyy-MM-dd')
+  const tomorrowKey = toDateKey(addDays(appToday(), 1))
 
   return (
     <>
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          {format(viewMonth, isJa ? 'yyyy年M月' : 'MMMM yyyy', { locale: dateLocale })}
+          {df.yearMonth(viewMonth)}
         </span>
         <div className="flex items-center gap-0.5">
           <button
@@ -99,7 +97,7 @@ export function DatePickerBody({
 
       <div className="grid grid-cols-7 gap-y-0.5">
         {days.map((day) => {
-          const key = format(day, 'yyyy-MM-dd')
+          const key = toDateKey(day)
           const inMonth = isSameMonth(day, viewMonth)
           const today = key === todayKey
           const selected = value != null && key === value

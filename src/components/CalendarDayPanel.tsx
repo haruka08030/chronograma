@@ -1,27 +1,27 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
-import { TaskDetail } from './TaskDetail'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isSleepRecord } from '../lib/sleep'
-import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
+import { colorVars } from '../lib/logCategoryColors'
+import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
-import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import type { Task } from '../types/task'
+import { completionDayKey } from '../lib/dayPlan'
 import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
-import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-
-function completionDateKey(t: Task): string {
-  const raw = t.completedAt ?? t.updatedAt
-  return typeof raw === 'string' ? raw.slice(0, 10) : ''
-}
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
+import { EmptyState } from './ui/EmptyState'
+import { CalendarIcon, ClockIcon } from './icons'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
+import { openTaskDetail } from '../lib/overlays'
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -30,9 +30,8 @@ export function CalendarDayPanel({
 }: {
   selectedDateKey: string
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
-  const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [tab, setTab] = useState<DayPanelTab>('planned')
@@ -40,13 +39,13 @@ export function CalendarDayPanel({
   const [dragOver, setDragOver] = useState(false)
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
-  const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const openDetail = openTaskDetail
+  const df = useDateFormat()
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
   const dateLabel = isAppToday(date)
-    ? `${format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })} · ${t('activityLog.today')}`
-    : format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
+    ? `${df.monthDayWeekday(selectedDateKey)} · ${t('activityLog.today')}`
+    : df.monthDayWeekday(selectedDateKey)
 
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストは日付があってもカレンダーの予定として出さない
@@ -98,7 +97,7 @@ export function CalendarDayPanel({
             t.completed &&
             isActiveTask(t) &&
             !excludedListIds.has(t.listId) &&
-            completionDateKey(t) === selectedDateKey,
+            completionDayKey(t) === selectedDateKey,
         )
         .sort((a, b) => {
           const ta = new Date(a.completedAt ?? a.updatedAt).getTime()
@@ -130,14 +129,11 @@ export function CalendarDayPanel({
       <div
         className={`flex h-full min-h-0 min-w-0 flex-1 flex-col transition-colors ${
           dragOver
-            ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+            ? DROP_HIGHLIGHT_CLASS
             : 'bg-zinc-50/70 dark:bg-zinc-900/70'
         }`}
         onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'copy'
-          setDragOver(true)
+          if (acceptTaskDrag(e)) setDragOver(true)
         }}
         onDragLeave={(e) => {
           if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
@@ -197,19 +193,21 @@ export function CalendarDayPanel({
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
               {externalEvents.length === 0 && plannedItems.length === 0 && executedItems.length === 0 ? (
-                <p className="px-3 py-4 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noPlanned')}</p>
+                <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('calendarDayPanel.noPlanned')} />
               ) : (
                 <>
                   {externalEvents.length > 0 && (
                     <div className="mb-2 space-y-1.5 px-2">
+                      {/* カレンダー本体と同じく、色は予定ごと（無ければ Google の既定の色） */}
                       {externalEvents.map((event) => (
                         <div
                           key={event.id}
                           title={event.summary}
-                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left dark:border-blue-500/40 dark:bg-blue-500/10"
+                          className="gc-plan rounded-lg px-3 py-2 text-left"
+                          style={colorVars(event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                         >
-                          <div className="text-sm font-medium text-blue-900 dark:text-blue-100">{event.summary}</div>
-                          <div className="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
+                          <div className="text-sm font-medium">{event.summary}</div>
+                          <div className="mt-0.5 text-xs opacity-70">
                             {event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : t('weekCalendar.allDay')}
                           </div>
                         </div>
@@ -217,19 +215,19 @@ export function CalendarDayPanel({
                     </div>
                   )}
                   {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
+                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                   ))}
                   {(externalEvents.length > 0 ||
                     plannedItems.length > 0 ||
                     executedItems.length > 0) && (
                     <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
-                      <p className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <SectionLabel as="p" className="mb-2 px-2">
                         {t('calendarDayPanel.executedSection', { count: executedItems.length })}
-                      </p>
+                      </SectionLabel>
                       {executedItems.length > 0 ? (
                         <div className="space-y-0">
                           {executedItems.map((task) => (
-                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} onCompleteRequest={openCompleteWithLog} />
+                            <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                           ))}
                         </div>
                       ) : (
@@ -249,7 +247,7 @@ export function CalendarDayPanel({
               {t('calendarDayPanel.totalLogged')}: <span className="font-semibold">{formatDuration(totalLoggedMinutes)}</span>
             </div>
             {logItems.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">{t('calendarDayPanel.noLogs')}</p>
+              <EmptyState size="sm" icon={<ClockIcon strokeWidth={1} />} title={t('calendarDayPanel.noLogs')} />
             ) : (
               <div className="space-y-2">
                 {logItems.map((item) => (
@@ -274,8 +272,6 @@ export function CalendarDayPanel({
           </div>
         )}
       </div>
-      {detailTask ? <TaskDetail task={detailTask} onClose={closeDetail} /> : null}
-      {completeWithLogModal}
     </div>
   )
 }

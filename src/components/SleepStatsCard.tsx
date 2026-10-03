@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { formatDuration } from '../lib/timeGrid'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { CARD_TITLE_CLASS } from './ui/headingClass'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -16,9 +19,9 @@ const CHART_HEIGHT = 144
  * 睡眠の記録が無い期間は出さない。
  */
 export function SleepStatsCard() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const df = useDateFormat()
   const todayKey = appTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
@@ -38,18 +41,11 @@ export function SleepStatsCard() {
   const y = (off: number) => ((off - lo) / span) * CHART_HEIGHT
   const clockLabel = (off: number) => `${((off / 60 + 12) % 24).toFixed(0)}:00`
 
-  const fmtMin = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
-  const dayLabel = (key: string) => format(parseISO(`${key}T12:00:00`), t('sleepStats.dayFormat'), { locale: dateLocale })
+  const dayLabel = (key: string) => df.shortDateWeekday(key)
   const spreadText = (m: number | null) => (summary.count >= 2 && m != null ? t('sleepStats.spread', { m }) : null)
 
   const tiles = [
-    { label: t('sleepStats.avgSleep'), value: fmtMin(summary.avgMinutes ?? 0), sub: null },
+    { label: t('sleepStats.avgSleep'), value: formatDuration(summary.avgMinutes ?? 0), sub: null },
     { label: t('sleepStats.avgBed'), value: summary.avgBed ?? '—', sub: spreadText(summary.bedSpread) },
     { label: t('sleepStats.avgWake'), value: summary.avgWake ?? '—', sub: spreadText(summary.wakeSpread) },
   ]
@@ -60,7 +56,7 @@ export function SleepStatsCard() {
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t('sleepStats.title')}</h2>
+        <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 
@@ -80,7 +76,7 @@ export function SleepStatsCard() {
         <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-xs">
           <span className="font-medium text-zinc-600 dark:text-zinc-300">{t('sleepStats.chartTitle')}</span>
           <span className="tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
-            {dayLabel(focused.dateKey)} {focused.bed}–{focused.wake} · {fmtMin(focused.minutes)}
+            {dayLabel(focused.dateKey)} {focused.bed}–{focused.wake} · {formatDuration(focused.minutes)}
           </span>
         </figcaption>
         <div className="flex gap-2">
@@ -105,7 +101,7 @@ export function SleepStatsCard() {
                     disabled={!n}
                     tabIndex={n ? 0 : -1}
                     aria-hidden={!n}
-                    aria-label={n ? `${dayLabel(n.dateKey)} ${n.bed}–${n.wake} ${fmtMin(n.minutes)}` : undefined}
+                    aria-label={n ? `${dayLabel(n.dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}` : undefined}
                     onPointerEnter={() => n && setFocusKey(n.dateKey)}
                     onFocus={() => n && setFocusKey(n.dateKey)}
                     onClick={() => n && setFocusKey(n.dateKey)}
@@ -113,7 +109,7 @@ export function SleepStatsCard() {
                   >
                     {n && (
                       <span
-                        className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded bg-[#5c6bc0] transition-opacity dark:bg-[#7986cb] sm:w-3 ${
+                        className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded bg-sleep transition-opacity sm:w-3 ${
                           focused.dateKey === n.dateKey ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'
                         }`}
                         style={{ top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) }}
@@ -125,8 +121,8 @@ export function SleepStatsCard() {
             </div>
             <div className="mt-1 flex gap-0.5 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
               {summary.nights.map((_, i) => {
-                const d = addDays(parseISO(`${todayKey}T12:00:00`), i - (DAYS - 1))
-                const key = format(d, 'yyyy-MM-dd')
+                const d = addDays(fromDateKey(todayKey), i - (DAYS - 1))
+                const key = toDateKey(d)
                 // 1 日おきに日付（最後＝今日は必ず）。月初は「10/1」
                 const show = (DAYS - 1 - i) % 2 === 0
                 return (
@@ -154,7 +150,7 @@ export function SleepStatsCard() {
                 <td>{dayLabel(n.dateKey)}</td>
                 <td>{n.bed}</td>
                 <td>{n.wake}</td>
-                <td>{fmtMin(n.minutes)}</td>
+                <td>{formatDuration(n.minutes)}</td>
               </tr>
             ))}
           </tbody>

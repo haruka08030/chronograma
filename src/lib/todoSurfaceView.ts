@@ -16,6 +16,16 @@ export function isTodoNavView(selectedView: string | null | undefined): boolean 
   )
 }
 
+/** 並び順を覚える鍵。リストを開いているならそのリスト、ビューなら `view:<ビュー>` */
+export function sortKeyOf(selectedListId: string | null, selectedView: string | null): string {
+  return selectedListId ?? `view:${selectedView ?? 'all'}`
+}
+
+/** そのリスト・ビューの並び順。選んだことが無ければ手動 */
+export function sortModeOf(sortByKey: Record<string, SortMode> | undefined, key: string): SortMode {
+  return sortByKey?.[key] ?? 'manual'
+}
+
 /** セクションの塊で分けるか。手動はセクションの中で並べ替えるので常に分ける。サイドバーのセクション行もこれに合わせる */
 export function groupsBySection(
   sortMode: SortMode,

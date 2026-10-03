@@ -1,5 +1,4 @@
 /** 記録（時間ログ）・タイマー・睡眠 */
-import { format } from 'date-fns'
 import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
@@ -11,6 +10,8 @@ import { logColorNames, withInferredCategory } from '../storeDefaults'
 import { completedRecordPatch, makeTask } from '../taskHelpers'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { toDateKey } from '../../lib/dateKey'
+import { clockOf } from '../../lib/clockTime'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -96,7 +97,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         // 1 分未満は記録に残らない（stopTimer と同じ判定）ので「保存して」とは言わない
         const saved = timerRecordTimes(previous.startedAt, new Date().toISOString()) !== null
         get().stopTimer()
-        get().showMoveBanner(i18n.t(saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', { title: previous.taskTitle }))
+        get().showMoveBanner({ key: saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', params: { title: previous.taskTitle } })
       }
       set({
         activeTimer: {
@@ -180,8 +181,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const date = task ? taskPlacementDate(task) : null
       if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
       const now = zonedNow()
-      const today = format(now, 'yyyy-MM-dd')
-      const nowHm = format(now, 'HH:mm')
+      const today = toDateKey(now)
+      const nowHm = clockOf(now)
       if (date > today || (date === today && task.startTime >= nowHm)) return
       const end = date === today && task.endTime > nowHm ? nowHm : task.endTime
       get().asOneUndo(() => {

@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
+import { isPrivateAddress, parseBaseUrl } from './host.ts'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
@@ -49,54 +52,28 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-/**
- * 学校の Canvas の URL（`xxx.instructure.com` やダッシュボードのリンク）から origin を取り出す。
- * サーバーから任意の宛先へトークンを送らないよう、https のドメイン名だけを受け付ける。
- */
-function parseBaseUrl(input: string): string | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-  let url: URL
-  try {
-    url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
-  } catch {
-    return null
-  }
-  const host = url.hostname.toLowerCase()
-  if (url.protocol !== 'https:' || url.port || !host.includes('.')) return null
-  if (/^[\d.]+$/.test(host) || host.startsWith('[') || host === 'localhost' || host.endsWith('.local')) return null
-  return `https://${host}`
-}
-
-/** IPv4 / IPv6 の内部・ループバック・リンクローカルのアドレスか */
-function isPrivateAddress(ip: string): boolean {
-  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])]
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224
-  }
-  const v6 = ip.toLowerCase()
-  if (v6.startsWith('::ffff:')) return isPrivateAddress(v6.slice(7))
-  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6)
-}
-
-const checkedHosts = new Map<string, boolean>()
+/** 確かめた結果を覚えておく時間。長く覚えると、確かめたあとで名前の向き先を内部へ変えられる */
+const HOST_CHECK_TTL_MS = 30_000
+const checkedHosts = new Map<string, { ok: boolean; at: number }>()
 
 /**
  * 名前が内部のアドレスを指していないか確かめる（ドメイン名で内部のサーバーへ届かせないため）。
+ * 送るたびに確かめ直し、結果は短い間だけ覚える。名前解決の API が無い環境では送らない。
  * 名前解決そのものに失敗したときは fetch に任せる（それも失敗して canvas_bad_url になる）
  */
 async function assertPublicHost(host: string): Promise<void> {
-  let ok = checkedHosts.get(host)
-  // 実行環境に名前解決の API が無ければ、ドメイン名の検査（parseBaseUrl）とリダイレクトの検査だけに頼る
-  if (ok === undefined && typeof Deno.resolveDns !== 'function') ok = true
+  if (typeof Deno.resolveDns !== 'function') {
+    console.error('[canvas] Deno.resolveDns is unavailable; refusing to call school sites')
+    throw new CanvasError('canvas_api', 'DNS lookup unavailable')
+  }
+  const hit = checkedHosts.get(host)
+  let ok = hit && Date.now() - hit.at < HOST_CHECK_TTL_MS ? hit.ok : undefined
   if (ok === undefined) {
     const lookups = await Promise.all(
       (['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])),
     )
     ok = !lookups.flat().some(isPrivateAddress)
-    checkedHosts.set(host, ok)
+    checkedHosts.set(host, { ok, at: Date.now() })
   }
   if (!ok) throw new CanvasError('canvas_bad_url', 'Private address')
 }
@@ -220,6 +197,15 @@ async function plannerItems(baseUrl: string, token: string) {
     token,
     `/api/v1/planner/items?start_date=${windowStart}&end_date=${windowEnd}&per_page=100`,
   )
+  // 科目はタグにするので、長い科目名（context_name）ではなく短い科目コード（CSE-101 など）を使う。
+  // カレンダーフィードの件名に付く科目コードと同じものになる。取れなければ科目名のまま
+  const courseCodes = new Map<string, string>()
+  try {
+    const courses = await canvasAll<{ id: number; course_code?: string | null }>(baseUrl, token, '/api/v1/users/self/courses?per_page=100')
+    for (const c of courses) if (c.course_code) courseCodes.set(String(c.id), c.course_code.trim())
+  } catch (e) {
+    console.warn('[canvas] courses', e instanceof Error ? e.message : e)
+  }
   const items = raw
     .filter((i) => PLANNABLE_TYPES.has(i.plannable_type))
     .map((i) => ({
@@ -227,7 +213,7 @@ async function plannerItems(baseUrl: string, token: string) {
       id: String(i.plannable_id),
       title: (i.plannable?.title ?? '').trim(),
       courseId: i.course_id != null ? String(i.course_id) : null,
-      courseName: i.course_id != null ? i.context_name ?? null : null,
+      courseName: i.course_id != null ? courseCodes.get(String(i.course_id)) ?? i.context_name ?? null : null,
       url: i.html_url ? new URL(i.html_url, baseUrl).toString() : baseUrl,
       dueAt: i.plannable?.due_at ?? i.plannable?.todo_date ?? i.plannable_date ?? null,
       done: isDone(i),
@@ -308,6 +294,11 @@ Deno.serve(withCors(async (req) => {
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
     const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
+    // 学校のサイトを新しく確かめに行く connect は、ほかより少なく
+    const limited =
+      !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvas)) ||
+      (action === 'connect' && !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvasConnect)))
+    if (limited) return jsonResponse({ ok: false, code: 'canvas_rate_limited', error: 'canvas_rate_limited' }, 429)
 
     type Row = {
       id: string
@@ -326,7 +317,18 @@ Deno.serve(withCors(async (req) => {
         .eq('user_id', user.id)
         .order('updated_at')
       if (error) throw new Error(error.message)
-      return (data ?? []) as Row[]
+      // トークンとフィードの URL は暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+      return await Promise.all(((data ?? []) as Row[]).map(async (r) => {
+        const token = r.token ? await openSecret(r.token, secretContext.canvasToken(user.id, r.id)) : null
+        const feedUrl = r.feed_url ? await openSecret(r.feed_url, secretContext.canvasFeed(user.id, r.id)) : null
+        const patch: Record<string, string> = {}
+        if (token && r.token && needsSeal(r.token)) patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
+        if (feedUrl && r.feed_url && needsSeal(r.feed_url)) patch.feed_url = await sealSecret(feedUrl, secretContext.canvasFeed(user.id, r.id))
+        if (Object.keys(patch).length > 0) {
+          await admin.from('canvas_connection').update(patch).eq('user_id', user.id).eq('id', r.id)
+        }
+        return { ...r, token, feed_url: feedUrl }
+      }))
     }
     /** 設定画面に返す形。トークンは含めない */
     const describe = (rows: Row[]) => ({
@@ -373,7 +375,7 @@ Deno.serve(withCors(async (req) => {
           base_url: feed.baseUrl,
           kind: 'ical',
           token: null,
-          feed_url: feed.feedUrl,
+          feed_url: await sealSecret(feed.feedUrl, secretContext.canvasFeed(user.id, new URL(feed.baseUrl).host)),
           user_name: null,
           token_expires_at: null,
           token_checked_at: null,
@@ -401,7 +403,7 @@ Deno.serve(withCors(async (req) => {
           id: new URL(baseUrl).host,
           base_url: baseUrl,
           kind: 'token',
-          token,
+          token: await sealSecret(token, secretContext.canvasToken(user.id, new URL(baseUrl).host)),
           feed_url: null,
           user_name: self.name ?? null,
           updated_at: new Date().toISOString(),

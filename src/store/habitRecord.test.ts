@@ -3,6 +3,7 @@ import type { Habit } from '../types/habit'
 import type { Task } from '../types/task'
 import { assignColorsInOrder, categoryHex } from '../lib/logCategoryColors'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from './habitRecord'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
 
 // localStorage・i18n を用意しなくても読める（色の名前と「今」は引数で渡す）
 
@@ -21,6 +22,7 @@ function habit(fields: Partial<Habit> = {}): Habit {
 
 function record(fields: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id: 'r1', title: '朝ラン', description: '', completed: true, completedAt: NOW, createdAt: NOW, updatedAt: NOW,
     order: 5, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
     priority: 'none', tags: [], recurrence: null, isTimeLog: true,
@@ -29,7 +31,7 @@ function record(fields: Partial<Task> = {}): Task {
 }
 
 const state = (h: Habit, tasks: Task[] = []) => ({
-  habits: [h], tasks, deletedTasks: [], timeLogTagPresets: presets, logCategoryColors: colors,
+  habits: [h], tasks, recentDeletes: [], timeLogTagPresets: presets, logCategoryColors: colors,
 })
 
 describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
@@ -58,6 +60,15 @@ describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
     const patch = completeHabitAsPlannedPatch(state(h), 'h1', '2026-10-02', env)!
     const tasks = 'tasks' in patch ? patch.tasks : []
     expect(tasks[0]).toMatchObject({ tags: ['運動'], color: null })
+  })
+
+  it('習慣の色＝ラベル。同じ名前の過去の記録のラベルより習慣の色を優先する', () => {
+    const past = record({ id: 'old', dueDate: '2026-09-30', tags: ['勉強'] })
+    const named = completeHabitAsPlannedPatch(state(habit({ color: categoryHex('運動', colors) }), [past]), 'h1', '2026-10-02', env)!
+    expect(('tasks' in named ? named.tasks : []).at(-1)).toMatchObject({ tags: ['運動'], color: null })
+    // 名前の無い色でも推定せず、色のまま残す
+    const unnamed = completeHabitAsPlannedPatch(state(habit(), [past]), 'h1', '2026-10-02', env)!
+    expect(('tasks' in unnamed ? unnamed.tasks : []).at(-1)).toMatchObject({ tags: [], color: '#123456' })
   })
 
   it('同じ名前の記録が既にあれば、達成だけにして記録は作らない', () => {
@@ -94,7 +105,7 @@ describe('uncheckHabitDatePatch', () => {
     const patch = uncheckHabitDatePatch(state(h, [record({ habitId: 'h1' }), other]), 'h1', '2026-10-02', { now: NOW, deletedAt: 42 })!
     expect(patch.habits[0]!.completedDates).toEqual(['2026-10-01'])
     expect(patch.tasks.find((t) => t.id === 'r1')!.deletedAt).toBe(NOW)
-    expect(patch.tasks.find((t) => t.id === 'r2')!.deletedAt).toBeUndefined()
-    expect(patch.deletedTasks).toEqual([{ task: expect.objectContaining({ id: 'r1' }), deletedAt: 42 }])
+    expect(patch.tasks.find((t) => t.id === 'r2')!.deletedAt).toBeNull()
+    expect(patch.recentDeletes).toEqual([{ ids: ['r1'], at: 42 }])
   })
 })

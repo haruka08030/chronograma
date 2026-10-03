@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { format } from 'date-fns'
 import { saveAutoBackup, type AutoBackupKind } from '../lib/autoBackup'
 import { useTaskStore } from '../store/taskStore'
+import { toDateKey } from '../lib/dateKey'
 
 /** 開きっぱなしで日をまたいだときも、その日の控えを取る */
 const CHECK_MS = 30 * 60_000
@@ -14,10 +14,13 @@ export function onAutoBackupSaved(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
-/** 今の状態を控える。JSON はここで同期的に作るので、直後に状態が変わっても控えは変わる前のもの */
-export function backupNow(kind: AutoBackupKind) {
+/**
+ * 今の状態を控える。JSON はここで同期的に作るので、直後に状態が変わっても控えは変わる前のもの。
+ * 持ち主は手元のデータの持ち主（`dataOwner`）。分かっている呼び出し元は `owner` で渡す
+ */
+export function backupNow(kind: AutoBackupKind, owner?: string | null) {
   const s = useTaskStore.getState()
-  void saveAutoBackup(kind, format(new Date(), 'yyyy-MM-dd'), s.tasks, s.backupJson()).then((saved) => {
+  void saveAutoBackup(kind, toDateKey(new Date()), s.tasks, s.backupJson(), owner ?? s.dataOwner).then((saved) => {
     if (saved) listeners.forEach((l) => l())
   })
 }

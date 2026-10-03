@@ -2,15 +2,15 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { format, subDays, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
+import { dateFnsLocale } from '../lib/dateKey'
+import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -21,7 +21,6 @@ export function StatsView() {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
 
   const stats = useMemo(() => {
     // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
@@ -53,7 +52,7 @@ export function StatsView() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const day = subDays(today, 6 - i)
       const count = completed.filter((t) => isSameDay(new Date(completionInstant(t)), day)).length
-      const locale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+      const locale = dateFnsLocale(i18n.resolvedLanguage)
       return { date: day, count, label: format(day, 'E', { locale }), dayNum: format(day, 'd') }
     })
     const maxDayCount = Math.max(1, ...last7Days.map((d) => d.count))
@@ -111,7 +110,7 @@ export function StatsView() {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('stats.title')}</h1>
+        <h1 className={PAGE_TITLE_CLASS}>{t('stats.title')}</h1>
       </div>
 
       <div className="px-6 pb-8 space-y-8">
@@ -120,7 +119,7 @@ export function StatsView() {
 
         {/* タスク: ふりかえりと重複しない数字だけを 1 行に */}
         <section>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.tasksTitle')}</h2>
+          <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.tasksTitle')}</h2>
           <dl className="grid grid-cols-2 divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 sm:divide-x">
             {[
               { label: t('stats.completedThisMonth'), value: stats.completedThisMonth },
@@ -142,15 +141,10 @@ export function StatsView() {
         {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
         {tagsEnabled && stats.byTag.some((x) => x.tag !== '') && (
           <section>
-            <h2 className="mb-2 px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stats.byTagTitle')}</h2>
+            <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.byTagTitle')}</h2>
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
               {stats.byTag.map((x) => (
                 <li key={x.tag} className="flex items-center gap-3 px-4 py-2.5">
-                  <span
-                    className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={colorVars(categoryHex(x.tag || null, logCategoryColors))}
-                    aria-hidden
-                  />
                   <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
                   <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: x.active })}</span>
                   <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: x.completed })}</span>

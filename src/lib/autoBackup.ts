@@ -3,6 +3,7 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
+import { LEGACY_DATA_OWNER } from '../store/storeConstants'
 
 /**
  * 自動バックアップ。この端末の IndexedDB に控えを残す。
@@ -12,6 +13,9 @@ import { SYNC_INBOX_LIST_ID } from './syncMerge'
  *
  * 送信に失敗している間に、サーバーの古い内容で手元が置き換わって 9 日分のタスクが
  * 消えたことがある。サーバーにも手元にも無くなったものを戻せるのはこれだけ。
+ *
+ * 控えには持ち主（`owner` = 控えたときの `dataOwner`）を付け、一覧には見ている人の分だけを出す。
+ * 共用の端末で、ログアウトした人の控えを次の人が戻せないようにするため（`visibleBackups`）。
  */
 
 export type AutoBackupKind = 'daily' | 'beforeSync' | 'beforeSignOut'
@@ -25,6 +29,11 @@ export interface AutoBackupMeta {
   dateKey: string
   todoCount: number
   logCount: number
+  /**
+   * 控えたデータの持ち主。利用者の id、ログインせずに作ったデータは null、
+   * 持ち主の記録が無い古いデータは `LEGACY_DATA_OWNER`。持ち主を付ける前の控えは undefined
+   */
+  owner?: string | null
 }
 
 export interface AutoBackup extends AutoBackupMeta {
@@ -70,33 +79,55 @@ async function getAll(): Promise<AutoBackup[]> {
   )
 }
 
-/** 新しい順。中身（json）は含めない */
-export async function listAutoBackups(): Promise<AutoBackupMeta[]> {
+/**
+ * いま見ている人（ログイン中の利用者の id、ログインしていなければ null）が戻せる控えか。
+ * - 本人の控えと、ログインせずに作ったデータの控え（null）は、その人だけ
+ * - 持ち主の分からない控え（古い版のデータ・持ち主を付ける前の控え）は、ログインしている人だけ
+ */
+export function canViewBackup(b: Pick<AutoBackupMeta, 'owner'>, viewer: string | null): boolean {
+  if (b.owner === undefined || b.owner === LEGACY_DATA_OWNER) return viewer !== null
+  return b.owner === viewer
+}
+
+/** 新しい順。中身（json）は含めない。見ている人が戻せるものだけ */
+export async function listAutoBackups(viewer: string | null): Promise<AutoBackupMeta[]> {
   try {
-    return (await getAll()).map(({ json, ...meta }) => {
-      void json
-      return meta
-    })
+    return (await getAll())
+      .filter((b) => canViewBackup(b, viewer))
+      .map(({ json, ...meta }) => {
+        void json
+        return meta
+      })
   } catch {
     return []
   }
 }
 
-export async function loadAutoBackup(id: string): Promise<AutoBackup | null> {
+export async function loadAutoBackup(id: string, viewer: string | null): Promise<AutoBackup | null> {
   try {
-    return (await withStore<AutoBackup>('readonly', (s) => s.get(id))) ?? null
+    const b = (await withStore<AutoBackup>('readonly', (s) => s.get(id))) ?? null
+    return b && canViewBackup(b, viewer) ? b : null
   } catch {
     return null
   }
 }
 
-/** 残す数を超えた古いものの id */
+/** 残す数を超えた古いものの id。数えるのは持ち主ごと（ほかの人の控えに押し出されないように） */
 export function idsToPrune(all: readonly AutoBackupMeta[]): string[] {
   const sorted = [...all].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
-  const daily = sorted.filter((b) => b.kind === 'daily').slice(DAILY_KEEP)
-  const beforeSync = sorted.filter((b) => b.kind === 'beforeSync').slice(BEFORE_SYNC_KEEP)
-  const beforeSignOut = sorted.filter((b) => b.kind === 'beforeSignOut').slice(BEFORE_SYNC_KEEP)
-  return [...daily, ...beforeSync, ...beforeSignOut].map((b) => b.id)
+  const groups = new Map<string, AutoBackupMeta[]>()
+  for (const b of sorted) {
+    const key = `${b.kind}\u0000${b.owner ?? ''}`
+    const group = groups.get(key)
+    if (group) group.push(b)
+    else groups.set(key, [b])
+  }
+  const out: string[] = []
+  for (const group of groups.values()) {
+    const keep = group[0].kind === 'daily' ? DAILY_KEEP : BEFORE_SYNC_KEEP
+    out.push(...group.slice(keep).map((b) => b.id))
+  }
+  return out
 }
 
 export function countTasks(tasks: readonly Task[]): { todoCount: number; logCount: number } {
@@ -119,13 +150,14 @@ export async function saveAutoBackup(
   dateKey: string,
   tasks: readonly Task[],
   json: string,
+  owner: string | null,
 ): Promise<boolean> {
   if (tasks.length === 0) return false
   try {
     const all = await getAll()
-    if (kind === 'daily' && all.some((b) => b.kind === 'daily' && b.dateKey === dateKey)) return false
+    if (kind === 'daily' && all.some((b) => b.kind === 'daily' && b.dateKey === dateKey && (b.owner ?? null) === owner)) return false
     const savedAt = new Date().toISOString()
-    const entry: AutoBackup = { id: `${kind}-${savedAt}`, kind, savedAt, dateKey, ...countTasks(tasks), json }
+    const entry: AutoBackup = { id: `${kind}-${savedAt}`, kind, savedAt, dateKey, ...countTasks(tasks), owner, json }
     const prune = idsToPrune([entry, ...all])
     await withStore('readwrite', (s) => {
       s.put(entry)
@@ -138,11 +170,14 @@ export async function saveAutoBackup(
   }
 }
 
-/** アカウントを削除したときに、この端末の控えも全部消す */
-export async function clearAutoBackups(): Promise<void> {
+/** アカウントを削除したときに、この端末にあるその人の控え（と持ち主の分からない控え）を消す */
+export async function clearAutoBackups(userId: string): Promise<void> {
   try {
+    const ids = (await getAll())
+      .filter((b) => b.owner === userId || b.owner === undefined || b.owner === LEGACY_DATA_OWNER)
+      .map((b) => b.id)
     await withStore('readwrite', (s) => {
-      s.clear()
+      for (const id of ids) s.delete(id)
     })
   } catch {
     /* 開けなければ消すものも無い */

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { CARD_TITLE_CLASS } from '../ui/headingClass'
 
 /** 設定のまとまり。見出しは枠の外、中身は 1 枚の枠に行を区切り線で並べる */
 export function SettingsGroup({
@@ -14,7 +15,7 @@ export function SettingsGroup({
 }) {
   return (
     <section id={id} className="scroll-mt-6">
-      <h2 className="px-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
+      <h2 className={`px-1 ${CARD_TITLE_CLASS}`}>{title}</h2>
       {description && <p className="mt-0.5 px-1 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>}
       <div className="mt-2 divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
         {children}
@@ -67,7 +68,3 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
   )
 }
 
-
-/** 連携の設定で貼るトークン・URL などの入力欄 */
-export const settingsFieldClass =
-  'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-accent-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'

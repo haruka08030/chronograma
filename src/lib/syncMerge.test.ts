@@ -12,6 +12,7 @@ import {
   withoutDuplicateDefaults,
   type SyncSnapshot,
 } from './syncMerge'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * 同期マージはデータ消失の最後の砦なので、
@@ -24,6 +25,7 @@ const T2 = '2026-09-03T00:00:00.000Z'
 
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
+    ...TASK_DEFAULTS,
     id,
     title: id,
     description: '',
@@ -200,7 +202,7 @@ describe('mergeSnapshots', () => {
     expect(deletes.tasks).toEqual([])
   })
 
-  it('習慣も updatedAt で解決する', () => {
+  it('習慣の達成日は両方の端末の分を残す（行の勝ち負けで片方を消さない）', () => {
     const base = snapshot({ habits: [habit('h1')] })
     const baseline = baselineFrom(base)
     const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T1 })] })
@@ -210,7 +212,77 @@ describe('mergeSnapshots', () => {
 
     const { merged } = mergeSnapshots(local, remote, baseline)
 
-    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-03'])
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
+    // ほかの端末にも行き渡るよう、勝った側より新しい時刻になる
+    expect(Date.parse(merged.habits[0]!.updatedAt)).toBeGreaterThan(Date.parse(T2))
+  })
+
+  it('片方で外した達成日は外す（もう片方で付けた日は残す）', () => {
+    const base = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-01', '2026-09-02'] })] })
+    const baseline = baselineFrom(base)
+    // この端末で 9/1 を外し、ほかの端末で 9/3 を付けた
+    const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T2 })] })
+    const remote = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-01', '2026-09-02', '2026-09-03'], updatedAt: T1 })] })
+
+    const { merged } = mergeSnapshots(local, remote, baseline)
+
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
+  })
+
+  it('前回同期の達成日の控えが無ければ、両方を合わせる', () => {
+    const base = snapshot({ habits: [habit('h1')] })
+    const { habitDates: _omit, ...oldBaseline } = baselineFrom(base)
+    void _omit
+    const local = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-02'], updatedAt: T2 })] })
+    const remote = snapshot({ habits: [habit('h1', { completedDates: ['2026-09-03'], updatedAt: T1 })] })
+
+    const { merged } = mergeSnapshots(local, remote, oldBaseline)
+
+    expect(merged.habits[0]!.completedDates).toEqual(['2026-09-02', '2026-09-03'])
+  })
+})
+
+describe('同じ行を両方の端末で変えたとき（項目ごと）', () => {
+  it('違う項目を変えたなら両方残す（スマホでタイトル・PC で完了）', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', completed: false })] })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1', { title: '課題（第 3 回）', completed: false, updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題', completed: true, updatedAt: T2 })] })
+
+    const { merged } = mergeSnapshots(local, remote, baseline)
+
+    expect(merged.tasks[0]).toMatchObject({ title: '課題（第 3 回）', completed: true })
+    // 両方の変更を合わせた新しい版なので、ほかの端末にも行き渡るよう時刻を今にする
+    expect(Date.parse(merged.tasks[0]!.updatedAt)).toBeGreaterThan(Date.parse(T2))
+  })
+
+  it('同じ項目を両方で変えたら新しいほう', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題' })] })
+    const baseline = baselineFrom(base)
+    const local = snapshot({ tasks: [task('t1', { title: 'こちら', updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: 'あちら', updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]!.title).toBe('あちら')
+  })
+
+  it('片方だけ変えたなら、古い時刻でもその変更を残す', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', priority: 'none' })] })
+    const baseline = baselineFrom(base)
+    // こちらは優先度だけ（新しい時刻）、あちらはタイトルだけ（古い時刻）
+    const local = snapshot({ tasks: [task('t1', { title: '課題', priority: 'high', updatedAt: T2 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題（改）', priority: 'none', updatedAt: T1 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.tasks[0]).toMatchObject({ title: '課題（改）', priority: 'high' })
+  })
+
+  it('前回同期の項目の控えが無ければ、行ごと新しいほう（前の動き）', () => {
+    const base = snapshot({ tasks: [task('t1', { title: '課題', completed: false })] })
+    const { fields: _omit, ...oldBaseline } = baselineFrom(base)
+    void _omit
+    const local = snapshot({ tasks: [task('t1', { title: '課題（第 3 回）', completed: false, updatedAt: T1 })] })
+    const remote = snapshot({ tasks: [task('t1', { title: '課題', completed: true, updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, oldBaseline).merged.tasks[0]).toMatchObject({ title: '課題', completed: true })
   })
 })
 
@@ -357,6 +429,18 @@ describe('withoutDuplicateDefaults（ログインせずに使っていた端末�
 
   it('タスクが入っていれば残す', () => {
     const local: SyncSnapshot = { lists: [inbox, someday('local')], sections: [], tasks: [task('t', { listId: 'local' })], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'local'])
+  })
+
+  it('日本語と英語の端末でも、初期リストを二重にしない', () => {
+    const local: SyncSnapshot = { lists: [inbox, { ...someday('local'), name: 'Someday' }], sections: [], tasks: [], habits: [] }
+    const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
+    expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID])
+  })
+
+  it('同じ種類でも、自分で名前を付けた空のリストは残す', () => {
+    const local: SyncSnapshot = { lists: [inbox, { ...someday('local'), name: '行きたい場所' }], sections: [], tasks: [], habits: [] }
     const remote: SyncSnapshot = { lists: [inbox, someday('remote')], sections: [], tasks: [], habits: [] }
     expect(withoutDuplicateDefaults(local, remote).lists.map((l) => l.id)).toEqual([SYNC_INBOX_LIST_ID, 'local'])
   })

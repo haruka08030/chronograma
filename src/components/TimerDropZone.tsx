@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { acceptTaskDrag } from '../lib/taskDrag'
 import {
   TIMER_DROP_ATTR,
   TIMER_DROP_ID,
@@ -58,10 +59,7 @@ function TimerDropTarget({ over, label }: { over: boolean; label: string }) {
       role="region"
       aria-label={label}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy'
-        setTimerDropHover(true)
+        if (acceptTaskDrag(e)) setTimerDropHover(true)
       }}
       onDragLeave={(e) => {
         if (e.currentTarget.contains(e.relatedTarget as Node | null)) return

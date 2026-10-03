@@ -1,12 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { HOUR_HEIGHT, yToTime, timeToMinutes } from './timeGrid'
 import { markTimelineDragOver } from './nativeTaskDragGhost'
+import { acceptTaskDrag, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from './taskDrag'
+import { minutesToTime } from './clockTime'
 
-export const TASK_DND_TYPE = 'application/x-task-id'
-/** Google の予定をつかんでいるときの型（中身は予定 ID。本体は googleEventEdit が持つ） */
-export const GOOGLE_EVENT_DND_TYPE = 'application/x-gcal-event'
-/** 複数選択ドラッグ時に運ぶ、表示順の taskId 配列（JSON） */
-export const TASK_MULTI_DND_TYPE = 'application/x-task-ids'
+export { TASK_DND_TYPE, GOOGLE_EVENT_DND_TYPE, TASK_MULTI_DND_TYPE }
 const DEFAULT_DURATION_MIN = 60
 
 /** ドラッグ中の DataTransfer から対象 taskId を取り出す（複数選択対応） */
@@ -58,11 +56,6 @@ export interface DropPreview {
   label: string
 }
 
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
 
 interface UseTimelineDropOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
@@ -82,9 +75,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent, dateKey: string) => {
-    if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
+    if (!acceptTaskDrag(e)) return
     markTimelineDragOver(e.nativeEvent)
     const y = getRelativeY(e.clientY, dateKey)
     const startTime = yToTime(y)

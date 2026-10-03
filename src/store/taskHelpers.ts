@@ -5,13 +5,15 @@
 import type { Task } from '../types/task'
 import { newId } from '../lib/id'
 import { inferLogCategory } from '../lib/logCategory'
-import { categoryHex } from '../lib/logCategoryColors'
+import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appTimeZone } from '../lib/timeZone'
 import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
+import { withLogCategory } from '../lib/taskDefaults'
 
 /** `updateTask` で書き換えられる列 */
+
 export type TaskPatch = Parameters<TaskState['updateTask']>[1]
 
 /** 子孫（任意の深さ）を含む。一括削除・リスト移動で親子の整合を取る */
@@ -66,8 +68,10 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
   }
+  // 記録の分類は category が正。前の書き方（tags の先頭）で来た分類も category にする
+  if (task.isTimeLog && patch.tags !== undefined && patch.category === undefined) applied.category = patch.tags[0] ?? null
   // 色＝分類: 記録の分類を選び直したら、Google から写した色より分類の色を優先する
-  if (task.isTimeLog && patch.tags !== undefined && patch.color === undefined && patch.tags[0] && patch.tags[0] !== task.tags[0]) {
+  if (task.isTimeLog && patch.color === undefined && applied.category && applied.category !== task.category) {
     applied.color = null
   }
   // 期限（dueDate）を外したら締め切り時刻と繰り返しもクリア（予定の時間幅は予定日側に紐づくので残す）
@@ -80,7 +84,7 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.startTime = null
     applied.endTime = null
   }
-  return applied
+  return withLogCategory(applied)
 }
 
 export function orderForNewSiblingAtFront(
@@ -147,12 +151,15 @@ export function makeTask(
     isSleep: fields.isSleep ?? false,
     archivedAt: null,
     deletedAt: null,
+    timeZone: null,
+    reminders: null,
+    category: null,
     // 列を書いたタイムゾーン。アプリのタイムゾーンを変えたら同じ瞬間のまま書き直す（`taskTimeZone.ts`）
     timeZoneAnchor: appTimeZone(),
   }
   // 「睡眠」と付けた記録（後から記録・タイマー）も睡眠として扱う
   if (looksLikeSleep(task)) task.isSleep = true
-  return task
+  return withLogCategory(task)
 }
 
 /** 記録の分類を推定するのに使う状態 */
@@ -182,13 +189,18 @@ export function inferCategoryTags(
 /** 予定から作る記録（完了した時間ログ） */
 export function completedRecordPatch(
   s: CategoryInferenceState,
-  fields: { title: string; dueDate: string; startTime: string; endTime: string; color?: string | null; habitId?: string | null },
+  fields: {
+    title: string; dueDate: string; startTime: string; endTime: string; color?: string | null; habitId?: string | null
+    /** 決まっているラベル（習慣の色）。あれば推定しない */
+    label?: LogLabel
+  },
   colorNames: ReadonlySet<string>,
   now: string = new Date().toISOString(),
 ): Pick<TaskState, 'tasks'> {
-  const { title, dueDate, startTime, endTime, color, habitId } = fields
+  const { title, dueDate, startTime, endTime, habitId, label } = fields
+  const color = label ? label.color : fields.color
   const maxOrder = Math.max(0, ...s.tasks.map((t) => t.order))
-  const tags = inferCategoryTags([], s, title, colorNames, { colorHex: color })
+  const tags = label ? label.tags : inferCategoryTags([], s, title, colorNames, { colorHex: color })
   return {
     tasks: [
       ...s.tasks,

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
+import { fieldClass } from './ui/fieldClass'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
 import { isSubmitEnter } from '../lib/keyboard'
 
@@ -117,7 +118,7 @@ export function TimeZonePicker({
           aria-expanded={open}
           aria-label={ariaLabel}
           onClick={toggle}
-          className="max-w-[16rem] truncate rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-sm text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+          className={fieldClass({ size: 'sm', active: open }, 'max-w-[16rem] truncate text-left')}
         >
           {value ? zoneOptionLabel(value, locale) : nullOption ?? zoneCityName('UTC')}
         </button>

@@ -24,6 +24,8 @@
   --color-date-500: #6366f1;
   --color-date-600: #4f46e5;
   --color-date-700: #4338ca;
+  /* 睡眠（夜の色）。睡眠の行の月・睡眠のグラフの棒・タイムラインの睡眠の帯で共通（`text-sleep` / `bg-sleep` / `.gc-sleep`） */
+  --color-sleep: #5c6bc0;
   /* 塗りのアクセントの上に載せる文字色（ダークでは塗りが明るくなるので暗い文字） */
   --color-on-accent: #ffffff;
 }
@@ -42,6 +44,7 @@
   --color-accent-900: #f1f3f4;
   --color-accent-950: #f8f9fa;
   --color-on-accent: #202124;
+  --color-sleep: #7986cb;
 }
 
 /*
@@ -179,12 +182,11 @@ body {
 
 /* 睡眠の記録: 夜の色の薄い帯。色の付いた記録・予定の枠より目立たせない */
 .gc-sleep {
-  background-color: color-mix(in srgb, #5c6bc0 13%, var(--gc-surface));
-  color: color-mix(in srgb, #3949ab 70%, var(--gc-ink));
+  background-color: color-mix(in srgb, var(--color-sleep) 13%, var(--gc-surface));
+  color: color-mix(in srgb, var(--color-sleep) 75%, var(--gc-ink));
 }
 .dark .gc-sleep {
-  background-color: color-mix(in srgb, #7986cb 16%, var(--gc-surface));
-  color: color-mix(in srgb, #9fa8da 75%, var(--gc-ink));
+  background-color: color-mix(in srgb, var(--color-sleep) 16%, var(--gc-surface));
 }
 
 /* 終わった予定（完了・未完了とも）: グレー */
@@ -212,6 +214,15 @@ body {
   [contenteditable]:not([contenteditable="false"]) {
     -webkit-user-select: text;
     user-select: text;
+  }
+  /* ブラウザが描く部品（ラジオ・選択欄の一覧・スクロールバー）もダークのときは暗い見た目にする */
+  .dark {
+    color-scheme: dark;
+  }
+  /* ラジオ・チェックボックスはブラウザの青ではなくアプリの墨（ダークは明るい墨）。部品ごとに付けない */
+  input[type='radio'],
+  input[type='checkbox'] {
+    accent-color: var(--color-accent-600);
   }
   ::selection {
     background-color: color-mix(in srgb, var(--color-date-500) 22%, transparent);

@@ -1,12 +1,12 @@
 /** 設定（テーマ・色・ラベル・通知・タイムゾーン） */
-import { normalizeTimeLogTagPresetList } from '../../lib/tagColors'
+import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
 import { categoryHex, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
 import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
-import i18n from '../../i18n/config'
+import { withLogCategory } from '../../lib/taskDefaults'
 
 type SettingsActions = Pick<
   TaskState,
@@ -73,9 +73,9 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       const removed = get().timeLogTagPresets.filter((n) => !nextNames.has(n))
       pushUndo(
         removed.length === 1
-          ? i18n.t('undo.labelDeleted', { name: removed[0] })
+          ? { key: 'undo.labelDeleted', params: { name: removed[0] } }
           : removed.length > 1
-            ? i18n.t('undo.labelsDeleted', { count: removed.length })
+            ? { key: 'undo.labelsDeleted', params: { count: removed.length } }
             : undefined,
       )
       const now = new Date().toISOString()
@@ -110,12 +110,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
             const next = t.color ? recolor.get(t.color.toUpperCase()) : undefined
             return next ? { ...t, color: next, updatedAt: now } : t
           }
-          const tag = t.tags[0]
-          if (tag && rename.has(tag)) return { ...t, tags: [rename.get(tag)!], updatedAt: now }
-          if (tag && removedHex.has(tag)) return { ...t, tags: [], color: removedHex.get(tag)!, updatedAt: now }
+          const tag = t.category
+          if (tag && rename.has(tag)) return withLogCategory({ ...t, category: rename.get(tag)!, updatedAt: now })
+          if (tag && removedHex.has(tag)) return withLogCategory({ ...t, category: null, color: removedHex.get(tag)!, updatedAt: now })
           if (!tag && t.color) {
             const label = labelForHex(t.color, presets, colors)
-            if (label) return { ...t, tags: [label], color: null, updatedAt: now }
+            if (label) return withLogCategory({ ...t, category: label, color: null, updatedAt: now })
           }
           return t
         })

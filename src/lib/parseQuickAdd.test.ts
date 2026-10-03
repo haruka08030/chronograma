@@ -33,6 +33,13 @@ describe('タグ・リスト指定', () => {
     expect(ja('牛乳 @買い物').listName).toBe('買い物')
     expect(ja('牛乳 ＠買い物').listName).toBe('買い物')
   })
+
+  it('リストを選べない欄では @… を題名に残す', () => {
+    const r = parseQuickAddTitle('資料 @買い物 明日', true, NOW, { lists: false })
+    expect(r.title).toBe('資料 @買い物')
+    expect(r.listName).toBeNull()
+    expect(r.date).toBe('2026-10-01')
+  })
 })
 
 describe('日付', () => {

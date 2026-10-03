@@ -21,6 +21,7 @@ import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitive
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
+import { PAGE_TITLE_CLASS } from './ui/headingClass'
 
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
@@ -73,7 +74,7 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
             <ChevronLeftIcon className="h-4 w-4" />
             {t('settings.title')}
           </button>
-          <h1 className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{t('integrations.title')}</h1>
+          <h1 className={`mt-2 ${PAGE_TITLE_CLASS}`}>{t('integrations.title')}</h1>
         </div>
         <GoogleCalendarSettings />
         <NotionSettings />
@@ -115,7 +116,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h1>
+        <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
 
         <SettingsGroup id="settings-appearance" title={t('settings.appearance')}>
           <SettingsRow label={t('settings.theme')}>

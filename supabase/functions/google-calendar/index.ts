@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // 使うのは primary カレンダーだけなので、いちばん狭いものにしている。`src/lib/googleCalendar.ts` とそろえる
@@ -246,8 +248,32 @@ Deno.serve(withCors(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.google))) {
+      return jsonResponse({ ok: false, error: 'Too many requests. Wait a moment, then try again.' }, 429)
+    }
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
+
+    const tokenContext = secretContext.google(user.id)
+    /**
+     * 保存してある接続（リフレッシュトークンは開いたもの）。暗号化する前の行は、読んだついでに暗号化して書き直す
+     */
+    const loadConnection = async (): Promise<{ row: { refresh_token: string; scope: string | null } | null; error: { message: string } | null }> => {
+      const { data, error } = await admin
+        .from('google_oauth')
+        .select('refresh_token, scope')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (error || !data?.refresh_token) return { row: null, error }
+      const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
+      if (needsSeal(data.refresh_token as string)) {
+        await admin
+          .from('google_oauth')
+          .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
+          .eq('user_id', user.id)
+      }
+      return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
+    }
 
     if (action === 'exchange') {
       const code = body.code as string | undefined
@@ -309,7 +335,7 @@ Deno.serve(withCors(async (req) => {
       const { error } = await admin.from('google_oauth').upsert(
         {
           user_id: user.id,
-          refresh_token: refreshToken,
+          refresh_token: await sealSecret(refreshToken, tokenContext),
           // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
           scope: tokenData.scope ?? SCOPES,
           updated_at: new Date().toISOString(),
@@ -326,16 +352,12 @@ Deno.serve(withCors(async (req) => {
 
     if (action === 'disconnect') {
       // 行を消すだけでは Google 側の許可が残るので、先に取り消す（失敗しても切断は進める）
-      const { data: current } = await admin
-        .from('google_oauth')
-        .select('refresh_token')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { row: current } = await loadConnection().catch(() => ({ row: null }))
       if (current?.refresh_token) {
         await fetch('https://oauth2.googleapis.com/revoke', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ token: current.refresh_token as string }),
+          body: new URLSearchParams({ token: current.refresh_token }),
         }).catch((err) => console.error('[google] revoke failed', err))
       }
       const { error } = await admin
@@ -351,11 +373,7 @@ Deno.serve(withCors(async (req) => {
     }
 
     if (action === 'status') {
-      const { data: row, error: fetchError } = await admin
-        .from('google_oauth')
-        .select('refresh_token')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { row, error: fetchError } = await loadConnection()
 
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
@@ -388,11 +406,7 @@ Deno.serve(withCors(async (req) => {
         return jsonResponse({ events: [], error: 'timeMin and timeMax are required' })
       }
 
-      const { data: row, error: fetchError } = await admin
-        .from('google_oauth')
-        .select('refresh_token, scope')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { row, error: fetchError } = await loadConnection()
 
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
@@ -449,11 +463,7 @@ Deno.serve(withCors(async (req) => {
     }
 
     if (action === 'create' || action === 'update' || action === 'delete') {
-      const { data: row, error: fetchError } = await admin
-        .from('google_oauth')
-        .select('refresh_token, scope')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      const { row, error: fetchError } = await loadConnection()
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
         return jsonResponse({ ok: false, error: 'Failed to load Google connection' }, 500)

@@ -1,6 +1,8 @@
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays } from 'date-fns'
 import type { Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
+import { fromDateKey, toDateKey } from './dateKey'
+import { minutesToTime, timeToMinutes } from './clockTime'
 
 /** 睡眠の記録が 1 件も無いときの初期値 */
 export const DEFAULT_BED_TIME = '23:30'
@@ -19,20 +21,16 @@ export function isSleepRecord(t: Task): boolean {
 /** 印の無い古い記録のうち、タイトルかラベルが「睡眠」のもの */
 export function looksLikeSleep(t: Task): boolean {
   if (!t.isTimeLog || t.isSleep) return false
-  return SLEEP_WORDS.has(norm(t.title)) || (t.tags[0] !== undefined && SLEEP_WORDS.has(norm(t.tags[0])))
+  return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))
 }
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
 
 /** 起きた日（睡眠の終わりの日） */
 export function wakeDateOf(t: Task): string | null {
   if (!t.dueDate || !t.startTime || !t.endTime) return null
   if (t.endDate) return t.endDate
   // endDate の無い古い記録は、終わりが始まりより前なら翌日まで
-  if (toMin(t.endTime) <= toMin(t.startTime)) return format(addDays(parseISO(`${t.dueDate}T12:00:00`), 1), 'yyyy-MM-dd')
+  if (timeToMinutes(t.endTime) <= timeToMinutes(t.startTime)) return toDateKey(addDays(fromDateKey(t.dueDate), 1))
   return t.dueDate
 }
 
@@ -66,15 +64,15 @@ export function defaultSleepTimes(tasks: readonly Task[]): { bed: string; wake: 
  * 寝た時刻が起きた時刻より後なら前日の夜に寝た（23:30 → 7:00）、前なら同じ日（1:00 → 8:00）
  */
 export function sleepSpan(wakeDateKey: string, bed: string, wake: string): { dueDate: string; endDate: string | null } {
-  if (toMin(bed) > toMin(wake)) {
-    return { dueDate: format(addDays(parseISO(`${wakeDateKey}T12:00:00`), -1), 'yyyy-MM-dd'), endDate: wakeDateKey }
+  if (timeToMinutes(bed) > timeToMinutes(wake)) {
+    return { dueDate: toDateKey(addDays(fromDateKey(wakeDateKey), -1)), endDate: wakeDateKey }
   }
   return { dueDate: wakeDateKey, endDate: null }
 }
 
 /** 寝ていた時間（分） */
 export function sleepMinutes(bed: string, wake: string): number {
-  const d = toMin(wake) - toMin(bed)
+  const d = timeToMinutes(wake) - timeToMinutes(bed)
   return d > 0 ? d : d + 24 * 60
 }
 
@@ -104,10 +102,10 @@ export interface SleepSummary {
 
 const DAY_MIN = 24 * 60
 /** 前日 12:00 起点の分。23:30 → 690、7:00 → 1140 */
-const noonOffset = (hhmm: string) => (toMin(hhmm) - 12 * 60 + DAY_MIN) % DAY_MIN
+const noonOffset = (hhmm: string) => (timeToMinutes(hhmm) - 12 * 60 + DAY_MIN) % DAY_MIN
 const offsetToClock = (off: number) => {
   const m = (Math.round(off) + 12 * 60) % DAY_MIN
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return minutesToTime(m)
 }
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 const spread = (xs: number[]) => {
@@ -117,10 +115,10 @@ const spread = (xs: number[]) => {
 
 /** `endDateKey` までの `days` 日ぶんの睡眠（統計画面用） */
 export function summarizeSleep(tasks: readonly Task[], endDateKey: string, days = 14): SleepSummary {
-  const end = parseISO(`${endDateKey}T12:00:00`)
+  const end = fromDateKey(endDateKey)
   const nights: (SleepNight | null)[] = []
   for (let i = days - 1; i >= 0; i--) {
-    const dateKey = format(addDays(end, -i), 'yyyy-MM-dd')
+    const dateKey = toDateKey(addDays(end, -i))
     const r = sleepEndingOn(tasks, dateKey)
     if (!r?.startTime || !r.endTime || r.startTime === r.endTime) {
       nights.push(null)

@@ -1,4 +1,4 @@
-import { addDays, format, startOfWeek } from 'date-fns'
+import { addDays, startOfWeek } from 'date-fns'
 import type { Task } from '../types/task'
 import type { Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
@@ -12,6 +12,8 @@ import { isActiveTask } from './taskLifecycle'
 import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
+import { toDateKey } from './dateKey'
+import { clockOf } from './clockTime'
 
 export interface WeekReviewDay {
   dateKey: string
@@ -19,7 +21,7 @@ export interface WeekReviewDay {
   loggedMinutes: number
   done: number
   total: number
-  /** 分類ごとの記録時間（多い順、タグ無しは空文字）。日ごとの棒を分類の色で積む */
+  /** 分類ごとの記録時間（多い順、キーは `labelOf`、タグ無しは空文字）。日ごとの棒を分類の色で積む */
   tagMinutes: { tag: string; minutes: number }[]
 }
 
@@ -47,10 +49,12 @@ export function getWeekReview(
   anchor: Date,
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
+  /** 記録のラベル（タグ無しは空文字）。既定は先頭のタグ。画面は `recordLabelKey` で名前の無い色も分ける */
+  labelOf: (log: Task) => string = (log) => log.category ?? '',
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
-  const todayKey = format(now, 'yyyy-MM-dd')
-  const nowHm = format(now, 'HH:mm')
+  const todayKey = toDateKey(now)
+  const nowHm = clockOf(now)
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
   let timedPlanned = 0
@@ -61,7 +65,7 @@ export function getWeekReview(
 
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i)
-    const key = format(date, 'yyyy-MM-dd')
+    const key = toDateKey(date)
     if (key > todayKey) break
     const plan = getDayPlan(tasks, key, excludedListIds)
     const day: WeekReviewDay = {
@@ -95,10 +99,11 @@ export function getWeekReview(
     const dayTagMinutes = new Map<string, number>()
     for (const log of logs) {
       const min = minutesOfLogOnCalendarDay(log, key)
-      const tags = log.tags.length > 0 ? log.tags : ['']
+      const label = labelOf(log)
+      const tags = log.tags.length > 0 ? log.tags : [label]
       for (const tag of tags) tagMinutes.set(tag, (tagMinutes.get(tag) ?? 0) + min)
       // 棒は 1 本の記録を 1 回だけ積む（複数タグなら先頭のタグの色）
-      dayTagMinutes.set(tags[0], (dayTagMinutes.get(tags[0]) ?? 0) + min)
+      dayTagMinutes.set(label, (dayTagMinutes.get(label) ?? 0) + min)
     }
     day.tagMinutes = sortedTagMinutes(dayTagMinutes)
     for (const pair of matchPlanAndActualForDate(planned, logs)) {

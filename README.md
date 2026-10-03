@@ -14,7 +14,7 @@
 - **習慣**: ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
 - **外観**: ライト／ダーク、日本語と英語の UI
 
-**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、メールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
@@ -46,6 +46,7 @@ npm run dev
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、開発用（`http://localhost:5173`・`:4173`）と secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。
+   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークンは、次に使われたときに暗号化し直されます。**鍵を変えたり消したりすると、保存済みの連携はすべてつなぎ直しになります**（鍵が無い間は暗号化せずに保存します）。
    ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
@@ -84,6 +85,16 @@ select cron.schedule(
 ```
 
 通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。
+
+### Google でログイン（任意）
+
+ログインの画面に「Google でログイン」を出すには、`VITE_GOOGLE_CLIENT_ID` を設定したうえで次を行います（カレンダー連携と同じ Web クライアントを使えます）。
+
+1. **Google Cloud Console → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `https://<project-ref>.supabase.co/auth/v1/callback` を追加
+2. Supabase の **Authentication → Providers → Google** を有効にし、Client ID / Secret を設定
+3. **Authentication → URL Configuration** の **Redirect URLs** に本番と開発のオリジンが入っていること（マジックリンクと同じ）
+
+ログインで求める権限はメールアドレスと名前・プロフィール画像だけです。カレンダーは設定から別に連携します。同じメールアドレスでメールと Google の両方からログインすると、Supabase が同じアカウントにまとめます（Google 側で確認済みのアドレスのとき）。
 
 ### Google Calendar 連携（任意）
 

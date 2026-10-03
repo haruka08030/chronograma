@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import {
+  canvasCourseSectionsToTags,
   canvasDue,
   canvasFeedUrlProblem,
   canvasExpiryWarning,
@@ -15,6 +16,7 @@ import {
   type CanvasItem,
   type CanvasStatus,
 } from './canvas'
+import type { PulledFields } from './externalFields'
 
 const NOW = '2026-10-02T00:00:00.000Z'
 const CONN = 'school.instructure.com'
@@ -37,7 +39,7 @@ function item(id: string, patch: Partial<CanvasItem> = {}): CanvasItem {
   }
 }
 
-function reconcile(tasks: Task[], items: CanvasItem[], extra: Partial<typeof opts & { skipIds: Set<string> }> = {}) {
+function reconcile(tasks: Task[], items: CanvasItem[], extra: Partial<typeof opts & { skipIds: Set<string>; pulled: Record<string, PulledFields> }> = {}) {
   return reconcileCanvasItems({ lists: [inbox], sections: [], tasks }, { ...WINDOW, items }, { ...opts, ...extra })
 }
 
@@ -74,13 +76,14 @@ describe('canvasExpiryWarning', () => {
 })
 
 describe('reconcileCanvasItems', () => {
-  it('creates the list, a section per course, and open assignments', () => {
+  it('creates the list and open assignments, tagged with their course', () => {
     const r = reconcile([], [item('1'), item('2', { courseId: '202', courseName: '統計学' }), item('3', { done: true })])
     expect(r.lists.find((l) => l.id === CANVAS_LIST_ID)?.name).toBe('Canvas')
-    expect(r.sections.map((s) => s.name)).toEqual(['経済学入門', '統計学'])
+    expect(r.sections).toEqual([])
     expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(CONN, 'assignment', '2')])
+    expect(r.tasks.map((t) => t.tags)).toEqual([['経済学入門'], ['統計学']])
     const first = r.tasks[0]
-    expect(first).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: canvasSectionId(CONN, '101'), dueDate: '2026-10-05', dueTime: '23:59' })
+    expect(first).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: null, dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')
   })
 
@@ -93,6 +96,22 @@ describe('reconcileCanvasItems', () => {
     const tasks = imported([item('1')])
     const r = reconcile(tasks, [item('1', { title: 'レポート（改）', dueAt: '2026-10-06T14:59:59Z' })])
     expect(r.tasks[0]).toMatchObject({ title: 'レポート（改）', dueDate: '2026-10-06' })
+  })
+
+  it('keeps a title or deadline the user changed, and still follows later Canvas changes to the other field', () => {
+    const first = reconcile([], [item('1')], { pulled: {} })
+    const id = first.tasks[0]!.id
+    // ユーザーがタイトルを書き換えた
+    const edited = first.tasks.map((t) => ({ ...t, title: '自分用のメモ' }))
+    const r = reconcile(edited, [item('1', { title: 'レポート（改）', dueAt: '2026-10-06T14:59:59Z' })], { pulled: first.pulled })
+    expect(r.tasks[0]).toMatchObject({ id, title: '自分用のメモ', dueDate: '2026-10-06' })
+    expect(r.pulled[id]).toMatchObject({ title: 'レポート（改）', dueDate: '2026-10-06' })
+  })
+
+  it('treats the current values as the last pulled ones when nothing was remembered (does not overwrite)', () => {
+    const tasks = imported([item('1')]).map((t) => ({ ...t, title: '自分用のメモ' }))
+    const r = reconcile(tasks, [item('1')], { pulled: {} })
+    expect(r.tasks[0]!.title).toBe('自分用のメモ')
   })
 
   it('completes a task once it is submitted in Canvas, and reports it as automatic', () => {
@@ -121,17 +140,6 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
-  it('reuses an existing course section instead of adding another', () => {
-    const first = reconcile([], [item('1')])
-    const r = reconcileCanvasItems(
-      { lists: first.lists, sections: first.sections, tasks: first.tasks },
-      { ...WINDOW, items: [item('1'), item('2')] },
-      opts,
-    )
-    expect(r.sections).toHaveLength(1)
-    expect(r.tasks).toHaveLength(2)
-  })
-
   it('puts two schools in one list, and one school never completes the other’s tasks', () => {
     const OTHER = 'other.instructure.com'
     const a = reconcile([], [item('1')])
@@ -141,7 +149,7 @@ describe('reconcileCanvasItems', () => {
       opts,
     )
     expect(b.lists.filter((l) => l.id.startsWith('canvas-list')).map((l) => l.id)).toEqual([CANVAS_LIST_ID])
-    expect(b.sections.map((x) => x.name)).toEqual(['経済学入門', 'オンライン講座'])
+    expect(b.tasks.map((t) => t.tags)).toEqual([['経済学入門'], ['オンライン講座']])
     expect(b.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(OTHER, 'assignment', '1')])
     // 1 校目が空で返っても、2 校目のタスクは完了にしない
     const c = reconcileCanvasItems({ lists: b.lists, sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
@@ -178,12 +186,34 @@ describe('mergeCanvasLists', () => {
   })
 })
 
-describe('a course section moved to another list', () => {
-  it('gets the course’s new assignments in that list', () => {
-    const first = reconcile([], [item('1')])
-    const moved = first.sections.map((s) => ({ ...s, listId: 'my-list' }))
-    const r = reconcileCanvasItems({ lists: first.lists, sections: moved, tasks: first.tasks }, { ...WINDOW, items: [item('1'), item('2')] }, opts)
-    expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))).toMatchObject({ listId: 'my-list', sectionId: canvasSectionId(CONN, '101') })
+describe('canvasCourseSectionsToTags', () => {
+  const sec = (id: string, name: string, listId = CANVAS_LIST_ID) => ({ id, listId, name, order: 0 })
+
+  it('turns course sections into tags and removes them, leaving other sections alone', () => {
+    const tasks = imported([item('1'), item('2')]).map((t, i) => ({
+      ...t,
+      tags: i === 0 ? [] : ['経済学入門'],
+      sectionId: i === 0 ? canvasSectionId(CONN, '101') : 'canvas-course-77',
+    }))
+    const mine = { ...tasks[0], id: 'mine', sectionId: 'my-sec' }
+    const r = canvasCourseSectionsToTags(
+      { sections: [sec(canvasSectionId(CONN, '101'), '経済学入門'), sec('canvas-course-77', '経済学入門', 'other-list'), sec('my-sec', '自分の')], tasks: [...tasks, mine] },
+      NOW,
+    )
+    expect(r.converted).toBe(true)
+    expect(r.sections.map((s) => s.id)).toEqual(['my-sec'])
+    expect(r.tasks.map((t) => [t.sectionId, t.tags])).toEqual([
+      [null, ['経済学入門']],
+      [null, ['経済学入門']],
+      ['my-sec', []],
+    ])
+  })
+
+  it('does nothing without course sections', () => {
+    const tasks = imported([item('1')])
+    const r = canvasCourseSectionsToTags({ sections: [], tasks }, NOW)
+    expect(r).toMatchObject({ converted: false })
+    expect(r.tasks).toBe(tasks)
   })
 })
 

@@ -39,10 +39,30 @@ export function downloadRawData(): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** いちばん新しい自動バックアップ（日時と JSON）。無ければ null */
+/**
+ * いまログインしている人の id。ストアに頼らず、Supabase が保存したセッションから読む。
+ * 読めなければ、保存したデータの持ち主（`dataOwner`）
+ */
+function currentViewer(): string | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !/^sb-.+-auth-token$/.test(key)) continue
+      const id = (JSON.parse(localStorage.getItem(key) ?? 'null') as { user?: { id?: unknown } } | null)?.user?.id
+      if (typeof id === 'string') return id
+    }
+    const owner = (JSON.parse(localStorage.getItem(PERSIST_KEY) ?? 'null') as { state?: { dataOwner?: unknown } } | null)?.state?.dataOwner
+    return typeof owner === 'string' ? owner : null
+  } catch {
+    return null
+  }
+}
+
+/** いちばん新しい自動バックアップ（日時と JSON）。いまの人が戻せるものだけ。無ければ null */
 export async function latestAutoBackup(): Promise<{ savedAt: string; json: string } | null> {
-  const [latest] = await listAutoBackups()
+  const viewer = currentViewer()
+  const [latest] = await listAutoBackups(viewer)
   if (!latest) return null
-  const full = await loadAutoBackup(latest.id)
+  const full = await loadAutoBackup(latest.id, viewer)
   return full ? { savedAt: full.savedAt, json: full.json } : null
 }

@@ -41,7 +41,7 @@ export function createSectionsSlice({ set, get, undo }: SliceContext): SectionsA
     },
     deleteSection: (id) => {
       const name = get().sections.find((sec) => sec.id === id)?.name ?? ''
-      pushUndo(i18n.t('undo.sectionDeleted', { name }))
+      pushUndo({ key: 'undo.sectionDeleted', params: { name } })
       return set((s) => ({
         sections: s.sections.filter((sec) => sec.id !== id),
         tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),

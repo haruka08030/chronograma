@@ -2,6 +2,8 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import { getSupabase, sendFunctionOnLeave } from './supabase'
+import { externalPatch, type PulledFields } from './externalFields'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * Notion 連携のクライアント側。Notion API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -137,6 +139,8 @@ export type NotionReconcileResult = {
   tasks: Task[]
   /** Notion 側でステータスが動いたので自動で完了にしたタスク。Notion へ書き戻さない */
   autoCompletedIds: string[]
+  /** 今回の取り込みのあとに覚えておく値 */
+  pulled: Record<string, PulledFields>
   changed: boolean
 }
 
@@ -149,7 +153,13 @@ export type NotionReconcileResult = {
 export function reconcileNotionPages(
   state: { lists: TaskList[]; tasks: Task[] },
   payload: { databaseTitle: string; datesEnabled?: boolean; pages: NotionPage[] },
-  opts: { now: string; listColor: string; titleFor: (page: NotionPage) => string },
+  opts: {
+    now: string
+    listColor: string
+    titleFor: (page: NotionPage) => string
+    /** 前回取り込んだ値。渡すと、ユーザーが変えたタイトル・期限は上書きしない（`externalPatch`） */
+    pulled?: Readonly<Record<string, PulledFields>>
+  },
 ): NotionReconcileResult {
   let changed = false
   let lists = state.lists
@@ -163,6 +173,7 @@ export function reconcileNotionPages(
   const wanted = new Set<string>()
   const updates = new Map<string, Task>()
   const additions: Task[] = []
+  const pulled: Record<string, PulledFields> = { ...(opts.pulled ?? {}) }
   let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === NOTION_LIST_ID).map((t) => t.order)) + 1
 
   for (const page of payload.pages) {
@@ -174,7 +185,9 @@ export function reconcileNotionPages(
     const existing = byId.get(id)
 
     if (!existing) {
+      pulled[id] = { title, dueDate, dueTime }
       additions.push({
+        ...TASK_DEFAULTS,
         id,
         title,
         description: page.url,
@@ -206,12 +219,12 @@ export function reconcileNotionPages(
     }
 
     if (existing.completed || existing.archivedAt || existing.deletedAt) continue
-    const patch: Partial<Task> = {}
-    if (existing.title !== title) patch.title = title
-    if (payload.datesEnabled && (existing.dueDate !== dueDate || (existing.dueTime ?? null) !== dueTime)) {
-      patch.dueDate = dueDate
-      patch.dueTime = dueTime
-    }
+    // ユーザーが手元で変えたタイトル・期限は上書きしない
+    const patch = externalPatch(existing, { title, dueDate, dueTime }, opts.pulled?.[id], {
+      remember: Boolean(opts.pulled),
+      due: Boolean(payload.datesEnabled),
+    })
+    pulled[id] = { title, dueDate, dueTime }
     if (Object.keys(patch).length > 0) updates.set(id, { ...existing, ...patch, updatedAt: opts.now })
   }
 
@@ -224,12 +237,13 @@ export function reconcileNotionPages(
   }
 
   if (updates.size === 0 && additions.length === 0) {
-    return { lists, tasks: state.tasks, autoCompletedIds, changed }
+    return { lists, tasks: state.tasks, autoCompletedIds, pulled, changed }
   }
   return {
     lists,
     tasks: [...state.tasks.map((t) => updates.get(t.id) ?? t), ...additions],
     autoCompletedIds,
+    pulled,
     changed: true,
   }
 }

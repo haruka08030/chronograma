@@ -11,7 +11,7 @@ export function RecordPromptHost() {
   useEffect(() => {
     if (!taskId) return
     const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
-    if (task) open(task, { toggleIfNoTimes: false })
+    if (task) open(task)
     openRecordPrompt(null)
   }, [taskId, open, openRecordPrompt])
 

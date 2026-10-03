@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
+import { tip } from '../lib/tooltip'
+import { pad2 } from '../lib/clockTime'
+import { chipClass } from './ui/chipClass'
+import { fieldClass } from './ui/fieldClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -66,7 +70,7 @@ export function FloatingTimer() {
         {activeTimer.tags?.length > 0 && (
           <div className="flex gap-1 mt-0.5">
             {activeTimer.tags.map((tag) => (
-              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-500/20 text-accent-700 dark:text-accent-300">
+              <span key={tag} className={chipClass({ variant: 'fill' })}>
                 {tag}
               </span>
             ))}
@@ -79,7 +83,7 @@ export function FloatingTimer() {
       <button
         onClick={stopTimer}
         className="rounded-xl bg-red-500 p-2.5 text-white transition-colors touch-manipulation hover:bg-red-600 md:p-2"
-        title={t('floatingTimer.stopTitle')}
+        {...tip(t('floatingTimer.stopTitle'))}
       >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
           <rect x="6" y="6" width="12" height="12" rx="1" />
@@ -175,9 +179,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
             value={endValue}
             min={toLocalInputValue(started)}
             onChange={(e) => setEndValue(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm
-                       text-zinc-900 outline-none focus:border-accent-500
-                       dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           />
           <button
             type="button"
@@ -219,11 +221,9 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
 
 /** `datetime-local` が受け取るローカル時刻の文字列 */
 function toLocalInputValue(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
 function formatStarted(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }

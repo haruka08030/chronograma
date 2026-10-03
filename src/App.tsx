@@ -13,7 +13,8 @@ import { LABEL_DROP_PREFIX, LIST_PREFIX } from './lib/listDnD'
 import { labelDroppedTasks, moveDroppedTasks } from './lib/navDrop'
 import { TASK_PREFIX, type TaskRootDragData } from './components/SortableTaskItem'
 import { TodayPlannerView } from './components/TodayPlannerView'
-import { OPEN_TIMER_EVENT } from './components/RecordPanel'
+import { OPEN_TIMER_ACTION } from './components/RecordPanel'
+import { requestAction, whenElement } from './lib/pendingAction'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
@@ -41,10 +42,12 @@ import {
   SUBTASK_PREFIX,
   parseSubtaskDragId,
 } from './lib/subtaskDnD'
-import { isModKey, isTextFieldUndoTarget, shortcutLabel } from './lib/keyboard'
+import { shortcutLabel } from './lib/keyboard'
 import { TooltipHost } from './components/ui/Tooltip'
-import { dispatchNav, dispatchSelectAll, isTypingTarget } from './lib/shortcuts'
-import { isTodoNavView, isTodoSurfaceView } from './lib/todoSurfaceView'
+import { OverlayHost } from './components/OverlayHost'
+import { SHORTCUTS, dispatchNav, dispatchSelectAll } from './lib/shortcuts'
+import { useHotkey } from './hooks/useHotkey'
+import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
 import { useIsLargeScreen } from './hooks/useMediaQuery'
 import { canNestUnder } from './lib/taskDepth'
 import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
@@ -67,8 +70,6 @@ const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((
 const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
 const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
 const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
-const ChecklistView = lazy(() => import('./components/ChecklistView').then((m) => ({ default: m.ChecklistView })))
-const SomedayView = lazy(() => import('./components/SomedayView').then((m) => ({ default: m.SomedayView })))
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
@@ -344,7 +345,7 @@ export default function App() {
         tasks: state.tasks,
         selectedView: state.selectedView,
         selectedListId: state.selectedListId,
-        sortMode: state.sortMode,
+        sortMode: sortModeOf(state.sortByKey, sortKeyOf(state.selectedListId, state.selectedView)),
         filterTag: state.filterTag,
         filterColor: state.filterColor,
         sections: state.sections,
@@ -404,106 +405,67 @@ export default function App() {
     return () => media.removeEventListener('change', apply)
   }, [theme])
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // 1 文字ショートカット（Google カレンダー風）。入力中・修飾キー付き・ダイアログ表示中は無視
-    if (!isModKey(e) && !e.altKey && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"]')) {
-      const store = useTaskStore.getState()
-      const focusQuickAdd = () => {
-        const el = document.querySelector<HTMLElement>('[data-quickadd]')
-        if (el instanceof HTMLInputElement) el.focus()
-        else el?.click()
-        return Boolean(el)
-      }
-      const handled = (() => {
-        switch (e.key) {
-          case 't': dispatchNav('today'); return true
-          case 'j': case 'n': dispatchNav('next'); return true
-          case 'k': case 'p': dispatchNav('prev'); return true
-          case 'd': store.selectView('planner'); return true
-          case 'w': store.setCalendarMode('week'); store.selectView('calendar'); return true
-          case 'm': store.setCalendarMode('month'); store.selectView('calendar'); return true
-          case 'l':
-            // 記録は「今日」に統合。今日を開いて「記録する」を開く
-            store.selectView('planner')
-            window.setTimeout(() => window.dispatchEvent(new Event(OPEN_TIMER_EVENT)), 50)
-            return true
-          case 'c':
-            if (!focusQuickAdd()) {
-              store.selectView('planner')
-              window.setTimeout(focusQuickAdd, 50)
-            }
-            return true
-          case '/':
-            if (searchRef.current) searchRef.current.focus()
-            else {
-              store.selectView('all')
-              window.setTimeout(() => searchRef.current?.focus(), 50)
-            }
-            return true
-          case '?': setShowShortcuts(true); return true
-          default: return false
-        }
-      })()
-      if (handled) {
-        e.preventDefault()
-        return
-      }
-    }
-    if (isModKey(e) && e.key === 'k') {
-      e.preventDefault()
-      searchRef.current?.focus()
-    }
-    if (isModKey(e) && e.key === 'n') {
-      e.preventDefault()
-      const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
-      if (quickAdd instanceof HTMLInputElement) {
-        quickAdd.focus()
-      } else if (quickAdd) {
-        quickAdd.click()
-      } else {
-        useTaskStore.getState().requestQuickAdd()
-      }
-    }
-    if (isModKey(e) && (e.key === 'a' || e.key === 'A') && !e.shiftKey && !e.altKey) {
-      if (isTypingTarget(e.target)) return
-      // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
-      // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
-      e.preventDefault()
-      if (dispatchSelectAll()) return
-      const anchor = window.getSelection()?.anchorNode
-      const box = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('.select-text')
-      if (box) window.getSelection()?.selectAllChildren(box)
-      return
-    }
-    if (isModKey(e) && e.key === 'z' && !e.shiftKey) {
-      if (isTextFieldUndoTarget(e.target)) return
-      const state = useTaskStore.getState()
-      // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
-      if (state.googleUndo && undoGoogleDelete()) {
-        e.preventDefault()
-        return
-      }
-      if (state.undoLastOperation()) {
-        e.preventDefault()
-        return
-      }
-      if (state.deletedTasks.length > 0) {
-        e.preventDefault()
-        state.undoDelete()
-      }
-    }
-    if (isModKey(e) && (e.key === 'z' || e.key === 'Z') && e.shiftKey) {
-      if (isTextFieldUndoTarget(e.target)) return
-      if (useTaskStore.getState().redoLastOperation()) {
-        e.preventDefault()
-      }
-    }
-  }, [])
+  // 1 文字ショートカット（Google カレンダー風）。入力中・修飾キー付き・ダイアログやカードが開いている間は効かない
+  const focusQuickAddEl = (el: HTMLElement) => {
+    if (el instanceof HTMLInputElement) el.focus()
+    else el.click()
+  }
+  const findQuickAdd = () => document.querySelector<HTMLElement>('[data-quickadd]')
+  useHotkey(SHORTCUTS.today.hotkeys, () => dispatchNav('today'))
+  useHotkey(SHORTCUTS.next.hotkeys, () => dispatchNav('next'))
+  useHotkey(SHORTCUTS.prev.hotkeys, () => dispatchNav('prev'))
+  useHotkey(SHORTCUTS.dayView.hotkeys, () => useTaskStore.getState().selectView('planner'))
+  useHotkey([...SHORTCUTS.weekView.hotkeys, ...SHORTCUTS.monthView.hotkeys], (e) => {
+    const store = useTaskStore.getState()
+    store.setCalendarMode(e.key === 'w' ? 'week' : 'month')
+    store.selectView('calendar')
+  })
+  useHotkey(SHORTCUTS.logView.hotkeys, () => {
+    // 記録は「今日」に統合。今日を開いて「記録する」を開く
+    useTaskStore.getState().selectView('planner')
+    requestAction(OPEN_TIMER_ACTION)
+  })
+  // 画面を切り替えたら、その画面の欄が出てからフォーカスする（読み込みに時間がかかっても取りこぼさない）
+  useHotkey(SHORTCUTS.create.hotkeys, () => {
+    if (!findQuickAdd()) useTaskStore.getState().selectView('planner')
+    whenElement(findQuickAdd, focusQuickAddEl)
+  })
+  useHotkey(SHORTCUTS.search.hotkeys, () => {
+    if (!searchRef.current) useTaskStore.getState().selectView('all')
+    whenElement(() => searchRef.current, (el) => el.focus())
+  })
+  useHotkey(SHORTCUTS.help.hotkeys, () => setShowShortcuts(true))
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
+  // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
+  useHotkey('mod+k', () => searchRef.current?.focus(), { scope: 'always', allowInInputs: true })
+  useHotkey('mod+n', () => {
+    const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
+    if (quickAdd instanceof HTMLInputElement) {
+      quickAdd.focus()
+    } else if (quickAdd) {
+      quickAdd.click()
+    } else {
+      useTaskStore.getState().requestQuickAdd()
+    }
+  }, { scope: 'always', allowInInputs: true })
+  useHotkey(SHORTCUTS.selectAll.hotkeys, () => {
+    // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
+    // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
+    if (dispatchSelectAll()) return
+    const anchor = window.getSelection()?.anchorNode
+    const box = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('.select-text')
+    if (box) window.getSelection()?.selectAllChildren(box)
+  }, { scope: 'always' })
+  // 入力中はブラウザのテキスト取り消しを優先する（allowInInputs なし）。戻すものが無ければブラウザに任せる
+  useHotkey(SHORTCUTS.undo.hotkeys, () => {
+    const state = useTaskStore.getState()
+    // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
+    if (state.googleUndo && undoGoogleDelete()) return
+    if (state.undoLastOperation()) return
+    if (state.recentDeletes.length === 0) return false
+    state.undoDelete()
+  }, { scope: 'always' })
+  useHotkey('mod+shift+z', () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
 
   // 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
   // ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す
@@ -567,9 +529,7 @@ export default function App() {
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
       default:
-        // いつか・チェックリストのリストは専用画面（日付や優先度を出さない）
-        if (selectedView == null && selectedList?.kind === 'checklist') return <ChecklistView list={selectedList} />
-        if (selectedView == null && selectedList?.kind === 'someday') return <SomedayView list={selectedList} />
+        // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
         return <TaskList />
     }
   })()
@@ -646,6 +606,7 @@ export default function App() {
             <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
           </Suspense>
         )}
+        <OverlayHost />
         <UndoToast />
         <TooltipHost />
         <MoveToast />

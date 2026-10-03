@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
-import { useEscapeLayer } from './useEscapeLayer'
+import { useEscapeLayer, type HotkeyLayer } from './useHotkey'
 
 type Inside = RefObject<Element | null> | Element | null
 
@@ -9,6 +9,7 @@ type Inside = RefObject<Element | null> | Element | null
  * - `data-popover-keep` の付いた所（上に重ねたダイアログなど）も内側とみなす
  * - 開いたその押下では閉じないよう、次のタイミングから拾う
  * - Esc は一番上の層だけを閉じる（`useEscapeLayer`）
+ * - 返す層を `useHotkey` の scope に渡すと、その面が一番上のときだけ効くキーになる
  */
 export function useDismiss({
   open,
@@ -18,7 +19,7 @@ export function useDismiss({
   open: boolean
   onClose: () => void
   inside: Inside[]
-}) {
+}): HotkeyLayer {
   const closeRef = useRef(onClose)
   const insideRef = useRef(inside)
   useEffect(() => {
@@ -26,7 +27,7 @@ export function useDismiss({
     insideRef.current = inside
   })
 
-  useEscapeLayer(onClose, open)
+  const layer = useEscapeLayer(onClose, open)
 
   useEffect(() => {
     if (!open) return
@@ -45,4 +46,5 @@ export function useDismiss({
       window.removeEventListener('pointerdown', onDown, true)
     }
   }, [open])
+  return layer
 }

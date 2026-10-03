@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
+import { formatDate } from '../../lib/dateFormat'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import {
@@ -16,11 +17,14 @@ import {
   type CanvasStatus,
 } from '../../lib/canvas'
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
-import { SettingsGroup, SettingsRow, settingsFieldClass as field } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
+import { useTaskStore } from '../../store/taskStore'
 
+const field = fieldClass({}, 'w-full')
 const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
 
 /**
@@ -66,6 +70,8 @@ export function CanvasSettings() {
     try {
       setStatus(await fn())
       setAdding(false)
+      // 科目はタグで出すので、新しくつないだらタグを見えるようにする（あとでオフにしても戻さない）
+      if (key === 'new') useTaskStore.getState().setTagsEnabled(true)
       requestCanvasSync()
     } catch (e) {
       setErrors({ [key]: toMessage(e) })
@@ -82,7 +88,7 @@ export function CanvasSettings() {
         sync.syncing
           ? t('canvas.syncing')
           : sync.lastSyncedAt
-            ? t('canvas.lastSynced', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
+            ? t('common.syncedAt', { time: format(new Date(sync.lastSyncedAt), 'HH:mm') })
             : undefined
       }
     >
@@ -177,7 +183,7 @@ function ConnectionRows({
         <TokenForm
           busy={busy}
           baseUrl={connection.baseUrl}
-          notice={expiring ? t('canvas.expiresSoon', { date: format(expiring, 'M/d') }) : undefined}
+          notice={expiring ? t('canvas.expiresSoon', { date: formatDate(expiring, 'shortDate') }) : undefined}
           onSubmit={(token) => onRenew(token)}
         />
       )}

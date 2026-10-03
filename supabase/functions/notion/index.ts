@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -206,9 +208,13 @@ Deno.serve(withCors(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.notion))) {
+      return jsonResponse({ ok: false, code: 'notion_rate_limited', error: 'notion_rate_limited' }, 429)
+    }
     const body = req.method === 'POST' ? await req.json() : {}
     const action = (body.action as string) ?? ''
 
+    const tokenContext = secretContext.notion(user.id)
     const loadRow = async () => {
       const { data, error } = await admin
         .from('notion_connection')
@@ -216,12 +222,19 @@ Deno.serve(withCors(async (req) => {
         .eq('user_id', user.id)
         .maybeSingle()
       if (error) throw new Error(error.message)
-      return data as { token: string; database_id: string; config: NotionConfig } | null
+      const row = data as { token: string; database_id: string; config: NotionConfig } | null
+      if (!row) return null
+      // トークンは暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+      const token = await openSecret(row.token, tokenContext)
+      if (needsSeal(row.token)) {
+        await admin.from('notion_connection').update({ token: await sealSecret(token, tokenContext) }).eq('user_id', user.id)
+      }
+      return { ...row, token }
     }
 
     const saveRow = async (token: string, databaseId: string, config: NotionConfig) => {
       const { error } = await admin.from('notion_connection').upsert(
-        { user_id: user.id, token, database_id: databaseId, config, updated_at: new Date().toISOString() },
+        { user_id: user.id, token: await sealSecret(token, tokenContext), database_id: databaseId, config, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
       )
       if (error) throw new Error(error.message)
@@ -314,8 +327,10 @@ Deno.serve(withCors(async (req) => {
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
+    // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
     if (e instanceof NotionError) {
-      return jsonResponse({ ok: false, code: e.code, error: e.message })
+      console.warn('[notion]', e.code, e.message)
+      return jsonResponse({ ok: false, code: e.code, error: e.code })
     }
     // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
     console.error('[notion]', e)

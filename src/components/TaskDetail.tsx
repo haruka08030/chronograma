@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -17,20 +15,23 @@ import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
-import { useEscapeLayer } from '../hooks/useEscapeLayer'
+import { useEscapeLayer } from '../hooks/useHotkey'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { fieldClass } from './ui/fieldClass'
 import { DateField } from './DateField'
-import { useTextEntry } from '../hooks/useTextEntry'
+import { useTextAreaEntry, useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
+import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
+import { InlineAddInput } from './ui/InlineAddInput'
+import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
+import { sectionLabelClass } from './ui/sectionLabelClass'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
-const PRIORITY_OPTIONS: { value: Priority; color: string }[] = [
-  { value: 'none', color: 'text-zinc-400' },
-  { value: 'low', color: 'text-blue-500' },
-  { value: 'medium', color: 'text-amber-500' },
-  { value: 'high', color: 'text-red-500' },
-]
+const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 /** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
 export function TaskDetail({
@@ -40,10 +41,10 @@ export function TaskDetail({
   task: Task
   onClose: () => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
-  const dueDateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const df = useDateFormat()
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
@@ -59,7 +60,6 @@ export function TaskDetail({
   const updateTimes = (patch: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>>) =>
     updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const addTask = useTaskStore((s) => s.addTask)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストには締切や予定を付けない（付けると期限のビューに戻ってきてしまう）
@@ -112,7 +112,8 @@ export function TaskDetail({
   })
   // 追加の欄の Esc は書きかけを消す（欄は出たまま）
   const tagEntry = useTextEntry({ onSubmit: () => addTag(), onCancel: () => setTagInput('') })
-  const subtaskEntry = useTextEntry({ onSubmit: () => addSubtask(), onCancel: () => setSubInput('') })
+  // メモは打つたびに保存している。離れたら表示に戻すだけ
+  const memoEntry = useTextAreaEntry({ onCommit: () => setEditingMemo(false) })
 
   const subtasks = useMemo(
     () =>
@@ -140,7 +141,8 @@ export function TaskDetail({
   const addSubtask = () => {
     const trimmed = subInput.trim()
     if (!trimmed) return
-    addTask(trimmed, task.listId, task.id)
+    // 「明日」「15時」「金曜まで」はクイック追加と同じに読む。リストは親と同じ（`@…` は題名に残す）
+    addTaskFromQuickText(trimmed, { parentId: task.id })
     setSubInput('')
   }
 
@@ -214,13 +216,10 @@ export function TaskDetail({
                 ref={memoTextareaRef}
                 value={task.description}
                 onChange={(e) => updateTask(task.id, { description: e.target.value })}
-                onBlur={() => setEditingMemo(false)}
+                {...memoEntry}
                 placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
                 rows={isLog ? 4 : 2}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400
-                           resize-none min-h-[4rem]"
+                className={fieldClass({}, 'w-full resize-none min-h-[4rem]')}
               />
             ) : task.description.trim() ? (
               <div
@@ -264,22 +263,20 @@ export function TaskDetail({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.location')}</label>
+            <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.location')}</label>
             <div className="flex items-center gap-2">
               <input
                 value={task.location ?? ''}
                 onChange={(e) => updateTask(task.id, { location: e.target.value || null })}
                 placeholder={t('taskDetail.locationPlaceholder')}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
+                className={fieldClass({}, 'min-w-0 flex-1')}
               />
               {task.location?.trim() && (
                 <a
                   href={googleMapsUrl(task.location)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title={t('taskDetail.openInMaps')}
+                  {...tip(t('taskDetail.openInMaps'))}
                   aria-label={t('taskDetail.openInMaps')}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700
                              text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-500/10
@@ -295,27 +292,27 @@ export function TaskDetail({
           {!isLog && plannable && (
             <>
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.priority')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.priority')}</label>
                 <div className="flex gap-2">
-                  {PRIORITY_OPTIONS.map((opt) => (
+                  {PRIORITY_OPTIONS.map((p) => (
                     <button
-                      key={opt.value}
+                      key={p}
                       type="button"
-                      onClick={() => updateTask(task.id, { priority: opt.value })}
+                      onClick={() => updateTask(task.id, { priority: p })}
                       className={`px-3 py-1.5 text-xs rounded-lg border transition-all
-                    ${task.priority === opt.value
+                    ${task.priority === p
                       ? 'border-accent-400 bg-accent-50 dark:bg-accent-500/10 font-medium'
                       : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}
-                    ${opt.color}`}
+                    ${PRIORITY_TEXT_CLASS[p]}`}
                     >
-                      {t(`common.${opt.value}`)}
+                      {t(`common.${p}`)}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.deadline')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.deadline')}</label>
                 <div className="flex flex-wrap items-center gap-2">
                   <DueDatePopover
                     value={tv.dueDate ?? null}
@@ -328,14 +325,12 @@ export function TaskDetail({
                         aria-expanded={open}
                         aria-haspopup="dialog"
                         onClick={toggle}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors
-                          bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                          ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
+                        className={fieldClass({ active: open }, 'flex items-center gap-2')}
                       >
                         <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                           {tv.dueDate
-                            ? format(parseISO(`${tv.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                            ? df.fullDate(tv.dueDate)
                             : t('dueDatePicker.noDate')}
                         </span>
                       </button>
@@ -347,9 +342,7 @@ export function TaskDetail({
                       <TimeInput
                         value={tv.dueTime ?? ''}
                         onChange={(v) => updateTimes({ dueTime: v || null })}
-                        className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                   bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                   focus:ring-2 focus:ring-accent-500/40"
+                        className={fieldClass({}, 'w-[7rem]')}
                       />
                     </div>
                   )}
@@ -396,8 +389,7 @@ export function TaskDetail({
                               recurrence: { ...task.recurrence!, type: task.recurrence!.type, interval },
                             })
                           }}
-                          className="w-12 rounded-md border border-zinc-200 px-1.5 py-1 text-center text-xs text-zinc-900 outline-none
-                                     bg-transparent dark:border-zinc-700 dark:text-zinc-100 focus:ring-2 focus:ring-accent-500/40"
+                          className={fieldClass({ size: 'sm' }, 'w-14 text-center')}
                         />
                         <span>{t(`taskDetail.recurrenceTypes.${task.recurrence.type}`)}</span>
                       </>
@@ -407,7 +399,7 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.scheduled')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.scheduled')}</label>
                 <DueDatePopover
                   value={tv.scheduledDate ?? null}
                   onChange={(v) => updateTimes({ scheduledDate: v })}
@@ -420,14 +412,12 @@ export function TaskDetail({
                       aria-expanded={open}
                       aria-haspopup="dialog"
                       onClick={toggle}
-                      className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors
-                        bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                        ${open ? 'border-accent-500 ring-2 ring-accent-500/40' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}`}
+                      className={fieldClass({ active: open }, 'flex items-center gap-2')}
                     >
                       <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                         {tv.scheduledDate
-                          ? format(parseISO(`${tv.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                          ? df.fullDate(tv.scheduledDate)
                           : t('taskDetail.scheduledNone')}
                       </span>
                     </button>
@@ -438,18 +428,14 @@ export function TaskDetail({
                     <TimeInput
                       value={tv.startTime ?? ''}
                       onChange={(v) => updateTimes({ startTime: v || null })}
-                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-[7rem]')}
                     />
                     <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
                     <TimeInput
                       value={tv.endTime ?? ''}
                       onChange={(v) => updateTimes({ endTime: v || null })}
                       pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
-                      className="w-[7rem] px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-[7rem]')}
                     />
                     {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
                   </div>
@@ -473,31 +459,29 @@ export function TaskDetail({
                            p-3 space-y-2"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.start')}</p>
+                  <SectionLabel as="p" level="field">{t('common.start')}</SectionLabel>
                   {(task.startTime || zone) && <TaskTimeZoneButton task={task} view={tv} compact />}
                 </div>
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.logDate')}
                     </label>
                     <DateField
                       value={tv.dueDate ?? null}
                       onChange={(v) => updateTimes({ dueDate: v })}
                       ariaLabel={t('taskDetail.logDate')}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
                       value={tv.startTime ?? ''}
                       onChange={(v) => updateTimes({ startTime: v || null })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                 </div>
@@ -507,10 +491,10 @@ export function TaskDetail({
                 className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/30
                            p-3 space-y-2"
               >
-                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('common.end')}</p>
+                <SectionLabel as="p" level="field">{t('common.end')}</SectionLabel>
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex flex-col gap-1 min-w-[10.5rem] flex-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.logEndDate')}
                     </label>
                     <DateField
@@ -522,20 +506,18 @@ export function TaskDetail({
                         updateTimes({ endDate: v !== tv.dueDate ? v : null })
                       }}
                       ariaLabel={t('taskDetail.logEndDate')}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <label className={sectionLabelClass('field')}>
                       {t('taskDetail.time')}
                     </label>
                     <TimeInput
                       value={tv.endTime ?? ''}
                       onChange={(v) => updateTimes({ endTime: v || null })}
                       pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                                 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none
-                                 focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     />
                   </div>
                 </div>
@@ -558,7 +540,7 @@ export function TaskDetail({
             <ColorLabelPicker task={task} />
           ) : tagsEnabled && (
           <div>
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.tags')}</label>
+            <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.tags')}</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {task.tags.map((tag) => (
                 <span
@@ -580,9 +562,7 @@ export function TaskDetail({
                 // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
                 {...tagEntry}
                 placeholder={t('taskDetail.tagPlaceholder')}
-                className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
+                className={fieldClass({}, 'min-w-0 flex-1')}
               />
               <button
                 type="button"
@@ -599,7 +579,7 @@ export function TaskDetail({
           {!isLog && (
             <>
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.list')}</label>
+                <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.list')}</label>
                 <div className="flex items-center gap-2">
                   <span
                     className="w-3 h-3 rounded-full flex-shrink-0"
@@ -618,9 +598,7 @@ export function TaskDetail({
                         )
                       }
                     }}
-                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40"
+                    className={fieldClass({}, 'min-w-0 flex-1')}
                   >
                     {lists
                       .slice()
@@ -635,21 +613,19 @@ export function TaskDetail({
                 <div className="mt-3">
                   <ColorLabelPicker
                     task={task}
-                    planDefaultHex={lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0]}
+                    plan
                   />
                 </div>
                 {!task.parentId && sectionsForTaskList.length > 0 && (
                   <div className="mt-3">
-                    <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.section')}</label>
+                    <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.section')}</label>
                     <select
                       value={task.sectionId ?? ''}
                       onChange={(e) => {
                         const v = e.target.value
                         updateTask(task.id, { sectionId: v === '' ? null : v })
                       }}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                             bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                             focus:ring-2 focus:ring-accent-500/40"
+                      className={fieldClass({}, 'w-full')}
                     >
                       <option value="">{t('taskDetail.sectionNone')}</option>
                       {sectionsForTaskList.map((s) => (
@@ -661,7 +637,7 @@ export function TaskDetail({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">
+                <label className={sectionLabelClass('field', 'mb-2 block')}>
                   {t('taskDetail.subtasks', { count: subtasks.length })}
                 </label>
                 <div className="space-y-1">
@@ -669,26 +645,16 @@ export function TaskDetail({
                     <TaskItem key={st.id} task={st} />
                   ))}
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <input
-                    value={subInput}
-                    onChange={(e) => setSubInput(e.target.value)}
-                    // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
-                    {...subtaskEntry}
-                    placeholder={t('taskDetail.subtaskPlaceholder')}
-                    className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={addSubtask}
-                    disabled={!subInput.trim()}
-                    className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
-                  >
-                    {t('common.add')}
-                  </button>
-                </div>
+                <InlineAddInput
+                  className="mt-2"
+                  value={subInput}
+                  onValueChange={setSubInput}
+                  onSubmit={addSubtask}
+                  onCancel={() => setSubInput('')}
+                  // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
+                  onBlurSubmit={addSubtask}
+                  placeholder={t('taskDetail.subtaskPlaceholder')}
+                />
               </div>
             </>
           )}

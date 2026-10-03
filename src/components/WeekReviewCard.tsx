@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addWeeks, format, parseISO, startOfWeek } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addWeeks, format, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
+import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { formatDuration } from '../lib/timeGrid'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
+import { CARD_TITLE_CLASS } from './ui/headingClass'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -15,22 +20,20 @@ export function WeekReviewCard() {
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const [weekOffset, setWeekOffset] = useState(0)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
 
   const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
-  const review = useMemo(() => getWeekReview(tasks, habits, anchor, excluded), [tasks, habits, anchor, excluded])
+  const review = useMemo(
+    () => getWeekReview(tasks, habits, anchor, excluded, undefined, (log) => recordLabelKey(log, labelPresets, logCategoryColors)),
+    [tasks, habits, anchor, excluded, labelPresets, logCategoryColors],
+  )
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
-  const fmtMin = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
   const pct = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`)
   // 棒は分類ごとの記録を積んだ高さ（ツールチップの合計は記録時間そのもの）
   const barMinutes = (d: { tagMinutes: { minutes: number }[] }) => d.tagMinutes.reduce((a, x) => a + x.minutes, 0)
@@ -47,7 +50,7 @@ export function WeekReviewCard() {
   const tiles = [
     { label: t('weekReview.done'), value: `${review.done}/${review.total}` },
     { label: t('weekReview.followRate'), value: pct(review.followRate) },
-    { label: t('weekReview.logged'), value: fmtMin(review.loggedMinutes) },
+    { label: t('weekReview.logged'), value: formatDuration(review.loggedMinutes) },
     { label: t('weekReview.habits'), value: pct(review.habitRate) },
   ]
 
@@ -55,9 +58,9 @@ export function WeekReviewCard() {
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t('weekReview.title')}</h2>
+          <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {t('weekReview.range', { start: format(weekStart, t('weekReview.dateFormat'), { locale: dateLocale }) })}
+            {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
           </p>
         </div>
         <DayNav
@@ -87,11 +90,11 @@ export function WeekReviewCard() {
 
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
-          <figcaption className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('weekReview.loggedPerDay')}</figcaption>
+          <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
           <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700" role="list">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
-              const date = parseISO(`${format(weekStart, 'yyyy-MM-dd')}T12:00:00`)
+              const date = fromDateKey(toDateKey(weekStart))
               date.setDate(date.getDate() + i)
               const label = format(date, 'E', { locale: dateLocale })
               const dayBar = day ? barMinutes(day) : 0
@@ -99,8 +102,8 @@ export function WeekReviewCard() {
               const tip = day
                 ? t('weekReview.dayTooltip', {
                     day: label,
-                    logged: fmtMin(day.loggedMinutes),
-                    planned: fmtMin(day.plannedMinutes),
+                    logged: formatDuration(day.loggedMinutes),
+                    planned: formatDuration(day.plannedMinutes),
                     done: day.done,
                     total: day.total,
                   })
@@ -116,7 +119,7 @@ export function WeekReviewCard() {
                       <div
                         key={x.tag}
                         className="gc-dot w-full shrink-0"
-                        style={{ ...colorVars(categoryHex(x.tag || null, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
+                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
                       />
                     ))}
                   </div>
@@ -126,7 +129,7 @@ export function WeekReviewCard() {
           </div>
           <div className="mt-1 flex gap-2">
             {Array.from({ length: 7 }, (_, i) => {
-              const date = parseISO(`${format(weekStart, 'yyyy-MM-dd')}T12:00:00`)
+              const date = fromDateKey(toDateKey(weekStart))
               date.setDate(date.getDate() + i)
               return (
                 <span key={i} className="flex-1 text-center text-[10px] text-zinc-400 dark:text-zinc-500">
@@ -138,7 +141,7 @@ export function WeekReviewCard() {
         </figure>
 
         <div>
-          <h3 className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('weekReview.topTags')}</h3>
+          <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
           {review.topTags.length === 0 ? (
             <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('weekReview.noLogs')}</p>
           ) : (
@@ -146,10 +149,10 @@ export function WeekReviewCard() {
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(categoryHex(x.tag || null, logCategoryColors))} aria-hidden />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">{x.tag || t('labels.none')}</span>
+                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
                   </span>
-                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{fmtMin(x.minutes)}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>
                 </li>
               ))}
             </ul>

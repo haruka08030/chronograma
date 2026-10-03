@@ -2,33 +2,27 @@ import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } fr
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import type { Locale } from 'date-fns'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
-import { TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from '../lib/useTimelineDrop'
+import { parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
+import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
-import { TaskContextMenu } from './TaskContextMenu'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ExternalLinkIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useTextEntry } from '../hooks/useTextEntry'
+import { tip } from '../lib/tooltip'
+import { startTaskDrag } from '../lib/taskDrag'
+import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { fromDateKey } from '../lib/dateKey'
+import { formatDate } from '../lib/dateFormat'
+import { chipClass } from './ui/chipClass'
+import { useScheduleWish } from '../hooks/useScheduleWish'
+import { openTaskMenu } from '../lib/overlays'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
-
-/** 日付ラベルの緊急度。色は「期限切れ > 今日 > 明日 > それ以外」の順に強くする */
-type DateTone = 'overdue' | 'today' | 'tomorrow' | 'future' | 'past'
-
-const DUE_TONE_CLASS: Record<DateTone, string> = {
-  overdue: 'text-red-500 dark:text-red-400 font-medium',
-  today: 'text-amber-600 dark:text-amber-400 font-medium',
-  tomorrow: 'text-amber-500/90 dark:text-amber-300/80',
-  future: 'text-zinc-500 dark:text-zinc-400',
-  past: 'text-zinc-400 dark:text-zinc-500',
-}
 
 const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
   overdue: 'text-zinc-400 dark:text-zinc-500',
@@ -44,11 +38,15 @@ function dateTone(d: Date): DateTone {
   return isAppPast(d) ? 'overdue' : 'future'
 }
 
-function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; tone: DateTone } {
+/** 行の日付: 今年なら「10/3 (土)」、ほかの年は年も付ける */
+function rowDateText(d: Date, language: string | undefined): string {
+  return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
+}
+
+function dueDateLabel(iso: string, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
   const d = parseISO(iso)
   if (isAppToday(d)) return { text: todayLabel, tone: 'today' }
-  const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-  return { text: format(d, fmt, { locale }), tone: dateTone(d) }
+  return { text: rowDateText(d, language), tone: dateTone(d) }
 }
 
 export type TaskItemSelection = {
@@ -62,13 +60,12 @@ export type TaskItemSelection = {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
+export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
   onRowClick?: (e: React.MouseEvent) => void
   /** 未完了タスクを完了する直前のフック。指定時は通常トグルより優先。 */
-  onCompleteRequest?: (task: Task) => void
   /** タイトル編集中 Enter で、同階層の次タスクを作成する */
   onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
@@ -93,9 +90,10 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
+  const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
+  const scheduleWish = useScheduleWish()
   const [editing, setEditing] = useState(Boolean(autoEdit))
-  /** 右クリック・≡ で開くタスクのメニュー（一覧がメニューを持たない所で使う） */
-  const [ownMenu, setOwnMenu] = useState<{ x: number; y: number } | null>(null)
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -150,22 +148,23 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   }
 
   const timeLog = isListedTimeLog(task)
-  const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
+  // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
+  const sourceLink = sourceLinkOf(task.description)
+  const notePreview = sourceLink ? '' : task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
+  const language = i18n.resolvedLanguage
+  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
-    const d = parseISO(`${task.scheduledDate}T12:00:00`)
-    const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-    const datePart = isAppToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
+    const d = fromDateKey(task.scheduledDate)
+    const datePart = isAppToday(d) ? t('common.today') : rowDateText(d, language)
     const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
     return { text: `${datePart}${timePart}`, tone: dateTone(d) }
-  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, dateLocale, t])
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t])
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -173,11 +172,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       dragGroupIds && dragGroupIds.length > 1 && dragGroupIds.includes(task.id)
         ? dragGroupIds
         : [task.id]
-    e.dataTransfer.setData(TASK_DND_TYPE, task.id)
-    e.dataTransfer.setData('text/plain', task.id)
-    if (group.length > 1) e.dataTransfer.setData(TASK_MULTI_DND_TYPE, JSON.stringify(group))
+    startTaskDrag(e, task.id, group)
     startNativeTaskDragGhost(e, task.title || '', group.length)
-    e.dataTransfer.effectAllowed = 'copy'
     setIsDragging(true)
   }, [task.id, task.title, dragGroupIds])
 
@@ -227,7 +223,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
   const openMenuAt = (p: { clientX: number; clientY: number }) => {
     if (selection?.onContextMenu) selection.onContextMenu(p as React.MouseEvent)
-    else setOwnMenu({ x: p.clientX, y: p.clientY })
+    else openTaskMenu({ kind: 'task', x: p.clientX, y: p.clientY, taskIds: [task.id] })
   }
 
   const rowRef = useRef<HTMLDivElement>(null)
@@ -316,17 +312,14 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         completed={task.completed}
         priority={task.priority}
         small={isSubtask}
+        shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
         onClick={(e) => {
           e.stopPropagation()
-          if (!task.completed && !timeLog && onCompleteRequest) {
-            onCompleteRequest(task)
-            return
-          }
           toggleTask(task.id)
         }}
         label={
-          !task.completed && !timeLog && onCompleteRequest
-            ? t('taskItem.completeWithLog')
+          listKind === 'someday'
+            ? t(task.completed ? 'someday.unfulfillItem' : 'someday.fulfillItem', { title: task.title })
             : task.completed
             ? timeLog
               ? t('taskItem.unlogIncomplete')
@@ -394,14 +387,26 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
           {task.recurrence && (
             <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
           )}
+          {sourceLink && (
+            <a
+              href={sourceLink.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
+              aria-label={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
+              className="inline-flex items-center rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+            >
+              <ExternalLinkIcon className="h-3.5 w-3.5" />
+            </a>
+          )}
           {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
                 <button
                   key={tag}
                   onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent-50 dark:bg-accent-500/10
-                             text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-500/20 transition-colors"
+                  className={chipClass({ variant: 'fill', hover: true })}
                 >
                   {tag}
                 </button>
@@ -411,7 +416,35 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         </div>
       </div>
 
-      {!hideDueDatePicker && (
+      {listKind === 'someday' && !task.completed && (
+        // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
+        <DueDatePopover
+          value={null}
+          onChange={(v) => scheduleWish([task.id], v)}
+          kind="scheduled"
+          align="right"
+          wrapperClassName="relative hidden flex-shrink-0 md:flex"
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              aria-label={t('someday.scheduleItem', { title: task.title })}
+              {...tip(t('someday.schedule'))}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggle()
+              }}
+              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+                ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
+            >
+              <CalendarIcon className="w-5 h-5 md:w-4 md:h-4 text-zinc-400" />
+            </button>
+          )}
+        />
+      )}
+
+      {!hideDueDatePicker && listKind === 'tasks' && (
         <DueDatePopover
           value={task.dueDate ?? null}
           onChange={(v) => updateTask(task.id, { dueDate: v })}
@@ -451,15 +484,6 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
       >
         <ListBulletIcon className="h-5 w-5" />
       </button>
-      {ownMenu && (
-        <TaskContextMenu
-          x={ownMenu.x}
-          y={ownMenu.y}
-          taskIds={[task.id]}
-          onClose={() => setOwnMenu(null)}
-          onOpenDetail={onClick ? () => onClick() : undefined}
-        />
-      )}
 
       {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}
       <button
@@ -470,7 +494,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.archiveAria')}
-        title={t('taskItem.archive')}
+        {...tip(t('taskItem.archive'))}
       >
         <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
@@ -479,7 +503,7 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
         onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.deleteAria')}
-        title={t('taskItem.deleteAria')}
+        {...tip(t('taskItem.deleteAria'))}
       >
         <TrashIcon className="h-4 w-4 text-zinc-400" />
       </button>
