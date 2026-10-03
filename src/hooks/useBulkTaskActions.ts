@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { displayListName } from '../lib/displayListName'
 import type { Priority } from '../types/task'
 import { toastTitle } from '../lib/undoWindow'
+import { UNSCHEDULE_PATCH } from '../lib/calendarItemDrag'
 
 /**
  * タスクをまとめて操作する（右クリックメニュー・キー操作・選択中の操作で共通）。
@@ -43,6 +44,25 @@ export function useBulkTaskActions() {
             ? t('undo.taskMoved', { title: toastTitle(tasks.find((x) => x.id === ids[0])?.title ?? ''), name })
             : t('undo.tasksMoved', { count: ids.length, name })
         bulkUpdateTasks(ids, { listId }, label)
+      },
+      /**
+       * 予定日（いつやるか）を付け替える。時刻はそのまま（15:00 の予定は明日の 15:00 に）。締切（dueDate）は変えない。
+       * null は予定を外す（時刻も外して To-Do に戻す）。行・ブロックが別の日へ動いて見えなくなるので 1 件でも出す
+       */
+      setScheduled: (ids: string[], dateKey: string | null, dateLabel: string) => {
+        if (ids.length === 0) return
+        const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
+        const title = toastTitle(tasks.find((x) => x.id === ids[0])?.title ?? '')
+        const label = dateKey
+          ? ids.length === 1
+            ? t('undo.scheduleSetOne', { title, label: dateLabel })
+            : t('undo.scheduleSet', { count: ids.length, label: dateLabel })
+          : ids.length === 1
+            ? t('undo.blockUnscheduled', { title })
+            : t('undo.scheduleCleared', { count: ids.length })
+        asOneUndo(() => {
+          for (const id of ids) updateTask(id, dateKey ? { scheduledDate: dateKey } : UNSCHEDULE_PATCH, label)
+        })
       },
     }
   }, [t, bulkUpdateTasks, completeTasks, deleteTasks, archiveTasks])

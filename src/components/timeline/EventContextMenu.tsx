@@ -10,6 +10,7 @@ import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
 import { CheckIcon, ClockIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -51,6 +52,8 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
   const color = useTaskColor(task, !isLog)
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { canLogAsPlanned, ended } = planTiming(task)
+  // 予定は行のメニューと同じ「予定日」で別の日へ（時刻はそのまま）
+  const scheduleEntry = useScheduleEntry([task.id], (fn) => fn, ICON)
 
   const entries: ActionEntry[] = [
     {
@@ -77,6 +80,7 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
         />
       ),
     },
+    ...(isLog ? [] : [scheduleEntry]),
     ...(isLog
       ? []
       : ([

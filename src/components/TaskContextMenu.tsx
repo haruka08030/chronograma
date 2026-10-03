@@ -14,6 +14,7 @@ import { ArchiveIcon, ArrowRightIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPan
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { useScheduleEntry } from '../hooks/useScheduleEntry'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -132,7 +133,10 @@ export function TaskContextMenu({
           })),
         ]
 
+  const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
+  // 予定日（いつやる）を先に、期限（締切）はその下。「明日やる」を期限で動かして締切を変えてしまわないように
   const plannedEntries: ActionEntry[] = [
+    scheduleEntry,
     {
       kind: 'sub',
       id: 'due',
