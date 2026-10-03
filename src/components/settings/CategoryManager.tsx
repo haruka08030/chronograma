@@ -10,6 +10,7 @@ import { LabelsDialog } from '../labels/LabelsDialog'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
 import { toDateKey } from '../../lib/dateKey'
+import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
 
 const USAGE_DAYS = 30
@@ -52,13 +53,6 @@ export function CategoryManager() {
     return [...set]
   }, [tasks, presets])
 
-  const fmt = (m: number) => {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h === 0) return t('planner.minutes', { m: min })
-    if (min === 0) return t('planner.hours', { h })
-    return t('planner.hoursMinutes', { h, m: min })
-  }
 
   const uncategorized = usage.get('') ?? 0
 
@@ -73,7 +67,7 @@ export function CategoryManager() {
               <span className="gc-dot h-4 w-4 shrink-0 rounded-full" style={vars} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
               <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
-                {minutes > 0 ? fmt(minutes) : t('categories.unused')}
+                {minutes > 0 ? formatDuration(minutes) : t('categories.unused')}
               </span>
               <div className="flex shrink-0 items-center opacity-100 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100">
                 <button
@@ -123,7 +117,7 @@ export function CategoryManager() {
               ))}
             </div>
           )}
-          {uncategorized > 0 && <p>{t('categories.uncategorizedTime', { time: fmt(uncategorized) })}</p>}
+          {uncategorized > 0 && <p>{t('categories.uncategorizedTime', { time: formatDuration(uncategorized) })}</p>}
         </div>
       )}
       {editorOpen && <LabelsDialog onClose={() => setEditorOpen(false)} />}

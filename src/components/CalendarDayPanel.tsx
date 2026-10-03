@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
+import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
@@ -19,9 +19,9 @@ import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
-import { dateFnsLocale } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -35,7 +35,7 @@ export function CalendarDayPanel({
 }: {
   selectedDateKey: string
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
   const tasks = useTaskStore((s) => s.tasks)
@@ -46,12 +46,12 @@ export function CalendarDayPanel({
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
   const dateLabel = isAppToday(date)
-    ? `${format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })} · ${t('activityLog.today')}`
-    : format(date, i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)', { locale: dateLocale })
+    ? `${df.monthDayWeekday(selectedDateKey)} · ${t('activityLog.today')}`
+    : df.monthDayWeekday(selectedDateKey)
 
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストは日付があってもカレンダーの予定として出さない

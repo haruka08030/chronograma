@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { format } from 'date-fns'
 import i18n from '../../i18n/config'
 import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMeta } from '../../lib/autoBackup'
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
@@ -8,6 +9,7 @@ import { notify } from '../../lib/notify'
 import { SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
@@ -35,9 +37,11 @@ export function AutoBackupSettings() {
     }
   }, [])
 
-  const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en-US' : 'ja-JP'
-  const when = (iso: string) =>
-    new Date(iso).toLocaleString(lang, { month: 'numeric', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  const df = useDateFormat()
+  const when = (iso: string) => {
+    const d = new Date(iso)
+    return `${df.shortDateWeekday(d)} ${format(d, 'HH:mm')}`
+  }
 
   const restore = async (b: AutoBackupMeta) => {
     const full = await loadAutoBackup(b.id)

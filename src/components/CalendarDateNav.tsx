@@ -11,7 +11,6 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { enUS } from 'date-fns/locale'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { isAppToday } from '../lib/timeZone'
@@ -19,29 +18,8 @@ import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { GoogleStatusDot } from './GoogleStatusDot'
 import { DayNav } from './ui/DayNav'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
-
-function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
-  const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-  const we = endOfWeek(anchor, { weekStartsOn: 1 })
-  if (isJa) {
-    const y = ws.getFullYear()
-    const sameMonth = ws.getMonth() === we.getMonth() && ws.getFullYear() === we.getFullYear()
-    if (sameMonth) {
-      return `${format(ws, 'M月d日', { locale: dateLocale })}〜${format(we, 'd日', { locale: dateLocale })}、${y}年`
-    }
-    return `${format(ws, 'y年M月d日', { locale: dateLocale })}〜${format(we, 'M月d日', { locale: dateLocale })}`
-  }
-  const sameYear = ws.getFullYear() === we.getFullYear()
-  const sameMonth = sameYear && ws.getMonth() === we.getMonth()
-  if (sameMonth) {
-    return `${format(ws, 'MMM d', { locale: dateLocale })} – ${format(we, 'd, yyyy', { locale: dateLocale })}`
-  }
-  if (sameYear) {
-    return `${format(ws, 'MMM d', { locale: dateLocale })} – ${format(we, 'MMM d, yyyy', { locale: dateLocale })}`
-  }
-  return `${format(ws, 'MMM d, yyyy', { locale: dateLocale })} – ${format(we, 'MMM d, yyyy', { locale: dateLocale })}`
-}
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 function miniMonthDays(viewMonth: Date) {
   const monthStart = startOfMonth(viewMonth)
@@ -72,9 +50,8 @@ export function CalendarDateNav({
   onNextPeriod,
   onPickDate,
 }: CalendarDateNavProps) {
-  const { t, i18n } = useTranslation()
-  const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const { t } = useTranslation()
+  const df = useDateFormat()
   const [open, setOpen] = useState(false)
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(monthCursor))
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -85,8 +62,8 @@ export function CalendarDateNav({
 
   const periodLabel =
     mode === 'month'
-      ? format(monthCursor, isJa ? 'yyyy年M月' : 'MMMM yyyy', { locale: dateLocale })
-      : weekRangeLabel(weekAnchor, dateLocale, isJa)
+      ? df.yearMonth(monthCursor)
+      : df.weekRange(weekAnchor)
 
   const handlePickDay = useCallback(
     (key: string) => {
@@ -155,7 +132,7 @@ export function CalendarDateNav({
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
               <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
-                {format(pickerMonth, isJa ? 'yyyy年M月' : 'MMMM yyyy', { locale: dateLocale })}
+                {df.yearMonth(pickerMonth)}
               </span>
               <button
                 type="button"

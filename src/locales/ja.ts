@@ -30,6 +30,18 @@ export default {
     completed: '完了',
     allDay: '終日',
   },
+  // 日付の表示形式（date-fns）。使うのは lib/dateFormat.ts の formatDate / useDateFormat だけ。曜日の括弧は半角＋前に空白
+  dateFormat: {
+    monthDay: 'M月d日',
+    monthDayWeekday: 'M月d日 (E)',
+    monthDayWeekdayLong: 'M月d日 (E)',
+    shortDate: 'M/d',
+    shortDateWeekday: 'M/d (E)',
+    shortDateWeekdayYear: 'yyyy/M/d (E)',
+    yearMonth: 'yyyy年M月',
+    fullDate: 'PPP',
+    monthDayTime: 'M月d日 HH:mm',
+  },
   lists: {
     defaultSomeday: 'いつか',
     defaultShopping: '買い物',
@@ -115,8 +127,6 @@ export default {
   },
   planner: {
     todayTitle: '今日',
-    titleFormat: 'M月d日 (E)',
-    shortDateFormat: 'M/d',
     prevDay: '前の日',
     nextDay: '次の日',
     summaryPlanned: '予定 {{time}}',
@@ -177,7 +187,6 @@ export default {
   weekReview: {
     title: '週のふりかえり',
     range: '{{start}} からの週',
-    dateFormat: 'M月d日 (E)',
     prevWeek: '前の週',
     nextWeek: '次の週',
     thisWeek: '今週',
@@ -235,7 +244,6 @@ export default {
     avgWake: '起きた時刻',
     spread: '±{{m}}分',
     chartTitle: '夜ごとの睡眠',
-    dayFormat: 'M/d (E)',
     colDate: '起きた日',
   },
   sleep: {
@@ -271,7 +279,6 @@ export default {
     fulfilledHeading: 'かなえたこと {{count}}',
     movedToToday: '「{{title}}」を今日の予定にしました',
     movedToDate: '「{{title}}」を{{date}}の予定にしました',
-    dateFormat: 'M月d日',
   },
   labels: {
     title: 'ラベル',
@@ -346,7 +353,6 @@ export default {
     scopeSeries: 'すべての繰り返し',
     googleColor: 'Google の色に戻す',
     logAsPlanned: '予定どおり記録',
-    dateFormat: 'M月d日（E）',
     edit: '詳細を編集',
     log: '記録',
     markDone: '完了にする',

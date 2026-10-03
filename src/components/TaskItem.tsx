@@ -2,8 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } fr
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import type { Locale } from 'date-fns'
-import { format, parseISO } from 'date-fns'
+import { parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { sourceLinkOf } from '../lib/sourceLink'
@@ -17,7 +16,8 @@ import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
-import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
+import { fromDateKey } from '../lib/dateKey'
+import { formatDate } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 
@@ -38,11 +38,15 @@ function dateTone(d: Date): DateTone {
   return isAppPast(d) ? 'overdue' : 'future'
 }
 
-function dueDateLabel(iso: string, todayLabel: string, locale: Locale): { text: string; tone: DateTone } {
+/** 行の日付: 今年なら「10/3 (土)」、ほかの年は年も付ける */
+function rowDateText(d: Date, language: string | undefined): string {
+  return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
+}
+
+function dueDateLabel(iso: string, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
   const d = parseISO(iso)
   if (isAppToday(d)) return { text: todayLabel, tone: 'today' }
-  const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-  return { text: format(d, fmt, { locale }), tone: dateTone(d) }
+  return { text: rowDateText(d, language), tone: dateTone(d) }
 }
 
 export type TaskItemSelection = {
@@ -154,19 +158,18 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const notePreview = sourceLink ? '' : task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
-  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
+  const language = i18n.resolvedLanguage
+  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
-    const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
-    const datePart = isAppToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
+    const datePart = isAppToday(d) ? t('common.today') : rowDateText(d, language)
     const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
     return { text: `${datePart}${timePart}`, tone: dateTone(d) }
-  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, dateLocale, t])
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t])
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {

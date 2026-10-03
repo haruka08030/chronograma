@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -20,12 +19,12 @@ import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
-import { useTextEntry } from '../hooks/useTextEntry'
+import { useTextAreaEntry, useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
-import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -39,10 +38,10 @@ export function TaskDetail({
   task: Task
   onClose: () => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
-  const dueDateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
@@ -110,6 +109,8 @@ export function TaskDetail({
   })
   // 追加の欄の Esc は書きかけを消す（欄は出たまま）
   const tagEntry = useTextEntry({ onSubmit: () => addTag(), onCancel: () => setTagInput('') })
+  // メモは打つたびに保存している。離れたら表示に戻すだけ
+  const memoEntry = useTextAreaEntry({ onCommit: () => setEditingMemo(false) })
 
   const subtasks = useMemo(
     () =>
@@ -212,7 +213,7 @@ export function TaskDetail({
                 ref={memoTextareaRef}
                 value={task.description}
                 onChange={(e) => updateTask(task.id, { description: e.target.value })}
-                onBlur={() => setEditingMemo(false)}
+                {...memoEntry}
                 placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
                 rows={isLog ? 4 : 2}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
@@ -333,7 +334,7 @@ export function TaskDetail({
                         <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                           {tv.dueDate
-                            ? format(fromDateKey(tv.dueDate), 'PPP', { locale: dueDateLocale })
+                            ? df.fullDate(tv.dueDate)
                             : t('dueDatePicker.noDate')}
                         </span>
                       </button>
@@ -425,7 +426,7 @@ export function TaskDetail({
                       <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                         {tv.scheduledDate
-                          ? format(fromDateKey(tv.scheduledDate), 'PPP', { locale: dueDateLocale })
+                          ? df.fullDate(tv.scheduledDate)
                           : t('taskDetail.scheduledNone')}
                       </span>
                     </button>
