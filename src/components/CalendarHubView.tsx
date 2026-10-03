@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { addMonths, addWeeks, format, parseISO, startOfMonth, subMonths, subWeeks } from 'date-fns'
+import { addMonths, addWeeks, startOfMonth, subMonths, subWeeks } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
@@ -20,6 +20,7 @@ import {
 import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -34,21 +35,21 @@ export function CalendarHubView() {
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
-    const d = parseISO(`${selectedDateKey}T12:00:00`)
+    const d = fromDateKey(selectedDateKey)
     if (mode === 'month') setMonthCursor(startOfMonth(d))
     else setWeekAnchor(d)
   }
 
   const applyPickedDate = useCallback((key: string) => {
     setSelectedCalendarDateKey(key)
-    const d = parseISO(`${key}T12:00:00`)
+    const d = fromDateKey(key)
     setMonthCursor(startOfMonth(d))
     setWeekAnchor(d)
   }, [setSelectedCalendarDateKey])
 
   const onGoToday = useCallback(() => {
     const today = appToday()
-    const key = format(today, 'yyyy-MM-dd')
+    const key = toDateKey(today)
     setSelectedCalendarDateKey(key)
     setMonthCursor(startOfMonth(today))
     setWeekAnchor(today)
@@ -59,7 +60,7 @@ export function CalendarHubView() {
       setMonthCursor((m) => subMonths(m, 1))
     } else {
       setWeekAnchor((w) => subWeeks(w, 1))
-      setSelectedCalendarDateKey(format(subWeeks(parseISO(`${selectedDateKey}T12:00:00`), 1), 'yyyy-MM-dd'))
+      setSelectedCalendarDateKey(toDateKey(subWeeks(fromDateKey(selectedDateKey), 1)))
     }
   }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
 
@@ -68,7 +69,7 @@ export function CalendarHubView() {
       setMonthCursor((m) => addMonths(m, 1))
     } else {
       setWeekAnchor((w) => addWeeks(w, 1))
-      setSelectedCalendarDateKey(format(addWeeks(parseISO(`${selectedDateKey}T12:00:00`), 1), 'yyyy-MM-dd'))
+      setSelectedCalendarDateKey(toDateKey(addWeeks(fromDateKey(selectedDateKey), 1)))
     }
   }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
 

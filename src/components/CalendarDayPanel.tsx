@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
@@ -18,6 +17,7 @@ import { isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
+import { dateFnsLocale } from '../lib/dateKey'
 
 function completionDateKey(t: Task): string {
   const raw = t.completedAt ?? t.updatedAt
@@ -42,7 +42,7 @@ export function CalendarDayPanel({
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
 
   const date = parseISO(`${selectedDateKey}T00:00:00`)
   const dateLabel = isAppToday(date)

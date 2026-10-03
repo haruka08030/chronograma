@@ -1,17 +1,14 @@
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
 import type { Habit } from '../types/habit'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appToday } from './timeZone'
+import { toDateKey } from './dateKey'
 
 export function colorIndexForPalette(habitColor: string, listColors: readonly string[], fallback = 4): number {
   const normalized = habitColor.trim().toLowerCase()
   const i = listColors.findIndex((c) => c.trim().toLowerCase() === normalized)
   return i >= 0 ? i : Math.min(fallback, listColors.length - 1)
-}
-
-export function habitDateKey(date: Date): string {
-  return format(date, 'yyyy-MM-dd')
 }
 
 /** 達成率・連続日数に数える日か。時間を決めた習慣は時間どおりの日だけ（`records` を渡したとき） */
@@ -21,7 +18,7 @@ function achieved(h: Habit, key: string, records?: HabitRecordIndex): boolean {
 
 export function completionRatioOnDate(habits: Habit[], d: Date, records?: HabitRecordIndex): number {
   if (habits.length === 0) return 0
-  const key = habitDateKey(d)
+  const key = toDateKey(d)
   let expected = 0
   let completed = 0
   for (const h of habits) {
@@ -42,7 +39,7 @@ export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIn
   let completed = 0
   for (let i = 0; i < 7; i++) {
     const d = subDays(appToday(), i)
-    const key = habitDateKey(d)
+    const key = toDateKey(d)
     for (const h of habits) {
       if (!isHabitScheduledOnDate(h, d)) continue
       const status = habitDayStatus(h, key, records)
@@ -60,7 +57,7 @@ export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIn
 export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): number {
   if (habits.length === 0) return 0
   const anyAchieved = (i: number) => {
-    const key = habitDateKey(subDays(appToday(), i))
+    const key = toDateKey(subDays(appToday(), i))
     return habits.some((h) => achieved(h, key, records))
   }
   let streak = 0

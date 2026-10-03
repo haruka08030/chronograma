@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
@@ -19,6 +19,7 @@ import { ListSectionHeading } from './ListSectionHeading'
 import { tip } from '../lib/tooltip'
 import { AddChildButton, ChildAddInput } from './ChildAddInput'
 import { childrenByParent } from '../lib/listTree'
+import { fromDateKey } from '../lib/dateKey'
 
 /**
  * いつか（Wish）用の画面。期限も優先度も出さず、1 行ずつ静かに並べる。
@@ -67,7 +68,7 @@ export function SomedayView({ list }: { list: TaskList }) {
     showMoveBanner(
       dateKey === appTodayKey()
         ? t('someday.movedToToday', { title: item.title })
-        : t('someday.movedToDate', { title: item.title, date: format(parseISO(`${dateKey}T12:00:00`), t('someday.dateFormat')) }),
+        : t('someday.movedToDate', { title: item.title, date: format(fromDateKey(dateKey), t('someday.dateFormat')) }),
     )
   }
 

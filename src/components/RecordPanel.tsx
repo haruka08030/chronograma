@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { tip } from '../lib/tooltip'
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { recentLogs } from '../lib/logCategory'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
@@ -16,6 +16,7 @@ import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 export const OPEN_TIMER_EVENT = 'chronograma:open-timer'
@@ -82,7 +83,7 @@ export function RecordPanel({
   // いま計っているものは「もう一度始める」に出さない
   const recentChoices = recent.filter((r) => r.title !== activeTimer?.taskTitle)
   // 未来の日は「後から」記録できない
-  const canLogLater = dateKey <= format(zonedNow(), 'yyyy-MM-dd')
+  const canLogLater = dateKey <= toDateKey(zonedNow())
 
   useEffect(() => {
     const open = () => setMode('timer')
@@ -129,7 +130,7 @@ export function RecordPanel({
     } else {
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
-      const endDate = overnight ? format(addDays(parseISO(`${dateKey}T12:00:00`), 1), 'yyyy-MM-dd') : null
+      const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
       addTimeLog(name, dateKey, start, end, tags, undefined, endDate)
     }
     close()

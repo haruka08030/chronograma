@@ -9,7 +9,6 @@ import {
   format,
   parseISO,
 } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import {
@@ -82,6 +81,7 @@ import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
 import { ChevronLeftIcon, ChevronRightIcon, MoonSolidIcon } from './icons'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../lib/taskDrag'
+import { dateFnsLocale, toDateKey } from '../lib/dateKey'
 
 const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
 /** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
@@ -280,7 +280,7 @@ export function WeekCalendarView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
 
   const days = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -291,11 +291,11 @@ export function WeekCalendarView({
   const focusKey = selectedDateKey ?? appTodayKey()
   const gridDays = useMemo(() => {
     if (isDesktop && !singleDay) return days
-    const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
+    const hit = days.find((d) => toDateKey(d) === focusKey)
     return [hit ?? days[0]!]
   }, [isDesktop, singleDay, days, focusKey])
   /** 時間バーの他のタイムゾーンの時刻は、表示している最初の日で計算する */
-  const gridKey0 = format(gridDays[0]!, 'yyyy-MM-dd')
+  const gridKey0 = toDateKey(gridDays[0]!)
   const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
   /** 予定（左）と 記録（右）の 2 列（今日・週とも）。押した・落とした列で作るものが決まる */
@@ -311,7 +311,7 @@ export function WeekCalendarView({
   const [dropBlocked, setDropBlocked] = useState(false)
   /** 記録は今より先には作れない。その日の記録に使える最後の分（null は制限なし＝過去の日） */
   const now = useNowMinuteTick()
-  const todayKey = format(now, 'yyyy-MM-dd')
+  const todayKey = toDateKey(now)
   const logLimitMin = (key: string): number | null =>
     key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes()
   const logLimitRef = useRef(logLimitMin)
@@ -326,7 +326,7 @@ export function WeekCalendarView({
       if (t.isTimeLog) {
         if (!t.dueDate || !t.startTime || !t.endTime) continue
         for (const day of days) {
-          const dk = format(day, 'yyyy-MM-dd')
+          const dk = toDateKey(day)
           if (!logOverlapsDateKey(t, dk)) continue
           const arr = logs.get(dk) ?? []
           arr.push(t)
@@ -371,7 +371,7 @@ export function WeekCalendarView({
    * 日を押すと親が anchor を作り直すので、anchor そのものではなく「表示している週（1 日表示なら日）」が
    * 変わったときだけスクロールを合わせる。でないと朝や夜で押した瞬間に今の時刻へ戻されてしまう
    */
-  const scrollKey = format(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const scrollKey = toDateKey(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }))
   useEffect(() => {
     if (!scrollRef.current) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
@@ -602,7 +602,7 @@ export function WeekCalendarView({
 
   const hasAnyAllDay = useMemo(() => {
     return gridDays.some((d) => {
-      const key = format(d, 'yyyy-MM-dd')
+      const key = toDateKey(d)
       // 1 日表示では終日タスクは左のリストに出るので、外部の終日予定だけを数える
       const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0)
       const eventCount = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay).length
@@ -623,7 +623,7 @@ export function WeekCalendarView({
           <div className="flex-1 grid grid-cols-7">
             {days.map((day, i) => {
               const today = isAppToday(day)
-              const key = format(day, 'yyyy-MM-dd')
+              const key = toDateKey(day)
               const selected = selectedDateKey ? selectedDateKey === key : false
               // 「予定 / 記録」は 7 日すべてに並べるとうるさいので 1 か所だけ（今日、無ければ先頭の日）
               const showLaneLabels = today || (i === 0 && !days.some((d) => isAppToday(d)))
@@ -679,7 +679,7 @@ export function WeekCalendarView({
             </div>
             <div className={`flex-1 grid ${gridColsClass}`}>
               {gridDays.map((day) => {
-                const key = format(day, 'yyyy-MM-dd')
+                const key = toDateKey(day)
                 const dayAllDay = singleDay ? [] : (allDayByDate.get(key) ?? [])
                 const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
                 return (
@@ -705,7 +705,7 @@ export function WeekCalendarView({
                         const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
                         void moveGoogleEvent(gev, {
                           date: key,
-                          endDate: span > 0 ? format(addDays(parseISO(key), span), 'yyyy-MM-dd') : null,
+                          endDate: span > 0 ? toDateKey(addDays(parseISO(key), span)) : null,
                           startTime: null,
                           endTime: null,
                         })
@@ -809,7 +809,7 @@ export function WeekCalendarView({
               onPointerCancel={handleGridPointerCancel}
             >
               {gridDays.map((day) => {
-                const key = format(day, 'yyyy-MM-dd')
+                const key = toDateKey(day)
                 const dayTimed = timedByDate.get(key) ?? []
                 const dayLogs = timeLogsByDate.get(key) ?? []
                 const dayTimedEvents = (eventsByDate.get(key) ?? []).filter(

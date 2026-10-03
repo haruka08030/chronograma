@@ -12,6 +12,7 @@ import { isActiveTask } from './taskLifecycle'
 import { isSleepRecord } from './sleep'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
+import { toDateKey } from './dateKey'
 
 export interface WeekReviewDay {
   dateKey: string
@@ -49,7 +50,7 @@ export function getWeekReview(
   now = zonedNow(),
 ): WeekReview {
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
-  const todayKey = format(now, 'yyyy-MM-dd')
+  const todayKey = toDateKey(now)
   const nowHm = format(now, 'HH:mm')
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
@@ -61,7 +62,7 @@ export function getWeekReview(
 
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i)
-    const key = format(date, 'yyyy-MM-dd')
+    const key = toDateKey(date)
     if (key > todayKey) break
     const plan = getDayPlan(tasks, key, excludedListIds)
     const day: WeekReviewDay = {

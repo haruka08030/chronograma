@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { CALENDAR_COLORS } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -13,7 +12,6 @@ import {
 } from '../lib/habitDraft'
 import {
   colorIndexForPalette,
-  habitDateKey,
   completionRatioOnDate,
   consistencyForLast7Days,
   currentStreakDays,
@@ -34,6 +32,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { DayNav } from './ui/DayNav'
 import { tip } from '../lib/tooltip'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -339,26 +338,26 @@ export function HabitsView() {
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(appToday(), 27 - i)
-        return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
+        return { key: toDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
     [habits, habitRecords],
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
   const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
   const focusDate = useMemo(
-    () => parseISO(`${selectedCalendarDateKey}T12:00:00`),
+    () => fromDateKey(selectedCalendarDateKey),
     [selectedCalendarDateKey],
   )
   const weekDates = useMemo(() => {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
-  const todayKey = habitDateKey(appToday())
+  const todayKey = toDateKey(appToday())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
   )
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const focusDateLabel = format(
     focusDate,
     i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)',
@@ -376,7 +375,7 @@ export function HabitsView() {
   )
 
   const shiftFocusDay = useCallback((delta: number) => {
-    setSelectedCalendarDateKey(format(addDays(focusDate, delta), 'yyyy-MM-dd'))
+    setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta)))
   }, [focusDate, setSelectedCalendarDateKey])
 
   const goFocusToday = useCallback(() => {
@@ -544,7 +543,7 @@ export function HabitsView() {
 
           <div className="grid grid-cols-7 gap-1.5">
             {weekDates.map((d, di) => {
-              const key = habitDateKey(d)
+              const key = toDateKey(d)
               const isCellToday = key === todayKey
               const isCellFocus = key === selectedCalendarDateKey
               const isScheduled = isHabitScheduledOnDate(h, d)
@@ -729,7 +728,7 @@ export function HabitsView() {
             </div>
             <div className="grid grid-cols-7 gap-1.5">
               {weekDates.map((d, i) => {
-                const key = habitDateKey(d)
+                const key = toDateKey(d)
                 const isColToday = key === todayKey
                 const isColFocus = key === selectedCalendarDateKey
                 const labelTone = isColToday || isColFocus ? '' : 'text-zinc-400 dark:text-zinc-500'

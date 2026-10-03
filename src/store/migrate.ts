@@ -1,7 +1,6 @@
 /**
  * 保存データの移行。`STORE_VERSION`（`storeConstants.ts`）を上げたら、ここに手順を足す
  */
-import { format } from 'date-fns'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -15,6 +14,7 @@ import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
+import { toDateKey } from '../lib/dateKey'
 
 const defaultPaletteColors = paletteColors(DEFAULT_LIST_COLOR_PALETTE_ID)
 
@@ -144,7 +144,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     state.selectedCalendarDateKey =
       typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
         ? raw
-        : format(new Date(), 'yyyy-MM-dd')
+        : toDateKey(new Date())
   }
   if (version < 18) {
     state.todayIncludeOverdue = state.todayIncludeOverdue === true

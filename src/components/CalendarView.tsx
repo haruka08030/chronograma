@@ -37,6 +37,7 @@ import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTa
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
+import { toDateKey } from '../lib/dateKey'
 
 /** 月のマス用の短い時間表記（3h20 / 45m） */
 function formatMinutesShort(m: number): string {
@@ -97,7 +98,7 @@ export function CalendarView({
     for (const t of tasks) {
       if (!isListedTimeLog(t) || !isActiveTask(t) || t.parentId) continue
       for (const day of days) {
-        const key = format(day, 'yyyy-MM-dd')
+        const key = toDateKey(day)
         const min = minutesOfLogOnCalendarDay(t, key)
         if (min <= 0) continue
         const byCat = map.get(key) ?? new Map<string, number>()
@@ -152,7 +153,7 @@ export function CalendarView({
 
         <div className="grid grid-cols-7 px-4 pb-4 flex-1">
           {days.map((day) => {
-            const key = format(day, 'yyyy-MM-dd')
+            const key = toDateKey(day)
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
             const inMonth = isSameMonth(day, displayMonth)

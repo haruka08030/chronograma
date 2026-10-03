@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { format } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
@@ -16,6 +15,7 @@ import { zonedNow } from '../../lib/timeZone'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { tip } from '../../lib/tooltip'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
 
 const WIDTH = 320
 
@@ -73,13 +73,13 @@ export function EventPopover({
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
   const dateKey = taskPlacementDate(task)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const dateText = dateKey ? format(parseISO(`${dateKey}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const dateText = dateKey ? format(fromDateKey(dateKey), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   // 始まった予定は「予定どおり」記録にして完了できる（今より先の分は記録しない）
   const now = zonedNow()
   const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const todayKey = format(now, 'yyyy-MM-dd')
+  const todayKey = toDateKey(now)
   const canLogAsPlanned =
     !isLog && !task.completed && Boolean(dateKey && task.startTime && task.endTime) &&
     (dateKey! < todayKey || (dateKey === todayKey && task.startTime! < nowHm))

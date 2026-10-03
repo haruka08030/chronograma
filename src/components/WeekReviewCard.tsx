@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addWeeks, format, parseISO, startOfWeek } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addWeeks, format, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -15,7 +15,7 @@ export function WeekReviewCard() {
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const [weekOffset, setWeekOffset] = useState(0)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
 
   const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
@@ -91,7 +91,7 @@ export function WeekReviewCard() {
           <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700" role="list">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
-              const date = parseISO(`${format(weekStart, 'yyyy-MM-dd')}T12:00:00`)
+              const date = fromDateKey(toDateKey(weekStart))
               date.setDate(date.getDate() + i)
               const label = format(date, 'E', { locale: dateLocale })
               const dayBar = day ? barMinutes(day) : 0
@@ -126,7 +126,7 @@ export function WeekReviewCard() {
           </div>
           <div className="mt-1 flex gap-2">
             {Array.from({ length: 7 }, (_, i) => {
-              const date = parseISO(`${format(weekStart, 'yyyy-MM-dd')}T12:00:00`)
+              const date = fromDateKey(toDateKey(weekStart))
               date.setDate(date.getDate() + i)
               return (
                 <span key={i} className="flex-1 text-center text-[10px] text-zinc-400 dark:text-zinc-500">

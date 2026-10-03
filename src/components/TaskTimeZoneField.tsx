@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName } from '../lib/timeZone'
@@ -7,6 +7,7 @@ import { foreignTimeZone, timesPatchFromZone, type TaskTimeFields } from '../lib
 import { TimeZonePicker } from './TimeZonePicker'
 import { GlobeIcon } from './icons'
 import { tip } from '../lib/tooltip'
+import { fromDateKey } from '../lib/dateKey'
 
 /**
  * 詳細の「タイムゾーン」（Google カレンダーの予定のタイムゾーンと同じ）。
@@ -63,7 +64,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   const zone = foreignTimeZone(task)
   if (!zone) return null
 
-  const day = (ymd: string) => format(parseISO(`${ymd}T12:00:00`), 'M/d')
+  const day = (ymd: string) => format(fromDateKey(ymd), 'M/d')
   const date = task.isTimeLog ? task.dueDate : task.scheduledDate
   let when: string | null = null
   if (date && task.startTime) {

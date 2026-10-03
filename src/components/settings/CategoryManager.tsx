@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
@@ -9,6 +9,7 @@ import { appToday } from '../../lib/timeZone'
 import { LabelsDialog } from '../labels/LabelsDialog'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
+import { toDateKey } from '../../lib/dateKey'
 
 const USAGE_DAYS = 30
 
@@ -30,7 +31,7 @@ export function CategoryManager() {
   /** 分類 → 直近 30 日の分数（分類なしは ''） */
   const usage = useMemo(() => {
     const map = new Map<string, number>()
-    const days = Array.from({ length: USAGE_DAYS }, (_, i) => format(subDays(appToday(), i), 'yyyy-MM-dd'))
+    const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
     for (const task of tasks) {
       if (!task.isTimeLog || !isActiveTask(task)) continue
       let minutes = 0

@@ -1,5 +1,4 @@
 /** バックアップ・取り込み・同期の状態・ログアウト時の初期化 */
-import { format } from 'date-fns'
 import type { Task } from '../../types/task'
 import i18n from '../../i18n/config'
 import { newId } from '../../lib/id'
@@ -12,6 +11,7 @@ import { INBOX_ID } from '../storeConstants'
 import { initialLists } from '../storeDefaults'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { toDateKey } from '../../lib/dateKey'
 
 type DataActions = Pick<
   TaskState,
@@ -95,7 +95,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `chronograma-backup-${format(new Date(), 'yyyy-MM-dd')}.json`
+      a.download = `chronograma-backup-${toDateKey(new Date())}.json`
       a.click()
       URL.revokeObjectURL(url)
     },

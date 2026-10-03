@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { format, subDays, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
@@ -11,6 +10,7 @@ import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
 import { isAppToday, appToday } from '../lib/timeZone'
+import { dateFnsLocale } from '../lib/dateKey'
 
 function completionInstant(t: Task): string {
   return t.completedAt ?? t.updatedAt
@@ -53,7 +53,7 @@ export function StatsView() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const day = subDays(today, 6 - i)
       const count = completed.filter((t) => isSameDay(new Date(completionInstant(t)), day)).length
-      const locale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+      const locale = dateFnsLocale(i18n.resolvedLanguage)
       return { date: day, count, label: format(day, 'E', { locale }), dayNum: format(day, 'd') }
     })
     const maxDayCount = Math.max(1, ...last7Days.map((d) => d.count))

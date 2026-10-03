@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -18,7 +18,7 @@ const CHART_HEIGHT = 144
 export function SleepStatsCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const todayKey = appTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
@@ -45,7 +45,7 @@ export function SleepStatsCard() {
     if (min === 0) return t('planner.hours', { h })
     return t('planner.hoursMinutes', { h, m: min })
   }
-  const dayLabel = (key: string) => format(parseISO(`${key}T12:00:00`), t('sleepStats.dayFormat'), { locale: dateLocale })
+  const dayLabel = (key: string) => format(fromDateKey(key), t('sleepStats.dayFormat'), { locale: dateLocale })
   const spreadText = (m: number | null) => (summary.count >= 2 && m != null ? t('sleepStats.spread', { m }) : null)
 
   const tiles = [
@@ -125,8 +125,8 @@ export function SleepStatsCard() {
             </div>
             <div className="mt-1 flex gap-0.5 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
               {summary.nights.map((_, i) => {
-                const d = addDays(parseISO(`${todayKey}T12:00:00`), i - (DAYS - 1))
-                const key = format(d, 'yyyy-MM-dd')
+                const d = addDays(fromDateKey(todayKey), i - (DAYS - 1))
+                const key = toDateKey(d)
                 // 1 日おきに日付（最後＝今日は必ず）。月初は「10/1」
                 const show = (DAYS - 1 - i) % 2 === 0
                 return (

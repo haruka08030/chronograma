@@ -1,9 +1,10 @@
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays } from 'date-fns'
 import type { Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { isListedTimeLog } from './timeLogTask'
 import { isSleepRecord } from './sleep'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
+import { fromDateKey, toDateKey } from './dateKey'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -38,7 +39,7 @@ export function getDayPlan(
   const overdue: Task[] = []
   const carryOver: Task[] = []
   const dueSoon: Task[] = []
-  const dueSoonLimit = format(addDays(parseISO(`${dateKey}T12:00:00`), DUE_SOON_DAYS), 'yyyy-MM-dd')
+  const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const open: Task[] = []
   const done: Task[] = []
   let plannedMinutes = 0
@@ -81,7 +82,7 @@ export function getMoreSuggestions(
   dateKey: string,
   excludedListIds: ReadonlySet<string> = new Set(),
 ): Task[] {
-  const dueSoonLimit = format(addDays(parseISO(`${dateKey}T12:00:00`), DUE_SOON_DAYS), 'yyyy-MM-dd')
+  const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const dueLater: Task[] = []
   const undated: Task[] = []
   const placedLater: Task[] = []

@@ -4,6 +4,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
+import { fromDateKey } from './dateKey'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -319,7 +320,7 @@ export interface GoogleEventTiming {
 }
 
 function addDaysYmd(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T12:00:00`)
+  const d = fromDateKey(ymd)
   d.setDate(d.getDate() + days)
   return formatYmdLocal(d)
 }

@@ -1,10 +1,11 @@
-import { addHours, format, parse, parseISO } from 'date-fns'
+import { addHours, format, parse } from 'date-fns'
 import type { Habit } from '../types/habit'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import type { PlannedItem } from '../types/plannedItem'
+import { fromDateKey } from './dateKey'
 
 function habitAppliesOnDate(habit: Habit, dateKey: string): boolean {
-  return isHabitScheduledOnDate(habit, parseISO(`${dateKey}T12:00:00`))
+  return isHabitScheduledOnDate(habit, fromDateKey(dateKey))
 }
 
 const DEFAULT_START = '09:00'

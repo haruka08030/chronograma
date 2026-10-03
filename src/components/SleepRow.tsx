@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
@@ -10,6 +9,7 @@ import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
+import { toDateKey } from '../lib/dateKey'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -46,7 +46,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const [draftFor, setDraftFor] = useState<string | null>(null)
   const now = useNowMinuteTick()
 
-  const todayKey = format(now, 'yyyy-MM-dd')
+  const todayKey = toDateKey(now)
   const nowMin = now.getHours() * 60 + now.getMinutes()
   if (dateKey > todayKey) return null
   const isToday = dateKey === todayKey

@@ -4,7 +4,6 @@ import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import type { Locale } from 'date-fns'
 import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
@@ -17,6 +16,7 @@ import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -144,14 +144,14 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
   const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), dateLocale) : null
   const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
-    const d = parseISO(`${task.scheduledDate}T12:00:00`)
+    const d = fromDateKey(task.scheduledDate)
     const fmt = d.getFullYear() !== zonedNow().getFullYear() ? 'yyyy/M/d (E)' : 'M/d (E)'
     const datePart = isAppToday(d) ? t('common.today') : format(d, fmt, { locale: dateLocale })
     const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''

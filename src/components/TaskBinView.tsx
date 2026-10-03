@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -12,6 +11,7 @@ import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
+import { dateFnsLocale } from '../lib/dateKey'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -34,7 +34,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
 
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
 
   const rows = useMemo(() => {

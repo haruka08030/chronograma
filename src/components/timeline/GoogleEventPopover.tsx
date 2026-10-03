@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
@@ -16,6 +15,7 @@ import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { tip } from '../../lib/tooltip'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
 
 const WIDTH = 320
 
@@ -72,8 +72,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const recurring = !!event.recurringEventId
   const effectiveScope = recurring ? scope : 'event'
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const dateText = format(parseISO(`${event.date}T12:00:00`), t('eventCard.dateFormat'), { locale: dateLocale })
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const dateText = format(fromDateKey(event.date), t('eventCard.dateFormat'), { locale: dateLocale })
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0))
   const iconButton =
@@ -92,9 +92,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     if (event.isAllDay) {
       if (!next.date || next.date === cur.date) return
       const span = cur.endDate ? Math.round((parseISO(cur.endDate).getTime() - parseISO(cur.date).getTime()) / 86_400_000) : 0
-      const end = new Date(`${next.date}T12:00:00`)
+      const end = fromDateKey(next.date)
       end.setDate(end.getDate() + span)
-      void moveGoogleEvent(event, { date: next.date, endDate: span > 0 ? format(end, 'yyyy-MM-dd') : null, startTime: null, endTime: null })
+      void moveGoogleEvent(event, { date: next.date, endDate: span > 0 ? toDateKey(end) : null, startTime: null, endTime: null })
       return
     }
     let startTime = cur.startTime!

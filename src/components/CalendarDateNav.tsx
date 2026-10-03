@@ -7,12 +7,11 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { enUS } from 'date-fns/locale'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { isAppToday } from '../lib/timeZone'
@@ -20,6 +19,7 @@ import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { GoogleStatusDot } from './GoogleStatusDot'
 import { DayNav } from './ui/DayNav'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 function weekRangeLabel(anchor: Date, dateLocale: typeof enUS, isJa: boolean): string {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -74,7 +74,7 @@ export function CalendarDateNav({
 }: CalendarDateNavProps) {
   const { t, i18n } = useTranslation()
   const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-  const dateLocale = isJa ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const [open, setOpen] = useState(false)
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(monthCursor))
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -126,7 +126,7 @@ export function CalendarDateNav({
               setPickerMonth(
                 mode === 'month'
                   ? startOfMonth(monthCursor)
-                  : startOfMonth(parseISO(`${selectedDateKey}T12:00:00`)),
+                  : startOfMonth(fromDateKey(selectedDateKey)),
               )
               setOpen(true)
             }
@@ -175,7 +175,7 @@ export function CalendarDateNav({
             </div>
             <div className="grid grid-cols-7 gap-0.5">
               {miniDays.map((day) => {
-                const key = format(day, 'yyyy-MM-dd')
+                const key = toDateKey(day)
                 const inMonth = isSameMonth(day, pickerMonth)
                 const today = isAppToday(day)
                 const selected = key === selectedDateKey

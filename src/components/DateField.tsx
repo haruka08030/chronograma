@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { format } from 'date-fns'
 import { DueDatePopover } from './DueDatePopover'
 import { CalendarIcon } from './icons'
+import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 
 /**
  * 日付の入力欄（記録の開始日・終了日、Google の予定の日付、まとめて期限など）。
@@ -32,8 +32,8 @@ export function DateField({
   placeholder?: string
 }) {
   const { i18n } = useTranslation()
-  const locale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const text = value ? format(parseISO(`${value}T12:00:00`), 'PPP', { locale }) : (placeholder ?? '')
+  const locale = dateFnsLocale(i18n.resolvedLanguage)
+  const text = value ? format(fromDateKey(value), 'PPP', { locale }) : (placeholder ?? '')
   return (
     <DueDatePopover
       kind="date"

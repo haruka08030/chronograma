@@ -1,8 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, nextMonday, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useDismiss } from '../hooks/useDismiss'
 import { IS_MAC, shortcutLabel } from '../lib/keyboard'
@@ -26,6 +25,7 @@ import {
   SearchIcon,
   TrashIcon,
 } from './icons'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 
@@ -92,7 +92,7 @@ export function TaskContextMenu({
   onOpenDetail?: (taskId: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const lists = useTaskStore((s) => s.lists)
   const sections = useTaskStore((s) => s.sections)
   const allTasks = useTaskStore((s) => s.tasks)
@@ -126,11 +126,11 @@ export function TaskContextMenu({
   }
 
   const today = appToday()
-  const dayHint = (key: string) => format(parseISO(`${key}T12:00:00`), 'M/d (EEE)', { locale: dateLocale })
+  const dayHint = (key: string) => format(fromDateKey(key), 'M/d (EEE)', { locale: dateLocale })
   const dueLeaves: Leaf[] = [
-    { label: t('dueDatePicker.today'), key: format(today, 'yyyy-MM-dd') },
-    { label: t('dueDatePicker.tomorrow'), key: format(addDays(today, 1), 'yyyy-MM-dd') },
-    { label: t('taskMenu.nextWeek'), key: format(nextMonday(today), 'yyyy-MM-dd') },
+    { label: t('dueDatePicker.today'), key: toDateKey(today) },
+    { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
+    { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
   ]
     .map((o): Leaf => ({
       id: `due-${o.key}`,
@@ -398,7 +398,7 @@ export function TaskContextMenu({
                 footer={false}
                 value={sharedDue ?? null}
                 onPick={(key) =>
-                  run(() => bulk.setDue(taskIds, key, key ? format(parseISO(`${key}T12:00:00`), 'M/d', { locale: dateLocale }) : ''))
+                  run(() => bulk.setDue(taskIds, key, key ? format(fromDateKey(key), 'M/d', { locale: dateLocale }) : ''))
                 }
               />
             </div>

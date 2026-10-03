@@ -8,6 +8,7 @@
  */
 
 import { toAppWall } from './timeZone'
+import { toDateKey } from './dateKey'
 
 /** 記録として成立する最小の長さ */
 export const MIN_RECORD_MS = 60_000
@@ -22,7 +23,6 @@ export interface TimerRecordTimes {
 }
 
 const p2 = (n: number) => String(n).padStart(2, '0')
-const dayKey = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
 const hhmm = (d: Date) => `${p2(d.getHours())}:${p2(d.getMinutes())}`
 
 /**
@@ -38,8 +38,8 @@ export function timerRecordTimes(startedAt: string, endedAt: string): TimerRecor
   const start = toAppWall(startMs)
   const end = toAppWall(endMs)
 
-  const dueDate = dayKey(start)
-  const endDay = dayKey(end)
+  const dueDate = toDateKey(start)
+  const endDay = toDateKey(end)
   return {
     dueDate,
     endDate: endDay !== dueDate ? endDay : null,

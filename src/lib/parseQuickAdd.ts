@@ -1,5 +1,6 @@
-import { addDays, format, isValid, parseISO, startOfDay } from 'date-fns'
+import { addDays, isValid, startOfDay } from 'date-fns'
 import { appToday } from './timeZone'
+import { fromDateKey, toDateKey } from './dateKey'
 
 export type ParsedQuickAdd = {
   title: string
@@ -84,7 +85,7 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     return { piece: { kind: 'date', date: nextWeekday(today, EN_WEEKDAYS.indexOf(m[1]!)) }, rest: s.slice(m[0].length) }
   }
   if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) {
-    const d = parseISO(`${m[0]}T12:00:00`)
+    const d = fromDateKey(m[0])
     if (isValid(d)) return { piece: { kind: 'date', date: startOfDay(d) }, rest: s.slice(m[0].length) }
   }
   // 9/30, 10月3日（過ぎていれば来年）
@@ -218,7 +219,7 @@ export function parseQuickAddTitle(
       .trim() || raw.trim()
   return {
     title,
-    date: date ? format(date, 'yyyy-MM-dd') : null,
+    date: date ? toDateKey(date) : null,
     dateIsDeadline: deadline && date != null,
     tags,
     startTime: start != null ? hm(start) : null,

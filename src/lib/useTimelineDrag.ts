@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { HOUR_HEIGHT, timeToY, yToTime, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { dragBlockDurationMinutes } from './taskTimeRange'
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays } from 'date-fns'
+import { fromDateKey, toDateKey } from './dateKey'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -296,7 +297,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
   const shiftMoveDragDate = useCallback((days: number) => {
     setDrag((prev) => prev && prev.kind === 'move'
-      ? { ...prev, dateKey: format(addDays(parseISO(`${prev.dateKey}T12:00:00`), days), 'yyyy-MM-dd') }
+      ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) }
       : prev)
   }, [])
 

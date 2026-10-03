@@ -11,6 +11,7 @@ import { logColorNames, withInferredCategory } from '../storeDefaults'
 import { completedRecordPatch, makeTask } from '../taskHelpers'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { toDateKey } from '../../lib/dateKey'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -180,7 +181,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const date = task ? taskPlacementDate(task) : null
       if (!task || task.completed || task.isTimeLog || !date || !task.startTime || !task.endTime) return
       const now = zonedNow()
-      const today = format(now, 'yyyy-MM-dd')
+      const today = toDateKey(now)
       const nowHm = format(now, 'HH:mm')
       if (date > today || (date === today && task.startTime >= nowHm)) return
       const end = date === today && task.endTime > nowHm ? nowHm : task.endTime

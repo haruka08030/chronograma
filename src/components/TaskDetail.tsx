@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { format } from 'date-fns'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -23,6 +22,7 @@ import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -44,7 +44,7 @@ export function TaskDetail({
   const { t, i18n } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
-  const dueDateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
+  const dueDateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
@@ -336,7 +336,7 @@ export function TaskDetail({
                         <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                           {tv.dueDate
-                            ? format(parseISO(`${tv.dueDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                            ? format(fromDateKey(tv.dueDate), 'PPP', { locale: dueDateLocale })
                             : t('dueDatePicker.noDate')}
                         </span>
                       </button>
@@ -428,7 +428,7 @@ export function TaskDetail({
                       <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                         {tv.scheduledDate
-                          ? format(parseISO(`${tv.scheduledDate}T12:00:00`), 'PPP', { locale: dueDateLocale })
+                          ? format(fromDateKey(tv.scheduledDate), 'PPP', { locale: dueDateLocale })
                           : t('taskDetail.scheduledNone')}
                       </span>
                     </button>

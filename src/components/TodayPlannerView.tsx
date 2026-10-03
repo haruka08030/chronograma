@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, parseISO } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
+import { addDays, format } from 'date-fns'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
@@ -36,9 +35,8 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
-const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
-const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
   overdue: DUE_TONE_CLASS.overdue,
@@ -72,11 +70,11 @@ export function TodayPlannerView() {
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
   const { open: openCompleteWithLog, modal: completeWithLogModal } = useCompleteWithLog()
 
-  const [dateKey, setDateKey] = useState(() => dayKeyOf(appToday()))
+  const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
   useNavShortcut({
-    today: () => setDateKey(dayKeyOf(appToday())),
-    prev: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), -1))),
-    next: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), 1))),
+    today: () => setDateKey(toDateKey(appToday())),
+    prev: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), -1))),
+    next: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), 1))),
   })
   const [draft, setDraft] = useState('')
   const [draftFocused, setDraftFocused] = useState(false)
@@ -86,10 +84,10 @@ export function TodayPlannerView() {
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<'list' | 'timeline'>('list')
 
-  const date = dateOfKey(dateKey)
+  const date = fromDateKey(dateKey)
   const viewingToday = isAppToday(date)
-  const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const tomorrowKey = dayKeyOf(addDays(date, 1))
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const tomorrowKey = toDateKey(addDays(date, 1))
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
@@ -145,7 +143,7 @@ export function TodayPlannerView() {
 
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
 
-  const shortDate = (key: string) => format(dateOfKey(key), t('planner.shortDateFormat'), { locale: dateLocale })
+  const shortDate = (key: string) => format(fromDateKey(key), t('planner.shortDateFormat'), { locale: dateLocale })
 
   const submitDraft = () => {
     if (!draft.trim()) return
@@ -155,7 +153,7 @@ export function TodayPlannerView() {
   }
 
   const totalCount = open.length + done.length
-  const overCapacity = dateKey >= dayKeyOf(appToday()) && plannedMinutes > dailyCapacityMinutes
+  const overCapacity = dateKey >= toDateKey(appToday()) && plannedMinutes > dailyCapacityMinutes
   const showWrapUp =
     viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
   const showReminderPrompt =
@@ -279,8 +277,8 @@ export function TodayPlannerView() {
               {viewingToday ? t('planner.todayTitle') : format(date, t('planner.titleFormat'), { locale: dateLocale })}
             </h1>
             <DayNav
-              onToday={() => setDateKey(dayKeyOf(appToday()))}
-              onPrev={() => setDateKey(dayKeyOf(addDays(date, -1)))}
+              onToday={() => setDateKey(toDateKey(appToday()))}
+              onPrev={() => setDateKey(toDateKey(addDays(date, -1)))}
               onNext={() => setDateKey(tomorrowKey)}
               prevLabel={t('planner.prevDay')}
               nextLabel={t('planner.nextDay')}

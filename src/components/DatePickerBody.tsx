@@ -8,15 +8,14 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { enUS, ja } from 'date-fns/locale'
 import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -25,11 +24,6 @@ function monthGridDays(viewMonth: Date): Date[] {
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
   return eachDayOfInterval({ start: calStart, end: calEnd })
-}
-
-/** 正午固定でパースし、タイムゾーンによる日付ズレを避ける。 */
-function parseDateKey(key: string): Date {
-  return parseISO(`${key}T12:00:00`)
 }
 
 /**
@@ -52,13 +46,13 @@ export function DatePickerBody({
 }) {
   const { t, i18n } = useTranslation()
   const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-  const dateLocale = isJa ? ja : enUS
-  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ? parseDateKey(value) : appToday()))
+  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ? fromDateKey(value) : appToday()))
   const pick = onPick
   const days = monthGridDays(viewMonth)
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
   const todayKey = appTodayKey()
-  const tomorrowKey = format(addDays(appToday(), 1), 'yyyy-MM-dd')
+  const tomorrowKey = toDateKey(addDays(appToday(), 1))
 
   return (
     <>
@@ -99,7 +93,7 @@ export function DatePickerBody({
 
       <div className="grid grid-cols-7 gap-y-0.5">
         {days.map((day) => {
-          const key = format(day, 'yyyy-MM-dd')
+          const key = toDateKey(day)
           const inMonth = isSameMonth(day, viewMonth)
           const today = key === todayKey
           const selected = value != null && key === value
