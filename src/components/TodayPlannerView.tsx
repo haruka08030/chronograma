@@ -33,6 +33,7 @@ import { Segmented } from './ui/Segmented'
 import { isSubmitEnter } from '../lib/keyboard'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
+import { RowActionButton } from './ui/RowActionButton'
 
 const dayKeyOf = (d: Date) => format(d, 'yyyy-MM-dd')
 const dateOfKey = (key: string) => parseISO(`${key}T12:00:00`)
@@ -227,34 +228,21 @@ export function TodayPlannerView() {
 
   // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない
   const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
-    <button
-      type="button"
-      onClick={() => startTimerForTask(task.id)}
-      aria-label={t('planner.startTimer')}
-      {...tip(t('planner.startTimer'))}
-      className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-opacity touch-manipulation hover:text-accent-600 md:p-1.5
-                 md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100
-                 dark:text-zinc-600 dark:hover:text-accent-300"
-    >
-      <PlayIcon className="h-4 w-4" />
-    </button>
+    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} revealOnHover>
+      <PlayIcon className="h-3 w-3" />
+    </RowActionButton>
   )
 
   /** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。今日はナビの「今日の計画」と同じ太陽 */
   const moveHereButton = (task: Task) => {
-    const label = viewingToday ? t('planner.doToday') : t('planner.doThisDay')
     const Icon = viewingToday ? SunIcon : CalendarIcon
     return (
-      <button
-        type="button"
+      <RowActionButton
+        label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
         onClick={() => rescheduleTasks([task.id], dateKey)}
-        aria-label={label}
-        {...tip(label)}
-        className="-mr-1 shrink-0 rounded-full p-2.5 text-zinc-400 transition-colors touch-manipulation hover:bg-zinc-100 hover:text-accent-600 md:p-1.5
-                   dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-accent-300"
       >
         <Icon className="h-4 w-4" />
-      </button>
+      </RowActionButton>
     )
   }
 
