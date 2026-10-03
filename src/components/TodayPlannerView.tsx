@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { addDays, format } from 'date-fns'
+import { addDays } from 'date-fns'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
@@ -34,10 +34,11 @@ import { Segmented } from './ui/Segmented'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { TaskContextMenu } from './TaskContextMenu'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -56,7 +57,7 @@ const WRAP_UP_FROM_HOUR = 17
 const MORE_SUGGESTIONS_PAGE = 10
 
 export function TodayPlannerView() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -89,7 +90,7 @@ export function TodayPlannerView() {
 
   const date = fromDateKey(dateKey)
   const viewingToday = isAppToday(date)
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const tomorrowKey = toDateKey(addDays(date, 1))
 
   const lists = useTaskStore((s) => s.lists)
@@ -146,7 +147,7 @@ export function TodayPlannerView() {
 
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
 
-  const shortDate = (key: string) => format(fromDateKey(key), t('planner.shortDateFormat'), { locale: dateLocale })
+  const shortDate = (key: string) => df.shortDate(key)
 
   const submitDraft = () => {
     if (!draft.trim()) return
@@ -286,7 +287,7 @@ export function TodayPlannerView() {
         <header className="px-6 pb-5 pt-4 md:pt-8">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              {viewingToday ? t('planner.todayTitle') : format(date, t('planner.titleFormat'), { locale: dateLocale })}
+              {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
             </h1>
             <DayNav
               onToday={() => setDateKey(toDateKey(appToday()))}
@@ -299,7 +300,7 @@ export function TodayPlannerView() {
             />
           </div>
           {viewingToday && (
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{format(date, t('planner.titleFormat'), { locale: dateLocale })}</p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{df.monthDayWeekdayLong(date)}</p>
           )}
           {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
           <div className="mt-3">

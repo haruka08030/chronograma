@@ -35,6 +35,7 @@ import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
 import { RepeatIcon } from './icons'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -359,11 +360,8 @@ export function HabitsView() {
     [t],
   )
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
-  const focusDateLabel = format(
-    focusDate,
-    i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 (E)' : 'MMM d (E)',
-    { locale: dateLocale },
-  )
+  const df = useDateFormat()
+  const focusDateLabel = df.monthDayWeekday(focusDate)
   const isFocusToday = selectedCalendarDateKey === todayKey
 
   const habitsScheduledForFocus = useMemo(
@@ -733,9 +731,7 @@ export function HabitsView() {
                 const isColToday = key === todayKey
                 const isColFocus = key === selectedCalendarDateKey
                 const labelTone = isColToday || isColFocus ? '' : 'text-zinc-400 dark:text-zinc-500'
-                const headerDateShort = format(d, i18n.resolvedLanguage?.startsWith('ja') ? 'M/d' : 'MMM d', {
-                  locale: dateLocale,
-                })
+                const headerDateShort = df.shortDate(d)
                 return (
                   <button
                     key={key}

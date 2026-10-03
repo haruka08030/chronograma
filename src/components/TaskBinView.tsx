@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
+import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
 import { isListedTimeLog } from '../lib/timeLogTask'
@@ -11,8 +11,8 @@ import { buttonClass } from './ui/buttonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
-import { dateFnsLocale } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -26,7 +26,7 @@ const TRASH_BOX_ICON =
   ICON_PATHS.trash
 
 export function TaskBinView({ mode }: { mode: BinMode }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const restoreDeletedTask = useTaskStore((s) => s.restoreDeletedTask)
@@ -35,7 +35,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
 
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
 
   const rows = useMemo(() => {
@@ -96,7 +96,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             const timeLog = isListedTimeLog(task)
             let stampLabel = ''
             try {
-              stampLabel = format(parseISO(stamp), i18n.resolvedLanguage?.startsWith('ja') ? 'M月d日 HH:mm' : 'MMM d, HH:mm', { locale: dateLocale })
+              stampLabel = df.monthDayTime(parseISO(stamp))
             } catch {
               stampLabel = ''
             }

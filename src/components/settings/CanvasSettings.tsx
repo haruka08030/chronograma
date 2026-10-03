@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
+import { formatDate } from '../../lib/dateFormat'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import {
@@ -180,7 +181,7 @@ function ConnectionRows({
         <TokenForm
           busy={busy}
           baseUrl={connection.baseUrl}
-          notice={expiring ? t('canvas.expiresSoon', { date: format(expiring, 'M/d') }) : undefined}
+          notice={expiring ? t('canvas.expiresSoon', { date: formatDate(expiring, 'shortDate') }) : undefined}
           onSubmit={(token) => onRenew(token)}
         />
       )}

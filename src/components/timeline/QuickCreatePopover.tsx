@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDismiss } from '../../hooks/useDismiss'
 import { anchoredCardClass } from '../ui/surface'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
@@ -17,7 +16,7 @@ import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
-import { dateFnsLocale, fromDateKey } from '../../lib/dateKey'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -102,7 +101,7 @@ export function QuickCreatePopover({
     onCreated(id, openDetail)
   }
 
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, googleWritable && !asLog ? 270 : 230)
   const listColor = plannable.find((l) => l.id === listId)?.color ?? '#7986CB'
 
@@ -156,7 +155,7 @@ export function QuickCreatePopover({
       <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
         <ClockIcon className="h-4 w-4 shrink-0 text-zinc-400" strokeWidth={1.75} />
         <span className="min-w-0">
-          {format(fromDateKey(dateKey), t('eventCard.dateFormat'), { locale: dateLocale })} · {startTime} – {endTime}
+          {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
         </span>
         {!asLog && (
           <TimeZonePicker

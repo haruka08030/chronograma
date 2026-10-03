@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO } from 'date-fns'
+import { parseISO } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
@@ -15,7 +15,8 @@ import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { tip } from '../../lib/tooltip'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 const WIDTH = 320
 
@@ -25,7 +26,8 @@ const WIDTH = 320
  * 繰り返し予定は Google と同じく「この予定 / すべての繰り返し」を選べる。付けた色は似たタイトルの色なし予定にも広がる。
  */
 export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: string; anchor: AnchorRect; onClose: () => void }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const df = useDateFormat()
   const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
   const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -72,8 +74,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const recurring = !!event.recurringEventId
   const effectiveScope = recurring ? scope : 'event'
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
-  const dateText = format(fromDateKey(event.date), t('eventCard.dateFormat'), { locale: dateLocale })
+  const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0))
   const iconButton =

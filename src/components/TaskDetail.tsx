@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore, paletteColors } from '../store/taskStore'
 import type { Task, Priority, Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
@@ -22,9 +21,9 @@ import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
-import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import { InlineAddInput } from './ui/InlineAddInput'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -38,10 +37,10 @@ export function TaskDetail({
   task: Task
   onClose: () => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
-  const dueDateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
@@ -332,7 +331,7 @@ export function TaskDetail({
                         <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
                         <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                           {tv.dueDate
-                            ? format(fromDateKey(tv.dueDate), 'PPP', { locale: dueDateLocale })
+                            ? df.fullDate(tv.dueDate)
                             : t('dueDatePicker.noDate')}
                         </span>
                       </button>
@@ -424,7 +423,7 @@ export function TaskDetail({
                       <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
                       <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                         {tv.scheduledDate
-                          ? format(fromDateKey(tv.scheduledDate), 'PPP', { locale: dueDateLocale })
+                          ? df.fullDate(tv.scheduledDate)
                           : t('taskDetail.scheduledNone')}
                       </span>
                     </button>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format, nextMonday } from 'date-fns'
+import { addDays, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { IS_MAC, shortcutLabel } from '../lib/keyboard'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
@@ -11,8 +11,9 @@ import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import { ArchiveIcon, ArrowRightIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, SectionIcon, TrashIcon } from './icons'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -41,8 +42,8 @@ export function TaskContextMenu({
   /** 詳細を開く（無い所では「詳細を開く」を出さない） */
   onOpenDetail?: (taskId: string) => void
 }) {
-  const { t, i18n } = useTranslation()
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const { t } = useTranslation()
+  const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const sections = useTaskStore((s) => s.sections)
   const allTasks = useTaskStore((s) => s.tasks)
@@ -69,7 +70,7 @@ export function TaskContextMenu({
   }
 
   const today = appToday()
-  const dayHint = (key: string) => format(fromDateKey(key), 'M/d (EEE)', { locale: dateLocale })
+  const dayHint = (key: string) => df.shortDateWeekday(key)
   const dueLeaves: ActionLeaf[] = [
     { label: t('dueDatePicker.today'), key: toDateKey(today) },
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
@@ -141,7 +142,7 @@ export function TaskContextMenu({
           footer={false}
           value={sharedDue ?? null}
           onPick={(key) => {
-            done(() => bulk.setDue(taskIds, key, key ? format(fromDateKey(key), 'M/d', { locale: dateLocale }) : ''))()
+            done(() => bulk.setDue(taskIds, key, key ? df.shortDate(key) : ''))()
             close()
           }}
         />

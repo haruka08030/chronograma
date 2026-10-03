@@ -15,7 +15,8 @@ import {
 import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 /** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
 function monthGridDays(viewMonth: Date): Date[] {
@@ -44,9 +45,8 @@ export function DatePickerBody({
   /** 下の「今日・明日・なし」。上に同じ項目を並べるとき（右クリックメニュー）は出さない */
   footer?: boolean
 }) {
-  const { t, i18n } = useTranslation()
-  const isJa = Boolean(i18n.resolvedLanguage?.startsWith('ja'))
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const { t } = useTranslation()
+  const df = useDateFormat()
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ? fromDateKey(value) : appToday()))
   const pick = onPick
   const days = monthGridDays(viewMonth)
@@ -58,7 +58,7 @@ export function DatePickerBody({
     <>
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          {format(viewMonth, isJa ? 'yyyy年M月' : 'MMMM yyyy', { locale: dateLocale })}
+          {df.yearMonth(viewMonth)}
         </span>
         <div className="flex items-center gap-0.5">
           <button

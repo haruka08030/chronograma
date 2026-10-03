@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
@@ -14,7 +13,7 @@ import { startTimerForTask } from '../../lib/timerDrop'
 import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { tip } from '../../lib/tooltip'
-import { dateFnsLocale, fromDateKey } from '../../lib/dateKey'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 const WIDTH = 320
 
@@ -34,7 +33,8 @@ export function EventPopover({
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const df = useDateFormat()
   const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId) ?? null)
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -72,8 +72,7 @@ export function EventPopover({
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || list?.color || NEUTRAL_HEX
   const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
-  const dateText = dateKey ? format(fromDateKey(dateKey), t('eventCard.dateFormat'), { locale: dateLocale }) : ''
+  const dateText = dateKey ? df.monthDayWeekdayLong(dateKey) : ''
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
   const logAsPlanned = () => {
     logPlanAsPlanned(task.id)

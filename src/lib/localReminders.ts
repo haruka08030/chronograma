@@ -2,7 +2,6 @@
  * タブを開いている間の通知（Web Push が使えないとき）。何をいつ出すかはサーバーと同じ
  * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ。
  */
-import { format } from 'date-fns'
 import i18n from '../i18n/config'
 import type { Task } from '../types/task'
 import type { ActiveTimer, DailyReminders } from '../store/taskStore'
@@ -18,6 +17,7 @@ import {
 import { isActiveTask } from './taskLifecycle'
 import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
+import { formatDate } from './dateFormat'
 
 const STATE_KEY = 'chronograma-local-reminders'
 /** 閉じていた間の通知はまとめて出さない（開いた瞬間に昔の通知が並ばないように） */
@@ -110,7 +110,7 @@ function dayLabel(date: string, today: string): string {
   if (date === today) return i18n.t('common.today')
   const tomorrow = toDateKey(new Date(fromDateKey(today).getTime() + 86_400_000))
   if (date === tomorrow) return i18n.t('reminders.tomorrow')
-  return format(fromDateKey(date), 'M/d')
+  return formatDate(date, 'shortDate')
 }
 
 function reminderMessage(r: FiredReminder, today: string): Shown {

@@ -5,8 +5,9 @@ import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
-import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -17,9 +18,9 @@ const CHART_HEIGHT = 144
  * 睡眠の記録が無い期間は出さない。
  */
 export function SleepStatsCard() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
   const todayKey = appTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
@@ -39,7 +40,7 @@ export function SleepStatsCard() {
   const y = (off: number) => ((off - lo) / span) * CHART_HEIGHT
   const clockLabel = (off: number) => `${((off / 60 + 12) % 24).toFixed(0)}:00`
 
-  const dayLabel = (key: string) => format(fromDateKey(key), t('sleepStats.dayFormat'), { locale: dateLocale })
+  const dayLabel = (key: string) => df.shortDateWeekday(key)
   const spreadText = (m: number | null) => (summary.count >= 2 && m != null ? t('sleepStats.spread', { m }) : null)
 
   const tiles = [

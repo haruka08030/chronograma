@@ -10,6 +10,7 @@ import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
+import { useDateFormat } from '../hooks/useDateFormat'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -18,6 +19,7 @@ export function WeekReviewCard() {
   const habits = useTaskStore((s) => s.habits)
   const [weekOffset, setWeekOffset] = useState(0)
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
+  const df = useDateFormat()
 
   const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
@@ -56,7 +58,7 @@ export function WeekReviewCard() {
         <div>
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t('weekReview.title')}</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {t('weekReview.range', { start: format(weekStart, t('weekReview.dateFormat'), { locale: dateLocale }) })}
+            {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
           </p>
         </div>
         <DayNav

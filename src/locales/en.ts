@@ -30,6 +30,18 @@ export default {
     completed: 'Done',
     allDay: 'All day',
   },
+  // Date display formats (date-fns). Only lib/dateFormat.ts (formatDate / useDateFormat) reads these
+  dateFormat: {
+    monthDay: 'MMM d',
+    monthDayWeekday: 'EEE, MMM d',
+    monthDayWeekdayLong: 'EEEE, MMM d',
+    shortDate: 'MMM d',
+    shortDateWeekday: 'EEE M/d',
+    shortDateWeekdayYear: 'EEE M/d/yyyy',
+    yearMonth: 'MMMM yyyy',
+    fullDate: 'PPP',
+    monthDayTime: 'MMM d, HH:mm',
+  },
   lists: {
     defaultSomeday: 'Someday',
     defaultShopping: 'Shopping',
@@ -117,8 +129,6 @@ export default {
   },
   planner: {
     todayTitle: 'Today',
-    titleFormat: 'EEEE, MMM d',
-    shortDateFormat: 'MMM d',
     prevDay: 'Previous day',
     nextDay: 'Next day',
     summaryPlanned: '{{time}} planned',
@@ -180,7 +190,6 @@ export default {
   weekReview: {
     title: 'Weekly review',
     range: 'Week of {{start}}',
-    dateFormat: 'MMM d (EEE)',
     prevWeek: 'Previous week',
     nextWeek: 'Next week',
     thisWeek: 'This week',
@@ -238,7 +247,6 @@ export default {
     avgWake: 'Wake time',
     spread: '±{{m}} min',
     chartTitle: 'Each night',
-    dayFormat: 'EEE M/d',
     colDate: 'Woke up on',
   },
   sleep: {
@@ -274,7 +282,6 @@ export default {
     fulfilledHeading: 'Done {{count}}',
     movedToToday: '“{{title}}” is on today’s plan',
     movedToDate: '“{{title}}” is planned for {{date}}',
-    dateFormat: 'MMM d',
   },
   labels: {
     title: 'Labels',
@@ -350,7 +357,6 @@ export default {
     scopeSeries: 'All events',
     googleColor: 'Use Google color',
     logAsPlanned: 'Log as planned',
-    dateFormat: 'EEEE, MMM d',
     edit: 'Edit details',
     log: 'Log',
     markDone: 'Mark done',
