@@ -24,6 +24,7 @@ import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
+import { ListContextMenu } from './ListContextMenu'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -37,13 +38,15 @@ const BIN_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'deleted', icon: ICON_PATHS.trash },
 ]
 
-function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick }: {
+function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick, onContextMenu }: {
   list: TaskList
   isSelected: boolean
   onSelect: () => void
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
+  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない） */
+  onContextMenu: (e: React.MouseEvent) => void
 }) {
   const { t } = useTranslation()
   const isInbox = list.id === INBOX_LIST_ID
@@ -74,6 +77,11 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
       onClick={onSelect}
       onDoubleClick={() => { if (!isInbox) onStartEdit() }}
+      onContextMenu={(e) => {
+        if (isInbox) return
+        e.preventDefault()
+        onContextMenu(e)
+      }}
       onDragOver={(e) => {
         if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
@@ -287,6 +295,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
+  const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
@@ -370,6 +379,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                 onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
                 onDelete={() => deleteList(list.id)}
                 onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
+                onContextMenu={(e) => setListMenu({ x: e.clientX, y: e.clientY, listId: list.id })}
               />
               {listSections.map((sec) => (
                 <SubNavRow
@@ -457,6 +467,17 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
+      {listMenu && (
+        <ListContextMenu
+          {...listMenu}
+          onClose={() => setListMenu(null)}
+          onRename={() => {
+            const l = sorted.find((x) => x.id === listMenu.listId)
+            setEditingId(listMenu.listId)
+            setEditName(l?.name ?? '')
+          }}
+        />
+      )}
     </>
   )
 }
