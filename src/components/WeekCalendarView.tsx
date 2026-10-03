@@ -262,7 +262,7 @@ export function WeekCalendarView({
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const habits = useTaskStore((s) => s.habits)
-  const completeHabitAsPlanned = useTaskStore((s) => s.completeHabitAsPlanned)
+  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
@@ -955,14 +955,16 @@ export function WeekCalendarView({
                             evt.stopPropagation()
                           }}
                           onOpenDetail={() => {}}
-                          withCheck={!done && hasStarted(slot.startTime)}
+                          withCheck={done || hasStarted(slot.startTime)}
                         />
-                        {!done && hasStarted(slot.startTime) && (
+                        {(done || hasStarted(slot.startTime)) && (
+                          // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
                           <SlotCheck
                             top={blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false).top}
                             hStyle={planStyle(slot.id)}
-                            label={t('weekCalendar.habitDoneAsPlanned')}
-                            onCheck={() => completeHabitAsPlanned(habit.id, key)}
+                            done={done}
+                            label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
+                            onCheck={() => toggleHabitDate(habit.id, key)}
                           />
                         )}
                       </div>

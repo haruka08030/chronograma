@@ -318,7 +318,7 @@ export function TodayPlannerView() {
           </div>
         </header>
 
-        <div className="px-3">
+        <div className="relative px-3">
           <h2 className={sectionLabel}>{t('planner.todoHeading')}</h2>
           <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
             <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />
@@ -343,9 +343,12 @@ export function TodayPlannerView() {
               className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
+          {/* 浮かせて出す。行の流れに入れると、欄を離れた瞬間に下の行がずれて押し間違える */}
           <p
             id="planner-add-hint"
-            className={`px-11 text-xs text-zinc-400 transition-opacity dark:text-zinc-500 ${draftFocused ? 'opacity-100' : 'sr-only'}`}
+            className={draftFocused
+              ? 'pointer-events-none absolute inset-x-3 top-full z-10 bg-white px-11 pb-1 text-xs text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500'
+              : 'sr-only'}
           >
             {t('planner.addHint')}
           </p>

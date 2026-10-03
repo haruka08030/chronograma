@@ -45,8 +45,11 @@ export function useCompleteWithLog() {
     if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
-    addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
-    toggleTask(draft.taskId)
+    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す
+    useTaskStore.getState().asOneUndo(() => {
+      addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
+      toggleTask(draft.taskId)
+    })
     setDraft(null)
   }, [draft, addTimeLog, toggleTask])
 

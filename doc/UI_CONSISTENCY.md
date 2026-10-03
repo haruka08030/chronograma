@@ -49,6 +49,8 @@
 | 削除 | 戻せるもの（タスク・記録・セクション・リスト・習慣・ラベル・Google の予定）は確認なしで消して「元に戻す」トースト。戻せないもの（ゴミ箱から完全に削除・アカウント）だけ `askConfirm` | — |
 | 文字からタスクを足す | 「明日 課題」＝やる日、「明日まで 課題」「by / due」＝締切。時刻つきはタイムラインの予定 | `lib/quickAddTask.ts` `addTaskFromQuickText`・`parseQuickAdd` |
 | To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
+| 習慣の達成 | 習慣画面・今日画面・週カレンダーとも、押すと付き、もう一度押すと外す（その日の習慣の記録も外れる） | ストアの `toggleHabitDate` |
+| 記録を足して完了 | 記録の追加と完了は 1 つの操作。元に戻すも 1 回 | `hooks/useCompleteWithLog.tsx` |
 | タイマーの切り替え | どこからでも切り替えられる。前の記録は保存し「○○の記録を保存して切り替えました」と知らせる。行・予定カードは `startTimerForTask` を通す | `lib/timerDrop.ts`・ストアの `startTimer` |
 
 ---
@@ -80,14 +82,11 @@
 
 ### 入力欄
 
-- 今日画面の追加欄からフォーカスが外れると、下のヒントが消えて行が上にずれる（押そうとした行と違う行を押しうる）
 - 複数行の欄（メモ）と、`useTextEntry` を使っていない 1 行の欄（今日画面・買い物・いつか・`QuickAdd` の追加欄）はまだ欄ごとの書き方
 
 ### 完了
 
 - 完了時に「記録も付ける」を聞くのは To-Do 画面の `TaskList` だけ。今日画面・買い物・いつか・予定カードは `toggleTask` だけ
-- 「記録を足して完了」の取り消し: 予定カードと週カレンダーは 1 回で戻るが、`TaskList` の `submitCompleteWithLog` は 2 回必要
-- 習慣: 習慣画面と今日画面は付け外しできるが、週カレンダーの習慣の枠は付けるだけ（`completeHabitAsPlanned`）
 
 ### 日付・時刻の処理の重複
 

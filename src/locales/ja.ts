@@ -793,6 +793,7 @@ export default {
   },
   weekCalendar: {
     habitDoneAsPlanned: '予定どおりやった（記録する）',
+    habitUndo: 'やったを外す',
     eventToRecord: '記録にする',
     lanePlan: '予定',
     laneLog: '記録',

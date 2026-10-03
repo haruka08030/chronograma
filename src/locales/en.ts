@@ -794,6 +794,7 @@ export default {
   },
   weekCalendar: {
     habitDoneAsPlanned: 'Done as planned (log it)',
+    habitUndo: 'Mark as not done',
     eventToRecord: 'Turn into a record',
     lanePlan: 'Plan',
     laneLog: 'Record',

@@ -35,6 +35,8 @@ const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
   { name: 'planner-tip', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")', hover: 'button[aria-label$="完了にする"] >> nth=0' },
+  // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
+  { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
