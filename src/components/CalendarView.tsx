@@ -19,7 +19,7 @@ import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
 import { CalendarCheck } from './timeline/CalendarCheck'
 import { useCompleteWithLog } from '../hooks/useCompleteWithLog'
-import { readDraggedTaskIds, TASK_DND_TYPE } from '../lib/useTimelineDrop'
+import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
   canEditGoogleEvent,
@@ -36,6 +36,7 @@ import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 
 /** 月のマス用の短い時間表記（3h20 / 45m） */
 function formatMinutesShort(m: number): string {
@@ -163,12 +164,13 @@ export function CalendarView({
                 key={key}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
-                            ${dragOverDate === key ? 'bg-accent-50 dark:bg-accent-500/10 ring-2 ring-inset ring-accent-400' : ''}`}
+                            ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
                 onDoubleClick={() => setAddingDate(key)}
-                onDragOver={(e) => { e.preventDefault(); setDragOverDate(key) }}
+                onDragOver={(e) => { if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
                 onDrop={(e) => {
+                  if (!isTaskDrag(e, { googleEvents: true })) return
                   e.preventDefault()
                   setDragOverDate(null)
                   const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
@@ -261,9 +263,7 @@ export function CalendarView({
                       onDragStart={(e) => {
                         e.stopPropagation()
                         dragTaskIdRef.current = t.id
-                        e.dataTransfer.setData(TASK_DND_TYPE, t.id)
-                        e.dataTransfer.setData('text/plain', t.id)
-                        e.dataTransfer.effectAllowed = 'move'
+                        startTaskDrag(e, t.id)
                         beginCalendarItemNativeDrag()
                       }}
                       onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}

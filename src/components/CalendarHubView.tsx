@@ -19,6 +19,7 @@ import {
 } from '../lib/calendarItemDrag'
 import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
+import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -78,9 +79,7 @@ export function CalendarHubView() {
   const unscheduleDropProps = {
     [UNSCHEDULE_DROP_ATTR]: '',
     onDragOver: (e: React.DragEvent) => {
-      if (!itemDrag.active) return
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
+      if (!itemDrag.active || !acceptTaskDrag(e)) return
       setUnscheduleHover(true)
     },
     onDragLeave: (e: React.DragEvent) => {
@@ -102,7 +101,7 @@ export function CalendarHubView() {
     },
   }
   const unscheduleHighlight = itemDrag.overUnschedule
-    ? 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
+    ? DROP_HIGHLIGHT_CLASS
     : ''
 
   return (
