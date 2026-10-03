@@ -491,6 +491,11 @@ function initialLists(): TaskList[] {
   ]
 }
 
+/** 繰り返しの次回の id。元が次回（`…@日付`）でも、いちばん元の id に次の期限を付ける */
+export function recurrenceNextId(id: string, nextDue: string): string {
+  return `${id.replace(/@\d{4}-\d{2}-\d{2}$/, '')}@${nextDue}`
+}
+
 function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']>): string {
   const d = new Date(current + 'T00:00:00')
   switch (recurrence.type) {
@@ -1666,20 +1671,32 @@ export const useTaskStore = create<TaskState>()(
                 }
               : t,
           )
-          if (willComplete && tsk.recurrence && tsk.dueDate) {
-            const next: Task = {
-              ...tsk,
-              id: newId(),
-              completed: false,
-              completedAt: null,
-              dueDate: nextDueDate(tsk.dueDate, tsk.recurrence),
-              scheduledDate: tsk.scheduledDate
-                ? nextDueDate(tsk.scheduledDate, tsk.recurrence)
-                : tsk.scheduledDate ?? null,
-              createdAt: now,
-              updatedAt: now,
+          if (tsk.recurrence && tsk.dueDate) {
+            const nextDue = nextDueDate(tsk.dueDate, tsk.recurrence)
+            const nextId = recurrenceNextId(tsk.id, nextDue)
+            if (willComplete) {
+              // 次回の id を「元の id + 次の期限」で決める。完了 → 戻す → 完了や、2 台で同じ回を完了しても次回は 1 つ
+              if (!newTasks.some((t) => t.id === nextId)) {
+                const next: Task = {
+                  ...tsk,
+                  id: nextId,
+                  completed: false,
+                  completedAt: null,
+                  dueDate: nextDue,
+                  scheduledDate: tsk.scheduledDate
+                    ? nextDueDate(tsk.scheduledDate, tsk.recurrence)
+                    : tsk.scheduledDate ?? null,
+                  createdAt: now,
+                  updatedAt: now,
+                }
+                newTasks = [...newTasks, next]
+              }
+            } else {
+              // 完了を取り消したら、そのとき作った次回を片付ける（まだ手を付けていなければ）
+              newTasks = newTasks.filter(
+                (t) => !(t.id === nextId && !t.completed && t.updatedAt === t.createdAt),
+              )
             }
-            newTasks = [...newTasks, next]
           }
           return { tasks: newTasks }
         })
