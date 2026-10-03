@@ -25,7 +25,7 @@ import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, habitRecordsFor, plannedRecordTimes } from '../lib/habitTiming'
 import { canNestUnder, getIndentTargetId } from '../lib/taskDepth'
-import { buildBackupPayload, parseBackupJson } from '../lib/backupFormat'
+import { buildBackupPayload, parseBackupJson, withFreshStamps } from '../lib/backupFormat'
 import { parseTasksCsv } from '../lib/importTasksCsv'
 import { timerRecordTimes } from '../lib/timerRecord'
 import { taskPlacementDate } from '../lib/taskTimeRange'
@@ -2097,8 +2097,9 @@ export const useTaskStore = create<TaskState>()(
       },
 
       importData: (json) => {
-        const parsed = parseBackupJson(json)
-        if (!parsed) return false
+        const read = parseBackupJson(json)
+        if (!read) return false
+        const parsed = withFreshStamps(read)
         // ⌘Z はメモリ上だけなので、再読み込みをまたげる控えも別に残す
         const before = get()
         saveImportRollback({
@@ -2134,11 +2135,12 @@ export const useTaskStore = create<TaskState>()(
       restoreBeforeImport: () => {
         const saved = loadImportRollback()
         if (!saved) return false
-        const parsed = parseBackupJson(saved.json)
-        if (!parsed) {
+        const read = parseBackupJson(saved.json)
+        if (!read) {
           clearImportRollback()
           return false
         }
+        const parsed = withFreshStamps(read)
         pushUndo()
         set({
           tasks: parsed.tasks,

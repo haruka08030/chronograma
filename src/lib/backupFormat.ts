@@ -1,4 +1,4 @@
-import type { Task, Priority } from '../types/task'
+import type { Task, Priority, Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit } from '../types/habit'
@@ -59,6 +59,39 @@ function readString(raw: Record<string, unknown>, ...keys: string[]): string | n
   return null
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const TIME_RE = /^\d{2}:\d{2}$/
+
+/** 日付（yyyy-MM-dd）として読めるものだけ */
+function readDate(...values: unknown[]): string | null {
+  for (const v of values) if (typeof v === 'string' && DATE_RE.test(v)) return v
+  return null
+}
+
+/** 時刻（HH:mm）として読めるものだけ */
+function readTime(...values: unknown[]): string | null {
+  for (const v of values) if (typeof v === 'string' && TIME_RE.test(v)) return v
+  return null
+}
+
+/** ISO 時刻として読めるもの。読めなければ fallback（いま） */
+function readStamp(fallback: string, ...values: unknown[]): string {
+  for (const v of values) if (typeof v === 'string' && Number.isFinite(Date.parse(v))) return v
+  return fallback
+}
+
+function readStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
+function readRecurrence(v: unknown): Recurrence | null {
+  if (typeof v !== 'object' || v === null) return null
+  const r = v as Record<string, unknown>
+  if (r.type !== 'daily' && r.type !== 'weekly' && r.type !== 'monthly' && r.type !== 'yearly') return null
+  const interval = typeof r.interval === 'number' && Number.isInteger(r.interval) && r.interval > 0 ? r.interval : 1
+  return { type: r.type, interval }
+}
+
 function normalizePriority(raw: unknown): Priority {
   if (raw === 'none' || raw === 'low' || raw === 'medium' || raw === 'high') return raw
   return 'medium'
@@ -73,6 +106,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
   if (!id || title === null || !listId) return null
 
   const t = raw as Task
+  const now = new Date().toISOString()
   const isTimeLog =
     t.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true'
   const completedAtRaw = row.completedAt ?? row.completed_at
@@ -93,16 +127,34 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const habitIdRaw = row.habitId ?? row.habit_id
   const isSleepRaw = row.isSleep ?? row.is_sleep
 
+  // 手で直したファイルや古い形でも、画面が前提にしている形にそろえる。
+  // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）
+  const createdAt = readStamp(now, row.createdAt, row.created_at)
   return {
     ...t,
     id,
     title,
     listId,
     order,
+    description: typeof row.description === 'string' ? row.description : '',
+    completed: row.completed === true,
+    createdAt,
+    updatedAt: readStamp(createdAt, row.updatedAt, row.updated_at),
+    dueDate: readDate(row.dueDate, row.due_date),
+    endDate: readDate(row.endDate, row.end_date),
+    startTime: readTime(row.startTime, row.start_time),
+    endTime: readTime(row.endTime, row.end_time),
+    tags: readStringArray(row.tags),
+    recurrence: readRecurrence(row.recurrence),
+    reminders: Array.isArray(row.reminders) ? (row.reminders as Task['reminders']) : null,
+    color: typeof row.color === 'string' ? row.color : null,
+    location: typeof row.location === 'string' ? row.location : null,
+    timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
+    timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : (t.sectionId ?? null),
     parentId: typeof parentRaw === 'string' ? parentRaw : (t.parentId ?? null),
-    dueTime: typeof dueTimeRaw === 'string' ? dueTimeRaw : null,
-    scheduledDate: typeof scheduledDateRaw === 'string' ? scheduledDateRaw : null,
+    dueTime: readTime(dueTimeRaw),
+    scheduledDate: readDate(scheduledDateRaw),
     priority: normalizePriority(t.priority ?? row.priority),
     isTimeLog: Boolean(isTimeLog),
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
@@ -147,19 +199,28 @@ function normalizeHabitRow(raw: unknown): Habit | null {
   if (typeof raw !== 'object' || raw === null) return null
   const rec = raw as Record<string, unknown>
   const h = raw as Habit
-  if (typeof h.id !== 'string' || typeof h.title !== 'string') return null
+  if (typeof h.id !== 'string' || !h.id || typeof h.title !== 'string') return null
+  const now = new Date().toISOString()
   const startTime = typeof h.startTime === 'string' ? h.startTime : null
   const endTime = typeof h.endTime === 'string' ? h.endTime : null
   const timeMode =
     h.timeMode === 'none' || h.timeMode === 'fixed' || h.timeMode === 'range'
       ? h.timeMode
       : inferHabitTimeMode(startTime, endTime)
+  const weekdays = h.frequency?.type === 'weekly' && Array.isArray(h.frequency.weekdays)
+    ? h.frequency.weekdays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+    : null
   return {
     ...h,
     ...rec,
+    color: typeof h.color === 'string' ? h.color : '#6366f1',
+    frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
+    createdAt: readStamp(now, h.createdAt),
+    updatedAt: readStamp(now, h.updatedAt),
+    completedDates: readStringArray(h.completedDates).filter((d) => DATE_RE.test(d)),
     timeMode,
-    startTime,
-    endTime,
+    startTime: readTime(startTime),
+    endTime: readTime(endTime),
   } as Habit
 }
 
@@ -270,4 +331,19 @@ export function previewBackupJson(json: string): { tasks: number; lists: number 
   const parsed = parseBackupJson(json)
   if (!parsed) return null
   return { tasks: parsed.tasks.length, lists: parsed.lists.length }
+}
+
+/**
+ * 全置換の取り込み・取り込みの取り消しで使う。ファイルの古い updatedAt のままだと、同期で
+ * サーバーにある新しい行のほうが勝ち、取り込んだ内容と元の内容が混ざっていた
+ */
+export function withFreshStamps(result: BackupImportResult): BackupImportResult {
+  const updatedAt = new Date().toISOString()
+  return {
+    ...result,
+    tasks: result.tasks.map((t) => ({ ...t, updatedAt })),
+    lists: result.lists.map((l) => ({ ...l, updatedAt })),
+    sections: result.sections.map((s) => ({ ...s, updatedAt })),
+    habits: result.habits.map((h) => ({ ...h, updatedAt })),
+  }
 }
