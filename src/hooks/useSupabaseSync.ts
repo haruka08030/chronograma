@@ -15,6 +15,7 @@ import {
 } from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
+import { asIncomingChange } from '../lib/changeOrigin'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -92,10 +93,12 @@ export function useSupabaseSync() {
       const sel = cur.selectedListId
       applyingRef.current = true
       try {
-        useTaskStore.setState({
-          ...next,
-          selectedListId: sel && !listIds.has(sel) ? INBOX_LIST_ID : sel,
-        })
+        asIncomingChange(() =>
+          useTaskStore.setState({
+            ...next,
+            selectedListId: sel && !listIds.has(sel) ? INBOX_LIST_ID : sel,
+          }),
+        )
       } finally {
         applyingRef.current = false
       }

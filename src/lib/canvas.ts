@@ -5,6 +5,7 @@ import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
 import { wallInZone } from './timeZone'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
+import { externalPatch, type PulledFields } from './externalFields'
 
 /**
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -228,6 +229,8 @@ export type CanvasReconcileResult = {
   tasks: Task[]
   /** Canvas 側で済んだので自動で完了にしたタスク。Canvas へ書き戻さない */
   autoCompletedIds: string[]
+  /** 今回の取り込みのあとに覚えておく値（`opts.pulled` を渡したとき） */
+  pulled: Record<string, PulledFields>
   changed: boolean
 }
 
@@ -241,7 +244,19 @@ export type CanvasReconcileResult = {
 export function reconcileCanvasItems(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
   payload: CanvasConnectionItems,
-  opts: { now: string; listName: string; listColor: string; timeZone: string; untitled: string; skipIds?: ReadonlySet<string> },
+  opts: {
+    now: string
+    listName: string
+    listColor: string
+    timeZone: string
+    untitled: string
+    skipIds?: ReadonlySet<string>
+    /**
+     * 前回取り込んだ値。渡すと、ユーザーが変えたタイトル・期限は Canvas の値で上書きしない
+     * （手元の値が前回取り込んだ値と同じとき＝変えていないときだけ、Canvas の新しい値にする）
+     */
+    pulled?: Readonly<Record<string, PulledFields>>
+  },
 ): CanvasReconcileResult {
   const conn = payload.id
   const listId = CANVAS_LIST_ID
@@ -261,6 +276,7 @@ export function reconcileCanvasItems(
   const updates = new Map<string, Task>()
   const additions: Task[] = []
   const autoCompletedIds: string[] = []
+  const pulled: Record<string, PulledFields> = { ...(opts.pulled ?? {}) }
   let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === listId).map((t) => t.order)) + 1
 
   const complete = (t: Task) => {
@@ -284,6 +300,7 @@ export function reconcileCanvasItems(
     const { dueDate, dueTime } = item.dueDate ? { dueDate: item.dueDate, dueTime: null } : canvasDue(item.dueAt, opts.timeZone)
 
     if (!existing) {
+      pulled[id] = { title, dueDate, dueTime }
       additions.push({
         id,
         title,
@@ -315,12 +332,9 @@ export function reconcileCanvasItems(
       continue
     }
 
-    const patch: Partial<Task> = {}
-    if (existing.title !== title) patch.title = title
-    if (existing.dueDate !== dueDate || (existing.dueTime ?? null) !== dueTime) {
-      patch.dueDate = dueDate
-      patch.dueTime = dueTime
-    }
+    // ユーザーが手元で変えたタイトル・期限は上書きしない（externalPatch）
+    const patch = externalPatch(existing, { title, dueDate, dueTime }, opts.pulled?.[id], { remember: Boolean(opts.pulled) })
+    pulled[id] = { title, dueDate, dueTime }
     if (Object.keys(patch).length > 0) updates.set(id, { ...existing, ...patch, updatedAt: opts.now })
   }
 
@@ -333,13 +347,14 @@ export function reconcileCanvasItems(
   }
 
   if (updates.size === 0 && additions.length === 0) {
-    return { lists, sections, tasks: state.tasks, autoCompletedIds, changed }
+    return { lists, sections, tasks: state.tasks, autoCompletedIds, pulled, changed }
   }
   return {
     lists,
     sections,
     tasks: [...state.tasks.map((t) => updates.get(t.id) ?? t), ...additions],
     autoCompletedIds,
+    pulled,
     changed: true,
   }
 }

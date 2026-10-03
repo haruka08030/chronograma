@@ -14,8 +14,11 @@ import {
   parseCanvasTaskId,
   reconcileCanvasItems,
 } from '../lib/canvas'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 import { notify } from '../lib/notify'
+import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
+import { isLeaderTab } from '../lib/tabLeader'
+import { loadPulled, savePulled } from '../lib/externalFields'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -63,6 +66,9 @@ export function requestCanvasSync() {
   requestSync?.()
 }
 
+/** 前回 Canvas から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
+const pulledKey = (userId: string) => `chronograma-canvas-pulled-v1:${userId}`
+
 export function useCanvasSyncState(): CanvasSyncState {
   return useSyncExternalStore(
     (l) => {
@@ -95,7 +101,10 @@ export function useCanvasSync() {
     /** カレンダーフィードでつないだ学校。完了を書き戻さない */
     const readOnly = new Set<string>()
 
-    const run = async () => {
+    /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
+    const run = async (manual = false) => {
+      // 取り込みは代表の 1 つのタブだけ（ほかのタブは保存の共有で同じ結果を受け取る）
+      if (!manual && !isLeaderTab()) return
       if (running) {
         rerun = true
         return
@@ -129,6 +138,7 @@ export function useCanvasSync() {
             tagsEnabled = true
           }
           const connectionErrors: Record<string, string> = {}
+          const pulled = loadPulled(pulledKey(userId))
           for (const conn of res.connections) {
             if ('error' in conn) {
               connectionErrors[conn.id] = conn.error
@@ -144,14 +154,17 @@ export function useCanvasSync() {
               untitled: i18n.t('canvas.untitled'),
               // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
               skipIds: new Set(pendingWrite.keys()),
+              pulled,
             })
+            Object.assign(pulled, result.pulled)
             result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
             if (result.changed) {
               next = { lists: result.lists, sections: result.sections, tasks: result.tasks }
               changed = true
             }
           }
-          if (changed) useTaskStore.setState({ ...next, selectedListId, tagsEnabled })
+          savePulled(pulledKey(userId), pulled)
+          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId, tagsEnabled }))
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {
@@ -187,6 +200,8 @@ export function useCanvasSync() {
 
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (state.tasks === prev.tasks) return
+      // 書き戻すのはこの端末でのユーザーの操作だけ（同期・他のタブ・取り込みで届いた完了は書き戻さない）
+      if (isIncomingChange() || isAdoptingFromOtherTab()) return
       let prevById: Map<string, boolean> | null = null
       for (const t of state.tasks) {
         if (!t.id.startsWith('canvas-')) continue
@@ -205,7 +220,7 @@ export function useCanvasSync() {
       }
     })
 
-    requestSync = () => void run()
+    requestSync = () => void run(true)
 
     // 初回はクラウド同期が一度終わるのを待つ（時間切れなら待たずに始める）
     let firstTimer: ReturnType<typeof setTimeout> | undefined

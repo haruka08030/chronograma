@@ -16,6 +16,7 @@ import {
   type CanvasItem,
   type CanvasStatus,
 } from './canvas'
+import type { PulledFields } from './externalFields'
 
 const NOW = '2026-10-02T00:00:00.000Z'
 const CONN = 'school.instructure.com'
@@ -38,7 +39,7 @@ function item(id: string, patch: Partial<CanvasItem> = {}): CanvasItem {
   }
 }
 
-function reconcile(tasks: Task[], items: CanvasItem[], extra: Partial<typeof opts & { skipIds: Set<string> }> = {}) {
+function reconcile(tasks: Task[], items: CanvasItem[], extra: Partial<typeof opts & { skipIds: Set<string>; pulled: Record<string, PulledFields> }> = {}) {
   return reconcileCanvasItems({ lists: [inbox], sections: [], tasks }, { ...WINDOW, items }, { ...opts, ...extra })
 }
 
@@ -95,6 +96,22 @@ describe('reconcileCanvasItems', () => {
     const tasks = imported([item('1')])
     const r = reconcile(tasks, [item('1', { title: 'レポート（改）', dueAt: '2026-10-06T14:59:59Z' })])
     expect(r.tasks[0]).toMatchObject({ title: 'レポート（改）', dueDate: '2026-10-06' })
+  })
+
+  it('keeps a title or deadline the user changed, and still follows later Canvas changes to the other field', () => {
+    const first = reconcile([], [item('1')], { pulled: {} })
+    const id = first.tasks[0]!.id
+    // ユーザーがタイトルを書き換えた
+    const edited = first.tasks.map((t) => ({ ...t, title: '自分用のメモ' }))
+    const r = reconcile(edited, [item('1', { title: 'レポート（改）', dueAt: '2026-10-06T14:59:59Z' })], { pulled: first.pulled })
+    expect(r.tasks[0]).toMatchObject({ id, title: '自分用のメモ', dueDate: '2026-10-06' })
+    expect(r.pulled[id]).toMatchObject({ title: 'レポート（改）', dueDate: '2026-10-06' })
+  })
+
+  it('treats the current values as the last pulled ones when nothing was remembered (does not overwrite)', () => {
+    const tasks = imported([item('1')]).map((t) => ({ ...t, title: '自分用のメモ' }))
+    const r = reconcile(tasks, [item('1')], { pulled: {} })
+    expect(r.tasks[0]!.title).toBe('自分用のメモ')
   })
 
   it('completes a task once it is submitted in Canvas, and reports it as automatic', () => {

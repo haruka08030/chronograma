@@ -11,7 +11,10 @@ import {
   parseNotionTaskId,
   reconcileNotionPages,
 } from '../lib/notion'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
+import { isLeaderTab } from '../lib/tabLeader'
+import { loadPulled, savePulled } from '../lib/externalFields'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
 const POLL_MS = 5 * 60_000
@@ -43,6 +46,9 @@ function setSyncState(patch: Partial<NotionSyncState>) {
 export function requestNotionSync() {
   requestSync?.()
 }
+
+/** 前回 Notion から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
+const notionPulledKey = (userId: string) => `chronograma-notion-pulled-v1:${userId}`
 
 export function useNotionSyncState(): NotionSyncState {
   return useSyncExternalStore(
@@ -80,7 +86,10 @@ export function useNotionSync() {
     const autoCompleted = new Set<string>()
     const pendingAdvance = new Map<string, { timer: ReturnType<typeof setTimeout>; pageId: string; status: string }>()
 
-    const run = async () => {
+    /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
+    const run = async (manual = false) => {
+      // 取り込みは代表の 1 つのタブだけ
+      if (!manual && !isLeaderTab()) return
       if (running) {
         rerun = true
         return
@@ -110,10 +119,12 @@ export function useNotionSync() {
               now: new Date().toISOString(),
               listColor: cols[s.lists.length % cols.length],
               titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
+              pulled: loadPulled(notionPulledKey(userId)),
             },
           )
+          savePulled(notionPulledKey(userId), result.pulled)
           result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
-          if (result.changed) useTaskStore.setState({ lists: result.lists, tasks: result.tasks })
+          if (result.changed) asIncomingChange(() => useTaskStore.setState({ lists: result.lists, tasks: result.tasks }))
           setSyncState({ connected: true, configured: true, lastSyncedAt: new Date().toISOString(), error: null })
         } while (rerun && !cancelled)
       } catch (e) {
@@ -163,6 +174,8 @@ export function useNotionSync() {
 
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (state.tasks === prev.tasks) return
+      // 進めるのはこの端末でのユーザーの完了だけ（同期・他のタブ・取り込みで届いた完了では進めない）
+      if (isIncomingChange() || isAdoptingFromOtherTab()) return
       let prevById: Map<string, boolean> | null = null
       for (const t of state.tasks) {
         if (!t.completed || !t.id.startsWith('notion-')) continue
@@ -177,7 +190,7 @@ export function useNotionSync() {
       }
     })
 
-    requestSync = () => void run()
+    requestSync = () => void run(true)
 
     // 初回はクラウド同期が一度終わるのを待つ（時間切れなら待たずに始める）
     let firstTimer: ReturnType<typeof setTimeout> | undefined
