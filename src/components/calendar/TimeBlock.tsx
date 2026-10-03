@@ -74,7 +74,7 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-5' : 'pr-1.5'} text-left text-[11px] leading-tight
+      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px] leading-tight
         cursor-grab select-none touch-none pointer-coarse:touch-auto transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
@@ -112,8 +112,11 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
  */
 export function SlotCheck({ top, hStyle, label, done, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
   return (
-    <div className="pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
-      <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} className="pointer-events-auto" />
+    // 細いブロック（週表示の予定・記録の 2 列など）では出さない。題名を隠し、つかむ場所で完了になってしまう。完了はカード・メニューから
+    <div className="@container pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
+      <span className="pointer-events-auto hidden @[5.5rem]:block">
+        <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} />
+      </span>
     </div>
   )
 }
