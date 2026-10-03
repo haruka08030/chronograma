@@ -510,7 +510,6 @@ export default {
     title: 'Settings',
     intro: 'Change appearance, notifications, labels, account, and data import/export.',
     appearance: 'Appearance',
-    tagsEnabled: 'Use tags in To-Do',
     data: 'Data',
     account: 'Account',
     supabaseOff: 'Cloud sync isn’t available in this version. Your data is saved on this device.',

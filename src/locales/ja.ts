@@ -508,7 +508,6 @@ export default {
     title: '設定',
     intro: '外観・通知・ラベル・アカウント・データの入出力を変更できます。',
     appearance: '外観',
-    tagsEnabled: 'To-Do でタグを使う',
     data: 'データ',
     account: 'アカウント',
     supabaseOff: 'このバージョンではクラウド同期を使えません。データはこの端末に保存されます。',

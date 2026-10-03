@@ -48,7 +48,6 @@ export function TaskDetail({
   const df = useDateFormat()
   const isLog = task.isTimeLog === true
   const updateTask = useTaskStore((s) => s.updateTask)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   useTaskStore((s) => s.appTimeZone)
   // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）
   const zone = foreignTimeZone(task)
@@ -539,9 +538,10 @@ export function TaskDetail({
           {isLog ? (
             // 見出しは付けない（ボタンに色とラベル名が出るので重ねない）
             <ColorLabelPicker task={task} />
-          ) : tagsEnabled && (
+          ) : (
           <div>
             <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.tags')}</label>
+            {task.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {task.tags.map((tag) => (
                 <span
@@ -556,6 +556,7 @@ export function TaskDetail({
                 </span>
               ))}
             </div>
+            )}
             <div className="flex gap-2">
               <input
                 value={tagInput}

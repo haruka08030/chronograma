@@ -73,7 +73,6 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   const state = useTaskStore.getState()
   const isSubtask = opts.parentId != null
   const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
-    tags: state.tagsEnabled,
     lists: !isSubtask,
   })
   const target = parsed.listName

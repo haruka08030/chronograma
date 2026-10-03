@@ -120,7 +120,6 @@ export const useTaskStore = create<TaskState>()(
       notificationsEnabled: false,
       recordPrompts: true,
       recordPromptTaskId: null as string | null,
-      tagsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
