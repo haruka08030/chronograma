@@ -2,7 +2,7 @@ import { format, subDays } from 'date-fns'
 import type { Habit } from '../types/habit'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
-import { zonedNow } from './timeZone'
+import { appToday } from './timeZone'
 
 export function colorIndexForPalette(habitColor: string, listColors: readonly string[], fallback = 4): number {
   const normalized = habitColor.trim().toLowerCase()
@@ -41,7 +41,7 @@ export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIn
   let expected = 0
   let completed = 0
   for (let i = 0; i < 7; i++) {
-    const d = subDays(zonedNow(), i)
+    const d = subDays(appToday(), i)
     const key = habitDateKey(d)
     for (const h of habits) {
       if (!isHabitScheduledOnDate(h, d)) continue
@@ -60,7 +60,7 @@ export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIn
 export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): number {
   if (habits.length === 0) return 0
   const anyAchieved = (i: number) => {
-    const key = habitDateKey(subDays(zonedNow(), i))
+    const key = habitDateKey(subDays(appToday(), i))
     return habits.some((h) => achieved(h, key, records))
   }
   let streak = 0

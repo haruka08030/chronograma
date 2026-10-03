@@ -96,22 +96,48 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-/** date-fns の isToday / isTomorrow / isPast の、アプリのタイムゾーン版 */
+const p2 = (n: number) => String(n).padStart(2, '0')
+
+/**
+ * 1 日の区切り（時）。これより前の夜中は、まだ前の日として扱う。
+ * 0:30 に開いたときに「今日」が翌日に変わり、まだ寝ていないのにその日の予定や記録が見えなくなっていた
+ */
+export const DAY_START_HOUR = 4
+
+/** アプリの「今日」（その日の 0:00 の壁時計）。夜中の 0〜4 時はまだ前の日 */
+export function appToday(): Date {
+  const d = zonedNow()
+  d.setHours(d.getHours() - DAY_START_HOUR)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/** アプリの「今日」の `yyyy-MM-dd` */
+export function appTodayKey(): string {
+  const d = appToday()
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+}
+
+/** date-fns の isToday / isTomorrow の、アプリの「今日」版（夜中はまだ前の日） */
 export function isAppToday(d: Date): boolean {
-  return sameDay(d, zonedNow())
+  return sameDay(d, appToday())
 }
 
 export function isAppTomorrow(d: Date): boolean {
-  const t = zonedNow()
+  const t = appToday()
   t.setDate(t.getDate() + 1)
   return sameDay(d, t)
+}
+
+/** 今の時刻がその日の中にあるか（現在の線・スクロール用。区切りは 0 時のまま） */
+export function isNowOnDay(d: Date): boolean {
+  return sameDay(d, zonedNow())
 }
 
 export function isAppPast(d: Date): boolean {
   return d.getTime() < zonedNow().getTime()
 }
 
-const p2 = (n: number) => String(n).padStart(2, '0')
 
 export interface WallClock {
   /** `yyyy-MM-dd` */

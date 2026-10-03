@@ -33,7 +33,7 @@ import { taskPlacementDate } from '../lib/taskTimeRange'
 import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../lib/sleep'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { restoreMissing } from '../lib/autoBackup'
-import { appTimeZone, isValidTimeZone, setAppTimeZoneSetting, zonedNow } from '../lib/timeZone'
+import { appTimeZone, isValidTimeZone, setAppTimeZoneSetting, zonedNow, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 
@@ -807,7 +807,7 @@ export const useTaskStore = create<TaskState>()(
       storageFull: false,
       sectionScrollTarget: null as string | null,
       calendarMode: 'week' as CalendarMode,
-      selectedCalendarDateKey: format(zonedNow(), 'yyyy-MM-dd'),
+      selectedCalendarDateKey: appTodayKey(),
       theme: 'system' as 'light' | 'dark' | 'system',
       searchQuery: '',
       sortMode: 'manual' as SortMode,

@@ -6,7 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { getWeekReview } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
-import { zonedNow } from '../lib/timeZone'
+import { appToday } from '../lib/timeZone'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
@@ -17,7 +17,7 @@ export function WeekReviewCard() {
   const [weekOffset, setWeekOffset] = useState(0)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
 
-  const anchor = useMemo(() => addWeeks(zonedNow(), weekOffset), [weekOffset])
+  const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])

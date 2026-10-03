@@ -9,7 +9,7 @@ import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
-import { zonedNow } from '../lib/timeZone'
+import { appTodayKey } from '../lib/timeZone'
 import { isSubmitEnter } from '../lib/keyboard'
 
 /**
@@ -44,7 +44,7 @@ export function SomedayView({ list }: { list: TaskList }) {
   }
 
   const doToday = (item: Task) => {
-    promoteToPlanned(item.id, format(zonedNow(), 'yyyy-MM-dd'))
+    promoteToPlanned(item.id, appTodayKey())
     showMoveBanner(t('someday.movedToToday', { title: item.title }))
   }
 

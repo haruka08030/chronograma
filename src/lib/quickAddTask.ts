@@ -1,11 +1,10 @@
-import { format } from 'date-fns'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { parseQuickAddTitle } from './parseQuickAdd'
 import { findListByName } from './listKind'
 import { displayListName } from './displayListName'
-import { zonedNow } from './timeZone'
+import { appTodayKey } from './timeZone'
 
 export interface QuickAddOptions {
   /** リストを書かなかったときに入れるリスト。省略すると選んでいるリスト（無ければ未分類） */
@@ -57,7 +56,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   // いつか・チェックリストには日付を付けない（付けると期限のビューに戻ってきてしまう）
   if (kind === 'tasks') {
     if (parsed.startTime) {
-      patch.scheduledDate = (parsed.dateIsDeadline ? null : parsed.date) ?? opts.defaultDate ?? format(zonedNow(), 'yyyy-MM-dd')
+      patch.scheduledDate = (parsed.dateIsDeadline ? null : parsed.date) ?? opts.defaultDate ?? appTodayKey()
       patch.startTime = parsed.startTime
       patch.endTime = parsed.endTime
       if (parsed.dateIsDeadline) patch.dueDate = parsed.date

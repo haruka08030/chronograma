@@ -74,7 +74,7 @@ import { GoogleEventPopover } from './timeline/GoogleEventPopover'
 import { QuickCreatePopover } from './timeline/QuickCreatePopover'
 import { isSleepRecord } from '../lib/sleep'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
-import { isAppToday, zonedNow } from '../lib/timeZone'
+import { isAppToday, zonedNow, appTodayKey, isNowOnDay } from '../lib/timeZone'
 import { TimeGutter, TimeGutterHeader } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { dayMarkerClass, SELECTED_COLUMN, TODAY_COLUMN, TODAY_TEXT } from '../lib/dayMarker'
@@ -293,7 +293,7 @@ export function WeekCalendarView({
     return eachDayOfInterval({ start: ws, end: we })
   }, [anchor])
 
-  const focusKey = selectedDateKey ?? format(zonedNow(), 'yyyy-MM-dd')
+  const focusKey = selectedDateKey ?? appTodayKey()
   const gridDays = useMemo(() => {
     if (isDesktop && !singleDay) return days
     const hit = days.find((d) => format(d, 'yyyy-MM-dd') === focusKey)
@@ -381,8 +381,10 @@ export function WeekCalendarView({
     if (!scrollRef.current) return
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
     const now = zonedNow()
-    const showNow = singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d))
-    const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : 7.5
+    const showNow = singleDay ? isNowOnDay(anchor) : days.some((d) => isNowOnDay(d))
+    // 夜中（区切りの前）に前の日を開いたときは、夜の予定・記録が見えるよう夕方から
+    const lateNight = !showNow && (singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d)))
+    const hours = showNow ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1.5) : lateNight ? 17 : 7.5
     // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
     if (keepScrollOnFlipRef.current) {
       keepScrollOnFlipRef.current = false

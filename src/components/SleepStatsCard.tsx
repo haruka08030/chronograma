@@ -4,7 +4,7 @@ import { addDays, format, parseISO } from 'date-fns'
 import { enUS, ja } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
-import { zonedNow } from '../lib/timeZone'
+import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
 
 const DAYS = 14
@@ -19,7 +19,7 @@ export function SleepStatsCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const dateLocale = i18n.resolvedLanguage?.startsWith('ja') ? ja : enUS
-  const todayKey = format(zonedNow(), 'yyyy-MM-dd')
+  const todayKey = appTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
 

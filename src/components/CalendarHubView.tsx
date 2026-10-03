@@ -17,7 +17,7 @@ import {
   UNSCHEDULE_PATCH,
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
-import { zonedNow } from '../lib/timeZone'
+import { appToday } from '../lib/timeZone'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -27,8 +27,8 @@ export function CalendarHubView() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   // 右の日パネルと内容が重なり、グリッドを 4 割潰していたので既定は閉じる（「ToDo を表示」で開く）
   const [dockOpen, setDockOpen] = useState(false)
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(zonedNow()))
-  const [weekAnchor, setWeekAnchor] = useState(() => zonedNow())
+  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(appToday()))
+  const [weekAnchor, setWeekAnchor] = useState(() => appToday())
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
@@ -45,7 +45,7 @@ export function CalendarHubView() {
   }, [setSelectedCalendarDateKey])
 
   const onGoToday = useCallback(() => {
-    const today = zonedNow()
+    const today = appToday()
     const key = format(today, 'yyyy-MM-dd')
     setSelectedCalendarDateKey(key)
     setMonthCursor(startOfMonth(today))

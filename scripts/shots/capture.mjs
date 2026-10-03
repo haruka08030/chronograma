@@ -202,7 +202,10 @@ async function main() {
 
           const at = screen.at ?? args.at
           const instant = at ? instantAt(at, TIMEZONE) : new Date()
-          const seed = buildSeedState({ theme, now: nowInTimeZone(TIMEZONE, instant) })
+          // アプリと同じく、朝 4 時までは前の日を「今日」として種を置く（timeZone.ts の DAY_START_HOUR）
+          const seedNow = nowInTimeZone(TIMEZONE, instant)
+          if (seedNow.getHours() < 4) seedNow.setDate(seedNow.getDate() - 1)
+          const seed = buildSeedState({ theme, now: seedNow })
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
             seed.state.selectedView = screen.view

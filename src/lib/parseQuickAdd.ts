@@ -1,5 +1,5 @@
 import { addDays, format, isValid, parseISO, startOfDay } from 'date-fns'
-import { zonedNow } from './timeZone'
+import { appToday } from './timeZone'
 
 export type ParsedQuickAdd = {
   title: string
@@ -151,7 +151,8 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
 export function parseQuickAddTitle(
   raw: string,
   localeJa: boolean,
-  now = zonedNow(),
+  /** 「今日」「明日」の基準の日（夜中はまだ前の日。`appToday`） */
+  now: Date = appToday(),
   /** タグを使わない設定なら `#…` も題名のまま残す */
   opts: { tags?: boolean } = {},
 ): ParsedQuickAdd {

@@ -17,7 +17,7 @@ import {
 import { enUS, ja } from 'date-fns/locale'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
-import { zonedNow } from '../lib/timeZone'
+import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
@@ -80,7 +80,7 @@ export function DueDatePopover({
   const [open, setOpen] = useState(false)
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({})
   const [viewMonth, setViewMonth] = useState(() =>
-    startOfMonth(value ? parseDateKey(value) : zonedNow()),
+    startOfMonth(value ? parseDateKey(value) : appToday()),
   )
 
   // ref ではなく state で持つ（描画中に渡す toggle から読むため）
@@ -124,7 +124,7 @@ export function DueDatePopover({
 
   const toggle = () => {
     if (!open) {
-      setViewMonth(startOfMonth(value ? parseDateKey(value) : zonedNow()))
+      setViewMonth(startOfMonth(value ? parseDateKey(value) : appToday()))
       place()
     }
     setOpen((o) => !o)
@@ -137,8 +137,8 @@ export function DueDatePopover({
 
   const days = monthGridDays(viewMonth)
   const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
-  const todayKey = format(zonedNow(), 'yyyy-MM-dd')
-  const tomorrowKey = format(addDays(zonedNow(), 1), 'yyyy-MM-dd')
+  const todayKey = appTodayKey()
+  const tomorrowKey = format(addDays(appToday(), 1), 'yyyy-MM-dd')
 
   return (
     <div

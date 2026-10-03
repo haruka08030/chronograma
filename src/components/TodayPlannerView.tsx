@@ -26,7 +26,7 @@ import type { Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
-import { isAppToday, zonedNow } from '../lib/timeZone'
+import { isAppToday, appToday } from '../lib/timeZone'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
@@ -67,9 +67,9 @@ export function TodayPlannerView() {
   const now = useNowMinuteTick()
   const { detailTask, openDetail, closeDetail } = useTaskDetailModal(tasks)
 
-  const [dateKey, setDateKey] = useState(() => dayKeyOf(zonedNow()))
+  const [dateKey, setDateKey] = useState(() => dayKeyOf(appToday()))
   useNavShortcut({
-    today: () => setDateKey(dayKeyOf(zonedNow())),
+    today: () => setDateKey(dayKeyOf(appToday())),
     prev: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), -1))),
     next: () => setDateKey((k) => dayKeyOf(addDays(dateOfKey(k), 1))),
   })
@@ -151,7 +151,7 @@ export function TodayPlannerView() {
   }
 
   const totalCount = open.length + done.length
-  const overCapacity = dateKey >= dayKeyOf(zonedNow()) && plannedMinutes > dailyCapacityMinutes
+  const overCapacity = dateKey >= dayKeyOf(appToday()) && plannedMinutes > dailyCapacityMinutes
   const showWrapUp =
     viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
   const showReminderPrompt =
@@ -298,7 +298,7 @@ export function TodayPlannerView() {
               {!viewingToday && (
                 <button
                   type="button"
-                  onClick={() => setDateKey(dayKeyOf(zonedNow()))}
+                  onClick={() => setDateKey(dayKeyOf(appToday()))}
                   className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
                   {t('common.today')}

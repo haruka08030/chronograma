@@ -25,7 +25,7 @@ import { TimeInput } from './TimeInput'
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
 const ISO_MONDAY = new Date(2024, 0, 1)
 import { addClockMinutes } from '../lib/clockTime'
-import { zonedNow } from '../lib/timeZone'
+import { appToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
@@ -336,7 +336,7 @@ export function HabitsView() {
   const heatmapDays = useMemo(
     () =>
       Array.from({ length: 28 }, (_, i) => {
-        const d = subDays(zonedNow(), 27 - i)
+        const d = subDays(appToday(), 27 - i)
         return { key: habitDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
       }),
     [habits, habitRecords],
@@ -351,7 +351,7 @@ export function HabitsView() {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
-  const todayKey = habitDateKey(zonedNow())
+  const todayKey = habitDateKey(appToday())
   const habitWeekdayLabels = useMemo(
     () => t('habits.weekdays', { returnObjects: true }) as string[],
     [t],
