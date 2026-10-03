@@ -274,6 +274,7 @@ export default {
     noFuture: 'Wake time is in the future',
   },
   quickLog: {
+    untitled: 'Log',
     start: 'Log',
     resume: 'Start logging “{{title}}”',
     titlePlaceholder: 'What are you doing? (optional)',

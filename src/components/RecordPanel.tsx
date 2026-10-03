@@ -21,6 +21,7 @@ import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
+import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -48,6 +49,7 @@ export function RecordPanel({
   viewingToday: boolean
 }) {
   const { t } = useTranslation()
+  const coarse = useIsCoarsePointer()
   const tasks = useTaskStore((s) => s.tasks)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -111,7 +113,8 @@ export function RecordPanel({
     setMode('manual')
   }
 
-  const name = title.trim() || category.trim()
+  // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
+  const name = title.trim() || category.trim() || t('quickLog.untitled')
   const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
   const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
@@ -173,7 +176,8 @@ export function RecordPanel({
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <input
-            autoFocus
+            // タップの端末ではキーボードを出さない（ラベルのチップを押して始めるのがいちばん早く、キーボードがチップを隠す）
+            autoFocus={!coarse}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={onEnter}

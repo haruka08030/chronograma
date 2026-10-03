@@ -5,6 +5,7 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { POPOVER_PANEL } from './surface'
 import { MenuDivider, MenuItem, MenuLabel } from './Menu'
 import { ChevronRightIcon, SearchIcon } from '../icons'
+import { useIsCoarsePointer } from '../../hooks/useMediaQuery'
 
 /** 画面の端からはみ出さないための余白 */
 const EDGE = 8
@@ -85,6 +86,7 @@ export function ActionMenu({
   searchable?: boolean
 }) {
   const { t } = useTranslation()
+  const coarse = useIsCoarsePointer()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [sub, setSub] = useState<string | null>(null)
@@ -210,8 +212,8 @@ export function ActionMenu({
           <div className="flex items-center gap-2 border-b border-zinc-100 px-2 pb-1.5 pt-1 dark:border-zinc-700">
             <SearchIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
             <input
-              // タップの端末で開いたときはキーボードを出さない（検索は打ちたいときに欄を押す）
-              autoFocus={!above}
+              // タップの端末で開いたときはキーボードを出さない（キーボードが下の項目を隠す。検索は打ちたいときに欄を押す）
+              autoFocus={!above && !coarse}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)

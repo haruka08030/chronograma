@@ -272,6 +272,7 @@ export default {
     noFuture: '起きた時刻が今より先です',
   },
   quickLog: {
+    untitled: '記録',
     start: '記録する',
     resume: '「{{title}}」の記録を始める',
     titlePlaceholder: '何をしている？（空欄ならラベル名で記録）',
