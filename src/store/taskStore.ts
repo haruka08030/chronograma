@@ -7,6 +7,7 @@ import { assignColorsInOrder } from '../lib/logCategoryColors'
 import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
+import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import {
   INBOX_ID,
@@ -140,7 +141,8 @@ export const useTaskStore = create<TaskState>()(
       dailyCapacityMinutes: 480,
       eventReminderMinutes: null as number | null,
       appTimeZone: null as string | null,
-      extraTimeZones: [] as string[],
+      extraTimeZones: [] as ExtraTimeZone[],
+      extraTimeZonesUpdatedAt: null as string | null,
 
       habits: [],
 
@@ -188,6 +190,7 @@ export const useTaskStore = create<TaskState>()(
         }
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
+        merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         if (broken) preserveUnreadableStorage()
         return merged
       },
@@ -246,6 +249,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
+})
+// 他のタイムゾーン（並び・名前）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.extraTimeZones === prev.extraTimeZones) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
 })
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()

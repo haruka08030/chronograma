@@ -11,6 +11,7 @@ import { normalizeTimeLogTagPresetList } from '../lib/timeLogTags'
 import { assignColorsInOrder, labelForHex } from '../lib/logCategoryColors'
 import { nearestGoogleHex } from '../lib/googleColors'
 import { looksLikeSleep } from '../lib/sleep'
+import { normalizeExtraTimeZones } from '../lib/extraTimeZones'
 import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
@@ -299,6 +300,10 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     )
     state.sections = migrated.sections
     state.tasks = migrated.tasks
+  }
+  if (version < 36) {
+    // 他のタイムゾーンに名前を付けられるようにした: 文字列の配列から { tz, label } の並びに
+    state.extraTimeZones = normalizeExtraTimeZones(state.extraTimeZones)
   }
   return state as unknown as TaskState
 }

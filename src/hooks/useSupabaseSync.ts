@@ -1,7 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getSupabase } from '../lib/supabase'
-import { decideHydrate, fetchListsTasksHabits, fetchLogLabels, pushListsTasksHabits, pushLogLabels } from '../lib/supabaseData'
+import {
+  decideHydrate,
+  fetchExtraTimeZones,
+  fetchListsTasksHabits,
+  fetchLogLabels,
+  pushExtraTimeZones,
+  pushListsTasksHabits,
+  pushLogLabels,
+} from '../lib/supabaseData'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -17,6 +25,7 @@ import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, i
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { planLabelSync } from '../lib/labelSync'
+import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -126,6 +135,33 @@ export function useSupabaseSync() {
       }
     }
 
+    /** 他のタイムゾーン（並び・名前）を合わせる。ラベル表と同じく、失敗してもタスクの同期は止めない */
+    const syncExtraTimeZones = async () => {
+      const remote = await fetchExtraTimeZones(supabase, userId)
+      if (cancelled) return
+      if (remote && 'error' in remote) {
+        console.error('[sync] time zones', remote.error)
+        return
+      }
+      const s = useTaskStore.getState()
+      const plan = planExtraTimeZoneSync({ zones: s.extraTimeZones, updatedAt: s.extraTimeZonesUpdatedAt }, remote)
+      if (plan.apply) {
+        const { zones, updatedAt } = plan.apply
+        asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt }))
+      }
+      if (plan.push) {
+        const res = await pushExtraTimeZones(supabase, userId, plan.push)
+        if (res.error) console.error('[sync] time zones', res.error)
+        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: plan.push!.updatedAt }))
+      }
+    }
+
+    /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
+    const syncSettings = async () => {
+      await syncLabels()
+      await syncExtraTimeZones()
+    }
+
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
@@ -177,7 +213,7 @@ export function useSupabaseSync() {
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           done(localSnapshot())
           useTaskStore.getState().setSyncRejected([])
-          await syncLabels()
+          await syncSettings()
           return true
         }
         if (decision.kind === 'use_remote') {
@@ -217,7 +253,7 @@ export function useSupabaseSync() {
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
       if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
       done(syncedSnapshot(toPush, remote, res.rejected))
-      await syncLabels()
+      await syncSettings()
       const prevRejected = useTaskStore.getState().syncRejected
       const key = (rows: typeof res.rejected) => rows.map((r) => `${r.op}:${r.table}:${r.id}`).join('|')
       if (key(prevRejected) !== key(res.rejected)) useTaskStore.getState().setSyncRejected(res.rejected)
@@ -286,7 +322,8 @@ export function useSupabaseSync() {
         state.habits === prev.habits &&
         state.sections === prev.sections &&
         state.timeLogTagPresets === prev.timeLogTagPresets &&
-        state.logCategoryColors === prev.logCategoryColors
+        state.logCategoryColors === prev.logCategoryColors &&
+        state.extraTimeZones === prev.extraTimeZones
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return
