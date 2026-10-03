@@ -477,7 +477,6 @@ export default {
     daySuffix: 'd',
     active: 'Open',
     done: 'Completed',
-    overdue: 'Overdue',
     chartTitle: 'Completed (last 7 days)',
     priorityTitle: 'By priority (open)',
     byTagTitle: 'By tag',

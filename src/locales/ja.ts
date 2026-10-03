@@ -475,7 +475,6 @@ export default {
     daySuffix: '日',
     active: '未完了',
     done: '完了',
-    overdue: '期限超過',
     chartTitle: '過去7日間の完了',
     priorityTitle: '優先度別 (未完了)',
     byTagTitle: 'タグ別',
