@@ -82,11 +82,13 @@ export function TodayPlannerView() {
   const now = useNowMinuteTick()
   const openDetail = openTaskDetail
 
-  const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
+  // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
+  const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
+  const setDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   useNavShortcut({
     today: () => setDateKey(toDateKey(appToday())),
-    prev: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), -1))),
-    next: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), 1))),
+    prev: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), -1))),
+    next: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), 1))),
   })
   const [draft, setDraft] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)

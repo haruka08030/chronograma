@@ -31,8 +31,9 @@ export function CalendarHubView() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   // 右の日パネルと内容が重なり、グリッドを 4 割潰していたので既定は閉じる（「ToDo を表示」で開く）
   const [dockOpen, setDockOpen] = useState(false)
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(appToday()))
-  const [weekAnchor, setWeekAnchor] = useState(() => appToday())
+  // 開いたときは見ている日（今日の計画・習慣と共有）を含む月・週から
+  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(fromDateKey(selectedDateKey)))
+  const [weekAnchor, setWeekAnchor] = useState(() => fromDateKey(selectedDateKey))
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
