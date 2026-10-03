@@ -73,7 +73,7 @@ function TimerDropTarget({ over, label }: { over: boolean; label: string }) {
       }}
       className={`fixed left-1/2 z-[60] -translate-x-1/2 top-[calc(0.75rem+env(safe-area-inset-top))]
         flex items-center gap-2.5 whitespace-nowrap rounded-full border px-5 py-3 text-sm font-medium shadow-xl
-        transition-[transform,background-color,border-color,box-shadow] duration-150
+        transition-[scale,background-color,border-color,box-shadow] duration-150
         ${highlighted
           ? 'scale-105 border-accent-400 bg-accent-50 text-accent-700 ring-2 ring-accent-400 dark:border-accent-400 dark:bg-zinc-800 dark:text-accent-300'
           : 'border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'}`}

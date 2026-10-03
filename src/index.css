@@ -239,6 +239,8 @@ body {
 /* アイコンだけのボタンは押した瞬間に少し縮んで、押せたことが分かる */
 button:not(:disabled):has(> svg:only-child) {
   transition-property: color, background-color, border-color, opacity, scale;
+  /* 長さを書かないと 0s になり、縮むのも戻るのも一瞬で切り替わる */
+  transition-duration: 120ms;
 }
 button:not(:disabled):has(> svg:only-child):active {
   scale: 0.9;
