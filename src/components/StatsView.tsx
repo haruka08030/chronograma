@@ -4,7 +4,6 @@ import { useTaskStore } from '../store/taskStore'
 import { format, subDays, startOfWeek, startOfMonth, parseISO, isSameDay } from 'date-fns'
 import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { unplannedListIds } from '../lib/listKind'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
@@ -21,7 +20,6 @@ export function StatsView() {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
 
   const stats = useMemo(() => {
     // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
@@ -146,11 +144,6 @@ export function StatsView() {
             <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
               {stats.byTag.map((x) => (
                 <li key={x.tag} className="flex items-center gap-3 px-4 py-2.5">
-                  <span
-                    className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={colorVars(categoryHex(x.tag || null, logCategoryColors))}
-                    aria-hidden
-                  />
                   <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{x.tag || t('tags.untagged')}</span>
                   <span className="text-xs tabular-nums text-zinc-500">{t('stats.listActive', { count: x.active })}</span>
                   <span className="text-xs tabular-nums text-zinc-400">{t('stats.listCompleted', { count: x.completed })}</span>
