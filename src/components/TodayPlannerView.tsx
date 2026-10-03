@@ -492,7 +492,7 @@ export function TodayPlannerView() {
                     )}
                     <span className="line-clamp-2 w-full text-center text-xs leading-snug text-zinc-600 dark:text-zinc-300">{h.title}</span>
                     {record && (
-                      <span className="-mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">{t('planner.habitOffTime')}</span>
+                      <span className="-mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">{t('planner.habitOffTime')}</span>
                     )}
                   </li>
                 )
