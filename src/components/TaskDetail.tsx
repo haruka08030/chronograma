@@ -23,15 +23,11 @@ import { DateField } from './DateField'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
+import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
-const PRIORITY_OPTIONS: { value: Priority; color: string }[] = [
-  { value: 'none', color: 'text-zinc-400' },
-  { value: 'low', color: 'text-blue-500' },
-  { value: 'medium', color: 'text-amber-500' },
-  { value: 'high', color: 'text-red-500' },
-]
+const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 /** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
 export function TaskDetail({
@@ -298,18 +294,18 @@ export function TaskDetail({
               <div>
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-2">{t('taskDetail.priority')}</label>
                 <div className="flex gap-2">
-                  {PRIORITY_OPTIONS.map((opt) => (
+                  {PRIORITY_OPTIONS.map((p) => (
                     <button
-                      key={opt.value}
+                      key={p}
                       type="button"
-                      onClick={() => updateTask(task.id, { priority: opt.value })}
+                      onClick={() => updateTask(task.id, { priority: p })}
                       className={`px-3 py-1.5 text-xs rounded-lg border transition-all
-                    ${task.priority === opt.value
+                    ${task.priority === p
                       ? 'border-accent-400 bg-accent-50 dark:bg-accent-500/10 font-medium'
                       : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}
-                    ${opt.color}`}
+                    ${PRIORITY_TEXT_CLASS[p]}`}
                     >
-                      {t(`common.${opt.value}`)}
+                      {t(`common.${p}`)}
                     </button>
                   ))}
                 </div>
