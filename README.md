@@ -105,3 +105,22 @@ supabase functions deploy google-calendar
 Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。
 
 Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy などのセキュリティヘッダー）。CSP の接続先は `https://*.supabase.co` だけなので、Supabase に独自ドメインを使う場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `connect-src` に追加してください。
+
+### Notion 連携（任意）
+
+Notion のデータベースから「要アクション」のステータスの行をタスクとして取り込み、そのタスクを完了にすると Notion 側のステータスを次へ進めます。Edge Function `notion` 経由で、統合トークンは `notion_connection` 表に保存します（ブラウザには返しません）。詳細は [`supabase/functions/notion/README.md`](supabase/functions/notion/README.md)。
+
+1. `supabase/migrations/` の SQL を全部実行しておきます（`notion_connection` は `001` で作られます）。
+2. Edge Function をデプロイします。シークレットの設定は要りません（呼び出し元の制限は上の `ALLOWED_ORIGINS` を使います）:
+
+```bash
+supabase functions deploy notion
+```
+
+3. 使う人がアプリで **設定 → 外部連携 → Notion** を開き、画面の手順どおりにつなぎます:
+   - [Notion のインテグレーション](https://www.notion.so/profile/integrations) で「内部インテグレーション」を作り、シークレットをコピーする
+   - 取り込みたいデータベースを開き、右上の「…」→「接続」でそのインテグレーションを追加する
+   - シークレットとデータベースの URL を貼って「接続する」
+4. 「ステータスの列」「日付の列」「要アクションのステータス」と、それぞれ「完了したら」進めるステータスを選ぶと同期が始まります（アプリを開いている間は 5 分ごと）。
+
+アプリから Notion のトークンは取り消せません。連携をやめたあと Notion からのアクセスも止めるには、Notion の設定でインテグレーションを外します。
