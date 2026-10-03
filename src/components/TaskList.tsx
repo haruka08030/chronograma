@@ -17,7 +17,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
-import { isModKey, isSubmitEnter } from '../lib/keyboard'
+import { isModKey } from '../lib/keyboard'
 import { isTypingTarget, useSelectAllShortcut } from '../lib/shortcuts'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
@@ -44,6 +44,7 @@ import {
 import { CheckCircleIcon, CloseIcon, PencilIcon, SortIcon } from './icons'
 import { Switch } from './settings/SettingsPrimitives'
 import { buttonClass } from './ui/buttonClass'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 
@@ -1315,6 +1316,7 @@ function SectionNameInput({ value, onChange, onCommit, onCancel }: {
   onCancel: () => void
 }) {
   const { t } = useTranslation()
+  const entry = useTextEntry({ onSubmit: onCommit, onCancel })
   return (
     <input
       autoFocus
@@ -1322,18 +1324,7 @@ function SectionNameInput({ value, onChange, onCommit, onCancel }: {
       placeholder={t('sections.defaultName')}
       onChange={(e) => onChange(e.target.value)}
       onClick={(e) => e.stopPropagation()}
-      onBlur={onCommit}
-      onKeyDown={(e) => {
-        if (isSubmitEnter(e)) {
-          e.preventDefault()
-          e.currentTarget.blur()
-          return
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          onCancel()
-        }
-      }}
+      {...entry}
       className={`w-full rounded bg-transparent text-left ${SECTION_HEADING_TEXT} focus:outline-none focus:ring-1 focus:ring-accent-400/50`}
     />
   )

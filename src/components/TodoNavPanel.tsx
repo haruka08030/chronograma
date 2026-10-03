@@ -17,9 +17,9 @@ import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, TASK_DND_TYPE, useTaskNativeDragActive } from '../lib/useTimelineDrop'
-import { isSubmitEnter } from '../lib/keyboard'
 import { groupsBySection } from '../lib/todoSurfaceView'
 import { ColorSwatches } from './ui/ColorSwatches'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -288,6 +288,14 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
     if (trimmed) renameList(id, trimmed)
     setEditingId(null)
   }
+  const renameEntry = useTextEntry({ onSubmit: () => editingId && submitRename(editingId), onCancel: () => setEditingId(null) })
+  const newListEntry = useTextEntry({
+    onSubmit: submitNew,
+    onCancel: () => {
+      setNewName('')
+      setAdding(false)
+    },
+  })
 
   return (
     <>
@@ -319,11 +327,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                 autoFocus
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                onBlur={() => submitRename(list.id)}
-                onKeyDown={(e) => {
-                  if (isSubmitEnter(e)) submitRename(list.id)
-                  if (e.key === 'Escape') setEditingId(null)
-                }}
+                {...renameEntry}
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
                            ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100"
               />
@@ -376,11 +380,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            onBlur={submitNew}
-            onKeyDown={(e) => {
-              if (isSubmitEnter(e)) submitNew()
-              if (e.key === 'Escape') { setNewName(''); setAdding(false) }
-            }}
+            {...newListEntry}
             placeholder={t('sidebar.listPlaceholder')}
             className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
                        ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100

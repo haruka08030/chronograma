@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { buildTimeLogTagUniverse } from '../lib/tagColors'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
-import { isSubmitEnter } from '../lib/keyboard'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -51,6 +51,14 @@ export function TimeLogTagField({
     setDraft('')
     setAdding(false)
   }
+  const draftEntry = useTextEntry({
+    onSubmit: commitDraft,
+    onCancel: () => {
+      setDraft('')
+      setAdding(false)
+    },
+    onOtherKey: onKeyDown,
+  })
 
   const size = compact ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-1'
 
@@ -85,20 +93,7 @@ export function TimeLogTagField({
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitDraft}
-          onKeyDown={(e) => {
-            if (isSubmitEnter(e)) {
-              e.preventDefault()
-              commitDraft()
-              return
-            }
-            if (e.key === 'Escape') {
-              setDraft('')
-              setAdding(false)
-              return
-            }
-            onKeyDown?.(e)
-          }}
+          {...draftEntry}
           placeholder={t('logCategories.newPlaceholder')}
           className={`w-28 rounded-full border border-accent-300 bg-white outline-none dark:border-accent-500/50 dark:bg-zinc-900 ${size}`}
         />

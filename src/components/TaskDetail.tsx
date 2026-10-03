@@ -13,7 +13,6 @@ import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
 import { linkifySegments, googleMapsUrl } from '../lib/linkify'
-import { isSubmitEnter } from '../lib/keyboard'
 import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
@@ -22,6 +21,7 @@ import { useEscapeLayer } from '../hooks/useEscapeLayer'
 import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { DateField } from './DateField'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -103,6 +103,17 @@ export function TaskDetail({
     setTitleValue(trimmed || task.title)
   }
 
+  const titleEntry = useTextEntry({
+    onSubmit: commitTitle,
+    onCancel: () => {
+      setTitleValue(task.title)
+      setEditingTitle(false)
+    },
+  })
+  // 追加の欄の Esc は書きかけを消す（欄は出たまま）
+  const tagEntry = useTextEntry({ onSubmit: () => addTag(), onCancel: () => setTagInput('') })
+  const subtaskEntry = useTextEntry({ onSubmit: () => addSubtask(), onCancel: () => setSubInput('') })
+
   const subtasks = useMemo(
     () =>
       isLog
@@ -164,11 +175,7 @@ export function TaskDetail({
                   ref={titleInputRef}
                   value={titleValue}
                   onChange={(e) => setTitleValue(e.target.value)}
-                  onBlur={commitTitle}
-                  onKeyDown={(e) => {
-                    if (isSubmitEnter(e)) commitTitle()
-                    if (e.key === 'Escape') { setTitleValue(task.title); setEditingTitle(false) }
-                  }}
+                  {...titleEntry}
                   className="w-full text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent outline-none
                              border-b-2 border-accent-400 pb-0.5 break-words"
                 />
@@ -570,9 +577,8 @@ export function TaskDetail({
               <input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => { if (isSubmitEnter(e)) addTag() }}
                 // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
-                onBlur={addTag}
+                {...tagEntry}
                 placeholder={t('taskDetail.tagPlaceholder')}
                 className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
@@ -667,9 +673,8 @@ export function TaskDetail({
                   <input
                     value={subInput}
                     onChange={(e) => setSubInput(e.target.value)}
-                    onKeyDown={(e) => { if (isSubmitEnter(e)) addSubtask() }}
                     // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
-                    onBlur={addSubtask}
+                    {...subtaskEntry}
                     placeholder={t('taskDetail.subtaskPlaceholder')}
                     className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-900 dark:text-zinc-100 outline-none

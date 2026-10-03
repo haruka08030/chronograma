@@ -14,6 +14,7 @@ import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { TaskContextMenu } from './TaskContextMenu'
 import { CompletionCircle } from './ui/CompletionCircle'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 const LONG_PRESS_MS = 450
 const LONG_PRESS_SLOP_PX = 8
@@ -126,6 +127,26 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
     }
     setEditing(false)
     setEditValue(trimmed || task.title)
+  }
+
+  const titleEntry = useTextEntry({
+    onSubmit: () => {
+      if (discardIfBlank()) return
+      commitEdit()
+    },
+    onCancel: () => {
+      if (discardIfBlank()) return
+      setEditValue(task.title)
+      setEditing(false)
+    },
+  })
+  const titleEntryWithSibling = {
+    ...titleEntry,
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      titleEntry.onKeyDown(e)
+      // Enter で確定したら、下に同じ階層の行を足す（Enter で書き進める）
+      if (isSubmitEnter(e) && editValue.trim()) onEnterCreateSibling?.(task)
+    },
   }
 
   const timeLog = isListedTimeLog(task)
@@ -320,21 +341,8 @@ export function TaskItem({ task, onClick, onRowClick, onCompleteRequest, onEnter
             ref={inputRef}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            onBlur={commitEdit}
+            {...titleEntryWithSibling}
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (isSubmitEnter(e)) {
-                e.preventDefault()
-                if (discardIfBlank()) return
-                commitEdit()
-                onEnterCreateSibling?.(task)
-              }
-              if (e.key === 'Escape') {
-                if (discardIfBlank()) return
-                setEditValue(task.title)
-                setEditing(false)
-              }
-            }}
             // 下線と余白（3px）は負のマージンで行の高さに数えない。押して編集に入っても行が動かない
             className={`block w-full bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
                        border-b border-accent-400 pb-0.5 -mb-[3px] ${isSubtask ? 'text-[13px]' : 'text-sm'}`}

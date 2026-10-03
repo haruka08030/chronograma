@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { isSubmitEnter } from '../lib/keyboard'
 import { PlusIcon } from './icons'
+import { useTextEntry } from '../hooks/useTextEntry'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -65,23 +65,24 @@ export function CalendarInlineTaskAdd({
     return true
   }
 
+  // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる
+  const entry = useTextEntry({
+    onSubmit: () => {
+      if (!commit()) onDone()
+    },
+    onCancel: onDone,
+    onBlurSubmit: () => {
+      commit()
+      onDone()
+    },
+  })
+
   return (
     <input
       ref={ref}
       value={value}
       onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          onDone()
-          return
-        }
-        if (!isSubmitEnter(e)) return
-        if (!commit()) onDone()
-      }}
-      onBlur={() => {
-        commit()
-        onDone()
-      }}
+      {...entry}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       placeholder={t('calendar.addTaskPlaceholder')}
