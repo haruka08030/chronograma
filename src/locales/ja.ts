@@ -683,8 +683,7 @@ export default {
     empty: '一致するタスクが見つかりません',
   },
   quickAdd: {
-    trigger: 'タスクを追加…',
-    placeholder: 'タスク名を入力',
+    placeholder: 'To-Do を追加',
   },
   autoBackup: {
     title: '自動バックアップ',

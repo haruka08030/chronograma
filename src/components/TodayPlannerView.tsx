@@ -27,15 +27,15 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars } from '../lib/logCategoryColors'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CalendarArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
+import { CalendarArrowIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
-import { isSubmitEnter } from '../lib/keyboard'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
+import { InlineAddInput } from './ui/InlineAddInput'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -324,29 +324,16 @@ export function TodayPlannerView() {
 
         <div className="relative px-3">
           <h2 className={sectionLabel}>{t('planner.todoHeading')}</h2>
-          <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
-            <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />
-            <input
-              data-quickadd
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onFocus={() => setDraftFocused(true)}
-              onBlur={() => setDraftFocused(false)}
-              onKeyDown={(e) => {
-                if (isSubmitEnter(e)) {
-                  e.preventDefault()
-                  submitDraft()
-                }
-                if (e.key === 'Escape') {
-                  setDraft('')
-                  e.currentTarget.blur()
-                }
-              }}
-              placeholder={t('planner.addPlaceholder')}
-              aria-describedby="planner-add-hint"
-              className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            />
-          </div>
+          <InlineAddInput
+            data-quickadd
+            value={draft}
+            onValueChange={setDraft}
+            onSubmit={submitDraft}
+            onFocus={() => setDraftFocused(true)}
+            onBlur={() => setDraftFocused(false)}
+            placeholder={t('planner.addPlaceholder')}
+            aria-describedby="planner-add-hint"
+          />
           {/* 浮かせて出す。行の流れに入れると、欄を離れた瞬間に下の行がずれて押し間違える */}
           <p
             id="planner-add-hint"

@@ -24,6 +24,7 @@ import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
+import { InlineAddInput } from './ui/InlineAddInput'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -109,7 +110,6 @@ export function TaskDetail({
   })
   // 追加の欄の Esc は書きかけを消す（欄は出たまま）
   const tagEntry = useTextEntry({ onSubmit: () => addTag(), onCancel: () => setTagInput('') })
-  const subtaskEntry = useTextEntry({ onSubmit: () => addSubtask(), onCancel: () => setSubInput('') })
 
   const subtasks = useMemo(
     () =>
@@ -666,26 +666,16 @@ export function TaskDetail({
                     <TaskItem key={st.id} task={st} />
                   ))}
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <input
-                    value={subInput}
-                    onChange={(e) => setSubInput(e.target.value)}
-                    // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
-                    {...subtaskEntry}
-                    placeholder={t('taskDetail.subtaskPlaceholder')}
-                    className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
-                           bg-transparent text-zinc-900 dark:text-zinc-100 outline-none
-                           focus:ring-2 focus:ring-accent-500/40 placeholder:text-zinc-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={addSubtask}
-                    disabled={!subInput.trim()}
-                    className={buttonClass({ variant: 'secondary', size: 'sm' }, 'shrink-0')}
-                  >
-                    {t('common.add')}
-                  </button>
-                </div>
+                <InlineAddInput
+                  className="mt-2"
+                  value={subInput}
+                  onValueChange={setSubInput}
+                  onSubmit={addSubtask}
+                  onCancel={() => setSubInput('')}
+                  // 確定せずに閉じても書いた分を捨てない（リスト・セクションの名前と同じ）
+                  onBlurSubmit={addSubtask}
+                  placeholder={t('taskDetail.subtaskPlaceholder')}
+                />
               </div>
             </>
           )}

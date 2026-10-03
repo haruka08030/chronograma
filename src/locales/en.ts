@@ -684,8 +684,7 @@ export default {
     empty: 'No matching tasks',
   },
   quickAdd: {
-    trigger: 'Add task…',
-    placeholder: 'Task title',
+    placeholder: 'Add a to-do',
   },
   autoBackup: {
     title: 'Automatic backups',

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { PlusIcon } from './icons'
-import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { InlineAddInput } from './ui/InlineAddInput'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -67,29 +67,23 @@ export function CalendarInlineTaskAdd({
   }
 
   // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる
-  const entry = useTextEntry({
-    onSubmit: () => {
-      if (!commit()) onDone()
-    },
-    onCancel: onDone,
-    onBlurSubmit: () => {
-      commit()
-      onDone()
-    },
-  })
-
   return (
-    <input
+    <InlineAddInput
       ref={ref}
+      size={size === 'md' ? 'md' : 'sm'}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
-      {...entry}
+      onValueChange={setValue}
+      onSubmit={() => {
+        if (!commit()) onDone()
+      }}
+      onCancel={onDone}
+      onBlurSubmit={() => {
+        commit()
+        onDone()
+      }}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       placeholder={t('calendar.addTaskPlaceholder')}
-      className={`w-full rounded border border-accent-400 bg-white text-zinc-900 outline-none
-                  placeholder:text-zinc-400 dark:bg-zinc-800 dark:text-zinc-100
-                  ${size === 'md' ? 'px-2.5 py-1.5 text-sm' : 'px-1.5 py-0.5 text-[10px]'}`}
     />
   )
 }

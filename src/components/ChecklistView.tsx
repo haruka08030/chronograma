@@ -8,15 +8,15 @@ import { ListKindPicker } from './ListKindPicker'
 import { TaskDetail } from './TaskDetail'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
-import { CheckIcon, PlusIcon } from './icons'
+import { CheckIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
-import { isSubmitEnter } from '../lib/keyboard'
 import { groupBySection } from '../lib/sectionGroups'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { ListSectionHeading } from './ListSectionHeading'
 import { AddChildButton, ChildAddInput } from './ChildAddInput'
 import { childrenByParent } from '../lib/listTree'
 import { expandDescendantIds } from '../store/taskHelpers'
+import { InlineAddInput } from './ui/InlineAddInput'
 
 /**
  * チェックリスト（買い物・持ち物）用の画面。店の中で片手で使う前提で、
@@ -149,22 +149,13 @@ export function ChecklistView({ list }: { list: TaskList }) {
           <ListKindPicker list={list} />
         </header>
 
-        <div className="flex items-center gap-3 rounded-lg px-3 focus-within:bg-zinc-50 dark:focus-within:bg-zinc-800/60">
-          <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (isSubmitEnter(e)) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-            placeholder={t('checklist.addPlaceholder')}
-            enterKeyHint="done"
-            className="min-w-0 flex-1 bg-transparent py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
-          />
-        </div>
+        <InlineAddInput
+          value={draft}
+          onValueChange={setDraft}
+          onSubmit={submit}
+          placeholder={t('checklist.addPlaceholder')}
+          enterKeyHint="done"
+        />
 
         {openGroups.map(({ section, items }) => (
           <div key={section?.id ?? 'none'}>
