@@ -15,7 +15,7 @@ import {
   localizeGoogleError,
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
-import { isNetworkErrorMessage } from '../lib/errorMessages'
+import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
@@ -206,6 +206,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           if (!error) return {}
           if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
+          // 送りすぎは英語のまま出さず、待てば送れることを伝える
+          const limit = otpRateLimit(error)
+          if (limit) {
+            return {
+              error: limit.seconds != null
+                ? i18n.t('account.otpWaitSeconds', { count: limit.seconds })
+                : i18n.t('account.otpRateLimited'),
+            }
+          }
           return { error: error.message }
         } catch (err) {
           const message = err instanceof Error ? err.message : ''

@@ -719,6 +719,8 @@ export default {
     linkSent: 'Check your inbox for the sign-in link.',
     genericError: 'Something went wrong. Please try again.',
     networkError: 'Could not reach the server. Check your connection and try again.',
+    otpWaitSeconds: 'Please wait {{count}} seconds before requesting another link. A link you already received still works.',
+    otpRateLimited: 'Too many sign-in emails were sent. Please wait a while (up to about an hour) and try again. A link you already received still works.',
     signOut: 'Sign out',
     signOutUnsynced: 'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
     signIn: 'Sign in',
