@@ -17,6 +17,8 @@ import {
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
+import { colorVars } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
@@ -33,7 +35,7 @@ import { DayNav } from './ui/DayNav'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
-import { RepeatIcon } from './icons'
+import { CheckIcon, RepeatIcon } from './icons'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -562,20 +564,21 @@ export function HabitsView() {
                   className="flex justify-center"
                   aria-label={cellTitle}
                 >
+                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
-                        ? 'text-white'
+                        ? HABIT_DONE_FILL
                         : isOffTime
-                          ? 'border-2 bg-white font-semibold dark:bg-zinc-900'
+                          ? HABIT_OFF_TIME_FILL
                           : isScheduled
                             ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                             : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
-                    style={isDone ? { backgroundColor: h.color } : isOffTime ? { borderColor: h.color, color: h.color } : undefined}
+                    style={colorVars(h.color)}
                     title={cellTitle}
                   >
-                    {isDone ? '✓' : isOffTime ? '△' : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
+                    {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
                 </button>
               )

@@ -25,6 +25,7 @@ import { SleepRow } from './SleepRow'
 import type { Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
 import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
 import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon } from './icons'
@@ -443,9 +444,9 @@ export function TodayPlannerView() {
                       onClick={() => toggleHabitDate(h.id, dateKey)}
                       className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-[var(--c)] transition-colors touch-manipulation ${
                         status === 'done'
-                          ? 'bg-[var(--c)] text-[var(--on-c)]'
+                          ? HABIT_DONE_FILL
                           : status === 'offTime'
-                          ? 'bg-[color-mix(in_srgb,var(--c)_35%,transparent)] text-[var(--on-c)]'
+                          ? HABIT_OFF_TIME_FILL
                           : 'hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]'
                       }`}
                     >
@@ -472,7 +473,7 @@ export function TodayPlannerView() {
                     )}
                     <span className="line-clamp-2 w-full text-center text-xs leading-snug text-zinc-600 dark:text-zinc-300">{h.title}</span>
                     {record && (
-                      <span className="-mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">{t('planner.habitOffTime')}</span>
+                      <span className={`-mt-1 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>
                     )}
                   </li>
                 )

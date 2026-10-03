@@ -9,6 +9,8 @@ import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { isSleepRecord } from '../lib/sleep'
+import { colorVars } from '../lib/logCategoryColors'
+import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskDetailModal } from '../hooks/useTaskDetailModal'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -202,14 +204,16 @@ export function CalendarDayPanel({
                 <>
                   {externalEvents.length > 0 && (
                     <div className="mb-2 space-y-1.5 px-2">
+                      {/* カレンダー本体と同じく、色は予定ごと（無ければ Google の既定の色） */}
                       {externalEvents.map((event) => (
                         <div
                           key={event.id}
                           title={event.summary}
-                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left dark:border-blue-500/40 dark:bg-blue-500/10"
+                          className="gc-plan rounded-lg px-3 py-2 text-left"
+                          style={colorVars(event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                         >
-                          <div className="text-sm font-medium text-blue-900 dark:text-blue-100">{event.summary}</div>
-                          <div className="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
+                          <div className="text-sm font-medium">{event.summary}</div>
+                          <div className="mt-0.5 text-xs opacity-70">
                             {event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : t('weekCalendar.allDay')}
                           </div>
                         </div>

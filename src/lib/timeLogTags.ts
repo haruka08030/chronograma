@@ -1,3 +1,4 @@
+/** 記録の分類の候補（設定のプリセット＋記録に付いているタグ） */
 import type { Task } from '../types/task'
 
 /** 全タスクからタイムログに付いたタグを収集（挿入順は ActivityLogView 従来どおり） */

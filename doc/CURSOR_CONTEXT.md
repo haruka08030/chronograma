@@ -435,7 +435,7 @@
 `todoSurfaceView.ts`（`isTodoSurfaceView` / `isTodoNavView`）, `habitStats.ts` /
 `habitDraft.ts`, `src/locales/ja.ts`・`en`（`displayListName` 用 `lists.inbox`
 等）,
-`tagColors.ts`（タイムログのタグ色・`timeLogTagUniverse`・**`buildTimeLogTagUniverse`（プリセット先頭）**・`parseTimeLogTagPresetLines`）,
+`timeLogTags.ts`（`timeLogTagUniverse`・**`buildTimeLogTagUniverse`（プリセット先頭）**・`parseTimeLogTagPresetLines`）,
 `TimeLogTagField.tsx`, `useTimelineDrag.ts`（ブロックの `setPointerCapture` 後は
 `click` が届かないため、タップで詳細/完了モーダルを開く処理は `onBlockTap` で
 `pointerup` 時に行う。タップ誤判定を減らすため、ドラッグ判定は `pointerdown`
