@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { openSecret, secretContext } from '../_shared/secretBox.ts'
 
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
@@ -50,10 +51,11 @@ Deno.serve(withCors(async (req) => {
       .maybeSingle()
     if (google?.refresh_token) {
       try {
+        const token = await openSecret(google.refresh_token as string, secretContext.google(user.id))
         await fetch('https://oauth2.googleapis.com/revoke', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ token: google.refresh_token as string }),
+          body: new URLSearchParams({ token }),
         })
       } catch (err) {
         console.error('[account] google revoke failed', err)
@@ -63,17 +65,18 @@ Deno.serve(withCors(async (req) => {
     // Canvas のアクセストークンも取り消す。学校ごとに並べて投げ、遅い学校があっても削除を待たせない
     const { data: canvasRows } = await admin
       .from('canvas_connection')
-      .select('base_url, token')
+      .select('id, base_url, token')
       .eq('user_id', user.id)
       .eq('kind', 'token')
     await Promise.allSettled(
-      ((canvasRows ?? []) as { base_url: string; token: string | null }[]).map(async (r) => {
+      ((canvasRows ?? []) as { id: string; base_url: string; token: string | null }[]).map(async (r) => {
         // 保存時に確かめた https のドメイン名だけ。それ以外の宛先へはトークンを送らない
         if (!r.token || !/^https:\/\/[a-z0-9.-]+$/i.test(r.base_url)) return
         try {
+          const token = await openSecret(r.token, secretContext.canvasToken(user.id, r.id))
           const res = await fetch(`${r.base_url}/login/oauth2/token`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${r.token}` },
+            headers: { Authorization: `Bearer ${token}` },
             redirect: 'manual',
             signal: AbortSignal.timeout(5000),
           })

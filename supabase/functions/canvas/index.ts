@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
 
 /**
@@ -316,7 +317,18 @@ Deno.serve(withCors(async (req) => {
         .eq('user_id', user.id)
         .order('updated_at')
       if (error) throw new Error(error.message)
-      return (data ?? []) as Row[]
+      // トークンとフィードの URL は暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+      return await Promise.all(((data ?? []) as Row[]).map(async (r) => {
+        const token = r.token ? await openSecret(r.token, secretContext.canvasToken(user.id, r.id)) : null
+        const feedUrl = r.feed_url ? await openSecret(r.feed_url, secretContext.canvasFeed(user.id, r.id)) : null
+        const patch: Record<string, string> = {}
+        if (token && r.token && needsSeal(r.token)) patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
+        if (feedUrl && r.feed_url && needsSeal(r.feed_url)) patch.feed_url = await sealSecret(feedUrl, secretContext.canvasFeed(user.id, r.id))
+        if (Object.keys(patch).length > 0) {
+          await admin.from('canvas_connection').update(patch).eq('user_id', user.id).eq('id', r.id)
+        }
+        return { ...r, token, feed_url: feedUrl }
+      }))
     }
     /** 設定画面に返す形。トークンは含めない */
     const describe = (rows: Row[]) => ({
@@ -363,7 +375,7 @@ Deno.serve(withCors(async (req) => {
           base_url: feed.baseUrl,
           kind: 'ical',
           token: null,
-          feed_url: feed.feedUrl,
+          feed_url: await sealSecret(feed.feedUrl, secretContext.canvasFeed(user.id, new URL(feed.baseUrl).host)),
           user_name: null,
           token_expires_at: null,
           token_checked_at: null,
@@ -391,7 +403,7 @@ Deno.serve(withCors(async (req) => {
           id: new URL(baseUrl).host,
           base_url: baseUrl,
           kind: 'token',
-          token,
+          token: await sealSecret(token, secretContext.canvasToken(user.id, new URL(baseUrl).host)),
           feed_url: null,
           user_name: self.name ?? null,
           updated_at: new Date().toISOString(),
