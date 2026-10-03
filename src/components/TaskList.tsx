@@ -18,7 +18,7 @@ import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
-import { useSelectAllShortcut } from '../lib/shortcuts'
+import { isTypingTarget, useSelectAllShortcut } from '../lib/shortcuts'
 import { SortableTaskItem, TASK_PREFIX, type TaskRootDragData } from './SortableTaskItem'
 import { SortableSubtaskItem } from './SortableSubtaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId, subtaskDragId } from '../lib/subtaskDnD'
@@ -285,20 +285,6 @@ export function TaskList() {
       setDraftSectionName('')
     })
   }, [selectedListId, selectedView])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      const t = document.activeElement
-      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return
-      if (t instanceof HTMLElement && t.isContentEditable) return
-      if (selectedRef.current.size === 0) return
-      e.preventDefault()
-      clearSelection()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [clearSelection, selected.size])
 
   const dndMonitor = useMemo(
     () => ({
@@ -714,6 +700,27 @@ export function TaskList() {
     archiveTasks([...selected])
     clearSelection()
   }, [selected, archiveTasks, clearSelection])
+
+  // 選択中のキー操作: Esc で解除、Delete で削除、⌘Enter で完了（入力中・ダイアログ表示中は除く）
+  const bulkKeysRef = useRef({ clearSelection, bulkComplete, bulkDelete })
+  useEffect(() => {
+    bulkKeysRef.current = { clearSelection, bulkComplete, bulkDelete }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return
+      if (isTypingTarget(document.activeElement) || document.querySelector('[role="dialog"]')) return
+      if (selectedRef.current.size === 0) return
+      const keys = bulkKeysRef.current
+      if (e.key === 'Escape') keys.clearSelection()
+      else if (e.key === 'Delete' || e.key === 'Backspace') keys.bulkDelete()
+      else if (e.key === 'Enter' && isModKey(e)) keys.bulkComplete()
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
 
