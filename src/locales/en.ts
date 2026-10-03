@@ -270,6 +270,8 @@ export default {
     addPlaceholder: 'Add (e.g. milk)',
     checkedHeading: 'Checked {{count}}',
     uncheckAll: 'Uncheck all',
+    check: 'Check',
+    uncheck: 'Uncheck',
     clearChecked: 'Clear checked',
   },
   someday: {

@@ -35,7 +35,7 @@
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
 | 右クリックのメニュー | `ActionMenu`（項目・中のメニュー・検索・↑↓→←Enter Esc・はみ出さない位置）。どの右クリックもこれの上に作る。色を選ぶ中のメニューは `ColorPalette`（`bare`）か `ColorSwatches` を入れる | `components/ui/ActionMenu.tsx` |
-| タスクのメニュー | 右クリック・スマホの行の ≡・⌘/ で開く。検索・期限（カレンダー付き）・優先度・リスト/セクションへ移動・完了・詳細・アーカイブ・削除。選択中の行なら選択中のすべてに効く。`TaskItem` のある所・今日の計画の To-Do 行・月カレンダーの時刻なしのタスクで出る | `components/TaskContextMenu.tsx` |
+| タスクのメニュー | 右クリック・スマホの行の ≡・⌘/ で開く。検索・期限（カレンダー付き）・優先度・リスト/セクションへ移動・完了・詳細・アーカイブ・削除。選択中の行なら選択中のすべてに効く。いつかの行は予定する・かなえた・削除だけ、チェックリストの行はチェック（全部済みならチェックを外す）・削除だけ。`TaskItem` のある所・今日の計画の To-Do 行・月カレンダーの時刻なしのタスクで出る | `components/TaskContextMenu.tsx` |
 | 予定・記録・Google の予定のメニュー | タイムライン（今日の計画・週）と月カレンダーで右クリック。予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・削除。記録: 色（＝ラベル）・詳細・削除。Google: 色・Google で開く・削除（書き込めない予定は開くだけ） | `components/timeline/EventContextMenu.tsx` |
 | リスト・セクションのメニュー | リスト: 名前の変更・色・種類・削除（未分類は出さない。色は丸を押しても選べる）。セクション: 名前の変更・ここにタスクを追加・削除 | `components/ListContextMenu.tsx`・`TaskList.tsx` |
 | 予定の色・時刻の判断 | 色は `useTaskColor`（記録は色＝ラベル、予定は色だけ）、「予定どおり記録」「終わった予定」は `planTiming`。予定カードとメニューで同じ | `hooks/useTaskColor.ts`・`lib/planTiming.ts` |
