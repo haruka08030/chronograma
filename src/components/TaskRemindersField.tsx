@@ -9,6 +9,7 @@ import {
 } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { toReminderTask } from '../lib/localReminders'
 import { CloseIcon } from './icons'
+import { sectionLabelClass } from './ui/sectionLabelClass'
 
 /** 追加できる通知（Google の「通知を追加」の候補を学生の使い方に寄せたもの） */
 const PRESETS: TaskReminder[] = [
@@ -72,7 +73,7 @@ export function TaskRemindersField({ task }: { task: Task }) {
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <label htmlFor={`reminders-${task.id}`} className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <label htmlFor={`reminders-${task.id}`} className={sectionLabelClass('field')}>
           {t('taskReminders.title')}
         </label>
         {custom && (

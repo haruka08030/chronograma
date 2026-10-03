@@ -11,6 +11,7 @@ import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { SectionLabel } from './ui/SectionLabel'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -88,7 +89,7 @@ export function WeekReviewCard() {
 
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
-          <figcaption className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('weekReview.loggedPerDay')}</figcaption>
+          <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
           <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700" role="list">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
@@ -139,7 +140,7 @@ export function WeekReviewCard() {
         </figure>
 
         <div>
-          <h3 className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('weekReview.topTags')}</h3>
+          <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
           {review.topTags.length === 0 ? (
             <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('weekReview.noLogs')}</p>
           ) : (

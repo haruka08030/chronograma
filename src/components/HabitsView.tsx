@@ -33,6 +33,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
 import { PillToggle } from './ui/PillToggle'
+import { SectionLabel } from './ui/SectionLabel'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
@@ -58,7 +59,7 @@ function ColorPicker({
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.color')}</span>
+      <SectionLabel as="span" level="field">{t('habits.color')}</SectionLabel>
       <ColorPalette bare selectedHex={color} onChoose={onPick} />
     </div>
   )
@@ -141,7 +142,7 @@ function HabitTimeFields({
 
       {mode === 'fixed' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.timeAt')}</span>
+          <SectionLabel as="span" level="field">{t('habits.timeAt')}</SectionLabel>
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
@@ -152,7 +153,7 @@ function HabitTimeFields({
 
       {mode === 'range' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('habits.time')}</span>
+          <SectionLabel as="span" level="field">{t('habits.time')}</SectionLabel>
           <TimeInput
             value={startTime}
             onChange={onStartTimeChange}
@@ -699,7 +700,7 @@ export function HabitsView() {
 
         {habits.length > 0 ? (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('habits.listForDayTitle')}</h2>
+            <SectionLabel>{t('habits.listForDayTitle')}</SectionLabel>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{focusDateLabel}</span>
               <DayNav
@@ -753,7 +754,7 @@ export function HabitsView() {
         {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
           <li className="list-none">
             <div className="pt-4 pb-1">
-              <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{t('habits.offDaySectionTitle')}</h3>
+              <SectionLabel as="h3">{t('habits.offDaySectionTitle')}</SectionLabel>
             </div>
           </li>
         ) : null}
