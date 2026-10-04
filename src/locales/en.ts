@@ -1005,6 +1005,8 @@ export default {
     stopNow: 'Record up to now',
     chooseEnd: 'Pick end time',
     saveAt: 'Record to this time',
+    endDate: 'End date',
+    endTime: 'End time',
     discard: 'Discard it',
   },
   timerDrop: {

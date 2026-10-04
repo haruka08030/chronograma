@@ -4,7 +4,11 @@ import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
-import { pad2 } from '../lib/clockTime'
+import { clockOf, toMinutes } from '../lib/clockTime'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { DateField } from './DateField'
+import { TimeInput } from './TimeInput'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { HINT_TEXT } from './ui/textClass'
@@ -167,11 +171,13 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
   const resolveStaleTimer = useTaskStore((s) => s.resolveStaleTimer)
   const discardActiveTimer = useTaskStore((s) => s.discardActiveTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
+  const df = useDateFormat()
   // 入力と表示はアプリのタイムゾーンの壁時計（`toAppWall`）。保存するときに本当の瞬間に戻す
-  const [endValue, setEndValue] = useState(() => toLocalInputValue(toAppWall(startedAt)))
-  const [editing, setEditing] = useState(false)
-
   const started = toAppWall(startedAt)
+  const [endDate, setEndDate] = useState(() => toDateKey(started))
+  const [endTime, setEndTime] = useState(() => clockOf(started))
+  const [editing, setEditing] = useState(false)
+  const end = wallDateTime(endDate, endTime)
 
   return (
     <div
@@ -185,23 +191,35 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
         {t('staleTimer.title')}
       </p>
       <p className={`mt-1 ${HINT_TEXT}`}>
-        {t('staleTimer.body', { title: taskTitle, since: formatStarted(started) })}
+        {t('staleTimer.body', { title: taskTitle, since: df.monthDayTime(started) })}
       </p>
 
       {editing ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input
-            type="datetime-local"
-            value={endValue}
-            min={toLocalInputValue(started)}
-            onChange={(e) => setEndValue(e.target.value)}
-            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
-          />
+          {/* 日付が切れない幅を保つ。スマホ幅では記録ボタンが次の行に回る */}
+          <div className="min-w-[10rem] flex-1">
+            <DateField
+              value={endDate}
+              min={toDateKey(started)}
+              onChange={setEndDate}
+              ariaLabel={t('staleTimer.endDate')}
+              className={fieldClass({ size: 'sm' })}
+            />
+          </div>
+          <div className="w-[5.5rem] shrink-0">
+            <TimeInput
+              value={endTime}
+              onChange={setEndTime}
+              pickerDefault={endTime}
+              ariaLabel={t('staleTimer.endTime')}
+              className={fieldClass({ size: 'sm' }, 'w-full')}
+            />
+          </div>
           <button
             type="button"
-            onClick={() => resolveStaleTimer(fromAppWall(new Date(endValue)).toISOString())}
-            disabled={!endValue || new Date(endValue) <= started}
-            className={buttonClass({ variant: 'primary', size: 'sm' }, 'shrink-0')}
+            onClick={() => end && resolveStaleTimer(fromAppWall(end).toISOString())}
+            disabled={!end || end <= started}
+            className={buttonClass({ variant: 'primary', size: 'sm' }, 'ml-auto shrink-0')}
           >
             {t('staleTimer.saveAt')}
           </button>
@@ -235,11 +253,11 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
   )
 }
 
-/** `datetime-local` が受け取るローカル時刻の文字列 */
-function toLocalInputValue(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-
-function formatStarted(d: Date): string {
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+/** 日付キーと `HH:MM` を壁時計の Date にする（時刻が不正なら null） */
+function wallDateTime(dateKey: string, time: string): Date | null {
+  const minutes = toMinutes(time)
+  if (minutes === null) return null
+  const d = fromDateKey(dateKey)
+  d.setHours(0, minutes, 0, 0)
+  return d
 }
