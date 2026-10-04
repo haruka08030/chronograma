@@ -34,7 +34,10 @@ function countIncompleteDescendants(parentId: string, childrenByParent: Map<stri
   return n
 }
 
-export function TaskList() {
+export function TaskList({ onOpenNav }: {
+  /** スマホで題名の左の ≡ を押したとき（リストのドロワーを出す） */
+  onOpenNav?: () => void
+} = {}) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const selectedListId = useTaskStore((s) => s.selectedListId)
@@ -249,6 +252,7 @@ export function TaskList() {
           groupingScope={groupingScope}
           groupBySection={groupBySection}
           onAddSection={beginDraftSection}
+          onOpenNav={onOpenNav}
         />
 
 

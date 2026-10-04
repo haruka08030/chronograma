@@ -7,8 +7,7 @@ import type { SectionGroupingScope } from '../../store/storeTypes'
 import type { ListKind, TaskList } from '../../types/list'
 import { ListKindPicker } from '../ListKindPicker'
 import { MenuDivider, MenuItem } from '../ui/Menu'
-import { CaretDownIcon, CloseIcon, SortIcon } from '../icons'
-import { TodoSwitcherMenu } from './TodoSwitcherMenu'
+import { CloseIcon, MenuIcon, SortIcon } from '../icons'
 import { Switch } from '../settings/SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
@@ -32,6 +31,7 @@ export function TaskListHeader({
   groupingScope,
   groupBySection,
   onAddSection,
+  onOpenNav,
 }: {
   title: string
   colorView: boolean
@@ -45,6 +45,8 @@ export function TaskListHeader({
   groupingScope: SectionGroupingScope
   groupBySection: boolean
   onAddSection: (listId: string) => void
+  /** スマホで ≡ を押したとき（左のパネルが無いので、リストのドロワーを出す） */
+  onOpenNav?: () => void
 }) {
   const { t } = useTranslation()
   const setSortMode = useTaskStore((s) => s.setSortMode)
@@ -52,7 +54,6 @@ export function TaskListHeader({
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const setSectionGrouping = useTaskStore((s) => s.setSectionGrouping)
   const [showSort, setShowSort] = useState(false)
-  const [switcher, setSwitcher] = useState<{ x: number; y: number } | null>(null)
   const sortMenuRef = useRef<HTMLDivElement>(null)
   useDismiss({ open: showSort, onClose: () => setShowSort(false), inside: [sortMenuRef] })
   const sortOptions = useMemo(
@@ -65,26 +66,21 @@ export function TaskListHeader({
     <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-8 pb-2 pt-6 md:pt-8">
       <div className="min-w-0">
         <h1 className={`flex items-center gap-2.5 ${PAGE_TITLE_CLASS}`}>
+          {onOpenNav && (
+            <button
+              type="button"
+              onClick={onOpenNav}
+              aria-label={t('taskList.openLists')}
+              className="-my-1 -ml-2 shrink-0 rounded-full p-1.5 text-zinc-500 touch-manipulation active:bg-zinc-100 md:hidden dark:text-zinc-400 dark:active:bg-zinc-800"
+            >
+              <MenuIcon className="h-5 w-5" strokeWidth={1.75} />
+            </button>
+          )}
           {colorView && (
             <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: filterColor }} aria-hidden />
           )}
-          {/* スマホは題名を押すとリスト・絞り込みを切り替えられる（左のパネルが無いので） */}
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={switcher !== null}
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              setSwitcher({ x: r.left, y: r.bottom + 4 })
-            }}
-            className="-mx-1 inline-flex min-w-0 items-center gap-1.5 rounded-lg px-1 touch-manipulation active:bg-zinc-100 md:hidden dark:active:bg-zinc-800"
-          >
-            <span className="truncate">{title}</span>
-            <CaretDownIcon className="h-4 w-4 shrink-0 text-zinc-400" />
-          </button>
-          <span className="hidden md:inline">{title}</span>
+          {title}
         </h1>
-        {switcher && <TodoSwitcherMenu x={switcher.x} y={switcher.y} onClose={() => setSwitcher(null)} />}
         <div className="flex items-center gap-2 mt-1">
           <p className={META_TEXT}>
             {t('taskList.incompleteTasks', { count: incompleteCount })}

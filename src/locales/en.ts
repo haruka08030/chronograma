@@ -582,6 +582,7 @@ export default {
     },
   },
   taskList: {
+    openLists: 'Open lists',
     defaultTitle: 'Tasks',
     incompleteTasks: '{{count}} open tasks',
     addSection: '+ Section',

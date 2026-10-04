@@ -30,7 +30,7 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
@@ -52,6 +52,9 @@ const SCREENS = [
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
   { name: 'todo', view: 'all' },
+  // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
+  { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
+  { name: 'todo-mobile-swipe', view: 'all', mobileOnly: true, swipeRight: true },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
   // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す
@@ -328,6 +331,16 @@ async function main() {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
                 await page.waitForTimeout(300)
               }
+            }
+            if (screen.swipeRight && vp.hasTouch) {
+              // 画面の中ほど（y = 高さの半分）を指で右へ払う。左端は OS の「戻る」なので、内側から始める
+              const cdp = await page.context().newCDPSession(page)
+              const y = vp.height / 2
+              const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+              await touch('touchStart', 80)
+              for (let x = 100; x <= 260; x += 20) await touch('touchMove', x)
+              await touch('touchEnd', 260)
+              await page.waitForTimeout(400)
             }
             if (screen.hover && !vp.hasTouch) {
               // マウスを乗せたときのヒント（TooltipHost は 0.5 秒後に出す）

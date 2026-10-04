@@ -580,6 +580,7 @@ export default {
     },
   },
   taskList: {
+    openLists: 'リストを開く',
     defaultTitle: 'タスク',
     incompleteTasks: '{{count}} 件の未完了タスク',
     addSection: '＋ セクション',

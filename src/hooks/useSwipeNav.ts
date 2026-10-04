@@ -12,12 +12,14 @@ const SLIDE_IN_PX = 40
 /**
  * タッチの横スワイプで前後へ送る（Google カレンダーと同じ）。指に合わせて中身を横にずらし、離したら送る・戻す。
  * 横と決まるまでは何もしないので縦スクロールの邪魔をしない。2 本指（ピンチ）・`isBlocked()` が true のとき（ドラッグ中など）は無視する。
- * `dir` は -1 = 前（右へ払う）、1 = 次（左へ払う）
+ * `dir` は -1 = 前（右へ払う）、1 = 次（左へ払う）。
+ * `follow: false` は中身を動かさず、払ったことだけを知らせる（To-Do で右へ払ってドロワーを出すときなど）
  */
 export function useSwipeNav(
   ref: RefObject<HTMLElement | null>,
   onSwipe: ((dir: -1 | 1) => void) | undefined,
   isBlocked?: () => boolean,
+  { follow = true }: { follow?: boolean } = {},
 ) {
   const onSwipeRef = useRef(onSwipe)
   const isBlockedRef = useRef(isBlocked)
@@ -35,6 +37,7 @@ export function useSwipeNav(
     let dx = 0
 
     const setShift = (px: number, animate: boolean) => {
+      if (!follow) return
       el.style.transition = animate ? 'transform 180ms var(--ease-standard)' : ''
       el.style.transform = px ? `translateX(${px}px)` : ''
     }
@@ -109,5 +112,5 @@ export function useSwipeNav(
       el.removeEventListener('touchcancel', onCancel)
       setShift(0, false)
     }
-  }, [ref, enabled])
+  }, [ref, enabled, follow])
 }

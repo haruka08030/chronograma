@@ -48,7 +48,8 @@ import { OverlayHost } from './components/OverlayHost'
 import { SHORTCUTS, dispatchNav, dispatchSelectAll } from './lib/shortcuts'
 import { useHotkey } from './hooks/useHotkey'
 import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
-import { useIsLargeScreen } from './hooks/useMediaQuery'
+import { useIsDesktop, useIsLargeScreen } from './hooks/useMediaQuery'
+import { useSwipeNav } from './hooks/useSwipeNav'
 import { canNestUnder } from './lib/taskDepth'
 import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
 import {
@@ -187,6 +188,10 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const isDesktop = useIsDesktop()
+  /** タスク・リストをドラッグしている間（横に動かしてもドロワーを出さない） */
+  const dragActiveRef = useRef(false)
+  const mainRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -196,6 +201,7 @@ export default function App() {
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    dragActiveRef.current = true
     const activeId = String(event.active.id)
     const group = (event.active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
     const count = group && group.length > 1 ? group.length : 1
@@ -218,11 +224,13 @@ export default function App() {
   }, [])
 
   const handleDragCancel = useCallback(() => {
+    dragActiveRef.current = false
     setDragOverlayTask(null)
     setTimerDragActive(false)
   }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    dragActiveRef.current = false
     setDragOverlayTask(null)
     setTimerDragActive(false)
     const { active, over } = event
@@ -558,6 +566,15 @@ export default function App() {
   // 細い To‑Do パネルは lg 以上のみ。それ未満は置く幅がないのでサイドバー内に畳み込む
   const showTodoNavPanel = isLargeScreen && isTodoNavView(selectedView)
 
+  // スマホの To-Do は、画面のどこからでも右へ払うとドロワー（リスト）が出る。
+  // 画面の左端からは OS・ブラウザの「戻る」が先に取るので、端に頼らない
+  useSwipeNav(
+    mainRef,
+    !isDesktop && isTodoSurface && !searchQuery.trim() ? (dir) => { if (dir === -1) setSidebarOpen(true) } : undefined,
+    () => dragActiveRef.current,
+    { follow: false },
+  )
+
   const mainContent = (() => {
     if (searchQuery.trim()) return <SearchResults />
     switch (selectedView) {
@@ -571,7 +588,7 @@ export default function App() {
       case 'settings': return <SettingsView />
       default:
         // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
-        return <TaskList />
+        return <TaskList onOpenNav={() => setSidebarOpen(true)} />
     }
   })()
 
@@ -593,7 +610,7 @@ export default function App() {
 
         {showTodoNavPanel ? <TodoNavPanel /> : null}
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <div ref={mainRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {!hideGlobalHeader && (
             <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
 
