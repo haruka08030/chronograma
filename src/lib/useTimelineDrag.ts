@@ -132,7 +132,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const [touchLifted, setTouchLifted] = useState(false)
   const touchPressRef = useRef(false)
   const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  /** 空き時間の長押しの待ち（持ち上げる前に指が動く・離すとやめる） */
+  const createPressTimerRef = useRef(0)
+  /** 長押しで作るとき、指の位置から作る範囲の終わりまでの差（指を動かした分だけ終わりが動く） */
+  const createOffsetRef = useRef(0)
   const endTouchLift = useCallback(() => {
+    window.clearTimeout(createPressTimerRef.current)
+    createOffsetRef.current = 0
     touchLiftedRef.current = false
     touchPressRef.current = false
     setTouchLifted(false)
@@ -149,7 +155,23 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     beyondTapSlopRef.current = false
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
-  }, [getRelativeY, popup, defaultCreateIntent])
+    if (coarse) {
+      // タッチの長押し: 押した 15 分枠の頭から既定の長さ（無ければ 1 時間）の範囲を出し、指を上下に動かすと終わりが動く
+      window.clearTimeout(createPressTimerRef.current)
+      createPressTimerRef.current = window.setTimeout(() => {
+        const slotPx = (HOUR_HEIGHT * SNAP_MINUTES) / 60
+        const startY = Math.floor(y / slotPx) * slotPx
+        let endY = startY + ((clickCreateMinutes ?? 60) / 60) * HOUR_HEIGHT
+        if (maxY !== undefined) endY = Math.min(endY, maxY)
+        createOffsetRef.current = endY - y
+        touchLiftedRef.current = true
+        setTouchLifted(true)
+        didMoveRef.current = true
+        navigator.vibrate?.(15)
+        setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, startY, currentY: endY } : prev)
+      }, TOUCH_LONG_PRESS_MS)
+    }
+  }, [getRelativeY, popup, defaultCreateIntent, clickCreateMinutes])
 
   const handleBlockPointerDown = useCallback((
     e: React.PointerEvent,
@@ -270,7 +292,9 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
     const y = getRelativeY(clientY, dateKey)
     if (current.kind === 'create') {
-      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(y, prev.maxY) : y, dateKey } : prev)
+      // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
+      const cy = y + createOffsetRef.current
+      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey } : prev)
     } else if (current.kind === 'move') {
       setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
     } else {
@@ -291,7 +315,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (p0 && !didMoveRef.current) {
       const dx = Math.abs(e.clientX - p0.x)
       const dy = Math.abs(e.clientY - p0.y)
-      if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) beyondTapSlopRef.current = true
+      if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) {
+        beyondTapSlopRef.current = true
+        // 持ち上げる前に指が動いた = スクロール。空き時間の長押しはやめる
+        window.clearTimeout(createPressTimerRef.current)
+      }
       const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
       if (dx > threshold || dy > threshold) {
         didMoveRef.current = true
@@ -327,7 +355,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
       const minPx = isCoarsePointer() ? CREATE_MIN_COARSE_PX : CREATE_MIN_PX
-      if (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current)) {
+      // 長押しで作った範囲は短くても（15 分でも）そのまま使う
+      if (!lifted && (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current))) {
         setDrag(null)
         pointerStartRef.current = null
         // タッチでスクロールになったときは pointercancel が来てここには来ない。指は少しぶれるので TAP_SLOP_PX 以内をタップとする
