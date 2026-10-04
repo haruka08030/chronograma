@@ -62,6 +62,8 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 終わった日（前の週）の予定と記録
+  { name: 'calendar-past', view: 'calendar', click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）

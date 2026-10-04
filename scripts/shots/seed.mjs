@@ -101,6 +101,13 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     task({ id: 's25', title: '玉ねぎ', listId: SHOPPING_ID, parentId: 's24', order: 0, completed: true }, now),
     task({ id: 's26', title: 'にんじん', listId: SHOPPING_ID, parentId: 's24', order: 1 }, now),
     task({ id: 's27', title: '豚こま', listId: SHOPPING_ID, parentId: 's24', order: 2 }, now),
+    // 前の日の予定と記録（終わった日の週カレンダーで、予定と記録を見分けられるか）
+    task({ id: 's50', title: '2 限 授業', scheduledDate: yesterday, startTime: '10:40', endTime: '12:10', completed: true, color: '#33B679', order: 20 }, now),
+    task({ id: 's51', title: '2 限 授業', dueDate: yesterday, startTime: '10:40', endTime: '12:10', kind: 'log', completed: true, order: 21, tags: ['授業'] }, now),
+    task({ id: 's52', title: 'ES 下書き', scheduledDate: yesterday, startTime: '14:00', endTime: '16:00', color: '#F6BF26', order: 22 }, now),
+    task({ id: 's53', title: 'ES 下書き', dueDate: yesterday, startTime: '14:30', endTime: '15:15', kind: 'log', completed: true, order: 23, tags: ['就活'] }, now),
+    task({ id: 's54', title: 'バイト', scheduledDate: yesterday, startTime: '18:00', endTime: '21:00', order: 24 }, now),
+    task({ id: 's55', title: 'バイト', dueDate: yesterday, startTime: '18:00', endTime: '21:00', kind: 'log', completed: true, order: 25, tags: [] }, now),
     // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
     task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, now),
     task({ id: 's20', title: '就活サイトのプロフィール更新', scheduledDate: dayKey(shift(now, -2)), order: 15 }, now),

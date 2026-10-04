@@ -73,7 +73,7 @@ export function WeekAllDayRow({
           return (
             <div
               key={key}
-              className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
+              className={`min-h-[28px] border-l border-zinc-200 dark:border-zinc-700 px-0.5 py-0.5 space-y-0.5 transition-colors
                 ${allDayDragOver === key || allDayMoveKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
               onDragOver={(e) => {
                 if (acceptTaskDrag(e, { googleEvents: true })) setAllDayDragOver(key)
