@@ -7,6 +7,7 @@ import { TimeInput } from './TimeInput'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
+import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
@@ -87,8 +88,8 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     logSleep(dateKey, bed, wake)
     setEditing(false)
   }
-  const inputClass =
-    'w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100'
+  // 行に溶け込む小さな欄なので fieldClass は使わないが、フォーカスは他の入力欄と同じリングで見せる
+  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100 ${FIELD_FOCUS_RING}`
 
   return (
     <div
@@ -119,8 +120,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
           <button
             type="button"
             onClick={() => setEditing(false)}
-            aria-label={t('common.cancel')}
-            {...tip(t('common.cancel'))}
+            {...tip(t('common.cancel'), { name: true })}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />

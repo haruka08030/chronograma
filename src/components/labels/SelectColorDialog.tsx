@@ -72,8 +72,7 @@ export function SelectColorDialog({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                aria-label={t(`googleColors.${c.key}`)}
-                {...tip(t(`googleColors.${c.key}`))}
+                {...tip(t(`googleColors.${c.key}`), { name: true })}
                 onClick={() => applyHex(c.hex)}
                 className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
                 style={{ backgroundColor: c.hex, color: textOnHex(c.hex) }}
@@ -104,8 +103,7 @@ export function SelectColorDialog({
                     /* キャンセル */
                   }
                 }}
-                aria-label={t('labels.eyedropper')}
-                {...tip(t('labels.eyedropper'))}
+                {...tip(t('labels.eyedropper'), { name: true })}
                 className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
               >
                 <PencilSquareIcon className="h-5 w-5" strokeWidth={1.75} />

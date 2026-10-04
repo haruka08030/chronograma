@@ -97,8 +97,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                   <button
                     type="button"
                     onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
-                    aria-label={t('labels.remove')}
-                    {...tip(t('labels.remove'))}
+                    {...tip(t('labels.remove'), { name: true })}
                     className={iconButtonClass(REVEAL_ON_HOVER)}
                   >
                     <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
@@ -111,8 +110,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={addRow}
-              aria-label={t('labels.add')}
-              {...tip(t('labels.add'))}
+              {...tip(t('labels.add'), { name: true })}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
             >
               <PlusIcon className="h-5 w-5" />

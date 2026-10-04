@@ -23,8 +23,7 @@ export function CalendarAddTaskButton({
       type="button"
       onClick={onClick}
       onPointerDown={(e) => e.stopPropagation()}
-      aria-label={label ?? t('calendar.addTaskAria')}
-      {...tip(label ?? t('calendar.addTaskAria'))}
+      {...tip(label ?? t('calendar.addTaskAria'), { name: true })}
       className={`inline-flex items-center justify-center rounded text-zinc-400 transition-colors
                   hover:bg-zinc-200/70 hover:text-zinc-600 dark:hover:bg-zinc-700/70 dark:hover:text-zinc-200
                   ${className}`}

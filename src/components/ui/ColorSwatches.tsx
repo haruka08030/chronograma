@@ -57,8 +57,7 @@ export function ColorSwatches({
             type="button"
             role="radio"
             aria-checked={isSelected}
-            aria-label={name}
-            {...tip(name)}
+            {...tip(name, { name: true })}
             onClick={() => onChoose(sw.hex)}
             className="flex aspect-square w-full items-center justify-center rounded-full transition-transform hover:scale-110"
             style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}

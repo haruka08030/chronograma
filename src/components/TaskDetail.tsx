@@ -32,6 +32,7 @@ import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -51,6 +52,15 @@ export function TaskDetail({
   const { t } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
+  // Tab は詳細の中だけを巡回し、閉じたら開いた行（の題名）へフォーカスを戻す
+  const panelRef = useRef<HTMLDivElement>(null)
+  const trapTab = useFocusTrap(panelRef, {
+    active: !closing,
+    returnFocus: () =>
+      Array.from(document.querySelectorAll<HTMLElement>(`[data-task-row="${CSS.escape(task.id)}"] [data-task-title]`)).find(
+        (el) => el.getClientRects().length > 0,
+      ),
+  })
   const df = useDateFormat()
   const isLog = isLogTask(task)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -272,8 +282,7 @@ export function TaskDetail({
                   href={googleMapsUrl(task.location)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  {...tip(t('taskDetail.openInMaps'))}
-                  aria-label={t('taskDetail.openInMaps')}
+                  {...tip(t('taskDetail.openInMaps'), { name: true })}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700
                              text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-500/10
                              transition-colors flex-shrink-0"
@@ -678,13 +687,15 @@ export function TaskDetail({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} inert={closing}>
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} onKeyDown={trapTab} inert={closing}>
       <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={task.title}
-        className={`relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
+        tabIndex={-1}
+        className={`relative w-full outline-none max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
                    h-full overflow-y-auto overscroll-contain shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
         onClick={(e) => e.stopPropagation()}
       >

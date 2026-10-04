@@ -23,8 +23,7 @@ export function RowActionButton({
     <button
       type="button"
       onClick={onClick}
-      aria-label={label}
-      {...tip(label)}
+      {...tip(label, { name: true })}
       className={buttonClass(
         { variant: 'secondary', size: 'xs' },
         `h-7 w-7 shrink-0 px-0! py-0! text-zinc-500 pointer-coarse:h-9 pointer-coarse:w-9 dark:text-zinc-400 ${

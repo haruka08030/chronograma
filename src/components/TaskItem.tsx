@@ -475,8 +475,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
           deleteTasks([task.id])
         }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
-        aria-label={t('taskItem.deleteAria')}
-        {...tip(t('taskItem.deleteAria'))}
+        {...tip(t('taskItem.deleteAria'), { name: true })}
       >
         <TrashIcon className="h-4 w-4 text-zinc-400" />
       </button>

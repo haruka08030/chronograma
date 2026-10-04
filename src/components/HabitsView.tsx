@@ -17,7 +17,7 @@ import {
 } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
-import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
 import { colorVars, labelForHex } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
@@ -447,8 +447,7 @@ export function HabitsView() {
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
                   className={iconButtonClass('-mr-1.5 -mt-1.5')}
-                  {...tip(t('common.delete'))}
-                  aria-label={t('common.delete')}
+                  {...tip(t('common.delete'), { name: true })}
                 >
                   <PathIcon d={iconTrash} className="w-4 h-4" strokeWidth={1.5} />
                 </button>
@@ -580,9 +579,13 @@ export function HabitsView() {
               const isDone = status === 'done'
               const isOffTime = status === 'offTime'
               const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
-              const cellTitle = record
-                ? t('habits.offTimeTooltip', { date: key, start: record.startTime, end: record.endTime })
-                : key
+              // 読み上げは「10月3日 (土) 達成」。時間外は時刻も添える（ツールチップはタッチでは見えないため）
+              const cellDate = df.monthDayWeekday(d)
+              const cellLabel = record
+                ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
+                : isDone
+                  ? t('habits.cellDoneAria', { date: cellDate })
+                  : cellDate
               // 丸の塗りは達成の色なので、今日は曜日の文字で、選んだ日は枠で示す（カレンダーと同じ藍）
               const ringClass = isCellFocus
                 ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-transparent'
@@ -595,11 +598,12 @@ export function HabitsView() {
                     e.stopPropagation()
                     toggleHabitDate(h.id, key)
                   }}
-                  className="flex justify-center"
-                  aria-label={cellTitle}
-                  {...tip(cellTitle)}
+                  className="relative flex justify-center"
+                  aria-label={cellLabel}
+                  aria-pressed={isDone || isOffTime}
+                  {...tip(record ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime }) : undefined)}
                 >
-                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
+                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。時間外は丸の下（カードの余白）に小さく「時間外」 */}
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
@@ -614,6 +618,11 @@ export function HabitsView() {
                   >
                     {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
+                  {isOffTime && (
+                    <span aria-hidden className={`absolute top-full mt-1.5 whitespace-nowrap text-[10px] leading-none ${HABIT_OFF_TIME_TEXT}`}>
+                      {t('planner.habitOffTime')}
+                    </span>
+                  )}
                 </button>
               )
             })}

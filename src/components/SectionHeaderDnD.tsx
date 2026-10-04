@@ -55,8 +55,7 @@ export function SectionHeaderDnD({
           className={`touch-none flex-shrink-0 rounded-md p-1.5 cursor-grab active:cursor-grabbing ${REVEAL_ON_HOVER}
                      text-zinc-400 md:p-1 md:text-zinc-300 hover:text-zinc-500 dark:text-zinc-500 dark:md:text-zinc-600 dark:hover:text-zinc-400
                      hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80`}
-          {...tip(t('taskList.reorderSection'))}
-          aria-label={t('taskList.reorderSection')}
+          {...tip(t('taskList.reorderSection'), { name: true })}
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <circle cx="9" cy="6" r="1.5" />

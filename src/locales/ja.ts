@@ -473,6 +473,8 @@ export default {
     timeRange: '{{start}} 〜 {{end}}',
     onTimeHint: '±{{min}} 分で達成',
     offTimeTooltip: '{{date}} {{start}}〜{{end}}（時間外）',
+    cellDoneAria: '{{date}} 達成',
+    cellOffTimeAria: '{{date}} 達成（時間外 {{start}}〜{{end}}）',
     goalDaily: '毎日',
     weekdaySeparator: '・',
     empty: 'まだ習慣がありません。右上の「{{add}}」から作成できます。',
