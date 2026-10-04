@@ -52,8 +52,6 @@ const SCREENS = [
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
   { name: 'todo', view: 'all' },
-  // スマホの上のタブでリスト（4 つの絞り込みの次）を開いた状態
-  { name: 'todo-mobile-list-tab', view: 'all', mobileOnly: true, click: 'nav[aria-label^="To"] button >> nth=5' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
   // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す

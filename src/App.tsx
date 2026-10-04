@@ -77,7 +77,6 @@ const SearchResults = lazy(() => import('./components/SearchResults').then((m) =
 const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })))
 import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
-import { MobileTodoTabs } from './components/todo/MobileTodoTabs'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
 import { undoGoogleDelete } from './lib/googleEventEdit'
@@ -556,7 +555,6 @@ export default function App() {
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
-  const showMobileTodoTabs = isTodoSurface && !searchQuery.trim()
   // 細い To‑Do パネルは lg 以上のみ。それ未満は置く幅がないのでサイドバー内に畳み込む
   const showTodoNavPanel = isLargeScreen && isTodoNavView(selectedView)
 
@@ -597,7 +595,7 @@ export default function App() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {!hideGlobalHeader && (
-            <header className={`flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 ${showMobileTodoTabs ? 'max-md:border-b-0 max-md:pb-1' : ''}`}>
+            <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
 
               <div className="relative min-w-0 flex-1 max-w-2xl">
                 <svg
@@ -630,8 +628,6 @@ export default function App() {
               </div>
             </header>
           )}
-          {/* スマホは左のパネルが無いので、検索の下にリストのタブを出す（線はタブの下に 1 本だけ） */}
-          {showMobileTodoTabs && <MobileTodoTabs />}
 
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <ErrorBoundary
