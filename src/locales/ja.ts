@@ -1012,6 +1012,8 @@ export default {
     stopNow: '今ここまでを記録',
     chooseEnd: '終了時刻を選ぶ',
     saveAt: 'この時刻で記録',
+    endDate: '終了日',
+    endTime: '終了時刻',
     discard: '記録せず捨てる',
   },
   timerDrop: {
