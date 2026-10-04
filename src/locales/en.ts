@@ -102,6 +102,8 @@ export default {
     error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
     errorWithLast:
       "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
+    limit:
+      "You've reached the maximum number of items, so new items can't be sent to the cloud. They're still on this device and will be sent once you delete items you no longer need.",
     rejectedShort: '{{count}} not saved',
     rejected:
       "{{count}} item(s) couldn't be saved to the cloud (too large or in an unexpected shape). They're still on this device and will be sent again once edited. Everything else is synced.",
