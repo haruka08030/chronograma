@@ -98,6 +98,8 @@ const SCREENS = [
   // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）
   { name: 'trash-menu', view: 'deleted', deleted: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
   { name: 'archive-menu', view: 'archived', archived: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
+  // 完了した To-Do を全リスト分集めた画面（完了した日ごと）
+  { name: 'completed', view: 'completed' },
 ]
 
 const VIEWPORTS = [

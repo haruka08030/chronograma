@@ -111,7 +111,12 @@ export function TaskList() {
     return n
   }, [filtered, childrenByParent])
 
-  const completedTodos = filtered.filter((t) => t.completed && !isLogTask(t))
+  // 完了した To-Do はナビの「完了済み」に集める。チェックリスト（使い回す）といつか（かなえた）だけリストの下に残す
+  const keepsDoneInList = listKind === 'checklist' || listKind === 'someday'
+  const completedTodos = useMemo(
+    () => (keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t)) : []),
+    [keepsDoneInList, filtered],
+  )
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 

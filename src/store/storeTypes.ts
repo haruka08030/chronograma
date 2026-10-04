@@ -29,6 +29,7 @@ export type SmartView =
   | 'calendar'
   | 'stats'
   | 'habits'
+  | 'completed'
   | 'archived'
   | 'deleted'
   | 'settings'

@@ -60,7 +60,7 @@
   面かつ検索が空のとき**検索欄のみ**（`AccountMenu` / `ThemeToggle` は
   `SettingsView` へ）。それ以外の画面ではヘッダー非表示（カレンダーは
   ハブ内のメニュー）。**lg(≥1024px) 以上**で To‑Do 系ビュー（`isTodoNavView`＝ToDo
-  面＋`archived` / `deleted`）のときだけ、サイドバーの**右**に細い
+  面＋`completed` / `archived` / `deleted`）のときだけ、サイドバーの**右**に細い
   `TodoNavPanel`（`w-52`）を常設し（`useIsLargeScreen`）、その右がメイン列。
   詳細は列ではなくオーバーレイシートなので、メイン列は常に一覧のみ。
   サイドバー自体はどのビューでも全タブを表示し続ける。**md 未満**は下部に `MobileBottomNav`（To‑Do /
@@ -141,7 +141,7 @@
   予定と記録で Google の予定を「記録にする」と、その予定の色を写す（`addCompletedTaskWithTime(..., color)`）。Google の予定の色は
   `googleEventHex`（予定の colorId 1〜11 → 画面の 11 色、無ければ Edge Function `google-calendar` の `events` が返す
   `calendarColor`（カレンダー自体の色、旧パレットなので最も近い 11 色へ）、それも無ければピーコック）で `CalendarEvent.color` に解決
-- **呼び名**: 画面上は「記録」に統一（ナビ「予定と記録」「記録」、完了の見出しは「完了 N 件」）。コード上の識別子（activity-log 等）は従来どおり
+- **呼び名**: 画面上は「記録」に統一（ナビ「予定と記録」「記録」）。コード上の識別子（activity-log 等）は従来どおり
 - **カレンダー**: 下の ToDo ドックは既定で閉じる（右の日パネルと重複するため）。月のマスには記録を分類色の積み上げ帯＋合計時間で
   先頭に表示。月外のマスは日付と中身だけ薄く（マス全体の opacity は罫線ごと消えるのでやめた）
 - **習慣**: 達成率は `consistencyForLast7Days`（直近 7 日、今日は達成済みのときだけ数える）に一本化。連続日数は今日まだなら昨日から
@@ -254,9 +254,9 @@
 ### `SmartView`
 
 `all` | `today` | `upcoming` | `overdue` | `calendar` | `plan-vs-actual` |
-`activity-log` | `stats` | `habits` | `archived` | `deleted` | `settings`（旧
+`activity-log` | `stats` | `habits` | `completed` | `archived` | `deleted` | `settings`（旧
 `week-calendar` は v12 マイグレーションで `calendar` + `calendarMode: week`
-に統合）。`archived` / `deleted` は `TaskBinView`（アーカイブ済み / ゴミ箱）
+に統合）。`archived` / `deleted` は `TaskBinView`（アーカイブ済み / ゴミ箱）。`completed` は `CompletedTasksView`（完了済み）
 
 検索クエリが非空のときは `SearchResults` が最優先。
 

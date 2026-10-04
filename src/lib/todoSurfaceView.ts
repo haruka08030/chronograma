@@ -7,10 +7,11 @@ export function isTodoSurfaceView(selectedView: string | null | undefined): bool
   return selectedView == null || TODO_SURFACE_VIEWS.has(selectedView)
 }
 
-/** To‑Do の細いサブナビ（期限別ビュー / リスト / アーカイブ・ゴミ箱）を出すビュー */
+/** To‑Do の細いサブナビ（期限別ビュー / リスト / 完了済み・アーカイブ・ゴミ箱）を出すビュー */
 export function isTodoNavView(selectedView: string | null | undefined): boolean {
   return (
     isTodoSurfaceView(selectedView) ||
+    selectedView === 'completed' ||
     selectedView === 'archived' ||
     selectedView === 'deleted'
   )
