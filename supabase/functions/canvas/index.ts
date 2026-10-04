@@ -4,6 +4,7 @@ import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
+import { readJsonCapped, readTextCapped, ResponseTooLargeError } from './body.ts'
 
 /**
  * Canvas LMS 連携。Planner（To Do）の課題を返し、タスクを完了にしたら Canvas の To Do も完了にする。
@@ -59,7 +60,7 @@ const checkedHosts = new Map<string, { ok: boolean; at: number }>()
 /**
  * 名前が内部のアドレスを指していないか確かめる（ドメイン名で内部のサーバーへ届かせないため）。
  * 送るたびに確かめ直し、結果は短い間だけ覚える。名前解決の API が無い環境では送らない。
- * 名前解決そのものに失敗したときは fetch に任せる（それも失敗して canvas_bad_url になる）
+ * 名前が引けない（A も AAAA も無い・引けない）宛先も送らない（確かめていない宛先を fetch に任せない）
  */
 async function assertPublicHost(host: string): Promise<void> {
   if (typeof Deno.resolveDns !== 'function') {
@@ -72,10 +73,11 @@ async function assertPublicHost(host: string): Promise<void> {
     const lookups = await Promise.all(
       (['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])),
     )
-    ok = !lookups.flat().some(isPrivateAddress)
+    const addresses = lookups.flat()
+    ok = addresses.length > 0 && !addresses.some(isPrivateAddress)
     checkedHosts.set(host, { ok, at: Date.now() })
   }
-  if (!ok) throw new CanvasError('canvas_bad_url', 'Private address')
+  if (!ok) throw new CanvasError('canvas_bad_url', 'Private or unresolvable address')
 }
 
 /** カレンダーフィードの URL（`https://<学校>/feeds/calendars/user_….ics`）。それ以外の宛先は読まない */
@@ -90,6 +92,26 @@ function parseFeedUrl(input: string): { baseUrl: string; feedUrl: string } | nul
   }
   if (!/^\/feeds\/calendars\/[\w.-]+\.ics$/.test(path)) return null
   return { baseUrl, feedUrl: `${baseUrl}${path}` }
+}
+
+/** 応答の本文を上限つきで読む。大きすぎれば canvas_api */
+async function readBody(res: Response): Promise<string> {
+  try {
+    return await readTextCapped(res)
+  } catch (e) {
+    if (e instanceof ResponseTooLargeError) throw new CanvasError('canvas_api', e.message)
+    throw e
+  }
+}
+
+/** JSON を上限つきで読む。大きすぎれば canvas_api、JSON でなければ null */
+async function readJson(res: Response): Promise<unknown> {
+  try {
+    return await readJsonCapped(res)
+  } catch (e) {
+    if (e instanceof ResponseTooLargeError) throw new CanvasError('canvas_api', e.message)
+    return null
+  }
 }
 
 /** フィードを読む。締切が昨日〜120 日後の課題だけ（済んだか分からない過去の課題は取り込まない） */
@@ -112,7 +134,8 @@ async function feedItems(baseUrl: string, feedUrl: string) {
     if (e instanceof CanvasError) throw e
     throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
   }
-  const text = res.ok ? await res.text() : ''
+  if (!res.ok) await res.body?.cancel()
+  const text = res.ok ? await readBody(res) : ''
   // URL を作り直すと古い URL は 404 になる
   if (!text.includes('BEGIN:VCALENDAR')) throw new CanvasError('canvas_feed_invalid', `HTTP ${res.status}`)
   const now = Date.now()
@@ -137,7 +160,7 @@ async function canvasRequest(baseUrl: string, token: string, url: string, init: 
     throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
   }
   if (res.ok) return res
-  const text = await res.text().catch(() => '')
+  const text = await readTextCapped(res, 64 * 1024).catch(() => '')
   if (res.status === 401) throw new CanvasError('canvas_unauthorized', text.slice(0, 200))
   if (res.status === 403 && /rate limit/i.test(text)) throw new CanvasError('canvas_rate_limited')
   // 学校のログイン画面へのリダイレクトや、Canvas でないサイト
@@ -147,11 +170,9 @@ async function canvasRequest(baseUrl: string, token: string, url: string, init: 
 
 async function canvasJson<T>(baseUrl: string, token: string, path: string, init: RequestInit = {}) {
   const res = await canvasRequest(baseUrl, token, `${baseUrl}${path}`, init)
-  try {
-    return (await res.json()) as T
-  } catch {
-    throw new CanvasError('canvas_bad_url', 'Not JSON')
-  }
+  const data = await readJson(res)
+  if (data === null) throw new CanvasError('canvas_bad_url', 'Not JSON')
+  return data as T
 }
 
 function nextLink(res: Response): string | null {
@@ -169,7 +190,7 @@ async function canvasAll<T>(baseUrl: string, token: string, path: string): Promi
   let url: string | null = `${baseUrl}${path}`
   for (let i = 0; i < 20 && url; i++) {
     const res = await canvasRequest(baseUrl, token, url)
-    const page = await res.json().catch(() => null)
+    const page = await readJson(res)
     // ログイン画面などの HTML が返ってきたときは、URL が Canvas の API ではない
     if (!Array.isArray(page)) throw new CanvasError('canvas_bad_url', 'Not a JSON array')
     out.push(...(page as T[]))

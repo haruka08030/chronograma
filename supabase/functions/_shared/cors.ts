@@ -1,9 +1,10 @@
 /**
  * ブラウザから呼ぶ Edge Function の CORS。アプリの公開 URL と開発用の URL からだけ呼べるようにする。
  * 公開 URL は secret `ALLOWED_ORIGINS`（カンマ区切り。例 `https://chronograma.vercel.app`）で渡す。
+ * 開発用の localhost は、環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足す（本番では足さない）。
  */
 
-/** 開発サーバー（vite / vite preview）。いつでも許可する */
+/** 開発サーバー（vite / vite preview）。`ALLOW_DEV_ORIGINS=true` のときだけ許可する */
 export const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -13,8 +14,13 @@ export const DEV_ORIGINS = [
 
 const ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type'
 
-/** `ALLOWED_ORIGINS` の値を origin の並びにする。末尾の `/` やパスは落とす */
-export function parseAllowedOrigins(raw: string | undefined): string[] {
+/** `ALLOW_DEV_ORIGINS` の値が「足す」か */
+export function devOriginsEnabled(raw: string | undefined): boolean {
+  return /^(1|true|yes)$/i.test((raw ?? '').trim())
+}
+
+/** `ALLOWED_ORIGINS` の値を origin の並びにする。末尾の `/` やパスは落とす。`allowDev` なら開発用も足す */
+export function parseAllowedOrigins(raw: string | undefined, allowDev = false): string[] {
   const out: string[] = []
   for (const part of (raw ?? '').split(',')) {
     const s = part.trim()
@@ -25,7 +31,7 @@ export function parseAllowedOrigins(raw: string | undefined): string[] {
       // URL でない値は無視する
     }
   }
-  return [...DEV_ORIGINS, ...out]
+  return allowDev ? [...DEV_ORIGINS, ...out] : out
 }
 
 /** そのオリジンに返す CORS ヘッダー。許可していないオリジンには Allow-Origin を付けない */
@@ -46,7 +52,10 @@ export function corsHeadersFor(origin: string | null, allowed: string[]): Record
 export function withCors(handler: (req: Request) => Promise<Response>): (req: Request) => Promise<Response> {
   return async (req) => {
     const origin = req.headers.get('Origin')
-    const allowed = parseAllowedOrigins(Deno.env.get('ALLOWED_ORIGINS'))
+    const allowed = parseAllowedOrigins(
+      Deno.env.get('ALLOWED_ORIGINS'),
+      devOriginsEnabled(Deno.env.get('ALLOW_DEV_ORIGINS')),
+    )
     const cors = corsHeadersFor(origin, allowed)
     if (req.method === 'OPTIONS') {
       return new Response(cors['Access-Control-Allow-Origin'] ? 'ok' : 'forbidden', {

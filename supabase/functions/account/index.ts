@@ -2,12 +2,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { openSecret, secretContext } from '../_shared/secretBox.ts'
+import { decodeJwtPayload, isRecentSignIn, signedInAt } from './reauth.ts'
 
 /**
  * アカウントの削除。利用者が自分でアカウントとクラウドのデータを全部消せるようにする。
  * タスク・リスト・習慣・通知の購読・Google / Notion / Canvas の連携は auth.users の on delete cascade で消える。
  * Google は消す前にトークンを無効にして、Google 側の「アクセスできるアプリ」からも外す。Canvas のトークンも取り消す。
  * auth.admin は service_role が要るので Edge Function で行う。
+ * 10 分より前にログインしたセッションからは消さず、403 `reauth_required` を返す（クライアントはログインし直してから送り直す）。
  */
 
 function jsonResponse(body: unknown, status = 200) {
@@ -41,6 +43,11 @@ Deno.serve(withCors(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey)
     if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.account))) {
       return jsonResponse({ ok: false, error: 'Too many requests' }, 429)
+    }
+
+    // 最近ログインしたセッションだけ（開いたままの端末・盗まれたトークンですぐには消せないように）
+    if (!isRecentSignIn(signedInAt(decodeJwtPayload(authHeader), user.last_sign_in_at))) {
+      return jsonResponse({ ok: false, code: 'reauth_required', error: 'reauth_required' }, 403)
     }
 
     // Google のトークンを無効にする。失敗しても削除は続ける（行は cascade で消え、トークンは使われなくなる）
