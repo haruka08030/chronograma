@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import {
   startOfWeek,
   endOfWeek,
@@ -54,6 +54,7 @@ import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
+import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 
 const DAY_HEIGHT = HOUR_HEIGHT * 24
 const NO_LOGS = new Map<string, Task[]>()
@@ -106,8 +107,6 @@ export function WeekCalendarView({
   const swipeBodyRef = useRef<HTMLDivElement>(null)
   const swipeStripRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  // タッチは予定の長押しで右クリックと同じメニュー（空き時間の長押しは扱わない）
-  useTouchContextMenu(rootRef, (target) => !target.closest('[data-block-id],[data-touch-menu]'))
 
   /** 上の帯に並べる日（週。3 日表示はその 3 日） */
   const days = useMemo(() => {
@@ -197,6 +196,22 @@ export function WeekCalendarView({
     createAnchor, setCreateAnchorFromEl,
   } = useCalendarCards(gridRef)
 
+  /**
+   * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
+   * 習慣の枠なども同じ属性を持つので、メニューを出せるもの（タスク・Google の予定）のときだけ開いて true
+   */
+  const openBlockMenu = useCallback((id: string, x: number, y: number): boolean => {
+    const { tasks, calendarEvents } = useTaskStore.getState()
+    const known = id.startsWith('event-')
+      ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
+      : tasks.some((t) => t.id === id)
+    if (!known) return false
+    setEventCard(null)
+    setGoogleCard(null)
+    openTaskMenu(id.startsWith('event-') ? { kind: 'google', x, y, eventId: id.slice('event-'.length) } : { kind: 'event', x, y, taskId: id })
+    return true
+  }, [setEventCard, setGoogleCard])
+
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
@@ -242,7 +257,19 @@ export function WeekCalendarView({
       else openCard(taskId)
     }, [openCard, openGoogleCard]),
     clickCreateMinutes: 60,
+    onBlockLongPress: (id, x, y) => { openBlockMenu(id, x, y) },
   })
+  // タッチで持ち上げている間は縦スクロールを止め（指で動かす）、上下の端に寄せたら送る
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const hold = (e: TouchEvent) => {
+      if (timelineDrag.touchLiftedRef.current && e.cancelable) e.preventDefault()
+    }
+    el.addEventListener('touchmove', hold, { passive: false })
+    return () => el.removeEventListener('touchmove', hold)
+  }, [timelineDrag.touchLiftedRef])
+  useDragEdgeScroll(scrollRef, timelineDrag.touchLifted, timelineDrag.repoint)
 
   const getTaskDuration = useCallback(
     (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
@@ -262,7 +289,9 @@ export function WeekCalendarView({
   })
 
   // スマホ幅は横に払って前後へ（PC 幅は ‹ › とキー）。予定をつかんでいる間は払いとみなさない
-  const swipeBlocked = () => !!timelineDrag.drag && timelineDrag.didMove.current
+  const swipeBlocked = () => (!!timelineDrag.drag && timelineDrag.didMove.current) || timelineDrag.touchLiftedRef.current
+  // タッチは予定の長押しで右クリックと同じメニュー。持ち上げられる予定は持ち上げに任せ、動かさずに離したらメニュー（空き時間の長押しは扱わない）
+  useTouchContextMenu(rootRef, (target) => !target.closest('[data-block-id],[data-touch-menu]') || timelineDrag.touchPressRef.current)
   useSwipeNav(swipeBodyRef, !isDesktop && !singleDay ? onNavigateWeek : undefined, swipeBlocked)
   useSwipeNav(swipeStripRef, !isDesktop && !singleDay && gridDays.length === 1 ? onNavigateStrip : undefined)
 
@@ -389,17 +418,7 @@ export function WeekCalendarView({
       // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
       onContextMenu={(e) => {
         const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
-        if (!id) return
-        // 習慣の枠なども同じ属性を持つ。メニューを出せるもの（タスク・Google の予定）のときだけブラウザのメニューを止める
-        const { tasks, calendarEvents } = useTaskStore.getState()
-        const known = id.startsWith('event-')
-          ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
-          : tasks.some((x) => x.id === id)
-        if (!known) return
-        e.preventDefault()
-        setEventCard(null)
-        setGoogleCard(null)
-        openTaskMenu(id.startsWith('event-') ? { kind: 'google', x: e.clientX, y: e.clientY, eventId: id.slice('event-'.length) } : { kind: 'event', x: e.clientX, y: e.clientY, taskId: id })
+        if (id && openBlockMenu(id, e.clientX, e.clientY)) e.preventDefault()
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

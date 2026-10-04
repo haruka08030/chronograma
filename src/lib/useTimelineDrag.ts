@@ -5,13 +5,15 @@ import { addDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime } from './clockTime'
 import type { TaskKind } from '../types/task'
-import { TOUCH_LONG_PRESS_MS } from '../hooks/useTouchContextMenu'
+import { suppressNextClick, TOUCH_LONG_PRESS_MS } from '../hooks/useTouchContextMenu'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
 const CREATE_MIN_PX = 5
 const CREATE_MIN_COARSE_PX = 20
 const TAP_SLOP_PX = 10
+/** タッチで長押しして持ち上げたブロックの、長さを変える下の端の幅（指は太いので広め。短いブロックは高さの 1/3） */
+const TOUCH_RESIZE_EDGE_PX = 20
 
 function isCoarsePointer(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
@@ -105,10 +107,12 @@ interface UseTimelineDragOptions {
    * クリックだけで作成カードを出す。未指定なら従来どおりクリックでは何もしない（予定 vs ログなど）
    */
   clickCreateMinutes?: number
+  /** タッチで長押しして持ち上げたブロックを、動かさずに離したとき（右クリックと同じメニュー） */
+  onBlockLongPress?: (taskId: string, clientX: number, clientY: number) => void
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
-  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap, clickCreateMinutes } = options
+  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap, clickCreateMinutes, onBlockLongPress } = options
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
@@ -120,6 +124,19 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   useEffect(() => {
     onBlockTapRef.current = onBlockTap
   }, [onBlockTap])
+  /**
+   * タッチ: 長押しで持ち上げたか（持ち上げたら縦スクロールを止めてドラッグにする）。
+   * `touchPressRef` は持ち上げられるブロックを押している間（長押しのメニューを出さないために使う）
+   */
+  const touchLiftedRef = useRef(false)
+  const [touchLifted, setTouchLifted] = useState(false)
+  const touchPressRef = useRef(false)
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  const endTouchLift = useCallback(() => {
+    touchLiftedRef.current = false
+    touchPressRef.current = false
+    setTouchLifted(false)
+  }, [])
 
   const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number) => {
     if (popup) return
@@ -151,22 +168,60 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   ) => {
     if (popup) return
 
-    // タッチ主体: 移動・リサイズは詳細モーダルで行い、ここはタップのみ（スクロールと共存）
+    // タッチ: 押すだけはカード、長押しで持ち上げて動かす（下の端なら長さを変える）。持ち上げるまでは縦スクロールに任せる
     if (isCoarsePointer()) {
       e.stopPropagation()
       const startX = e.clientX
       const startY = e.clientY
-      const startAt = e.timeStamp
       const id = taskId
+      const blockRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const localY = startY - blockRect.top
+      touchPressRef.current = true
+      /** この押し込みで持ち上げたか（格子の pointerup が先に touchLiftedRef を戻すので、押し込みごとに持つ） */
+      let lifted = false
+      const timer = window.setTimeout(() => {
+        lifted = true
+        touchLiftedRef.current = true
+        setTouchLifted(true)
+        navigator.vibrate?.(15)
+        didMoveRef.current = false
+        pointerStartRef.current = { x: startX, y: startY }
+        const y = getRelativeY(startY, dateKey)
+        if (localY >= blockRect.height - Math.min(TOUCH_RESIZE_EDGE_PX, blockRect.height / 3)) {
+          setDrag({ kind: 'resize', taskId: id, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+        } else {
+          setDrag({
+            kind: 'move',
+            taskId: id,
+            origDateKey: dateKey,
+            origStartTime: startTime,
+            origEndTime: endTime,
+            dateKey,
+            offsetY: localY,
+            currentY: y,
+            blockDurationMinutes: dragBlockDurationMinutes(blockDurationSource ?? { startTime, endTime }),
+          })
+        }
+      }, TOUCH_LONG_PRESS_MS)
+      const move = (ev: PointerEvent) => {
+        if (!lifted && (Math.abs(ev.clientX - startX) > TAP_SLOP_PX || Math.abs(ev.clientY - startY) > TAP_SLOP_PX)) {
+          window.clearTimeout(timer)
+        }
+      }
       const finish = (ev: PointerEvent) => {
+        window.clearTimeout(timer)
+        window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', finish)
         window.removeEventListener('pointercancel', finish)
-        // pointercancel はスクロールが始まった合図なので開かない。長押し（メニューを出した）でも開かない
-        if (ev.type === 'pointerup' && ev.timeStamp - startAt < TOUCH_LONG_PRESS_MS
-          && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+        // 持ち上げた後は格子の pointerup / pointercancel が片付ける
+        if (lifted) return
+        touchPressRef.current = false
+        // pointercancel はスクロールが始まった合図なので開かない
+        if (ev.type === 'pointerup' && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
           onBlockTapRef.current?.(id)
         }
       }
+      window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', finish)
       window.addEventListener('pointercancel', finish)
       return
@@ -210,8 +265,28 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
   }, [getRelativeY, popup])
 
+  /** 指・カーソルの位置からドラッグ中の位置を出し直す（スクロールで格子が動いたときも使う） */
+  const applyPoint = useCallback((clientX: number, clientY: number, current: DragState) => {
+    const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
+    const y = getRelativeY(clientY, dateKey)
+    if (current.kind === 'create') {
+      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(y, prev.maxY) : y, dateKey } : prev)
+    } else if (current.kind === 'move') {
+      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
+    } else {
+      setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
+    }
+  }, [getRelativeY, getDateKeyFromX])
+
+  /** 持ち上げ中に端でスクロールしたとき、最後の指の位置で置き場所を出し直す */
+  const repoint = useCallback(() => {
+    const p = lastPointRef.current
+    if (p && drag && didMoveRef.current) applyPoint(p.x, p.y, drag)
+  }, [drag, applyPoint])
+
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drag) return
+    lastPointRef.current = { x: e.clientX, y: e.clientY }
     const p0 = pointerStartRef.current
     if (p0 && !didMoveRef.current) {
       const dx = Math.abs(e.clientX - p0.x)
@@ -230,21 +305,24 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       }
     }
     if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
-
-    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX, e.clientY) : null) ?? drag.dateKey
-    const y = getRelativeY(e.clientY, dateKey)
-
-    if (drag.kind === 'create') {
-      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(y, prev.maxY) : y, dateKey } : prev)
-    } else if (drag.kind === 'move') {
-      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
-    } else {
-      setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
-    }
-  }, [drag, getRelativeY, getDateKeyFromX])
+    // タッチは持ち上げるまで動かさない（持ち上げる前の動きはスクロール）
+    if (drag.kind !== 'create' && isCoarsePointer() && !touchLiftedRef.current) return
+    applyPoint(e.clientX, e.clientY, drag)
+  }, [drag, applyPoint])
 
   const handlePointerUp = useCallback(() => {
     if (!drag) return
+    const lifted = touchLiftedRef.current
+    endTouchLift()
+    if (lifted) suppressNextClick()
+    // タッチで持ち上げて動かさずに離した: 右クリックと同じメニュー
+    if (lifted && drag.kind !== 'create' && !didMoveRef.current) {
+      const p = pointerStartRef.current
+      setDrag(null)
+      pointerStartRef.current = null
+      if (p) onBlockLongPress?.(drag.taskId, p.x, p.y)
+      return
+    }
     if (drag.kind === 'create') {
       const minY = Math.min(drag.startY, drag.currentY)
       const maxY = Math.max(drag.startY, drag.currentY)
@@ -299,7 +377,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
     setDrag(null)
     pointerStartRef.current = null
-  }, [drag, onMoveDone, onResizeDone, onBlockTap, clickCreateMinutes])
+  }, [drag, onMoveDone, onResizeDone, onBlockTap, clickCreateMinutes, onBlockLongPress, endTouchLift])
 
   const dismissPopup = useCallback(() => { setPopup(null) }, [])
 
@@ -327,8 +405,9 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         label: `${minutesToTime(startMin)} – ${minutesToTime(endMin)}`,
       }
     } else if (drag.kind === 'move') {
+      // タッチで持ち上げたら、動かす前から持ち上げた位置に出す
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
-      if (!didMoveRef.current) return null
+      if (!didMoveRef.current && !touchLiftedRef.current) return null
       const durationMin = drag.blockDurationMinutes
       const newTop = Math.max(0, drag.currentY - drag.offsetY)
       const newStart = yToTime(newTop)
@@ -347,7 +426,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       }
     } else {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
-      if (!didMoveRef.current) return null
+      if (!didMoveRef.current && !touchLiftedRef.current) return null
       const newTime = yToTime(drag.currentY)
       const newMin = timeToMinutes(newTime)
       let top: number, height: number, startLabel: string, endLabel: string
@@ -380,7 +459,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     setDrag(null)
     pointerStartRef.current = null
     didMoveRef.current = false
-  }, [])
+    endTouchLift()
+  }, [endTouchLift])
 
   return {
     drag,
@@ -396,6 +476,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handlePointerCancel,
     dismissPopup,
     shiftMoveDragDate,
+    /** タッチで長押しして持ち上げている間 true（縦スクロール・スワイプを止める、端で送る） */
+    touchLifted,
+    touchLiftedRef,
+    /** 持ち上げられるブロックをタッチで押している間（長押しのメニューは持ち上げに任せる） */
+    touchPressRef,
+    repoint,
   }
 }
 
