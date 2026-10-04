@@ -902,6 +902,7 @@ export default {
     googleOneLine: 'Google カレンダーの予定も並べて比べられます。',
     googleConnectShort: '接続する',
     googleLoginFirst: 'ログインして接続',
+    googleLineDismissed: '設定の「Google カレンダー」からいつでも接続できます',
     title: '予定と記録',
     startRecording: '記録開始',
     timerWhat: '何をする？',

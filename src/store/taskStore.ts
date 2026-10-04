@@ -138,6 +138,7 @@ export const useTaskStore = create<TaskState>()(
       completePromptTaskId: null as string | null,
       dailyReminders: { planTime: null } as DailyReminders,
       reminderPromptDismissed: false,
+      googleConnectLineDismissed: false,
       dailyCapacityMinutes: 480,
       eventReminderMinutes: null as number | null,
       appTimeZone: null as string | null,

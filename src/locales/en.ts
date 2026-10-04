@@ -903,6 +903,7 @@ export default {
     googleOneLine: 'You can also compare with your Google Calendar events.',
     googleConnectShort: 'Connect',
     googleLoginFirst: 'Sign in to connect',
+    googleLineDismissed: 'You can connect anytime from Settings → Google Calendar',
     title: 'Plan vs log',
     startRecording: 'Start timer',
     timerWhat: 'What are you doing?',
