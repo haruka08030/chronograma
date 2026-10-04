@@ -42,6 +42,17 @@ describe('ラベル表の同期', () => {
     expect(plan.push?.labels.map((l) => l.name)).toEqual(['授業', 'バイト', 'ジム'])
   })
 
+  it('この端末で初めてでも、手元が別の言語の初期ラベルのままならサーバーに合わせる（英語の Study… を足さない）', () => {
+    const en = ['Study', 'Assignments', 'Job hunting', 'Work', 'Exercise', 'Chores', 'Break']
+    const plan = planLabelSync(
+      { presets: en, colors: Object.fromEntries(en.map((n) => [n, 'sage'])), updatedAt: null },
+      { labels: [{ name: '授業', color: 'lavender' }, { name: '勉強', color: 'amethyst' }], updatedAt: T1 },
+      NOW,
+    )
+    expect(plan.apply).toEqual({ presets: ['授業', '勉強'], colors: { 授業: 'lavender', 勉強: 'amethyst' }, updatedAt: T1 })
+    expect(plan.push).toBeUndefined()
+  })
+
   it('同じなら何もしない', () => {
     expect(
       planLabelSync({ presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1 }, { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1 }, NOW),
