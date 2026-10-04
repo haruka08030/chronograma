@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
@@ -9,6 +10,7 @@ import { SyncIndicator } from './SyncIndicator'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { PathIcon } from './PathIcon'
 import { usePresence } from '../hooks/usePresence'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
   id: 'stats',
@@ -41,6 +43,9 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   useEscapeLayer(() => onClose?.(), Boolean(open) && !isDesktop)
   // ドロワーは閉じたあとも、左へ引っ込む動きのあいだは残す
   const drawer = usePresence(open && !isDesktop ? true : null)
+  // ドロワーもダイアログと同じく、開いたら中へフォーカスし、Tab を中に閉じ込め、閉じたら「その他」へ戻す
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const trapDrawerTab = useFocusTrap(drawerRef, { active: Boolean(drawer.shown) && !drawer.closing })
 
   const handleNav = (cb: () => void) => {
     cb()
@@ -134,10 +139,15 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     }
     if (!drawer.shown) return null
     return (
-      <div className="fixed inset-0 z-40 flex" onClick={onClose} inert={drawer.closing}>
+      <div className="fixed inset-0 z-40 flex" onClick={onClose} onKeyDown={trapDrawerTab} inert={drawer.closing}>
         <div className={`absolute inset-0 bg-black/30 ${drawer.closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
         <div
-          className={`relative bg-white dark:bg-zinc-900 ${drawer.closing ? 'animate-slide-out-left' : 'animate-slide-in-left'}`}
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('nav.more')}
+          tabIndex={-1}
+          className={`relative bg-white outline-none dark:bg-zinc-900 ${drawer.closing ? 'animate-slide-out-left' : 'animate-slide-in-left'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {renderSidebarContent(inlineTodoNavInDrawer)}

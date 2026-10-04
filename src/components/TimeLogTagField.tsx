@@ -111,8 +111,7 @@ export function TimeLogTagField({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          aria-label={t('logCategories.add')}
-          {...tip(t('logCategories.add'))}
+          {...tip(t('logCategories.add'), { name: true })}
           className={chipClass({ variant: 'add', size })}
         >
           ＋

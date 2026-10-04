@@ -35,8 +35,7 @@ export function TaskSourceLink({
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       draggable={false}
-      aria-label={label}
-      {...tip(label)}
+      {...tip(label, { name: true })}
       className={className}
     >
       <ExternalLinkIcon className={iconClassName} />

@@ -129,8 +129,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
             tabIndex={-1}
-            {...tip(t('sidebar.reorderList'))}
-            aria-label={t('sidebar.reorderList')}
+            {...tip(t('sidebar.reorderList'), { name: true })}
             onClick={(e) => e.stopPropagation()}
           >
             <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -219,9 +218,8 @@ function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }:
         data-popover-keep={isEditing || undefined}
         // カードは行の横に出す（丸の横だと名前に重なる）
         onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
-        aria-label={t('labels.editOne')}
         aria-expanded={isEditing}
-        {...tip(t('labels.editOne'))}
+        {...tip(t('labels.editOne'), { name: true })}
         className="ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 touch-manipulation
           dark:ring-white/10 md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
         style={{ backgroundColor: label.hex }}

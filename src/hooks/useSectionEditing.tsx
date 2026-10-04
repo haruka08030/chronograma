@@ -100,7 +100,7 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
       </button>
     )
 
-  /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す */
+  /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す。指で押す画面では押せる範囲を広げる */
   const sectionActions = (sectionId: string, title: string) => (
     <span
       className={`flex items-center gap-0.5 shrink-0 ${REVEAL_ON_HOVER}`}
@@ -108,16 +108,16 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
     >
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        {...tip(t('sections.renameTitle'))}
+        className="p-1 pointer-coarse:p-2 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        {...tip(t('sections.renameTitle'), { name: true })}
         onClick={() => beginSectionRename(sectionId, title)}
       >
         <PencilIcon className="w-3.5 h-3.5" />
       </button>
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-red-500"
-        {...tip(t('common.delete'))}
+        className="p-1 pointer-coarse:p-2 rounded text-zinc-400 hover:text-red-500"
+        {...tip(t('common.delete'), { name: true })}
         onClick={() => deleteSectionStore(sectionId)}
       >
         <CloseIcon className="w-3.5 h-3.5" />

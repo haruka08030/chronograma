@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
+import { StopIcon } from './icons'
 import { pad2 } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
@@ -94,13 +95,12 @@ export function FloatingTimer() {
         {formatElapsed(elapsed)}
       </span>
       <button
+        type="button"
         onClick={stopTimer}
         className="rounded-xl bg-red-500 p-2.5 text-white transition-colors touch-manipulation hover:bg-red-600 md:p-2"
-        {...tip(t('floatingTimer.stopTitle'))}
+        {...tip(t('floatingTimer.stopTitle'), { name: true })}
       >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <rect x="6" y="6" width="12" height="12" rx="1" />
-        </svg>
+        <StopIcon className="w-4 h-4" />
       </button>
     </div>
   )

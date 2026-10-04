@@ -473,6 +473,8 @@ export default {
     timeRange: '{{start}} – {{end}}',
     onTimeHint: 'Within ±{{min}} min counts as done',
     offTimeTooltip: '{{date}} {{start}}–{{end}} (off time)',
+    cellDoneAria: '{{date}} done',
+    cellOffTimeAria: '{{date}} done (off time {{start}}–{{end}})',
     goalDaily: 'Daily',
     weekdaySeparator: ', ',
     empty: 'No habits yet. Use “{{add}}” above.',

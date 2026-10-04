@@ -155,7 +155,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     type="button"
                     onClick={() => restore(task.id)}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    {...tip(restoreLabel)}
+                    {...tip(restoreLabel, { name: true })}
                   >
                     <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
                     <span className="hidden sm:inline">{restoreLabel}</span>
@@ -164,8 +164,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     type="button"
                     onClick={() => void remove(task.id)}
                     className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                    {...tip(deleteLabel)}
-                    aria-label={deleteLabel}
+                    {...tip(deleteLabel, { name: true })}
                   >
                     <PathIcon d={DELETE_ICON} className="h-4 w-4" />
                   </button>

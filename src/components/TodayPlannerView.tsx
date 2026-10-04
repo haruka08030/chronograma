@@ -535,8 +535,7 @@ export function TodayPlannerView() {
                           // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする
                           if (!isTimedHabit(h)) toggleHabitDate(h.id, dateKey)
                         }}
-                        aria-label={t('quickLog.resume', { title: h.title })}
-                        {...tip(t('quickLog.resume', { title: h.title }))}
+                        {...tip(t('quickLog.resume', { title: h.title }), { name: true })}
                         // リングの右下の外に置く（重ねると、リングの右下を押したときにタイマーが始まる）
                         className="absolute left-1/2 top-6 ml-6 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
                                    dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"

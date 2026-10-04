@@ -1,12 +1,13 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { dispatchHotkey, useEscapeLayer, useHotkey } from '../../hooks/useHotkey'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { FLOATING_SURFACE } from './surface'
 
 /**
  * 画面の中央に出すダイアログ（ラベル・色選択・完了＋記録・ショートカット一覧）。どれも同じ見た目にする。
  * - body 直下に重ね、背景を暗くする。背景を押すか Esc で閉じる（Esc は一番上の層だけ）
- * - 開いたらダイアログにフォーカスし、閉じたら元の場所に戻す。Tab / Shift+Tab はダイアログの中だけを巡回する
+ * - 開いたらダイアログにフォーカスし、閉じたら元の場所に戻す。Tab / Shift+Tab はダイアログの中だけを巡回する（`useFocusTrap`）
  * - 予定カードの「外側クリックで閉じる」・1 文字ショートカットがダイアログ越しに効かないよう、
  *   キー入力はここで止め、`data-popover-keep` でカードに「内側」と知らせる。
  *   このダイアログが一番上のときのキー（`closeKeys` など）だけは止める前に `dispatchHotkey` へ渡す
@@ -39,13 +40,7 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null)
   const layer = useEscapeLayer(onClose)
   useHotkey(closeKeys ?? [], onClose, { scope: layer, enabled: Boolean(closeKeys?.length) })
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null
-    ;(initialFocus?.current ?? ref.current)?.focus()
-    return () => prev?.focus?.()
-    // 開いたときだけ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const trapTab = useFocusTrap(ref, { initialFocus })
 
   return createPortal(
     <div
@@ -59,7 +54,7 @@ export function Modal({
           e.preventDefault()
           onClose()
         }
-        if (e.key === 'Tab' && ref.current) trapTab(e, ref.current)
+        trapTab(e)
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
@@ -83,32 +78,6 @@ export function Modal({
     </div>,
     document.body,
   )
-}
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]'
-
-/** フォーカスがダイアログの端に来たら反対の端へ回す（背景の画面へ抜けない） */
-function trapTab(e: KeyboardEvent, dialog: HTMLElement) {
-  const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.getClientRects().length > 0,
-  )
-  if (items.length === 0) {
-    e.preventDefault()
-    dialog.focus()
-    return
-  }
-  const first = items[0]
-  const last = items[items.length - 1]
-  const active = document.activeElement
-  const outside = !dialog.contains(active) || active === dialog
-  if (e.shiftKey && (active === first || outside)) {
-    e.preventDefault()
-    last.focus()
-  } else if (!e.shiftKey && (active === last || outside)) {
-    e.preventDefault()
-    first.focus()
-  }
 }
 
 /** ダイアログの見出し（どのダイアログも同じ大きさ） */

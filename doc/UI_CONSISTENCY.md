@@ -19,7 +19,7 @@
 | Google の予定の色 | 予定ごとの色、無ければピーコック。カレンダー本体・日パネルで共通 | `lib/googleColors.ts`（`DEFAULT_GOOGLE_EVENT_HEX`）・`colorVars` |
 | 優先度の色 | 高＝赤・中＝オレンジ・低＝青、なし＝グレー。完了の丸・詳細・右クリックメニューで共通 | `lib/priorityColor.ts`（`PRIORITY_RING_CLASS`・`PRIORITY_TEXT_CLASS`） |
 | 睡眠の色 | 夜の色 1 つ（ライト #5c6bc0、ダーク #7986cb）。`text-sleep`・`bg-sleep`・`.gc-sleep`。習慣画面の直近 28 日のマス目はデータの色なので藍のまま | `index.css`（`--color-sleep`） |
-| 習慣の達成・時間外 | 達成＝習慣の色の塗り＋✓、時間外＝35% の塗り＋✓。場所があれば丸の下にグレーで「時間外」、無いところ（習慣画面の週のマス）はツールチップ | `lib/habitMark.ts` |
+| 習慣の達成・時間外 | 達成＝習慣の色の塗り＋✓、時間外＝35% の塗り＋✓。丸の下にグレーで「時間外」（習慣画面の週のマスは小さく）。時刻はツールチップ。押せる丸は `aria-pressed`、週のマスの読み上げ名は「10月3日 (土) 達成」「10月3日 (土) 達成（時間外 21:00〜21:30）」 | `lib/habitMark.ts` |
 | メニュー・候補の行のハイライト | ↑↓ で選んでいる行とホバーは同じ薄いグレー（ダーク zinc-700）。メニューと時刻の候補で共通。今の値は ✓ | `components/ui/surface.ts`（`MENU_ROW_ACTIVE`・`MENU_ROW_HOVER`） |
 | ブラウザが描く部品 | ラジオ・チェックボックスは墨（`accent-color`）。ダークのときは `color-scheme: dark` で、ラジオ・選択欄の一覧・スクロールバーも暗い見た目。部品ごとに色を付けない | `src/index.css`（`@layer base`） |
 | 完了チェック | タスク・記録・買い物とも墨色。買い物はチェックリストなので四角、大きさ・文字・入力欄は今日の To-Do と同じ。いつかは ☆ | `CompletionCircle` の `shape` |
@@ -32,6 +32,7 @@
 | アイコン | `CheckIcon` などの部品と、パスの定義 `ICON_PATHS`。コンポーネントに `<path` を直書きしない。画面ごとに切り替わる path は `PathIcon`。意味を伝えるアイコンは `label` | `components/icons.tsx`・`lib/iconPaths.ts`・`components/PathIcon.tsx` |
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
 | モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`） | `components/ui/Modal.tsx` |
+| 重ねる面のフォーカス | 開いたら面にフォーカス、Tab / Shift+Tab は面の中だけを巡回、閉じたら（閉じる動きの始まりで）元の場所へ戻す。戻す先が BODY なら `returnFocus`（タスク詳細は開いた行の題名）。`Modal`・タスク詳細・スマホのドロワー（`role="dialog"`・`aria-modal`） | `hooks/useFocusTrap.ts` |
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
 | 右クリックのメニュー | `ActionMenu`（項目・中のメニュー・検索・↑↓→←Enter Esc・はみ出さない位置）。どの右クリックもこれの上に作る。色を選ぶ中のメニューは `ColorPalette`（`bare`）か `ColorSwatches` を入れる | `components/ui/ActionMenu.tsx` |
@@ -42,7 +43,7 @@
 | 予定の色・時刻の判断 | 色は `useTaskColor`（記録は色＝ラベル、予定は色だけ）、「予定どおり記録」「終わった予定」は `planTiming`。予定カードとメニューで同じ | `hooks/useTaskColor.ts`・`lib/planTiming.ts` |
 | 色選択 | 丸は 24px・選択中は ✓ でどこでも同じ。列の数は置き場所の幅で決める（広い所は 12 列、ポップオーバーは 6 列）。ラベル編集の「色を選択」は自由な色を作る別の役割なので別の格子 | `components/ui/ColorSwatches.tsx` |
 | 追加の入力欄 | `InlineAddInput`。細い枠に ＋ と文字、押すと薄い背景（今日の計画だけ枠の代わりに下線、`underline`）。Enter で追加して続けて書ける、Esc で書いた分を消す。外したときは書いた分を残す（カレンダーの中・サブタスクは足す）。今日・To-Do・買い物・いつか（印は ☆）・カレンダーの中（月のマス・終日行は小さい版）・サブタスク | `components/ui/InlineAddInput.tsx` |
-| 入力欄 | `fieldClass({ size, active })`。地なし・細い枠（zinc-200、ダーク zinc-700）・角丸 8px・フォーカスで藍のリング・text-sm。size: md（px-3 py-2、詳細・ダイアログ・連携の設定・ログイン）/ sm（px-2 py-1.5、習慣の時刻・タイマーの終了時刻・設定の行の選択・カレンダーの横のリスト選択・リストの種類・記録の時刻・Google の予定の日時・時間帯）。`disabled` で薄く、`aria-invalid` で赤い枠、ポップオーバーを開いている欄は `active`。`input`・`select`・`textarea` と、欄のふりをするボタン（`DateField`・期限/予定日・時間帯）に使う。その場で名前を書き換える欄・`InlineAddInput`・チップやメニューの形の選択・検索の欄・ラベル名の欄（ラベル編集の行とナビの色ラベルのカード。`labels/labelNameInputClass.ts`）・リスト名の欄（ナビ）・予定作成カードの題とリスト・睡眠の行の時刻には使わない | `components/ui/fieldClass.ts` |
+| 入力欄 | `fieldClass({ size, active })`。地なし・細い枠（zinc-200、ダーク zinc-700）・角丸 8px・フォーカスで藍のリング・text-sm。size: md（px-3 py-2、詳細・ダイアログ・連携の設定・ログイン）/ sm（px-2 py-1.5、習慣の時刻・タイマーの終了時刻・設定の行の選択・カレンダーの横のリスト選択・リストの種類・記録の時刻・Google の予定の日時・時間帯）。`disabled` で薄く、`aria-invalid` で赤い枠、ポップオーバーを開いている欄は `active`。`input`・`select`・`textarea` と、欄のふりをするボタン（`DateField`・期限/予定日・時間帯）に使う。その場で名前を書き換える欄・`InlineAddInput`・チップやメニューの形の選択・検索の欄・ラベル名の欄（ラベル編集の行とナビの色ラベルのカード。`labels/labelNameInputClass.ts`）・リスト名の欄（ナビ）・予定作成カードの題とリスト・睡眠の行の時刻には使わない（睡眠の行の時刻もフォーカスは同じリング `FIELD_FOCUS_RING`） | `components/ui/fieldClass.ts` |
 | チップ | `chipClass({ variant, size })`。形はピル。見るだけのもの（To-Do 行のタグ・絞り込み・タイマーのタグ）は `fill`（藍の薄い塗り）、押して選ぶもの（記録のラベル・最近の記録）は `outline`（細い枠、選んだら色の塗り）、足すもの（＋）は `add`（点線の枠） | `components/ui/chipClass.ts` |
 | 開閉する見出し | `DisclosureButton`。小さな ＞ が開くと下を向く。色は見出しの役割で `alert`（やり残し＝赤）/ `default`（候補）/ `muted`（完了）。今日の計画と To-Do の「完了」 | `components/ui/Disclosure.tsx` |
 | 空状態 | `EmptyState`。線のアイコン＋中央。画面（To-Do・ゴミ箱・検索・いつか・習慣）は `lg`、パネルの中（日パネル・時間未定のタスク）は `sm`。一覧の途中の一言（「この日の予定はなし」・メニューの「見つかりません」）は文字だけ | `components/ui/EmptyState.tsx` |
@@ -57,7 +58,7 @@
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
 | ポップオーバー | 面は `FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`。ダークの背景は zinc-800（下の画面より一段明るく） | `components/ui/surface.ts` |
 | 月のカレンダー（日付を選ぶ） | 月の切り替え・日付・今日/明日/なし。期限のポップオーバー・タスクの右クリックメニュー・カレンダー画面の見出しの日付ジャンプ（`footer={false}`・`month` で見ている月から始める）で共通 | `components/DatePickerBody.tsx` |
-| マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。ボタンに `title` は使わない | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
+| マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。アイコンだけのボタンの名前とヒントは `tip(説明, { name: true })` で 1 回だけ書く（`aria-label` も付く。キーも添えるなら `{ key, name: true }`）。ボタンに `title` は使わない | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
 | タスクのまとめて操作 | 完了・削除・アーカイブ・期限・優先度・リスト移動。何件に何をしたかをトーストで出す | `hooks/useBulkTaskActions.ts` |
 
 ### 日付・時刻

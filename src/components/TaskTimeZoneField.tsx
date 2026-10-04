@@ -41,8 +41,7 @@ export function TaskTimeZoneButton({ task, view, compact = false }: {
           type="button"
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label={t('timeZone.field')}
-          {...tip(t('timeZone.field'))}
+          {...tip(t('timeZone.field'), { name: true })}
           onClick={toggle}
           className={`flex ${compact ? 'h-6' : 'h-[38px]'} min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
             zone ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300'

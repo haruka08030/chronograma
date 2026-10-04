@@ -53,8 +53,7 @@ export function ColorPalette({
       <button
         type="button"
         onClick={() => setEditingLabels(true)}
-        aria-label={t('labels.edit')}
-        {...tip(t('labels.edit'))}
+        {...tip(t('labels.edit'), { name: true })}
         className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-700 shadow ring-1 ring-zinc-200 transition-colors hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600 dark:hover:bg-zinc-700"
       >
         <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
