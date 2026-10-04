@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
-import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
+import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
 
 /**
@@ -365,6 +365,7 @@ Deno.serve(withCors(async (req) => {
     if (action === 'connect' && typeof body.feedUrl === 'string') {
       const feed = parseFeedUrl(body.feedUrl)
       if (!feed) return jsonResponse({ ok: false, code: 'canvas_feed_invalid' })
+      requireSecretKey()
       await assertRoomFor(new URL(feed.baseUrl).host)
       // 読めるか確かめてから保存する
       await feedItems(feed.baseUrl, feed.feedUrl)
@@ -395,6 +396,7 @@ Deno.serve(withCors(async (req) => {
       const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
       if (!baseUrl) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
       if (!token) return jsonResponse({ ok: false, code: 'canvas_unauthorized' })
+      requireSecretKey()
       await assertRoomFor(new URL(baseUrl).host)
       const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
       const { error } = await admin.from('canvas_connection').upsert(
@@ -480,6 +482,7 @@ Deno.serve(withCors(async (req) => {
   } catch (e) {
     // 学校のサイトや DB の応答の中身は返さない（ログにだけ残す）
     console.error('[canvas]', e instanceof Error ? e.message : e)
+    if (e instanceof SecretKeyMissingError) return jsonResponse({ ok: false, code: 'canvas_api', error: 'Server misconfigured' }, 500)
     if (e instanceof CanvasError) return jsonResponse({ ok: false, code: e.code, error: e.code })
     return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' })
   }

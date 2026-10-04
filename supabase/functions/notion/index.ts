@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
-import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
+import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -251,6 +251,7 @@ Deno.serve(withCors(async (req) => {
       const databaseId = parseDatabaseId((body.database as string | undefined) ?? '')
       if (!token) return jsonResponse({ ok: false, code: 'notion_unauthorized' })
       if (!databaseId) return jsonResponse({ ok: false, code: 'notion_bad_url' })
+      requireSecretKey()
       const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
       // 同じデータベースにつなぎ直すときは、選んであったステータスを残す
       const prev = await loadRow()
@@ -327,6 +328,10 @@ Deno.serve(withCors(async (req) => {
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
+    if (e instanceof SecretKeyMissingError) {
+      console.error('[notion]', e.message)
+      return jsonResponse({ ok: false, error: 'Server misconfigured' }, 500)
+    }
     // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
     if (e instanceof NotionError) {
       console.warn('[notion]', e.code, e.message)
