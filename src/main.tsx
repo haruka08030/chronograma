@@ -33,6 +33,11 @@ window.addEventListener('vite:preloadError', (event) => {
   window.location.reload()
 })
 
+// iOS Safari は user-scalable=no を無視してピンチで拡大するので、ジェスチャーごと止める
+for (const type of ['gesturestart', 'gesturechange'] as const) {
+  document.addEventListener(type, (event) => event.preventDefault(), { passive: false })
+}
+
 setupPwa(launch)
 consumeLaunch(launch)
 

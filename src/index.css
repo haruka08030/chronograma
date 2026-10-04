@@ -150,8 +150,10 @@ select:not([multiple]):not([size]) {
   padding-right: 2em;
 }
 
+/* アプリの画面なので拡大縮小しない（ピンチ・ダブルタップ。入力欄での拡大は viewport の maximum-scale、iOS のピンチは main.tsx） */
 html {
   height: 100%;
+  touch-action: pan-x pan-y;
 }
 
 body {
