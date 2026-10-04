@@ -265,7 +265,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
   return (
     <div
       ref={ref}
-      className={`absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
+      className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-label={t('sidebar.listColorDialog')}

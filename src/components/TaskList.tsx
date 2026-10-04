@@ -312,7 +312,7 @@ export function TaskList() {
       {sectionMenuElement}
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
       {selected.size > 0 && (
-        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6 [@media(hover:hover)]:hidden">
+        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 animate-toast-in md:bottom-6 [@media(hover:hover)]:hidden">
           <div className={`flex items-center gap-1 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
             <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
             <button

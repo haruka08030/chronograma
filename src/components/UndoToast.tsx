@@ -6,6 +6,7 @@ import { UNDO_WINDOW_MS, toastTitle } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
 import { toastText } from '../lib/toastText'
 import { INVERSE_SURFACE } from './ui/surface'
+import { usePresence } from '../hooks/usePresence'
 
 const MOBILE_FLOAT_BOTTOM =
   'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
@@ -54,7 +55,13 @@ export function UndoToast() {
     return () => clearTimeout(timer)
   }, [kind, deletedCount, bannerAt, clearDeletedTasks, clearUndoBanner, setGoogleUndo])
 
-  if (!visible || !kind) return null
+  const open = visible && kind !== null
+  const message = !open
+    ? null
+    : kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner ? toastText(t, undoBanner.text) : '')
+  // 消えるときも、下へ沈む動きのあいだは前の文を出しておく（押せないようにする）
+  const toast = usePresence(message)
+  if (toast.shown === null) return null
 
   /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
   function deletedMessage() {
@@ -66,8 +73,6 @@ export function UndoToast() {
     return t('undo.message')
   }
 
-  const message =
-    kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner ? toastText(t, undoBanner.text) : '')
 
   // タイマー表示中は一段上へずらして重なりを避ける
   const stacked = activeTimer
@@ -75,9 +80,9 @@ export function UndoToast() {
     : MOBILE_FLOAT_BOTTOM
 
   return (
-    <div className={`fixed left-1/2 z-50 -translate-x-1/2 animate-toast-in ${stacked}`}>
+    <div className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`} inert={toast.closing}>
       <div className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
-        <span className="min-w-0 line-clamp-2">{message}</span>
+        <span className="min-w-0 line-clamp-2">{toast.shown}</span>
         <button
           onClick={() => {
             if (kind === 'google') {

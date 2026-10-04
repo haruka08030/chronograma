@@ -18,8 +18,11 @@ export const INVERSE_SURFACE = 'bg-zinc-900 text-white shadow-lg dark:bg-zinc-10
 export const MENU_ROW_ACTIVE = 'bg-zinc-100 dark:bg-zinc-700'
 export const MENU_ROW_HOVER = 'hover:bg-zinc-100 dark:hover:bg-zinc-700'
 
-/** ボタンの下に開くドロップダウン（日付・メニュー・色・アカウント） */
-export const POPOVER_PANEL = `${FLOATING_SURFACE} rounded-xl shadow-xl`
+/**
+ * ボタンの下に開くドロップダウン（日付・メニュー・色・アカウント）。小さく拡大しながら出る。
+ * 出る起点は置き場所に合わせて足す（ボタンの左下に開くなら `origin-top-left`、右寄せなら `origin-top-right`）
+ */
+export const POPOVER_PANEL = `${FLOATING_SURFACE} rounded-xl shadow-xl animate-pop-in`
 
 /**
  * タイムラインの予定を押したときのカード（新規作成・予定・Google の予定）。

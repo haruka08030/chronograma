@@ -247,7 +247,7 @@ export function TimeInput({
       {open && !disabled && (
         <div
           ref={listRef}
-          className={`absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
+          className={`absolute z-40 mt-1 max-h-64 w-full origin-top animate-pop-in overflow-y-auto rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
           role="listbox"
         >
           {options.map((option, idx) => {

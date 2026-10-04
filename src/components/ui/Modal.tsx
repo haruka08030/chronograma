@@ -50,7 +50,7 @@ export function Modal({
   return createPortal(
     <div
       data-popover-keep
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 dark:bg-black/50"
+      className="fixed inset-0 z-[80] flex animate-fade-in items-center justify-center bg-black/30 p-4 dark:bg-black/50"
       onKeyDown={(e) => {
         dispatchHotkey(e.nativeEvent, { layerOnly: true })
         e.stopPropagation()

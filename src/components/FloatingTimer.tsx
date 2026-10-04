@@ -69,7 +69,7 @@ export function FloatingTimer() {
 
   return (
     <div
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
                     rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                     dark:border-zinc-700 dark:bg-zinc-800
                     flex items-center gap-3 md:min-w-[280px] md:w-auto md:gap-4 md:px-5
@@ -127,7 +127,7 @@ function CompletePrompt() {
   return (
     <div
       role="status"
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
                   rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                   dark:border-zinc-700 dark:bg-zinc-800 flex items-center gap-3
                   ${MOBILE_FLOAT_BOTTOM}`}
@@ -177,7 +177,7 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
     <div
       role="alertdialog"
       aria-label={t('staleTimer.title')}
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
                   rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl
                   dark:border-amber-500/40 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
     >

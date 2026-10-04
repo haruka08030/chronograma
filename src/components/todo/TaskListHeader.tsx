@@ -126,7 +126,7 @@ export function TaskListHeader({
         {showSort && (
           <>
             {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
-            <div role="menu" className={`absolute right-0 top-full z-20 mt-1 flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}>
+            <div role="menu" className={`absolute right-0 top-full z-20 mt-1 origin-top-right flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}>
               {sortOptions.map((opt) => (
                 <MenuItem
                   key={opt.value}

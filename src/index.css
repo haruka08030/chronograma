@@ -48,6 +48,11 @@
   --animate-check-in: check-in 160ms var(--ease-standard);
   /* 面がふわっと出る（背景の幕など） */
   --animate-fade-in: fade-in 120ms ease-out;
+  /* 閉じる動き（150ms。`usePresence` が見せ終わるまで残す） */
+  --animate-slide-out: slide-out 150ms var(--ease-standard) forwards;
+  --animate-slide-out-left: slide-out-left 150ms var(--ease-standard) forwards;
+  --animate-toast-out: toast-out 150ms var(--ease-standard) forwards;
+  --animate-fade-out: fade-out 150ms ease-out forwards;
   /* 記録中の赤い点。点滅ではなく、ゆっくり明るさが変わる */
   --animate-breathe: breathe 3s ease-in-out infinite;
 
@@ -78,6 +83,18 @@
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+  @keyframes slide-out {
+    to { transform: translateX(100%); }
+  }
+  @keyframes slide-out-left {
+    to { transform: translateX(-100%); }
+  }
+  @keyframes toast-out {
+    to { opacity: 0; transform: translateY(8px); }
+  }
+  @keyframes fade-out {
+    to { opacity: 0; }
   }
   @keyframes breathe {
     0%, 100% { opacity: 1; }

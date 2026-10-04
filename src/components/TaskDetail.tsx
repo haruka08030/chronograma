@@ -40,9 +40,12 @@ const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 /** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
 export function TaskDetail({
   task,
+  closing = false,
   onClose,
 }: {
   task: Task
+  /** 閉じる動きの最中（押せないようにして右へ引っ込める） */
+  closing?: boolean
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -675,14 +678,14 @@ export function TaskDetail({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 dark:bg-black/40" />
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} inert={closing}>
+      <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={task.title}
-        className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
-                   h-full overflow-y-auto shadow-xl animate-slide-in"
+        className={`relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
+                   h-full overflow-y-auto shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* スマホだけ: 上に固定した戻る（Google Tasks と同じ）。下までスクロールしても閉じられる */}

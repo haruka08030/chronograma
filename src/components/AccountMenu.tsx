@@ -207,7 +207,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         <>
           <div
             className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
-              isSettings ? 'left-0' : 'right-0'
+              isSettings ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
             }`}
             onClick={(e) => e.stopPropagation()}
           >

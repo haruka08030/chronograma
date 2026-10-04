@@ -8,6 +8,7 @@ import { SmartViewRow } from './SmartViewRow'
 import { SyncIndicator } from './SyncIndicator'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { PathIcon } from './PathIcon'
+import { usePresence } from '../hooks/usePresence'
 
 const STATS_SMART_VIEW: { id: SmartView; icon: string } = {
   id: 'stats',
@@ -38,6 +39,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const onTodoView = isTodoNavView(selectedView)
   // スマホのドロワーも、ほかのドロワー・ダイアログと同じく Esc で閉じる
   useEscapeLayer(() => onClose?.(), Boolean(open) && !isDesktop)
+  // ドロワーは閉じたあとも、左へ引っ込む動きのあいだは残す
+  const drawer = usePresence(open && !isDesktop ? true : null)
 
   const handleNav = (cb: () => void) => {
     cb()
@@ -129,12 +132,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         </div>
       )
     }
-    if (!open) return null
+    if (!drawer.shown) return null
     return (
-      <div className="fixed inset-0 z-40 flex" onClick={onClose}>
-        <div className="absolute inset-0 bg-black/30" />
+      <div className="fixed inset-0 z-40 flex" onClick={onClose} inert={drawer.closing}>
+        <div className={`absolute inset-0 bg-black/30 ${drawer.closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
         <div
-          className="relative animate-slide-in-left bg-white dark:bg-zinc-900"
+          className={`relative bg-white dark:bg-zinc-900 ${drawer.closing ? 'animate-slide-out-left' : 'animate-slide-in-left'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {renderSidebarContent(inlineTodoNavInDrawer)}

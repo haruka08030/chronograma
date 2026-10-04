@@ -205,7 +205,7 @@ export function ActionMenu({
     // スマホ: 下からのシート。中のメニューは同じシートの中に出す
     return createPortal(
       <>
-        <div className="fixed inset-0 z-[69] bg-black/30" aria-hidden onClick={onClose} />
+        <div className="fixed inset-0 z-[69] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />
         <div
           ref={menuRef}
           role="menu"
@@ -262,7 +262,7 @@ export function ActionMenu({
         role="menu"
         tabIndex={-1}
         data-popover-keep
-        className={`fixed z-[70] w-64 p-1 outline-none animate-pop-in ${POPOVER_PANEL}`}
+        className={`fixed z-[70] w-64 p-1 outline-none origin-top-left ${POPOVER_PANEL}`}
         style={{ left: x, top: y }}
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={showSearch ? undefined : onKeyDown}
