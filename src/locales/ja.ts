@@ -842,6 +842,8 @@ export default {
     navNextMonthAria: '次の月',
     navPrevWeekAria: '前の週',
     navNextWeekAria: '次の週',
+    navPrevDayAria: '前の日',
+    navNextDayAria: '次の日',
   },
   calendarDock: {
     unscheduled: '時間が未定のタスク',

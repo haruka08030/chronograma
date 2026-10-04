@@ -11,6 +11,8 @@ import { useDateFormat } from '../hooks/useDateFormat'
 
 type CalendarDateNavProps = {
   mode: 'month' | 'week'
+  /** 週の表示が 1 日だけのとき（スマホ幅）。見出しはその日、‹ › は 1 日ずつ */
+  singleDay: boolean
   selectedDateKey: string
   monthCursor: Date
   weekAnchor: Date
@@ -22,6 +24,7 @@ type CalendarDateNavProps = {
 
 export function CalendarDateNav({
   mode,
+  singleDay,
   selectedDateKey,
   monthCursor,
   weekAnchor,
@@ -43,7 +46,9 @@ export function CalendarDateNav({
   const periodLabel =
     mode === 'month'
       ? df.yearMonth(monthCursor)
-      : df.weekRange(weekAnchor)
+      : singleDay
+        ? df.monthDayWeekday(selectedDateKey)
+        : df.weekRange(weekAnchor)
 
   const handlePickDay = (key: string) => {
     onPickDate(key)
@@ -57,8 +62,8 @@ export function CalendarDateNav({
         onPrev={onPrevPeriod}
         onNext={onNextPeriod}
         todayLabel={t('calendarHub.today')}
-        prevLabel={mode === 'month' ? t('calendarHub.navPrevMonthAria') : t('calendarHub.navPrevWeekAria')}
-        nextLabel={mode === 'month' ? t('calendarHub.navNextMonthAria') : t('calendarHub.navNextWeekAria')}
+        prevLabel={mode === 'month' ? t('calendarHub.navPrevMonthAria') : singleDay ? t('calendarHub.navPrevDayAria') : t('calendarHub.navPrevWeekAria')}
+        nextLabel={mode === 'month' ? t('calendarHub.navNextMonthAria') : singleDay ? t('calendarHub.navNextDayAria') : t('calendarHub.navNextWeekAria')}
         shortcuts
       />
 

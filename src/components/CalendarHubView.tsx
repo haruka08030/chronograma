@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { addMonths, addWeeks, startOfMonth, subMonths, subWeeks } from 'date-fns'
+import { addDays, addMonths, startOfMonth, subMonths } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
@@ -22,6 +22,7 @@ import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { isLogTask } from '../types/task'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -34,6 +35,9 @@ export function CalendarHubView() {
   // 開いたときは見ている日（今日の計画・習慣と共有）を含む月・週から
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(fromDateKey(selectedDateKey)))
   const [weekAnchor, setWeekAnchor] = useState(() => fromDateKey(selectedDateKey))
+  const isDesktop = useIsDesktop()
+  /** 週の表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
+  const pageDays = isDesktop ? 7 : 1
 
   const setMode = (mode: 'month' | 'week') => {
     setCalendarMode(mode)
@@ -57,23 +61,17 @@ export function CalendarHubView() {
     setWeekAnchor(today)
   }, [setSelectedCalendarDateKey])
 
-  const onPrevPeriod = useCallback(() => {
+  const stepPeriod = useCallback((dir: -1 | 1) => {
     if (calendarMode === 'month') {
-      setMonthCursor((m) => subMonths(m, 1))
-    } else {
-      setWeekAnchor((w) => subWeeks(w, 1))
-      setSelectedCalendarDateKey(toDateKey(subWeeks(fromDateKey(selectedDateKey), 1)))
+      setMonthCursor((m) => (dir < 0 ? subMonths(m, 1) : addMonths(m, 1)))
+      return
     }
-  }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
-
-  const onNextPeriod = useCallback(() => {
-    if (calendarMode === 'month') {
-      setMonthCursor((m) => addMonths(m, 1))
-    } else {
-      setWeekAnchor((w) => addWeeks(w, 1))
-      setSelectedCalendarDateKey(toDateKey(addWeeks(fromDateKey(selectedDateKey), 1)))
-    }
-  }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
+    const next = addDays(fromDateKey(selectedDateKey), dir * pageDays)
+    setWeekAnchor(next)
+    setSelectedCalendarDateKey(toDateKey(next))
+  }, [calendarMode, pageDays, selectedDateKey, setSelectedCalendarDateKey])
+  const onPrevPeriod = useCallback(() => stepPeriod(-1), [stepPeriod])
+  const onNextPeriod = useCallback(() => stepPeriod(1), [stepPeriod])
 
   useNavShortcut({ today: onGoToday, prev: onPrevPeriod, next: onNextPeriod })
 
@@ -141,6 +139,7 @@ export function CalendarHubView() {
 
       <CalendarDateNav
         mode={calendarMode}
+        singleDay={!isDesktop}
         selectedDateKey={selectedDateKey}
         monthCursor={monthCursor}
         weekAnchor={weekAnchor}
@@ -165,7 +164,7 @@ export function CalendarHubView() {
                 anchor={weekAnchor}
                 selectedDateKey={selectedDateKey}
                 onSelectDate={applyPickedDate}
-                onNavigateWeek={(dir) => (dir < 0 ? onPrevPeriod() : onNextPeriod())}
+                onNavigateWeek={stepPeriod}
               />
             )}
           </div>

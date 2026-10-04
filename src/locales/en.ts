@@ -843,6 +843,8 @@ export default {
     navNextMonthAria: 'Next month',
     navPrevWeekAria: 'Previous week',
     navNextWeekAria: 'Next week',
+    navPrevDayAria: 'Previous day',
+    navNextDayAria: 'Next day',
   },
   calendarDock: {
     unscheduled: 'Tasks without a time',
