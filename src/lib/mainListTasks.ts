@@ -1,6 +1,5 @@
 import { parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
-import type { Task } from '../types/task'
-import { isListedTimeLog } from './timeLogTask'
+import { isLogTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
@@ -101,7 +100,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
  */
 export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task[] {
   const filtered = getFilteredRootTasks(input)
-  const active = filtered.filter((t) => !t.completed && !isListedTimeLog(t))
+  const active = filtered.filter((t) => !t.completed && !isLogTask(t))
   const { selectedListId, sortMode, sections } = input
 
   if (sortMode !== 'manual') {
@@ -217,7 +216,7 @@ export function insertActiveRootIdForSectionDrop(
   let ins = filtered.length
 
   if (targetSectionId === null) {
-    const firstNamed = filtered.findIndex((t) => rank(t.sectionId ?? null) > -1)
+    const firstNamed = filtered.findIndex((t) => rank(t.sectionId) > -1)
     ins = firstNamed < 0 ? filtered.length : firstNamed
   } else {
     for (let i = filtered.length - 1; i >= 0; i--) {
@@ -226,9 +225,9 @@ export function insertActiveRootIdForSectionDrop(
         break
       }
     }
-    if (!filtered.some((t) => (t.sectionId ?? null) === targetSectionId)) {
+    if (!filtered.some((t) => t.sectionId === targetSectionId)) {
       const tr0 = rank(targetSectionId)
-      const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > tr0)
+      const idx = filtered.findIndex((t) => rank(t.sectionId) > tr0)
       ins = idx < 0 ? filtered.length : idx
     }
   }
@@ -252,7 +251,7 @@ export function insertActiveRootIdsForSectionDrop(
   let ins = filtered.length
 
   if (targetSectionId === null) {
-    const firstNamed = filtered.findIndex((t) => rank(t.sectionId ?? null) > -1)
+    const firstNamed = filtered.findIndex((t) => rank(t.sectionId) > -1)
     ins = firstNamed < 0 ? filtered.length : firstNamed
   } else {
     for (let i = filtered.length - 1; i >= 0; i--) {
@@ -261,9 +260,9 @@ export function insertActiveRootIdsForSectionDrop(
         break
       }
     }
-    if (!filtered.some((t) => (t.sectionId ?? null) === targetSectionId)) {
+    if (!filtered.some((t) => t.sectionId === targetSectionId)) {
       const tr0 = rank(targetSectionId)
-      const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > tr0)
+      const idx = filtered.findIndex((t) => rank(t.sectionId) > tr0)
       ins = idx < 0 ? filtered.length : idx
     }
   }
@@ -283,12 +282,12 @@ export function insertActiveRootAtSectionHead(
   const filtered = currentOrdered.filter((t) => t.id !== movedId)
   const rank = (sid: string | null) => sectionRankForList(sid, listSections)
   const targetR = rank(targetSectionId)
-  const firstInSection = filtered.findIndex((t) => (t.sectionId ?? null) === targetSectionId)
+  const firstInSection = filtered.findIndex((t) => t.sectionId === targetSectionId)
   let ins: number
   if (firstInSection >= 0) {
     ins = firstInSection
   } else {
-    const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > targetR)
+    const idx = filtered.findIndex((t) => rank(t.sectionId) > targetR)
     ins = idx < 0 ? filtered.length : idx
   }
   const ids = filtered.map((t) => t.id)
@@ -308,12 +307,12 @@ export function insertActiveRootIdsAtSectionHead(
   const filtered = currentOrdered.filter((t) => !set.has(t.id))
   const rank = (sid: string | null) => sectionRankForList(sid, listSections)
   const targetR = rank(targetSectionId)
-  const firstInSection = filtered.findIndex((t) => (t.sectionId ?? null) === targetSectionId)
+  const firstInSection = filtered.findIndex((t) => t.sectionId === targetSectionId)
   let ins: number
   if (firstInSection >= 0) {
     ins = firstInSection
   } else {
-    const idx = filtered.findIndex((t) => rank(t.sectionId ?? null) > targetR)
+    const idx = filtered.findIndex((t) => rank(t.sectionId) > targetR)
     ins = idx < 0 ? filtered.length : idx
   }
   const ids = filtered.map((t) => t.id)

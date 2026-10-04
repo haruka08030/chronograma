@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { shortcutTip, tip } from '../lib/tooltip'
@@ -11,7 +11,6 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
-import { isSleepRecord } from '../lib/sleep'
 import { zonedNow } from '../lib/timeZone'
 import { PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -20,7 +19,11 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
+import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
+import { isLogTask, isSleepTask } from '../types/task'
+import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -48,6 +51,7 @@ export function RecordPanel({
   viewingToday: boolean
 }) {
   const { t } = useTranslation()
+  const coarse = useIsCoarsePointer()
   const tasks = useTaskStore((s) => s.tasks)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -56,6 +60,11 @@ export function RecordPanel({
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
 
   const [mode, setMode] = useState<'idle' | 'timer' | 'manual'>('idle')
+  // 入力を閉じたら（始めた・記録した・やめた）、開いたボタンにフォーカスを戻す
+  const timerButtonRef = useRef<HTMLButtonElement>(null)
+  const laterButtonRef = useRef<HTMLButtonElement>(null)
+  useFocusBackOnClose(mode === 'timer', timerButtonRef)
+  useFocusBackOnClose(mode === 'manual', laterButtonRef)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [start, setStart] = useState('')
@@ -63,7 +72,7 @@ export function RecordPanel({
   const recent = useMemo(() => recentLogs(tasks, 2), [tasks])
 
   const dayLogs = useMemo(
-    () => tasks.filter((x) => x.isTimeLog && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
+    () => tasks.filter((x) => isLogTask(x) && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
     [tasks, dateKey],
   )
   const { totalMinutes, byCategory } = useMemo(() => {
@@ -71,7 +80,7 @@ export function RecordPanel({
     let total = 0
     for (const log of dayLogs) {
       // 睡眠は分類の帯に入れない（上の「睡眠」の行で見る）
-      if (isSleepRecord(log)) continue
+      if (isSleepTask(log)) continue
       const min = minutesOfLogOnCalendarDay(log, dateKey)
       total += min
       const cat = recordLabelKey(log, labelPresets, logCategoryColors)
@@ -82,8 +91,6 @@ export function RecordPanel({
 
   // 記録中でも始められる（前の記録を保存して切り替える）
   const canStartTimer = viewingToday
-  // いま計っているものは「もう一度始める」に出さない
-  const recentChoices = recent.filter((r) => r.title !== activeTimer?.taskTitle)
   // 未来の日は「後から」記録できない
   const canLogLater = dateKey <= toDateKey(zonedNow())
 
@@ -113,7 +120,8 @@ export function RecordPanel({
     setMode('manual')
   }
 
-  const name = title.trim() || category.trim()
+  // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
+  const name = title.trim() || category.trim() || t('quickLog.untitled')
   const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
   const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
@@ -175,7 +183,8 @@ export function RecordPanel({
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <input
-            autoFocus
+            // タップの端末ではキーボードを出さない（ラベルのチップを押して始めるのがいちばん早く、キーボードがチップを隠す）
+            autoFocus={!coarse}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={onEnter}
@@ -197,7 +206,7 @@ export function RecordPanel({
                 className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               {inFuture ? (
-                <span className="text-xs text-red-500 dark:text-red-400">{t('records.noFuture')}</span>
+                <span className={ERROR_TEXT}>{t('records.noFuture')}</span>
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}
@@ -236,6 +245,7 @@ export function RecordPanel({
         {canStartTimer && (
           <button
             type="button"
+            ref={timerButtonRef}
             onClick={() => setMode('timer')}
             {...shortcutTip(t('quickLog.start'), 'logView')}
             className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
@@ -247,6 +257,7 @@ export function RecordPanel({
         {canLogLater && (
           <button
             type="button"
+            ref={laterButtonRef}
             onClick={openManual}
             className={buttonClass({ variant: 'secondary', size: 'lg' }, 'flex-1')}
           >
@@ -255,22 +266,35 @@ export function RecordPanel({
           </button>
         )}
       </div>
-      {canStartTimer && recentChoices.length > 0 && (
+      {canStartTimer && recent.length > 0 && (
         <div className="-mt-1 flex flex-wrap items-center gap-1.5">
-          {recentChoices.map((r) => (
-            <button
-              key={r.title}
-              type="button"
-              onClick={() => startTimer(r.title, r.category ? [r.category] : [])}
-              {...tip(t('quickLog.resume', { title: r.title }))}
-              aria-label={t('quickLog.resume', { title: r.title })}
-              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 max-w-[10rem] gap-1.5 md:min-h-7')}
-            >
-              {/* 分類の色の ▶ — 押すとこの記録をもう一度始める */}
-              <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={colorVars(categoryHex(r.category, logCategoryColors))} />
-              <span className="truncate">{r.title}</span>
-            </button>
-          ))}
+          {/* いま計っているものも残し、記録中の見た目にする（外すと隣のチップが押した場所へ動き、二度押しで別の記録が始まる） */}
+          {recent.map((r) => {
+            const running = r.title === activeTimer?.taskTitle
+            const hexVars = colorVars(categoryHex(r.category, logCategoryColors))
+            return (
+              <button
+                key={r.title}
+                type="button"
+                aria-pressed={running}
+                onClick={() => {
+                  if (!running) startTimer(r.title, r.category ? [r.category] : [])
+                }}
+                {...tip(running ? t('activityLog.timerRunning') : t('quickLog.resume', { title: r.title }))}
+                aria-label={running ? `${r.title}（${t('activityLog.timerRunning')}）` : t('quickLog.resume', { title: r.title })}
+                style={running ? hexVars : undefined}
+                className={chipClass({ variant: 'outline', size: 'md', selected: running }, `min-h-9 max-w-[10rem] gap-1.5 md:min-h-7 ${running ? 'cursor-default' : ''}`)}
+              >
+                {running ? (
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 animate-breathe rounded-full bg-current" />
+                ) : (
+                  // 分類の色の ▶ — 押すとこの記録をもう一度始める
+                  <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={hexVars} />
+                )}
+                <span className="truncate">{r.title}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

@@ -17,7 +17,6 @@ export const DATA_KEYS = [
   'theme',
   'notificationsEnabled',
   'recordPrompts',
-  'tagsEnabled',
   'listColorPaletteId',
   'timeLogTagPresets',
   'logCategoryColors',
@@ -26,10 +25,12 @@ export const DATA_KEYS = [
   'activeTimer',
   'dailyReminders',
   'reminderPromptDismissed',
+  'googleConnectLineDismissed',
   'dailyCapacityMinutes',
   'eventReminderMinutes',
   'appTimeZone',
   'extraTimeZones',
+  'extraTimeZonesUpdatedAt',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const VIEW_KEYS = [

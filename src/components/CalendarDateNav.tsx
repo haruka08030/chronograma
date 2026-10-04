@@ -8,9 +8,10 @@ import { DayNav } from './ui/DayNav'
 import { DatePickerBody } from './DatePickerBody'
 import { fromDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
+import type { CalendarMode } from '../store/storeTypes'
 
 type CalendarDateNavProps = {
-  mode: 'month' | 'week'
+  mode: CalendarMode
   selectedDateKey: string
   monthCursor: Date
   weekAnchor: Date
@@ -43,6 +44,8 @@ export function CalendarDateNav({
   const periodLabel =
     mode === 'month'
       ? df.yearMonth(monthCursor)
+      : mode === 'schedule'
+        ? df.monthDayWeekday(selectedDateKey)
       : df.weekRange(weekAnchor)
 
   const handlePickDay = (key: string) => {
@@ -95,7 +98,7 @@ export function CalendarDateNav({
             role="dialog"
             aria-label={t('calendarHub.miniPickerTitle')}
             // スマホでは期間の文字が右に寄るので、バーの左端にそろえて画面からはみ出さないようにする
-            className={`absolute left-3 top-full z-50 mt-1 w-[min(100vw-1.5rem,272px)] p-3 sm:left-0 ${POPOVER_PANEL}`}
+            className={`absolute left-3 top-full z-50 mt-1 origin-top-left w-[min(100vw-1.5rem,272px)] p-3 sm:left-0 ${POPOVER_PANEL}`}
           >
             <DatePickerBody
               value={selectedDateKey}

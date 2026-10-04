@@ -5,8 +5,7 @@ import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 
 /**
  * Canvas 連携の最初の版の id を、いまの形（学校名入り）に一度だけ書き換える。
- * サーバーは `supabase/migrations/006_canvas_legacy_ids.sql`、各端末は保存データの版（taskStore の migrate）で流す。
- * 規則は両方で同じにする。
+ * 各端末は保存データの版（taskStore の migrate）で流す（サーバーの行は同じ規則で書き換え済み）。
  *
  *   最初の版: タスク `canvas-<種類>-<ID>`、セクション `canvas-course-<コースID>`
  *   いま:     タスク `canvas-<学校>-<種類>-<ID>`、セクション `canvas-course-<学校>-<コースID>`

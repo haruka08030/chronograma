@@ -3,24 +3,68 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
+import type { Habit } from '../types/habit'
 import { TASK_DEFAULTS } from './taskDefaults'
+import {
+  baselineFrom,
+  mergeSnapshots,
+  mergeWithoutBaseline,
+  syncedSnapshot,
+  withServerStamps,
+  type SyncBaseline,
+  type SyncSnapshot,
+} from './syncMerge'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
 /**
  * PostgREST の最小限の偽物。select は range と count、upsert は onConflict を見る。
- * `maxRows` はサーバーの 1 回あたりの上限、`uniqueOn` は DB にある一意制約
+ * `maxRows` はサーバーの 1 回あたりの上限、`uniqueOn` は DB にある一意制約。
+ * 書き込みは `004` のトリガー（sync_write_guard）と同じに振る舞う: base_updated_at を送った行は
+ * サーバーの行の updated_at と同じときだけ通し、updated_at をサーバーの時計（`serverNow`）にする。
+ * 送らない行は前の動き（updated_at が古ければ捨てる）。`noBaseColumn` は `004` を流す前の DB
  */
 function fakeSupabase(
   tables: Record<string, Row[]>,
-  opts: { maxRows?: number; uniqueOn?: string; rejectRow?: (table: string, row: Row) => { code: string; message: string } | null } = {},
+  opts: {
+    maxRows?: number
+    uniqueOn?: string
+    rejectRow?: (table: string, row: Row) => { code: string; message: string } | null
+    noBaseColumn?: boolean
+    serverNow?: () => string
+  } = {},
 ) {
-  const { maxRows = 1000, uniqueOn = 'user_id,id', rejectRow } = opts
+  const { maxRows = 1000, uniqueOn = 'user_id,id', rejectRow, noBaseColumn = false } = opts
+  let tick = 0
+  const serverNow = opts.serverNow ?? (() => `2026-10-03T00:00:00.${String(++tick).padStart(6, '0')}+00:00`)
   const upserts: { table: string; onConflict: string; rows: Row[] }[] = []
   const deletes: { table: string; ids: string[] }[] = []
+  const ms = (iso: unknown) => Date.parse(String(iso))
+  const write = (table: string, rows: Row[]): Row[] => {
+    const all = (tables[table] ??= [])
+    const out: Row[] = []
+    for (const { base_updated_at: base, ...row } of rows) {
+      const i = all.findIndex((r) => r.user_id === row.user_id && r.id === row.id)
+      const old = i >= 0 ? all[i] : undefined
+      let next: Row
+      if (base === undefined) {
+        if (old && ms(row.updated_at) < ms(old.updated_at)) continue
+        next = { ...old, ...row } as Row
+      } else {
+        if (old ? base !== old.updated_at : base !== '-infinity') continue
+        const now = serverNow()
+        const stamp = old && ms(old.updated_at) >= ms(now) ? new Date(ms(old.updated_at) + 1).toISOString() : now
+        next = { ...old, ...row, updated_at: stamp } as Row
+      }
+      if (old) all[i] = next
+      else all.push(next)
+      out.push(next)
+    }
+    return out
+  }
   const client = {
     from(table: string) {
-      const all = tables[table] ?? []
+      const all = () => tables[table] ?? []
       return {
         select: () => {
           let userId = ''
@@ -28,29 +72,54 @@ function fakeSupabase(
             eq: (_col: string, v: string) => ((userId = v), q),
             order: () => q,
             range: async (from: number, to: number) => {
-              const mine = all.filter((r) => r.user_id === userId).sort((a, b) => a.id.localeCompare(b.id))
+              const mine = all().filter((r) => r.user_id === userId).sort((a, b) => a.id.localeCompare(b.id))
               const data = mine.slice(from, Math.min(to + 1, from + maxRows))
               return { data, count: mine.length, error: null }
             },
           }
           return q
         },
-        upsert: async (rows: Row[], { onConflict }: { onConflict: string }) => {
-          if (onConflict !== uniqueOn) {
-            return { error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } }
-          }
-          // Postgres と同じく、1 行でも拒否されたらまとめて落ちる
-          const bad = rejectRow && rows.map((r) => rejectRow(table, r)).find(Boolean)
-          if (bad) return { error: bad }
-          upserts.push({ table, onConflict, rows })
-          return { error: null }
-        },
+        upsert: (rows: Row[], { onConflict }: { onConflict: string }) => ({
+          select: async () => {
+            if (onConflict !== uniqueOn) {
+              return { data: null, error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } }
+            }
+            if (noBaseColumn && rows.some((r) => 'base_updated_at' in r)) {
+              return { data: null, error: { code: 'PGRST204', message: `Could not find the 'base_updated_at' column of '${table}' in the schema cache` } }
+            }
+            // Postgres と同じく、1 行でも拒否されたらまとめて落ちる
+            const bad = rejectRow && rows.map((r) => rejectRow(table, r)).find(Boolean)
+            if (bad) return { data: null, error: bad }
+            upserts.push({ table, onConflict, rows })
+            return { data: write(table, rows).map((r) => ({ id: r.id, updated_at: r.updated_at })), error: null }
+          },
+        }),
         delete: () => {
+          let userId = ''
+          const remove = (match: (r: Row) => boolean) => {
+            const gone = all().filter((r) => r.user_id === userId && match(r))
+            tables[table] = all().filter((r) => !gone.includes(r))
+            return gone
+          }
           const q = {
-            eq: () => q,
+            eq: (_col: string, v: string) => ((userId = v), q),
             in: async (_col: string, ids: string[]) => {
               deletes.push({ table, ids })
+              remove((r) => ids.includes(r.id))
               return { error: null }
+            },
+            or: (filter: string) => {
+              const pairs = [...filter.matchAll(/and\(id\.eq\."((?:[^"\\]|\\.)*)",updated_at\.eq\."((?:[^"\\]|\\.)*)"\)/g)].map((m) => [
+                m[1]!.replace(/\\(.)/g, '$1'),
+                m[2]!.replace(/\\(.)/g, '$1'),
+              ])
+              return {
+                select: async () => {
+                  deletes.push({ table, ids: pairs.map(([id]) => id!) })
+                  const gone = remove((r) => pairs.some(([id, at]) => r.id === id && r.updated_at === at))
+                  return { data: gone.map((r) => ({ id: r.id })), error: null }
+                },
+              }
             },
           }
           return q
@@ -58,7 +127,7 @@ function fakeSupabase(
       }
     },
   }
-  return { client: client as unknown as SupabaseClient, upserts, deletes }
+  return { client: client as unknown as SupabaseClient, upserts, deletes, tables }
 }
 
 const task = (id: string, userId = 'u1'): Row => ({
@@ -106,6 +175,64 @@ describe('fetchListsTasksHabits', () => {
     const res = await fetchListsTasksHabits(client, 'u1')
     if ('error' in res) throw new Error(res.error)
     expect(res.tasks.map((t) => t.id)).toEqual(['a'])
+  })
+})
+
+describe('repeat weekdays (recurrence JSON)', () => {
+  it('reads weekdays on weekly repeats, and drops them elsewhere or when invalid', async () => {
+    const rows = [
+      { ...task('mw'), recurrence: { type: 'weekly', interval: 1, weekdays: [3, 1, 3, 9, 'x'] } },
+      { ...task('old'), recurrence: { type: 'weekly', interval: 2 } },
+      { ...task('daily'), recurrence: { type: 'daily', interval: 1, weekdays: [1, 2] } },
+      { ...task('empty'), recurrence: { type: 'weekly', interval: 1, weekdays: [] } },
+    ]
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: rows, habits: [] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = Object.fromEntries(res.tasks.map((t) => [t.id, t.recurrence]))
+    expect(byId.mw).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3] })
+    expect(byId.old).toEqual({ type: 'weekly', interval: 2 })
+    expect(byId.daily).toEqual({ type: 'daily', interval: 1 })
+    expect(byId.empty).toEqual({ type: 'weekly', interval: 1 })
+  })
+
+  it('sends weekdays inside the recurrence column', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const [t] = fetchedTasks(['mw'])
+    const local = [{ ...t!, recurrence: { type: 'weekly' as const, interval: 1, weekdays: [1, 3, 5] } }]
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    expect(upserts.find((u) => u.table === 'tasks')!.rows[0]!.recurrence).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3, 5] })
+  })
+})
+
+describe('task kind (is_time_log / is_sleep columns)', () => {
+  it('reads the two columns as the kind', async () => {
+    const rows = [
+      task('todo'),
+      { ...task('log'), is_time_log: true },
+      { ...task('sleep'), is_time_log: true, is_sleep: true },
+      // 睡眠の印だけで記録の印が無い行は To-Do
+      { ...task('odd'), is_sleep: true },
+    ]
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: rows, habits: [] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(Object.fromEntries(res.tasks.map((t) => [t.id, t.kind]))).toEqual({ todo: 'todo', log: 'log', sleep: 'sleep', odd: 'todo' })
+  })
+
+  it('writes the kind as the two columns older apps read', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const [todo, log, sleep] = fetchedTasks(['todo', 'log', 'sleep'])
+    const local: Task[] = [todo!, { ...log!, kind: 'log' }, { ...sleep!, kind: 'sleep' }]
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    const sent = upserts.find((u) => u.table === 'tasks')!.rows.map((r) => [r.id, r.is_time_log, r.is_sleep, 'kind' in r])
+    expect(sent).toEqual([
+      ['todo', false, false, false],
+      ['log', true, false, false],
+      ['sleep', true, true, false],
+    ])
   })
 })
 
@@ -213,8 +340,266 @@ function fetchedTasks(ids: string[]): Task[] {
     priority: 'none',
     tags: [],
     recurrence: null,
-    isTimeLog: false,
+    kind: 'todo',
     completedAt: null,
     sectionId: null,
   }))
 }
+
+const habitRow = (id: string, patch: Record<string, unknown> = {}): Row => ({
+  id,
+  user_id: 'u1',
+  title: id,
+  color: '#33B679',
+  time_mode: 'none',
+  start_time: null,
+  end_time: null,
+  frequency: { type: 'daily' },
+  completed_dates: ['2026-10-01'],
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+  ...patch,
+})
+
+describe('habits.archived_at', () => {
+  it('reads rows without the column (before 003) as active, and keeps the archive stamp', async () => {
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [], habits: [habitRow('old'), habitRow('arch', { archived_at: '2026-10-02T00:00:00+00:00' })] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(res.habits.map((h) => [h.id, h.archivedAt])).toEqual([['arch', '2026-10-02T00:00:00+00:00'], ['old', null]])
+  })
+
+  it('sends archived_at, and resends without it when the DB has no column yet', async () => {
+    const h: Habit = {
+      id: 'h', title: 'h', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedDates: [], archivedAt: '2026-10-02T00:00:00.000Z',
+    }
+    const ok = fakeSupabase({})
+    await pushListsTasksHabits(ok.client, 'u-arch', [], [], [h], [], noDeletes)
+    expect(ok.upserts.find((u) => u.table === 'habits')?.rows[0]).toMatchObject({ archived_at: '2026-10-02T00:00:00.000Z' })
+
+    const missing = { code: 'PGRST204', message: "Could not find the 'archived_at' column of 'habits' in the schema cache" }
+    const old = fakeSupabase({}, { rejectRow: (table, r) => (table === 'habits' && 'archived_at' in r ? missing : null) })
+    const res = await pushListsTasksHabits(old.client, 'u-arch-old', [], [], [h], [], noDeletes)
+    expect(res.error).toBeUndefined()
+    const sent = old.upserts.find((u) => u.table === 'habits')?.rows[0]
+    expect(sent).toMatchObject({ id: 'h' })
+    expect(sent && 'archived_at' in sent).toBe(false)
+  })
+})
+
+describe('server time and stale writes (#77)', () => {
+  const fresh = () => ({ lists: [] as Row[], list_sections: [] as Row[], tasks: [task('a'), task('b')], habits: [] as Row[] })
+  const fetchAll = async (client: SupabaseClient) => {
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    return res
+  }
+
+  it('sends the version it read (or -infinity for a new row) and gets back the server time', async () => {
+    const { client, upserts, tables } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    const a = remote.tasks.find((t) => t.id === 'a')!
+    const local = [{ ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' }, { ...a, id: 'new' }]
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes, remote)
+    const sent = upserts.find((u) => u.table === 'tasks')!.rows
+    expect(sent.map((r) => [r.id, r.base_updated_at])).toEqual([['a', '2026-01-01T00:00:00.000Z'], ['new', '-infinity']])
+    expect(res.stale).toEqual([])
+    expect(res.written.map((w) => w.id)).toEqual(['a', 'new'])
+    // サーバーの時刻が入り、base_updated_at は行に残らない
+    const stored = tables.tasks!.find((r) => r.id === 'a')!
+    expect(stored.updated_at).toBe(res.written[0]!.updatedAt)
+    expect(stored.updated_at).not.toBe('2026-01-02T00:00:00.000Z')
+    expect('base_updated_at' in stored).toBe(false)
+  })
+
+  it('a device with a fast clock does not stamp the row with its own time', async () => {
+    const { client, tables } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    const a = remote.tasks.find((t) => t.id === 'a')!
+    await pushListsTasksHabits(client, 'u1', [], [{ ...a, title: 'future', updatedAt: '2099-01-01T00:00:00.000Z' }], [], [], noDeletes, remote)
+    expect(tables.tasks!.find((r) => r.id === 'a')!.updated_at).toMatch(/^2026-10-03/)
+  })
+
+  it('refuses a write based on a version another device has since changed, and writes the rest', async () => {
+    const { client, tables } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    // 取得の後に、ほかの端末が a を変えた
+    const other = await pushListsTasksHabits(client, 'u1', [], [{ ...remote.tasks[0]!, completed: true }], [], [], noDeletes, remote)
+    expect(other.stale).toEqual([])
+    const local = remote.tasks.map((t) => ({ ...t, title: `${t.id}!` }))
+    const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes, remote)
+    expect(res.error).toBeUndefined()
+    expect(res.rejected).toEqual([])
+    expect(res.stale).toEqual([{ table: 'tasks', id: 'a', op: 'upsert' }])
+    expect(res.written.map((w) => w.id)).toEqual(['b'])
+    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'a', completed: true })
+    expect(tables.tasks!.find((r) => r.id === 'b')).toMatchObject({ title: 'b!' })
+  })
+
+  it('refuses a new row when a row with that id appeared on the server meanwhile', async () => {
+    const { client, tables } = fakeSupabase({ lists: [], list_sections: [], tasks: [], habits: [] })
+    const remote = await fetchAll(client)
+    tables.tasks!.push({ ...task('dup'), title: 'theirs' })
+    const res = await pushListsTasksHabits(client, 'u1', [], fetchedTasks(['dup']), [], [], noDeletes, remote)
+    expect(res.stale).toEqual([{ table: 'tasks', id: 'dup', op: 'upsert' }])
+    expect(tables.tasks![0]).toMatchObject({ title: 'theirs' })
+  })
+
+  it('measures how far the device clock is from the server', async () => {
+    const { client } = fakeSupabase(fresh(), { serverNow: () => new Date(Date.now() + 60_000).toISOString() })
+    const remote = await fetchAll(client)
+    const res = await pushListsTasksHabits(client, 'u1', [], [{ ...remote.tasks[0]!, title: 'x' }], [], [], noDeletes, remote)
+    expect(res.clockOffsetMs).toBeGreaterThan(55_000)
+    expect(res.clockOffsetMs).toBeLessThan(65_000)
+  })
+
+  it('does not resend a row that differs from the server only in updated_at', async () => {
+    const { client, upserts } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    const local = remote.tasks.map((t) => ({ ...t, updatedAt: '2026-05-05T00:00:00.000Z' }))
+    await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes, remote)
+    expect(upserts).toEqual([])
+  })
+
+  it('falls back to the old write on a DB without 004 (no base column)', async () => {
+    const { client, upserts, tables } = fakeSupabase(fresh(), { noBaseColumn: true })
+    const remote = await fetchAll(client)
+    const a = remote.tasks.find((t) => t.id === 'a')!
+    const res = await pushListsTasksHabits(client, 'u1', [], [{ ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' }], [], [], noDeletes, remote)
+    expect(res.error).toBeUndefined()
+    expect(upserts.at(-1)!.rows.every((r) => !('base_updated_at' in r))).toBe(true)
+    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'edited', updated_at: '2026-01-02T00:00:00.000Z' })
+    // 時刻はこの端末のもののままなので、時計のずれは測らない
+    expect(res.clockOffsetMs).toBeUndefined()
+  })
+
+  it('an old app (no base) still writes, and still cannot overwrite with an older time', async () => {
+    const { client, tables } = fakeSupabase(fresh())
+    // 前の版のアプリ = 取得を渡さない書き込み
+    await pushListsTasksHabits(client, 'u1', [], [{ ...fetchedTasks(['a'])[0]!, title: 'old app', updatedAt: '2026-02-01T00:00:00.000Z' }], [], [], noDeletes)
+    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'old app' })
+    await pushListsTasksHabits(client, 'u1', [], [{ ...fetchedTasks(['a'])[0]!, title: 'older', updatedAt: '2026-01-15T00:00:00.000Z' }], [], [], noDeletes)
+    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'old app' })
+  })
+
+  it('deletes only rows still at the version it read; an edit made meanwhile survives', async () => {
+    const { client, tables } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    await pushListsTasksHabits(client, 'u1', [], [{ ...remote.tasks[0]!, title: 'edited elsewhere' }], [], [], noDeletes, remote)
+    const res = await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: ['a', 'b'] }, remote)
+    expect(res.error).toBeUndefined()
+    expect(res.stale).toEqual([{ table: 'tasks', id: 'a', op: 'delete' }])
+    expect(tables.tasks!.map((r) => r.id)).toEqual(['a'])
+  })
+
+  it('quotes ids with characters PostgREST filters treat specially', async () => {
+    const odd = 'x,y"(z)\\'
+    const { client, tables } = fakeSupabase({ lists: [], list_sections: [], tasks: [task(odd)], habits: [] })
+    const remote = await fetchAll(client)
+    await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: [odd] }, remote)
+    expect(tables.tasks).toEqual([])
+  })
+})
+
+describe('two devices editing the same task (#77)', () => {
+  type Device = { local: SyncSnapshot; baseline: SyncBaseline | null }
+  const emptySnap = (): SyncSnapshot => ({ lists: [], tasks: [], habits: [], sections: [] })
+
+  /** useSupabaseSync の 1 往復と同じ順: 取得 → 三方向マージ → 送信 → サーバーの時刻を入れて控えに */
+  async function syncDevice(client: SupabaseClient, dev: Device, beforePush?: () => Promise<void>) {
+    const remote = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in remote) throw new Error(remote.error)
+    const { merged, deletes } = dev.baseline
+      ? mergeSnapshots(dev.local, remote, dev.baseline)
+      : { merged: mergeWithoutBaseline(dev.local, remote), deletes: noDeletes }
+    await beforePush?.()
+    const res = await pushListsTasksHabits(client, 'u1', merged.lists, merged.tasks, merged.habits, merged.sections, deletes, remote)
+    if (res.error) throw new Error(res.error)
+    const stamped = withServerStamps(merged, res.written)
+    dev.local = stamped
+    dev.baseline = {
+      ...baselineFrom(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale])),
+      clockOffsetMs: res.clockOffsetMs ?? dev.baseline?.clockOffsetMs,
+    }
+    return res
+  }
+  const edit = (dev: Device, id: string, patch: Partial<Task>, at: string) => {
+    dev.local = { ...dev.local, tasks: dev.local.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: at } : t)) }
+  }
+  const setup = async () => {
+    const fake = fakeSupabase({ lists: [], list_sections: [], tasks: [task('t')], habits: [] })
+    const phone: Device = { local: emptySnap(), baseline: null }
+    const pc: Device = { local: emptySnap(), baseline: null }
+    await syncDevice(fake.client, phone)
+    await syncDevice(fake.client, pc)
+    return { ...fake, phone, pc }
+  }
+  const stored = (tables: Record<string, Row[]>) => tables.tasks!.find((r) => r.id === 't')!
+
+  it('title on the phone and completed on the PC both survive', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { title: 'phone title' }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { completed: true }, '2026-10-03T00:00:20.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    await syncDevice(client, phone)
+    expect(stored(tables)).toMatchObject({ title: 'phone title', completed: true })
+    expect(phone.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
+    expect(pc.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
+  })
+
+  it('a device whose clock is far ahead does not wipe the other device’s field', async () => {
+    const { client, tables, phone, pc } = await setup()
+    // PC の時計は 1 年進んでいる。スマホの変更は PC より後でも、時刻では古く見える
+    edit(pc, 't', { completed: true }, '2027-10-03T00:00:00.000Z')
+    await syncDevice(client, pc)
+    edit(phone, 't', { title: 'phone title' }, '2026-10-03T00:00:30.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    expect(stored(tables)).toMatchObject({ title: 'phone title', completed: true })
+    expect(pc.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
+  })
+
+  it('a row changed between fetch and push is not overwritten; the next round merges both', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { title: 'phone title' }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { completed: true }, '2026-10-03T00:00:20.000Z')
+    // スマホが取得した直後に PC が送る
+    const res = await syncDevice(client, phone, async () => {
+      await syncDevice(client, pc)
+    })
+    expect(res.stale).toEqual([{ table: 'tasks', id: 't', op: 'upsert' }])
+    expect(stored(tables)).toMatchObject({ title: 't', completed: true })
+    // 次の同期（useSupabaseSync はすぐ取り直す）で両方が残る
+    await syncDevice(client, phone)
+    expect(stored(tables)).toMatchObject({ title: 'phone title', completed: true })
+    await syncDevice(client, pc)
+    expect(pc.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
+  })
+
+  it('the same field changed on both: the later edit in server time wins, not the faster clock', async () => {
+    const { client, tables, phone, pc } = await setup()
+    // PC の時計は 1 時間進んでいる（控えにはサーバーとのずれ −1 時間）
+    pc.baseline = { ...pc.baseline!, clockOffsetMs: -3_600_000 }
+    edit(pc, 't', { title: 'pc (earlier)' }, '2026-10-03T00:59:59.000Z')
+    edit(phone, 't', { title: 'phone (later)' }, '2026-10-03T00:00:00.500Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    expect(stored(tables)).toMatchObject({ title: 'phone (later)' })
+  })
+
+  it('a task deleted on one device and edited on the other (after the delete was read) is kept', async () => {
+    const { client, tables, phone, pc } = await setup()
+    phone.local = { ...phone.local, tasks: [] }
+    edit(pc, 't', { title: 'edited' }, '2026-10-03T00:00:10.000Z')
+    // スマホが取得した直後に PC が編集を送る → スマホの削除は断られる
+    const res = await syncDevice(client, phone, async () => {
+      await syncDevice(client, pc)
+    })
+    expect(res.stale).toEqual([{ table: 'tasks', id: 't', op: 'delete' }])
+    await syncDevice(client, phone)
+    expect(stored(tables)).toMatchObject({ title: 'edited' })
+    expect(phone.local.tasks.map((t) => t.title)).toEqual(['edited'])
+  })
+})

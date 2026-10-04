@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { DatePickerBody } from './DatePickerBody'
+import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 
 /** パネルの大きさ（位置合わせ用。`w-[272px]` と 6 週の高さ） */
 const PANEL_WIDTH = 272
@@ -54,6 +55,9 @@ export function DueDatePopover({
   const dialogId = useId()
 
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, wrapperEl] })
+
+  // 閉じたら（選んだ・Esc）開いた欄にフォーカスを戻す（パネルは body 直下なので、消えると BODY に落ちる）
+  useFocusBackOnClose(open, () => wrapperEl?.querySelector<HTMLElement>('button, [tabindex]'))
 
   /**
    * 画面に固定して body 直下に出す。ダイアログやスクロールする欄の中でも切れない。
@@ -122,7 +126,7 @@ export function DueDatePopover({
           )}
           className={`z-[90] w-[272px] p-3 ${POPOVER_PANEL}`}
         >
-          <DatePickerBody value={value} min={min} kind={kind} onPick={pick} />
+          <DatePickerBody value={value} min={min} kind={kind} onPick={pick} autoFocus />
         </div>,
         document.body,
       )}

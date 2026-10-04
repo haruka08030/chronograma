@@ -9,6 +9,7 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
+import { META_TEXT } from './ui/textClass'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -57,7 +58,7 @@ export function SleepStatsCard() {
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
+        <p className={META_TEXT}>{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 
       <dl className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
@@ -109,8 +110,8 @@ export function SleepStatsCard() {
                   >
                     {n && (
                       <span
-                        className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded bg-sleep transition-opacity sm:w-3 ${
-                          focused.dateKey === n.dateKey ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'
+                        className={`gc-sleep absolute left-1/2 w-2.5 -translate-x-1/2 rounded ring-1 ring-inset transition-shadow sm:w-3 ${
+                          focused.dateKey === n.dateKey ? 'ring-sleep' : 'ring-sleep/30 group-hover:ring-sleep'
                         }`}
                         style={{ top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) }}
                       />

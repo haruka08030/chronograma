@@ -4,6 +4,7 @@ import { Modal, ModalTitle } from './Modal'
 import { buttonClass } from './buttonClass'
 import { fieldClass } from './fieldClass'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { sectionLabelClass } from './sectionLabelClass'
 
 export type ConfirmOptions = {
   /** 本文（何が起きるか・件数など）。改行はそのまま出す */
@@ -39,7 +40,7 @@ export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; 
       <p className={`whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300 ${options.title ? 'mt-2' : ''}`}>{options.message}</p>
       {need && (
         <label className="mt-4 block">
-          <span className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">{need.label}</span>
+          <span className={sectionLabelClass('field', 'mb-1 block')}>{need.label}</span>
           <input
             ref={inputRef}
             value={typed}

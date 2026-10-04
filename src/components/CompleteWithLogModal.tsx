@@ -9,6 +9,7 @@ import { DateField } from './DateField'
 import { useTextAreaEntry } from '../hooks/useTextEntry'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -50,7 +51,7 @@ export function CompleteWithLogModal({
   return (
     <Modal onClose={onClose} labelledBy="complete-with-log-title" className="p-5">
         <ModalTitle id="complete-with-log-title">{t('task.completeModal.title')}</ModalTitle>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className={`mt-1 ${HINT_TEXT}`}>
           {t('task.completeModal.body')}
         </p>
 
@@ -138,14 +139,14 @@ export function CompleteWithLogModal({
         </div>
 
         {!valid ? (
-          <p className="mt-2 text-xs text-red-500 dark:text-red-400">{t('alert.endAfterStart')}</p>
+          <p className={`mt-2 ${ERROR_TEXT}`}>{t('alert.endAfterStart')}</p>
         ) : (
           // 記録パネルと同じく、終了が開始より前なら翌日まで
-          overnight && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{t('records.nextDay')}</p>
+          overnight && <p className={`mt-2 ${HINT_TEXT}`}>{t('records.nextDay')}</p>
         )}
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">{t('task.completeModal.memo')}</label>
+          <label className={sectionLabelClass('field', 'mb-1 block')}>{t('task.completeModal.memo')}</label>
           <textarea
             value={draft.memo}
             onChange={(e) => onChange({ memo: e.target.value })}

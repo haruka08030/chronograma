@@ -6,7 +6,9 @@ import { SECTION_HEADING_TEXT } from '../components/ListSectionHeading'
 import { ActionMenu } from '../components/ui/ActionMenu'
 import { CloseIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { tip } from '../lib/tooltip'
+import { iconButtonClass } from '../components/ui/iconButtonClass'
 import { SectionNameInput } from '../components/todo/sectionParts'
+import { REVEAL_ON_HOVER } from '../components/ui/revealClass'
 
 /**
  * To-Do 一覧のセクションの名前の変更・新規の名前入力・右クリックメニュー。
@@ -102,12 +104,13 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
   /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す */
   const sectionActions = (sectionId: string, title: string) => (
     <span
-      className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100"
+      className={`flex items-center gap-0.5 shrink-0 ${REVEAL_ON_HOVER}`}
       onClick={(e) => e.stopPropagation()}
     >
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        className={iconButtonClass('p-1!')}
+        aria-label={t('sections.renameTitle')}
         {...tip(t('sections.renameTitle'))}
         onClick={() => beginSectionRename(sectionId, title)}
       >
@@ -115,7 +118,8 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
       </button>
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-red-500"
+        className={iconButtonClass('p-1!')}
+        aria-label={t('common.delete')}
         {...tip(t('common.delete'))}
         onClick={() => deleteSectionStore(sectionId)}
       >

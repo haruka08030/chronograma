@@ -1,10 +1,9 @@
 import { useCallback, useState } from 'react'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { CompleteWithLogModal, type CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { taskPlacementDate } from '../lib/taskTimeRange'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 
 /**
@@ -20,7 +19,7 @@ export function useCompleteWithLog() {
   const open = useCallback(
     (task: Task) => {
       const placement = taskPlacementDate(task)
-      if (task.completed || isListedTimeLog(task) || !placement || !task.startTime || !task.endTime) return
+      if (task.completed || isLogTask(task) || !placement || !task.startTime || !task.endTime) return
       setDraft({
         taskId: task.id,
         title: task.title,

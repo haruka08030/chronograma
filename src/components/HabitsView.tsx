@@ -4,7 +4,7 @@ import { addDays, format, startOfWeek, subDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { hexForGoogleKey } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
-import type { Habit, HabitTimeMode, HabitWeekday } from '../types/habit'
+import { isHabitActive, type Habit, type HabitTimeMode, type HabitWeekday } from '../types/habit'
 import {
   canSubmitHabitDraft,
   habitFrequencyFromDraft,
@@ -18,7 +18,7 @@ import {
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
-import { colorVars } from '../lib/logCategoryColors'
+import { colorVars, labelForHex } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
 /** ISO 曜日（1=月）から曜日名を作るための、ある月曜日 */
@@ -29,6 +29,7 @@ import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { iconButtonClass } from './ui/iconButtonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
@@ -37,10 +38,15 @@ import { SectionLabel } from './ui/SectionLabel'
 import { tip } from '../lib/tooltip'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { EmptyState } from './ui/EmptyState'
-import { CheckIcon, RepeatIcon } from './icons'
+import { CheckIcon, RepeatIcon, RestoreIcon } from './icons'
+import { DisclosureButton } from './ui/Disclosure'
+import { HabitContextMenu } from './HabitContextMenu'
+import { useLongPress } from '../hooks/useLongPress'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { fieldClass } from './ui/fieldClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { HINT_TEXT, SUBTLE_TEXT } from './ui/textClass'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
@@ -59,10 +65,17 @@ function ColorPicker({
   onPick: (hex: string) => void
 }) {
   const { t } = useTranslation()
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  // 習慣の色＝記録のラベル。丸だけでは分からないので、選んでいる色のラベル名を出す
+  const label = labelForHex(color, presets, colors)
   return (
     <div className="flex flex-col gap-2">
       <SectionLabel as="span" level="field">{t('habits.color')}</SectionLabel>
       <ColorPalette bare selectedHex={color} onChoose={onPick} />
+      <p className={HINT_TEXT}>
+        {label ? t('habits.colorLabel', { label }) : t('habits.colorNoLabel')}
+      </p>
     </div>
   )
 }
@@ -172,7 +185,7 @@ function HabitTimeFields({
       ) : null}
 
       {mode !== 'none' ? (
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+        <p className={HINT_TEXT}>
           {t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
         </p>
       ) : null}
@@ -182,7 +195,10 @@ function HabitTimeFields({
 
 export function HabitsView() {
   const { t, i18n } = useTranslation()
-  const habits = useTaskStore((s) => s.habits)
+  const allHabits = useTaskStore((s) => s.habits)
+  // アーカイブした習慣は一覧・要約に入れず、下の「アーカイブ」にだけ出す
+  const habits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
+  const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
   const tasks = useTaskStore((s) => s.tasks)
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
@@ -191,6 +207,7 @@ export function HabitsView() {
   const updateHabit = useTaskStore((s) => s.updateHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const restoreHabit = useTaskStore((s) => s.restoreHabit)
 
   const [newTitle, setNewTitle] = useState('')
   const [newFreq, setNewFreq] = useState<'daily' | 'weekly'>('daily')
@@ -210,6 +227,8 @@ export function HabitsView() {
   const [editStartTime, setEditStartTime] = useState('09:00')
   const [editEndTime, setEditEndTime] = useState('10:00')
   const [editColor, setEditColor] = useState(DEFAULT_HABIT_COLOR)
+  const [habitMenu, setHabitMenu] = useState<{ x: number; y: number; habitId: string } | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   const cancelEdit = useCallback(() => {
     setEditingHabitId(null)
@@ -244,6 +263,27 @@ export function HabitsView() {
   useEffect(() => {
     if (showComposer) newTitleInputRef.current?.focus()
   }, [showComposer])
+
+  // 右クリック（タッチは長押し）でカードのメニュー。To-Do の行・ナビのリストと同じ ActionMenu
+  const pressedHabitId = useRef<string | null>(null)
+  const longPress = useLongPress((e) => {
+    if (pressedHabitId.current) setHabitMenu({ x: e.clientX, y: e.clientY, habitId: pressedHabitId.current })
+  })
+  const habitMenuProps = (habitId: string) => ({
+    ...longPress.pointerHandlers,
+    onPointerDown: (e: React.PointerEvent) => {
+      pressedHabitId.current = habitId
+      longPress.pointerHandlers.onPointerDown(e)
+    },
+    onClickCapture: longPress.onClickCapture,
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault()
+      // 長押しで出る OS のメニューは抑え、長押しのほうで開く
+      if (longPress.isPressing()) return
+      setHabitMenu({ x: e.clientX, y: e.clientY, habitId })
+    },
+    style: { WebkitTouchCallout: 'none' } as const,
+  })
 
   const toggleNewWeekday = (v: HabitWeekday) => {
     setNewWeekdays((prev) => toggleHabitWeekdaySelection(prev, v))
@@ -406,7 +446,7 @@ export function HabitsView() {
                 <button
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
+                  className={iconButtonClass('-mr-1.5 -mt-1.5')}
                   {...tip(t('common.delete'))}
                   aria-label={t('common.delete')}
                 >
@@ -487,6 +527,7 @@ export function HabitsView() {
         <div
           role="button"
           tabIndex={0}
+          {...habitMenuProps(h.id)}
           onClick={() => beginEdit(h)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -494,7 +535,7 @@ export function HabitsView() {
               beginEdit(h)
             }
           }}
-          className={`group rounded-xl border p-4 transition-colors ${cardSurface} ${cardTone} ${
+          className={`group select-none rounded-xl border p-4 transition-colors ${cardSurface} ${cardTone} ${
             offDay ? 'hover:bg-zinc-100/85 dark:hover:bg-zinc-900/50' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
           }`}
         >
@@ -556,6 +597,7 @@ export function HabitsView() {
                   }}
                   className="flex justify-center"
                   aria-label={cellTitle}
+                  {...tip(cellTitle)}
                 >
                   {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
                   <span
@@ -569,7 +611,6 @@ export function HabitsView() {
                             : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
                     style={colorVars(h.color)}
-                    title={cellTitle}
                   >
                     {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
@@ -583,7 +624,7 @@ export function HabitsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={PAGE_SCROLL_CLASS}>
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
@@ -750,7 +791,7 @@ export function HabitsView() {
           </li>
         )}
         {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
-          <p className="py-2 text-sm text-zinc-400 dark:text-zinc-500">{t('habits.noneScheduledForDay')}</p>
+          <p className={`py-2 ${SUBTLE_TEXT}`}>{t('habits.noneScheduledForDay')}</p>
         )}
         {habitsScheduledForFocus.map((h) => renderHabitRow(h, false))}
         {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
@@ -762,7 +803,45 @@ export function HabitsView() {
         ) : null}
         {habitsOffFocus.map((h) => renderHabitRow(h, true))}
         </ul>
+
+        {archivedHabits.length > 0 && (
+          <section>
+            <DisclosureButton tone="muted" open={showArchived} onToggle={() => setShowArchived((v) => !v)} className="-ml-3">
+              {t('habits.archivedHeading', { count: archivedHabits.length })}
+            </DisclosureButton>
+            {showArchived && (
+              <ul className="mt-1 divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+                {archivedHabits.map((h) => (
+                  <li key={h.id} {...habitMenuProps(h.id)} className="flex select-none items-center gap-3 px-4 py-2.5">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: h.color }} aria-hidden />
+                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-600 dark:text-zinc-400">{h.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => restoreHabit(h.id)}
+                      className={buttonClass({ variant: 'ghost', size: 'xs' })}
+                    >
+                      <RestoreIcon className="h-3.5 w-3.5" />
+                      {t('habits.restore')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </div>
+      {habitMenu && (
+        <HabitContextMenu
+          x={habitMenu.x}
+          y={habitMenu.y}
+          habitId={habitMenu.habitId}
+          onClose={() => setHabitMenu(null)}
+          onEdit={() => {
+            const h = habits.find((x) => x.id === habitMenu.habitId)
+            if (h) beginEdit(h)
+          }}
+        />
+      )}
     </div>
   )
 }

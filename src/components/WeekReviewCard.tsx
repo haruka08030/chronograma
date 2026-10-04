@@ -13,12 +13,16 @@ import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
+import { META_TEXT } from './ui/textClass'
+import { tip } from '../lib/tooltip'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore((s) => s.habits)
+  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const selectView = useTaskStore((s) => s.selectView)
   const [weekOffset, setWeekOffset] = useState(0)
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
@@ -59,7 +63,7 @@ export function WeekReviewCard() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className={META_TEXT}>
             {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
           </p>
         </div>
@@ -91,7 +95,7 @@ export function WeekReviewCard() {
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
           <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
-          <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700" role="list">
+          <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
               const date = fromDateKey(toDateKey(weekStart))
@@ -99,7 +103,7 @@ export function WeekReviewCard() {
               const label = format(date, 'E', { locale: dateLocale })
               const dayBar = day ? barMinutes(day) : 0
               const h = Math.round((dayBar / maxLogged) * 100)
-              const tip = day
+              const dayTip = day
                 ? t('weekReview.dayTooltip', {
                     day: label,
                     logged: formatDuration(day.loggedMinutes),
@@ -109,8 +113,19 @@ export function WeekReviewCard() {
                   })
                 : label
               return (
-                <div key={i} role="listitem" title={tip} aria-label={tip} className="group flex h-full flex-1 flex-col justify-end">
-                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色） */}
+                // 押すとその日の今日の計画を開く（記録の中身を見に行ける）
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={dayTip}
+                  {...tip(dayTip)}
+                  onClick={() => {
+                    setSelectedCalendarDateKey(toDateKey(date))
+                    selectView('planner')
+                  }}
+                  className="group flex h-full flex-1 cursor-pointer flex-col justify-end"
+                >
+                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色。タイムラインのカードと同じ薄い塗り＋枠） */}
                   <div
                     className="flex w-full flex-col-reverse overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
                     style={{ height: `${h}%`, minHeight: dayBar > 0 ? 2 : 0 }}
@@ -118,12 +133,12 @@ export function WeekReviewCard() {
                     {day?.tagMinutes.map((x) => (
                       <div
                         key={x.tag}
-                        className="gc-dot w-full shrink-0"
+                        className="gc-plan w-full shrink-0"
                         style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
                       />
                     ))}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -143,13 +158,13 @@ export function WeekReviewCard() {
         <div>
           <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
           {review.topTags.length === 0 ? (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('weekReview.noLogs')}</p>
+            <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
             <ul className="space-y-1.5">
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
+                    <span className="gc-plan h-2.5 w-2.5 shrink-0 rounded-[3px]" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
                     <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>

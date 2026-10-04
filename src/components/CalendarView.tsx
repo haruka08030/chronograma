@@ -26,9 +26,8 @@ import {
   moveGoogleEvent,
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { taskPlacementDate } from '../lib/taskTimeRange'
+import { calendarDayKey, keepsTimeSlot } from '../lib/dayPlan'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
@@ -37,27 +36,49 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from 
 import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { movedToDateLabel } from '../lib/moveToast'
+import { isLogTask } from '../types/task'
+import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
+import { tip } from '../lib/tooltip'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
   return planVisualState({ completed: false, startTime: e.startTime, endTime: e.endTime }, key)
 }
 
-/** 月のマスの 1 行: 終日は薄い塗りの帯、時刻つきは「● 時刻 タイトル」の文字だけ */
+/** 月のマスの 1 行: Google の終日予定は薄い塗りの帯、それ以外（時刻つきの予定・To-Do）は「● 時刻 タイトル」の文字だけ */
 function itemClass(allDay: boolean, state: PlanVisualState): string {
   if (allDay) return state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'
 }
 
+/** 月のマスに並べる行の数（これを超えると最後の行を「他 N 件」にする） */
+const MONTH_CELL_ROWS = 3
+
 export function CalendarView({
   displayMonth,
   selectedDateKey,
   onSelectDate,
+  onOpenDay,
+  onSwipe,
 }: {
   displayMonth: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
+  /**
+   * 渡すと、マスを押したらその日を開く（スマホ幅。Google カレンダーと同じ）。
+   * マスの中の行は小さくて押し分けにくいので、✓ などのボタン以外はどこを押してもその日へ
+   */
+  onOpenDay?: (dateKey: string) => void
+  /** 横に払ったとき前後の月へ（スマホ幅） */
+  onSwipe?: (dir: -1 | 1) => void
 }) {
+  const swipeRef = useRef<HTMLDivElement>(null)
+  useSwipeNav(swipeRef, onSwipe)
+  // タッチは項目の長押しで右クリックと同じメニュー
+  useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
@@ -88,7 +109,7 @@ export function CalendarView({
   const recordsByDate = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const t of tasks) {
-      if (!isListedTimeLog(t) || !isActiveTask(t) || t.parentId) continue
+      if (!isLogTask(t) || !isActiveTask(t) || t.parentId) continue
       for (const day of days) {
         const key = toDateKey(day)
         const min = minutesOfLogOnCalendarDay(t, key)
@@ -104,8 +125,9 @@ export function CalendarView({
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || isListedTimeLog(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-      const key = taskPlacementDate(t)
+      if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+      // 完了していれば終わらせた日へ（時刻つきも予定の日以外に終えたなら。週のタイムライン・終日の行と同じ）
+      const key = calendarDayKey(t)
       if (!key) continue
       const arr = map.get(key) ?? []
       arr.push(t)
@@ -134,7 +156,7 @@ export function CalendarView({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div ref={swipeRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <div className="grid grid-cols-7 px-4 pt-4">
           {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">
@@ -148,6 +170,12 @@ export function CalendarView({
             const key = toDateKey(day)
             const dayTasks = tasksByDate.get(key) ?? []
             const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
+            // 予定と To-Do を合わせて 3 行まで。あと 1 件だけなら「他 1 件」の行の代わりにそれを出す（空きがあるのに隠さない）
+            const totalItems = dayEvents.length + dayTasks.length
+            const room = totalItems <= MONTH_CELL_ROWS + 1 ? totalItems : MONTH_CELL_ROWS
+            const shownEvents = dayEvents.slice(0, room)
+            const shownTasks = dayTasks.slice(0, room - shownEvents.length)
+            const hiddenCount = totalItems - shownEvents.length - shownTasks.length
             const inMonth = isSameMonth(day, displayMonth)
             const today = isAppToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
@@ -159,6 +187,11 @@ export function CalendarView({
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
                             ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
+                onClickCapture={onOpenDay ? (e) => {
+                  if ((e.target as Element).closest('button')) return
+                  e.stopPropagation()
+                  onOpenDay(key)
+                } : undefined}
                 onDoubleClick={() => setAddingDate(key)}
                 onDragOver={(e) => { if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
@@ -175,6 +208,8 @@ export function CalendarView({
                   const ids = readDraggedTaskIds(e.dataTransfer)
                   const taskIds = ids.length ? ids : (dragTaskIdRef.current ? [dragTaskIdRef.current] : [])
                   asOneUndo(() => {
+                    // 取り消しの文は最初の 1 回の分が出る（asOneUndo）
+                    const label = movedToDateLabel(taskIds, tasks, key)
                     for (const taskId of taskIds) {
                       const existingTask = tasks.find((t) => t.id === taskId)
                       if (existingTask) {
@@ -182,8 +217,8 @@ export function CalendarView({
                           scheduledDate: key,
                           startTime: existingTask.startTime,
                           endTime: existingTask.endTime,
-                          isTimeLog: false,
-                        })
+                          kind: 'todo',
+                        }, label)
                       }
                     }
                   })
@@ -206,8 +241,9 @@ export function CalendarView({
                       onSelectDate?.(key)
                       setAddingDate(key)
                     }}
-                    className={`h-4 w-4 p-px opacity-0 transition-opacity focus-visible:opacity-100
-                      group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
+                    // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
+                    className={`h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                      selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'}`}
                   />
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
@@ -226,10 +262,11 @@ export function CalendarView({
                       </div>
                     )
                   })()}
-                  {dayEvents.slice(0, 2).map((e) => (
+                  {shownEvents.map((e) => (
                     <div
                       key={`event-${e.id}`}
-                      title={e.summary}
+                      {...tip(e.summary)}
+                      data-touch-menu
                       draggable={canEditGoogleEvent(e, googleCanWrite)}
                       onDragStart={(ev) => {
                         ev.stopPropagation()
@@ -254,10 +291,11 @@ export function CalendarView({
                       <span className="truncate">{e.summary}</span>
                     </div>
                   ))}
-                  {dayTasks.slice(0, 3).map((t) => (
+                  {shownTasks.map((t) => (
                     <div
                       key={t.id}
                       draggable
+                      data-touch-menu
                       onDragStart={(e) => {
                         e.stopPropagation()
                         dragTaskIdRef.current = t.id
@@ -270,28 +308,29 @@ export function CalendarView({
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        openTaskMenu(t.startTime || t.isTimeLog ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                        openTaskMenu(t.startTime || isLogTask(t) ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
                       }}
-                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
+                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${itemClass(!t.startTime, planVisualState(t, key))}`}
+                        ${itemClass(false, planVisualState(t, key))}`}
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
-                      {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
+                      {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
                       <CalendarCheck
                         done={t.completed}
                         label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
                         onCheck={() => toggleTask(t.id)}
-                        className={t.startTime ? 'text-(--c)' : ''}
+                        className="text-(--c)"
                       />
-                      {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
+                      {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
+                      {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
                       <span className="truncate">{t.title}</span>
                     </div>
                   ))}
-                  {(dayTasks.length > 3 || dayEvents.length > 2) && (
+                  {hiddenCount > 0 && (
                     // 件数だけ。押すとマス全体と同じくその日が開く
                     <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-                      {t('calendar.moreItems', { count: Math.max(dayTasks.length - 3, 0) + Math.max(dayEvents.length - 2, 0) })}
+                      {t('calendar.moreItems', { count: hiddenCount })}
                     </span>
                   )}
                   {addingDate === key && (

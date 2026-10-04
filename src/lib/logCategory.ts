@@ -1,6 +1,5 @@
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
-import { isSleepRecord } from './sleep'
 
 const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 
@@ -48,8 +47,8 @@ export function inferLogCategory(
   if (opts.sourceTaskId) {
     const src = tasks.find((t) => t.id === opts.sourceTaskId)
     // To-Do のタグは分類ではない。To-Do からはラベル（色）で引く
-    if (src?.isTimeLog && src.category) return src.category
-    if (src && !src.isTimeLog && src.color) {
+    if (src && isLogTask(src) && src.category) return src.category
+    if (src && !isLogTask(src) && src.color) {
       const hex = src.color.toLowerCase()
       const hit = opts.categoryHexes?.find(([, h]) => h.toLowerCase() === hex)
       if (hit) return hit[0]
@@ -57,7 +56,7 @@ export function inferLogCategory(
   }
   const key = norm(title)
   if (!key) return null
-  const logs = tasks.filter((t) => t.isTimeLog && isActiveTask(t) && !isSleepRecord(t) && t.tags.length > 0)
+  const logs = tasks.filter((t) => isLogTask(t) && isActiveTask(t) && !isSleepTask(t) && t.tags.length > 0)
 
   let best: Task | null = null
   for (const t of logs) {
@@ -108,7 +107,7 @@ export interface RecentLog {
 /** 最近の記録（タイトルの重複を除いて新しい順）。「今日」画面のワンタップ再開用 */
 export function recentLogs(tasks: readonly Task[], limit = 4): RecentLog[] {
   const logs = tasks
-    .filter((t) => t.isTimeLog && isActiveTask(t) && !isSleepRecord(t) && t.title.trim())
+    .filter((t) => isLogTask(t) && isActiveTask(t) && !isSleepTask(t) && t.title.trim())
     .sort((a, b) => logStamp(b).localeCompare(logStamp(a)))
   const seen = new Set<string>()
   const out: RecentLog[] = []

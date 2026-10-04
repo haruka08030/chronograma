@@ -21,7 +21,7 @@ const log = (id: string, patch: Record<string, unknown> = {}) => ({
   ...TASK_DEFAULTS,
   id, title: id, description: '', completed: true, completedAt: OLD, createdAt: OLD, updatedAt: OLD, order: 0,
   listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-01', startTime: '10:00', endTime: '11:00',
-  priority: 'none' as const, tags: [] as string[], recurrence: null, isTimeLog: true, ...patch,
+  priority: 'none' as const, tags: [] as string[], recurrence: null, kind: 'log' as const, ...patch,
 })
 
 describe('記録の分類（category）', () => {
@@ -40,7 +40,7 @@ describe('記録の分類（category）', () => {
   })
 
   it('To-Do のタグは分類にならない', () => {
-    useTaskStore.setState({ tasks: [log('todo', { isTimeLog: false, completed: false, tags: ['就活'] })] })
+    useTaskStore.setState({ tasks: [log('todo', { kind: 'todo', completed: false, tags: ['就活'] })] })
     useTaskStore.getState().updateTask('todo', { title: '変更' })
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: null, tags: ['就活'] })
   })
@@ -55,5 +55,36 @@ describe('記録の分類（category）', () => {
     useTaskStore.getState().saveLogLabels([{ from: '勉強', name: 'Study', color: 'sage' }])
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: 'Study', tags: ['Study'] })
     expect(useTaskStore.getState().logLabelsUpdatedAt).not.toBeNull()
+  })
+
+  it('名前の無い色の色を変えると、その色のタスク・記録と絞り込みも新しい色へ', () => {
+    useTaskStore.setState({
+      tasks: [
+        log('todo', { kind: 'todo', completed: false, color: '#039BE5' }),
+        log('rec', { category: null, color: '#039BE5' }),
+        log('other', { kind: 'todo', completed: false, color: '#D50000' }),
+      ],
+      timeLogTagPresets: ['勉強'],
+      logCategoryColors: { 勉強: 'sage' },
+      filterColor: '#039BE5',
+    })
+    useTaskStore.getState().saveLogLabels([
+      { from: '勉強', name: '勉強', color: 'sage' },
+      { from: null, name: '', color: 'grape', fromHex: '#039BE5' },
+    ])
+    const s = useTaskStore.getState()
+    expect(s.tasks.map((t) => t.color)).toEqual(['#8E24AA', '#8E24AA', '#D50000'])
+    expect(s.timeLogTagPresets).toEqual(['勉強'])
+    expect(s.filterColor).toBe('#8E24AA')
+  })
+
+  it('名前の無い色に名前を付けると、その色の記録がそのラベルになる', () => {
+    useTaskStore.setState({
+      tasks: [log('rec', { category: null, color: '#039BE5' })],
+      timeLogTagPresets: [],
+      logCategoryColors: {},
+    })
+    useTaskStore.getState().saveLogLabels([{ from: null, name: '読書', color: 'peacock', fromHex: '#039BE5' }])
+    expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: '読書' })
   })
 })

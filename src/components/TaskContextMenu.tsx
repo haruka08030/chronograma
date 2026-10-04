@@ -14,6 +14,7 @@ import { ArchiveIcon, ArrowRightIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPan
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { useScheduleEntry } from '../hooks/useScheduleEntry'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -49,6 +50,7 @@ export function TaskContextMenu({
   const allTasks = useTaskStore((s) => s.tasks)
   const bulk = useBulkTaskActions()
   const scheduleWish = useScheduleWish()
+  const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
 
   const targets = useMemo(() => allTasks.filter((x) => taskIds.includes(x.id)), [allTasks, taskIds])
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -56,14 +58,16 @@ export function TaskContextMenu({
     const values = new Set(targets.map(pick))
     return values.size === 1 ? [...values][0] : undefined
   }
-  const sharedDue = shared((x) => x.dueDate ?? null)
+  const sharedDue = shared((x) => x.dueDate)
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
-  const sharedSection = shared((x) => x.sectionId ?? null)
-  // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけなら代わりに「予定する」
+  const sharedSection = shared((x) => x.sectionId)
+  // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけ・チェックリストだけなら専用の短いメニューにする
   const kindOf = (listId: string) => lists.find((l) => l.id === listId)?.kind ?? 'tasks'
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
   const allWishes = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'someday')
+  const allChecklist = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'checklist')
+  const openWishes = targets.filter((x) => !x.completed).map((x) => x.id)
   const done = (fn: () => void) => () => {
     fn()
     onDone?.()
@@ -76,6 +80,8 @@ export function TaskContextMenu({
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
     { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
   ]
+    // 日曜は「明日」と「来週」が同じ月曜になるので 1 つにする（予定日のメニューと同じ）
+    .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
     .map((o): ActionLeaf => ({
       id: `due-${o.key}`,
       label: o.label,
@@ -92,7 +98,7 @@ export function TaskContextMenu({
     id: `schedule-${o.key}`,
     label: o.label,
     hint: dayHint(o.key),
-    run: done(() => scheduleWish(taskIds, o.key)),
+    run: done(() => scheduleWish(openWishes, o.key)),
   }))
   const priorityLeaves: ActionLeaf[] = PRIORITIES.map((p) => ({
     id: `priority-${p}`,
@@ -129,7 +135,10 @@ export function TaskContextMenu({
           })),
         ]
 
+  const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
+  // 予定日（いつやる）を先に、期限（締切）はその下。「明日やる」を期限で動かして締切を変えてしまわないように
   const plannedEntries: ActionEntry[] = [
+    scheduleEntry,
     {
       kind: 'sub',
       id: 'due',
@@ -164,15 +173,41 @@ export function TaskContextMenu({
           kind="scheduled"
           value={null}
           onPick={(key) => {
-            done(() => scheduleWish(taskIds, key))()
+            done(() => scheduleWish(openWishes, key))()
             close()
           }}
         />
       ),
     },
   ]
-  const entries: ActionEntry[] = [
-    ...(allWishes ? wishEntries : []),
+  const deleteEntry: ActionEntry = {
+    kind: 'leaf',
+    id: 'delete',
+    label: t('taskItem.deleteAria'),
+    icon: <TrashIcon className={ICON} />,
+    keys: IS_MAC ? '⌫' : 'Del',
+    danger: true,
+    run: done(() => bulk.remove(taskIds)),
+  }
+  // いつか: 予定する・かなえた・削除だけ（かなえたものは削除だけ）
+  const somedayEntries: ActionEntry[] = [
+    ...(openWishes.length > 0
+      ? [
+          ...wishEntries,
+          { kind: 'leaf' as const, id: 'complete', label: t('someday.fulfill'), icon: <CheckIcon className={ICON} />, keys: shortcutLabel(['mod', '↵']), run: done(() => bulk.complete(openWishes)) },
+        ]
+      : []),
+    { ...deleteEntry, divider: openWishes.length > 0 },
+  ]
+  // チェックリスト（買い物）: チェック（全部済みなら外す）・削除だけ
+  const allChecked = targets.every((x) => x.completed)
+  const checklistEntries: ActionEntry[] = [
+    allChecked
+      ? { kind: 'leaf', id: 'uncheck', label: t('checklist.uncheck'), icon: <CheckIcon className={ICON} />, run: done(() => uncheckTasks(taskIds)) }
+      : { kind: 'leaf', id: 'complete', label: t('checklist.check'), icon: <CheckIcon className={ICON} />, keys: shortcutLabel(['mod', '↵']), run: done(() => bulk.complete(taskIds)) },
+    { ...deleteEntry, divider: true },
+  ]
+  const entries: ActionEntry[] = allWishes ? somedayEntries : allChecklist ? checklistEntries : [
     ...(plannable ? plannedEntries : []),
     { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
     ...(sectionLeaves.length > 0
@@ -182,7 +217,7 @@ export function TaskContextMenu({
       kind: 'leaf',
       id: 'complete',
       divider: true,
-      label: allWishes ? t('someday.fulfill') : t('taskList.markComplete'),
+      label: t('taskList.markComplete'),
       icon: <CheckIcon className={ICON} />,
       keys: shortcutLabel(['mod', '↵']),
       run: done(() => bulk.complete(taskIds)),
@@ -191,15 +226,7 @@ export function TaskContextMenu({
       ? [{ kind: 'leaf' as const, id: 'open', label: t('taskMenu.open'), icon: <OpenPanelIcon className={ICON} />, keys: '↵', run: done(() => onOpenDetail(taskIds[0])) }]
       : []),
     { kind: 'leaf', id: 'archive', label: t('taskItem.archive'), icon: <ArchiveIcon className={ICON} />, run: done(() => bulk.archive(taskIds)) },
-    {
-      kind: 'leaf',
-      id: 'delete',
-      label: t('taskItem.deleteAria'),
-      icon: <TrashIcon className={ICON} />,
-      keys: IS_MAC ? '⌫' : 'Del',
-      danger: true,
-      run: done(() => bulk.remove(taskIds)),
-    },
+    deleteEntry,
   ]
 
   return (
@@ -210,6 +237,8 @@ export function TaskContextMenu({
       header={taskIds.length > 1 ? t('taskMenu.count', { count: taskIds.length }) : targets[0]?.title || t('taskMenu.one')}
       entries={entries}
       onClose={onClose}
+      // いつか・チェックリストは項目が少ないので検索欄を出さない
+      searchable={!allWishes && !allChecklist}
     />
   )
 }

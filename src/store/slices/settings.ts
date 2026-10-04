@@ -1,12 +1,14 @@
 /** 設定（テーマ・色・ラベル・通知・タイムゾーン） */
 import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
-import { categoryHex, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
+import { categoryHex, isHexColor, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
+import { hexForGoogleKey } from '../../lib/googleColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
-import { MAX_EXTRA_TIME_ZONES } from '../storeConstants'
+import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { withLogCategory } from '../../lib/taskDefaults'
+import { isLogTask } from '../../types/task'
 
 type SettingsActions = Pick<
   TaskState,
@@ -19,13 +21,14 @@ type SettingsActions = Pick<
   | 'saveLogLabels'
   | 'setDailyReminders'
   | 'dismissReminderPrompt'
+  | 'dismissGoogleConnectLine'
   | 'setDailyCapacityMinutes'
   | 'setAppTimeZone'
   | 'setExtraTimeZones'
+  | 'setExtraTimeZoneLabel'
   | 'setEventReminderMinutes'
   | 'toggleNotifications'
   | 'setRecordPrompts'
-  | 'setTagsEnabled'
   | 'enableRecommendedNotifications'
 >
 
@@ -95,6 +98,12 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
         const recolor = new Map<string, string>()
         for (const row of rows) {
           const name = row.name.trim()
+          if (row.fromHex) {
+            const oldHex = row.fromHex.toUpperCase()
+            const newHex = (isHexColor(row.color) ? row.color : hexForGoogleKey(row.color) ?? oldHex).toUpperCase()
+            if (oldHex !== newHex) recolor.set(oldHex, newHex)
+            continue
+          }
           const from = row.from ?? name
           if (!name || !s.timeLogTagPresets.includes(from)) continue
           const oldHex = categoryHex(from, s.logCategoryColors).toUpperCase()
@@ -106,11 +115,17 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           s.timeLogTagPresets.filter((n) => !kept.has(n)).map((n) => [n, categoryHex(n, s.logCategoryColors)] as const),
         )
         const tasks = s.tasks.map((t) => {
-          if (!t.isTimeLog) {
+          if (!isLogTask(t)) {
             const next = t.color ? recolor.get(t.color.toUpperCase()) : undefined
             return next ? { ...t, color: next, updatedAt: now } : t
           }
           const tag = t.category
+          // 名前の無い色の記録も、その色を変えたら新しい色へ（新しい色にラベルがあればその分類になる）
+          const moved = !tag && t.color ? recolor.get(t.color.toUpperCase()) : undefined
+          if (moved) {
+            const label = labelForHex(moved, presets, colors)
+            return withLogCategory({ ...t, category: label, color: label ? null : moved, updatedAt: now })
+          }
           if (tag && rename.has(tag)) return withLogCategory({ ...t, category: rename.get(tag)!, updatedAt: now })
           if (tag && removedHex.has(tag)) return withLogCategory({ ...t, category: null, color: removedHex.get(tag)!, updatedAt: now })
           if (!tag && t.color) {
@@ -119,12 +134,15 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           }
           return t
         })
-        return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks }
+        // To‑Do をその色で絞っていたら、新しい色で絞り直す
+        const filterColor = s.filterColor ? recolor.get(s.filterColor.toUpperCase()) ?? s.filterColor : s.filterColor
+        return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks, filterColor }
       })
     },
 
     setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
+    dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setAppTimeZone: (tz) => {
       const next = tz && isValidTimeZone(tz) ? tz : null
@@ -132,14 +150,17 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       // 時刻のある予定・記録は、すべて同じ瞬間のまま新しいタイムゾーンの時刻に（Google と同じ）
       set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
     },
-    setExtraTimeZones: (zones) =>
-      set({ extraTimeZones: [...new Set(zones.filter((z) => isValidTimeZone(z)))].slice(0, MAX_EXTRA_TIME_ZONES) }),
+    setExtraTimeZones: (zones) => set({ extraTimeZones: normalizeExtraTimeZones(zones) }),
+    setExtraTimeZoneLabel: (tz, label) =>
+      set((s) => {
+        const next = normalizeExtraTimeZones(s.extraTimeZones.map((z) => (z.tz === tz ? { ...z, label } : z)))
+        return next.every((z, i) => z.label === s.extraTimeZones[i]?.label) ? {} : { extraTimeZones: next }
+      }),
     setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
 
     toggleNotifications: () =>
       set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
     setRecordPrompts: (on) => set({ recordPrompts: on }),
-    setTagsEnabled: (on) => set(on ? { tagsEnabled: true } : { tagsEnabled: false, filterTag: null }),
     enableRecommendedNotifications: () =>
       set((s) => ({
         dailyReminders: { planTime: s.dailyReminders.planTime ?? '08:00' },

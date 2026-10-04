@@ -12,6 +12,8 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'deleteHabit'
+  | 'archiveHabit'
+  | 'restoreHabit'
   | 'toggleHabitDate'
   | 'completeHabitAsPlanned'
 >
@@ -33,6 +35,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         createdAt: now,
         updatedAt: now,
         completedDates: [],
+        archivedAt: null,
       }
       set((s) => ({ habits: [...s.habits, habit] }))
     },
@@ -48,6 +51,19 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       const name = get().habits.find((h) => h.id === id)?.title ?? ''
       pushUndo({ key: 'undo.habitDeleted', params: { name } })
       return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
+    },
+    archiveHabit: (id) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit || habit.archivedAt) return
+      pushUndo({ key: 'undo.habitArchived', params: { name: habit.title } })
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, updatedAt: now } : h)) }))
+    },
+    restoreHabit: (id) => {
+      if (!get().habits.find((h) => h.id === id)?.archivedAt) return
+      pushUndo()
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: null, updatedAt: now } : h)) }))
     },
     toggleHabitDate: (habitId, dateKey) => {
       const s0 = get()
@@ -66,7 +82,15 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       // 時間を決めた習慣は、予定どおりの時刻の記録も作る（`habitRecord.ts`）
       const patch = completeHabitAsPlannedPatch(get(), habitId, dateKey, { now: new Date().toISOString(), colorNames: logColorNames() })
       if (!patch) return
-      pushUndo()
+      // 記録を作ったときは、どのラベルで残したかを出す（習慣の色＝ラベルなので、黙って付くと気付けない）
+      const record = 'tasks' in patch ? patch.tasks[patch.tasks.length - 1] : undefined
+      const name = get().habits.find((h) => h.id === habitId)?.title ?? ''
+      pushUndo(record
+        ? {
+            key: record.category ? 'undo.habitRecordedLabel' : 'undo.habitRecorded',
+            params: { name, label: record.category ?? '' },
+          }
+        : undefined)
       set(patch)
     },
   }

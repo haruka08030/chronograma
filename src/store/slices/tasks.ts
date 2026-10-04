@@ -84,7 +84,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         .filter((t) => {
           if (t.listId !== afterTask.listId || t.parentId !== afterTask.parentId) return false
           if (afterTask.parentId !== null) return true
-          return (t.sectionId ?? null) === (afterTask.sectionId ?? null)
+          return t.sectionId === afterTask.sectionId
         })
         .sort((a, b) => a.order - b.order)
       const afterIndex = siblings.findIndex((t) => t.id === afterTaskId)
@@ -125,15 +125,16 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const s0 = get()
       const task = s0.tasks.find((t) => t.id === id)
       if (!task) return
-      pushUndo()
+      // 完了は行が一覧から消えるので、何を完了したかと「元に戻す」を出す（スマホには ⌘Z が無い）
+      pushUndo(task.completed ? undefined : { key: 'undo.taskCompleted', params: { title: task.title } })
       set((s) => {
         const tasks = toggleByListKind(s, id, new Date().toISOString())
         return tasks ? { tasks } : s
       })
     },
-    updateTask: (id, patch) => {
+    updateTask: (id, patch, label) => {
       // 作った直後の空の行に名前を付けるだけなら、作成と同じ 1 手にまとめる
-      if (!isUnnamedJustCreated(id)) pushUndo()
+      if (!isUnnamedJustCreated(id)) pushUndo(label)
       return set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))
@@ -154,7 +155,10 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const s0 = get()
       const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
       if (targets.length === 0) return
-      pushUndo(targets.length > 1 ? { key: 'undo.tasksCompleted', params: { count: targets.length } } : undefined)
+      const first = s0.tasks.find((t) => t.id === targets[0])
+      pushUndo(targets.length > 1
+        ? { key: 'undo.tasksCompleted', params: { count: targets.length } }
+        : { key: 'undo.taskCompleted', params: { title: first?.title ?? '' } })
       const nowIso = new Date().toISOString()
       set((s) => ({
         // 親と子を一緒に選んだチェックリストは、親で子も済みになる。済みになったものは切り替え直さない

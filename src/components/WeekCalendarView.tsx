@@ -3,10 +3,12 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  addDays,
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
+  NIGHT_HOURS,
   timeToMinutes,
 } from '../lib/timeGrid'
 import {
@@ -15,14 +17,6 @@ import {
   patchAfterTimelineMove,
 } from '../lib/taskTimeRange'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
-import {
-  canStartTimerFor,
-  getTimerDrop,
-  isOverTimerDrop,
-  setTimerDragActive,
-  setTimerDropHover,
-  startTimerForTask,
-} from '../lib/timerDrop'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
   getCalendarItemDrag,
@@ -37,7 +31,7 @@ import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover } from './timeline/EventPopover'
@@ -48,6 +42,7 @@ import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
+import { shortDate } from '../lib/moveToast'
 import { minutesToTime } from '../lib/clockTime'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
@@ -57,23 +52,32 @@ import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
+import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 
-const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
+const DAY_HEIGHT = HOUR_HEIGHT * 24
+const NO_LOGS = new Map<string, Task[]>()
 
 export function WeekCalendarView({
   anchor,
   selectedDateKey,
   onSelectDate,
   singleDay = false,
+  threeDay = false,
   onNavigateWeek,
+  onNavigateStrip,
 }: {
   anchor: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
   /** true のとき `selectedDateKey` の 1 日だけを描画し、曜日ヘッダーを出さない（「今日の計画」用） */
   singleDay?: boolean
+  /** `anchor` から 3 日（スマホ幅の 3 日表示）。予定の列だけで、記録の列は出さない */
+  threeDay?: boolean
   /** ドラッグ中に左右の端で止めたとき前後の週へめくる（未指定ならめくらない） */
   onNavigateWeek?: (dir: -1 | 1) => void
+  /** スマホ幅で上の曜日の帯を横に払ったとき（1 日表示は前後の週へ） */
+  onNavigateStrip?: (dir: -1 | 1) => void
 }) {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
@@ -98,25 +102,39 @@ export function WeekCalendarView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
+  /** 横に払うと前後へ送る所（終日の行と時間の格子）と、曜日の帯 */
+  const swipeBodyRef = useRef<HTMLDivElement>(null)
+  const swipeStripRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  // タッチは予定の長押しで右クリックと同じメニュー（空き時間の長押しは扱わない）
+  useTouchContextMenu(rootRef, (target) => !target.closest('[data-block-id],[data-touch-menu]'))
 
+  /** 上の帯に並べる日（週。3 日表示はその 3 日） */
   const days = useMemo(() => {
+    if (threeDay) return [0, 1, 2].map((i) => addDays(anchor, i))
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
     const we = endOfWeek(anchor, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: ws, end: we })
-  }, [anchor])
+  }, [anchor, threeDay])
 
   const focusKey = selectedDateKey ?? appTodayKey()
   const gridDays = useMemo(() => {
-    if (isDesktop && !singleDay) return days
+    if ((isDesktop && !singleDay) || threeDay) return days
     const hit = days.find((d) => toDateKey(d) === focusKey)
     return [hit ?? days[0]!]
-  }, [isDesktop, singleDay, days, focusKey])
+  }, [isDesktop, singleDay, threeDay, days, focusKey])
   /** 時間バーの他のタイムゾーンの時刻は、表示している最初の日で計算する */
   const gridKey0 = toDateKey(gridDays[0]!)
   const gutterWidth = useTimeGutterWidth()
-  const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
-  /** 予定（左）と 記録（右）の 2 列（今日・週とも）。押した・落とした列で作るものが決まる */
-  const splitLanes = true
+  const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : gridDays.length === 3 ? 'grid-cols-3' : 'grid-cols-1'
+  /**
+   * 1 日表示では、24 時の下に次の日の 0〜4 時（1 日の区切りまで）を続けて出す。
+   * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
+   */
+  const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
+  const gridHeight = DAY_HEIGHT + (nightDay ? NIGHT_HOURS * HOUR_HEIGHT : 0)
+  /** 予定（左）と 記録（右）の 2 列（今日・週とも。3 日表示は狭いので予定だけ）。押した・落とした列で作るものが決まる */
+  const splitLanes = !threeDay
   const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
     if (!splitLanes) return 'schedule'
     const rect = el.getBoundingClientRect()
@@ -135,14 +153,15 @@ export function WeekCalendarView({
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
+  const bucketDays = useMemo(() => (nightDay ? [...days, nightDay] : days), [days, nightDay])
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
 
   const fetchRange = useMemo(() => {
-    const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-    const we = endOfWeek(anchor, { weekStartsOn: 1 })
+    const ws = new Date(days[0]!)
+    const we = new Date(days[days.length - 1]!)
     we.setHours(23, 59, 59)
     return { ws, we }
-  }, [anchor])
+  }, [days])
   useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
   useWeekScrollPosition({ scrollRef, keepScrollOnFlipRef, anchor, days, singleDay })
@@ -153,18 +172,19 @@ export function WeekCalendarView({
     for (const col of cols) {
       if (col.dataset.datekey === dateKey) {
         const rect = col.getBoundingClientRect()
-        return Math.max(0, Math.min(clientY - rect.top, GRID_TOTAL_HEIGHT))
+        return Math.max(0, Math.min(clientY - rect.top, rect.height))
       }
     }
     return 0
   }, [])
 
-  const getDateKeyFromX = useCallback((clientX: number): string | null => {
+  /** `clientY` を渡すと縦も見る（1 日表示の 24 時の下は次の日の列） */
+  const getDateKeyFromX = useCallback((clientX: number, clientY?: number): string | null => {
     if (!gridRef.current) return null
     const cols = gridRef.current.querySelectorAll<HTMLElement>('[data-datekey]')
     for (const col of cols) {
       const rect = col.getBoundingClientRect()
-      if (clientX >= rect.left && clientX <= rect.right) {
+      if (clientX >= rect.left && clientX <= rect.right && (clientY === undefined || (clientY >= rect.top && clientY <= rect.bottom))) {
         return col.dataset.datekey ?? null
       }
     }
@@ -189,13 +209,16 @@ export function WeekCalendarView({
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
       if (!prev) return
       const patch = patchAfterTimelineMove(prev, dateKey, startTime, endTime)
-      if (prev.isTimeLog) {
+      if (isLogTask(prev)) {
         // 記録を今より先へは動かせない（元の位置に戻る）
         const limit = logLimitRef.current(dateKey)
         const crossesDay = isOvernightTimeLog({ ...prev, ...patch } as Task)
         if (limit !== null && (crossesDay || timeToMinutes(endTime) > limit)) return
       }
-      updateTask(taskId, patch)
+      updateTask(taskId, patch, {
+        key: 'undo.blockMoved',
+        params: { title: prev.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
+      })
     },
     onResizeDone: (taskId, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
@@ -204,14 +227,15 @@ export function WeekCalendarView({
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
-      if (prev?.isTimeLog && prev.dueDate && !prev.endDate) {
+      if (prev && isLogTask(prev) && prev.dueDate && !prev.endDate) {
         const limit = logLimitRef.current(prev.dueDate)
         if (limit !== null && timeToMinutes(endTime) > limit) {
           if (timeToMinutes(startTime) >= limit) return
           endTime = minutesToTime(limit)
         }
       }
-      updateTask(taskId, { startTime, endTime })
+      if (!prev) return
+      updateTask(taskId, { startTime, endTime }, { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } })
     },
     onBlockTap: useCallback((taskId: string) => {
       if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
@@ -237,11 +261,15 @@ export function WeekCalendarView({
     taskDragActive,
   })
 
+  // スマホ幅は横に払って前後へ（PC 幅は ‹ › とキー）。予定をつかんでいる間は払いとみなさない
+  const swipeBlocked = () => !!timelineDrag.drag && timelineDrag.didMove.current
+  useSwipeNav(swipeBodyRef, !isDesktop && !singleDay ? onNavigateWeek : undefined, swipeBlocked)
+  useSwipeNav(swipeStripRef, !isDesktop && !singleDay && gridDays.length === 1 ? onNavigateStrip : undefined)
+
   const endMoveExtras = () => {
     setAllDayMoveKey(null)
     setEdgeDir(null)
     setCalendarItemDragActive(false)
-    setTimerDragActive(false)
   }
   const handleGridPointerMove = (e: React.PointerEvent) => {
     timelineDrag.handlePointerMove(e)
@@ -250,18 +278,10 @@ export function WeekCalendarView({
     setEdgeDir(edgeDirAt(e.clientX, e.clientY))
     // 記録は「やったこと」なので終日・ToDo には戻さない
     const task = tasks.find((x) => x.id === d.taskId)
-    if (!task || task.isTimeLog) return
-    setCalendarItemDragActive(true)
-    if (canStartTimerFor(task)) {
-      setTimerDragActive(true)
-      const overTimer = isOverTimerDrop(e.clientX, e.clientY)
-      setTimerDropHover(overTimer)
-      if (overTimer) {
-        setAllDayMoveKey(null)
-        setUnscheduleHover(false)
-        return
-      }
-    }
+    if (!task || isLogTask(task)) return
+    // 今あるブロックを動かすときは「計測開始」「To-Do に戻す」の帯を出さない（格子に重なり、動かしすぎると誤って効く）。
+    // 開いている To-Do の置き場に落とせば To-Do に戻る（置き場は前から出ているので画面は動かない）。計測はカード・メニューから
+    setCalendarItemDragActive(true, { fromGrid: true })
     const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
     if (e.clientY < gridTop && !singleDay) {
       setAllDayMoveKey(getDateKeyFromX(e.clientX))
@@ -274,16 +294,14 @@ export function WeekCalendarView({
   const handleGridPointerUp = () => {
     const d = timelineDrag.drag
     const toUnschedule = getCalendarItemDrag().overUnschedule
-    if (d?.kind === 'move' && timelineDrag.didMove.current && getTimerDrop().over) {
-      // 上の「ここに落として計測開始」。予定の時刻はそのまま
-      startTimerForTask(d.taskId)
-      timelineDrag.handlePointerCancel()
-    } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
+    if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
-      if (task && !task.isTimeLog) {
+      if (task && !isLogTask(task)) {
         updateTask(d.taskId, allDayMoveKey
           ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null }
-          : UNSCHEDULE_PATCH)
+          : UNSCHEDULE_PATCH, allDayMoveKey
+          ? { key: 'undo.blockToAllDay', params: { title: task.title, date: shortDate(allDayMoveKey) } }
+          : { key: 'undo.blockUnscheduled', params: { title: task.title } })
       }
       timelineDrag.handlePointerCancel()
     } else {
@@ -319,7 +337,7 @@ export function WeekCalendarView({
         })
         return
       }
-      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, isTimeLog: false })
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind: 'todo' })
     },
   })
 
@@ -333,8 +351,40 @@ export function WeekCalendarView({
     })
   }, [gridDays, singleDay, allDayByDate, eventsByDate])
 
+  /** 日の列（1 日表示の夜の続きも）に渡すもの */
+  const columnProps = {
+    gridDays,
+    singleDay,
+    selectedDateKey,
+    onSelectDate,
+    timedByDate,
+    timeLogsByDate: splitLanes ? timeLogsByDate : NO_LOGS,
+    eventsByDate,
+    habitIndex,
+    splitLanes,
+    laneAt,
+    laneClass,
+    logLimitMin,
+    getRelativeY,
+    gridRef,
+    timelineDrag,
+    timelineDrop,
+    dropLane,
+    setDropLane,
+    dropBlocked,
+    setDropBlocked,
+    dropLaneRef,
+    googleDragRef,
+    allDayMoveKey,
+    unscheduleHover,
+    openCard,
+    openGoogleCard,
+    setCreateAnchorFromEl,
+  }
+
   return (
     <div
+      ref={rootRef}
       className="flex min-h-0 min-w-0 flex-1 flex-row"
       // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
       onContextMenu={(e) => {
@@ -353,6 +403,7 @@ export function WeekCalendarView({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={swipeStripRef} className="flex-shrink-0">
         <WeekDayHeader
           singleDay={singleDay}
           days={days}
@@ -363,6 +414,9 @@ export function WeekCalendarView({
           onSelectDate={onSelectDate}
           setAllDayAddDate={setAllDayAddDate}
         />
+        </div>
+
+        <div ref={swipeBodyRef} className="flex min-h-0 flex-1 flex-col">
 
         {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
           <WeekAllDayRow
@@ -402,8 +456,8 @@ export function WeekCalendarView({
           }}
           onDropCapture={() => setEdgeDir(null)}
         >
-          <div className="flex" style={{ height: GRID_TOTAL_HEIGHT }}>
-            <TimeGutter dateKey={gridKey0} />
+          <div className="flex" style={{ height: gridHeight }}>
+            <TimeGutter dateKey={gridKey0} nightHours={nightDay ? NIGHT_HOURS : 0} />
 
             <div
               ref={gridRef}
@@ -413,40 +467,12 @@ export function WeekCalendarView({
               onPointerCancel={handleGridPointerCancel}
             >
               {gridDays.map((day) => (
-                <WeekDayColumn
-                  key={toDateKey(day)}
-                  day={day}
-                  gridDays={gridDays}
-                  singleDay={singleDay}
-                  selectedDateKey={selectedDateKey}
-                  onSelectDate={onSelectDate}
-                  timedByDate={timedByDate}
-                  timeLogsByDate={timeLogsByDate}
-                  eventsByDate={eventsByDate}
-                  habitIndex={habitIndex}
-                  splitLanes={splitLanes}
-                  laneAt={laneAt}
-                  laneClass={laneClass}
-                  logLimitMin={logLimitMin}
-                  getRelativeY={getRelativeY}
-                  gridRef={gridRef}
-                  timelineDrag={timelineDrag}
-                  timelineDrop={timelineDrop}
-                  dropLane={dropLane}
-                  setDropLane={setDropLane}
-                  dropBlocked={dropBlocked}
-                  setDropBlocked={setDropBlocked}
-                  dropLaneRef={dropLaneRef}
-                  googleDragRef={googleDragRef}
-                  allDayMoveKey={allDayMoveKey}
-                  unscheduleHover={unscheduleHover}
-                  openCard={openCard}
-                  openGoogleCard={openGoogleCard}
-                  setCreateAnchorFromEl={setCreateAnchorFromEl}
-                />
+                <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
               ))}
+              {nightDay && <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />}
             </div>
           </div>
+        </div>
         </div>
         </div>
       </div>

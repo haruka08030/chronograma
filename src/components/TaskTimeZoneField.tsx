@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName } from '../lib/timeZone'
 import { foreignTimeZone, timesPatchFromZone, type TaskTimeFields } from '../lib/taskTimeZone'
 import { TimeZonePicker } from './TimeZonePicker'
 import { GlobeIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { formatDate } from '../lib/dateFormat'
+import { HINT_TEXT } from './ui/textClass'
 
 /**
  * 詳細の「タイムゾーン」（Google カレンダーの予定のタイムゾーンと同じ）。
@@ -64,7 +65,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   if (!zone) return null
 
   const day = (ymd: string) => formatDate(ymd, 'shortDate', i18n.resolvedLanguage)
-  const date = task.isTimeLog ? task.dueDate : task.scheduledDate
+  const date = isLogTask(task) ? task.dueDate : task.scheduledDate
   let when: string | null = null
   if (date && task.startTime) {
     const end = task.endTime ? `–${task.endDate && task.endDate !== date ? `${day(task.endDate)} ` : ''}${task.endTime}` : ''
@@ -75,7 +76,7 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   if (!when) return null
 
   return (
-    <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className={`mt-1.5 ${HINT_TEXT}`}>
       {t('timeZone.inApp', { zone: zoneLongName(appTimeZone(), locale), when })}
     </p>
   )

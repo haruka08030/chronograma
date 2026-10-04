@@ -73,6 +73,8 @@ describe('matchesHotkey', () => {
     expect(matchesHotkey(key('ArrowDown', { shiftKey: true }), 'ArrowDown')).toBe(false)
     expect(matchesHotkey(key('ArrowDown', { shiftKey: true }), 'shift+ArrowDown')).toBe(true)
     expect(matchesHotkey(key('F10', { shiftKey: true }), 'shift+F10')).toBe(true)
+    expect(matchesHotkey(key('L', { shiftKey: true }), 'shift+l')).toBe(true)
+    expect(matchesHotkey(key('L', { shiftKey: true }), 'l')).toBe(false)
   })
 
   it('名前のキーと別名（Space・Esc）', () => {

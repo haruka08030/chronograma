@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type RefObject } from 'react'
 import type { useTimelineDrag } from '../lib/useTimelineDrag'
 
-/** ドラッグ中にこの幅まで左右の端へ寄せると週をめくる */
+/** ドラッグ中にこの幅まで左右の端へ寄せると前後をめくる */
 const EDGE_FLIP_PX = 16
 const EDGE_FLIP_DELAY_MS = 600
 const EDGE_FLIP_REPEAT_MS = 1000
@@ -30,7 +30,7 @@ export function useWeekEdgeFlip({
 }) {
   const [edgeDir, setEdgeDir] = useState<-1 | 1 | null>(null)
   const edgeDirAt = (clientX: number, clientY: number): -1 | 1 | null => {
-    if (!onNavigateWeek || gridDays.length !== 7 || !gridRef.current || !scrollRef.current) return null
+    if (!onNavigateWeek || !gridRef.current || !scrollRef.current) return null
     const area = scrollRef.current.getBoundingClientRect()
     if (clientY < area.top || clientY > area.bottom) return null
     const grid = gridRef.current.getBoundingClientRect()
@@ -42,7 +42,8 @@ export function useWeekEdgeFlip({
   flipWeekRef.current = (dir) => {
     keepScrollOnFlipRef.current = true
     onNavigateWeek?.(dir)
-    timelineDrag.shiftMoveDragDate(dir * 7)
+    // 表示している日数ぶん（週は 7 日、スマホの 1 日表示は 1 日）めくる
+    timelineDrag.shiftMoveDragDate(dir * gridDays.length)
   }
   const pointerMoving = timelineDrag.drag?.kind === 'move'
   const activeEdge = edgeDir && (taskDragActive || pointerMoving) ? edgeDir : null

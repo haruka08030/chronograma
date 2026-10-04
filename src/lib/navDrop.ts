@@ -2,6 +2,7 @@ import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { colorLabelText } from './todoColorLabels'
 import { displayListName } from './displayListName'
+import { isLogTask } from '../types/task'
 
 /**
  * To‑Do のナビ（リスト・色ラベル）にタスクを落としたときの処理。
@@ -24,7 +25,7 @@ export function labelDroppedTasks(taskIds: readonly string[], hex: string) {
   const h = hex.toUpperCase()
   const targets = taskIds.filter((id) => {
     const t = state.tasks.find((x) => x.id === id)
-    return t && !t.isTimeLog && t.color?.toUpperCase() !== h
+    return t && !isLogTask(t) && t.color?.toUpperCase() !== h
   })
   if (targets.length === 0) return
   state.bulkUpdateTasks(targets, { color: h })

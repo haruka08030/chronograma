@@ -1,5 +1,5 @@
 /**
- * Edge Function の呼び出し回数の上限（利用者ごと・機能ごと）。数えるのは DB の `hit_rate_limit`（migrations/009）。
+ * Edge Function の呼び出し回数の上限（利用者ごと・機能ごと）。数えるのは DB の `hit_rate_limit`（`001_chronograma_schema.sql`）。
  * ふつうの使い方（数分おきの同期・画面の切り替え）では届かない数にしてある。
  */
 
@@ -21,18 +21,24 @@ export const RATE_LIMITS = {
 } satisfies Record<string, RateLimit>
 
 /**
- * 1 回数え、上限以内なら true。数えられなかった（009 を流す前など）ときは止めずに通し、ログに残す
+ * 1 回数え、上限以内なら true。数えられなかった（RPC の失敗・関数が無い DB など）ときも false にして止め、ログに残す
+ * （呼び出し元は 429 を返す。数えられないまま通すと上限が効かなくなるため）
  */
 export async function withinRateLimit(admin: RpcClient, userId: string, rule: RateLimit): Promise<boolean> {
-  const { data, error } = await admin.rpc('hit_rate_limit', {
-    p_user: userId,
-    p_bucket: rule.bucket,
-    p_limit: rule.limit,
-    p_window_seconds: rule.windowSeconds,
-  })
-  if (error) {
-    console.error('[rate-limit]', rule.bucket, error.message)
-    return true
+  try {
+    const { data, error } = await admin.rpc('hit_rate_limit', {
+      p_user: userId,
+      p_bucket: rule.bucket,
+      p_limit: rule.limit,
+      p_window_seconds: rule.windowSeconds,
+    })
+    if (error) {
+      console.error('[rate-limit]', rule.bucket, error.message)
+      return false
+    }
+    return data === true
+  } catch (e) {
+    console.error('[rate-limit]', rule.bucket, e instanceof Error ? e.message : e)
+    return false
   }
-  return data !== false
 }

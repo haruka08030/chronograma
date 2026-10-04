@@ -11,6 +11,7 @@ import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { ChevronRightIcon } from '../icons'
 import { askConfirm } from '../../lib/confirmDialog'
+import { HINT_TEXT } from '../ui/textClass'
 
 /**
  * 設定のトップに置く外部連携のまとめ。使う人だけが使う機能なので、つなぐ・細かく設定するのは次のページ
@@ -102,7 +103,7 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
           <span className="block text-sm text-zinc-800 dark:text-zinc-200">
             {anyConnected ? t('integrations.manage') : t('integrations.add')}
           </span>
-          {!anyConnected && <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{t('integrations.services')}</span>}
+          {!anyConnected && <span className={`mt-0.5 block ${HINT_TEXT}`}>{t('integrations.services')}</span>}
         </span>
         <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-400" />
       </button>

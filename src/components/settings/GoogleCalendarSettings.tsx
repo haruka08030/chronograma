@@ -3,6 +3,7 @@ import { useGoogleConnect } from '../../hooks/useGoogleConnect'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
+import { ERROR_TEXT } from '../ui/textClass'
 
 /** Google カレンダー連携。カレンダー画面では接続中を点でしか示さないので、状態の確認と切断はここで行う */
 export function GoogleCalendarSettings() {
@@ -33,7 +34,7 @@ export function GoogleCalendarSettings() {
           </button>
         </SettingsRow>
       )}
-      {error && <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className={`px-4 py-3 ${ERROR_TEXT}`}>{error}</p>}
     </SettingsGroup>
   )
 }

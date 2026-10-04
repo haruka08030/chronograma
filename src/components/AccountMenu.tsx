@@ -13,6 +13,7 @@ import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleLogo } from './ui/GoogleLogo'
+import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
@@ -26,6 +27,9 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const [pending, setPending] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  /** 削除の前の本人確認（サーバーが最近のログインを求めたとき）。コードを送る前 / 送った後 */
+  const [reauth, setReauth] = useState<'needed' | 'codeSent' | null>(null)
+  const [reauthCode, setReauthCode] = useState('')
   const [error, setError] = useState<string | null>(() => {
     const linkError = pendingAuthLinkError()
     return linkError ? t(authLinkErrorKey(linkError)) : null
@@ -67,11 +71,62 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       requireText: user.email ? { label: t('account.deleteTypeEmail', { email: user.email }), expected: user.email } : undefined,
     })
     if (!ok) return
+    await runDelete()
+  }
+
+  /** 削除を送る。最近ログインしていなければ、メールのコードでログインし直す欄を出す */
+  const runDelete = async () => {
     setError(null)
+    setMessage(null)
     setPending(true)
     const res = await deleteAccount()
     setPending(false)
+    if (res.reauthRequired) {
+      if (user?.email) setReauth('needed')
+      else setError(t('account.reauthSignInAgain'))
+      return
+    }
     if (res.error) setError(res.error)
+  }
+
+  const sendReauthCode = async () => {
+    if (!user?.email) return
+    setError(null)
+    setMessage(null)
+    setPending(true)
+    const res = await signInWithOtp(user.email)
+    setPending(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setReauth('codeSent')
+    setReauthCode('')
+    setMessage(t('account.reauthCodeSent'))
+  }
+
+  /** コードでログインし直してから、もう一度削除を送る（確認のダイアログは済んでいる） */
+  const confirmReauth = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!user?.email || !reauthCode.trim()) return
+    setError(null)
+    setPending(true)
+    const res = await verifyEmailOtp(user.email, reauthCode)
+    setPending(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setReauth(null)
+    setReauthCode('')
+    await runDelete()
+  }
+
+  const cancelReauth = () => {
+    setReauth(null)
+    setReauthCode('')
+    setError(null)
+    setMessage(null)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -143,7 +198,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
 
   if (loading) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 text-xs text-zinc-400">
+      <span className={`inline-flex items-center gap-1.5 px-2 ${META_TEXT}`}>
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" aria-hidden />
         {t('account.checking')}
       </span>
@@ -176,16 +231,64 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         </button>
         {isSettings && (
           <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t('account.deleteHelp')}</p>
-            <button
-              type="button"
-              onClick={() => void handleDeleteAccount()}
-              disabled={pending}
-              className={buttonClass({ variant: 'danger', size: 'sm' })}
-            >
-              {pending ? t('account.deleting') : t('account.delete')}
-            </button>
-            {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
+            {reauth && user.email ? (
+              <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+                <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
+                {reauth === 'codeSent' && (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxLength={10}
+                    placeholder={t('account.codePlaceholder')}
+                    aria-label={t('account.codePlaceholder')}
+                    value={reauthCode}
+                    onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
+                    className={fieldClass({}, 'w-full tracking-widest')}
+                  />
+                )}
+                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {reauth === 'codeSent' ? (
+                    <button
+                      type="submit"
+                      disabled={pending || !reauthCode.trim()}
+                      className={buttonClass({ variant: 'danger', size: 'sm' })}
+                    >
+                      {pending ? t('account.deleting') : t('account.reauthConfirm')}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void sendReauthCode()}
+                    disabled={pending}
+                    className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
+                  >
+                    {pending && reauth === 'needed' ? t('account.sending') : reauth === 'codeSent' ? t('account.reauthResend') : t('account.reauthSend')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelReauth}
+                    disabled={pending}
+                    className={buttonClass({ variant: 'ghost', size: 'sm' })}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleDeleteAccount()}
+                disabled={pending}
+                className={buttonClass({ variant: 'danger', size: 'sm' })}
+              >
+                {pending ? t('account.deleting') : t('account.delete')}
+              </button>
+            )}
+            {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
           </div>
         )}
       </div>
@@ -206,14 +309,14 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         <>
           <div
             className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
-              isSettings ? 'left-0' : 'right-0'
+              isSettings ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+            <p className={`mb-2 ${HINT_TEXT}`}>
               {t('account.intro')}
             </p>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
+            <p className={`mb-2 ${META_TEXT}`}>
               {t('account.agreePrefix')}
               <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.terms')}</a>
               {t('account.agreeAnd')}
@@ -240,7 +343,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 break-all">{codeSentTo}</p>
+                <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -252,7 +355,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   className={fieldClass({}, 'w-full tracking-widest')}
                 />
-                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
                 <button
                   type="submit"
@@ -279,7 +382,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   onChange={(e) => setEmail(e.target.value)}
                   className={fieldClass({}, 'w-full')}
                 />
-                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
                 <button
                   type="submit"

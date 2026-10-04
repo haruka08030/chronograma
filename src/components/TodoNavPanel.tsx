@@ -11,7 +11,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
-import { CartIcon, CloseIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
+import { CartIcon, CloseIcon, ListBulletIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
@@ -26,6 +26,9 @@ import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, isTaskDrag } from '../lib/taskDrag'
 import { ListContextMenu } from './ListContextMenu'
 import { SectionLabel } from './ui/SectionLabel'
+import { META_TEXT } from './ui/textClass'
+import { ColorLabelCard } from './labels/ColorLabelCard'
+import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -35,6 +38,7 @@ const DUE_VIEWS: { id: SmartView; icon: string }[] = [
 ]
 
 const BIN_VIEWS: { id: SmartView; icon: string }[] = [
+  { id: 'completed', icon: ICON_PATHS.checkCircle },
   { id: 'archived', icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z' },
   { id: 'deleted', icon: ICON_PATHS.trash },
 ]
@@ -46,8 +50,8 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
-  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない） */
-  onContextMenu: (e: React.MouseEvent) => void
+  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない）。スマホは行の ≡ から開く */
+  onContextMenu: (at: { clientX: number; clientY: number }) => void
 }) {
   const { t } = useTranslation()
   const isInbox = list.id === INBOX_LIST_ID
@@ -117,7 +121,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
       {!isInbox ? (
         // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
-        // スマホはホバーが無いので常に出す
+        // スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう
         <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
           <button
             {...attributes}
@@ -138,8 +142,21 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              const r = e.currentTarget.getBoundingClientRect()
+              onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
+            }}
+            className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
+            aria-haspopup="menu"
+            aria-label={t('sidebar.listMenuAria')}
+          >
+            <ListBulletIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onStartEdit() }}
-            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
+            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.renameList')}
           >
             <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
@@ -147,7 +164,7 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="shrink-0 rounded p-1.5 touch-manipulation hover:bg-zinc-200 dark:hover:bg-zinc-700 md:p-0.5"
+            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.deleteList')}
           >
             <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
@@ -159,23 +176,26 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 }
 
 /**
- * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。
+ * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。丸を押すと名前と色を変えるカード（`ColorLabelCard`）。
  * 手動並びは ⋮⋮（dnd-kit）、並べ替え中は行ごとのネイティブ D&D でつかむので、両方を受ける
  */
-function ColorLabelRow({ label, name, isSelected, onSelect }: {
+function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }: {
   label: TodoColorLabel
   name: string
   isSelected: boolean
+  /** この色のカードを開いている */
+  isEditing: boolean
   onSelect: () => void
+  /** 行の要素（カードの出る位置） */
+  onEdit: (row: HTMLElement) => void
 }) {
+  const { t } = useTranslation()
   const { setNodeRef, isOver: isOverDndKit } = useDroppable({ id: `${LABEL_DROP_PREFIX}${label.hex}` })
   const [isOverNative, setIsOverNative] = useState(false)
   const isOver = isOverDndKit || isOverNative
   return (
-    <button
+    <div
       ref={setNodeRef}
-      type="button"
-      onClick={onSelect}
       onDragOver={(e) => {
         if (acceptTaskDrag(e)) setIsOverNative(true)
       }}
@@ -186,20 +206,38 @@ function ColorLabelRow({ label, name, isSelected, onSelect }: {
         e.preventDefault()
         labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
       }}
-      aria-current={isSelected ? 'page' : undefined}
-      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
+      className={`flex w-full items-center rounded-lg text-sm transition-colors
         ${isOver
           ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
           : isSelected
             ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
             : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
     >
-      <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: label.hex }} aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-      {label.count > 0 && (
-        <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{label.count}</span>
-      )}
-    </button>
+      <button
+        type="button"
+        // 開いているカードの丸は「内側」（押しても閉じて開き直さない）
+        data-popover-keep={isEditing || undefined}
+        // カードは行の横に出す（丸の横だと名前に重なる）
+        onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
+        aria-label={t('labels.editOne')}
+        aria-expanded={isEditing}
+        {...tip(t('labels.editOne'))}
+        className="ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 touch-manipulation
+          dark:ring-white/10 md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
+        style={{ backgroundColor: label.hex }}
+      />
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={isSelected ? 'page' : undefined}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2 pr-3 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        {label.count > 0 && (
+          <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>
+        )}
+      </button>
+    </div>
   )
 }
 
@@ -227,7 +265,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
   return (
     <div
       ref={ref}
-      className={`absolute left-0 top-full z-[100] mt-1.5 w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
+      className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-label={t('sidebar.listColorDialog')}
@@ -262,22 +300,20 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectListSection = useTaskStore((s) => s.selectListSection)
   const selectListTag = useTaskStore((s) => s.selectListTag)
   const filterTag = useTaskStore((s) => s.filterTag)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
-  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない）。タグを使わない設定なら出さない */
+  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない） */
   const courseTags = useMemo(() => {
-    if (!tagsEnabled) return []
     const tags = new Set<string>()
     for (const t of tasks) {
       if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
       for (const tag of t.tags) tags.add(tag)
     }
     return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
-  }, [tasks, tagsEnabled])
+  }, [tasks])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -297,6 +333,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
   const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
+  const [labelCard, setLabelCard] = useState<{ hex: string; anchor: AnchorRect } | null>(null)
 
   const sorted = [...lists].sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
@@ -451,7 +488,12 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
               label={label}
               name={colorLabelText(label.hex, presets, categoryColors, t)}
               isSelected={selectedView === 'all' && filterColor === label.hex}
+              isEditing={labelCard?.hex === label.hex}
               onSelect={() => handleNav(() => selectColor(label.hex))}
+              onEdit={(row) => {
+                const anchor = rectOf(row)
+                if (anchor) setLabelCard({ hex: label.hex, anchor })
+              }}
             />
           ))}
         </>
@@ -468,6 +510,9 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
+      {labelCard && (
+        <ColorLabelCard key={labelCard.hex} {...labelCard} onClose={() => setLabelCard(null)} />
+      )}
       {listMenu && (
         <ListContextMenu
           {...listMenu}

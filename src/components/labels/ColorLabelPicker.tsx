@@ -69,6 +69,7 @@ export function ColorLabelPicker({
             onDefault={() => choose(null)}
             defaultLabel={color.defaultLabel}
             defaultHex={color.defaultHex}
+            fill={compact}
           />
         </div>
       )}

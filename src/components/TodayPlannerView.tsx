@@ -19,11 +19,10 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { WeekCalendarView } from './WeekCalendarView'
 import { RecordPanel } from './RecordPanel'
 import { SleepRow } from './SleepRow'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../lib/habitTiming'
 import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
-import { isSleepRecord } from '../lib/sleep'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon } from './icons'
 import { tip } from '../lib/tooltip'
@@ -38,6 +37,13 @@ import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
+import { ROW_CURSOR_CLASS, ROW_PRESS_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
+import { SUBTLE_TEXT } from './ui/textClass'
+import { chipClass } from './ui/chipClass'
+import { planTiming } from '../lib/planTiming'
+import { useDeferredComplete } from '../hooks/useDeferredComplete'
 
 const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -63,6 +69,9 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deferredComplete = useDeferredComplete(toggleTask)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const bulk = useBulkTaskActions()
   const startTimer = useTaskStore((s) => s.startTimer)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -74,11 +83,13 @@ export function TodayPlannerView() {
   const now = useNowMinuteTick()
   const openDetail = openTaskDetail
 
-  const [dateKey, setDateKey] = useState(() => toDateKey(appToday()))
+  // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
+  const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
+  const setDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   useNavShortcut({
     today: () => setDateKey(toDateKey(appToday())),
-    prev: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), -1))),
-    next: () => setDateKey((k) => toDateKey(addDays(fromDateKey(k), 1))),
+    prev: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), -1))),
+    next: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), 1))),
   })
   const [draft, setDraft] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -98,7 +109,7 @@ export function TodayPlannerView() {
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter((x) => x.isTimeLog && isActiveTask(x) && !isSleepRecord(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
+        .filter((x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
@@ -107,9 +118,9 @@ export function TodayPlannerView() {
     [tasks, dateKey, excludedListIds],
   )
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
-  const overdue = viewingToday ? overdueAll : []
+  const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
-  const leftOver = viewingToday ? carryOver : []
+  const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
   // その下に、締切が先のもの・日付なしなどを 10 件ずつスクロールで足していく
   const moreSuggestions = useMemo(
@@ -148,6 +159,31 @@ export function TodayPlannerView() {
 
   const shortDate = (key: string) => df.shortDate(key)
 
+  // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
+  // 対象は開いている未完了の行を上から順に
+  const rowIds = useMemo(
+    () => [
+      ...(showLeftOver ? leftOver : []),
+      ...overdue,
+      ...open,
+      ...(showSuggestions ? [...suggestions, ...moreSuggestions.slice(0, moreShown)] : []),
+    ].map((x) => x.id),
+    [showLeftOver, leftOver, overdue, open, showSuggestions, suggestions, moreSuggestions, moreShown],
+  )
+  const clearSelectedRef = useRef<() => void>(() => {})
+  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+    rowIds,
+    openDetail,
+    toggleRow: toggleTask,
+    removeRows: deleteTasks,
+    completeRows: bulk.complete,
+    openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
+    resetOn: [dateKey],
+  })
+  useEffect(() => {
+    clearSelectedRef.current = clearSelection
+  }, [clearSelection])
+
   const submitDraft = () => {
     if (!draft.trim()) return
     // この画面で足したものは「やる日」＝見ている日。書き方の解釈は To-Do 画面と同じ
@@ -173,11 +209,25 @@ export function TodayPlannerView() {
     dismissReminderPrompt()
   }
 
-  /** 行の右端: 時刻があれば時刻、無ければ締切（今日なら「今日まで」、過ぎていれば赤） */
-  const rowMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
-    if (task.startTime && task.endTime && task.scheduledDate === dateKey) {
-      return { text: `${task.startTime}–${task.endTime}`, tone: 'muted' }
+  /**
+   * 行の右端: 時刻があれば時刻、締切があれば締切（今日なら「今日まで」、過ぎていれば赤）。
+   * 今日やると決めた行（`committed`）は、過ぎた締切と今日の締切（明日へ回せない）だけ出す。
+   * 明日以降の締切は、今日やると決めたあとでは何も変えないので出さない。
+   * これから選ぶ行（やり残し・候補）は締切が選ぶ材料なので全部出す。
+   * 予定の時間が過ぎても終わっていなければ時刻も赤くする
+   */
+  const rowMeta = (task: Task, committed: boolean): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
+    const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
+    const dueAll = dueMeta(task)
+    const due = committed && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today' ? null : dueAll
+    if (!timed) return { time: null, timeOver: false, due }
+    return {
+      time: `${task.startTime}–${task.endTime}`,
+      timeOver: planTiming(task, now).ended,
+      due,
     }
+  }
+  const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (!task.dueDate) return null
     if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'today' }
     const text = t('planner.dueOn', { date: shortDate(task.dueDate) })
@@ -185,46 +235,61 @@ export function TodayPlannerView() {
     return { text, tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
   }
 
-  const renderRow = (task: Task, action?: React.ReactNode) => {
-    const meta = rowMeta(task)
+  const renderRow = (task: Task, action?: React.ReactNode, committed = false) => {
+    const meta = rowMeta(task, committed)
+    const hasRowExtras = !task.completed && task.tags.length > 0
+    const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
     return (
       <li
         key={task.id}
+        data-task-row={task.id}
         draggable={!task.completed}
         onDragStart={(e) => {
           startTaskDrag(e, task.id)
           startNativeTaskDragGhost(e, task.title)
         }}
-        className="group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-        // To-Do 一覧と同じタスクのメニュー
+        className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
+          ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
+        // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
         onContextMenu={(e) => {
           e.preventDefault()
-          openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
+          if (sel?.onContextMenu) sel.onContextMenu(e)
+          else openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
         }}
       >
         <CompletionCircle
-          completed={task.completed}
+          completed={task.completed || deferredComplete.isPending(task.id)}
+          justCompleted={deferredComplete.isPending(task.id)}
           priority={task.priority}
-          onClick={() => toggleTask(task.id)}
+          inert={selected.size > 0}
+          onClick={() => deferredComplete.toggle(task.id, task.completed)}
           label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
         />
-        <button
-          type="button"
-          onClick={() => openDetail(task.id)}
-          className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] ${
-            task.completed ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
-          }`}
-        >
-          {task.title}
-        </button>
-        {meta && !task.completed && (
-          <span
-            className={`shrink-0 text-xs tabular-nums ${
-              META_TONE_CLASS[meta.tone]
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            // ⌘・Shift で選ぶ、選んでいる間は押すと選ぶ・外す、ふだんは詳細（To-Do 一覧と同じ）
+            onClick={(e) => (sel ? makeRowClick(task.id)(e) : openDetail(task.id))}
+            className={`block w-full truncate text-left text-[15px] transition-colors ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
+              task.completed || deferredComplete.isPending(task.id) ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
             }`}
           >
-            {meta.text}
-          </span>
+            {task.title}
+          </button>
+          {/* タイトルの下にタグ。リンクの「開く」は幅が狭いので出さない（タイムラインのカード・詳細から開く） */}
+          {hasRowExtras && (
+            <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
+              {task.tags.map((tag) => (
+                <span key={tag} className={chipClass({ variant: 'fill' })}>{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        {meta.due && !task.completed && (
+          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]}`}>{meta.due.text}</span>
+        )}
+        {meta.time && !task.completed && (
+          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted}`}>{meta.time}</span>
         )}
         {action}
       </li>
@@ -255,6 +320,18 @@ export function TodayPlannerView() {
       leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
     )
 
+  const dayNav = (
+    <DayNav
+      onToday={() => setDateKey(toDateKey(appToday()))}
+      onPrev={() => setDateKey(toDateKey(addDays(date, -1)))}
+      onNext={() => setDateKey(tomorrowKey)}
+      prevLabel={t('planner.prevDay')}
+      nextLabel={t('planner.nextDay')}
+      atToday={viewingToday}
+      shortcuts
+    />
+  )
+
   const textButton = buttonClass({ variant: 'link', size: 'xs' })
   /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
   const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -280,7 +357,7 @@ export function TodayPlannerView() {
       </div>
 
       <section
-        className={`${mobilePane === 'list' ? 'flex' : 'hidden'} min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
+        className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
         <header className="px-6 pb-5 pt-4 md:pt-8">
@@ -288,18 +365,10 @@ export function TodayPlannerView() {
             <h1 className={PAGE_TITLE_CLASS}>
               {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
             </h1>
-            <DayNav
-              onToday={() => setDateKey(toDateKey(appToday()))}
-              onPrev={() => setDateKey(toDateKey(addDays(date, -1)))}
-              onNext={() => setDateKey(tomorrowKey)}
-              prevLabel={t('planner.prevDay')}
-              nextLabel={t('planner.nextDay')}
-              atToday={viewingToday}
-              shortcuts
-            />
+            {dayNav}
           </div>
           {viewingToday && (
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{df.monthDayWeekdayLong(date)}</p>
+            <p className={`mt-1 ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
           )}
           {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
           <div className="mt-3">
@@ -340,9 +409,15 @@ export function TodayPlannerView() {
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </DisclosureButton>
               {leftOver.length > 1 ? (
-                <RowActionButton label={t('planner.moveAllToToday')} onClick={moveAllLeftOver}>
-                  <CalendarDoubleArrowIcon className="h-4 w-4" />
-                </RowActionButton>
+                // 一覧が組み変わる操作なので、印だけでなく文字でも何をするか出す
+                <button
+                  type="button"
+                  onClick={moveAllLeftOver}
+                  className={buttonClass({ variant: 'secondary', size: 'xs' }, 'shrink-0 text-zinc-600 pointer-coarse:min-h-9 dark:text-zinc-300')}
+                >
+                  <CalendarDoubleArrowIcon className="h-3.5 w-3.5" />
+                  {t('planner.moveAllToToday')}
+                </button>
               ) : (
                 // 1 件なら行の「今日やる」と同じ。開いたら行の方だけにする
                 !showLeftOver && moveHereButton(leftOver[0]!)
@@ -358,7 +433,7 @@ export function TodayPlannerView() {
 
         <ul className="px-3">
           {overdue.map((task) => renderRow(task, timerButton(task)))}
-          {open.map((task) => renderRow(task, timerButton(task)))}
+          {open.map((task) => renderRow(task, timerButton(task), true))}
         </ul>
 
         {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
@@ -374,7 +449,7 @@ export function TodayPlannerView() {
         </div>
 
         {totalCount > 0 && open.length === 0 && overdue.length === 0 && (
-          <p className="px-6 pt-2 text-sm text-zinc-500 dark:text-zinc-400">{t('planner.allDone')}</p>
+          <p className={`px-6 pt-2 ${SUBTLE_TEXT}`}>{t('planner.allDone')}</p>
         )}
 
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
@@ -432,7 +507,7 @@ export function TodayPlannerView() {
                 const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
                 const canTime = viewingToday && status === 'missed' && activeTimer?.taskTitle !== h.title
                 return (
-                  <li key={h.id} className="relative flex w-20 flex-col items-center gap-1.5" style={colorVars(h.color)}>
+                  <li key={h.id} className="relative flex w-24 flex-col items-center gap-1.5" style={colorVars(h.color)}>
                     <button
                       type="button"
                       aria-pressed={status !== 'missed'}
@@ -462,8 +537,9 @@ export function TodayPlannerView() {
                         }}
                         aria-label={t('quickLog.resume', { title: h.title })}
                         {...tip(t('quickLog.resume', { title: h.title }))}
-                        className="absolute left-1/2 top-7 ml-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
-                                   before:absolute before:-inset-2 before:content-[''] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                        // リングの右下の外に置く（重ねると、リングの右下を押したときにタイマーが始まる）
+                        className="absolute left-1/2 top-6 ml-6 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[var(--c)] shadow-sm transition-colors hover:bg-zinc-50
+                                   dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       >
                         <PlayIcon className="h-2.5 w-2.5" />
                       </button>
@@ -531,6 +607,11 @@ export function TodayPlannerView() {
       </section>
 
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
+        {/* スマホのタイムラインのタブにも、何日を見ているかと前後の日へ（PC は左の見出しにある） */}
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 md:hidden">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{df.monthDayWeekdayLong(date)}</p>
+          {dayNav}
+        </div>
         <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
       </section>
     </div>

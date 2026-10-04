@@ -4,6 +4,7 @@ import { buttonClass } from './buttonClass'
 import { downloadRawData, latestAutoBackup } from '../../lib/crashRecovery'
 import { askConfirm } from '../../lib/confirmDialog'
 import { formatDate } from '../../lib/dateFormat'
+import { SUBTLE_TEXT } from './textClass'
 
 /**
  * 描画中のエラーで画面全体が真っ白にならないようにする。
@@ -64,7 +65,7 @@ export class ErrorBoundary extends Component<
         }`}
       >
         <h1 className="text-base font-semibold">{t('crash.title')}</h1>
-        <p className="max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
+        <p className={`max-w-sm ${SUBTLE_TEXT}`}>
           {t(scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}
         </p>
         <div className="mt-1 flex flex-wrap justify-center gap-2">

@@ -4,7 +4,8 @@ import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { notify } from '../lib/notify'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { previewBackupJson } from '../lib/backupFormat'
+import { isImportFileTooLarge, MAX_IMPORT_FILE_BYTES, previewBackupJson } from '../lib/backupFormat'
+import { backupProblemText } from '../lib/backupProblemText'
 import { loadImportRollback } from '../lib/importRollback'
 import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
@@ -17,11 +18,12 @@ import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
+import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 /**
  * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
@@ -63,7 +65,7 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
   }, [settingsScrollTarget, clearSettingsScrollTarget])
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
+    <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <div>
           <button
@@ -88,8 +90,6 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const { t } = useTranslation()
   const theme = useTaskStore((s) => s.theme)
   const setTheme = useTaskStore((s) => s.setTheme)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const setTagsEnabled = useTaskStore((s) => s.setTagsEnabled)
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
   const clearSettingsScrollTarget = useTaskStore((s) => s.clearSettingsScrollTarget)
   const exportData = useTaskStore((s) => s.exportData)
@@ -114,7 +114,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
 
@@ -141,9 +141,6 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
                 { value: 'en', label: 'English' },
               ]}
             />
-          </SettingsRow>
-          <SettingsRow label={t('settings.tagsEnabled')}>
-            <Switch checked={tagsEnabled} onChange={setTagsEnabled} label={t('settings.tagsEnabled')} />
           </SettingsRow>
         </SettingsGroup>
 
@@ -193,13 +190,19 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
+            if (isImportFileTooLarge(file)) {
+              notify(i18n.t('alert.importFileTooLarge', { mb: MAX_IMPORT_FILE_BYTES / 1024 / 1024 }))
+              e.target.value = ''
+              return
+            }
             const reader = new FileReader()
             reader.onload = async () => {
               // 先に中身を読んでから確認する。件数が分からないまま
               // 「上書きしますか？」だけ出しても判断できない
               const preview = previewBackupJson(reader.result as string)
-              if (!preview) {
-                notify(i18n.t('alert.invalidImportFile'))
+              if (!preview.ok) {
+                // どこが悪いか（重複 ID・無いリストを指すタスクなど）を出す
+                notify(backupProblemText(preview.problem))
                 return
               }
               const current = useTaskStore.getState()
@@ -230,6 +233,11 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
+            if (isImportFileTooLarge(file)) {
+              notify(i18n.t('alert.importFileTooLarge', { mb: MAX_IMPORT_FILE_BYTES / 1024 / 1024 }))
+              e.target.value = ''
+              return
+            }
             const reader = new FileReader()
             reader.onload = () => {
               const text = reader.result as string

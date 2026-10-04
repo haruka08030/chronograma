@@ -60,7 +60,7 @@
   面かつ検索が空のとき**検索欄のみ**（`AccountMenu` / `ThemeToggle` は
   `SettingsView` へ）。それ以外の画面ではヘッダー非表示（カレンダーは
   ハブ内のメニュー）。**lg(≥1024px) 以上**で To‑Do 系ビュー（`isTodoNavView`＝ToDo
-  面＋`archived` / `deleted`）のときだけ、サイドバーの**右**に細い
+  面＋`completed` / `archived` / `deleted`）のときだけ、サイドバーの**右**に細い
   `TodoNavPanel`（`w-52`）を常設し（`useIsLargeScreen`）、その右がメイン列。
   詳細は列ではなくオーバーレイシートなので、メイン列は常に一覧のみ。
   サイドバー自体はどのビューでも全タブを表示し続ける。**md 未満**は下部に `MobileBottomNav`（To‑Do /
@@ -104,7 +104,7 @@
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す
 
-- **いつか / チェックリストの画面**: To-Do と同じ `TaskList` / `TaskItem`（名前の直し方・Enter で次の行・ドラッグで並べ替えと子にする・右クリックのメニュー・複数選択・キー操作は同じ）。
+- **いつか / チェックリストの画面**: To-Do と同じ `TaskList` / `TaskItem`（名前の直し方・Enter で次の行・ドラッグで並べ替えと子にする・右クリックのメニュー（項目はリストの種類に合わせて少ない）・複数選択・キー操作は同じ）。
   リストの種類で変えるのは次だけ:
   - 完了の印（`CompletionCircle` の `shape`）: To-Do は丸、チェックリストは四角、いつかは ☆ / ★
   - 締切・優先度の欄と並び順を出さない（行の日付ボタン、メニューの締切・優先度、`TaskDetail` の欄）。完了で「記録も付ける」を聞かない
@@ -119,8 +119,8 @@
   （`recentLogs`）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
 
 - **色**（`src/lib/googleColors.ts`）: リスト・習慣・記録の分類はすべて Google カレンダーの 11 色（パレット切り替えは廃止、
-  persist v28 で既存のリスト・習慣の色を色相の最も近い色へ、未分類はラベンダー）。タイムラインは、予定＝リスト色の
-  薄い面（`.gc-plan`）、記録＝分類色の塗りつぶし（`.gc-solid`）、外部予定＝ピーコック。色は style の `--c` で渡す
+  persist v28 で既存のリスト・習慣の色を色相の最も近い色へ、未分類はラベンダー）。タイムラインは、予定・記録・外部予定とも
+  薄い塗り＋枠（`.gc-plan`。予定＝リスト色、記録＝分類色、外部予定＝ピーコック）。色は style の `--c` で渡す
   （`colorVars`、index.css）。分類の色キーは `logCategoryColors`（`src/lib/logCategoryColors.ts`、旧 Tailwind キーは読み替え）。
   管理は設定の `CategoryManager`（色・名前変更＝過去の記録も書き換え、同名なら統合・並べ替え・候補から外す・直近 30 日の使用時間・
   記録にだけある分類の取り込み）。ストアは `addLogCategory` / `renameLogCategory` / `removeLogCategory` / `moveLogCategory` /
@@ -135,19 +135,19 @@
   `useTimelineDrag` の `clickCreateMinutes`（予定 vs ログでは未指定＝従来どおり）。スマホ幅ではカードが下からのシート。
   30 分の点線は廃止（1 時間線のみ）、週表示も今日を含む週なら今の時刻へスクロール
 - **予定と記録（旧 予定 vs ログ）**: 照合結果で色を塗らず、他の画面と同じ（予定＝`.gc-plan` のリスト色 / 習慣色 / Google 青、
-  時間が過ぎた予定＝`.gc-missed`、記録＝分類色の `.gc-solid`）。照合は小さな文字だけ（✓ 予定どおり / N分ズレ）。未実行を赤くしない、
+  時間が過ぎた予定＝`.gc-missed`、記録＝分類色の `.gc-plan`）。照合は小さな文字だけ（✓ 予定どおり / N分ズレ）。未実行を赤くしない、
   「予定外」も付けない。Google 連携は未接続なら 1 行（ボタンや警告を並べない）。凡例は 予定 / 記録 / 終わった予定 の 3 つ
 - **記録の色**: `Task.color`（`#RRGGBB`、`tasks.color`）があれば分類の色より優先（`recordHex`）。
   予定と記録で Google の予定を「記録にする」と、その予定の色を写す（`addCompletedTaskWithTime(..., color)`）。Google の予定の色は
   `googleEventHex`（予定の colorId 1〜11 → 画面の 11 色、無ければ Edge Function `google-calendar` の `events` が返す
   `calendarColor`（カレンダー自体の色、旧パレットなので最も近い 11 色へ）、それも無ければピーコック）で `CalendarEvent.color` に解決
-- **呼び名**: 画面上は「記録」に統一（ナビ「予定と記録」「記録」、完了の見出しは「完了 N 件」）。コード上の識別子（activity-log 等）は従来どおり
+- **呼び名**: 画面上は「記録」に統一（ナビ「予定と記録」「記録」）。コード上の識別子（activity-log 等）は従来どおり
 - **カレンダー**: 下の ToDo ドックは既定で閉じる（右の日パネルと重複するため）。月のマスには記録を分類色の積み上げ帯＋合計時間で
   先頭に表示。月外のマスは日付と中身だけ薄く（マス全体の opacity は罫線ごと消えるのでやめた）
 - **習慣**: 達成率は `consistencyForLast7Days`（直近 7 日、今日は達成済みのときだけ数える）に一本化。連続日数は今日まだなら昨日から
-- **予定と記録の見せ方**（`src/lib/planVisual.ts` の `planVisualState`）: 記録と可視化が主役なので、色で目立つのは記録（実績）だけ
-  （分類色の塗りつぶし `.gc-solid`、ログ画面も同じ）。予定は薄く（`.gc-plan`、リスト色をうっすら）、時間が過ぎたら完了・未完了とも
-  グレー（`.gc-missed`、完了は ✓）。外部の Google 予定は塗りつぶしの青。週・日タイムライン、終日の行、月表示（時刻つきは
+- **予定と記録の見せ方**（`src/lib/planVisual.ts` の `planVisualState`）: 予定・記録・外部の Google 予定は同じ薄い塗り＋枠
+  （`.gc-plan`。記録は分類色、予定はリスト色、Google はピーコック）で、記録は右・予定は左の列で見分ける。時間が過ぎた予定は完了・未完了とも
+  グレー（`.gc-missed`、完了は ✓）。クリック / ドラッグで作成中の枠（`CreateGhost`）も `.gc-plan`。週・日タイムライン、終日の行、月表示（時刻つきは
   「● 15:00 タイトル」、終日は帯）で共通
 - **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
   c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
@@ -249,14 +249,14 @@
 - `listColorPaletteId`（`src/lib/listColorPalettes.ts`）
 - `calendarEvents`, `googleConnected`, `googleAccessToken`
 - `activeTimer`, `habits`（`addHabit` / `updateHabit` / `deleteHabit` /
-  `toggleHabitDate`）
+  `archiveHabit` / `restoreHabit` / `toggleHabitDate`）
 
 ### `SmartView`
 
 `all` | `today` | `upcoming` | `overdue` | `calendar` | `plan-vs-actual` |
-`activity-log` | `stats` | `habits` | `archived` | `deleted` | `settings`（旧
+`activity-log` | `stats` | `habits` | `completed` | `archived` | `deleted` | `settings`（旧
 `week-calendar` は v12 マイグレーションで `calendar` + `calendarMode: week`
-に統合）。`archived` / `deleted` は `TaskBinView`（アーカイブ済み / ゴミ箱）
+に統合）。`archived` / `deleted` は `TaskBinView`（アーカイブ済み / ゴミ箱）。`completed` は `CompletedTasksView`（完了済み）
 
 検索クエリが非空のときは `SearchResults` が最優先。
 
@@ -300,7 +300,7 @@
 - 一覧の**予定タスク**（配置日 + `startTime` + `endTime`
   あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了`
   / `時間をずらして実行`
-  を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`isTimeLog: true`）を作成してから元タスクを完了にする
+  を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`kind: 'log'`）を作成してから元タスクを完了にする
 - `PlanVsActualView`
   の左列（自分の予定タスク）もクリックで同じ「完了を記録」モーダルを開く。ドラッグ/リサイズ時は従来どおり時間調整を優先し、クリック時のみ完了フローへ入る
 - `PlanVsActualView` の左列の**習慣（range スロット）**は、行末チェックで
@@ -321,15 +321,15 @@
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加（`dueDate`/`scheduledDate` とも進める）
 - `dueDate`（期限）を `null` にすると `dueTime` / `recurrence` をクリア。`scheduledDate`
   （予定）を `null` にすると `startTime` / `endTime` をクリア（カレンダー操作は予定側を更新）
-- **タイムログ**: `isTimeLog: true` など。`startTimer` / `stopTimer`,
+- **タスクの種類**: `Task` は `kind`（`'todo'` / `'log'` / `'sleep'`）で分けた型（`TodoTask` / `LogTask` / `SleepTask`。`src/types/task.ts`）。判定は `isTodoTask` / `isLogTask`（睡眠も含む記録）/ `isSleepTask`。`dueDate` は To-Do では期限日、記録・睡眠では開始日。サーバーの列と前の版のバックアップでは `is_time_log` / `isTimeLog` と `is_sleep` / `isSleep` の 2 つで持ち、読み書きの所（`supabaseData.ts`・`backupFormat.ts`）で `kind` と相互に直す（バックアップの書き出しは `kind` と 2 つの印の両方）。保存データは永続化 v38 で `kind` に移行
+- **タイムログ**: `kind: 'log'`（睡眠は `'sleep'`）。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
   のまま。**ToDo
   一覧（`TaskList`）とカレンダー横ドック（`CalendarTaskDock`）、月カレンダー（`CalendarView`）には
   タイムログ行を出さない**（完了済みにも混ぜない）。確認・追加は「ログ」「予定
   vs ログ」や週カレンダーのログ列などで行う。`TaskItem`
   はタイムログ行に取り消し線を付けない（緑の 円チェック）。`importData` は
-  `is_time_log` を `isTimeLog` に正規化。永続化 v13 でタスクの `is_time_log`
-  をマージ。未完了件数・手動 DnD
+  `is_time_log` / `isTimeLog` / `is_sleep` / `isSleep` を `kind` に直す。未完了件数・手動 DnD
   の未完了ルート（`getOrderedActiveRootTasksForDnD`）からは除外
 - **アーカイブ / ゴミ箱（ソフト削除）**: `Task.archivedAt` /
   `Task.deletedAt`（ISO・`null` は非該当。`src/lib/taskLifecycle.ts` の
@@ -368,7 +368,7 @@
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
-- **push**: upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
+- **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除も取得した版のままの行だけ（`id` と `updated_at` の組で消す）。`base_updated_at` 列が無い DB では付けずに送り直す。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
   `scheduled_date` / `archived_at` / `deleted_at`
@@ -403,7 +403,7 @@
 | `SmartViewRow.tsx` | サイドバー／`TodoNavPanel` 共通のスマートビュー行（`button` ＋アイコン＋`sidebar.views.*` ラベル＋選択スタイル。選択中は `aria-current="page"`） |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `NestDragGuide.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等。階層変更は水平ドラッグ。右ドラッグ中は `NestDragGuide` でサブ化プレビュー）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。タイトル下には期限テキスト（今日/日付/期限超過）と**メモ（`description`）の最初の非空行を1行だけ truncate 表示**し、期限編集はホバー時の日付アイコン／詳細（`hideDueDatePicker` で日付アイコン非表示可）。ホバーで**キュー（リスト）型 SVG**のリスト移動メニュー（ルートのみ）・**アーカイブ（箱）アイコン**・削除。アーカイブと削除は行のアイコンをワンクリックで実行。**md 未満は日付アイコン／アーカイブ／削除を出さず、⋮ メニューにアーカイブ・削除を畳む**（行の固定アイコンで幅を食うとタイトルが 80px 程度しか残らないため。サブタスク行の ⋮ は md 未満だけ）                                                                                                                                                                                                                                                                                                                                                 |
 | `SectionHeaderDnD.tsx`                                                                                     | リスト内セクション見出し：並べ替えハンドルはタイトル右（編集・削除の左）。「セクションなし」と見出し左端を揃える                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `TaskDetail.tsx`                                                                                           | 詳細編集。**常に右からのオーバーレイシート**（`fixed inset-0`＋`max-w-md`、外側クリック / ✕ で閉じる）。分割ペイン（`layout` prop）は廃止済みで、どのビューでも行のクリック／タップで開く。`isTimeLog` は行動ログ UI に切替え、優先度・リスト等は非表示。通常タスクは **期限（日付＋締切時刻 `dueTime`）** と **予定（予定日 `scheduledDate` ＋時間幅 `startTime`〜`endTime`）** を別セクションで編集。ログの日時は **開始／終了それぞれ「日付＋時刻」** を近接配置（Google カレンダー風）。**場所（`location`）** 入力＋「Google マップで開く」リンク（`src/lib/linkify.ts` の `googleMapsUrl`。URL を入れたらそのまま、住所等は Maps 検索）。**メモ（`description`）** は表示／編集トグル式（クリックで `textarea` 編集、blur で表示に戻る）。表示モードでは `linkifySegments` で **URL 部分だけを色付きのクリック可能リンク**としてインライン描画                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `TaskDetail.tsx`                                                                                           | 詳細編集。**常に右からのオーバーレイシート**（`fixed inset-0`＋`max-w-md`、外側クリック / ✕ で閉じる）。分割ペイン（`layout` prop）は廃止済みで、どのビューでも行のクリック／タップで開く。記録（`isLogTask`）は行動ログ UI に切替え、優先度・リスト等は非表示。通常タスクは **期限（日付＋締切時刻 `dueTime`）** と **予定（予定日 `scheduledDate` ＋時間幅 `startTime`〜`endTime`）** を別セクションで編集。ログの日時は **開始／終了それぞれ「日付＋時刻」** を近接配置（Google カレンダー風）。**場所（`location`）** 入力＋「Google マップで開く」リンク（`src/lib/linkify.ts` の `googleMapsUrl`。URL を入れたらそのまま、住所等は Maps 検索）。**メモ（`description`）** は表示／編集トグル式（クリックで `textarea` 編集、blur で表示に戻る）。表示モードでは `linkifySegments` で **URL 部分だけを色付きのクリック可能リンク**としてインライン描画                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CompleteWithLogModal.tsx`                                                                                 | 予定タスクの「完了を記録」モーダル（タイムログ作成＋完了）。`TaskList` と `PlanVsActualView` で共有。日付＋時刻は **開始ブロック／終了ブロック** の2段                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `TimeInput.tsx`                                                                                            | 共通時刻入力。Google カレンダー PC 風の「入力欄 + 15分刻みドロップダウン候補」を提供。手入力補正（例 `930`→`09:30`）を維持しつつ、上下キー移動 / Enter 確定 / Esc 取消 / Tab 確定 / 外側クリック確定の挙動を統一。値が空でピッカーを開くと**現在時刻周辺**を初期ハイライト／スクロール。`pickerDefault` prop で初期位置を上書きでき、終了時刻入力には**開始時刻+1時間**を渡して開始時刻付近を初期表示。`TaskDetail` / `CompleteWithLogModal` / `ActivityLogView` / `HabitsView` で利用                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `QuickAdd.tsx`                                                                                             | クイック追加。追加後は入力欄にフォーカスを残し、詳細は開かない（連続追加できる）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -445,12 +445,12 @@
 
 ## データベース（`supabase/migrations/`）
 
-**正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` /
-`push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection`、インデックス、RLS）に、`002` 以降の変更を番号順に積む。
-SQL Editor で `001` から順に全部流す（どれも何度流しても同じ形）。変更は次の番号の新しいファイルで足し、コミット済みのファイルは書き換えない。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、サーバーの行より `updated_at` が古い更新を捨てる（`010` のトリガー `skip_stale_write`）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（`011`、同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+**正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` /
+`push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、インデックス、トリガー、関数、RLS）。
+SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は 002 から番号順の新しいファイルで足し、コミット済みのファイルは書き換えない。本番への適用は Supabase CLI（`supabase db query --linked -f <ファイル>`）。
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` は `skip_stale_write`（`001`、`005` で `search_path` を固定）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
-付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`007`、`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`009` の `hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
 ## 環境変数（`.env.example`）
@@ -469,7 +469,7 @@ service_role で読み書き）。トークンの列（`google_oauth.refresh_tok
 
 ## 実装時の注意
 
-- 同期は **タスク単位の三方向マージ**（フィールド単位ではない。同じタスクを両端末で編集したら `updatedAt` の新しい方）
+- 同期は **項目ごとの三方向マージ**（前回同期の項目ハッシュと比べ、片方だけが変えた項目はその側。両方が変えた項目は手元の時刻をサーバーの時計に直して新しい方）。送信は取得した版つきで、他の端末が先に変えていればサーバーが断り、取り直して合わせる
 - Google Calendar: **Edge Function** `google-calendar`（authorization code を `exchange` で refresh token に交換し `google_oauth` 表に保存、サーバー側で access_token リフレッシュ）。Web は `VITE_GOOGLE_CLIENT_ID` で **直接 Google OAuth**（`linkIdentity` は使わない。Supabase の `provider_refresh_token` は PKCE で取れないため）。`signIn` → Google 同意 → コールバック `?code=` → `exchange` → `status` / `events`。invoke アクション: `exchange` / `store` / `status` / `events` / `disconnect`。`events` は `timeZone`（IANA）を受け取り `Intl` で HH:mm を算出。Web は取得後に `start` / `end` ISO からローカル TZ で `date` / `startTime` / `endTime` を再正規化（`normalizeCalendarEventTimes`）。Google Cloud の **Authorized redirect URIs** にアプリオリジン（`http://localhost:5173` 等）が必要。Supabase secrets: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。`googleConnected` は localStorage に永続化せず `status` で同期。`calendarEvents` はクライアントのみ。ログアウトで `disconnect` + リセット
 - 未分類（`__inbox__`）は削除不可（リスト DnD
   では並べ替え無効）。サイドバーでは未分類行の左端（色→名前）を基準に他リストも揃え、並べ替えハンドルは名前の右・削除の左

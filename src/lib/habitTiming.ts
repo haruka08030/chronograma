@@ -1,5 +1,5 @@
 import type { Habit } from '../types/habit'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { minutesToTime, timeToMinutes } from './clockTime'
 
@@ -63,7 +63,7 @@ export function buildHabitRecordIndex(tasks: readonly Task[]): HabitRecordIndex 
   const active = new Map<string, Span[]>()
   const deleted = new Map<string, Span[]>()
   for (const t of tasks) {
-    if (!t.isTimeLog || t.parentId) continue
+    if (!isLogTask(t) || t.parentId) continue
     const span = recordSpan(t)
     if (!span) continue
     if (!isActiveTask(t)) {

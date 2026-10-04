@@ -7,11 +7,11 @@ export function modKeyLabel(): string {
 }
 
 /**
- * ショートカットの表示。'mod' は ⌘ / Ctrl に置き換える。Mac は詰めて（⌘Z）、それ以外は + でつなぐ（Ctrl+Z）
+ * ショートカットの表示。'mod' は ⌘ / Ctrl、Mac の 'Shift' は ⇧ に置き換える。Mac は詰めて（⌘Z）、それ以外は + でつなぐ（Ctrl+Z）
  *   shortcutLabel(['mod', 'Z'])
  */
 export function shortcutLabel(keys: string[]): string {
-  const parts = keys.map((k) => (k === 'mod' ? modKeyLabel() : k))
+  const parts = keys.map((k) => (k === 'mod' ? modKeyLabel() : k === 'Shift' && IS_MAC ? '⇧' : k))
   return parts.join(IS_MAC ? '' : '+')
 }
 
@@ -60,7 +60,8 @@ export function matchesHotkey(e: HotkeyEvent, spec: string): boolean {
   if (e.altKey !== parts.includes('alt')) return false
   const symbol = key.length === 1 && key !== ' ' && key.toLowerCase() === key.toUpperCase()
   if (!symbol && e.shiftKey !== parts.includes('shift')) return false
-  if (mod && key.length === 1) return e.key.toLowerCase() === key.toLowerCase()
+  // ⌘ や Shift と一緒の文字は大文字で来る（Shift+L は 'L'）
+  if ((mod || parts.includes('shift')) && key.length === 1) return e.key.toLowerCase() === key.toLowerCase()
   return e.key === key
 }
 

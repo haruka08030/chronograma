@@ -8,7 +8,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
 import { CompletedSubtreeRows } from './subtaskRows'
 
-/** 一覧の下の「完了」（いつかは「かなえた」、チェックリストは「チェック済み」）。開くと完了したタスクとそのサブを出す */
+/** いつか（「かなえた」）・チェックリスト（「チェック済み」）の一覧の下。開くと済んだタスクとそのサブを出す。To-Do の完了はナビの「完了済み」に集める */
 export function CompletedTasksSection({
   completedTodos,
   flatCompletedTodoIds,
@@ -43,9 +43,7 @@ export function CompletedTasksSection({
         <DisclosureButton tone="muted" open={showCompleted} onToggle={onToggleCompleted} className="ml-1">
           {listKind === 'someday'
             ? t('someday.fulfilledHeading', { count: completedTodos.length })
-            : listKind === 'checklist'
-            ? t('checklist.checkedHeading', { count: completedTodos.length })
-            : t('taskList.completedHeader', { count: completedTodos.length })}
+            : t('checklist.checkedHeading', { count: completedTodos.length })}
         </DisclosureButton>
         {listKind === 'checklist' && (
           // 持ち物リストの使い回し（全部戻す）と、買い終わった分の片付け

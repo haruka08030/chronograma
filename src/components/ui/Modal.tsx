@@ -50,7 +50,7 @@ export function Modal({
   return createPortal(
     <div
       data-popover-keep
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 dark:bg-black/50"
+      className="fixed inset-0 z-[80] flex animate-fade-in items-center justify-center bg-black/30 p-4 dark:bg-black/50"
       onKeyDown={(e) => {
         dispatchHotkey(e.nativeEvent, { layerOnly: true })
         e.stopPropagation()
@@ -74,7 +74,7 @@ export function Modal({
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
         tabIndex={-1}
-        className={`animate-pop-in max-h-full w-full overflow-y-auto rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
+        className={`animate-pop-in max-h-full w-full overflow-y-auto overscroll-contain rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
           width === 'sm' ? 'max-w-[380px]' : 'max-w-md'
         } ${className}`}
       >

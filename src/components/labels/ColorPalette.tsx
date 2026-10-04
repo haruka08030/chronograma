@@ -20,6 +20,7 @@ export function ColorPalette({
   defaultLabel,
   defaultHex,
   bare = false,
+  fill = false,
 }: {
   selectedHex: string | null
   onChoose: (hex: string) => void
@@ -29,6 +30,8 @@ export function ColorPalette({
   defaultHex?: string
   /** 枠なし（メニューの中など、すでに浮く面の上に置くとき） */
   bare?: boolean
+  /** 色の丸をカードの幅いっぱいに並べる（幅 320px の予定のカード。12 列だとはみ出す） */
+  fill?: boolean
 }) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -60,6 +63,7 @@ export function ColorPalette({
         ariaLabel={t('labels.pickerAria')}
         selectedHex={selectedHex}
         onChoose={onChoose}
+        fill={fill}
         swatches={swatches.map((sw) => {
           const name = labelForHex(sw.hex, presets, colors)
           return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }

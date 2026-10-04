@@ -11,6 +11,7 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { minutesToTime, timeToMinutes } from '../lib/clockTime'
+import { ERROR_TEXT } from './ui/textClass'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -109,7 +110,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
         <TimeInput value={wake} onChange={setWake} className={inputClass} />
       </span>
       {inFuture ? (
-        <span className="text-red-500 dark:text-red-400">{t('sleep.noFuture')}</span>
+        <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>
       ) : (
         bed && wake && bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
       )}

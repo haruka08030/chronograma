@@ -8,7 +8,7 @@ export function isCompleteDraftValid(draft: CompleteWithLogDraft): boolean {
     endDate: draft.endDate !== draft.date ? draft.endDate : null,
     startTime: draft.startTime,
     endTime: draft.endTime,
-    isTimeLog: true,
+    kind: 'log',
   })
   return dur != null && dur > 0
 }

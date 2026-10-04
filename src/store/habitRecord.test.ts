@@ -15,7 +15,7 @@ const colors = assignColorsInOrder(presets)
 function habit(fields: Partial<Habit> = {}): Habit {
   return {
     id: 'h1', title: '朝ラン', color: '#123456', timeMode: 'range', startTime: '06:00', endTime: '06:30',
-    frequency: { type: 'daily' }, createdAt: NOW, updatedAt: NOW, completedDates: [],
+    frequency: { type: 'daily' }, createdAt: NOW, updatedAt: NOW, completedDates: [], archivedAt: null,
     ...fields,
   }
 }
@@ -25,7 +25,7 @@ function record(fields: Partial<Task> = {}): Task {
     ...TASK_DEFAULTS,
     id: 'r1', title: '朝ラン', description: '', completed: true, completedAt: NOW, createdAt: NOW, updatedAt: NOW,
     order: 5, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
-    priority: 'none', tags: [], recurrence: null, isTimeLog: true,
+    priority: 'none', tags: [], recurrence: null, kind: 'log',
     ...fields,
   }
 }
@@ -43,7 +43,7 @@ describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toMatchObject({
       title: '朝ラン', listId: '__inbox__', dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
-      isTimeLog: true, completed: true, completedAt: NOW, createdAt: NOW, habitId: 'h1', order: 1,
+      kind: 'log', completed: true, completedAt: NOW, createdAt: NOW, habitId: 'h1', order: 1,
       // ラベルの色でなければ、習慣の色を名前の無い色として残す
       tags: [], color: '#123456',
     })

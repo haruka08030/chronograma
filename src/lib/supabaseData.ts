@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -9,6 +9,8 @@ import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
+import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
+import { buildRecurrence } from './recurrence'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -36,6 +38,8 @@ interface HabitRow {
   completed_dates: unknown
   created_at: string
   updated_at: string
+  /** 古い DB には無い（`003`）。無い・null は使用中 */
+  archived_at?: string | null
 }
 
 interface TaskRow {
@@ -61,9 +65,9 @@ interface TaskRow {
   color?: string | null
   /** 古い DB には無い */
   habit_id?: string | null
-  /** 010 で追加。古い DB には無い */
+  /** 古い DB には無い */
   is_sleep?: boolean | null
-  /** 014 で追加。古い DB には無い */
+  /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
   /** 古い DB には無い */
@@ -243,7 +247,7 @@ function rowToSection(row: SectionRow): ListSection {
 }
 
 /**
- * DB の大きさの上限（`005_size_limits.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
+ * DB の大きさの上限（`001_chronograma_schema.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
  * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
  */
 const MAX_NAME = 500
@@ -305,6 +309,7 @@ function rowToHabit(row: HabitRow): Habit {
     completedDates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
   }
 }
 
@@ -321,6 +326,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     completed_dates: h.completedDates,
     created_at: h.createdAt,
     updated_at: h.updatedAt,
+    archived_at: h.archivedAt ?? null,
   }
 }
 
@@ -351,7 +357,7 @@ function rowToTaskFields(row: TaskRow): Task {
       (type === 'daily' || type === 'weekly' || type === 'monthly' || type === 'yearly') &&
       typeof interval === 'number'
     ) {
-      recurrence = { type, interval }
+      recurrence = buildRecurrence(type, interval, r.weekdays)
     }
   }
   const priority =
@@ -388,9 +394,8 @@ function rowToTaskFields(row: TaskRow): Task {
     tags,
     category: typeof row.category === 'string' ? row.category : null,
     recurrence,
-    isTimeLog: row.is_time_log === true,
+    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
-    isSleep: row.is_sleep === true,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
     reminders: parseReminders(row.reminders),
@@ -417,34 +422,35 @@ function taskToRow(userId: string, task: Task): TaskRow {
     user_id: userId,
     list_id: task.listId,
     parent_id: task.parentId,
-    section_id: task.sectionId ?? null,
+    section_id: task.sectionId,
     title: clip(task.title, MAX_TITLE),
     description: clip(task.description, MAX_DESCRIPTION),
     completed: task.completed,
-    completed_at: task.completedAt ?? null,
+    completed_at: task.completedAt,
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     sort_order: task.order,
     due_date: task.dueDate,
-    due_time: task.dueTime ?? null,
-    scheduled_date: task.scheduledDate ?? null,
-    end_date: task.endDate ?? null,
+    due_time: task.dueTime,
+    scheduled_date: task.scheduledDate,
+    end_date: task.endDate,
     start_time: task.startTime,
     end_time: task.endTime,
     location: task.location == null ? null : clip(task.location, MAX_TITLE),
-    color: task.color ?? null,
+    color: task.color,
     priority: task.priority,
     tags: task.tags,
-    category: task.isTimeLog ? task.category : null,
+    category: isLogTask(task) ? task.category : null,
     recurrence: task.recurrence,
-    is_time_log: task.isTimeLog ?? false,
-    habit_id: task.habitId ?? null,
-    is_sleep: task.isSleep ?? false,
-    time_zone: task.timeZone ?? null,
-    time_zone_anchor: task.timeZoneAnchor ?? null,
-    reminders: task.reminders ?? null,
-    archived_at: task.archivedAt ?? null,
-    deleted_at: task.deletedAt ?? null,
+    // 種類はサーバーでは 2 つの列（記録か・睡眠か）。前の版の端末も同じ列を読む
+    is_time_log: isLogTask(task),
+    habit_id: task.habitId,
+    is_sleep: isSleepTask(task),
+    time_zone: task.timeZone,
+    time_zone_anchor: task.timeZoneAnchor,
+    reminders: task.reminders,
+    archived_at: task.archivedAt,
+    deleted_at: task.deletedAt,
   }
 }
 
@@ -550,6 +556,7 @@ export function decideHydrate(
 
 const UPSERT_BATCH = 500
 const DELETE_BATCH = 100
+const CONDITIONAL_DELETE_BATCH = 25
 /**
  * 1 回の送信で切り分ける行と問い合わせの上限。超えたら 1 行ずつの問題ではなく全体の問題として送信を止める
  * （全行が落ちるときに数百回問い合わせない）
@@ -568,6 +575,32 @@ export type SyncRejectedRow = { table: SyncTable; id: string; op: 'upsert' | 'de
  */
 function isRowLevelError(code: string | undefined): boolean {
   return !!code && (code.startsWith('22') || code.startsWith('23'))
+}
+
+/** サーバーが受け付けた行と、サーバーが付けた更新時刻（`004` を流す前の DB では送った値のまま） */
+export type SyncWrittenRow = { table: SyncTable; id: string; updatedAt: string }
+
+/**
+ * 取得した後に他の端末が変えていたので、サーバーが断った行（書き込み・削除）。
+ * エラーではない。次の同期で新しい版を取り直し、項目ごとに合わせて送り直す
+ */
+export type SyncStaleRow = { table: SyncTable; id: string; op: 'upsert' | 'delete' }
+
+export interface SyncPushResult {
+  error?: string
+  rejected: SyncRejectedRow[]
+  written: SyncWrittenRow[]
+  stale: SyncStaleRow[]
+  /** サーバーの時計 − この端末の時計（ms）。サーバーが時刻を付けた行があったときだけ */
+  clockOffsetMs?: number
+}
+
+/** 取得に無かった行を送るときの「もとにした版」。サーバーに同じ id の行ができていたら断られる */
+const BASE_ABSENT = '-infinity'
+
+/** PostgREST の or / and の中で値をそのまま使えるように引用符で囲む */
+function quoteFilterValue(v: string): string {
+  return `"${v.replace(/["\\]/g, (c) => `\\${c}`)}"`
 }
 
 /** 拒否された行と、そのとき送った内容。同じ内容なら次の同期で送り直さない（毎分切り分け直さない） */
@@ -590,9 +623,26 @@ export async function pushListsTasksHabits(
    * 全行を送っていて、通信量が大きいうえ、取得から送信までの間に他の端末で直した行を古い内容で上書きしていた
    */
   remote?: { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] },
-): Promise<{ error?: string; rejected: SyncRejectedRow[] }> {
+): Promise<SyncPushResult> {
   /** この送信で受け付けられなかった行（キーは `table:id`） */
   const rejected = new Map<string, SyncRejectedRow>()
+  const written: SyncWrittenRow[] = []
+  const stale: SyncStaleRow[] = []
+  let clockOffsetMs: number | undefined
+  /**
+   * 行ごとの「もとにした版」＝取得したときのサーバーの updated_at（文字列のまま。マイクロ秒まで一致させる）。
+   * 取得を渡されないとき（古い呼び方）は送らない＝前と同じ書き込み
+   */
+  const bases: Record<SyncTable, Map<string, string>> | null = remote
+    ? {
+        lists: new Map(remote.lists.map((x) => [x.id, x.updatedAt ?? UNKNOWN_UPDATED_AT])),
+        list_sections: new Map(remote.sections.map((x) => [x.id, x.updatedAt ?? UNKNOWN_UPDATED_AT])),
+        tasks: new Map(remote.tasks.map((x) => [x.id, x.updatedAt])),
+        habits: new Map(remote.habits.map((x) => [x.id, x.updatedAt])),
+      }
+    : null
+  /** `004` を流す前の DB には base_updated_at 列が無い。この呼び出しの間は送らない（前と同じ書き込みになる） */
+  let sendBase = bases !== null
   const rejectKey = (table: SyncTable, id: string) => `${userId}:${table}:${id}`
   const changedOnly = <T extends { id: string }, R>(
     table: SyncTable,
@@ -602,12 +652,14 @@ export async function pushListsTasksHabits(
     /** 比べる前にそろえる（送る行そのものは変えない） */
     normalize: (x: T) => T = (x) => x,
   ): R[] => {
-    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, JSON.stringify(toRow(normalize(x)))])) : null
+    // 更新時刻は比べない（サーバーが付け直すので、中身が同じでも手元の時刻とは違う）
+    const content = (x: T) => JSON.stringify({ ...toRow(normalize(x)), updated_at: undefined })
+    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, content(x)])) : null
     const rows: R[] = []
     items.forEach((item) => {
       const row = toRow(item)
       const json = JSON.stringify(row)
-      if (sent?.get(item.id) === JSON.stringify(toRow(normalize(item)))) return
+      if (sent?.get(item.id) === content(item)) return
       const known = knownRejected.get(rejectKey(table, item.id))
       if (known?.row === json) {
         rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
@@ -627,9 +679,9 @@ export async function pushListsTasksHabits(
   /** 行だけの問題なら切り分けを続けてよいか。上限を超えたら全体の失敗にする */
   const canIsolate = (code: string | undefined) =>
     isRowLevelError(code) && rejected.size < MAX_REJECTED && isolateRequests < MAX_ISOLATE_REQUESTS
-  const finish = (error?: string): { error?: string; rejected: SyncRejectedRow[] } => {
+  const finish = (error?: string): SyncPushResult => {
     const out = [...rejected.values()]
-    if (error) return { error, rejected: out }
+    if (error) return { error, rejected: out, written, stale, clockOffsetMs }
     // 送れた行は覚えを消し、拒否された行は送った内容を覚える
     const sentRows: [SyncTable, { id: string }[]][] = [
       ['lists', listRows],
@@ -640,23 +692,54 @@ export async function pushListsTasksHabits(
     for (const [table, rows] of sentRows) {
       for (const row of rows) {
         const r = rejected.get(`${table}:${row.id}`)
-        if (r?.op === 'upsert') knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
+        // base_updated_at の制約で落ちたのは行の中身のせいではない（取得と送信の間に行が消えた）。覚えずに次も送る
+        if (r?.op === 'upsert' && !r.message.includes('base_updated_at')) knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
         else knownRejected.delete(rejectKey(table, row.id))
       }
     }
-    return { rejected: out }
+    return { rejected: out, written, stale, clockOffsetMs }
   }
 
-  // 012 で主キーが (user_id, id) になった。未適用の DB には一致する一意制約が無いので id で送り直す
-  // （その DB では 2 人目以降の利用者は同期できない。012 を必ず適用する）
+  // 主キーは (user_id, id)。主キーが id だけの古い DB には一致する一意制約が無いので id で送り直す
+  // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
   let onConflict = 'user_id,id'
+  const send = (table: SyncTable, rows: { id: string }[]) => {
+    const body = sendBase && bases
+      ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT }))
+      : rows
+    // 受け付けた行だけが返る。返らなかった行は、取得した後に他の端末が変えていた（サーバーが断った）
+    return supabase.from(table).upsert(body, { onConflict }).select('id, updated_at')
+  }
   const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
-    let { error } = await supabase.from(table).upsert(rows, { onConflict })
+    const startedAt = Date.now()
+    let { data, error } = await send(table, rows)
+    if (error && sendBase && /'base_updated_at'/.test(error.message)) {
+      sendBase = false
+      ;({ data, error } = await send(table, rows))
+    }
     if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
       onConflict = 'id'
-      ;({ error } = await supabase.from(table).upsert(rows, { onConflict }))
+      ;({ data, error } = await send(table, rows))
     }
-    return error ?? undefined
+    if (error) return error
+    const midpoint = (startedAt + Date.now()) / 2
+    const sentStamp = new Map(rows.map((r) => [r.id, Date.parse((r as { updated_at?: string }).updated_at ?? '')]))
+    const back = new Map(((data ?? []) as { id: string; updated_at: string }[]).map((r) => [r.id, String(r.updated_at)]))
+    for (const r of rows) {
+      const at = back.get(r.id)
+      if (at === undefined) {
+        stale.push({ table, id: r.id, op: 'upsert' })
+        continue
+      }
+      written.push({ table, id: r.id, updatedAt: at })
+      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う
+      const ms = Date.parse(at)
+      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id)) {
+        const offset = Math.round(ms - midpoint)
+        clockOffsetMs = clockOffsetMs === undefined ? offset : Math.min(clockOffsetMs, offset)
+      }
+    }
+    return undefined
   }
   /**
    * 1 行でも拒否されるとまとめて落ちる。行だけの問題なら半分ずつに分けて拒否された行を見つけ、
@@ -683,7 +766,20 @@ export async function pushListsTasksHabits(
     return undefined
   }
   const deleteIsolating = async (table: SyncTable, ids: string[]): Promise<string | undefined> => {
-    const { error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids)
+    const base = bases?.[table]
+    let error: { code?: string; message: string } | null
+    if (base && ids.every((id) => base.has(id))) {
+      // 取得したときのままの行だけ消す。取得した後に他の端末が変えた行は残し、次の同期で取り込む
+      const match = ids.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base.get(id)!)})`).join(',')
+      const res = await supabase.from(table).delete().eq('user_id', userId).or(match).select('id')
+      error = res.error
+      if (!error) {
+        const gone = new Set(((res.data ?? []) as { id: string }[]).map((r) => r.id))
+        for (const id of ids) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
+      }
+    } else {
+      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids))
+    }
     if (!error) return undefined
     if (!canIsolate(error.code)) return error.message
     if (ids.length === 1) {
@@ -790,7 +886,14 @@ export async function pushListsTasksHabits(
     return finish(errMsg)
   }
 
-  const eH = await upsert('habits', habitRows)
+  let eH = await upsert('habits', habitRows)
+  // `003` を流す前の DB には archived_at が無い。アーカイブなしで送り直す（列を足せば次回から送る）
+  if (isMissingArchivedAtColumnError(eH)) {
+    eH = await upsert('habits', habitRows.map(({ archived_at, ...rest }) => {
+      void archived_at
+      return rest
+    }))
+  }
   if (eH) return finish(eH)
 
   // 子 → 親の順（tasks → habits → sections → lists）
@@ -801,8 +904,11 @@ export async function pushListsTasksHabits(
     ['lists', deletes.lists],
   ] as const) {
     // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
-    for (let i = 0; i < ids.length; i += DELETE_BATCH) {
-      const error = await deleteIsolating(table, ids.slice(i, i + DELETE_BATCH))
+    // 版を付けて消すときは 1 件あたりの URL が長いので、もっと細かく分ける
+    const base = bases?.[table]
+    const size = base && ids.every((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
+    for (let i = 0; i < ids.length; i += size) {
+      const error = await deleteIsolating(table, ids.slice(i, i + size))
       if (error) return finish(error)
     }
   }
@@ -829,5 +935,23 @@ export async function pushLogLabels(supabase: SupabaseClient, userId: string, la
   const { error } = await supabase
     .from('user_settings')
     .upsert({ user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, { onConflict: 'user_id' })
+  return error ? { error: error.message } : {}
+}
+
+/** 他のタイムゾーンと付けた名前（`user_extra_time_zones.zones`）。行が無ければ null */
+export async function fetchExtraTimeZones(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RemoteExtraTimeZones | null | { error: string }> {
+  const { data, error } = await supabase.from('user_extra_time_zones').select('zones, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { zones: normalizeExtraTimeZones(data.zones), updatedAt: String(data.updated_at) }
+}
+
+export async function pushExtraTimeZones(supabase: SupabaseClient, userId: string, value: RemoteExtraTimeZones): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('user_extra_time_zones')
+    .upsert({ user_id: userId, zones: value.zones, updated_at: value.updatedAt }, { onConflict: 'user_id' })
   return error ? { error: error.message } : {}
 }

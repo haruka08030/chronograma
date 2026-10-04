@@ -1,11 +1,11 @@
 /** 記録の分類の候補（設定のプリセット＋記録に付いているタグ） */
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 
 /** 全タスクからタイムログに付いたタグを収集（挿入順は ActivityLogView 従来どおり） */
 export function timeLogTagUniverse(tasks: Task[]): string[] {
   const set = new Set<string>()
   for (const t of tasks) {
-    if (t.isTimeLog) {
+    if (isLogTask(t)) {
       for (const tag of t.tags) set.add(tag)
     }
   }

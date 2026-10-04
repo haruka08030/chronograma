@@ -17,15 +17,16 @@ import {
   type CanvasStatus,
 } from '../../lib/canvas'
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
-import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow, SettingsLoadingRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
-import { useTaskStore } from '../../store/taskStore'
+import { ERROR_TEXT, STEPS_LIST_CLASS } from '../ui/textClass'
+import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const field = fieldClass({}, 'w-full')
-const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
+const errorClass = `px-4 py-3 ${ERROR_TEXT}`
 
 /**
  * Canvas LMS 連携。学校の Canvas の URL とアクセストークンを貼ってつなぐ。学校ごとに 1 つ、いくつでもつなげる。
@@ -70,8 +71,6 @@ export function CanvasSettings() {
     try {
       setStatus(await fn())
       setAdding(false)
-      // 科目はタグで出すので、新しくつないだらタグを見えるようにする（あとでオフにしても戻さない）
-      if (key === 'new') useTaskStore.getState().setTagsEnabled(true)
       requestCanvasSync()
     } catch (e) {
       setErrors({ [key]: toMessage(e) })
@@ -101,7 +100,7 @@ export function CanvasSettings() {
   const body = !user ? (
     <SettingsRow label={t('canvas.needsLogin')} />
   ) : status === null ? (
-    <SettingsRow label={t('common.loading')} />
+    <SettingsLoadingRow label={t('common.loading')} />
   ) : connections.length === 0 ? (
     <>
       <NewConnectionForm busy={busy} act={act} />
@@ -241,12 +240,12 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
         if (ready) onSubmit(url.trim())
       }}
     >
-      <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
+      <ol className={STEPS_LIST_CLASS}>
         <li>{t('canvas.feedStep1')}</li>
         <li>{t('canvas.feedStep2')}</li>
       </ol>
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.feedLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.feedLabel')}</span>
         <input
           type="text"
           inputMode="url"
@@ -258,7 +257,7 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
           aria-invalid={problem ? true : undefined}
         />
       </label>
-      {problem && <p className="text-xs text-red-600 dark:text-red-400">{t(`canvas.feedProblem.${problem}`)}</p>}
+      {problem && <p className={ERROR_TEXT}>{t(`canvas.feedProblem.${problem}`)}</p>}
       <FormButtons busy={busy} ready={ready} submitLabel={t('canvas.connect')} onCancel={onCancel} />
     </form>
   )
@@ -322,7 +321,7 @@ function TokenForm({
       }}
     >
       {notice && <p className="text-xs text-amber-600 dark:text-amber-400">{notice}</p>}
-      <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-500 dark:text-zinc-400">
+      <ol className={STEPS_LIST_CLASS}>
         <li>
           {settingsUrl ? (
             <a href={settingsUrl} target="_blank" rel="noreferrer" className="text-accent-600 underline-offset-2 hover:underline dark:text-accent-400">
@@ -337,7 +336,7 @@ function TokenForm({
       </ol>
       {!renew && (
         <label className="block">
-          <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.urlLabel')}</span>
+          <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.urlLabel')}</span>
           <input
             type="text"
             inputMode="url"
@@ -350,7 +349,7 @@ function TokenForm({
         </label>
       )}
       <label className="block">
-        <span className="mb-1 block text-xs text-zinc-600 dark:text-zinc-300">{t('canvas.tokenLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.tokenLabel')}</span>
         <input
           type="password"
           autoComplete="off"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
@@ -7,6 +7,7 @@ import { tip } from '../lib/tooltip'
 import { pad2 } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
+import { HINT_TEXT } from './ui/textClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -29,6 +30,12 @@ const MOBILE_FLOAT_BOTTOM =
  */
 const STALE_TIMER_MS = 8 * 60 * 60 * 1000
 
+/**
+ * 「完了にしますか？」は止めるボタンと同じ位置に出て、「完了」がちょうど止めるの真上に来る。
+ * 止めるの 2 度押し・ダブルタップで完了にならないよう、出てすぐの押下は受けない。
+ */
+const COMPLETE_PROMPT_ARM_MS = 700
+
 export function FloatingTimer() {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -46,6 +53,12 @@ export function FloatingTimer() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [activeTimer])
+  // 浮くタイマーが出ている間、スクロールする面の下に余白を足す（`timer-safe`）
+  const timerShown = activeTimer != null
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-timer-open', timerShown)
+    return () => document.documentElement.removeAttribute('data-timer-open')
+  }, [timerShown])
 
   if (!activeTimer) return <CompletePrompt />
 
@@ -56,13 +69,13 @@ export function FloatingTimer() {
 
   return (
     <div
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
                     rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                     dark:border-zinc-700 dark:bg-zinc-800
                     flex items-center gap-3 md:min-w-[280px] md:w-auto md:gap-4 md:px-5
                     ${MOBILE_FLOAT_BOTTOM}`}
     >
-      <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+      <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
           {activeTimer.taskTitle}
@@ -100,9 +113,11 @@ function CompletePrompt() {
   const task = useTaskStore((s) => (taskId ? s.tasks.find((x) => x.id === taskId) ?? null : null))
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const dismiss = useTaskStore((s) => s.dismissCompletePrompt)
+  const shownAt = useRef(0)
 
   useEffect(() => {
     if (!taskId) return
+    shownAt.current = Date.now()
     const id = setTimeout(dismiss, 12_000)
     return () => clearTimeout(id)
   }, [taskId, dismiss])
@@ -112,7 +127,7 @@ function CompletePrompt() {
   return (
     <div
       role="status"
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
                   rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                   dark:border-zinc-700 dark:bg-zinc-800 flex items-center gap-3
                   ${MOBILE_FLOAT_BOTTOM}`}
@@ -130,6 +145,7 @@ function CompletePrompt() {
       <button
         type="button"
         onClick={() => {
+          if (Date.now() - shownAt.current < COMPLETE_PROMPT_ARM_MS) return
           toggleTask(task.id)
           dismiss()
         }}
@@ -161,14 +177,14 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
     <div
       role="alertdialog"
       aria-label={t('staleTimer.title')}
-      className={`fixed left-1/2 z-50 w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
                   rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl
                   dark:border-amber-500/40 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
     >
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
         {t('staleTimer.title')}
       </p>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className={`mt-1 ${HINT_TEXT}`}>
         {t('staleTimer.body', { title: taskTitle, since: formatStarted(started) })}
       </p>
 

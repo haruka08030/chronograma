@@ -23,12 +23,6 @@ describe('タグ・リスト指定', () => {
     expect(ja('課題 #授業 #授業').tags).toEqual(['授業'])
   })
 
-  it('タグを使わない設定では #… を題名に残す', () => {
-    const r = parseQuickAddTitle('ES 提出 #就活', true, NOW, { tags: false })
-    expect(r.title).toBe('ES 提出 #就活')
-    expect(r.tags).toEqual([])
-  })
-
   it('@リスト名 を取り出す（全角＠も）', () => {
     expect(ja('牛乳 @買い物').listName).toBe('買い物')
     expect(ja('牛乳 ＠買い物').listName).toBe('買い物')
@@ -201,5 +195,133 @@ describe('日本語表示でも英語の締切', () => {
   it('「essay due fri」「レポート by 金曜」も締切', () => {
     expect(ja('essay due fri')).toMatchObject({ title: 'essay', date: '2026-10-02', dateIsDeadline: true })
     expect(ja('レポート by 金曜')).toMatchObject({ title: 'レポート', date: '2026-10-02', dateIsDeadline: true })
+  })
+})
+
+describe('繰り返し', () => {
+  const rep = (type: string, interval = 1, weekdays: number[] | null = null, monthDay: number | null = null) => ({
+    type,
+    interval,
+    weekdays,
+    monthDay,
+  })
+
+  it('何も書かなければ繰り返しなし', () => {
+    expect(ja('ジム 明日').repeat).toBeNull()
+    expect(en('gym tomorrow').repeat).toBeNull()
+  })
+
+  it('毎日・隔日', () => {
+    expect(ja('毎日 日記')).toMatchObject({ title: '日記', repeat: rep('daily'), date: null })
+    expect(ja('水やり 隔日').repeat).toEqual(rep('daily', 2))
+  })
+
+  it('毎週・毎週金・毎週金曜・毎週金曜日', () => {
+    expect(ja('毎週 振り返り').repeat).toEqual(rep('weekly'))
+    expect(ja('毎週金 ゴミ出し')).toMatchObject({ title: 'ゴミ出し', repeat: rep('weekly', 1, [5]), date: null })
+    expect(ja('毎週金曜 ゴミ出し').repeat).toEqual(rep('weekly', 1, [5]))
+    expect(ja('毎週金曜日 ゴミ出し').repeat).toEqual(rep('weekly', 1, [5]))
+    expect(ja('隔週月 面談').repeat).toEqual(rep('weekly', 2, [1]))
+  })
+
+  it('「毎週月曜」を月曜の日付として読まない', () => {
+    const r = ja('毎週月曜 ゼミ')
+    expect(r.date).toBeNull()
+    expect(r.repeat).toEqual(rep('weekly', 1, [1]))
+  })
+
+  it('曜日を 2 つ以上（毎週月水・毎週月・水・金）', () => {
+    expect(ja('毎週月水 ジム')).toMatchObject({ title: 'ジム', repeat: rep('weekly', 1, [1, 3]), date: null })
+    expect(ja('毎週月・水・金 ジム').repeat).toEqual(rep('weekly', 1, [1, 3, 5]))
+    expect(ja('毎週月曜・木曜 ゼミ').repeat).toEqual(rep('weekly', 1, [1, 4]))
+    expect(ja('毎週土日 掃除').repeat).toEqual(rep('weekly', 1, [6, 7]))
+    expect(ja('隔週火金 面談').repeat).toEqual(rep('weekly', 2, [2, 5]))
+    // 「金曜日」の「日」を日曜と読まない
+    expect(ja('毎週金曜日 ゴミ出し').repeat).toEqual(rep('weekly', 1, [5]))
+    expect(ja('毎週月水19時 ジム')).toMatchObject({ title: 'ジム', repeat: rep('weekly', 1, [1, 3]), startTime: '19:00' })
+  })
+
+  it('平日（月〜金）', () => {
+    expect(ja('平日 朝活')).toMatchObject({ title: '朝活', repeat: rep('weekly', 1, [1, 2, 3, 4, 5]), date: null })
+    expect(ja('毎平日 朝活').repeat).toEqual(rep('weekly', 1, [1, 2, 3, 4, 5]))
+    expect(ja('平日7時 ジョギング')).toMatchObject({ title: 'ジョギング', startTime: '07:00' })
+    expect(ja('平日ランチ 予約')).toMatchObject({ title: '平日ランチ 予約', repeat: null })
+  })
+
+  it('毎月・毎月15日', () => {
+    expect(ja('毎月 家計簿').repeat).toEqual(rep('monthly'))
+    expect(ja('毎月15日 家賃')).toMatchObject({ title: '家賃', repeat: rep('monthly', 1, null, 15), date: null })
+    expect(ja('毎月40日 家賃')).toMatchObject({ title: '毎月40日 家賃', repeat: null })
+  })
+
+  it('毎年（同じ語に日付も書ける）', () => {
+    expect(ja('毎年 健康診断').repeat).toEqual(rep('yearly'))
+    expect(ja('毎年10月3日 誕生日')).toMatchObject({ title: '誕生日', repeat: rep('yearly'), date: '2026-10-03' })
+  })
+
+  it('N日ごと・N週間ごと・Nか月ごと・N年ごと', () => {
+    expect(ja('3日ごと 水やり').repeat).toEqual(rep('daily', 3))
+    expect(ja('2週間ごと 散髪').repeat).toEqual(rep('weekly', 2))
+    expect(ja('2週ごと 散髪').repeat).toEqual(rep('weekly', 2))
+    expect(ja('6か月ごと 歯医者').repeat).toEqual(rep('monthly', 6))
+    expect(ja('3ヶ月ごと 歯医者').repeat).toEqual(rep('monthly', 3))
+    expect(ja('2年ごと 免許').repeat).toEqual(rep('yearly', 2))
+    expect(ja('0日ごと 水やり')).toMatchObject({ title: '0日ごと 水やり', repeat: null })
+  })
+
+  it('日付・時刻・締切と組み合わせられる', () => {
+    expect(ja('毎週 金曜 15時 ゼミ')).toMatchObject({ title: 'ゼミ', repeat: rep('weekly'), date: '2026-10-02', startTime: '15:00' })
+    expect(ja('毎日7時 ジョギング')).toMatchObject({ title: 'ジョギング', repeat: rep('daily'), startTime: '07:00' })
+    expect(ja('毎週金曜まで 課題')).toMatchObject({ title: '課題', repeat: rep('weekly', 1, [5]), date: null, dateIsDeadline: true })
+  })
+
+  it('語の途中にあればタイトルの一部', () => {
+    expect(ja('毎日新聞 解約')).toMatchObject({ title: '毎日新聞 解約', repeat: null })
+  })
+
+  it('英語表示では日本語の繰り返しを読まない', () => {
+    expect(en('毎日 日記')).toMatchObject({ title: '毎日 日記', repeat: null })
+  })
+
+  it('every day / week / month / year', () => {
+    expect(en('journal every day')).toMatchObject({ title: 'journal', repeat: rep('daily') })
+    expect(en('every week review').repeat).toEqual(rep('weekly'))
+    expect(en('every month rent').repeat).toEqual(rep('monthly'))
+    expect(en('every year checkup').repeat).toEqual(rep('yearly'))
+  })
+
+  it('every fri / every friday（日付にはしない）', () => {
+    expect(en('trash every fri')).toMatchObject({ title: 'trash', repeat: rep('weekly', 1, [5]), date: null })
+    expect(en('every Monday seminar').repeat).toEqual(rep('weekly', 1, [1]))
+    expect(en('every thurs club').repeat).toEqual(rep('weekly', 1, [4]))
+    expect(en('gym every mon wed')).toMatchObject({ title: 'gym', repeat: rep('weekly', 1, [1, 3]) })
+    expect(en('gym every mon, wed and fri 7pm')).toMatchObject({ title: 'gym', repeat: rep('weekly', 1, [1, 3, 5]), startTime: '19:00' })
+    expect(en('every mon/thu seminar')).toMatchObject({ title: 'seminar', repeat: rep('weekly', 1, [1, 4]) })
+    expect(en('every sat sun cleaning').repeat).toEqual(rep('weekly', 1, [6, 7]))
+    expect(en('every mon and dinner')).toMatchObject({ title: 'and dinner', repeat: rep('weekly', 1, [1]) })
+    expect(en('standup every weekday')).toMatchObject({ title: 'standup', repeat: rep('weekly', 1, [1, 2, 3, 4, 5]) })
+    expect(ja('朝活 every weekdays').repeat).toEqual(rep('weekly', 1, [1, 2, 3, 4, 5]))
+  })
+
+  it('every other week / every 2 weeks / every 3days', () => {
+    expect(en('every other week haircut')).toMatchObject({ title: 'haircut', repeat: rep('weekly', 2) })
+    expect(en('every 2 weeks haircut')).toMatchObject({ title: 'haircut', repeat: rep('weekly', 2) })
+    expect(en('every 3days water').repeat).toEqual(rep('daily', 3))
+    expect(en('every 6 months dentist').repeat).toEqual(rep('monthly', 6))
+  })
+
+  it('every の後ろが読めなければタイトルのまま', () => {
+    expect(en('every little thing')).toMatchObject({ title: 'every little thing', repeat: null })
+    expect(en('every')).toMatchObject({ title: 'every', repeat: null })
+    expect(en('every 0 days')).toMatchObject({ title: 'every 0 days', repeat: null })
+  })
+
+  it('every と日時・締切を組み合わせられる', () => {
+    expect(en('every fri 3pm seminar')).toMatchObject({ title: 'seminar', repeat: rep('weekly', 1, [5]), startTime: '15:00' })
+    expect(en('essay every week by fri')).toMatchObject({ title: 'essay', repeat: rep('weekly'), date: '2026-10-02', dateIsDeadline: true })
+  })
+
+  it('日本語表示でも every を読む', () => {
+    expect(ja('日記 every day')).toMatchObject({ title: '日記', repeat: rep('daily') })
   })
 })

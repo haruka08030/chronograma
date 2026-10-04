@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
@@ -135,7 +135,7 @@ export function countTasks(tasks: readonly Task[]): { todoCount: number; logCoun
   let logCount = 0
   for (const t of tasks) {
     if (t.deletedAt) continue
-    if (t.isTimeLog) logCount++
+    if (isLogTask(t)) logCount++
     else todoCount++
   }
   return { todoCount, logCount }

@@ -74,10 +74,8 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
       pushUndo()
       set({ calendarMode: mode })
     },
-    setSelectedCalendarDateKey: (key) => {
-      pushUndo()
-      set({ selectedCalendarDateKey: key })
-    },
+    // 見ている日は画面の状態（取り消しの対象にしない）。今日の計画・カレンダー・習慣で共有する
+    setSelectedCalendarDateKey: (key) => set({ selectedCalendarDateKey: key }),
     setSearchQuery: (q) => set({ searchQuery: q }),
     setSortMode: (mode) => {
       pushUndo()

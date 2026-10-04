@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { addMonths, addWeeks, startOfMonth, subMonths, subWeeks } from 'date-fns'
+import { addDays, addMonths, startOfMonth, subMonths } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
@@ -8,6 +8,8 @@ import { GoogleConnectLine } from './GoogleConnectLine'
 import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
+import { CalendarScheduleView } from './CalendarScheduleView'
+import { CalendarMobileHeader } from './CalendarMobileHeader'
 import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -21,19 +23,28 @@ import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { isLogTask } from '../types/task'
+import type { CalendarMode } from '../store/storeTypes'
+import { useIsDesktop } from '../hooks/useMediaQuery'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
-  const calendarMode = useTaskStore((s) => s.calendarMode)
+  const storedMode = useTaskStore((s) => s.calendarMode)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const selectedDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   // 右の日パネルと内容が重なり、グリッドを 4 割潰していたので既定は閉じる（「ToDo を表示」で開く）
   const [dockOpen, setDockOpen] = useState(false)
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(appToday()))
-  const [weekAnchor, setWeekAnchor] = useState(() => appToday())
+  // 開いたときは見ている日（今日の計画・習慣と共有）を含む月・週から
+  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(fromDateKey(selectedDateKey)))
+  const [weekAnchor, setWeekAnchor] = useState(() => fromDateKey(selectedDateKey))
+  const isDesktop = useIsDesktop()
+  // 3 日表示はスマホ幅だけ。PC 幅では週にする
+  const calendarMode: CalendarMode = isDesktop && storedMode === 'threeDay' ? 'week' : storedMode
+  /** 週・3 日・スケジュールの表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
+  const pageDays = calendarMode === 'threeDay' ? 3 : isDesktop || calendarMode === 'schedule' ? 7 : 1
 
-  const setMode = (mode: 'month' | 'week') => {
+  const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)
     const d = fromDateKey(selectedDateKey)
     if (mode === 'month') setMonthCursor(startOfMonth(d))
@@ -47,6 +58,12 @@ export function CalendarHubView() {
     setWeekAnchor(d)
   }, [setSelectedCalendarDateKey])
 
+  /** スマホ幅の月のマスを押したとき: その日の 1 日表示へ */
+  const openDay = useCallback((key: string) => {
+    setCalendarMode('week')
+    applyPickedDate(key)
+  }, [setCalendarMode, applyPickedDate])
+
   const onGoToday = useCallback(() => {
     const today = appToday()
     const key = toDateKey(today)
@@ -55,23 +72,23 @@ export function CalendarHubView() {
     setWeekAnchor(today)
   }, [setSelectedCalendarDateKey])
 
-  const onPrevPeriod = useCallback(() => {
+  const stepPeriod = useCallback((dir: -1 | 1) => {
     if (calendarMode === 'month') {
-      setMonthCursor((m) => subMonths(m, 1))
-    } else {
-      setWeekAnchor((w) => subWeeks(w, 1))
-      setSelectedCalendarDateKey(toDateKey(subWeeks(fromDateKey(selectedDateKey), 1)))
+      setMonthCursor((m) => (dir < 0 ? subMonths(m, 1) : addMonths(m, 1)))
+      return
     }
-  }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
-
-  const onNextPeriod = useCallback(() => {
-    if (calendarMode === 'month') {
-      setMonthCursor((m) => addMonths(m, 1))
-    } else {
-      setWeekAnchor((w) => addWeeks(w, 1))
-      setSelectedCalendarDateKey(toDateKey(addWeeks(fromDateKey(selectedDateKey), 1)))
-    }
-  }, [calendarMode, selectedDateKey, setSelectedCalendarDateKey])
+    const next = addDays(fromDateKey(selectedDateKey), dir * pageDays)
+    setWeekAnchor(next)
+    setSelectedCalendarDateKey(toDateKey(next))
+  }, [calendarMode, pageDays, selectedDateKey, setSelectedCalendarDateKey])
+  /** スマホの 1 日表示で上の曜日の帯を払ったとき: 同じ曜日のまま前後の週へ */
+  const stepWeek = useCallback((dir: -1 | 1) => {
+    const next = addDays(fromDateKey(selectedDateKey), dir * 7)
+    setWeekAnchor(next)
+    setSelectedCalendarDateKey(toDateKey(next))
+  }, [selectedDateKey, setSelectedCalendarDateKey])
+  const onPrevPeriod = useCallback(() => stepPeriod(-1), [stepPeriod])
+  const onNextPeriod = useCallback(() => stepPeriod(1), [stepPeriod])
 
   useNavShortcut({ today: onGoToday, prev: onPrevPeriod, next: onNextPeriod })
 
@@ -94,7 +111,7 @@ export function CalendarHubView() {
       const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
       const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
         const task = tasks.find((x) => x.id === id)
-        return !!task && !task.isTimeLog
+        return !!task && !isLogTask(task)
       })
       asOneUndo(() => {
         for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)
@@ -107,68 +124,95 @@ export function CalendarHubView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <div className="flex min-w-0 items-center gap-2">
-          <Segmented
-            role="tab"
-            ariaLabel={t('calendarHub.calendarTabsAria')}
-            value={calendarMode}
-            onChange={setMode}
-            options={[
-              { value: 'month', label: t('common.month') },
-              { value: 'week', label: t('common.week') },
-            ]}
-            className="shrink-0"
-          />
+      {isDesktop ? (
+        <>
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+          <div className="flex min-w-0 items-center gap-2">
+            <Segmented
+              role="tab"
+              ariaLabel={t('calendarHub.calendarTabsAria')}
+              value={calendarMode}
+              onChange={setMode}
+              // スマホ幅は CalendarMobileHeader のメニュー（日 / 3日 / 月 / スケジュール）
+              options={[
+                { value: 'month', label: t('common.month') },
+                { value: 'week', label: t('common.week') },
+                { value: 'schedule', label: t('calendarHub.modeSchedule') },
+              ]}
+              className="shrink-0"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setDockOpen((o) => !o)}
+            aria-pressed={dockOpen}
+            {...tip(t('calendarHub.dockHint'))}
+            // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              dockOpen
+                ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {t('calendarHub.dockToggle')}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setDockOpen((o) => !o)}
-          aria-pressed={dockOpen}
-          {...tip(t('calendarHub.dockHint'))}
-          // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-            dockOpen
-              ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-              : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-          }`}
-        >
-          {t('calendarHub.dockToggle')}
-        </button>
-      </div>
 
-      <CalendarDateNav
-        mode={calendarMode}
-        selectedDateKey={selectedDateKey}
-        monthCursor={monthCursor}
-        weekAnchor={weekAnchor}
-        onGoToday={onGoToday}
-        onPrevPeriod={onPrevPeriod}
-        onNextPeriod={onNextPeriod}
-        onPickDate={applyPickedDate}
-      />
-      <GoogleConnectLine />
+        <CalendarDateNav
+          mode={calendarMode}
+            selectedDateKey={selectedDateKey}
+          monthCursor={monthCursor}
+          weekAnchor={weekAnchor}
+          onGoToday={onGoToday}
+          onPrevPeriod={onPrevPeriod}
+          onNextPeriod={onNextPeriod}
+          onPickDate={applyPickedDate}
+        />
+        </>
+      ) : (
+        <CalendarMobileHeader
+          mode={calendarMode}
+          onModeChange={setMode}
+          selectedDateKey={selectedDateKey}
+          monthCursor={monthCursor}
+          onGoToday={onGoToday}
+          onPickDate={applyPickedDate}
+          dockOpen={dockOpen}
+          onToggleDock={() => setDockOpen((o) => !o)}
+        />
+      )}
+      {/* スマホ幅で時間未定のタスクを開いている間は、未接続の案内を畳んで月の格子に場所を譲る */}
+      <GoogleConnectLine hideInvite={dockOpen && !isDesktop} />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {calendarMode === 'month' ? (
+            {calendarMode === 'schedule' ? (
+              <CalendarScheduleView startDateKey={selectedDateKey} onOpenDay={openDay} />
+            ) : calendarMode === 'month' ? (
               <CalendarView
                 displayMonth={monthCursor}
                 selectedDateKey={selectedDateKey}
                 onSelectDate={applyPickedDate}
+                onOpenDay={isDesktop ? undefined : openDay}
+                onSwipe={isDesktop ? undefined : stepPeriod}
               />
             ) : (
               <WeekCalendarView
                 anchor={weekAnchor}
+                threeDay={calendarMode === 'threeDay'}
                 selectedDateKey={selectedDateKey}
-                onSelectDate={applyPickedDate}
-                onNavigateWeek={(dir) => (dir < 0 ? onPrevPeriod() : onNextPeriod())}
+                // 3 日表示で日付を押したら、その日の 1 日表示へ（Google カレンダーと同じ）
+                onSelectDate={calendarMode === 'threeDay' ? openDay : applyPickedDate}
+                onNavigateWeek={stepPeriod}
+                onNavigateStrip={stepWeek}
               />
             )}
           </div>
-          {calendarMode === 'month' && (
-            <div className="flex max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
+          {calendarMode === 'month' && !dockOpen && (
+            // スマホ幅はマスを押すとその日を開くので、下の日のパネルは md〜lg だけ。
+            // 時間未定のタスクを開いたら畳む（下に開く面は 1 つずつ。月の格子を潰さない）
+            <div className="hidden max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 md:flex lg:hidden">
               <CalendarDayPanel selectedDateKey={selectedDateKey} />
             </div>
           )}
@@ -179,7 +223,7 @@ export function CalendarHubView() {
             >
               <CalendarTaskDock />
             </div>
-          ) : itemDrag.active && (
+          ) : itemDrag.active && !itemDrag.fromGrid && (
             <div
               {...unscheduleDropProps}
               className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors

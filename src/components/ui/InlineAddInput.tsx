@@ -57,7 +57,7 @@ export const InlineAddInput = forwardRef<HTMLInputElement, {
         className={`flex items-center transition-colors ${
           underline
             ? 'border-b border-zinc-200 focus-within:border-zinc-500 dark:border-zinc-700 dark:focus-within:border-zinc-400'
-            : `border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:bg-zinc-50
+            : `border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:bg-zinc-50 focus-within:ring-2 focus-within:ring-accent-500/30
                dark:border-zinc-700 dark:bg-transparent dark:focus-within:border-zinc-600 dark:focus-within:bg-zinc-800/60 ${size === 'sm' ? 'rounded' : 'rounded-lg'}`
         } ${size === 'sm' ? '' : 'gap-3 px-3'} ${className}`}
       >

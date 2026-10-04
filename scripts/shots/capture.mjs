@@ -30,7 +30,7 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
@@ -54,25 +54,64 @@ const SCREENS = [
   { name: 'todo', view: 'all' },
   // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
   { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
+  // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す
+  {
+    name: 'todo-label-card',
+    view: 'all',
+    mobileClick: 'nav[aria-label] button:has-text("その他")',
+    click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
+  },
   { name: 'calendar', view: 'calendar' },
+  // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
+  { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
+  { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
+  // スケジュール（予定の一覧）
+  { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // スマホの見出しの「10月 ▾」でミニ月を開いた状態・表示の切り替えメニュー（PC 幅には無いボタン）
+  { name: 'calendar-mobile-month-picker', view: 'calendar', mobileOnly: true, click: 'button[aria-expanded][aria-label="日付を選択"] >> visible=true' },
+  { name: 'calendar-mobile-mode-menu', view: 'calendar', mobileOnly: true, click: 'button[aria-haspopup="menu"][aria-label] >> visible=true' },
+  // 終わった日（前の週）の予定と記録
+  // スマホ幅は ‹ › が無い（スワイプで動く）
+  { name: 'calendar-past', view: 'calendar', desktopOnly: true, click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
   // タイトルを押すと編集になるので、行の左の余白を押して開く
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
+  // 曜日つきの毎週（繰り返しの下に曜日のピル）
+  { name: 'task-detail-repeat', view: 'all', click: 'div.group.cursor-pointer:has-text("バイトのシフト提出")', clickAt: { x: 4, y: 12 } },
   { name: 'task-detail-scheduled', view: 'all', click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))', clickAt: { x: 4, y: 12 } },
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
   // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
   { name: 'habits-new-weekly', view: 'habits', click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'], scrollToBottom: true },
+  // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
+  { name: 'habits-menu', view: 'habits', rightClick: 'div[role="button"]:has-text("朝に 10 分ストレッチ")' },
+  // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
+  { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
+  { name: 'habits-archived-menu', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true, rightClick: 'li:has-text("日記を書く")' },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
+  // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
+  { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
+  { name: 'calendar-time-zones', view: 'calendar', extraTimeZones: true, hover: '[data-tip^="ロンドンの友達"]' },
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
+  { name: 'todo-hover', view: 'all', hover: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")' },
   { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
+  // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
+  { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
+  { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
+  { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
+  // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）
+  { name: 'trash-menu', view: 'deleted', deleted: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
+  { name: 'archive-menu', view: 'archived', archived: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
+  // 完了した To-Do を全リスト分集めた画面（完了した日ごと）
+  { name: 'completed', view: 'completed' },
 ]
 
 const VIEWPORTS = [
@@ -203,6 +242,8 @@ async function main() {
     for (const theme of args.themes) {
       for (const vp of VIEWPORTS) {
         for (const screen of screens) {
+          if (screen.mobileOnly && !vp.hasTouch) continue
+          if (screen.desktopOnly && vp.hasTouch) continue
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({
@@ -233,7 +274,18 @@ async function main() {
           if (screen.allDone) {
             for (const x of seed.state.tasks) if (!['seed-someday', 'seed-shopping'].includes(x.listId)) x.completed = true
           }
+          if (screen.extraTimeZones) {
+            seed.state.extraTimeZones = [
+              { tz: 'Europe/London', label: 'ロンドンの友達（大学）' },
+              { tz: 'America/New_York', label: '' },
+            ]
+          }
           if (screen.filterColor) seed.state.filterColor = screen.filterColor
+          if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
+          for (const x of seed.state.tasks) {
+            if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
+            if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()
+          }
           if (screen.list) {
             seed.state.selectedView = null
             seed.state.selectedListId = screen.list
@@ -264,6 +316,11 @@ async function main() {
             await page.goto(server.baseUrl, { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
+            if (screen.mobileClick && vp.hasTouch) {
+              // スマホ幅だけ先に押すもの（ナビのドロワーを開く、など）
+              await page.click(screen.mobileClick)
+              await page.waitForTimeout(300)
+            }
             if (screen.click) {
               // 配列なら順に押す（フォームを開いてから中の選択肢を押す、など）。clickAt は最初の 1 つだけ
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
@@ -276,6 +333,17 @@ async function main() {
               // マウスを乗せたときのヒント（TooltipHost は 0.5 秒後に出す）
               await page.hover(screen.hover)
               await page.waitForTimeout(800)
+            }
+
+            if (screen.rightClick && !vp.hasTouch) {
+              await page.click(screen.rightClick, { button: 'right' })
+              await page.waitForTimeout(300)
+            }
+
+            if (screen.scrollTo) {
+              await page.locator(screen.scrollTo).scrollIntoViewIfNeeded()
+              await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'start' }), screen.scrollTo)
+              await page.waitForTimeout(200)
             }
 
             if (screen.scrollToBottom) {

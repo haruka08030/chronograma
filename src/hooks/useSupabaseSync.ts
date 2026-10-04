@@ -1,7 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getSupabase } from '../lib/supabase'
-import { decideHydrate, fetchListsTasksHabits, fetchLogLabels, pushListsTasksHabits, pushLogLabels } from '../lib/supabaseData'
+import {
+  decideHydrate,
+  fetchExtraTimeZones,
+  fetchListsTasksHabits,
+  fetchLogLabels,
+  pushExtraTimeZones,
+  pushListsTasksHabits,
+  pushLogLabels,
+} from '../lib/supabaseData'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -11,16 +19,21 @@ import {
   withoutDuplicateDefaults,
   saveBaseline,
   syncedSnapshot,
+  withServerStamps,
+  adoptServerStamps,
   type SyncSnapshot,
 } from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { planLabelSync } from '../lib/labelSync'
+import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
 const POLL_MS = 60_000
+/** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
+const MAX_STALE_RETRIES = 3
 
 /**
  * 同じ人の同期をタブ間で 1 本ずつにする。前回同期の控え（baseline）は端末で 1 つなので、
@@ -75,6 +88,10 @@ export function useSupabaseSync() {
     /** 失敗後の再送タイマーと現在の待ち時間（0 = 失敗していない） */
     let retry: ReturnType<typeof setTimeout> | undefined
     let retryMs = 0
+    /** この sync() の中で、断られた行のために取り直した回数 */
+    let staleRetries = 0
+    /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
+    let limitHit = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -126,6 +143,33 @@ export function useSupabaseSync() {
       }
     }
 
+    /** 他のタイムゾーン（並び・名前）を合わせる。ラベル表と同じく、失敗してもタスクの同期は止めない */
+    const syncExtraTimeZones = async () => {
+      const remote = await fetchExtraTimeZones(supabase, userId)
+      if (cancelled) return
+      if (remote && 'error' in remote) {
+        console.error('[sync] time zones', remote.error)
+        return
+      }
+      const s = useTaskStore.getState()
+      const plan = planExtraTimeZoneSync({ zones: s.extraTimeZones, updatedAt: s.extraTimeZonesUpdatedAt }, remote)
+      if (plan.apply) {
+        const { zones, updatedAt } = plan.apply
+        asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt }))
+      }
+      if (plan.push) {
+        const res = await pushExtraTimeZones(supabase, userId, plan.push)
+        if (res.error) console.error('[sync] time zones', res.error)
+        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: plan.push!.updatedAt }))
+      }
+    }
+
+    /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
+    const syncSettings = async () => {
+      await syncLabels()
+      await syncExtraTimeZones()
+    }
+
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
@@ -155,8 +199,9 @@ export function useSupabaseSync() {
       const baseline = useTaskStore.getState().dataOwner === null ? null : loadBaseline(userId)
       let toPush: SyncSnapshot
       let deletes: Parameters<typeof pushListsTasksHabits>[6] = { lists: [], tasks: [], habits: [], sections: [] }
-      const done = (synced: SyncSnapshot) => {
-        saveBaseline(userId, baselineFrom(synced))
+      const done = (synced: SyncSnapshot, clockOffsetMs?: number) => {
+        // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
+        saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
         useTaskStore.getState().setDataOwner(userId)
       }
 
@@ -177,7 +222,7 @@ export function useSupabaseSync() {
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
           done(localSnapshot())
           useTaskStore.getState().setSyncRejected([])
-          await syncLabels()
+          await syncSettings()
           return true
         }
         if (decision.kind === 'use_remote') {
@@ -212,12 +257,21 @@ export function useSupabaseSync() {
       if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)
+        limitHit = res.error.includes('row_limit_exceeded')
         return false
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
       if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
-      done(syncedSnapshot(toPush, remote, res.rejected))
-      await syncLabels()
+      // 届いた行はサーバーが付けた時刻にそろえる（手元も、送っている間に編集していない行だけ）
+      const stamped = withServerStamps(toPush, res.written)
+      if (stamped !== toPush) apply(adoptServerStamps(localSnapshot(), toPush, stamped))
+      // 取得した後に他の端末が変えていた行は届いていない。控えは取得した版にして（次の同期で項目ごとに合わせる）、すぐ取り直す
+      done(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale]), res.clockOffsetMs)
+      if (res.stale.length > 0 && staleRetries < MAX_STALE_RETRIES) {
+        staleRetries++
+        rerun = true
+      }
+      await syncSettings()
       const prevRejected = useTaskStore.getState().syncRejected
       const key = (rows: typeof res.rejected) => rows.map((r) => `${r.op}:${r.table}:${r.id}`).join('|')
       if (key(prevRejected) !== key(res.rejected)) useTaskStore.getState().setSyncRejected(res.rejected)
@@ -234,6 +288,8 @@ export function useSupabaseSync() {
         return
       }
       running = true
+      staleRetries = 0
+      limitHit = false
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
@@ -259,7 +315,7 @@ export function useSupabaseSync() {
         setSyncState('idle', new Date().toISOString())
         return
       }
-      setSyncState('error')
+      setSyncState(limitHit ? 'limit' : 'error')
       // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
       retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
       clearTimeout(retry)
@@ -286,7 +342,8 @@ export function useSupabaseSync() {
         state.habits === prev.habits &&
         state.sections === prev.sections &&
         state.timeLogTagPresets === prev.timeLogTagPresets &&
-        state.logCategoryColors === prev.logCategoryColors
+        state.logCategoryColors === prev.logCategoryColors &&
+        state.extraTimeZones === prev.extraTimeZones
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return

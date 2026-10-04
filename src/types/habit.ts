@@ -19,6 +19,13 @@ export interface Habit {
   updatedAt: string
   /** yyyy-MM-dd で達成済み */
   completedDates: string[]
+  /** アーカイブした時刻（ISO）。null は使用中。アーカイブした習慣は今日の計画・一覧・タイムライン・統計から外れ、達成日は残す */
+  archivedAt: string | null
+}
+
+/** 使用中か（アーカイブしていない）。古いデータで項目が無いものも使用中 */
+export function isHabitActive(habit: Pick<Habit, 'archivedAt'>): boolean {
+  return !habit.archivedAt
 }
 
 export function inferHabitTimeMode(startTime: string | null, endTime: string | null): HabitTimeMode {

@@ -7,6 +7,7 @@ import { assignColorsInOrder } from '../lib/logCategoryColors'
 import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
+import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import {
   INBOX_ID,
@@ -15,7 +16,8 @@ import {
   PERSIST_STORAGE_KEY,
   STORE_VERSION,
 } from './storeConstants'
-import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, SyncState, TaskState } from './storeTypes'
+import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
+import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
 import { migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'
@@ -120,7 +122,6 @@ export const useTaskStore = create<TaskState>()(
       notificationsEnabled: false,
       recordPrompts: true,
       recordPromptTaskId: null as string | null,
-      tagsEnabled: false,
       listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
       // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
       timeLogTagPresets: defaultLogCategories(),
@@ -137,10 +138,12 @@ export const useTaskStore = create<TaskState>()(
       completePromptTaskId: null as string | null,
       dailyReminders: { planTime: null } as DailyReminders,
       reminderPromptDismissed: false,
+      googleConnectLineDismissed: false,
       dailyCapacityMinutes: 480,
       eventReminderMinutes: null as number | null,
       appTimeZone: null as string | null,
-      extraTimeZones: [] as string[],
+      extraTimeZones: [] as ExtraTimeZone[],
+      extraTimeZonesUpdatedAt: null as string | null,
 
       habits: [],
 
@@ -188,6 +191,7 @@ export const useTaskStore = create<TaskState>()(
         }
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
+        merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         if (broken) preserveUnreadableStorage()
         return merged
       },
@@ -246,6 +250,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
+})
+// 他のタイムゾーン（並び・名前）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.extraTimeZones === prev.extraTimeZones) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
 })
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()

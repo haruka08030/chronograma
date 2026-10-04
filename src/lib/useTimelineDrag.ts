@@ -4,6 +4,8 @@ import { dragBlockDurationMinutes } from './taskTimeRange'
 import { addDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime } from './clockTime'
+import type { TaskKind } from '../types/task'
+import { TOUCH_LONG_PRESS_MS } from '../hooks/useTouchContextMenu'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -91,7 +93,7 @@ function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: numbe
 
 interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
-  getDateKeyFromX?: (clientX: number) => string | null
+  getDateKeyFromX?: (clientX: number, clientY?: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
   onResizeDone: (taskId: string, startTime: string, endTime: string) => void
   /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
@@ -111,6 +113,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  /** 押してから指が TAP_SLOP_PX より動いたか（タッチのタップ判定） */
+  const beyondTapSlopRef = useRef(false)
   /** タッチ: ブロック上はドラッグせずタップで詳細を開く（スクロールと競合しない） */
   const onBlockTapRef = useRef(onBlockTap)
   useEffect(() => {
@@ -125,6 +129,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
     const y = getRelativeY(e.clientY, dateKey)
     didMoveRef.current = false
+    beyondTapSlopRef.current = false
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
   }, [getRelativeY, popup, defaultCreateIntent])
@@ -139,7 +144,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     blockDurationSource?: {
       startTime: string
       endTime: string
-      isTimeLog?: boolean
+      kind?: TaskKind
       dueDate?: string | null
       endDate?: string | null
     },
@@ -151,11 +156,14 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       e.stopPropagation()
       const startX = e.clientX
       const startY = e.clientY
+      const startAt = e.timeStamp
       const id = taskId
       const finish = (ev: PointerEvent) => {
         window.removeEventListener('pointerup', finish)
         window.removeEventListener('pointercancel', finish)
-        if (Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+        // pointercancel はスクロールが始まった合図なので開かない。長押し（メニューを出した）でも開かない
+        if (ev.type === 'pointerup' && ev.timeStamp - startAt < TOUCH_LONG_PRESS_MS
+          && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
           onBlockTapRef.current?.(id)
         }
       }
@@ -174,10 +182,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
 
     if (gridEl) gridEl.setPointerCapture(e.pointerId)
 
-    if (localY <= RESIZE_EDGE_PX) {
+    // 短いブロックでも真ん中をつかめば動かせるよう、上下の判定幅は高さに合わせて狭める
+    const edge = resizeEdgePx(blockHeight)
+    if (localY <= edge) {
       const y = getRelativeY(e.clientY, dateKey)
       setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
-    } else if (localY >= blockHeight - RESIZE_EDGE_PX) {
+    } else if (localY >= blockHeight - edge) {
       const y = getRelativeY(e.clientY, dateKey)
       setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
     } else {
@@ -206,6 +216,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (p0 && !didMoveRef.current) {
       const dx = Math.abs(e.clientX - p0.x)
       const dy = Math.abs(e.clientY - p0.y)
+      if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) beyondTapSlopRef.current = true
       const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
       if (dx > threshold || dy > threshold) {
         didMoveRef.current = true
@@ -220,7 +231,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
     if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
 
-    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX) : null) ?? drag.dateKey
+    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX, e.clientY) : null) ?? drag.dateKey
     const y = getRelativeY(e.clientY, dateKey)
 
     if (drag.kind === 'create') {
@@ -241,8 +252,10 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       if (maxY - minY < minPx || (isCoarsePointer() && !didMoveRef.current)) {
         setDrag(null)
         pointerStartRef.current = null
-        if (clickCreateMinutes && !isCoarsePointer() && !didMoveRef.current) {
-          // クリックした 30 分枠の頭から既定の長さで作成カードを出す
+        // タッチでスクロールになったときは pointercancel が来てここには来ない。指は少しぶれるので TAP_SLOP_PX 以内をタップとする
+        const tapped = isCoarsePointer() ? !beyondTapSlopRef.current : !didMoveRef.current
+        if (clickCreateMinutes && tapped) {
+          // クリック / タップした 30 分枠の頭から既定の長さで作成カードを出す
           const startMin = Math.floor(timeToMinutes(yToTime(minY)) / 30) * 30
           const limitMin = drag.maxY !== undefined ? Math.floor((drag.maxY / HOUR_HEIGHT) * 60) : 24 * 60 - SNAP_MINUTES
           const endMin = Math.min(startMin + clickCreateMinutes, 24 * 60 - SNAP_MINUTES, limitMin)
@@ -386,12 +399,17 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   }
 }
 
+function resizeEdgePx(blockHeight: number): number {
+  return Math.min(RESIZE_EDGE_PX, blockHeight / 4)
+}
+
 export function getResizeCursor(e: React.PointerEvent): string | null {
   if (isCoarsePointer()) return null
   const el = e.currentTarget as HTMLElement
   const rect = el.getBoundingClientRect()
   const localY = e.clientY - rect.top
-  if (localY <= RESIZE_EDGE_PX || localY >= rect.height - RESIZE_EDGE_PX) {
+  const edge = resizeEdgePx(rect.height)
+  if (localY <= edge || localY >= rect.height - edge) {
     return 'ns-resize'
   }
   return null

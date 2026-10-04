@@ -1,16 +1,29 @@
-import type { Task, Priority, Recurrence } from '../types/task'
+import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit } from '../types/habit'
+import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import {
   normalizeListColorPaletteId,
   type ListColorPaletteId,
 } from './listColorPalettes'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
+import { buildRecurrence } from './recurrence'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
+
+/**
+ * 取り込むファイル（JSON バックアップ・CSV）の大きさの上限。読む前に確かめる（大きなファイルを丸ごと読んで固まらない）。
+ * データは localStorage（数 MB まで）に置くので、書き出したバックアップがこれを超えることはない
+ */
+export const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024
+
+/** 読む前に大きさを確かめる。上限を超えたら true */
+export function isImportFileTooLarge(file: Pick<Blob, 'size'>): boolean {
+  return file.size > MAX_IMPORT_FILE_BYTES
+}
 
 export interface BackupExportInput {
   tasks: Task[]
@@ -33,13 +46,63 @@ export interface BackupImportResult {
   logCategoryColors: Record<string, string> | null
 }
 
-function hasDuplicateIds<T extends { id: string }>(rows: T[]): boolean {
+/** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
+export type BackupItemKind = 'task' | 'list' | 'section'
+
+export type BackupProblem =
+  /** JSON として読めない */
+  | { kind: 'notJson' }
+  /** tasks / lists が無い（このアプリのバックアップではない） */
+  | { kind: 'notBackup' }
+  /** このアプリより新しい版で書き出されたもの */
+  | { kind: 'newerVersion'; version: number }
+  /** ID・タイトル（名前）・リストなど、必須の項目が欠けた行がある */
+  | { kind: 'missingFields'; item: 'task' | 'list'; count: number }
+  /** 同じ ID が 2 回以上出てくる */
+  | { kind: 'duplicateIds'; item: BackupItemKind; count: number; example: string }
+  /** ファイルに無いリストを指すタスク・セクションがある */
+  | { kind: 'missingList'; item: 'task' | 'section'; count: number; example: string }
+  /** ファイルに無いか、別のリストのセクションを指すタスクがある */
+  | { kind: 'missingSection'; count: number; example: string }
+  /** ファイルに無い親タスクを指すサブタスクがある */
+  | { kind: 'missingParent'; count: number; example: string }
+
+export type BackupReadResult =
+  | { ok: true; data: BackupImportResult }
+  | { ok: false; problem: BackupProblem }
+
+/** 例として画面に出す名前。空なら ID */
+function exampleName(name: string, id: string): string {
+  return name.trim() || id
+}
+
+/** 重複している ID の件数（2 回目以降の行の数）と、最初の 1 件の名前 */
+function findDuplicateIds<T extends { id: string }>(
+  rows: T[],
+  nameOf: (row: T) => string,
+): { count: number; example: string } | null {
   const seen = new Set<string>()
+  let count = 0
+  let example = ''
   for (const row of rows) {
-    if (seen.has(row.id)) return true
+    if (seen.has(row.id)) {
+      if (count === 0) example = exampleName(nameOf(row), row.id)
+      count += 1
+    }
     seen.add(row.id)
   }
-  return false
+  return count > 0 ? { count, example } : null
+}
+
+/** 条件に合わない行の件数と、最初の 1 件の名前 */
+function findBad<T extends { id: string }>(
+  rows: T[],
+  isBad: (row: T) => boolean,
+  nameOf: (row: T) => string,
+): { count: number; example: string } | null {
+  const bad = rows.filter(isBad)
+  if (bad.length === 0) return null
+  return { count: bad.length, example: exampleName(nameOf(bad[0]), bad[0].id) }
 }
 
 function readOrder(raw: Record<string, unknown>): number {
@@ -90,7 +153,18 @@ function readRecurrence(v: unknown): Recurrence | null {
   const r = v as Record<string, unknown>
   if (r.type !== 'daily' && r.type !== 'weekly' && r.type !== 'monthly' && r.type !== 'yearly') return null
   const interval = typeof r.interval === 'number' && Number.isInteger(r.interval) && r.interval > 0 ? r.interval : 1
-  return { type: r.type, interval }
+  return buildRecurrence(r.type, interval, r.weekdays)
+}
+
+/** 通知は「いつ基準か」と「何分前か」だけ。壊れた要素は捨てる。配列でなければ既定（null） */
+function readReminders(v: unknown): TaskReminder[] | null {
+  if (!Array.isArray(v)) return null
+  return v.flatMap((r): TaskReminder[] => {
+    if (typeof r !== 'object' || r === null) return []
+    const { at, minutes } = r as Record<string, unknown>
+    if ((at !== 'start' && at !== 'due' && at !== 'dueDay') || typeof minutes !== 'number' || !Number.isFinite(minutes)) return []
+    return [{ at, minutes }]
+  })
 }
 
 function normalizePriority(raw: unknown): Priority {
@@ -106,16 +180,14 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const listId = readString(row, 'listId', 'list_id')
   if (!id || title === null || !listId) return null
 
-  const t = raw as Task
   const now = new Date().toISOString()
-  const isTimeLog =
-    t.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true'
+  const updatedAtRaw = row.updatedAt ?? row.updated_at
   const completedAtRaw = row.completedAt ?? row.completed_at
   let completedAt: string | null = null
   if (typeof completedAtRaw === 'string') {
     completedAt = completedAtRaw
-  } else if (t.completed === true && typeof t.updatedAt === 'string') {
-    completedAt = t.updatedAt
+  } else if (row.completed === true && typeof updatedAtRaw === 'string') {
+    completedAt = updatedAtRaw
   }
 
   const order = readOrder(row)
@@ -127,12 +199,16 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const deletedAtRaw = row.deletedAt ?? row.deleted_at
   const habitIdRaw = row.habitId ?? row.habit_id
   const isSleepRaw = row.isSleep ?? row.is_sleep
+  const kind: TaskKind =
+    row.kind === 'todo' || row.kind === 'log' || row.kind === 'sleep'
+      ? row.kind
+      : taskKindFromFlags(row.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true', isSleepRaw === true)
 
   // 手で直したファイルや古い形でも、画面が前提にしている形にそろえる。
-  // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）
+  // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）。
+  // 知っている項目だけを取り出す（知らない項目をストアに残さない。前の版の印 isTimeLog / isSleep も kind にして捨てる）
   const createdAt = readStamp(now, row.createdAt, row.created_at)
   return {
-    ...t,
     id,
     title,
     listId,
@@ -146,20 +222,20 @@ function normalizeTaskRow(raw: unknown): Task | null {
     startTime: readTime(row.startTime, row.start_time),
     endTime: readTime(row.endTime, row.end_time),
     tags: readStringArray(row.tags),
+    category: typeof row.category === 'string' ? row.category : null,
     recurrence: readRecurrence(row.recurrence),
-    reminders: Array.isArray(row.reminders) ? (row.reminders as Task['reminders']) : null,
+    reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
-    sectionId: typeof sectionRaw === 'string' ? sectionRaw : (t.sectionId ?? null),
-    parentId: typeof parentRaw === 'string' ? parentRaw : (t.parentId ?? null),
+    sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
+    parentId: typeof parentRaw === 'string' ? parentRaw : null,
     dueTime: readTime(dueTimeRaw),
     scheduledDate: readDate(scheduledDateRaw),
-    priority: normalizePriority(t.priority ?? row.priority),
-    isTimeLog: Boolean(isTimeLog),
+    priority: normalizePriority(row.priority),
+    kind,
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
-    isSleep: isSleepRaw === true,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
@@ -200,30 +276,35 @@ function normalizeSectionRow(raw: unknown): ListSection | null {
 function normalizeHabitRow(raw: unknown): Habit | null {
   if (typeof raw !== 'object' || raw === null) return null
   const rec = raw as Record<string, unknown>
-  const h = raw as Habit
-  if (typeof h.id !== 'string' || !h.id || typeof h.title !== 'string') return null
+  const id = rec.id
+  const title = rec.title
+  if (typeof id !== 'string' || !id || typeof title !== 'string') return null
   const now = new Date().toISOString()
-  const startTime = typeof h.startTime === 'string' ? h.startTime : null
-  const endTime = typeof h.endTime === 'string' ? h.endTime : null
+  const startTime = typeof rec.startTime === 'string' ? rec.startTime : null
+  const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
-    h.timeMode === 'none' || h.timeMode === 'fixed' || h.timeMode === 'range'
-      ? h.timeMode
+    rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range'
+      ? rec.timeMode
       : inferHabitTimeMode(startTime, endTime)
-  const weekdays = h.frequency?.type === 'weekly' && Array.isArray(h.frequency.weekdays)
-    ? h.frequency.weekdays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+  const freq = typeof rec.frequency === 'object' && rec.frequency !== null ? (rec.frequency as Record<string, unknown>) : null
+  const weekdays = freq?.type === 'weekly' && Array.isArray(freq.weekdays)
+    ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
     : null
+  // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
-    ...h,
-    ...rec,
-    color: typeof h.color === 'string' ? h.color : INBOX_COLOR,
+    id,
+    title,
+    color: typeof rec.color === 'string' ? rec.color : INBOX_COLOR,
     frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
-    createdAt: readStamp(now, h.createdAt),
-    updatedAt: readStamp(now, h.updatedAt),
-    completedDates: readStringArray(h.completedDates).filter((d) => DATE_RE.test(d)),
+    createdAt: readStamp(now, rec.createdAt),
+    updatedAt: readStamp(now, rec.updatedAt),
+    completedDates: readStringArray(rec.completedDates).filter((d) => DATE_RE.test(d)),
     timeMode,
     startTime: readTime(startTime),
     endTime: readTime(endTime),
-  } as Habit
+    // 古いバックアップには無い（使用中）
+    archivedAt: typeof rec.archivedAt === 'string' && !Number.isNaN(Date.parse(rec.archivedAt)) ? rec.archivedAt : null,
+  }
 }
 
 function readSectionsArray(data: Record<string, unknown>): unknown[] {
@@ -236,7 +317,8 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    tasks: input.tasks,
+    // 前の版のアプリは種類を 2 つの印（記録か・睡眠か）で読む。そのアプリでも取り込めるように両方書く
+    tasks: input.tasks.map((t) => ({ ...t, ...taskKindFlags(t.kind) })),
     lists: input.lists,
     habits: input.habits,
     listSections: input.sections,
@@ -246,71 +328,95 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
   }
 }
 
-export function parseBackupJson(json: string): BackupImportResult | null {
+/** 取り込めるか確かめて読む。取り込めないときは理由を返す */
+export function readBackupJson(json: string): BackupReadResult {
+  let data: Record<string, unknown>
   try {
-    const data = JSON.parse(json) as Record<string, unknown>
-    if (!Array.isArray(data.tasks) || !Array.isArray(data.lists)) return null
+    data = JSON.parse(json) as Record<string, unknown>
+  } catch {
+    return { ok: false, problem: { kind: 'notJson' } }
+  }
+  if (typeof data !== 'object' || data === null || !Array.isArray(data.tasks) || !Array.isArray(data.lists)) {
+    return { ok: false, problem: { kind: 'notBackup' } }
+  }
+  const version = data.schemaVersion
+  if (typeof version === 'number' && version > BACKUP_SCHEMA_VERSION) {
+    return { ok: false, problem: { kind: 'newerVersion', version } }
+  }
 
-    const tasks = (data.tasks as unknown[])
-      .map(normalizeTaskRow)
-      .filter((t): t is Task => t !== null)
-    const lists = (data.lists as unknown[])
-      .map(normalizeListRow)
-      .filter((l): l is TaskList => l !== null)
+  const tasks = (data.tasks as unknown[])
+    .map(normalizeTaskRow)
+    .filter((t): t is Task => t !== null)
+  const lists = (data.lists as unknown[])
+    .map(normalizeListRow)
+    .filter((l): l is TaskList => l !== null)
 
-    if (tasks.length !== data.tasks.length || lists.length !== data.lists.length) return null
+  if (lists.length !== data.lists.length) {
+    return { ok: false, problem: { kind: 'missingFields', item: 'list', count: data.lists.length - lists.length } }
+  }
+  if (tasks.length !== data.tasks.length) {
+    return { ok: false, problem: { kind: 'missingFields', item: 'task', count: data.tasks.length - tasks.length } }
+  }
 
-    const sections = readSectionsArray(data)
-      .map(normalizeSectionRow)
-      .filter((s): s is ListSection => s !== null)
+  const sections = readSectionsArray(data)
+    .map(normalizeSectionRow)
+    .filter((s): s is ListSection => s !== null)
 
-    const habits = Array.isArray(data.habits)
-      ? (data.habits as unknown[])
-          .map(normalizeHabitRow)
-          .filter((h): h is Habit => h !== null)
-      : []
+  const habits = Array.isArray(data.habits)
+    ? (data.habits as unknown[])
+        .map(normalizeHabitRow)
+        .filter((h): h is Habit => h !== null)
+    : []
 
-    const paletteRaw = data.listColorPaletteId
-    const listColorPaletteId =
-      paletteRaw !== undefined && paletteRaw !== null
-        ? normalizeListColorPaletteId(paletteRaw)
-        : null
-
-    const rawPresets = data.timeLogTagPresets
-    const timeLogTagPresets = Array.isArray(rawPresets)
-      ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
+  const paletteRaw = data.listColorPaletteId
+  const listColorPaletteId =
+    paletteRaw !== undefined && paletteRaw !== null
+      ? normalizeListColorPaletteId(paletteRaw)
       : null
 
-    const rawColors = data.logCategoryColors
-    const logCategoryColors =
-      rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
-        ? Object.fromEntries(
-            Object.entries(rawColors as Record<string, unknown>).filter(
-              (e): e is [string, string] => typeof e[1] === 'string',
-            ),
-          )
-        : null
+  const rawPresets = data.timeLogTagPresets
+  const timeLogTagPresets = Array.isArray(rawPresets)
+    ? normalizeTimeLogTagPresetList(rawPresets.filter((x): x is string => typeof x === 'string'))
+    : null
 
-    // Validation: reject structurally valid but inconsistent backups.
-    if (hasDuplicateIds(tasks) || hasDuplicateIds(lists) || hasDuplicateIds(sections)) return null
+  const rawColors = data.logCategoryColors
+  const logCategoryColors =
+    rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
+      ? Object.fromEntries(
+          Object.entries(rawColors as Record<string, unknown>).filter(
+            (e): e is [string, string] => typeof e[1] === 'string',
+          ),
+        )
+      : null
 
-    const listIds = new Set(lists.map((l) => l.id))
-    const sectionById = new Map(sections.map((s) => [s.id, s]))
-    const taskIds = new Set(tasks.map((t) => t.id))
-    for (const section of sections) {
-      if (!listIds.has(section.listId)) return null
-    }
-    for (const task of tasks) {
-      if (!listIds.has(task.listId)) return null
-      if (task.sectionId && !sectionById.has(task.sectionId)) return null
-      if (task.sectionId) {
-        const sec = sectionById.get(task.sectionId)
-        if (!sec || sec.listId !== task.listId) return null
-      }
-      if (task.parentId && !taskIds.has(task.parentId)) return null
-    }
+  // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
+  const duplicateLists = findDuplicateIds(lists, (l) => l.name)
+  if (duplicateLists) return { ok: false, problem: { kind: 'duplicateIds', item: 'list', ...duplicateLists } }
+  const duplicateSections = findDuplicateIds(sections, (s) => s.name)
+  if (duplicateSections) return { ok: false, problem: { kind: 'duplicateIds', item: 'section', ...duplicateSections } }
+  const duplicateTasks = findDuplicateIds(tasks, (t) => t.title)
+  if (duplicateTasks) return { ok: false, problem: { kind: 'duplicateIds', item: 'task', ...duplicateTasks } }
 
-    return {
+  const listIds = new Set(lists.map((l) => l.id))
+  const sectionById = new Map(sections.map((s) => [s.id, s]))
+  const taskIds = new Set(tasks.map((t) => t.id))
+
+  const sectionsWithoutList = findBad(sections, (s) => !listIds.has(s.listId), (s) => s.name)
+  if (sectionsWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'section', ...sectionsWithoutList } }
+  const tasksWithoutList = findBad(tasks, (t) => !listIds.has(t.listId), (t) => t.title)
+  if (tasksWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'task', ...tasksWithoutList } }
+  const tasksWithBadSection = findBad(
+    tasks,
+    (t) => Boolean(t.sectionId) && sectionById.get(t.sectionId!)?.listId !== t.listId,
+    (t) => t.title,
+  )
+  if (tasksWithBadSection) return { ok: false, problem: { kind: 'missingSection', ...tasksWithBadSection } }
+  const tasksWithoutParent = findBad(tasks, (t) => Boolean(t.parentId) && !taskIds.has(t.parentId!), (t) => t.title)
+  if (tasksWithoutParent) return { ok: false, problem: { kind: 'missingParent', ...tasksWithoutParent } }
+
+  return {
+    ok: true,
+    data: {
       tasks,
       lists,
       habits,
@@ -318,21 +424,29 @@ export function parseBackupJson(json: string): BackupImportResult | null {
       listColorPaletteId,
       timeLogTagPresets,
       logCategoryColors,
-    }
-  } catch {
-    return null
+    },
   }
 }
+
+/** 取り込めるものだけを返す（理由がいらないとき用）。取り込めなければ null */
+export function parseBackupJson(json: string): BackupImportResult | null {
+  const read = readBackupJson(json)
+  return read.ok ? read.data : null
+}
+
+export type BackupPreview =
+  | { ok: true; tasks: number; lists: number }
+  | { ok: false; problem: BackupProblem }
 
 /**
  * 取り込み前の下見。件数だけを返す。
  * 取り込みは現在のデータを全て置き換えるので、「何件が何件になるか」を
- * 確認ダイアログに出せるようにする。壊れたファイルなら null（= 取り込めない）。
+ * 確認ダイアログに出せるようにする。取り込めないファイルなら、その理由を返す。
  */
-export function previewBackupJson(json: string): { tasks: number; lists: number } | null {
-  const parsed = parseBackupJson(json)
-  if (!parsed) return null
-  return { tasks: parsed.tasks.length, lists: parsed.lists.length }
+export function previewBackupJson(json: string): BackupPreview {
+  const read = readBackupJson(json)
+  if (!read.ok) return read
+  return { ok: true, tasks: read.data.tasks.length, lists: read.data.lists.length }
 }
 
 /**

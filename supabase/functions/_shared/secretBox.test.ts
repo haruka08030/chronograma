@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSealed, openWith, sealWith } from './secretBox.ts'
+import { isSealed, openWith, assertSecretKey, SecretKeyMissingError, sealWith } from './secretBox.ts'
 
 const KEY = 'test-key-material-0123456789'
 
@@ -30,5 +30,11 @@ describe('secretBox', () => {
   it('暗号化する前の値はそのまま返す', async () => {
     expect(await openWith(KEY, 'plain-token', 'c')).toBe('plain-token')
     expect(await openWith(undefined, 'plain-token', 'c')).toBe('plain-token')
+  })
+
+  it('鍵が無いときは保存を拒む（平文で置かない）', () => {
+    expect(() => assertSecretKey(undefined)).toThrow(SecretKeyMissingError)
+    expect(() => assertSecretKey('')).toThrow(SecretKeyMissingError)
+    expect(assertSecretKey(KEY)).toBe(KEY)
   })
 })

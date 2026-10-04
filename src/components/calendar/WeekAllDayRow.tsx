@@ -21,7 +21,9 @@ import { planHex, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { toDateKey } from '../../lib/dateKey'
-import { openTaskDetail } from '../../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
+import { movedToDateLabel } from '../../lib/moveToast'
+import { tip } from '../../lib/tooltip'
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
 export function WeekAllDayRow({
@@ -72,7 +74,7 @@ export function WeekAllDayRow({
           return (
             <div
               key={key}
-              className={`min-h-[28px] border-l border-zinc-100 dark:border-zinc-800 px-0.5 py-0.5 space-y-0.5 transition-colors
+              className={`min-h-[28px] border-l border-zinc-200 dark:border-zinc-700 px-0.5 py-0.5 space-y-0.5 transition-colors
                 ${allDayDragOver === key || allDayMoveKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
               onDragOver={(e) => {
                 if (acceptTaskDrag(e, { googleEvents: true })) setAllDayDragOver(key)
@@ -102,8 +104,9 @@ export function WeekAllDayRow({
                 if (!ids.length) return
                 // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
                 asOneUndo(() => {
+                  const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, isTimeLog: false })
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind: 'todo' }, label)
                   }
                 })
               }}
@@ -111,7 +114,7 @@ export function WeekAllDayRow({
               {dayAllDayEvents.map((e) => (
                 <div
                   key={`event-all-day-${e.id}`}
-                  title={e.summary}
+                  {...tip(e.summary)}
                   data-block-id={`event-${e.id}`}
                   draggable={canEditGoogleEvent(e, googleCanWrite)}
                   onDragStart={(ev) => {
@@ -125,7 +128,7 @@ export function WeekAllDayRow({
                   }}
                   onClick={() => openGoogleCard(e.id)}
                   className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
-                    text-[10px] leading-tight transition-all hover:brightness-95
+                    text-[10px] leading-tight transition-[filter] hover:brightness-95
                     ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                   style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                 >
@@ -142,8 +145,15 @@ export function WeekAllDayRow({
                   }}
                   onDragEnd={() => setAllDayDragOver(null)}
                   onClick={() => openDetail(t.id)}
+                  // 時刻の無いタスクなので To-Do と同じメニュー（タッチは長押し）
+                  data-touch-menu
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                  }}
                   className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
-                    text-[10px] leading-tight transition-all hover:brightness-95 active:cursor-grabbing`}
+                    text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                   style={colorVars(planHex(t))}
                 >
                   <CalendarCheck

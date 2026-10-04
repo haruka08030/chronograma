@@ -1,11 +1,9 @@
 import { addDays } from 'date-fns'
-import type { Task } from '../types/task'
+import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
-import { isListedTimeLog } from './timeLogTask'
-import { isSleepRecord } from './sleep'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
-import { appDayKeyOf } from './timeZone'
+import { appDayKeyOf, DAY_START_HOUR } from './timeZone'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -23,6 +21,41 @@ export interface DayPlan {
 /** 完了したタスクを出す日（完了した日。置いた日・締切より優先）。古い保存で完了時刻が無ければ最後に変えた日 */
 export function completionDayKey(task: Pick<Task, 'completedAt' | 'updatedAt'>): string {
   return appDayKeyOf(task.completedAt ?? task.updatedAt)
+}
+
+type CalendarPlacedTask = Pick<
+  Task,
+  'completed' | 'completedAt' | 'updatedAt' | 'dueDate' | 'scheduledDate' | 'endDate' | 'kind' | 'startTime' | 'endTime'
+>
+
+/**
+ * 時刻つきの予定を、カレンダーで予定の時間帯（タイムラインのブロック・月のチップの時刻）に出すか。
+ * 未完了なら出す。完了したものは、予定の日（日をまたぐならその範囲）に終えたときだけ。
+ * 夜中 0〜4 時に始まる予定はアプリでは前の日なので、前の日に終えても予定の日に終えたとみなす
+ */
+export function keepsTimeSlot(task: CalendarPlacedTask): boolean {
+  if (!task.startTime || !task.endTime) return false
+  if (!task.completed) return true
+  const placement = taskPlacementDate(task)
+  if (!placement) return false
+  const first = task.startTime < `${String(DAY_START_HOUR).padStart(2, '0')}:00`
+    ? toDateKey(addDays(fromDateKey(placement), -1))
+    : placement
+  const done = completionDayKey(task)
+  return done >= first && done <= (task.endDate ?? placement)
+}
+
+/**
+ * タスクをカレンダー（タイムライン・週の終日の行・月のマス）のどの日に出すか。
+ * 完了していれば完了した日（今日の計画の「完了」と同じく、やった日が優先）。未完了は置いた日（予定日 → 締切日）。
+ * 時刻つきでも、予定の日に終えたなら予定の時間帯のまま（`keepsTimeSlot`）。
+ * 日付を持たないタスクは、完了してもカレンダーには出さない（ごちゃつかせない）
+ */
+export function calendarDayKey(task: CalendarPlacedTask): string | null {
+  const placement = taskPlacementDate(task)
+  if (!placement) return null
+  if (keepsTimeSlot(task)) return placement
+  return task.completed ? completionDayKey(task) : placement
 }
 
 /** 開始時刻つきを時刻順で先に、残りは元の並び順 */
@@ -52,9 +85,9 @@ export function getDayPlan(
   let loggedMinutes = 0
   for (const task of tasks) {
     if (!isActiveTask(task)) continue
-    if (isListedTimeLog(task)) {
+    if (isLogTask(task)) {
       // 睡眠は記録の時間に入れない（毎日 7〜8 時間で他の記録が見えなくなる）
-      if (!isSleepRecord(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
+      if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
     if (task.parentId || excludedListIds.has(task.listId)) continue
@@ -95,7 +128,7 @@ export function getMoreSuggestions(
   const undated: Task[] = []
   const placedLater: Task[] = []
   for (const task of tasks) {
-    if (!isActiveTask(task) || task.completed || isListedTimeLog(task)) continue
+    if (!isActiveTask(task) || task.completed || isLogTask(task)) continue
     if (task.parentId || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
     if (placed === null) undated.push(task)

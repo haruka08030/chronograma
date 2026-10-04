@@ -2,7 +2,7 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
@@ -70,6 +70,7 @@ const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((
 const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
 const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
 const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
+const CompletedTasksView = lazy(() => import('./components/CompletedTasksView').then((m) => ({ default: m.CompletedTasksView })))
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
@@ -79,6 +80,8 @@ import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
 import { undoGoogleDelete } from './lib/googleEventEdit'
+import { searchTasks } from './lib/searchTasks'
+import { openTaskDetail } from './lib/overlays'
 
 /** セクション見出し行の dropsec が広いとタスクの pointerWithin で先に拾われ、並べ替え・リスト移動が壊れる */
 const taskListCollision: CollisionDetection = (args) => {
@@ -138,11 +141,15 @@ function rankForListReorderDrag(id: string): number {
   return 10
 }
 
+/** 離したときの動き。速さと動き方は他の出入りと同じ（index.css の --ease-standard） */
+const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+
 function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask: boolean; count: number }) {
   const { t } = useTranslation()
   const isMulti = count > 1
   return (
-    <div className="relative w-[min(640px,calc(100vw-2rem))]">
+    // 少しだけ大きくして、持ち上げている感じを出す
+    <div className="relative w-[min(640px,calc(100vw-2rem))] scale-[1.02]">
       {isMulti && (
         <>
           <div className="absolute inset-x-2 -bottom-2 h-full rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70" />
@@ -436,9 +443,36 @@ export default function App() {
   })
   useHotkey(SHORTCUTS.help.hotkeys, () => setShowShortcuts(true))
 
+  // 検索欄: Esc 1 回で文字を消し、2 回目で欄から出る。↓ で結果の一覧へ（最初の行に枠）、Enter で最初の結果を開く
+  const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (searchQuery) setSearchQuery('')
+      else e.currentTarget.blur()
+    } else if (e.key === 'ArrowDown' && searchQuery.trim()) {
+      e.preventDefault()
+      e.currentTarget.blur()
+      // 一覧のキー操作（useTaskListSelection）に ↓ を渡し、最初の行に枠を出す
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      const first = searchTasks(useTaskStore.getState().tasks, searchQuery)[0]
+      if (!first) return
+      e.preventDefault()
+      // 欄から出しておく（残すと、詳細を閉じる Esc が欄の「文字を消す」になる）
+      e.currentTarget.blur()
+      openTaskDetail(first.id)
+    }
+  }
+
   // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
-  useHotkey('mod+k', () => searchRef.current?.focus(), { scope: 'always', allowInInputs: true })
-  useHotkey('mod+n', () => {
+  useHotkey(SHORTCUTS.searchAnywhere.hotkeys, () => {
+    // `/` と同じ: 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから入る
+    if (!searchRef.current) useTaskStore.getState().selectView('all')
+    whenElement(() => searchRef.current, (el) => el.focus())
+  }, { scope: 'always', allowInInputs: true })
+  useHotkey(SHORTCUTS.createAnywhere.hotkeys, () => {
     const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
     if (quickAdd instanceof HTMLInputElement) {
       quickAdd.focus()
@@ -465,7 +499,13 @@ export default function App() {
     if (state.recentDeletes.length === 0) return false
     state.undoDelete()
   }, { scope: 'always' })
-  useHotkey('mod+shift+z', () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
+  useHotkey(SHORTCUTS.redo.hotkeys, () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
+  // 記録を止める（l → Enter で間違えて始めたときも、マウスに持ち替えずに止められる。1 分未満は記録に残らない）
+  useHotkey(SHORTCUTS.stopLog.hotkeys, () => {
+    const state = useTaskStore.getState()
+    if (!state.activeTimer) return false
+    state.stopTimer()
+  })
 
   // 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
   // ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す
@@ -525,6 +565,7 @@ export default function App() {
       case 'calendar': return <CalendarHubView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
+      case 'completed': return <CompletedTasksView />
       case 'archived': return <TaskBinView mode="archived" />
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />
@@ -570,8 +611,9 @@ export default function App() {
                   ref={searchRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
                   placeholder={isLargeScreen ? t('app.searchPlaceholder', { key: shortcutLabel(['mod', 'K']) }) : t('app.searchPlaceholderTouch')}
-                  className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-zinc-900/[0.04] dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
+                  className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
                 />
                 {searchQuery && (
                   <button
@@ -596,7 +638,10 @@ export default function App() {
                 useTaskStore.getState().selectView('planner')
               }}
             >
-              <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
+              {/* 画面を切り替えたら、空白から急に変わらずふわっと出す（リストを替えただけでは作り直さない） */}
+              <div key={searchQuery.trim() ? 'search' : selectedView ?? 'list'} className="flex min-h-0 flex-1 flex-col animate-fade-in">
+                <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
+              </div>
             </ErrorBoundary>
           </div>
         </div>
@@ -619,7 +664,8 @@ export default function App() {
         />
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
+      <DragOverlay dropAnimation={DROP_ANIMATION}>
         {dragOverlayTaskEntity && dragOverlayTask ? (
           <DragOverlayTaskRow
             task={dragOverlayTaskEntity}

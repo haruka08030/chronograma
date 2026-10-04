@@ -1,36 +1,29 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ExternalLinkIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
+import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
-import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatDate } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
+import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
-
-const LONG_PRESS_MS = 450
-const LONG_PRESS_SLOP_PX = 8
-
-const SCHEDULED_TONE_CLASS: Record<DateTone, string> = {
-  overdue: 'text-zinc-400 dark:text-zinc-500',
-  today: 'text-date-600 dark:text-date-400 font-medium',
-  tomorrow: 'text-date-500/90 dark:text-date-300/80',
-  future: 'text-zinc-500 dark:text-zinc-400',
-  past: 'text-zinc-400 dark:text-zinc-500',
-}
+import { useLongPress } from '../hooks/useLongPress'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -60,7 +53,7 @@ export type TaskItemSelection = {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
+export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel, dayKey }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -82,14 +75,19 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   autoEdit?: boolean
   /** true のときホバー用のネイティブ期限ピッカー（カレンダー形アイコン）を出さない */
   hideDueDatePicker?: boolean
+  /** 行がこの日の下に並んでいるとき（スケジュール）。その日の締切・予定は日付を書かず時刻だけ（締切に時刻が無ければ「期限」） */
+  dayKey?: string
   /** セクションの塊で分けずに並べるとき、行に出すセクション名（Canvas なら科目） */
   sectionLabel?: string | null
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
-  const { toggleTask, updateTask, deleteTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, archiveTask, deleteTasks, setFilterTag, showMoveBanner } = useTaskStore()
+  const deferredComplete = useDeferredComplete(toggleTask)
+  /** 押した直後は、完了の欄へ移る前からこの行を完了の見た目にする */
+  const justCompleted = deferredComplete.isPending(task.id)
+  const shownCompleted = task.completed || justCompleted
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
@@ -147,24 +145,31 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
     },
   }
 
-  const timeLog = isListedTimeLog(task)
+  const timeLog = isLogTask(task)
   // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
   const sourceLink = sourceLinkOf(task.description)
+  const repeatText = task.recurrence ? recurrenceLabel(t, task.recurrence, task.dueDate) : null
   const notePreview = sourceLink ? '' : task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const language = i18n.resolvedLanguage
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
-  const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
+  const dueOnRowDay = !!dayKey && task.dueDate === dayKey
+  const dueText = due
+    ? dueOnRowDay
+      ? task.dueTime ?? t('common.due')
+      : task.dueTime ? `${due.text} ${task.dueTime}` : due.text
+    : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
+    const timePart = task.startTime ? `${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
+    if (task.scheduledDate === dayKey) return timePart ? { text: timePart, tone: dateTone(d) } : null
     const datePart = isAppToday(d) ? t('common.today') : rowDateText(d, language)
-    const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
-    return { text: `${datePart}${timePart}`, tone: dateTone(d) }
-  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t])
+    return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -185,26 +190,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const rowNativeDraggable = !hasSortableHandle
 
   // スマホ: 行を長押しで一括選択を始める（ドラッグは左の ⋮⋮ だけなので競合しない）
-  const longPressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
-  const suppressClickRef = useRef(false)
-  const cancelLongPress = useCallback(() => {
-    if (longPressRef.current) window.clearTimeout(longPressRef.current.timer)
-    longPressRef.current = null
-  }, [])
-  const onRowPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch' || !selection || editing) return
-    const timer = window.setTimeout(() => {
-      longPressRef.current = null
-      suppressClickRef.current = true
-      navigator.vibrate?.(15)
-      selection.onToggle(e as unknown as React.MouseEvent)
-    }, LONG_PRESS_MS)
-    longPressRef.current = { timer, x: e.clientX, y: e.clientY }
-  }
-  const onRowPointerMove = (e: React.PointerEvent) => {
-    const lp = longPressRef.current
-    if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > LONG_PRESS_SLOP_PX) cancelLongPress()
-  }
+  const longPress = useLongPress((e) => selection?.onToggle(e as unknown as React.MouseEvent), !!selection && !editing)
 
   const beginTitleInteraction = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
@@ -240,20 +226,17 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
       onDragStart={rowNativeDraggable ? handleDragStart : undefined}
       onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
       className={`group relative flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
-                  hover:bg-zinc-50 dark:hover:bg-zinc-800/40
+                  hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${ROW_PRESS_CLASS}
                   ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
-                  ${selection?.selected ? 'bg-accent-50/70 dark:bg-accent-500/10' : ''}
-                  ${selection?.cursor ? 'bg-zinc-50 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800/40 dark:ring-zinc-600' : ''}
+                  ${selection?.selected ? ROW_SELECTED_CLASS : ''}
+                  ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
                   ${rowClassName ?? ''}`}
       style={{ WebkitTouchCallout: 'none' }}
-      onPointerDown={onRowPointerDown}
-      onPointerMove={onRowPointerMove}
-      onPointerUp={cancelLongPress}
-      onPointerCancel={cancelLongPress}
+      {...longPress.pointerHandlers}
       onContextMenu={(e) => {
         // 長押しで出る OS のメニューを抑える（選択に使う）
-        if (suppressClickRef.current || longPressRef.current) {
+        if (longPress.isPressing()) {
           e.preventDefault()
           return
         }
@@ -261,14 +244,8 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         e.preventDefault()
         openMenuAt(e)
       }}
-      onClickCapture={(e) => {
-        // 長押しで選択した直後の click で詳細・編集が開かないように
-        if (suppressClickRef.current) {
-          suppressClickRef.current = false
-          e.stopPropagation()
-          e.preventDefault()
-        }
-      }}
+      // 長押しで選択した直後の click で詳細・編集が開かないように
+      onClickCapture={longPress.onClickCapture}
       onClick={(e) => {
         if (editing) return
         if (onRowClick) onRowClick(e)
@@ -293,7 +270,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
             e.stopPropagation()
             selection.onToggle(e)
           }}
-          className={`flex-shrink-0 rounded border flex items-center justify-center transition-all touch-manipulation
+          className={`flex-shrink-0 rounded border flex items-center justify-center transition-[opacity,background-color,border-color] touch-manipulation
             ${isSubtask ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
             ${selection.reveal || selection.selected
               ? 'opacity-100'
@@ -309,13 +286,15 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
       ) : null}
 
       <CompletionCircle
-        completed={task.completed}
+        completed={shownCompleted}
+        justCompleted={justCompleted}
         priority={task.priority}
         small={isSubtask}
         shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
+        inert={Boolean(selection?.reveal)}
         onClick={(e) => {
           e.stopPropagation()
-          toggleTask(task.id)
+          deferredComplete.toggle(task.id, task.completed)
         }}
         label={
           listKind === 'someday'
@@ -353,7 +332,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
             }}
             className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
-                        ${task.completed && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                        transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
           >
             {task.title || '\u00A0'}
           </span>
@@ -384,23 +363,13 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
           {sectionLabel && (
             <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>
           )}
-          {task.recurrence && (
-            <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+          {repeatText && (
+            <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
+              <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+            </span>
           )}
-          {sourceLink && (
-            <a
-              href={sourceLink.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
-              aria-label={sourceLink.service ? t('taskItem.openIn', { name: sourceLink.service === 'canvas' ? 'Canvas' : 'Notion' }) : t('taskItem.openLink')}
-              className="inline-flex items-center rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-            >
-              <ExternalLinkIcon className="h-3.5 w-3.5" />
-            </a>
-          )}
-          {task.tags.length > 0 && (tagsEnabled || task.isTimeLog) && (
+          {sourceLink && <TaskSourceLink link={sourceLink} />}
+          {task.tags.length > 0 && (
             <div className="flex gap-1">
               {task.tags.map((tag) => (
                 <button
@@ -435,7 +404,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+              className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className="w-5 h-5 md:w-4 md:h-4 text-zinc-400" />
@@ -446,7 +415,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
 
       {!hideDueDatePicker && listKind === 'tasks' && (
         <DueDatePopover
-          value={task.dueDate ?? null}
+          value={task.dueDate}
           onChange={(v) => updateTask(task.id, { dueDate: v })}
           align="right"
           // md 未満はタイトル幅を確保するため出さない（期限は詳細シートで編集）
@@ -461,7 +430,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+              className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
@@ -499,8 +468,12 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
 
+      {/* 確認なしで消し「元に戻す」を出す（右クリック・Delete キーと同じ） */}
       <button
-        onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
+        onClick={(e) => {
+          e.stopPropagation()
+          deleteTasks([task.id])
+        }}
         className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
         aria-label={t('taskItem.deleteAria')}
         {...tip(t('taskItem.deleteAria'))}

@@ -63,8 +63,11 @@ export const SHORTCUTS = {
   weekView: { hotkeys: ['w'], display: [['W']], label: 'shortcuts.weekView' },
   monthView: { hotkeys: ['m'], display: [['M']], label: 'shortcuts.monthView' },
   logView: { hotkeys: ['l'], display: [['L']], label: 'shortcuts.logView' },
+  stopLog: { hotkeys: ['shift+l'], display: [['Shift', 'L']], label: 'shortcuts.stopLog' },
   create: { hotkeys: ['c'], display: [['C']], label: 'shortcuts.create' },
+  createAnywhere: { hotkeys: ['mod+n'], display: [['mod', 'N']], label: 'shortcuts.createAnywhere' },
   search: { hotkeys: ['/'], display: [['/']], label: 'shortcuts.search' },
+  searchAnywhere: { hotkeys: ['mod+k'], display: [['mod', 'K']], label: 'shortcuts.searchAnywhere' },
   edit: { hotkeys: ['e'], display: [['E']], label: 'shortcuts.edit' },
   delete: { hotkeys: ['Delete', 'Backspace'], display: [['Delete']], label: 'shortcuts.delete' },
   moveRow: { hotkeys: ['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], display: [['↑'], ['↓']], label: 'shortcuts.moveRow' },
@@ -75,6 +78,7 @@ export const SHORTCUTS = {
   completeSelected: { hotkeys: ['mod+Enter'], display: [['mod', 'Enter']], label: 'shortcuts.completeSelected' },
   close: { hotkeys: ['Escape'], display: [['Esc']], label: 'shortcuts.close' },
   undo: { hotkeys: ['mod+z'], display: [['mod', 'Z']], label: 'shortcuts.undo' },
+  redo: { hotkeys: ['mod+shift+z'], display: [['mod', 'Shift', 'Z']], label: 'shortcuts.redo' },
   help: { hotkeys: ['?'], display: [['?']], label: 'shortcuts.help' },
 } as const satisfies Record<string, { hotkeys: readonly string[]; display: readonly (readonly string[])[]; label: string }>
 

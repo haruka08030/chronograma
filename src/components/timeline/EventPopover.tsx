@@ -17,6 +17,11 @@ import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
+import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { sourceLinkOf } from '../../lib/sourceLink'
+import { TaskSourceLink } from '../ui/TaskSourceLink'
+import { LinkifiedText } from '../ui/LinkifiedText'
+import { isLogTask } from '../../types/task'
 
 const WIDTH = 320
 
@@ -44,7 +49,7 @@ export function EventPopover({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const logPlanAsPlanned = useTaskStore((s) => s.logPlanAsPlanned)
+  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const ref = useRef<HTMLDivElement>(null)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
@@ -61,15 +66,19 @@ export function EventPopover({
 
   if (!task) return null
 
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
   const dateText = dateKey ? df.monthDayWeekdayLong(dateKey) : ''
+  // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
+  const sourceLink = sourceLinkOf(task.description)
+  const memo = sourceLink ? '' : task.description.trim()
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
-  const logAsPlanned = () => {
-    logPlanAsPlanned(task.id)
+  // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに
+  const recordAndComplete = () => {
+    openRecordPrompt(task.id)
     onClose()
   }
 
@@ -85,6 +94,8 @@ export function EventPopover({
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
+        {/* Google の予定のカードの「Google カレンダーで開く」と同じ位置 */}
+        {sourceLink && <TaskSourceLink link={sourceLink} className={iconButtonClass()} iconClassName="h-4 w-4" />}
         <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButtonClass()} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
@@ -111,23 +122,25 @@ export function EventPopover({
           <p className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}>
             {task.title}
           </p>
-          <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
+          <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
             {dateText}
             {task.startTime && task.endTime && ` · ${task.startTime} – ${task.endTime}`}
           </p>
         </div>
         <span />
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className={META_TEXT}>
           {isLog
             ? t('eventCard.log')
             : list
               ? displayListName(list.id, list.name)
               : ''}
         </p>
-        {task.description.trim() && (
+        {memo && (
           <>
             <span />
-            <p className="select-text line-clamp-3 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">{task.description.trim()}</p>
+            <p className="select-text line-clamp-3 whitespace-pre-line break-words text-xs text-zinc-500 dark:text-zinc-400">
+              <LinkifiedText text={memo} />
+            </p>
           </>
         )}
       </div>
@@ -144,25 +157,25 @@ export function EventPopover({
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+          {canLogAsPlanned && (
+            <button
+              type="button"
+              onClick={recordAndComplete}
+              className={buttonClass({ variant: 'primary', size: 'sm' })}
+            >
+              {t('eventCard.recordAndComplete')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
               toggleTask(task.id)
               onClose()
             }}
-            className={buttonClass({ variant: 'primary', size: 'sm' })}
+            className={buttonClass({ variant: canLogAsPlanned ? 'secondary' : 'primary', size: 'sm' })}
           >
-            {task.completed ? t('eventCard.markIncomplete') : t('eventCard.markDone')}
+            {task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone')}
           </button>
-          {canLogAsPlanned && (
-            <button
-              type="button"
-              onClick={logAsPlanned}
-              className={buttonClass({ variant: 'secondary', size: 'sm' })}
-            >
-              {t('eventCard.logAsPlanned')}
-            </button>
-          )}
           {!task.completed && !planEnded && (
             <button
               type="button"

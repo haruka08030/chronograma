@@ -1,24 +1,26 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { displayListName } from '../lib/displayListName'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { iconButtonClass } from './ui/iconButtonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
 import { EmptyState } from './ui/EmptyState'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { META_TEXT } from './ui/textClass'
+import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 
 type BinMode = 'archived' | 'deleted'
 
-const RESTORE_ICON =
-  'M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3'
+const RESTORE_ICON = ICON_PATHS.restore
 const DELETE_ICON =
   ICON_PATHS.trash
 const ARCHIVE_BOX_ICON =
@@ -35,6 +37,26 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const emptyDeleted = useTaskStore((s) => s.emptyDeleted)
   const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
+
+  const [menu, setMenu] = useState<{ x: number; y: number; task: Task } | null>(null)
+
+  // 行のボタンと右クリックのメニューで同じ動きにする。完全に削除は戻せないので確認する（アーカイブの削除はゴミ箱へ・元に戻せる）
+  const restoreLabel = mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')
+  const deleteLabel = mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')
+  const restore = (id: string) => (mode === 'deleted' ? restoreDeletedTask(id) : unarchiveTask(id))
+  const remove = async (id: string) => {
+    if (mode !== 'deleted') {
+      deleteTask(id)
+      return
+    }
+    if (await askConfirm({ message: t('taskBin.permanentConfirm'), confirmLabel: t('taskBin.deleteForever'), danger: true })) {
+      permanentlyDeleteTask(id)
+    }
+  }
+  const menuEntries = (id: string): ActionEntry[] => [
+    { kind: 'leaf', id: 'restore', label: restoreLabel, icon: <PathIcon d={RESTORE_ICON} className="h-4 w-4 flex-shrink-0" />, run: () => restore(id) },
+    { kind: 'leaf', id: 'delete', divider: true, danger: true, label: deleteLabel, icon: <PathIcon d={DELETE_ICON} className="h-4 w-4 flex-shrink-0" />, run: () => void remove(id) },
+  ]
 
   const df = useDateFormat()
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
@@ -63,11 +85,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const boxIcon = mode === 'deleted' ? TRASH_BOX_ICON : ARCHIVE_BOX_ICON
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
-          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+          <p className={`mt-1 ${META_TEXT}`}>
             {t('taskBin.count', { count: rows.length })}
           </p>
         </div>
@@ -94,7 +116,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           rows.map(({ task, stamp, childCount }) => {
             const list = lists.find((l) => l.id === task.listId)
             const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
-            const timeLog = isListedTimeLog(task)
+            const timeLog = isLogTask(task)
             let stampLabel = ''
             try {
               stampLabel = df.monthDayTime(parseISO(stamp))
@@ -104,6 +126,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             return (
               <div
                 key={task.id}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenu({ x: e.clientX, y: e.clientY, task })
+                }}
                 className="group flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40"
               >
                 <div className="min-w-0 flex-1">
@@ -111,9 +137,9 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                     {task.title || '\u00A0'}
                   </p>
                   {notePreview && (
-                    <p className="mt-0.5 truncate text-xs text-zinc-400 dark:text-zinc-500">{notePreview}</p>
+                    <p className={`mt-0.5 truncate ${META_TEXT}`}>{notePreview}</p>
                   )}
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+                  <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
                     {list && (
                       <span className="inline-flex items-center gap-1">
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: list.color }} />
@@ -128,29 +154,19 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => (mode === 'deleted' ? restoreDeletedTask(task.id) : unarchiveTask(task.id))}
+                    onClick={() => restore(task.id)}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    {...tip(mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive'))}
+                    {...tip(restoreLabel)}
                   >
                     <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
-                    <span className="hidden sm:inline">
-                      {mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')}
-                    </span>
+                    <span className="hidden sm:inline">{restoreLabel}</span>
                   </button>
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (mode === 'deleted') {
-                        if (await askConfirm({ message: t('taskBin.permanentConfirm'), confirmLabel: t('taskBin.deleteForever'), danger: true })) {
-                          permanentlyDeleteTask(task.id)
-                        }
-                      } else {
-                        deleteTask(task.id)
-                      }
-                    }}
-                    className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                    {...tip(mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete'))}
-                    aria-label={mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')}
+                    onClick={() => void remove(task.id)}
+                    className={iconButtonClass('p-1.5!')}
+                    {...tip(deleteLabel)}
+                    aria-label={deleteLabel}
                   >
                     <PathIcon d={DELETE_ICON} className="h-4 w-4" />
                   </button>
@@ -160,6 +176,9 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           })
         )}
       </div>
+      {menu && (
+        <ActionMenu x={menu.x} y={menu.y} header={menu.task.title || t('taskMenu.one')} entries={menuEntries(menu.task.id)} onClose={() => setMenu(null)} searchable={false} />
+      )}
     </div>
   )
 }

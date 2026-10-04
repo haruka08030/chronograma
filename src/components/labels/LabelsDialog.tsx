@@ -10,6 +10,8 @@ import { buttonClass } from '../ui/buttonClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
+import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
+import { REVEAL_ON_HOVER } from '../ui/revealClass'
 
 let nextRowId = 0
 
@@ -90,14 +92,14 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                       if (isSubmitEnter(e)) save()
                     }}
                     placeholder={t('labels.placeholder')}
-                    className="h-11 min-w-0 flex-1 rounded-lg bg-zinc-100 px-4 text-sm text-zinc-900 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-accent-500 dark:bg-zinc-700/60 dark:text-zinc-100 dark:placeholder:text-zinc-400"
+                    className={LABEL_NAME_INPUT_CLASS}
                   />
                   <button
                     type="button"
                     onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
                     aria-label={t('labels.remove')}
                     {...tip(t('labels.remove'))}
-                    className={iconButtonClass('md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100')}
+                    className={iconButtonClass(REVEAL_ON_HOVER)}
                   >
                     <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
                   </button>

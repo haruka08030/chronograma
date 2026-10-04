@@ -5,9 +5,25 @@ export type Priority = 'none' | 'low' | 'medium' | 'high'
 export interface Recurrence {
   type: 'daily' | 'weekly' | 'monthly' | 'yearly'
   interval: number
+  /**
+   * 毎週の曜日（1=月 … 7=日。習慣の `HabitWeekday` と同じ）。`weekly` のときだけ。
+   * 未設定は締切の曜日で回る。次の回は選んだ曜日のうち次に来る日（`taskRecurrence.ts`）
+   */
+  weekdays?: number[]
 }
 
-export interface Task {
+/**
+ * タスクの種類。
+ * - `todo`: To-Do（やること）
+ * - `log`: 記録（実際にやった時間）
+ * - `sleep`: 睡眠の記録（朝に「何時に寝て何時に起きたか」で入れる）。記録の時間・分類の集計に入れない
+ *
+ * サーバー・前の版のバックアップでは `is_time_log` / `isTimeLog`（記録か）と `is_sleep` / `isSleep`（睡眠か）の 2 つで持つ
+ */
+export type TaskKind = 'todo' | 'log' | 'sleep'
+
+/** どの種類にもある項目 */
+interface TaskBase {
   id: string
   title: string
   description: string
@@ -21,7 +37,7 @@ export interface Task {
   /** リスト内セクション。null はセクションなし */
   sectionId: string | null
   parentId: string | null
-  /** 期限日（`yyyy-MM-dd`）。スマートビュー（今日/近日中/期限切れ）の基準。`null` は期限なし */
+  /** To-Do は期限日、記録・睡眠は開始日（`yyyy-MM-dd`）。種類ごとの説明は `TodoTask` / `LogTask` */
   dueDate: string | null
   /** 締め切り時刻（`HH:mm`）。`dueDate` がある通常タスクの任意の締め切り時間。`null` は時刻指定なし */
   dueTime: string | null
@@ -54,13 +70,64 @@ export interface Task {
   /** 記録の分類（ラベル）名。null はラベルなし。To-Do では使わない（null） */
   category: string | null
   recurrence: Recurrence | null
-  isTimeLog: boolean
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */
   habitId: string | null
-  /** 睡眠の記録（朝に「何時に寝て何時に起きたか」で入れる）。記録の時間・分類の集計に入れない */
-  isSleep: boolean
   /** アーカイブした瞬間の ISO 時刻。`null`/未設定はアーカイブされていない。アーカイブ済みタスクは通常のビューから除外され「アーカイブ済み」箱に入る */
   archivedAt: string | null
   /** 削除（ゴミ箱行き）した瞬間の ISO 時刻。`null`/未設定は削除されていない。ソフト削除で「削除済み」箱から復元・完全削除できる */
   deletedAt: string | null
+}
+
+/** To-Do */
+export interface TodoTask extends TaskBase {
+  kind: 'todo'
+  /** 期限日（`yyyy-MM-dd`）。スマートビュー（今日/近日中/期限切れ）の基準。`null` は期限なし */
+  dueDate: string | null
+}
+
+/** 記録（実際にやった時間） */
+export interface LogTask extends TaskBase {
+  kind: 'log'
+  /** 開始日（`yyyy-MM-dd`）。終わりの日は `endDate`（`null` は同じ日） */
+  dueDate: string | null
+}
+
+/** 睡眠の記録。記録の時間・分類の集計に入れない */
+export interface SleepTask extends TaskBase {
+  kind: 'sleep'
+  /** 寝た日（`yyyy-MM-dd`）。起きた日は `endDate` */
+  dueDate: string | null
+}
+
+export type Task = TodoTask | LogTask | SleepTask
+
+/** 記録（睡眠も含む）。`dueDate` が開始日で、カレンダーには実際の時間で置く */
+export type TimeLogTask = LogTask | SleepTask
+
+type Kinded = { kind?: TaskKind }
+
+/** To-Do か（下書きなど `kind` の無いものは To-Do） */
+export function isTodoTask<T extends Kinded>(t: T): t is T & { kind: 'todo' } {
+  return t.kind === undefined || t.kind === 'todo'
+}
+
+/** 記録か（睡眠も含む） */
+export function isLogTask<T extends Kinded>(t: T): t is T & { kind: 'log' | 'sleep' } {
+  return t.kind === 'log' || t.kind === 'sleep'
+}
+
+/** 睡眠の記録か。睡眠は記録の時間・分類の集計に入れず、タイムラインでも落ち着いた色で描く */
+export function isSleepTask<T extends Kinded>(t: T): t is T & { kind: 'sleep' } {
+  return t.kind === 'sleep'
+}
+
+/** サーバー・前の版のバックアップの 2 つの印（記録か・睡眠か）から種類を出す。睡眠の印だけでは記録にしない */
+export function taskKindFromFlags(isTimeLog: boolean, isSleep: boolean): TaskKind {
+  if (!isTimeLog) return 'todo'
+  return isSleep ? 'sleep' : 'log'
+}
+
+/** 種類をサーバー・前の版のバックアップの 2 つの印に */
+export function taskKindFlags(kind: TaskKind): { isTimeLog: boolean; isSleep: boolean } {
+  return { isTimeLog: kind !== 'todo', isSleep: kind === 'sleep' }
 }

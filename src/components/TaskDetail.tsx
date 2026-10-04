@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, paletteColors } from '../store/taskStore'
-import type { Task, Priority, Recurrence } from '../types/task'
+import { isLogTask, type Task, type Priority, type Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 import { TimeInput } from './TimeInput'
 import { addClockMinutes } from '../lib/clockTime'
@@ -10,13 +10,15 @@ import { ColorLabelPicker } from './labels/ColorLabelPicker'
 import { formatDuration } from '../lib/timeGrid'
 import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../lib/taskTimeRange'
 import { displayListName } from '../lib/displayListName'
-import { linkifySegments, googleMapsUrl } from '../lib/linkify'
+import { googleMapsUrl } from '../lib/linkify'
+import { LinkifiedText } from './ui/LinkifiedText'
 import { appTimeZone } from '../lib/timeZone'
 import { convertTaskTimes, foreignTimeZone, timesPatchFromZone } from '../lib/taskTimeZone'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from './TaskTimeZoneField'
 import { TaskRemindersField } from './TaskRemindersField'
+import { RepeatWeekdays } from './RepeatWeekdays'
 import { useEscapeLayer } from '../hooks/useHotkey'
-import { CalendarIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
+import { CalendarIcon, ChevronLeftIcon, ClockIcon, CloseIcon, MapPinIcon, RepeatIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { DateField } from './DateField'
@@ -28,6 +30,8 @@ import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { HINT_TEXT, META_TEXT } from './ui/textClass'
+import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -36,18 +40,20 @@ const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 /** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
 export function TaskDetail({
   task,
+  closing = false,
   onClose,
 }: {
   task: Task
+  /** 閉じる動きの最中（押せないようにして右へ引っ込める） */
+  closing?: boolean
   onClose: () => void
 }) {
   const { t } = useTranslation()
   // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
   useEscapeLayer(onClose)
   const df = useDateFormat()
-  const isLog = task.isTimeLog === true
+  const isLog = isLogTask(task)
   const updateTask = useTaskStore((s) => s.updateTask)
-  const tagsEnabled = useTaskStore((s) => s.tagsEnabled)
   useTaskStore((s) => s.appTimeZone)
   // タイムゾーンを決めたタスクは、日付・時刻をそのタイムゾーンで見せて編集する（列はアプリのタイムゾーン）
   const zone = foreignTimeZone(task)
@@ -74,6 +80,9 @@ export function TaskDetail({
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState(task.title)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const titleTextRef = useRef<HTMLHeadingElement>(null)
+  // 題名の編集を Enter・Esc で閉じたら、フォーカスを題名に戻す
+  useFocusBackOnClose(editingTitle, titleTextRef)
   const [editingMemo, setEditingMemo] = useState(false)
   const memoTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -183,6 +192,7 @@ export function TaskDetail({
                 />
               ) : (
                 <h2
+                  ref={titleTextRef}
                   onClick={() => setEditingTitle(true)}
                   tabIndex={0}
                   role="button"
@@ -204,7 +214,8 @@ export function TaskDetail({
               type="button"
               onClick={onClose}
               aria-label={t('common.close')}
-              className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+              // スマホは上に固定した「戻る」で閉じる（ここはスクロールで消え、右上は親指が届きにくい）
+              className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
             >
               <CloseIcon className="w-5 h-5 text-zinc-400" />
             </button>
@@ -233,22 +244,7 @@ export function TaskDetail({
                            whitespace-pre-wrap break-words cursor-text
                            hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
               >
-                {linkifySegments(task.description).map((seg, i) =>
-                  seg.type === 'url' ? (
-                    <a
-                      key={i}
-                      href={seg.value}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-accent-600 dark:text-accent-400 hover:underline break-all"
-                    >
-                      {seg.value}
-                    </a>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
+                <LinkifiedText text={task.description} />
               </div>
             ) : (
               <div
@@ -299,7 +295,7 @@ export function TaskDetail({
                       key={p}
                       type="button"
                       onClick={() => updateTask(task.id, { priority: p })}
-                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-colors
                     ${task.priority === p
                       ? 'border-accent-400 bg-accent-50 dark:bg-accent-500/10 font-medium'
                       : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}
@@ -338,7 +334,7 @@ export function TaskDetail({
                   />
                   {tv.dueDate && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('taskDetail.deadlineTime')}</span>
+                      <span className={sectionLabelClass('field')}>{t('taskDetail.deadlineTime')}</span>
                       <TimeInput
                         value={tv.dueTime ?? ''}
                         onChange={(v) => updateTimes({ dueTime: v || null })}
@@ -395,6 +391,14 @@ export function TaskDetail({
                       </>
                     )}
                   </div>
+                )}
+                {/* 毎週は曜日を選べる（Google カレンダーのカスタムの繰り返しと同じ）。既定は締切の曜日 */}
+                {task.dueDate && task.recurrence?.type === 'weekly' && (
+                  <RepeatWeekdays
+                    recurrence={task.recurrence}
+                    dueDate={task.dueDate}
+                    onChange={(recurrence) => updateTask(task.id, { recurrence })}
+                  />
                 )}
               </div>
 
@@ -524,12 +528,12 @@ export function TaskDetail({
               </div>
 
               {logDurationLabel && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className={META_TEXT}>
                   {t('taskDetail.logDuration', { label: logDurationLabel })}
                 </p>
               )}
               {isOvernightTimeLog(task) && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('activityLog.overnightHint')}</p>
+                <p className={HINT_TEXT}>{t('activityLog.overnightHint')}</p>
               )}
               <TaskTimeZoneNote task={task} />
             </div>
@@ -538,9 +542,10 @@ export function TaskDetail({
           {isLog ? (
             // 見出しは付けない（ボタンに色とラベル名が出るので重ねない）
             <ColorLabelPicker task={task} />
-          ) : tagsEnabled && (
+          ) : (
           <div>
             <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.tags')}</label>
+            {task.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {task.tags.map((tag) => (
                 <span
@@ -555,6 +560,7 @@ export function TaskDetail({
                 </span>
               ))}
             </div>
+            )}
             <div className="flex gap-2">
               <input
                 value={tagInput}
@@ -672,16 +678,27 @@ export function TaskDetail({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 dark:bg-black/40" />
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} inert={closing}>
+      <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={task.title}
-        className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
-                   h-full overflow-y-auto shadow-xl animate-slide-in"
+        className={`relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
+                   h-full overflow-y-auto overscroll-contain shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* スマホだけ: 上に固定した戻る（Google Tasks と同じ）。下までスクロールしても閉じられる */}
+        <div className="sticky top-0 z-10 flex items-center border-b border-zinc-100 bg-white/95 px-1 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 md:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 touch-manipulation active:bg-zinc-100 dark:text-zinc-300 dark:active:bg-zinc-800"
+          >
+            <ChevronLeftIcon className="h-6 w-6" />
+          </button>
+        </div>
         {detailBody}
       </div>
     </div>

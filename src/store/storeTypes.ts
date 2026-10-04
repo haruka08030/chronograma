@@ -8,17 +8,18 @@ import type { ListColorPaletteId } from '../lib/listColorPalettes'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
+import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { SyncState } from '../types/sync'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
  * 画面で訳した文字列をそのまま渡すこともできる
  */
-/** クラウド同期の状態 */
-export type SyncState = 'idle' | 'syncing' | 'error'
 
 export type ToastText = string | { key: string; params?: Record<string, string | number> }
 
-export type CalendarMode = 'month' | 'week'
+/** `threeDay` はスマホ幅だけ（PC 幅では週として出す）。`schedule` は予定の一覧 */
+export type CalendarMode = 'month' | 'week' | 'threeDay' | 'schedule'
 
 export type SmartView =
   | 'planner'
@@ -29,6 +30,7 @@ export type SmartView =
   | 'calendar'
   | 'stats'
   | 'habits'
+  | 'completed'
   | 'archived'
   | 'deleted'
   | 'settings'
@@ -95,8 +97,6 @@ export interface TaskState {
   notificationsEnabled: boolean
   /** 予定が終わったら「予定どおり / 記録する」を聞く */
   recordPrompts: boolean
-  /** To-Do のタグ（自由な文字の目印）を使うか。既定はオフで、詳細・行・統計に出さない */
-  tagsEnabled: boolean
   /** 通知の「記録する」から開く、記録を入れる予定（永続化しない） */
   recordPromptTaskId: string | null
   listColorPaletteId: ListColorPaletteId
@@ -122,6 +122,8 @@ export interface TaskState {
   dailyReminders: DailyReminders
   /** 「今日の計画」で通知の案内を閉じたか */
   reminderPromptDismissed: boolean
+  /** カレンダーの「Google カレンダーも並べられます · 接続する」の 1 行を閉じたか（接続は設定から） */
+  googleConnectLineDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -129,7 +131,9 @@ export interface TaskState {
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
   appTimeZone: string | null
   /** タイムラインの時間バーに並べて出す別のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」） */
-  extraTimeZones: string[]
+  extraTimeZones: ExtraTimeZone[]
+  /** 他のタイムゾーン（並び・名前）をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  extraTimeZonesUpdatedAt: string | null
 
   habits: Habit[]
 
@@ -182,8 +186,9 @@ export interface TaskState {
    * - `from` は元の名前（新しい行は null）。名前を変えると記録も付け替える
    * - 消したラベルの記録は分類を外し、色だけ残す（Google と同じ）
    * - 分類の無い記録は、同じ色のラベルがあればその分類になる
+   * - `fromHex` は名前の無かった色（To‑Do ナビの色ラベル）。色を変えたらその色の予定・タスクも新しい色へ（名前が空なら色だけ変える）
    */
-  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string }>) => void
+  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string }>) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
@@ -220,6 +225,10 @@ export interface TaskState {
   addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
   deleteHabit: (id: string) => void
+  /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
+  archiveHabit: (id: string) => void
+  /** アーカイブから戻す */
+  restoreHabit: (id: string) => void
   /** 達成 ⇄ 未達成。時間を決めた習慣は、達成で予定どおりの時刻の記録を作り、外すとその記録をゴミ箱へ */
   toggleHabitDate: (habitId: string, dateKey: string) => void
   /** 未達成なら達成にして、記録が無ければ予定どおりの時刻で作る（タイムラインの習慣の枠のチェック） */
@@ -262,10 +271,13 @@ export interface TaskState {
   dismissCompletePrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
+  dismissGoogleConnectLine: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
-  setExtraTimeZones: (zones: string[]) => void
+  setExtraTimeZones: (zones: ExtraTimeZone[]) => void
+  /** 他のタイムゾーンに名前を付ける（空にすると外す） */
+  setExtraTimeZoneLabel: (tz: string, label: string) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (
@@ -291,12 +303,14 @@ export interface TaskState {
         | 'listId'
         | 'parentId'
         | 'recurrence'
-        | 'isTimeLog'
+        | 'kind'
         | 'completed'
         | 'completedAt'
         | 'sectionId'
       >
     >,
+    /** 「元に戻す」トーストに出す文（ドラッグで動かしたときなど、変わったことが目に入りにくいとき） */
+    label?: ToastText,
   ) => void
   /** 予定日をまとめて付け替える（持ち越し・明日へ回す）。時刻はクリアし、Undo は 1 段 */
   rescheduleTasks: (ids: string[], dateKey: string, label?: ToastText) => void
@@ -392,7 +406,6 @@ export interface TaskState {
 
   toggleNotifications: () => void
   setRecordPrompts: (on: boolean) => void
-  setTagsEnabled: (on: boolean) => void
   /** おすすめの通知をまとめてオン（朝のまとめ 8:00・予定の 10 分前・締切の前・記録の確認） */
   enableRecommendedNotifications: () => void
   openRecordPrompt: (taskId: string | null) => void

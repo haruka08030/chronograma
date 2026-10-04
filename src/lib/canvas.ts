@@ -207,7 +207,7 @@ const COURSE_SECTION_RE = /^canvas-course-/
 
 /**
  * 以前の版が科目ごとに作ったセクションを、科目のタグに移す。中のタスクにセクション名のタグを付けてセクションの外へ出し、
- * セクションを消す（別のリストへ移していたものも）。移したら `converted` が true（「タグを使う」を一度だけオンにする合図）。
+ * セクションを消す（別のリストへ移していたものも）。移したら `converted` が true。
  */
 export function canvasCourseSectionsToTags(
   state: { sections: ListSection[]; tasks: Task[] },
@@ -326,7 +326,7 @@ export function reconcileCanvasItems(
         priority: 'none',
         tags: item.courseName ? [item.courseName] : [],
         recurrence: null,
-        isTimeLog: false,
+        kind: 'todo',
         habitId: null,
         archivedAt: null,
         deletedAt: null,

@@ -15,7 +15,7 @@ export interface Swatch {
 
 /**
  * 色の丸を並べる部品（リスト・習慣・ラベル・予定の色で共通）。Google カレンダーの 24 色を 12 列（狭い所は 6 列）で、
- * 選んでいる色にはチェック。丸の大きさはどこでも同じ（置き場所の幅で変えない）。外枠（ポップオーバー・カード）や前後のボタンは使う側で付ける。
+ * 選んでいる色にはチェック。丸の大きさはどこでも同じ（予定のカードの中だけは `fill` で幅に合わせる）。外枠（ポップオーバー・カード）や前後のボタンは使う側で付ける。
  */
 export function ColorSwatches({
   selectedHex,
@@ -23,6 +23,7 @@ export function ColorSwatches({
   ariaLabel,
   swatches,
   columns = 12,
+  fill = false,
   className = '',
 }: {
   selectedHex: string | null
@@ -32,6 +33,8 @@ export function ColorSwatches({
   swatches?: readonly Swatch[]
   /** 狭いポップオーバー（ナビのリストの色）は 6 */
   columns?: 6 | 12
+  /** 置き場所の幅いっぱいに 8 列で並べ、丸の大きさを幅に合わせる（予定のカードの中） */
+  fill?: boolean
   className?: string
 }) {
   const { t } = useTranslation()
@@ -42,7 +45,7 @@ export function ColorSwatches({
       role="radiogroup"
       aria-label={ariaLabel}
       // 12 列（幅 354px）はスマホのカードに収まらないので、狭い画面では 6 列で折り返す
-      className={`grid w-max gap-1.5 ${columns === 12 ? 'grid-cols-[repeat(6,var(--sw))] sm:grid-cols-[repeat(12,var(--sw))]' : 'grid-cols-[repeat(6,var(--sw))]'} ${className}`}
+      className={`grid gap-1.5 ${fill ? 'w-full grid-cols-8' : `w-max ${columns === 12 ? 'grid-cols-[repeat(6,var(--sw))] sm:grid-cols-[repeat(12,var(--sw))]' : 'grid-cols-[repeat(6,var(--sw))]'}`} ${className}`}
       style={{ '--sw': SWATCH_SIZE } as CSSProperties}
     >
       {list.map((sw) => {

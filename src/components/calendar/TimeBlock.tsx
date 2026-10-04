@@ -7,6 +7,8 @@ import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { MoonSolidIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
+import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 
 /**
@@ -54,8 +56,19 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
     <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   )
   const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
-  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
+  // 締切がこの日まで（過ぎていれば赤、当日はオレンジ）の予定は、題名の前に点を付ける（予定を入れても締切を見失わない）
+  const dueTone = !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
+    ? (task.dueDate < dayKey ? 'overdue' : 'today')
+    : null
+  const dueDot = dueTone && (
+    <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
+  )
+  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に。
+  // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーのヒントで読める）
   const compact = height < 32
+  const tight = height < 20
+  const bare = height < 13
+  const timeLabel = `${task.title}  ${task.startTime} – ${task.endTime}`
 
   return (
     <button
@@ -74,11 +87,12 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-5' : 'pr-1.5'} text-left text-[11px] leading-tight
-        cursor-grab select-none touch-none transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
+      className={`${variant} absolute overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
+        cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
-      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
+      aria-label={bare ? timeLabel : undefined}
+      {...tip(timeLabel)}
       style={{
         top,
         height,
@@ -86,17 +100,16 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
         right: 2,
         ...hStyle,
         ...colorVars(colorHex),
-        boxShadow: '0 0 0 1px var(--gc-surface)',
       }}
     >
-      {compact ? (
+      {bare ? null : compact ? (
         <span className="block truncate">
-          <span className="font-medium">{moon}{doneMark}{task.title}</span>
+          <span className="font-medium">{dueDot}{moon}{doneMark}{task.title}</span>
           <span className="opacity-80">{t('common.listSeparator')}{task.startTime}</span>
         </span>
       ) : (
         <>
-          <span className="block truncate font-medium">{moon}{doneMark}{task.title}</span>
+          <span className="block truncate font-medium">{dueDot}{moon}{doneMark}{task.title}</span>
           <span className="block text-[10px] opacity-80">
             {task.startTime} – {task.endTime}
           </span>
@@ -110,15 +123,21 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
  * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
-export function SlotCheck({ top, hStyle, label, done, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
+export function SlotCheck({ top, height, hStyle, label, done, onCheck }: { top: number; height: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
+  // ブロックからはみ出さない大きさにする。入らない短いブロックでは出さない（完了はカード・メニューから）
+  if (height < 14) return null
+  const small = height < 20
   return (
-    <div className="pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
-      <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} className="pointer-events-auto" />
+    // 細いブロック（週表示の予定・記録の 2 列など）では出さない。題名を隠し、つかむ場所で完了になってしまう。完了はカード・メニューから
+    <div className={`@container pointer-events-none absolute z-[31] flex justify-end ${small ? 'px-0.5' : 'p-0.5'}`} style={{ top, left: 2, right: 2, ...hStyle }}>
+      <span className="pointer-events-auto hidden @[5.5rem]:block">
+        <CalendarCheck size={small ? 'sm' : 'md'} done={done} label={label} onCheck={onCheck} />
+      </span>
     </div>
   )
 }
 
-/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる） */
+/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる）。見た目は予定・記録と同じ `gc-plan` */
 export function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup; onAnchor: (el: HTMLDivElement | null) => void; laneClass: string }) {
   const { t } = useTranslation()
   const top = timeToY(popup.startTime)
@@ -126,7 +145,7 @@ export function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup
   return (
     <div
       ref={onAnchor}
-      className={`gc-solid pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
+      className={`gc-plan pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
       style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
     >
       <span className="block font-medium">{t('quickCreate.untitled')}</span>

@@ -3,7 +3,6 @@ import { INVERSE_SURFACE } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import { colorLabelText } from '../lib/todoColorLabels'
@@ -11,7 +10,7 @@ import { TASK_PREFIX } from './SortableTaskItem'
 import { subtaskDragId } from '../lib/subtaskDnD'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { CheckCircleIcon, CloseIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
@@ -23,11 +22,12 @@ import { useSectionEditing } from '../hooks/useSectionEditing'
 import { TaskListHeader } from './todo/TaskListHeader'
 import { TaskListActiveContent } from './todo/TaskListActiveContent'
 import { CompletedTasksSection } from './todo/CompletedTasksSection'
+import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
   for (const st of childrenByParent.get(parentId) ?? []) {
-    if (!st.completed && !isListedTimeLog(st)) {
+    if (!st.completed && !isLogTask(st)) {
       n += 1 + countIncompleteDescendants(st.id, childrenByParent)
     }
   }
@@ -105,13 +105,18 @@ export function TaskList() {
   const incompleteCount = useMemo(() => {
     let n = 0
     for (const p of filtered) {
-      if (!p.completed && !isListedTimeLog(p)) n++
+      if (!p.completed && !isLogTask(p)) n++
       n += countIncompleteDescendants(p.id, childrenByParent)
     }
     return n
   }, [filtered, childrenByParent])
 
-  const completedTodos = filtered.filter((t) => t.completed && !isListedTimeLog(t))
+  // 完了した To-Do はナビの「完了済み」に集める。チェックリスト（使い回す）といつか（かなえた）だけリストの下に残す
+  const keepsDoneInList = listKind === 'checklist' || listKind === 'someday'
+  const completedTodos = useMemo(
+    () => (keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t)) : []),
+    [keepsDoneInList, filtered],
+  )
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
 
@@ -130,7 +135,7 @@ export function TaskList() {
     const out: string[] = []
     const walk = (parentId: string) => {
       for (const st of childrenByParent.get(parentId) ?? []) {
-        if ((listKind === 'checklist' || !st.completed) && !isListedTimeLog(st)) {
+        if ((listKind === 'checklist' || !st.completed) && !isLogTask(st)) {
           out.push(st.id)
           walk(st.id)
         }
@@ -200,7 +205,7 @@ export function TaskList() {
   const keepDoneChildren = listKind === 'checklist'
   const incompleteSubtasks = useCallback(
     (parentId: string) =>
-      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isListedTimeLog(st)),
+      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isLogTask(st)),
     [childrenByParent, keepDoneChildren],
   )
 
@@ -231,7 +236,7 @@ export function TaskList() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <TaskListHeader
           title={title}
           colorView={colorView}
@@ -307,7 +312,7 @@ export function TaskList() {
       {sectionMenuElement}
       {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
       {selected.size > 0 && (
-        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6 [@media(hover:hover)]:hidden">
+        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 animate-toast-in md:bottom-6 [@media(hover:hover)]:hidden">
           <div className={`flex items-center gap-1 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
             <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
             <button

@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
-import { needsSeal, openSecret, sealSecret, secretContext } from '../_shared/secretBox.ts'
+import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // 使うのは primary カレンダーだけなので、いちばん狭いものにしている。`src/lib/googleCalendar.ts` とそろえる
@@ -287,6 +287,8 @@ Deno.serve(withCors(async (req) => {
       if (!clientId || !clientSecret) {
         return jsonResponse({ ok: false, error: 'Google OAuth secrets are not configured on the server' })
       }
+      // コードは 1 回しか交換できないので、保存できないと分かっていれば交換する前に止める
+      requireSecretKey()
 
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -509,6 +511,10 @@ Deno.serve(withCors(async (req) => {
 
     return jsonResponse({ error: 'Unknown action' }, 400)
   } catch (e) {
+    if (e instanceof SecretKeyMissingError) {
+      console.error('[google]', e.message)
+      return jsonResponse({ ok: false, error: 'Server misconfigured' }, 500)
+    }
     // 内部のエラーは中身を返さず、サーバーのログにだけ残す
     console.error('[google]', e)
     return jsonResponse({ ok: false, error: 'Internal error' })

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { logLabelFromTask } from './logCategoryColors'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 
 /**
  * ToDo をつかんでいる間だけ出す「ここに落として計測開始」の共有状態。
@@ -57,7 +57,7 @@ export function isOverTimerDrop(clientX: number, clientY: number): boolean {
 
 /** 記録・睡眠・済んだ ToDo は「これからやる」ものではないので計測の対象にしない */
 export function canStartTimerFor(task: Task | undefined | null): task is Task {
-  return !!task && !task.isTimeLog && !task.isSleep && !task.completed && !task.deletedAt
+  return !!task && !isLogTask(task) && !task.completed && !task.deletedAt
 }
 
 export function startTimerForTask(taskId: string): boolean {

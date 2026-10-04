@@ -1,6 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDndContext } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskItem, type TaskItemSelection } from './TaskItem'
@@ -35,7 +34,6 @@ export function SortableTaskItem({
   /** 一覧内サブタスク（DnD 時は親とまとめて移動） */
   children?: ReactNode
 }) {
-  const { active } = useDndContext()
   const {
     attributes,
     listeners,
@@ -51,7 +49,8 @@ export function SortableTaskItem({
   const { t } = useTranslation()
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: active ? undefined : transition,
+    // ドラッグ中もまわりの行はすべって場所をあける（どこに入るかが目で追える）
+    transition,
     opacity: isDragging ? 0 : 1,
     zIndex: isDragging ? 10 : undefined,
   }

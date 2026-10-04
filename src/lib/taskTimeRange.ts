@@ -1,5 +1,5 @@
 import { addMinutes, differenceInCalendarDays, differenceInMinutes, endOfDay, max, min, startOfDay } from 'date-fns'
-import type { Task } from '../types/task'
+import { isLogTask, type Task, type TaskKind } from '../types/task'
 import { HOUR_HEIGHT, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { clockOf } from './clockTime'
 import { toDateKey } from './dateKey'
@@ -26,16 +26,16 @@ function dateKeyToNoon(ymd: string): Date {
 export function taskPlacementDate(task: {
   dueDate?: string | null
   scheduledDate?: string | null
-  isTimeLog?: boolean
+  kind?: TaskKind
 }): string | null {
-  if (task.isTimeLog === true) return task.dueDate ?? null
+  if (isLogTask(task)) return task.dueDate ?? null
   return task.scheduledDate ?? task.dueDate ?? null
 }
 
 /**
  * 開始 `placementDate`+`startTime` 〜 終了 `endDate ?? placementDate`+`endTime`。
  * 置く日はタイムログ=`dueDate`、通常タスク=`scheduledDate ?? dueDate`。
- * `isTimeLog` で `endDate` がなく終了時刻が開始以前のときは従来どおり翌日まで（+24h）。
+ * 記録で `endDate` がなく終了時刻が開始以前のときは従来どおり翌日まで（+24h）。
  */
 export function taskTimedInterval(task: Task): { start: Date; end: Date } | null {
   if (!task.startTime || !task.endTime) return null
@@ -44,7 +44,7 @@ export function taskTimedInterval(task: Task): { start: Date; end: Date } | null
   const endYmd = task.endDate ?? startYmd
   const start = ymdHmToLocalDate(startYmd, task.startTime)
   let end = ymdHmToLocalDate(endYmd, task.endTime)
-  if (end <= start && task.isTimeLog === true && !task.endDate) {
+  if (end <= start && isLogTask(task) && !task.endDate) {
     end = addMinutes(end, DAY_MINUTES)
   }
   if (end <= start) return null
@@ -58,7 +58,7 @@ export function durationMinutesForTaskSlot(task: {
   endDate?: string | null
   startTime?: string | null
   endTime?: string | null
-  isTimeLog?: boolean
+  kind?: TaskKind
 }): number | null {
   if (!task.startTime || !task.endTime) return null
   if (taskPlacementDate(task)) {
@@ -67,7 +67,7 @@ export function durationMinutesForTaskSlot(task: {
     return differenceInMinutes(iv.end, iv.start)
   }
   let diff = timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
-  if (task.isTimeLog === true && diff < 0) diff += DAY_MINUTES
+  if (isLogTask(task) && diff < 0) diff += DAY_MINUTES
   return diff
 }
 
@@ -78,7 +78,7 @@ export function durationMinutesForTaskId(tasks: Task[], taskId: string): number 
 
 /** その暦日にかかるログの分数（サマリー用） */
 export function minutesOfLogOnCalendarDay(task: Task, dateKey: string): number {
-  if (task.isTimeLog !== true) return 0
+  if (!isLogTask(task)) return 0
   const iv = taskTimedInterval(task)
   if (!iv) return 0
   const day = dateKeyToNoon(dateKey)
@@ -100,7 +100,7 @@ export function compareLogsOnDay(a: Task, b: Task, dateKey: string): number {
 }
 
 export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
-  if (task.isTimeLog !== true || !task.dueDate || !task.startTime || !task.endTime || task.parentId) return false
+  if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime || task.parentId) return false
   const iv = taskTimedInterval(task)
   if (!iv) return false
   const day = dateKeyToNoon(dateKey)
@@ -113,8 +113,8 @@ export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
 export function timeLogSegmentLayoutForDay(
   task: Task,
   dateKey: string,
-): { top: number; height: number } | null {
-  if (task.isTimeLog !== true || !task.dueDate || !task.startTime || !task.endTime) return null
+): { top: number; height: number; span: number } | null {
+  if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime) return null
   const iv = taskTimedInterval(task)
   if (!iv) return null
   const day = dateKeyToNoon(dateKey)
@@ -129,12 +129,13 @@ export function timeLogSegmentLayoutForDay(
   if (dur <= 0) return null
   return {
     top: (startMin / 60) * HOUR_HEIGHT,
-    height: Math.max((dur / 60) * HOUR_HEIGHT, HOUR_HEIGHT / 4),
+    height: (dur / 60) * HOUR_HEIGHT,
+    span: (dur / 60) * HOUR_HEIGHT,
   }
 }
 
 export function isOvernightTimeLog(task: Task): boolean {
-  if (task.isTimeLog !== true || !task.startTime || !task.endTime) return false
+  if (!isLogTask(task) || !task.startTime || !task.endTime) return false
   if (task.endDate && task.dueDate && task.endDate !== task.dueDate) return true
   if (!task.dueDate) return timeToMinutes(task.endTime!) <= timeToMinutes(task.startTime!)
   const iv = taskTimedInterval(task)
@@ -147,7 +148,7 @@ export function isOvernightTimeLog(task: Task): boolean {
 export function dragBlockDurationMinutes(task: {
   startTime: string
   endTime: string
-  isTimeLog?: boolean
+  kind?: TaskKind
   dueDate?: string | null
   endDate?: string | null
 }): number {
@@ -163,7 +164,7 @@ export function patchAfterTimelineMove(
   newStartTime: string,
   _newEndTimeFromHook: string,
 ): Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>> {
-  if (task.isTimeLog === true) {
+  if (isLogTask(task)) {
     const dur = durationMinutesForTaskSlot(task)
     if (dur != null && dur > 0) {
       const start = ymdHmToLocalDate(targetDueDate, newStartTime)

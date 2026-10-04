@@ -12,6 +12,9 @@ import { ChevronDownIcon, ChevronUpIcon } from '../icons'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
+import { HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { isLogTask } from '../../types/task'
+import { REVEAL_ON_HOVER } from '../ui/revealClass'
 
 const USAGE_DAYS = 30
 
@@ -35,7 +38,7 @@ export function CategoryManager() {
     const map = new Map<string, number>()
     const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
     for (const task of tasks) {
-      if (!task.isTimeLog || !isActiveTask(task)) continue
+      if (!isLogTask(task) || !isActiveTask(task)) continue
       let minutes = 0
       for (const d of days) minutes += minutesOfLogOnCalendarDay(task, d)
       if (minutes <= 0) continue
@@ -48,7 +51,7 @@ export function CategoryManager() {
   const unlisted = useMemo(() => {
     const set = new Set<string>()
     for (const task of tasks) {
-      if (task.isTimeLog && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
+      if (isLogTask(task) && isActiveTask(task) && task.category && !presets.includes(task.category)) set.add(task.category)
     }
     return [...set]
   }, [tasks, presets])
@@ -66,10 +69,10 @@ export function CategoryManager() {
             <li key={name} className="group relative flex min-h-12 items-center gap-3 border-b border-zinc-100 px-4 py-2 last:border-b-0 dark:border-zinc-800">
               <span className="gc-dot h-4 w-4 shrink-0 rounded-full" style={vars} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
-              <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+              <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
                 {minutes > 0 ? formatDuration(minutes) : t('categories.unused')}
               </span>
-              <div className="flex shrink-0 items-center opacity-100 md:opacity-0 md:focus-within:opacity-100 md:group-hover:opacity-100">
+              <div className={`flex shrink-0 items-center ${REVEAL_ON_HOVER}`}>
                 <button
                   type="button"
                   disabled={i === 0}
@@ -101,7 +104,7 @@ export function CategoryManager() {
       </div>
 
       {(unlisted.length > 0 || uncategorized > 0) && (
-        <div className="space-y-2 px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className={`space-y-2 px-4 py-3 ${HINT_TEXT}`}>
           {unlisted.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span>{t('categories.unlisted')}</span>

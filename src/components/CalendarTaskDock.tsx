@@ -7,7 +7,6 @@ import { unplannedListIds } from '../lib/listKind'
 import { isActiveTask } from '../lib/taskLifecycle'
 
 const UNSCHEDULED = '__unscheduled__'
-import { isListedTimeLog } from '../lib/timeLogTask'
 import { TaskItem } from './TaskItem'
 import { displayListName } from '../lib/displayListName'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
@@ -17,6 +16,8 @@ import { CheckCircleIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { fieldClass } from './ui/fieldClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { META_TEXT } from './ui/textClass'
+import { isLogTask } from '../types/task'
 
 export function CalendarTaskDock() {
   const { t } = useTranslation()
@@ -61,7 +62,7 @@ export function CalendarTaskDock() {
     [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
-  const active = useMemo(() => filtered.filter((t) => !t.completed && !isListedTimeLog(t)), [filtered])
+  const active = useMemo(() => filtered.filter((t) => !t.completed && !isLogTask(t)), [filtered])
   const activeIds = useMemo(() => active.map((t) => t.id), [active])
 
   // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
@@ -116,7 +117,7 @@ export function CalendarTaskDock() {
             <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />
           )}
           {selected.size > 0 && (
-            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <div className={`flex items-center justify-between px-2 py-1 ${META_TEXT}`}>
               <span>{t('taskList.selectedCount', { count: selected.size })}</span>
               <button
                 type="button"

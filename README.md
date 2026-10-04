@@ -41,12 +41,12 @@ npm run dev
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で [`supabase/migrations/001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から番号順に `supabase/migrations/` の SQL を全部実行し、テーブルと RLS を作成します（一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
-   既存の DB も同じく全部実行すれば最新の形になります（どのファイルも何度流しても同じ形になります）。
+2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から `005` まで。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
+   どのファイルも何度流しても同じ形になります。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
-   ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、開発用（`http://localhost:5173`・`:4173`）と secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。
-   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークンは、次に使われたときに暗号化し直されます。**鍵を変えたり消したりすると、保存済みの連携はすべてつなぎ直しになります**（鍵が無い間は暗号化せずに保存します）。
+   ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
+   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークンは、次に使われたときに暗号化し直されます。**鍵を変えたり消したりすると、保存済みの連携はすべてつなぎ直しになります**（鍵が無い間は連携の保存を断り、500 を返します）。
    ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
@@ -55,7 +55,7 @@ npm run dev
 
 ### 通知（Web Push、任意）
 
-アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。既存の DB には [`002_notifications.sql`](supabase/migrations/002_notifications.sql) を実行してください。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
 1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
@@ -116,7 +116,7 @@ supabase functions deploy google-calendar
 
 Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。
 
-Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy などのセキュリティヘッダー）。CSP の接続先は `https://*.supabase.co` だけなので、Supabase に独自ドメインを使う場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `connect-src` に追加してください。
+Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy・Strict-Transport-Security などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と `wss://`）だけです。別の Supabase プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `vercel.json` の `connect-src` を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:` だけです。
 
 ### Notion 連携（任意）
 
