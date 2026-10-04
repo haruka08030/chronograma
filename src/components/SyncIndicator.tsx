@@ -5,6 +5,8 @@ import { useTaskStore } from '../store/taskStore'
 import { relativeSyncKey } from './syncIndicatorLabel'
 import { tip } from '../lib/tooltip'
 
+const SLOW_SYNC_MS = 400
+
 /**
  * クラウド同期の状態。以前は失敗が console にしか出ず、預けたデータが
  * 届いているのか分からなかった。
@@ -38,6 +40,17 @@ export function SyncIndicator() {
     }
   }, [showing, lastSyncedAt])
 
+  // すぐ終わる同期で点がチカッと出ないよう、0.4 秒以上かかっているときだけ出す
+  const [slowSync, setSlowSync] = useState(false)
+  useEffect(() => {
+    if (syncState !== 'syncing') return
+    const timer = setTimeout(() => setSlowSync(true), SLOW_SYNC_MS)
+    return () => {
+      clearTimeout(timer)
+      setSlowSync(false)
+    }
+  }, [syncState])
+
   // 未ログイン（ローカル専用）では同期という概念が無いので出さない
   if (!showing) return null
 
@@ -45,6 +58,7 @@ export function SyncIndicator() {
   const when = last ? t(last.key, { count: last.count }) : null
 
   if (syncState === 'syncing') {
+    if (!slowSync) return null
     const title = when ? t('sync.syncingWithLast', { when }) : t('sync.syncing')
     return (
       <span className="flex shrink-0 items-center" {...tip(title)} aria-label={title} role="status">

@@ -50,6 +50,15 @@ export function SettingsRow({
   )
 }
 
+/** 読み込み中の行。文字の代わりに灰色の帯を置き、読み込めたときに行の高さが変わらないようにする */
+export function SettingsLoadingRow({ label }: { label: string }) {
+  return (
+    <SettingsRow
+      label={<span role="status" aria-label={label} className="block h-4 w-32 rounded bg-zinc-100 motion-safe:animate-pulse dark:bg-zinc-800" />}
+    />
+  )
+}
+
 /** オン/オフ */
 export function Switch({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
   return (

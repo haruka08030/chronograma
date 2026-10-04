@@ -13,7 +13,7 @@ import {
   type NotionStatus,
 } from '../../lib/notion'
 import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync'
-import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow, SettingsLoadingRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
@@ -61,7 +61,7 @@ export function NotionSettings() {
   const body = !user ? (
     <SettingsRow label={t('notion.needsLogin')} />
   ) : status === null ? (
-    <SettingsRow label={t('common.loading')} />
+    <SettingsLoadingRow label={t('common.loading')} />
   ) : status.connected ? (
     <ConnectedRows
       status={status}

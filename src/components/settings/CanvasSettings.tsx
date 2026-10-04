@@ -17,7 +17,7 @@ import {
   type CanvasStatus,
 } from '../../lib/canvas'
 import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
-import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { SettingsGroup, SettingsRow, SettingsLoadingRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
@@ -100,7 +100,7 @@ export function CanvasSettings() {
   const body = !user ? (
     <SettingsRow label={t('canvas.needsLogin')} />
   ) : status === null ? (
-    <SettingsRow label={t('common.loading')} />
+    <SettingsLoadingRow label={t('common.loading')} />
   ) : connections.length === 0 ? (
     <>
       <NewConnectionForm busy={busy} act={act} />
