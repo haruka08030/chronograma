@@ -41,6 +41,7 @@ import { movedToDateLabel } from '../lib/moveToast'
 import { isLogTask } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
+import { tip } from '../lib/tooltip'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -264,7 +265,7 @@ export function CalendarView({
                   {shownEvents.map((e) => (
                     <div
                       key={`event-${e.id}`}
-                      title={e.summary}
+                      {...tip(e.summary)}
                       data-touch-menu
                       draggable={canEditGoogleEvent(e, googleCanWrite)}
                       onDragStart={(ev) => {

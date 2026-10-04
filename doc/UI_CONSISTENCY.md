@@ -46,12 +46,13 @@
 | チップ | `chipClass({ variant, size })`。形はピル。見るだけのもの（To-Do 行のタグ・絞り込み・タイマーのタグ）は `fill`（藍の薄い塗り）、押して選ぶもの（記録のラベル・最近の記録）は `outline`（細い枠、選んだら色の塗り）、足すもの（＋）は `add`（点線の枠） | `components/ui/chipClass.ts` |
 | 開閉する見出し | `DisclosureButton`。小さな ＞ が開くと下を向く。色は見出しの役割で `alert`（やり残し＝赤）/ `default`（候補）/ `muted`（完了）。今日の計画と To-Do の「完了」 | `components/ui/Disclosure.tsx` |
 | 空状態 | `EmptyState`。線のアイコン＋中央。画面（To-Do・ゴミ箱・検索・いつか・習慣）は `lg`、パネルの中（日パネル・時間未定のタスク）は `sm`。一覧の途中の一言（「この日の予定はなし」・メニューの「見つかりません」）は文字だけ | `components/ui/EmptyState.tsx` |
-| アイコンボタン | `iconButtonClass(extra)`。丸・枠なし・乗せたときだけ薄い地。予定カードの右上（詳細・削除・閉じる・Google で開く）とラベル編集の行の削除。行の右端の操作は枠ありの `RowActionButton` | `components/ui/iconButtonClass.ts` |
+| アイコンボタン | `iconButtonClass(extra)`。丸・枠なし・乗せたときだけ薄い地。削除も赤くしない。予定カードの右上（詳細・削除・閉じる・Google で開く）・ラベル編集の行の削除・習慣の編集カードの削除・ゴミ箱/アーカイブの行の削除・セクションの見出しの名前変更と削除。行の右端の操作は枠ありの `RowActionButton` | `components/ui/iconButtonClass.ts` |
 | ピル選択 | `PillToggle`。形はピル、選択中は墨の塗り（`buttonClass` の primary と同じ）、それ以外は細い枠（`chipClass` の outline と同じ）。`value`/`onChange` は 1 つ選ぶ（radiogroup）、`values`/`onToggle` は複数選ぶ（aria-pressed）。予定カードの「予定 / タスク」・繰り返し予定の範囲・習慣の曜日・繰り返しタスクの曜日 | `components/ui/PillToggle.tsx` |
 | 小見出し | `SectionLabel`（`as`・`level`）と `sectionLabelClass(level)`。2 段で、どちらも text-xs・font-medium。`section`（zinc-400）は画面・パネル・カードの中のまとまりの見出し、`field`（zinc-500）はフォームの欄の名前。画面の題・今日の計画の区切りの見出し（太い黒）・カードの題・開閉する見出し・メニューの区切り・リストのセクション名には使わない | `components/ui/SectionLabel.tsx`・`components/ui/sectionLabelClass.ts` |
 | 見出し | 画面の題（h1）は `PAGE_TITLE_CLASS`（text-2xl・semibold・墨）。画面の区切り（今日の計画の To-Do・習慣、習慣画面の「この日の習慣」）は `SECTION_HEADING_CLASS`（text-base・太い墨）。カード・設定のまとまりの題（統計・週のふりかえり・睡眠・設定・習慣のフォーム）は `CARD_TITLE_CLASS`（text-sm・太い墨） | `components/ui/headingClass.ts` |
 | 画面のスクロール枠 | `PAGE_SCROLL_CLASS`（min-h-0・min-w-0・flex-1・overflow-y-auto）。To-Do・ゴミ箱・カレンダー・検索・統計・習慣・設定。縦に並べる画面は flex-col を足す | `components/ui/layoutClass.ts` |
 | 控えめな文字 | 灰色の添え書きは 3 種類。`HINT_TEXT`（text-xs・zinc-600、ダーク zinc-300）は説明・手助け（欄の下の説明・設定の説明・連携の手順・「記録して完了」などの説明文）、`META_TEXT`（text-xs・zinc-500、ダーク zinc-400。HINT より一段薄い）は静かな事実（件数・日時・長さ・行の題の下の 2 行目・題の横の期間）、`SUBTLE_TEXT`（text-sm・zinc-500、ダーク zinc-400）は本文の大きさの添え書き（今日の計画の日付・予定カードの日時・本文の大きさの短い一言）。どれも 12px の文字で 4.5:1 を満たす。余白などは足して組み合わせる。10px のデータのラベル（グラフの軸・時刻の目盛り・月のマス・終日の行）、統計のタイルの数字のラベル、To-Do 行の 2 行目（メモ・締切・セクション）、欄の名前、チップ・ボタン・メニューの中の文字、`EmptyState`、小見出し・見出し、色で状態を伝える文字には使わない | `components/ui/textClass.ts`（連携の設定の「1. 2. 3.」の手順は `STEPS_LIST_CLASS`） |
+| エラーの文字 | `ERROR_TEXT`（text-xs・red-600、ダーク red-400）。連携の失敗・入力の誤り（未来の時刻・終了が開始より前）など、エラーの 1 行はどれもこれ。余白は足して組み合わせる | `components/ui/textClass.ts` |
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |

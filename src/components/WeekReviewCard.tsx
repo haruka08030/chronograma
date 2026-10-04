@@ -14,6 +14,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
+import { tip } from '../lib/tooltip'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -102,7 +103,7 @@ export function WeekReviewCard() {
               const label = format(date, 'E', { locale: dateLocale })
               const dayBar = day ? barMinutes(day) : 0
               const h = Math.round((dayBar / maxLogged) * 100)
-              const tip = day
+              const dayTip = day
                 ? t('weekReview.dayTooltip', {
                     day: label,
                     logged: formatDuration(day.loggedMinutes),
@@ -116,8 +117,8 @@ export function WeekReviewCard() {
                 <button
                   key={i}
                   type="button"
-                  title={tip}
-                  aria-label={tip}
+                  aria-label={dayTip}
+                  {...tip(dayTip)}
                   onClick={() => {
                     setSelectedCalendarDateKey(toDateKey(date))
                     selectView('planner')

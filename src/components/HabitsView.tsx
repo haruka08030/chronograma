@@ -29,6 +29,7 @@ import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { PathIcon } from './PathIcon'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { iconButtonClass } from './ui/iconButtonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { ColorPalette } from './labels/ColorPalette'
 import { DayNav } from './ui/DayNav'
@@ -445,7 +446,7 @@ export function HabitsView() {
                 <button
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
+                  className={iconButtonClass('-mr-1.5 -mt-1.5')}
                   {...tip(t('common.delete'))}
                   aria-label={t('common.delete')}
                 >
@@ -596,6 +597,7 @@ export function HabitsView() {
                   }}
                   className="flex justify-center"
                   aria-label={cellTitle}
+                  {...tip(cellTitle)}
                 >
                   {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
                   <span
@@ -609,7 +611,6 @@ export function HabitsView() {
                             : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
                     } ${ringClass}`}
                     style={colorVars(h.color)}
-                    title={cellTitle}
                   >
                     {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>

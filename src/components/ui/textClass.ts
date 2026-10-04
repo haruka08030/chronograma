@@ -18,5 +18,11 @@ export const META_TEXT = 'text-xs text-zinc-500 dark:text-zinc-400'
 
 export const SUBTLE_TEXT = 'text-sm text-zinc-500 dark:text-zinc-400'
 
+/**
+ * エラー・入力の誤りの 1 行（連携の失敗、「未来の時刻は記録できません」、終了が開始より前など）。
+ * 赤はこの 1 つだけ。ライトは red-600（12px で白地 4.5:1 を満たす。red-500 は満たさない）
+ */
+export const ERROR_TEXT = 'text-xs text-red-600 dark:text-red-400'
+
 /** 連携の設定などの「1. 2. 3.」の手順。文字は HINT_TEXT */
 export const STEPS_LIST_CLASS = `list-decimal space-y-1 pl-5 ${HINT_TEXT}`

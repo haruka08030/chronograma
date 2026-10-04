@@ -17,7 +17,7 @@ import { SettingsGroup, SettingsRow, SettingsLoadingRow } from './SettingsPrimit
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
-import { STEPS_LIST_CLASS } from '../ui/textClass'
+import { ERROR_TEXT, STEPS_LIST_CLASS } from '../ui/textClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const select = fieldClass({ size: 'sm' }, 'max-w-[12rem]')
@@ -131,7 +131,7 @@ export function NotionSettings() {
           </button>
         </SettingsRow>
       )}
-      {shownError && <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{shownError}</p>}
+      {shownError && <p className={`px-4 py-3 ${ERROR_TEXT}`}>{shownError}</p>}
     </SettingsGroup>
   )
 }

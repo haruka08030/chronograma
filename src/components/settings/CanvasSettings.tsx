@@ -22,11 +22,11 @@ import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
-import { STEPS_LIST_CLASS } from '../ui/textClass'
+import { ERROR_TEXT, STEPS_LIST_CLASS } from '../ui/textClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const field = fieldClass({}, 'w-full')
-const errorClass = 'px-4 py-3 text-xs text-red-600 dark:text-red-400'
+const errorClass = `px-4 py-3 ${ERROR_TEXT}`
 
 /**
  * Canvas LMS 連携。学校の Canvas の URL とアクセストークンを貼ってつなぐ。学校ごとに 1 つ、いくつでもつなげる。
@@ -257,7 +257,7 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
           aria-invalid={problem ? true : undefined}
         />
       </label>
-      {problem && <p className="text-xs text-red-600 dark:text-red-400">{t(`canvas.feedProblem.${problem}`)}</p>}
+      {problem && <p className={ERROR_TEXT}>{t(`canvas.feedProblem.${problem}`)}</p>}
       <FormButtons busy={busy} ready={ready} submitLabel={t('canvas.connect')} onCancel={onCancel} />
     </form>
   )

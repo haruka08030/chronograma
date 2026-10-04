@@ -23,6 +23,7 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/t
 import { toDateKey } from '../../lib/dateKey'
 import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
+import { tip } from '../../lib/tooltip'
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
 export function WeekAllDayRow({
@@ -113,7 +114,7 @@ export function WeekAllDayRow({
               {dayAllDayEvents.map((e) => (
                 <div
                   key={`event-all-day-${e.id}`}
-                  title={e.summary}
+                  {...tip(e.summary)}
                   data-block-id={`event-${e.id}`}
                   draggable={canEditGoogleEvent(e, googleCanWrite)}
                   onDragStart={(ev) => {

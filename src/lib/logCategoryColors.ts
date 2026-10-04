@@ -1,7 +1,7 @@
 /**
  * 記録の分類（ラベル）の色。分類ごとに Google カレンダーの色キー（24 色）か、自由に選んだ色の `#RRGGBB` を保存する
  * （並べ替えても色が変わらないように）。Google のラベルと同じく、ラベルは色に付けた名前として扱う。
- * 表示は CSS 変数 `--c` に色を渡し、`gc-solid`（記録の塗りつぶし）/ `gc-plan`（薄い予定）/ `gc-dot` で描く（index.css）。
+ * 表示は CSS 変数 `--c` に色を渡し、`gc-plan`（予定・記録の薄い塗り＋枠）/ `gc-solid`（選んだチップの塗り）/ `gc-dot` で描く（index.css）。
  */
 import type { CSSProperties } from 'react'
 import { CALENDAR_COLORS, NEUTRAL_HEX, hexForGoogleKey, textOnHex, type CalendarColorKey } from './googleColors'
