@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useGoogleConnect } from '../hooks/useGoogleConnect'
-import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, PHRASE_WRAP } from './ui/textClass'
 import { iconButtonClass } from './ui/iconButtonClass'
 import { CloseIcon } from './icons'
 import { tip } from '../lib/tooltip'
@@ -57,7 +57,7 @@ export function GoogleConnectLine({ hideInvite = false }: {
   // スマホ幅で文が折り返しても、接続と × は右に並べたままにする
   return (
     <div className={`flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 py-1 pl-4 pr-2 md:pl-6 md:pr-4 ${HINT_TEXT}`}>
-      <span className="min-w-0 flex-1 md:flex-none">{t('planVsActual.googleOneLine')}</span>
+      <span className={`min-w-0 flex-1 md:flex-none ${PHRASE_WRAP}`}>{t('planVsActual.googleOneLine')}</span>
       <button
         type="button"
         onClick={() => (user ? void connect() : openSettingsWithScroll('account'))}
