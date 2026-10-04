@@ -88,6 +88,7 @@ const SCREENS = [
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
+  { name: 'todo-hover', view: 'all', hover: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")' },
   { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
