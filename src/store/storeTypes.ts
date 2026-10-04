@@ -18,8 +18,8 @@ import type { SyncState } from '../types/sync'
 
 export type ToastText = string | { key: string; params?: Record<string, string | number> }
 
-/** `threeDay` はスマホ幅だけ（PC 幅では週として出す） */
-export type CalendarMode = 'month' | 'week' | 'threeDay'
+/** `threeDay` はスマホ幅だけ（PC 幅では週として出す）。`schedule` は予定の一覧 */
+export type CalendarMode = 'month' | 'week' | 'threeDay' | 'schedule'
 
 export type SmartView =
   | 'planner'

@@ -47,6 +47,8 @@ export function CalendarDateNav({
   const periodLabel =
     mode === 'month'
       ? df.yearMonth(monthCursor)
+      : mode === 'schedule'
+        ? df.monthDayWeekday(selectedDateKey)
       : singleDay
         ? df.monthDayWeekday(selectedDateKey)
         : df.weekRange(weekAnchor)

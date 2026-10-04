@@ -8,6 +8,7 @@ import { GoogleConnectLine } from './GoogleConnectLine'
 import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
+import { CalendarScheduleView } from './CalendarScheduleView'
 import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -39,8 +40,8 @@ export function CalendarHubView() {
   const isDesktop = useIsDesktop()
   // 3 日表示はスマホ幅だけ。PC 幅では週にする
   const calendarMode: CalendarMode = isDesktop && storedMode === 'threeDay' ? 'week' : storedMode
-  /** 週・3 日の表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
-  const pageDays = calendarMode === 'threeDay' ? 3 : isDesktop ? 7 : 1
+  /** 週・3 日・スケジュールの表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
+  const pageDays = calendarMode === 'threeDay' ? 3 : isDesktop || calendarMode === 'schedule' ? 7 : 1
 
   const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)
@@ -128,11 +129,13 @@ export function CalendarHubView() {
               ? [
                   { value: 'month', label: t('common.month') },
                   { value: 'week', label: t('common.week') },
+                  { value: 'schedule', label: t('calendarHub.modeSchedule') },
                 ]
               : [
                   { value: 'week', label: t('calendarHub.modeDay') },
                   { value: 'threeDay', label: t('calendarHub.modeThreeDay') },
                   { value: 'month', label: t('common.month') },
+                  { value: 'schedule', label: t('calendarHub.modeSchedule') },
                 ]}
             className="shrink-0"
           />
@@ -155,7 +158,7 @@ export function CalendarHubView() {
 
       <CalendarDateNav
         mode={calendarMode}
-        singleDay={!isDesktop}
+        singleDay={!isDesktop && calendarMode === 'week'}
         selectedDateKey={selectedDateKey}
         monthCursor={monthCursor}
         weekAnchor={weekAnchor}
@@ -169,7 +172,9 @@ export function CalendarHubView() {
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {calendarMode === 'month' ? (
+            {calendarMode === 'schedule' ? (
+              <CalendarScheduleView startDateKey={selectedDateKey} onOpenDay={openDay} />
+            ) : calendarMode === 'month' ? (
               <CalendarView
                 displayMonth={monthCursor}
                 selectedDateKey={selectedDateKey}

@@ -833,6 +833,9 @@ export default {
   calendarHub: {
     modeDay: '日',
     modeThreeDay: '3日',
+    modeSchedule: 'スケジュール',
+    scheduleEmpty: 'これからの予定はまだありません',
+    scheduleMore: 'さらに表示',
     dropToUnschedule: 'ここに落とすと日付をはずして To-Do に戻します',
     calendarTabsAria: 'カレンダー表示',
     dockToggle: '時間未定のタスク',

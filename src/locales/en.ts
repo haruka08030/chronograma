@@ -834,6 +834,9 @@ export default {
   calendarHub: {
     modeDay: 'Day',
     modeThreeDay: '3 days',
+    modeSchedule: 'Schedule',
+    scheduleEmpty: 'Nothing scheduled yet',
+    scheduleMore: 'Show more',
     dropToUnschedule: 'Drop here to unschedule',
     calendarTabsAria: 'Calendar view',
     dockToggle: 'Tasks without a time',

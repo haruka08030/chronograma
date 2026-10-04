@@ -53,7 +53,7 @@ export type TaskItemSelection = {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel }: {
+export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel, dayKey }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -75,6 +75,8 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   autoEdit?: boolean
   /** true のときホバー用のネイティブ期限ピッカー（カレンダー形アイコン）を出さない */
   hideDueDatePicker?: boolean
+  /** 行がこの日の下に並んでいるとき（スケジュール）。その日の締切・予定は日付を書かず時刻だけ（締切に時刻が無ければ「期限」） */
+  dayKey?: string
   /** セクションの塊で分けずに並べるとき、行に出すセクション名（Canvas なら科目） */
   sectionLabel?: string | null
 }) {
@@ -152,16 +154,22 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const language = i18n.resolvedLanguage
   const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
-  const dueText = due ? (task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
+  const dueOnRowDay = !!dayKey && task.dueDate === dayKey
+  const dueText = due
+    ? dueOnRowDay
+      ? task.dueTime ?? t('common.due')
+      : task.dueTime ? `${due.text} ${task.dueTime}` : due.text
+    : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
+    const timePart = task.startTime ? `${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
+    if (task.scheduledDate === dayKey) return timePart ? { text: timePart, tone: dateTone(d) } : null
     const datePart = isAppToday(d) ? t('common.today') : rowDateText(d, language)
-    const timePart = task.startTime ? ` ${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
-    return { text: `${datePart}${timePart}`, tone: dateTone(d) }
-  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t])
+    return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent) => {

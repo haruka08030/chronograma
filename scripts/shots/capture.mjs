@@ -66,6 +66,8 @@ const SCREENS = [
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
   // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay' },
+  // スケジュール（予定の一覧）
+  { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
   // 終わった日（前の週）の予定と記録
   { name: 'calendar-past', view: 'calendar', click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
