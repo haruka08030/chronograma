@@ -122,6 +122,8 @@ export interface TaskState {
   dailyReminders: DailyReminders
   /** 「今日の計画」で通知の案内を閉じたか */
   reminderPromptDismissed: boolean
+  /** カレンダーの「Google カレンダーも並べられます · 接続する」の 1 行を閉じたか（接続は設定から） */
+  googleConnectLineDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -269,6 +271,7 @@ export interface TaskState {
   dismissCompletePrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
+  dismissGoogleConnectLine: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void

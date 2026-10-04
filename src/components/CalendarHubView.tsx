@@ -167,7 +167,8 @@ export function CalendarHubView() {
         onNextPeriod={onNextPeriod}
         onPickDate={applyPickedDate}
       />
-      <GoogleConnectLine />
+      {/* スマホ幅で時間未定のタスクを開いている間は、未接続の案内を畳んで月の格子に場所を譲る */}
+      <GoogleConnectLine hideInvite={dockOpen && !isDesktop} />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -192,8 +193,9 @@ export function CalendarHubView() {
               />
             )}
           </div>
-          {calendarMode === 'month' && (
-            // スマホ幅はマスを押すとその日を開くので、下の日のパネルは md〜lg だけ
+          {calendarMode === 'month' && !dockOpen && (
+            // スマホ幅はマスを押すとその日を開くので、下の日のパネルは md〜lg だけ。
+            // 時間未定のタスクを開いたら畳む（下に開く面は 1 つずつ。月の格子を潰さない）
             <div className="hidden max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 md:flex lg:hidden">
               <CalendarDayPanel selectedDateKey={selectedDateKey} />
             </div>
