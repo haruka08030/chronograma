@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { allDayCalendarKey, getDayPlan, getMoreSuggestions } from './dayPlan'
+import { calendarDayKey, getDayPlan, getMoreSuggestions } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -113,21 +113,44 @@ describe('getDayPlan done', () => {
   })
 })
 
-describe('allDayCalendarKey', () => {
+describe('calendarDayKey', () => {
   afterEach(() => setAppTimeZoneSetting(null))
 
   it('puts an open task on its scheduled date, then its due date', () => {
-    expect(allDayCalendarKey(task('a', { scheduledDate: DAY, dueDate: '2026-10-02' }))).toBe(DAY)
-    expect(allDayCalendarKey(task('b', { dueDate: '2026-10-02' }))).toBe('2026-10-02')
+    expect(calendarDayKey(task('a', { scheduledDate: DAY, dueDate: '2026-10-02' }))).toBe(DAY)
+    expect(calendarDayKey(task('b', { dueDate: '2026-10-02' }))).toBe('2026-10-02')
   })
 
   it('puts a completed task on the day it was completed', () => {
     setAppTimeZoneSetting('UTC')
     const done = task('c', { dueDate: '2026-10-05', completed: true, completedAt: '2026-10-01T12:00:00Z' })
-    expect(allDayCalendarKey(done)).toBe('2026-10-01')
+    expect(calendarDayKey(done)).toBe('2026-10-01')
   })
 
   it('leaves undated tasks off the calendar even when completed', () => {
-    expect(allDayCalendarKey(task('d', { completed: true, completedAt: '2026-10-01T12:00:00Z' }))).toBeNull()
+    expect(calendarDayKey(task('d', { completed: true, completedAt: '2026-10-01T12:00:00Z' }))).toBeNull()
+  })
+})
+
+describe('calendarDayKey for timed tasks', () => {
+  afterEach(() => setAppTimeZoneSetting(null))
+  const timed = (over: Partial<Task>) => task('t', { scheduledDate: '2026-10-02', startTime: '15:00', endTime: '16:00', ...over })
+
+  it('keeps an open or same-day completed block on its planned day', () => {
+    setAppTimeZoneSetting('UTC')
+    expect(calendarDayKey(timed({}))).toBe('2026-10-02')
+    expect(calendarDayKey(timed({ completed: true, completedAt: '2026-10-02T16:30:00Z' }))).toBe('2026-10-02')
+  })
+
+  it('moves a block completed on another day to that day', () => {
+    setAppTimeZoneSetting('UTC')
+    expect(calendarDayKey(timed({ completed: true, completedAt: '2026-10-04T09:00:00Z' }))).toBe('2026-10-04')
+    expect(calendarDayKey(timed({ completed: true, completedAt: '2026-10-01T09:00:00Z' }))).toBe('2026-10-01')
+  })
+
+  it('treats a small-hours block finished before 4am as done on its planned day', () => {
+    setAppTimeZoneSetting('UTC')
+    const night = timed({ startTime: '01:00', endTime: '02:00', completed: true, completedAt: '2026-10-02T01:30:00Z' })
+    expect(calendarDayKey(night)).toBe('2026-10-02')
   })
 })

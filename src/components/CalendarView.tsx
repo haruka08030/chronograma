@@ -27,8 +27,7 @@ import {
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { taskPlacementDate } from '../lib/taskTimeRange'
-import { allDayCalendarKey } from '../lib/dayPlan'
+import { calendarDayKey, keepsTimeSlot } from '../lib/dayPlan'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
@@ -111,8 +110,8 @@ export function CalendarView({
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
       if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-      // 時刻のないものは、完了していれば終わらせた日へ（週の終日の行と同じ）
-      const key = t.startTime && t.endTime ? taskPlacementDate(t) : allDayCalendarKey(t)
+      // 完了していれば終わらせた日へ（時刻つきも予定の日以外に終えたなら。週のタイムライン・終日の行と同じ）
+      const key = calendarDayKey(t)
       if (!key) continue
       const arr = map.get(key) ?? []
       arr.push(t)
@@ -290,7 +289,7 @@ export function CalendarView({
                       }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${itemClass(!t.startTime, planVisualState(t, key))}`}
+                        ${itemClass(!keepsTimeSlot(t), planVisualState(t, key))}`}
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
                       {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
@@ -298,9 +297,10 @@ export function CalendarView({
                         done={t.completed}
                         label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
                         onCheck={() => toggleTask(t.id)}
-                        className={t.startTime ? 'text-(--c)' : ''}
+                        className={keepsTimeSlot(t) ? 'text-(--c)' : ''}
                       />
-                      {t.startTime && <span className="shrink-0 opacity-70">{t.startTime}</span>}
+                      {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
+                      {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
                       <span className="truncate">{t.title}</span>
                     </div>
                   ))}
