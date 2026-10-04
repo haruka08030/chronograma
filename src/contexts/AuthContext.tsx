@@ -33,8 +33,11 @@ export type AuthContextValue = {
   /** Google の画面に移る。戻ってきたら Supabase がセッションを作る（同じメールのアカウントがあればそこに入る） */
   signInWithGoogle: () => Promise<{ error?: string }>
   signOut: () => Promise<void>
-  /** アカウントとクラウドのデータを全部消し、この端末のデータと自動バックアップも消す */
-  deleteAccount: () => Promise<{ error?: string }>
+  /**
+   * アカウントとクラウドのデータを全部消し、この端末のデータと自動バックアップも消す。
+   * 最近ログインしていないセッションでは消さず `reauthRequired`（ログインし直してから呼び直す）
+   */
+  deleteAccount: () => Promise<{ error?: string; reauthRequired?: boolean }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -266,9 +269,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const { data, error } = await sb.functions.invoke('account', { body: { action: 'delete' } })
           if (error || (data as { ok?: boolean } | null)?.ok !== true) {
-            const message = error instanceof FunctionsHttpError
-              ? ((await error.context.json().catch(() => null)) as { error?: string } | null)?.error
-              : error?.message
+            const body = error instanceof FunctionsHttpError
+              ? ((await error.context.json().catch(() => null)) as { code?: string; error?: string } | null)
+              : null
+            // 10 分より前のログインでは消せない（サーバーの本人確認）。ログインし直してから呼び直す
+            if (body?.code === 'reauth_required') return { reauthRequired: true }
+            const message = body ? body.error : error?.message
             if (message && isNetworkErrorMessage(message)) return { error: i18n.t('account.networkError') }
             return { error: i18n.t('account.deleteFailed') }
           }

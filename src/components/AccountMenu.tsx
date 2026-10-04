@@ -27,6 +27,9 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const [pending, setPending] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  /** 削除の前の本人確認（サーバーが最近のログインを求めたとき）。コードを送る前 / 送った後 */
+  const [reauth, setReauth] = useState<'needed' | 'codeSent' | null>(null)
+  const [reauthCode, setReauthCode] = useState('')
   const [error, setError] = useState<string | null>(() => {
     const linkError = pendingAuthLinkError()
     return linkError ? t(authLinkErrorKey(linkError)) : null
@@ -68,11 +71,62 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       requireText: user.email ? { label: t('account.deleteTypeEmail', { email: user.email }), expected: user.email } : undefined,
     })
     if (!ok) return
+    await runDelete()
+  }
+
+  /** 削除を送る。最近ログインしていなければ、メールのコードでログインし直す欄を出す */
+  const runDelete = async () => {
     setError(null)
+    setMessage(null)
     setPending(true)
     const res = await deleteAccount()
     setPending(false)
+    if (res.reauthRequired) {
+      if (user?.email) setReauth('needed')
+      else setError(t('account.reauthSignInAgain'))
+      return
+    }
     if (res.error) setError(res.error)
+  }
+
+  const sendReauthCode = async () => {
+    if (!user?.email) return
+    setError(null)
+    setMessage(null)
+    setPending(true)
+    const res = await signInWithOtp(user.email)
+    setPending(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setReauth('codeSent')
+    setReauthCode('')
+    setMessage(t('account.reauthCodeSent'))
+  }
+
+  /** コードでログインし直してから、もう一度削除を送る（確認のダイアログは済んでいる） */
+  const confirmReauth = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!user?.email || !reauthCode.trim()) return
+    setError(null)
+    setPending(true)
+    const res = await verifyEmailOtp(user.email, reauthCode)
+    setPending(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setReauth(null)
+    setReauthCode('')
+    await runDelete()
+  }
+
+  const cancelReauth = () => {
+    setReauth(null)
+    setReauthCode('')
+    setError(null)
+    setMessage(null)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -178,14 +232,62 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         {isSettings && (
           <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
-            <button
-              type="button"
-              onClick={() => void handleDeleteAccount()}
-              disabled={pending}
-              className={buttonClass({ variant: 'danger', size: 'sm' })}
-            >
-              {pending ? t('account.deleting') : t('account.delete')}
-            </button>
+            {reauth && user.email ? (
+              <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+                <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
+                {reauth === 'codeSent' && (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxLength={10}
+                    placeholder={t('account.codePlaceholder')}
+                    aria-label={t('account.codePlaceholder')}
+                    value={reauthCode}
+                    onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
+                    className={fieldClass({}, 'w-full tracking-widest')}
+                  />
+                )}
+                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {reauth === 'codeSent' ? (
+                    <button
+                      type="submit"
+                      disabled={pending || !reauthCode.trim()}
+                      className={buttonClass({ variant: 'danger', size: 'sm' })}
+                    >
+                      {pending ? t('account.deleting') : t('account.reauthConfirm')}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void sendReauthCode()}
+                    disabled={pending}
+                    className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
+                  >
+                    {pending && reauth === 'needed' ? t('account.sending') : reauth === 'codeSent' ? t('account.reauthResend') : t('account.reauthSend')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelReauth}
+                    disabled={pending}
+                    className={buttonClass({ variant: 'ghost', size: 'sm' })}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleDeleteAccount()}
+                disabled={pending}
+                className={buttonClass({ variant: 'danger', size: 'sm' })}
+              >
+                {pending ? t('account.deleting') : t('account.delete')}
+              </button>
+            )}
             {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
           </div>
         )}

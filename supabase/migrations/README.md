@@ -8,6 +8,7 @@
 | [`002_extra_time_zones.sql`](002_extra_time_zones.sql) | 時間バーに並べる他のタイムゾーンと付けた名前 `user_extra_time_zones`（利用者ごとに 1 行、RLS は本人だけ） |
 | [`003_habit_archived_at.sql`](003_habit_archived_at.sql) | 習慣のアーカイブ `habits.archived_at`（null は使用中） |
 | [`004_sync_server_time.sql`](004_sync_server_time.sql) | `lists` / `list_sections` / `tasks` / `habits` の書き込みをトリガー `sync_write_guard` で確かめる（001 の `skip_stale_write` をこの 4 つの表で置き換える）。`base_updated_at`（端末がもとにした版。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
+| [`005_skip_stale_write_search_path.sql`](005_skip_stale_write_search_path.sql) | 001 のトリガー関数 `skip_stale_write` の `search_path` を空に固定する（動きは同じ） |
 
 テーブル（最新の形）:
 
