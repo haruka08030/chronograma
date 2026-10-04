@@ -102,13 +102,20 @@ export function MobileBottomNav({
               key={tab.id}
               type="button"
               onClick={() => go(tab.id)}
-              className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 touch-manipulation transition-colors
+              className={`group flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 touch-manipulation transition-colors
                 ${isActive
                   ? 'text-accent-600 dark:text-accent-400'
                   : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
               aria-current={isActive ? 'page' : undefined}
             >
-              {tab.icon}
+              {/* Google のアプリと同じく、選んでいるタブはアイコンの後ろに薄いピル。押している間も同じ形で薄く出す */}
+              <span
+                className={`flex h-7 w-14 items-center justify-center rounded-full transition-colors ${
+                  isActive ? 'bg-accent-100' : 'group-active:bg-zinc-100 dark:group-active:bg-zinc-800'
+                }`}
+              >
+                {tab.icon}
+              </span>
               <span className="max-w-full truncate px-0.5 text-[10px] font-medium leading-none">{tab.label}</span>
             </button>
           )

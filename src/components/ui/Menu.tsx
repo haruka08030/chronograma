@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../icons'
-import { MENU_ROW_ACTIVE, MENU_ROW_HOVER } from './surface'
+import { MENU_ROW_ACTIVE, MENU_ROW_HOVER, MENU_ROW_PRESS } from './surface'
 
 /**
  * メニューの行（タスクの右クリックメニュー・並べ替えなど、浮く面に縦に並べる項目）。どのメニューも同じ見た目にする。
@@ -48,7 +48,7 @@ export function MenuItem({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-        active ? MENU_ROW_ACTIVE : MENU_ROW_HOVER
+        active ? MENU_ROW_ACTIVE : `${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`
       } ${danger ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'}`}
       {...rest}
     >
