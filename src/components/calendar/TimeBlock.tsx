@@ -62,8 +62,11 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
   const dueDot = dueTone && (
     <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
   )
-  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に
+  // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に。
+  // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーの title で読める）
   const compact = height < 32
+  const tight = height < 20
+  const bare = height < 13
 
   return (
     <button
@@ -82,7 +85,7 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden rounded-[5px] py-0.5 pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px] leading-tight
+      className={`${variant} absolute overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
         cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
@@ -96,7 +99,7 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
         ...colorVars(colorHex),
       }}
     >
-      {compact ? (
+      {bare ? null : compact ? (
         <span className="block truncate">
           <span className="font-medium">{dueDot}{moon}{doneMark}{task.title}</span>
           <span className="opacity-80">{t('common.listSeparator')}{task.startTime}</span>
@@ -117,12 +120,15 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
  * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
-export function SlotCheck({ top, hStyle, label, done, onCheck }: { top: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
+export function SlotCheck({ top, height, hStyle, label, done, onCheck }: { top: number; height: number; hStyle?: React.CSSProperties; label: string; done?: boolean; onCheck: () => void }) {
+  // ブロックからはみ出さない大きさにする。入らない短いブロックでは出さない（完了はカード・メニューから）
+  if (height < 14) return null
+  const small = height < 20
   return (
     // 細いブロック（週表示の予定・記録の 2 列など）では出さない。題名を隠し、つかむ場所で完了になってしまう。完了はカード・メニューから
-    <div className="@container pointer-events-none absolute z-[31] flex justify-end p-0.5" style={{ top, left: 2, right: 2, ...hStyle }}>
+    <div className={`@container pointer-events-none absolute z-[31] flex justify-end ${small ? 'px-0.5' : 'p-0.5'}`} style={{ top, left: 2, right: 2, ...hStyle }}>
       <span className="pointer-events-auto hidden @[5.5rem]:block">
-        <CalendarCheck size="md" done={done} label={label} onCheck={onCheck} />
+        <CalendarCheck size={small ? 'sm' : 'md'} done={done} label={label} onCheck={onCheck} />
       </span>
     </div>
   )

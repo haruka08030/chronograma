@@ -1,7 +1,7 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { HOUR_HEIGHT, HOURS, timeToY, timeToMinutes, yToTime } from '../../lib/timeGrid'
+import { HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
 import type { CreateIntent, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
@@ -197,7 +197,7 @@ export function WeekDayColumn({
             withCheck
           />
           <SlotCheck
-            top={blockGeometry(t as TimeBlockTask, key, false).top}
+            {...blockGeometry(t as TimeBlockTask, key, false)}
             hStyle={planStyle(t.id)}
             done={t.completed}
             label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
@@ -244,7 +244,7 @@ export function WeekDayColumn({
           {(done || hasStarted(slot.startTime)) && (
             // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
             <SlotCheck
-              top={blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false).top}
+              {...blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false)}
               hStyle={planStyle(slot.id)}
               done={done}
               label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
@@ -286,7 +286,7 @@ export function WeekDayColumn({
         />
         {hasStarted(e.startTime!) && !recorded && (
           <SlotCheck
-            top={timeToY(e.startTime!)}
+            {...blockGeometry({ id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false }, key, false)}
             hStyle={planStyle(`event-${e.id}`)}
             label={t('weekCalendar.eventToRecord')}
             onCheck={() => {
