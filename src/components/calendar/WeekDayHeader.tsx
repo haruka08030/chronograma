@@ -68,7 +68,8 @@ export function WeekDayHeader({
                   onSelectDate?.(key)
                   setAllDayAddDate(key)
                 }}
-                className={`absolute right-1 top-1 hidden h-4 w-4 p-px opacity-0 transition-opacity md:block
+                // スマホ幅は曜日の文字に重なるので出さない（inline-flex に hidden が負けるので max-md で消す）
+                className={`absolute right-1 top-1 h-4 w-4 p-px opacity-0 transition-opacity max-md:hidden
                   focus-visible:opacity-100 group-hover:opacity-100 ${selected ? 'opacity-60' : ''}`}
               />
             </div>
