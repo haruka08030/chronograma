@@ -831,6 +831,8 @@ export default {
     weekdayInitials: ['月', '火', '水', '木', '金', '土', '日'],
   },
   calendarHub: {
+    modeDay: '日',
+    modeThreeDay: '3日',
     dropToUnschedule: 'ここに落とすと日付をはずして To-Do に戻します',
     calendarTabsAria: 'カレンダー表示',
     dockToggle: '時間未定のタスク',

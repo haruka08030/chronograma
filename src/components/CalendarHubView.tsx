@@ -22,11 +22,12 @@ import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { isLogTask } from '../types/task'
+import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
-  const calendarMode = useTaskStore((s) => s.calendarMode)
+  const storedMode = useTaskStore((s) => s.calendarMode)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const selectedDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
@@ -36,10 +37,12 @@ export function CalendarHubView() {
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(fromDateKey(selectedDateKey)))
   const [weekAnchor, setWeekAnchor] = useState(() => fromDateKey(selectedDateKey))
   const isDesktop = useIsDesktop()
-  /** 週の表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
-  const pageDays = isDesktop ? 7 : 1
+  // 3 日表示はスマホ幅だけ。PC 幅では週にする
+  const calendarMode: CalendarMode = isDesktop && storedMode === 'threeDay' ? 'week' : storedMode
+  /** 週・3 日の表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
+  const pageDays = calendarMode === 'threeDay' ? 3 : isDesktop ? 7 : 1
 
-  const setMode = (mode: 'month' | 'week') => {
+  const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)
     const d = fromDateKey(selectedDateKey)
     if (mode === 'month') setMonthCursor(startOfMonth(d))
@@ -120,10 +123,17 @@ export function CalendarHubView() {
             ariaLabel={t('calendarHub.calendarTabsAria')}
             value={calendarMode}
             onChange={setMode}
-            options={[
-              { value: 'month', label: t('common.month') },
-              { value: 'week', label: t('common.week') },
-            ]}
+            // スマホ幅の「週」は 1 日だけ描くので「日」と呼ぶ
+            options={isDesktop
+              ? [
+                  { value: 'month', label: t('common.month') },
+                  { value: 'week', label: t('common.week') },
+                ]
+              : [
+                  { value: 'week', label: t('calendarHub.modeDay') },
+                  { value: 'threeDay', label: t('calendarHub.modeThreeDay') },
+                  { value: 'month', label: t('common.month') },
+                ]}
             className="shrink-0"
           />
         </div>
@@ -169,8 +179,10 @@ export function CalendarHubView() {
             ) : (
               <WeekCalendarView
                 anchor={weekAnchor}
+                threeDay={calendarMode === 'threeDay'}
                 selectedDateKey={selectedDateKey}
-                onSelectDate={applyPickedDate}
+                // 3 日表示で日付を押したら、その日の 1 日表示へ（Google カレンダーと同じ）
+                onSelectDate={calendarMode === 'threeDay' ? openDay : applyPickedDate}
                 onNavigateWeek={stepPeriod}
               />
             )}

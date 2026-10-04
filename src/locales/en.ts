@@ -832,6 +832,8 @@ export default {
     weekdayInitials: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   calendarHub: {
+    modeDay: 'Day',
+    modeThreeDay: '3 days',
     dropToUnschedule: 'Drop here to unschedule',
     calendarTabsAria: 'Calendar view',
     dockToggle: 'Tasks without a time',

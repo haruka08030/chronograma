@@ -8,9 +8,10 @@ import { DayNav } from './ui/DayNav'
 import { DatePickerBody } from './DatePickerBody'
 import { fromDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
+import type { CalendarMode } from '../store/storeTypes'
 
 type CalendarDateNavProps = {
-  mode: 'month' | 'week'
+  mode: CalendarMode
   /** 週の表示が 1 日だけのとき（スマホ幅）。見出しはその日、‹ › は 1 日ずつ */
   singleDay: boolean
   selectedDateKey: string

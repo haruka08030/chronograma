@@ -64,6 +64,8 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
+  { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay' },
   // 終わった日（前の週）の予定と記録
   { name: 'calendar-past', view: 'calendar', click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る

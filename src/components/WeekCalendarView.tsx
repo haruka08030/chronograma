@@ -54,12 +54,14 @@ import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 
 const DAY_HEIGHT = HOUR_HEIGHT * 24
+const NO_LOGS = new Map<string, Task[]>()
 
 export function WeekCalendarView({
   anchor,
   selectedDateKey,
   onSelectDate,
   singleDay = false,
+  threeDay = false,
   onNavigateWeek,
 }: {
   anchor: Date
@@ -67,6 +69,8 @@ export function WeekCalendarView({
   onSelectDate?: (dateKey: string) => void
   /** true のとき `selectedDateKey` の 1 日だけを描画し、曜日ヘッダーを出さない（「今日の計画」用） */
   singleDay?: boolean
+  /** `anchor` から 3 日（スマホ幅の 3 日表示）。予定の列だけで、記録の列は出さない */
+  threeDay?: boolean
   /** ドラッグ中に左右の端で止めたとき前後の週へめくる（未指定ならめくらない） */
   onNavigateWeek?: (dir: -1 | 1) => void
 }) {
@@ -94,30 +98,32 @@ export function WeekCalendarView({
   const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
 
+  /** 上の帯に並べる日（週。3 日表示はその 3 日） */
   const days = useMemo(() => {
+    if (threeDay) return [0, 1, 2].map((i) => addDays(anchor, i))
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
     const we = endOfWeek(anchor, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: ws, end: we })
-  }, [anchor])
+  }, [anchor, threeDay])
 
   const focusKey = selectedDateKey ?? appTodayKey()
   const gridDays = useMemo(() => {
-    if (isDesktop && !singleDay) return days
+    if ((isDesktop && !singleDay) || threeDay) return days
     const hit = days.find((d) => toDateKey(d) === focusKey)
     return [hit ?? days[0]!]
-  }, [isDesktop, singleDay, days, focusKey])
+  }, [isDesktop, singleDay, threeDay, days, focusKey])
   /** 時間バーの他のタイムゾーンの時刻は、表示している最初の日で計算する */
   const gridKey0 = toDateKey(gridDays[0]!)
   const gutterWidth = useTimeGutterWidth()
-  const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
+  const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : gridDays.length === 3 ? 'grid-cols-3' : 'grid-cols-1'
   /**
    * 1 日表示では、24 時の下に次の日の 0〜4 時（1 日の区切りまで）を続けて出す。
    * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
    */
   const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
   const gridHeight = DAY_HEIGHT + (nightDay ? NIGHT_HOURS * HOUR_HEIGHT : 0)
-  /** 予定（左）と 記録（右）の 2 列（今日・週とも）。押した・落とした列で作るものが決まる */
-  const splitLanes = true
+  /** 予定（左）と 記録（右）の 2 列（今日・週とも。3 日表示は狭いので予定だけ）。押した・落とした列で作るものが決まる */
+  const splitLanes = !threeDay
   const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
     if (!splitLanes) return 'schedule'
     const rect = el.getBoundingClientRect()
@@ -140,11 +146,11 @@ export function WeekCalendarView({
   const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
 
   const fetchRange = useMemo(() => {
-    const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-    const we = endOfWeek(anchor, { weekStartsOn: 1 })
+    const ws = new Date(days[0]!)
+    const we = new Date(days[days.length - 1]!)
     we.setHours(23, 59, 59)
     return { ws, we }
-  }, [anchor])
+  }, [days])
   useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
   useWeekScrollPosition({ scrollRef, keepScrollOnFlipRef, anchor, days, singleDay })
@@ -336,7 +342,7 @@ export function WeekCalendarView({
     selectedDateKey,
     onSelectDate,
     timedByDate,
-    timeLogsByDate,
+    timeLogsByDate: splitLanes ? timeLogsByDate : NO_LOGS,
     eventsByDate,
     habitIndex,
     splitLanes,

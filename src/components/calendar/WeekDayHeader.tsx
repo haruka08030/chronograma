@@ -37,7 +37,7 @@ export function WeekDayHeader({
       ) : (
         <div style={{ width: gutterWidth }} className="flex-shrink-0" />
       )}
-      <div className="flex-1 grid grid-cols-7">
+      <div className={`flex-1 grid ${days.length === 3 ? 'grid-cols-3' : 'grid-cols-7'}`}>
         {days.map((day, i) => {
           const today = isAppToday(day)
           const key = toDateKey(day)
