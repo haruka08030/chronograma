@@ -125,16 +125,16 @@ export function WeekReviewCard() {
                   }}
                   className="group flex h-full flex-1 cursor-pointer flex-col justify-end"
                 >
-                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色。タイムラインのカードと同じ薄い塗り＋枠） */}
+                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色。色選択の丸と同じベタ塗りで、分類の間は細い隙間で区切る） */}
                   <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
+                    className="flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
                     style={{ height: `${h}%`, minHeight: dayBar > 0 ? 2 : 0 }}
                   >
                     {day?.tagMinutes.map((x) => (
                       <div
                         key={x.tag}
-                        className="gc-plan w-full shrink-0"
-                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
+                        className="gc-dot w-full basis-0"
+                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), flexGrow: x.minutes }}
                       />
                     ))}
                   </div>
@@ -164,7 +164,7 @@ export function WeekReviewCard() {
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-plan h-2.5 w-2.5 shrink-0 rounded-[3px]" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
+                    <span className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
                     <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>

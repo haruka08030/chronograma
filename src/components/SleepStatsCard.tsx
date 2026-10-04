@@ -110,8 +110,8 @@ export function SleepStatsCard() {
                   >
                     {n && (
                       <span
-                        className={`gc-sleep absolute left-1/2 w-2.5 -translate-x-1/2 rounded ring-1 ring-inset transition-shadow sm:w-3 ${
-                          focused.dateKey === n.dateKey ? 'ring-sleep' : 'ring-sleep/30 group-hover:ring-sleep'
+                        className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded bg-sleep outline-offset-1 outline-sleep sm:w-3 ${
+                          focused.dateKey === n.dateKey ? 'outline-2' : 'group-hover:outline-2'
                         }`}
                         style={{ top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) }}
                       />
