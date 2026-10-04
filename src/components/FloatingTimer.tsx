@@ -75,7 +75,7 @@ export function FloatingTimer() {
                     flex items-center gap-3 md:min-w-[280px] md:w-auto md:gap-4 md:px-5
                     ${MOBILE_FLOAT_BOTTOM}`}
     >
-      <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+      <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
           {activeTimer.taskTitle}

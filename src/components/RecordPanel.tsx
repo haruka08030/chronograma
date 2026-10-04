@@ -285,7 +285,7 @@ export function RecordPanel({
                 className={chipClass({ variant: 'outline', size: 'md', selected: running }, `min-h-9 max-w-[10rem] gap-1.5 md:min-h-7 ${running ? 'cursor-default' : ''}`)}
               >
                 {running ? (
-                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-current" />
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 animate-breathe rounded-full bg-current" />
                 ) : (
                   // 分類の色の ▶ — 押すとこの記録をもう一度始める
                   <PlayIcon className="h-2.5 w-2.5 shrink-0 text-[var(--c)]" style={hexVars} />
