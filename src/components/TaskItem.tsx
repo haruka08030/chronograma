@@ -8,7 +8,7 @@ import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
@@ -81,7 +81,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const { toggleTask, updateTask, archiveTask, setFilterTag, showMoveBanner } = useTaskStore()
+  const { toggleTask, updateTask, archiveTask, deleteTasks, setFilterTag, showMoveBanner } = useTaskStore()
   const deferredComplete = useDeferredComplete(toggleTask)
   /** 押した直後は、完了の欄へ移る前からこの行を完了の見た目にする */
   const justCompleted = deferredComplete.isPending(task.id)
@@ -460,7 +460,18 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
         <ArchiveIcon className="h-4 w-4 text-zinc-400" />
       </button>
 
-      {/* 削除はホバーに置かない（アーカイブのすぐ隣で押し間違える）。Delete キー・右クリック・≡ のメニューから */}
+      {/* 確認なしで消し「元に戻す」を出す（右クリック・Delete キーと同じ） */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          deleteTasks([task.id])
+        }}
+        className="hidden rounded-md p-1 transition-colors hover:bg-zinc-200 md:-my-1 md:group-hover:block md:group-focus-within:block md:[@media(hover:none)]:block dark:hover:bg-zinc-700"
+        aria-label={t('taskItem.deleteAria')}
+        {...tip(t('taskItem.deleteAria'))}
+      >
+        <TrashIcon className="h-4 w-4 text-zinc-400" />
+      </button>
     </div>
   )
 }
