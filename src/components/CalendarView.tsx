@@ -58,10 +58,16 @@ export function CalendarView({
   displayMonth,
   selectedDateKey,
   onSelectDate,
+  onOpenDay,
 }: {
   displayMonth: Date
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
+  /**
+   * 渡すと、マスを押したらその日を開く（スマホ幅。Google カレンダーと同じ）。
+   * マスの中の行は小さくて押し分けにくいので、✓ などのボタン以外はどこを押してもその日へ
+   */
+  onOpenDay?: (dateKey: string) => void
 }) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -171,6 +177,11 @@ export function CalendarView({
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
                             ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
+                onClickCapture={onOpenDay ? (e) => {
+                  if ((e.target as Element).closest('button')) return
+                  e.stopPropagation()
+                  onOpenDay(key)
+                } : undefined}
                 onDoubleClick={() => setAddingDate(key)}
                 onDragOver={(e) => { if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key) }}
                 onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}

@@ -53,6 +53,12 @@ export function CalendarHubView() {
     setWeekAnchor(d)
   }, [setSelectedCalendarDateKey])
 
+  /** スマホ幅の月のマスを押したとき: その日の 1 日表示へ */
+  const openDay = useCallback((key: string) => {
+    setCalendarMode('week')
+    applyPickedDate(key)
+  }, [setCalendarMode, applyPickedDate])
+
   const onGoToday = useCallback(() => {
     const today = appToday()
     const key = toDateKey(today)
@@ -158,6 +164,7 @@ export function CalendarHubView() {
                 displayMonth={monthCursor}
                 selectedDateKey={selectedDateKey}
                 onSelectDate={applyPickedDate}
+                onOpenDay={isDesktop ? undefined : openDay}
               />
             ) : (
               <WeekCalendarView
@@ -169,7 +176,8 @@ export function CalendarHubView() {
             )}
           </div>
           {calendarMode === 'month' && (
-            <div className="flex max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
+            // スマホ幅はマスを押すとその日を開くので、下の日のパネルは md〜lg だけ
+            <div className="hidden max-h-[22vh] min-h-[7rem] shrink-0 flex-col border-t border-zinc-200 dark:border-zinc-800 md:flex lg:hidden">
               <CalendarDayPanel selectedDateKey={selectedDateKey} />
             </div>
           )}
