@@ -52,6 +52,7 @@ import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
+import { useSwipeNav } from '../hooks/useSwipeNav'
 
 const DAY_HEIGHT = HOUR_HEIGHT * 24
 const NO_LOGS = new Map<string, Task[]>()
@@ -63,6 +64,7 @@ export function WeekCalendarView({
   singleDay = false,
   threeDay = false,
   onNavigateWeek,
+  onNavigateStrip,
 }: {
   anchor: Date
   selectedDateKey?: string
@@ -73,6 +75,8 @@ export function WeekCalendarView({
   threeDay?: boolean
   /** ドラッグ中に左右の端で止めたとき前後の週へめくる（未指定ならめくらない） */
   onNavigateWeek?: (dir: -1 | 1) => void
+  /** スマホ幅で上の曜日の帯を横に払ったとき（1 日表示は前後の週へ） */
+  onNavigateStrip?: (dir: -1 | 1) => void
 }) {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
@@ -97,6 +101,9 @@ export function WeekCalendarView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const keepScrollOnFlipRef = useRef(false)
   const gridRef = useRef<HTMLDivElement>(null)
+  /** 横に払うと前後へ送る所（終日の行と時間の格子）と、曜日の帯 */
+  const swipeBodyRef = useRef<HTMLDivElement>(null)
+  const swipeStripRef = useRef<HTMLDivElement>(null)
 
   /** 上の帯に並べる日（週。3 日表示はその 3 日） */
   const days = useMemo(() => {
@@ -250,6 +257,11 @@ export function WeekCalendarView({
     taskDragActive,
   })
 
+  // スマホ幅は横に払って前後へ（PC 幅は ‹ › とキー）。予定をつかんでいる間は払いとみなさない
+  const swipeBlocked = () => !!timelineDrag.drag && timelineDrag.didMove.current
+  useSwipeNav(swipeBodyRef, !isDesktop && !singleDay ? onNavigateWeek : undefined, swipeBlocked)
+  useSwipeNav(swipeStripRef, !isDesktop && !singleDay && gridDays.length === 1 ? onNavigateStrip : undefined)
+
   const endMoveExtras = () => {
     setAllDayMoveKey(null)
     setEdgeDir(null)
@@ -386,6 +398,7 @@ export function WeekCalendarView({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={swipeStripRef} className="flex-shrink-0">
         <WeekDayHeader
           singleDay={singleDay}
           days={days}
@@ -396,6 +409,9 @@ export function WeekCalendarView({
           onSelectDate={onSelectDate}
           setAllDayAddDate={setAllDayAddDate}
         />
+        </div>
+
+        <div ref={swipeBodyRef} className="flex min-h-0 flex-1 flex-col">
 
         {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
           <WeekAllDayRow
@@ -451,6 +467,7 @@ export function WeekCalendarView({
               {nightDay && <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />}
             </div>
           </div>
+        </div>
         </div>
         </div>
       </div>

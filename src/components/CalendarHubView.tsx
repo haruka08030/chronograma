@@ -81,6 +81,12 @@ export function CalendarHubView() {
     setWeekAnchor(next)
     setSelectedCalendarDateKey(toDateKey(next))
   }, [calendarMode, pageDays, selectedDateKey, setSelectedCalendarDateKey])
+  /** スマホの 1 日表示で上の曜日の帯を払ったとき: 同じ曜日のまま前後の週へ */
+  const stepWeek = useCallback((dir: -1 | 1) => {
+    const next = addDays(fromDateKey(selectedDateKey), dir * 7)
+    setWeekAnchor(next)
+    setSelectedCalendarDateKey(toDateKey(next))
+  }, [selectedDateKey, setSelectedCalendarDateKey])
   const onPrevPeriod = useCallback(() => stepPeriod(-1), [stepPeriod])
   const onNextPeriod = useCallback(() => stepPeriod(1), [stepPeriod])
 
@@ -188,6 +194,7 @@ export function CalendarHubView() {
                 selectedDateKey={selectedDateKey}
                 onSelectDate={applyPickedDate}
                 onOpenDay={isDesktop ? undefined : openDay}
+                onSwipe={isDesktop ? undefined : stepPeriod}
               />
             ) : (
               <WeekCalendarView
@@ -197,6 +204,7 @@ export function CalendarHubView() {
                 // 3 日表示で日付を押したら、その日の 1 日表示へ（Google カレンダーと同じ）
                 onSelectDate={calendarMode === 'threeDay' ? openDay : applyPickedDate}
                 onNavigateWeek={stepPeriod}
+                onNavigateStrip={stepWeek}
               />
             )}
           </div>

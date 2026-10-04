@@ -39,6 +39,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
 import { isLogTask } from '../types/task'
+import { useSwipeNav } from '../hooks/useSwipeNav'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -59,6 +60,7 @@ export function CalendarView({
   selectedDateKey,
   onSelectDate,
   onOpenDay,
+  onSwipe,
 }: {
   displayMonth: Date
   selectedDateKey?: string
@@ -68,7 +70,11 @@ export function CalendarView({
    * マスの中の行は小さくて押し分けにくいので、✓ などのボタン以外はどこを押してもその日へ
    */
   onOpenDay?: (dateKey: string) => void
+  /** 横に払ったとき前後の月へ（スマホ幅） */
+  onSwipe?: (dir: -1 | 1) => void
 }) {
+  const swipeRef = useRef<HTMLDivElement>(null)
+  useSwipeNav(swipeRef, onSwipe)
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
@@ -146,7 +152,7 @@ export function CalendarView({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
+      <div ref={swipeRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <div className="grid grid-cols-7 px-4 pt-4">
           {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">
