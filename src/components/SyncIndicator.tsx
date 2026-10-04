@@ -87,7 +87,11 @@ export function SyncIndicator() {
     )
   }
 
-  const detail = when ? t('sync.errorWithLast', { when }) : t('sync.error')
+  // 行数の上限に達した: 接続が戻っても送れないので、消せば送れると伝える
+  const detail =
+    syncState === 'limit' ? t('sync.limit')
+    : when ? t('sync.errorWithLast', { when })
+    : t('sync.error')
 
   return (
     <span

@@ -90,6 +90,8 @@ export function useSupabaseSync() {
     let retryMs = 0
     /** この sync() の中で、断られた行のために取り直した回数 */
     let staleRetries = 0
+    /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
+    let limitHit = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -255,6 +257,7 @@ export function useSupabaseSync() {
       if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)
+        limitHit = res.error.includes('row_limit_exceeded')
         return false
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
@@ -286,6 +289,7 @@ export function useSupabaseSync() {
       }
       running = true
       staleRetries = 0
+      limitHit = false
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
@@ -311,7 +315,7 @@ export function useSupabaseSync() {
         setSyncState('idle', new Date().toISOString())
         return
       }
-      setSyncState('error')
+      setSyncState(limitHit ? 'limit' : 'error')
       // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
       retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
       clearTimeout(retry)
