@@ -53,6 +53,7 @@ import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 
 const DAY_HEIGHT = HOUR_HEIGHT * 24
 const NO_LOGS = new Map<string, Task[]>()
@@ -104,6 +105,9 @@ export function WeekCalendarView({
   /** 横に払うと前後へ送る所（終日の行と時間の格子）と、曜日の帯 */
   const swipeBodyRef = useRef<HTMLDivElement>(null)
   const swipeStripRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  // タッチは予定の長押しで右クリックと同じメニュー（空き時間の長押しは扱わない）
+  useTouchContextMenu(rootRef, (target) => !target.closest('[data-block-id],[data-touch-menu]'))
 
   /** 上の帯に並べる日（週。3 日表示はその 3 日） */
   const days = useMemo(() => {
@@ -380,6 +384,7 @@ export function WeekCalendarView({
 
   return (
     <div
+      ref={rootRef}
       className="flex min-h-0 min-w-0 flex-1 flex-row"
       // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
       onContextMenu={(e) => {

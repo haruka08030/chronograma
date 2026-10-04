@@ -40,6 +40,7 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
 import { isLogTask } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -75,6 +76,8 @@ export function CalendarView({
 }) {
   const swipeRef = useRef<HTMLDivElement>(null)
   useSwipeNav(swipeRef, onSwipe)
+  // タッチは項目の長押しで右クリックと同じメニュー
+  useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
@@ -262,6 +265,7 @@ export function CalendarView({
                     <div
                       key={`event-${e.id}`}
                       title={e.summary}
+                      data-touch-menu
                       draggable={canEditGoogleEvent(e, googleCanWrite)}
                       onDragStart={(ev) => {
                         ev.stopPropagation()
@@ -290,6 +294,7 @@ export function CalendarView({
                     <div
                       key={t.id}
                       draggable
+                      data-touch-menu
                       onDragStart={(e) => {
                         e.stopPropagation()
                         dragTaskIdRef.current = t.id

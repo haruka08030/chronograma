@@ -21,7 +21,7 @@ import { planHex, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { toDateKey } from '../../lib/dateKey'
-import { openTaskDetail } from '../../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
@@ -144,6 +144,13 @@ export function WeekAllDayRow({
                   }}
                   onDragEnd={() => setAllDayDragOver(null)}
                   onClick={() => openDetail(t.id)}
+                  // 時刻の無いタスクなので To-Do と同じメニュー（タッチは長押し）
+                  data-touch-menu
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                  }}
                   className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                   style={colorVars(planHex(t))}

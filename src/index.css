@@ -256,6 +256,8 @@ body {
   body {
     -webkit-user-select: none;
     user-select: none;
+    /* iOS の長押しの吹き出し（リンク・画像のメニュー）を出さない。長押しはアプリのメニューに使う */
+    -webkit-touch-callout: none;
   }
   input,
   textarea,

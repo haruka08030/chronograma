@@ -5,6 +5,7 @@ import { addDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime } from './clockTime'
 import type { TaskKind } from '../types/task'
+import { TOUCH_LONG_PRESS_MS } from '../hooks/useTouchContextMenu'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -155,12 +156,14 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       e.stopPropagation()
       const startX = e.clientX
       const startY = e.clientY
+      const startAt = e.timeStamp
       const id = taskId
       const finish = (ev: PointerEvent) => {
         window.removeEventListener('pointerup', finish)
         window.removeEventListener('pointercancel', finish)
-        // pointercancel はスクロールが始まった合図なので開かない
-        if (ev.type === 'pointerup' && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+        // pointercancel はスクロールが始まった合図なので開かない。長押し（メニューを出した）でも開かない
+        if (ev.type === 'pointerup' && ev.timeStamp - startAt < TOUCH_LONG_PRESS_MS
+          && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
           onBlockTapRef.current?.(id)
         }
       }
