@@ -39,7 +39,7 @@ import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
+import { ROW_CURSOR_CLASS, ROW_PRESS_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
 import { SUBTLE_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
 import { planTiming } from '../lib/planTiming'
@@ -248,7 +248,7 @@ export function TodayPlannerView() {
           startTaskDrag(e, task.id)
           startNativeTaskDragGhost(e, task.title)
         }}
-        className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60
+        className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
           ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
         // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
         onContextMenu={(e) => {

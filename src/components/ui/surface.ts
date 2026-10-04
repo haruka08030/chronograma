@@ -17,6 +17,8 @@ export const INVERSE_SURFACE = 'bg-zinc-900 text-white shadow-lg dark:bg-zinc-10
  */
 export const MENU_ROW_ACTIVE = 'bg-zinc-100 dark:bg-zinc-700'
 export const MENU_ROW_HOVER = 'hover:bg-zinc-100 dark:hover:bg-zinc-700'
+/** メニューの行を押している間（タッチではホバーが出ないので、押せたことをこれで見せる） */
+export const MENU_ROW_PRESS = 'active:bg-zinc-100 dark:active:bg-zinc-700'
 
 /**
  * ボタンの下に開くドロップダウン（日付・メニュー・色・アカウント）。小さく拡大しながら出る。
