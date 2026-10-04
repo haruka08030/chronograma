@@ -298,7 +298,7 @@ export function CalendarView({
                         e.stopPropagation()
                         openTaskMenu(t.startTime || isLogTask(t) ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
                       }}
-                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
+                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
                         ${itemClass(false, planVisualState(t, key))}`}
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}

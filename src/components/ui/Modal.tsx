@@ -74,7 +74,7 @@ export function Modal({
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
         tabIndex={-1}
-        className={`animate-pop-in max-h-full w-full overflow-y-auto rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
+        className={`animate-pop-in max-h-full w-full overflow-y-auto overscroll-contain rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
           width === 'sm' ? 'max-w-[380px]' : 'max-w-md'
         } ${className}`}
       >

@@ -127,7 +127,7 @@ export function WeekAllDayRow({
                   }}
                   onClick={() => openGoogleCard(e.id)}
                   className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
-                    text-[10px] leading-tight transition-all hover:brightness-95
+                    text-[10px] leading-tight transition-[filter] hover:brightness-95
                     ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                   style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                 >
@@ -145,7 +145,7 @@ export function WeekAllDayRow({
                   onDragEnd={() => setAllDayDragOver(null)}
                   onClick={() => openDetail(t.id)}
                   className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
-                    text-[10px] leading-tight transition-all hover:brightness-95 active:cursor-grabbing`}
+                    text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                   style={colorVars(planHex(t))}
                 >
                   <CalendarCheck

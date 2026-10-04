@@ -211,7 +211,7 @@ export function ActionMenu({
           role="menu"
           tabIndex={-1}
           data-popover-keep
-          className="fixed inset-x-0 bottom-0 z-[70] max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl outline-none animate-sheet-in dark:bg-zinc-800
+          className="fixed inset-x-0 bottom-0 z-[70] max-h-[80vh] overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl outline-none animate-sheet-in dark:bg-zinc-800
                      [&_[role=menuitem]]:min-h-11 [&_[role=menuitemradio]]:min-h-11"
           onContextMenu={(e) => e.preventDefault()}
         >

@@ -262,7 +262,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
             e.stopPropagation()
             selection.onToggle(e)
           }}
-          className={`flex-shrink-0 rounded border flex items-center justify-center transition-all touch-manipulation
+          className={`flex-shrink-0 rounded border flex items-center justify-center transition-[opacity,background-color,border-color] touch-manipulation
             ${isSubtask ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
             ${selection.reveal || selection.selected
               ? 'opacity-100'
@@ -396,7 +396,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+              className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className="w-5 h-5 md:w-4 md:h-4 text-zinc-400" />
@@ -422,7 +422,7 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
                 e.stopPropagation()
                 toggle()
               }}
-              className={`transition-all cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
+              className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
             >
               <CalendarIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />

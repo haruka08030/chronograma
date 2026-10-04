@@ -638,7 +638,10 @@ export default function App() {
                 useTaskStore.getState().selectView('planner')
               }}
             >
-              <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
+              {/* 画面を切り替えたら、空白から急に変わらずふわっと出す（リストを替えただけでは作り直さない） */}
+              <div key={searchQuery.trim() ? 'search' : selectedView ?? 'list'} className="flex min-h-0 flex-1 flex-col animate-fade-in">
+                <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
+              </div>
             </ErrorBoundary>
           </div>
         </div>

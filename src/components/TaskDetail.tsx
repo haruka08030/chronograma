@@ -295,7 +295,7 @@ export function TaskDetail({
                       key={p}
                       type="button"
                       onClick={() => updateTask(task.id, { priority: p })}
-                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-colors
                     ${task.priority === p
                       ? 'border-accent-400 bg-accent-50 dark:bg-accent-500/10 font-medium'
                       : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'}
@@ -685,7 +685,7 @@ export function TaskDetail({
         aria-modal="true"
         aria-label={task.title}
         className={`relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
-                   h-full overflow-y-auto shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
+                   h-full overflow-y-auto overscroll-contain shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* スマホだけ: 上に固定した戻る（Google Tasks と同じ）。下までスクロールしても閉じられる */}
