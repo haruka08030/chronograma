@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { getDayPlan, getMoreSuggestions } from './dayPlan'
+import { allDayCalendarKey, getDayPlan, getMoreSuggestions } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -110,5 +110,24 @@ describe('getDayPlan done', () => {
       '2026-09-30T17:00:00Z',
     ])
     expect(getDayPlan(tasks, '2026-09-29').done.map((t) => t.id)).toEqual(['2026-09-29T05:00:00Z'])
+  })
+})
+
+describe('allDayCalendarKey', () => {
+  afterEach(() => setAppTimeZoneSetting(null))
+
+  it('puts an open task on its scheduled date, then its due date', () => {
+    expect(allDayCalendarKey(task('a', { scheduledDate: DAY, dueDate: '2026-10-02' }))).toBe(DAY)
+    expect(allDayCalendarKey(task('b', { dueDate: '2026-10-02' }))).toBe('2026-10-02')
+  })
+
+  it('puts a completed task on the day it was completed', () => {
+    setAppTimeZoneSetting('UTC')
+    const done = task('c', { dueDate: '2026-10-05', completed: true, completedAt: '2026-10-01T12:00:00Z' })
+    expect(allDayCalendarKey(done)).toBe('2026-10-01')
+  })
+
+  it('leaves undated tasks off the calendar even when completed', () => {
+    expect(allDayCalendarKey(task('d', { completed: true, completedAt: '2026-10-01T12:00:00Z' }))).toBeNull()
   })
 })
