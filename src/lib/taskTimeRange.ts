@@ -129,8 +129,7 @@ export function timeLogSegmentLayoutForDay(
   if (dur <= 0) return null
   return {
     top: (startMin / 60) * HOUR_HEIGHT,
-    height: Math.max((dur / 60) * HOUR_HEIGHT, HOUR_HEIGHT / 4),
-    /** 最小高さで引き伸ばす前の、実際の時間の長さ */
+    height: (dur / 60) * HOUR_HEIGHT,
     span: (dur / 60) * HOUR_HEIGHT,
   }
 }

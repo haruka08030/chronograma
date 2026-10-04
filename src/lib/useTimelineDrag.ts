@@ -179,10 +179,12 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
 
     if (gridEl) gridEl.setPointerCapture(e.pointerId)
 
-    if (localY <= RESIZE_EDGE_PX) {
+    // 短いブロックでも真ん中をつかめば動かせるよう、上下の判定幅は高さに合わせて狭める
+    const edge = resizeEdgePx(blockHeight)
+    if (localY <= edge) {
       const y = getRelativeY(e.clientY, dateKey)
       setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
-    } else if (localY >= blockHeight - RESIZE_EDGE_PX) {
+    } else if (localY >= blockHeight - edge) {
       const y = getRelativeY(e.clientY, dateKey)
       setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
     } else {
@@ -394,12 +396,17 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   }
 }
 
+function resizeEdgePx(blockHeight: number): number {
+  return Math.min(RESIZE_EDGE_PX, blockHeight / 4)
+}
+
 export function getResizeCursor(e: React.PointerEvent): string | null {
   if (isCoarsePointer()) return null
   const el = e.currentTarget as HTMLElement
   const rect = el.getBoundingClientRect()
   const localY = e.clientY - rect.top
-  if (localY <= RESIZE_EDGE_PX || localY >= rect.height - RESIZE_EDGE_PX) {
+  const edge = resizeEdgePx(rect.height)
+  if (localY <= edge || localY >= rect.height - edge) {
     return 'ns-resize'
   }
   return null

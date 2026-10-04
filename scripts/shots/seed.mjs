@@ -81,6 +81,10 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     // ラベルなしの記録（夕方の「ラベルなしの記録 N 件」を出す）
     task({ id: 's17', title: '昼ごはん', dueDate: today, startTime: '12:00', endTime: '12:45', kind: 'log', completed: true, order: 12, tags: [] }, now),
     task({ id: 's18', title: 'メール返信', dueDate: today, startTime: '16:45', endTime: '17:15', kind: 'log', completed: true, order: 13, tags: [], color: '#F6BF26' }, now),
+    // 短い記録・予定（タイムラインのカードが実際の分数どおりの高さになるか: 5・10・15 分）
+    task({ id: 's40', title: '出欠連絡', dueDate: today, startTime: '11:30', endTime: '11:35', kind: 'log', completed: true, order: 14, tags: [] }, now),
+    task({ id: 's41', title: '移動', dueDate: today, startTime: '11:45', endTime: '11:55', kind: 'log', completed: true, order: 15, tags: [], color: '#33B679' }, now),
+    task({ id: 's42', title: '出席登録', scheduledDate: today, startTime: '14:30', endTime: '14:45', order: 16 }, now),
     // 完了したタスク（統計の数字を埋める）
     task({ id: 's11', title: '履修登録', completed: true, dueDate: yesterday, order: 10 }, now),
     task({ id: 's12', title: '健康診断の予約', completed: true, dueDate: yesterday, order: 11 }, now),
