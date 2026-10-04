@@ -4,7 +4,7 @@ import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { notify } from '../lib/notify'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { previewBackupJson } from '../lib/backupFormat'
+import { isImportFileTooLarge, MAX_IMPORT_FILE_BYTES, previewBackupJson } from '../lib/backupFormat'
 import { backupProblemText } from '../lib/backupProblemText'
 import { loadImportRollback } from '../lib/importRollback'
 import { AccountMenu } from './AccountMenu'
@@ -190,6 +190,11 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
+            if (isImportFileTooLarge(file)) {
+              notify(i18n.t('alert.importFileTooLarge', { mb: MAX_IMPORT_FILE_BYTES / 1024 / 1024 }))
+              e.target.value = ''
+              return
+            }
             const reader = new FileReader()
             reader.onload = async () => {
               // 先に中身を読んでから確認する。件数が分からないまま
@@ -228,6 +233,11 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (!file) return
+            if (isImportFileTooLarge(file)) {
+              notify(i18n.t('alert.importFileTooLarge', { mb: MAX_IMPORT_FILE_BYTES / 1024 / 1024 }))
+              e.target.value = ''
+              return
+            }
             const reader = new FileReader()
             reader.onload = () => {
               const text = reader.result as string

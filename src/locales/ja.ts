@@ -73,6 +73,7 @@ export default {
     restoreBeforeImport: '取り込み前（タスク {{count}} 件）に戻しますか？いまのデータは置き換わります。',
   },
   alert: {
+    importFileTooLarge: 'ファイルが大きすぎます（{{mb}} MB まで）',
     invalidImportFile: '無効なファイルです',
     csvImportResult: '{{imported}} 件を追加しました（スキップ {{skipped}} 件）',
     csvImportFailed: 'CSV を読み込めませんでした。1 行目に title 列があるか確認してください。',

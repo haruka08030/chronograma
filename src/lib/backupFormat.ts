@@ -1,7 +1,8 @@
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit } from '../types/habit'
+import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import {
   normalizeListColorPaletteId,
   type ListColorPaletteId,
@@ -12,6 +13,17 @@ import { buildRecurrence } from './recurrence'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
+
+/**
+ * 取り込むファイル（JSON バックアップ・CSV）の大きさの上限。読む前に確かめる（大きなファイルを丸ごと読んで固まらない）。
+ * データは localStorage（数 MB まで）に置くので、書き出したバックアップがこれを超えることはない
+ */
+export const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024
+
+/** 読む前に大きさを確かめる。上限を超えたら true */
+export function isImportFileTooLarge(file: Pick<Blob, 'size'>): boolean {
+  return file.size > MAX_IMPORT_FILE_BYTES
+}
 
 export interface BackupExportInput {
   tasks: Task[]
@@ -144,6 +156,17 @@ function readRecurrence(v: unknown): Recurrence | null {
   return buildRecurrence(r.type, interval, r.weekdays)
 }
 
+/** 通知は「いつ基準か」と「何分前か」だけ。壊れた要素は捨てる。配列でなければ既定（null） */
+function readReminders(v: unknown): TaskReminder[] | null {
+  if (!Array.isArray(v)) return null
+  return v.flatMap((r): TaskReminder[] => {
+    if (typeof r !== 'object' || r === null) return []
+    const { at, minutes } = r as Record<string, unknown>
+    if ((at !== 'start' && at !== 'due' && at !== 'dueDay') || typeof minutes !== 'number' || !Number.isFinite(minutes)) return []
+    return [{ at, minutes }]
+  })
+}
+
 function normalizePriority(raw: unknown): Priority {
   if (raw === 'none' || raw === 'low' || raw === 'medium' || raw === 'high') return raw
   return 'medium'
@@ -157,18 +180,14 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const listId = readString(row, 'listId', 'list_id')
   if (!id || title === null || !listId) return null
 
-  // 前の版のバックアップは種類を 2 つの印（記録か・睡眠か）で持つ。今の形には残さない
-  const copy: Record<string, unknown> = { ...row }
-  delete copy.isTimeLog
-  delete copy.isSleep
-  const t = copy as unknown as Task
   const now = new Date().toISOString()
+  const updatedAtRaw = row.updatedAt ?? row.updated_at
   const completedAtRaw = row.completedAt ?? row.completed_at
   let completedAt: string | null = null
   if (typeof completedAtRaw === 'string') {
     completedAt = completedAtRaw
-  } else if (t.completed === true && typeof t.updatedAt === 'string') {
-    completedAt = t.updatedAt
+  } else if (row.completed === true && typeof updatedAtRaw === 'string') {
+    completedAt = updatedAtRaw
   }
 
   const order = readOrder(row)
@@ -186,10 +205,10 @@ function normalizeTaskRow(raw: unknown): Task | null {
       : taskKindFromFlags(row.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true', isSleepRaw === true)
 
   // 手で直したファイルや古い形でも、画面が前提にしている形にそろえる。
-  // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）
+  // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）。
+  // 知っている項目だけを取り出す（知らない項目をストアに残さない。前の版の印 isTimeLog / isSleep も kind にして捨てる）
   const createdAt = readStamp(now, row.createdAt, row.created_at)
   return {
-    ...t,
     id,
     title,
     listId,
@@ -203,17 +222,18 @@ function normalizeTaskRow(raw: unknown): Task | null {
     startTime: readTime(row.startTime, row.start_time),
     endTime: readTime(row.endTime, row.end_time),
     tags: readStringArray(row.tags),
+    category: typeof row.category === 'string' ? row.category : null,
     recurrence: readRecurrence(row.recurrence),
-    reminders: Array.isArray(row.reminders) ? (row.reminders as Task['reminders']) : null,
+    reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
-    sectionId: typeof sectionRaw === 'string' ? sectionRaw : (t.sectionId ?? null),
-    parentId: typeof parentRaw === 'string' ? parentRaw : (t.parentId ?? null),
+    sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
+    parentId: typeof parentRaw === 'string' ? parentRaw : null,
     dueTime: readTime(dueTimeRaw),
     scheduledDate: readDate(scheduledDateRaw),
-    priority: normalizePriority(t.priority ?? row.priority),
+    priority: normalizePriority(row.priority),
     kind,
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
     completedAt,
@@ -256,32 +276,35 @@ function normalizeSectionRow(raw: unknown): ListSection | null {
 function normalizeHabitRow(raw: unknown): Habit | null {
   if (typeof raw !== 'object' || raw === null) return null
   const rec = raw as Record<string, unknown>
-  const h = raw as Habit
-  if (typeof h.id !== 'string' || !h.id || typeof h.title !== 'string') return null
+  const id = rec.id
+  const title = rec.title
+  if (typeof id !== 'string' || !id || typeof title !== 'string') return null
   const now = new Date().toISOString()
-  const startTime = typeof h.startTime === 'string' ? h.startTime : null
-  const endTime = typeof h.endTime === 'string' ? h.endTime : null
+  const startTime = typeof rec.startTime === 'string' ? rec.startTime : null
+  const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
-    h.timeMode === 'none' || h.timeMode === 'fixed' || h.timeMode === 'range'
-      ? h.timeMode
+    rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range'
+      ? rec.timeMode
       : inferHabitTimeMode(startTime, endTime)
-  const weekdays = h.frequency?.type === 'weekly' && Array.isArray(h.frequency.weekdays)
-    ? h.frequency.weekdays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+  const freq = typeof rec.frequency === 'object' && rec.frequency !== null ? (rec.frequency as Record<string, unknown>) : null
+  const weekdays = freq?.type === 'weekly' && Array.isArray(freq.weekdays)
+    ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
     : null
+  // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
-    ...h,
-    ...rec,
-    color: typeof h.color === 'string' ? h.color : INBOX_COLOR,
+    id,
+    title,
+    color: typeof rec.color === 'string' ? rec.color : INBOX_COLOR,
     frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
-    createdAt: readStamp(now, h.createdAt),
-    updatedAt: readStamp(now, h.updatedAt),
-    completedDates: readStringArray(h.completedDates).filter((d) => DATE_RE.test(d)),
+    createdAt: readStamp(now, rec.createdAt),
+    updatedAt: readStamp(now, rec.updatedAt),
+    completedDates: readStringArray(rec.completedDates).filter((d) => DATE_RE.test(d)),
     timeMode,
     startTime: readTime(startTime),
     endTime: readTime(endTime),
     // 古いバックアップには無い（使用中）
     archivedAt: typeof rec.archivedAt === 'string' && !Number.isNaN(Date.parse(rec.archivedAt)) ? rec.archivedAt : null,
-  } as Habit
+  }
 }
 
 function readSectionsArray(data: Record<string, unknown>): unknown[] {
