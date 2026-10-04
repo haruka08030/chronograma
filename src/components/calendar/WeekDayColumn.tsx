@@ -13,7 +13,7 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
 import { habitToPlannedItem } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
-import { isAppToday } from '../../lib/timeZone'
+import { isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { minutesToTime } from '../../lib/clockTime'
@@ -177,7 +177,7 @@ export function WeekDayColumn({
         />
       ))}
 
-      {today && <NowIndicator />}
+      {isNowOnDay(day) && <NowIndicator />}
 
       {dayTimed.map((t) => (
         <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
