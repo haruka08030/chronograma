@@ -3,10 +3,12 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  addDays,
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
   HOUR_HEIGHT,
+  NIGHT_HOURS,
   timeToMinutes,
 } from '../lib/timeGrid'
 import {
@@ -51,7 +53,7 @@ import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 
-const GRID_TOTAL_HEIGHT = HOUR_HEIGHT * 24
+const DAY_HEIGHT = HOUR_HEIGHT * 24
 
 export function WeekCalendarView({
   anchor,
@@ -108,6 +110,12 @@ export function WeekCalendarView({
   const gridKey0 = toDateKey(gridDays[0]!)
   const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : 'grid-cols-1'
+  /**
+   * 1 日表示では、24 時の下に次の日の 0〜4 時（1 日の区切りまで）を続けて出す。
+   * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
+   */
+  const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
+  const gridHeight = DAY_HEIGHT + (nightDay ? NIGHT_HOURS * HOUR_HEIGHT : 0)
   /** 予定（左）と 記録（右）の 2 列（今日・週とも）。押した・落とした列で作るものが決まる */
   const splitLanes = true
   const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
@@ -128,7 +136,8 @@ export function WeekCalendarView({
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
+  const bucketDays = useMemo(() => (nightDay ? [...days, nightDay] : days), [days, nightDay])
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
 
   const fetchRange = useMemo(() => {
     const ws = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -146,18 +155,19 @@ export function WeekCalendarView({
     for (const col of cols) {
       if (col.dataset.datekey === dateKey) {
         const rect = col.getBoundingClientRect()
-        return Math.max(0, Math.min(clientY - rect.top, GRID_TOTAL_HEIGHT))
+        return Math.max(0, Math.min(clientY - rect.top, rect.height))
       }
     }
     return 0
   }, [])
 
-  const getDateKeyFromX = useCallback((clientX: number): string | null => {
+  /** `clientY` を渡すと縦も見る（1 日表示の 24 時の下は次の日の列） */
+  const getDateKeyFromX = useCallback((clientX: number, clientY?: number): string | null => {
     if (!gridRef.current) return null
     const cols = gridRef.current.querySelectorAll<HTMLElement>('[data-datekey]')
     for (const col of cols) {
       const rect = col.getBoundingClientRect()
-      if (clientX >= rect.left && clientX <= rect.right) {
+      if (clientX >= rect.left && clientX <= rect.right && (clientY === undefined || (clientY >= rect.top && clientY <= rect.bottom))) {
         return col.dataset.datekey ?? null
       }
     }
@@ -319,6 +329,37 @@ export function WeekCalendarView({
     })
   }, [gridDays, singleDay, allDayByDate, eventsByDate])
 
+  /** 日の列（1 日表示の夜の続きも）に渡すもの */
+  const columnProps = {
+    gridDays,
+    singleDay,
+    selectedDateKey,
+    onSelectDate,
+    timedByDate,
+    timeLogsByDate,
+    eventsByDate,
+    habitIndex,
+    splitLanes,
+    laneAt,
+    laneClass,
+    logLimitMin,
+    getRelativeY,
+    gridRef,
+    timelineDrag,
+    timelineDrop,
+    dropLane,
+    setDropLane,
+    dropBlocked,
+    setDropBlocked,
+    dropLaneRef,
+    googleDragRef,
+    allDayMoveKey,
+    unscheduleHover,
+    openCard,
+    openGoogleCard,
+    setCreateAnchorFromEl,
+  }
+
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-row"
@@ -388,8 +429,8 @@ export function WeekCalendarView({
           }}
           onDropCapture={() => setEdgeDir(null)}
         >
-          <div className="flex" style={{ height: GRID_TOTAL_HEIGHT }}>
-            <TimeGutter dateKey={gridKey0} />
+          <div className="flex" style={{ height: gridHeight }}>
+            <TimeGutter dateKey={gridKey0} nightHours={nightDay ? NIGHT_HOURS : 0} />
 
             <div
               ref={gridRef}
@@ -399,38 +440,9 @@ export function WeekCalendarView({
               onPointerCancel={handleGridPointerCancel}
             >
               {gridDays.map((day) => (
-                <WeekDayColumn
-                  key={toDateKey(day)}
-                  day={day}
-                  gridDays={gridDays}
-                  singleDay={singleDay}
-                  selectedDateKey={selectedDateKey}
-                  onSelectDate={onSelectDate}
-                  timedByDate={timedByDate}
-                  timeLogsByDate={timeLogsByDate}
-                  eventsByDate={eventsByDate}
-                  habitIndex={habitIndex}
-                  splitLanes={splitLanes}
-                  laneAt={laneAt}
-                  laneClass={laneClass}
-                  logLimitMin={logLimitMin}
-                  getRelativeY={getRelativeY}
-                  gridRef={gridRef}
-                  timelineDrag={timelineDrag}
-                  timelineDrop={timelineDrop}
-                  dropLane={dropLane}
-                  setDropLane={setDropLane}
-                  dropBlocked={dropBlocked}
-                  setDropBlocked={setDropBlocked}
-                  dropLaneRef={dropLaneRef}
-                  googleDragRef={googleDragRef}
-                  allDayMoveKey={allDayMoveKey}
-                  unscheduleHover={unscheduleHover}
-                  openCard={openCard}
-                  openGoogleCard={openGoogleCard}
-                  setCreateAnchorFromEl={setCreateAnchorFromEl}
-                />
+                <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
               ))}
+              {nightDay && <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />}
             </div>
           </div>
         </div>

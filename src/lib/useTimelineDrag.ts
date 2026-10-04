@@ -92,7 +92,7 @@ function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: numbe
 
 interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
-  getDateKeyFromX?: (clientX: number) => string | null
+  getDateKeyFromX?: (clientX: number, clientY?: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
   onResizeDone: (taskId: string, startTime: string, endTime: string) => void
   /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
@@ -228,7 +228,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
     if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
 
-    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX) : null) ?? drag.dateKey
+    const dateKey = (getDateKeyFromX ? getDateKeyFromX(e.clientX, e.clientY) : null) ?? drag.dateKey
     const y = getRelativeY(e.clientY, dateKey)
 
     if (drag.kind === 'create') {

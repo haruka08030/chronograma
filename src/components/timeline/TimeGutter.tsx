@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
+import { addDays } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { HOUR_HEIGHT, HOURS, formatTimeLabel } from '../../lib/timeGrid'
 import { GUTTER_EXTRA_WIDTH, GUTTER_PRIMARY_WIDTH, useTimeGutterWidth } from '../../hooks/useTimeGutterWidth'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { appTimeZone, gmtLabel, instantFromWall, wallInZone } from '../../lib/timeZone'
 import { extraZoneFullLabel } from '../../lib/extraTimeZones'
 import { tip } from '../../lib/tooltip'
@@ -14,22 +16,26 @@ const labelClass = 'absolute text-[11px] leading-none select-none'
 
 /**
  * タイムラインの左の時間バー。設定で他のタイムゾーンを選んでいれば、Google カレンダーと同じく左に並べる。
- * 他のタイムゾーンの時刻は `dateKey` の日のアプリの各時刻（夏時間の切り替わりもその日で計算）
+ * 他のタイムゾーンの時刻は `dateKey` の日のアプリの各時刻（夏時間の切り替わりもその日で計算）。
+ * `nightHours` があれば 24 時の下に次の日の夜中を 24:00, 25:00… と続ける
  */
-export function TimeGutter({ dateKey }: { dateKey: string }) {
+export function TimeGutter({ dateKey, nightHours = 0 }: { dateKey: string; nightHours?: number }) {
   const extra = useTaskStore((s) => s.extraTimeZones)
   // 設定でアプリのタイムゾーンを変えたら引き直す
   const appZoneSetting = useTaskStore((s) => s.appTimeZone)
+  const hours = useMemo(() => [...HOURS, ...HOURS.slice(0, nightHours).map((h) => h + 24)], [nightHours])
   const columns = useMemo(() => {
     const zone = appTimeZone()
+    const nextKey = toDateKey(addDays(fromDateKey(dateKey), 1))
     return extra.map(({ tz }) =>
-      HOURS.map((h) => {
-        const { time } = wallInZone(instantFromWall(dateKey, `${String(h).padStart(2, '0')}:00`, zone), tz)
+      hours.map((h) => {
+        const [key, hh] = h >= 24 ? [nextKey, h - 24] : [dateKey, h]
+        const { time } = wallInZone(instantFromWall(key, `${String(hh).padStart(2, '0')}:00`, zone), tz)
         return `${Number(time.slice(0, 2))}:${time.slice(3)}`
       }),
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appZoneSetting は appTimeZone() の中身
-  }, [extra, dateKey, appZoneSetting])
+  }, [extra, dateKey, appZoneSetting, hours])
 
   return (
     <div className="flex flex-shrink-0">
@@ -43,7 +49,7 @@ export function TimeGutter({ dateKey }: { dateKey: string }) {
         </div>
       ))}
       <div style={{ width: PRIMARY_WIDTH }} className="relative">
-        {HOURS.map((h) => (
+        {hours.map((h) => (
           <div key={h} className={`${labelClass} right-2 text-zinc-400 dark:text-zinc-500`} style={{ top: h * HOUR_HEIGHT - 6 }}>
             {h > 0 ? formatTimeLabel(h) : ''}
           </div>
