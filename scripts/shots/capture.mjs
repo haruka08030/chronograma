@@ -62,6 +62,8 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
+  { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
   // 終わった日（前の週）の予定と記録
   { name: 'calendar-past', view: 'calendar', click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
@@ -269,6 +271,7 @@ async function main() {
             ]
           }
           if (screen.filterColor) seed.state.filterColor = screen.filterColor
+          if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()

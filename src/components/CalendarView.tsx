@@ -45,7 +45,7 @@ function eventState(e: CalendarEvent, key: string): PlanVisualState {
   return planVisualState({ completed: false, startTime: e.startTime, endTime: e.endTime }, key)
 }
 
-/** 月のマスの 1 行: 終日は薄い塗りの帯、時刻つきは「● 時刻 タイトル」の文字だけ */
+/** 月のマスの 1 行: Google の終日予定は薄い塗りの帯、それ以外（時刻つきの予定・To-Do）は「● 時刻 タイトル」の文字だけ */
 function itemClass(allDay: boolean, state: PlanVisualState): string {
   if (allDay) return state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'
@@ -289,15 +289,15 @@ export function CalendarView({
                       }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-all
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${itemClass(!keepsTimeSlot(t), planVisualState(t, key))}`}
+                        ${itemClass(false, planVisualState(t, key))}`}
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
-                      {/* Google と同じく、時刻つきは「15:00 タイトル」、終日は塗りの帯。● の代わりに ✓ を置き、その場で完了にできる */}
+                      {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
                       <CalendarCheck
                         done={t.completed}
                         label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
                         onCheck={() => toggleTask(t.id)}
-                        className={keepsTimeSlot(t) ? 'text-(--c)' : ''}
+                        className="text-(--c)"
                       />
                       {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
                       {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
