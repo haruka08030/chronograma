@@ -840,6 +840,7 @@ export default {
     dropToUnschedule: 'Drop here to unschedule',
     calendarTabsAria: 'Calendar view',
     dockToggle: 'Tasks without a time',
+    dockToggleShort: 'No time',
     dockHint: 'Opens below; drag onto the calendar to schedule',
     today: 'Today',
     openDatePickerAria: 'Open date picker',
@@ -848,8 +849,6 @@ export default {
     navNextMonthAria: 'Next month',
     navPrevWeekAria: 'Previous week',
     navNextWeekAria: 'Next week',
-    navPrevDayAria: 'Previous day',
-    navNextDayAria: 'Next day',
   },
   calendarDock: {
     unscheduled: 'Tasks without a time',

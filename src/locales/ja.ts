@@ -839,6 +839,7 @@ export default {
     dropToUnschedule: 'ここに落とすと日付をはずして To-Do に戻します',
     calendarTabsAria: 'カレンダー表示',
     dockToggle: '時間未定のタスク',
+    dockToggleShort: '時間未定',
     dockHint: '下に開いて、カレンダーへドラッグで置けます',
     today: '今日',
     openDatePickerAria: '日付を選択',
@@ -847,8 +848,6 @@ export default {
     navNextMonthAria: '次の月',
     navPrevWeekAria: '前の週',
     navNextWeekAria: '次の週',
-    navPrevDayAria: '前の日',
-    navNextDayAria: '次の日',
   },
   calendarDock: {
     unscheduled: '時間が未定のタスク',

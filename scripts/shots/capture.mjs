@@ -30,7 +30,7 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
@@ -65,11 +65,15 @@ const SCREENS = [
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
   // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
-  { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay' },
+  { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
   { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // スマホの見出しの「10月 ▾」でミニ月を開いた状態・表示の切り替えメニュー（PC 幅には無いボタン）
+  { name: 'calendar-mobile-month-picker', view: 'calendar', mobileOnly: true, click: 'button[aria-expanded][aria-label="日付を選択"] >> visible=true' },
+  { name: 'calendar-mobile-mode-menu', view: 'calendar', mobileOnly: true, click: 'button[aria-haspopup="menu"][aria-label] >> visible=true' },
   // 終わった日（前の週）の予定と記録
-  { name: 'calendar-past', view: 'calendar', click: 'button[aria-label="前の週"] >> visible=true' },
+  // スマホ幅は ‹ › が無い（スワイプで動く）
+  { name: 'calendar-past', view: 'calendar', desktopOnly: true, click: 'button[aria-label="前の週"] >> visible=true' },
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
@@ -238,6 +242,8 @@ async function main() {
     for (const theme of args.themes) {
       for (const vp of VIEWPORTS) {
         for (const screen of screens) {
+          if (screen.mobileOnly && !vp.hasTouch) continue
+          if (screen.desktopOnly && vp.hasTouch) continue
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({

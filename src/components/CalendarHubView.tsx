@@ -9,6 +9,7 @@ import { CalendarTaskDock } from './CalendarTaskDock'
 import { CalendarDayPanel } from './CalendarDayPanel'
 import { CalendarDateNav } from './CalendarDateNav'
 import { CalendarScheduleView } from './CalendarScheduleView'
+import { CalendarMobileHeader } from './CalendarMobileHeader'
 import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
@@ -117,56 +118,63 @@ export function CalendarHubView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <div className="flex min-w-0 items-center gap-2">
-          <Segmented
-            role="tab"
-            ariaLabel={t('calendarHub.calendarTabsAria')}
-            value={calendarMode}
-            onChange={setMode}
-            // スマホ幅の「週」は 1 日だけ描くので「日」と呼ぶ
-            options={isDesktop
-              ? [
-                  { value: 'month', label: t('common.month') },
-                  { value: 'week', label: t('common.week') },
-                  { value: 'schedule', label: t('calendarHub.modeSchedule') },
-                ]
-              : [
-                  { value: 'week', label: t('calendarHub.modeDay') },
-                  { value: 'threeDay', label: t('calendarHub.modeThreeDay') },
-                  { value: 'month', label: t('common.month') },
-                  { value: 'schedule', label: t('calendarHub.modeSchedule') },
-                ]}
-            className="shrink-0"
-          />
+      {isDesktop ? (
+        <>
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+          <div className="flex min-w-0 items-center gap-2">
+            <Segmented
+              role="tab"
+              ariaLabel={t('calendarHub.calendarTabsAria')}
+              value={calendarMode}
+              onChange={setMode}
+              // スマホ幅は CalendarMobileHeader のメニュー（日 / 3日 / 月 / スケジュール）
+              options={[
+                { value: 'month', label: t('common.month') },
+                { value: 'week', label: t('common.week') },
+                { value: 'schedule', label: t('calendarHub.modeSchedule') },
+              ]}
+              className="shrink-0"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setDockOpen((o) => !o)}
+            aria-pressed={dockOpen}
+            {...tip(t('calendarHub.dockHint'))}
+            // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              dockOpen
+                ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {t('calendarHub.dockToggle')}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setDockOpen((o) => !o)}
-          aria-pressed={dockOpen}
-          {...tip(t('calendarHub.dockHint'))}
-          // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-            dockOpen
-              ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-              : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-          }`}
-        >
-          {t('calendarHub.dockToggle')}
-        </button>
-      </div>
 
-      <CalendarDateNav
-        mode={calendarMode}
-        singleDay={!isDesktop && calendarMode === 'week'}
-        selectedDateKey={selectedDateKey}
-        monthCursor={monthCursor}
-        weekAnchor={weekAnchor}
-        onGoToday={onGoToday}
-        onPrevPeriod={onPrevPeriod}
-        onNextPeriod={onNextPeriod}
-        onPickDate={applyPickedDate}
-      />
+        <CalendarDateNav
+          mode={calendarMode}
+            selectedDateKey={selectedDateKey}
+          monthCursor={monthCursor}
+          weekAnchor={weekAnchor}
+          onGoToday={onGoToday}
+          onPrevPeriod={onPrevPeriod}
+          onNextPeriod={onNextPeriod}
+          onPickDate={applyPickedDate}
+        />
+        </>
+      ) : (
+        <CalendarMobileHeader
+          mode={calendarMode}
+          onModeChange={setMode}
+          selectedDateKey={selectedDateKey}
+          monthCursor={monthCursor}
+          onGoToday={onGoToday}
+          onPickDate={applyPickedDate}
+          dockOpen={dockOpen}
+          onToggleDock={() => setDockOpen((o) => !o)}
+        />
+      )}
       <GoogleConnectLine />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
