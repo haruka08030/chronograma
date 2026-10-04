@@ -1,8 +1,12 @@
 /**
  * 記録のラベル表（分類名の並びと色）の同期。サーバーには利用者ごとに 1 行（`user_settings.log_labels`）。
  * - どちらかが新しければ、新しいほうに合わせる（ラベル表はまとめて 1 つの値として扱う）
- * - この端末でまだ一度も同期していない（変えた時刻が無い）ときは、両方を合わせる（どちらの端末のラベルも消さない）
+ * - この端末でまだ一度も同期していない（変えた時刻が無い）ときは、両方を合わせる（どちらの端末のラベルも消さない）。
+ *   ただし手元が最初に作られた初期ラベルのままならサーバーに合わせる（英語で開いた端末の Study… が日本語のラベル表に足されない）
  */
+import jaLocale from '../locales/ja'
+import enLocale from '../locales/en'
+
 export type LogLabelRow = { name: string; color: string }
 
 export type LocalLabels = {
@@ -29,6 +33,11 @@ function rowsToLocal(rows: readonly LogLabelRow[]): { presets: string[]; colors:
   return { presets, colors }
 }
 
+/** どれかの言語の初期ラベル（名前も並びも同じ）のままか */
+const DEFAULT_PRESETS: readonly (readonly string[])[] = [jaLocale.logCategories.defaults, enLocale.logCategories.defaults]
+const isUntouchedDefault = (presets: readonly string[]) =>
+  DEFAULT_PRESETS.some((d) => d.length === presets.length && d.every((n, i) => n === presets[i]))
+
 const sameRows = (a: readonly LogLabelRow[], b: readonly LogLabelRow[]) =>
   a.length === b.length && a.every((x, i) => x.name === b[i].name && x.color === b[i].color)
 
@@ -45,6 +54,7 @@ export function planLabelSync(local: LocalLabels, remote: RemoteLabels | null, n
   if (local.updatedAt === null) {
     // 初めて: サーバーの並びのあとに、手元にしか無いラベルを足す。同じ名前の色はサーバーの色
     const fromRemote = rowsToLocal(remote.labels)
+    if (isUntouchedDefault(local.presets) && fromRemote.presets.length > 0) return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
     const presets = [...fromRemote.presets, ...local.presets.filter((n) => !fromRemote.presets.includes(n))]
     const colors = { ...local.colors, ...fromRemote.colors }
     const mergedRows = labelsToRows(presets, colors)
