@@ -6,7 +6,7 @@
  * - 形は `enc:v1:<iv>:<暗号文>`（どちらも base64）。AES-GCM の追加データに「表・列・利用者」を入れ、
  *   別の人や別の列の行へ写しても開けないようにする
  * - `enc:v1:` で始まらない値は暗号化する前の行。そのまま返し、呼び出し元が暗号化して書き直す（`needsSeal`）
- * - 鍵が無いときは暗号化せずに保存し、ログに残す（secret を入れる前にデプロイしても連携を止めない）
+ * - 鍵が無いときは保存を拒む（`SecretKeyMissingError`。呼び出し元は 500 を返す）。平文では置かない
  */
 
 const PREFIX = 'enc:v1:'
@@ -69,18 +69,32 @@ export async function openWith(material: string | undefined, stored: string, con
   return new TextDecoder().decode(plain)
 }
 
+/** `TOKEN_ENCRYPTION_KEY` が無いのにトークンを保存しようとした */
+export class SecretKeyMissingError extends Error {
+  constructor() {
+    super('TOKEN_ENCRYPTION_KEY is not set; refusing to store the token unencrypted')
+    this.name = 'SecretKeyMissingError'
+  }
+}
+
 function keyMaterial(): string | undefined {
   return Deno.env.get('TOKEN_ENCRYPTION_KEY') || undefined
 }
 
-/** 保存する前に暗号化する。鍵が無ければそのまま */
+/** 鍵が無ければ `SecretKeyMissingError` */
+export function assertSecretKey(material: string | undefined): string {
+  if (!material) throw new SecretKeyMissingError()
+  return material
+}
+
+/** 鍵が無ければ投げる。`sealSecret` の前に呼ぶと、外部サービスに触る前に止められる */
+export function requireSecretKey(): string {
+  return assertSecretKey(keyMaterial())
+}
+
+/** 保存する前に暗号化する。鍵が無ければ `SecretKeyMissingError` */
 export async function sealSecret(plain: string, context: string): Promise<string> {
-  const material = keyMaterial()
-  if (!material) {
-    console.warn('[secret-box] TOKEN_ENCRYPTION_KEY is not set; storing the token unencrypted')
-    return plain
-  }
-  return sealWith(material, plain, context)
+  return sealWith(requireSecretKey(), plain, context)
 }
 
 /** 読んだ値を開く。暗号化する前の行はそのまま返す */
