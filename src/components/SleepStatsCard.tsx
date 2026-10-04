@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -110,10 +110,10 @@ export function SleepStatsCard() {
                   >
                     {n && (
                       <span
-                        className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded bg-sleep outline-offset-1 outline-sleep sm:w-3 ${
+                        className={`gc-plan absolute left-1/2 w-2.5 -translate-x-1/2 rounded outline-offset-1 outline-sleep sm:w-3 ${
                           focused.dateKey === n.dateKey ? 'outline-2' : 'group-hover:outline-2'
                         }`}
-                        style={{ top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) }}
+                        style={{ '--c': 'var(--color-sleep)', top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) } as CSSProperties}
                       />
                     )}
                   </button>
