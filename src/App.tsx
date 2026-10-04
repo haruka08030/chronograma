@@ -141,11 +141,15 @@ function rankForListReorderDrag(id: string): number {
   return 10
 }
 
+/** 離したときの動き。速さと動き方は他の出入りと同じ（index.css の --ease-standard） */
+const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+
 function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask: boolean; count: number }) {
   const { t } = useTranslation()
   const isMulti = count > 1
   return (
-    <div className="relative w-[min(640px,calc(100vw-2rem))]">
+    // 少しだけ大きくして、持ち上げている感じを出す
+    <div className="relative w-[min(640px,calc(100vw-2rem))] scale-[1.02]">
       {isMulti && (
         <>
           <div className="absolute inset-x-2 -bottom-2 h-full rounded-xl bg-white dark:bg-zinc-900 shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc-700/70" />
@@ -657,7 +661,8 @@ export default function App() {
         />
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
+      <DragOverlay dropAnimation={DROP_ANIMATION}>
         {dragOverlayTaskEntity && dragOverlayTask ? (
           <DragOverlayTaskRow
             task={dragOverlayTaskEntity}
