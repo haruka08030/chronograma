@@ -70,6 +70,7 @@ const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((
 const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
 const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
 const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
+const CompletedTasksView = lazy(() => import('./components/CompletedTasksView').then((m) => ({ default: m.CompletedTasksView })))
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
@@ -560,6 +561,7 @@ export default function App() {
       case 'calendar': return <CalendarHubView />
       case 'stats': return <StatsView />
       case 'habits': return <HabitsView />
+      case 'completed': return <CompletedTasksView />
       case 'archived': return <TaskBinView mode="archived" />
       case 'deleted': return <TaskBinView mode="deleted" />
       case 'settings': return <SettingsView />

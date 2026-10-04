@@ -139,6 +139,7 @@ export default {
       stats: 'Stats',
       settings: 'Settings',
       habits: 'Habits',
+      completed: 'Completed',
       archived: 'Archived',
       deleted: 'Trash',
     },
@@ -586,7 +587,6 @@ export default {
     clearSelection: 'Clear selection',
     allDoneTitle: 'All caught up!',
     allDoneSubtitle: 'Nice work.',
-    completedHeader: 'Completed ({{count}})',
     groupBySection: 'Group by section',
     sort: {
       manual: 'Manual',
@@ -691,6 +691,10 @@ export default {
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
     open: 'Open details',
+  },
+  completedView: {
+    yesterday: 'Yesterday',
+    empty: 'No completed tasks',
   },
   taskBin: {
     count: '{{count}} items',

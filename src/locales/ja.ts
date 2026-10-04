@@ -137,6 +137,7 @@ export default {
       stats: '統計',
       settings: '設定',
       habits: '習慣',
+      completed: '完了済み',
       archived: 'アーカイブ済み',
       deleted: 'ゴミ箱',
     },
@@ -585,7 +586,6 @@ export default {
     clearSelection: '選択解除',
     allDoneTitle: 'すべて完了です！',
     allDoneSubtitle: 'お疲れさまでした',
-    completedHeader: '完了 {{count}} 件',
     groupBySection: 'セクションで分ける',
     sort: {
       manual: '手動',
@@ -690,6 +690,10 @@ export default {
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
     open: '詳細を開く',
+  },
+  completedView: {
+    yesterday: '昨日',
+    empty: '完了したタスクはありません',
   },
   taskBin: {
     count: '{{count}} 件',
