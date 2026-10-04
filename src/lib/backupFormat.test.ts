@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { BACKUP_SCHEMA_VERSION, buildBackupPayload, parseBackupJson, readBackupJson, withFreshStamps } from './backupFormat'
+import {
+  BACKUP_SCHEMA_VERSION,
+  buildBackupPayload,
+  isImportFileTooLarge,
+  MAX_IMPORT_FILE_BYTES,
+  parseBackupJson,
+  readBackupJson,
+  withFreshStamps,
+} from './backupFormat'
 import { backupProblemText } from './backupProblemText'
 import i18n from '../i18n/config'
 
@@ -74,6 +82,63 @@ describe('parseBackupJson', () => {
     )
     expect(parsed!.tasks[0].recurrence).toEqual({ type: 'weekly', interval: 1, weekdays: [1, 3, 5] })
     expect(parsed!.tasks[1].recurrence).toEqual({ type: 'daily', interval: 1 })
+  })
+})
+
+describe('unknown fields', () => {
+  it('keeps only known fields of tasks, habits, lists and sections, and drops everything else', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: [{ id: 'l1', name: '授業', color: '#7986cb', order: 1, kind: 'tasks', evil: '<script>', __proto__x: 1 }],
+        listSections: [{ id: 's1', listId: 'l1', name: '週 1', order: 0, extra: true }],
+        tasks: [
+          {
+            id: 't1', title: '課題', listId: 'l1', sectionId: 's1', category: '勉強', is_time_log: true,
+            reminders: [{ at: 'start', minutes: 10, url: 'https://evil.example' }, { at: 'never', minutes: 5 }],
+            injected: { deep: 1 }, user_id: 'someone-else',
+          },
+        ],
+        habits: [{ id: 'h1', title: 'ジム', frequency: { type: 'weekly', weekdays: [2], extra: 1 }, injected: 'x', user_id: 'someone-else' }],
+      }),
+    )
+    expect(parsed).not.toBeNull()
+    const t = parsed!.tasks[0] as unknown as Record<string, unknown>
+    expect(t.injected).toBeUndefined()
+    expect(t.user_id).toBeUndefined()
+    expect(t.is_time_log).toBeUndefined()
+    expect(t.category).toBe('勉強')
+    expect(t.kind).toBe('log')
+    expect(t.reminders).toEqual([{ at: 'start', minutes: 10 }])
+    expect(Object.keys(t).sort()).toEqual(
+      [
+        'archivedAt', 'category', 'color', 'completed', 'completedAt', 'createdAt', 'deletedAt', 'description', 'dueDate',
+        'dueTime', 'endDate', 'endTime', 'habitId', 'id', 'kind', 'listId', 'location', 'order', 'parentId', 'priority',
+        'recurrence', 'reminders', 'scheduledDate', 'sectionId', 'startTime', 'tags', 'timeZone', 'timeZoneAnchor', 'title',
+        'updatedAt',
+      ].sort(),
+    )
+    const h = parsed!.habits[0] as unknown as Record<string, unknown>
+    expect(Object.keys(h).sort()).toEqual(
+      ['archivedAt', 'color', 'completedDates', 'createdAt', 'endTime', 'frequency', 'id', 'startTime', 'timeMode', 'title', 'updatedAt'].sort(),
+    )
+    expect(h.frequency).toEqual({ type: 'weekly', weekdays: [2] })
+    expect(Object.keys(parsed!.lists[0]).sort()).toEqual(['color', 'id', 'kind', 'name', 'order'])
+    expect(Object.keys(parsed!.sections[0]).sort()).toEqual(['id', 'listId', 'name', 'order'])
+  })
+})
+
+describe('isImportFileTooLarge', () => {
+  it('lets files up to 20 MB through and stops bigger ones before reading', () => {
+    expect(MAX_IMPORT_FILE_BYTES).toBe(20 * 1024 * 1024)
+    expect(isImportFileTooLarge({ size: 0 })).toBe(false)
+    expect(isImportFileTooLarge({ size: MAX_IMPORT_FILE_BYTES })).toBe(false)
+    expect(isImportFileTooLarge({ size: MAX_IMPORT_FILE_BYTES + 1 })).toBe(true)
+    expect(isImportFileTooLarge(new Blob(['{}']))).toBe(false)
+  })
+
+  it('has the message in each language', async () => {
+    expect(i18n.t('alert.importFileTooLarge', { mb: 20, lng: 'ja' })).toContain('20 MB')
+    expect(i18n.t('alert.importFileTooLarge', { mb: 20, lng: 'en' })).toContain('20 MB')
   })
 })
 

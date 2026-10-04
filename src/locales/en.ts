@@ -73,6 +73,7 @@ export default {
     restoreBeforeImport: 'Go back to before the import ({{count}} tasks)? This replaces what you have now.',
   },
   alert: {
+    importFileTooLarge: 'The file is too large (up to {{mb}} MB).',
     invalidImportFile: 'Invalid file.',
     csvImportResult: 'Added {{imported}} tasks (skipped {{skipped}}).',
     csvImportFailed: 'Could not read CSV. Ensure the first row includes a title column.',
