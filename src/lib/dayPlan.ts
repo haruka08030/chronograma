@@ -23,6 +23,17 @@ export function completionDayKey(task: Pick<Task, 'completedAt' | 'updatedAt'>):
   return appDayKeyOf(task.completedAt ?? task.updatedAt)
 }
 
+/**
+ * 時刻のないタスクをカレンダー（週の終日の行・月のマス）のどの日に出すか。
+ * 完了していれば完了した日（今日の計画の「完了」と同じく、やった日が優先）。未完了は置いた日（予定日 → 締切日）。
+ * 日付を持たないタスクは、完了してもカレンダーには出さない（ごちゃつかせない）
+ */
+export function allDayCalendarKey(task: Pick<Task, 'completed' | 'completedAt' | 'updatedAt' | 'dueDate' | 'scheduledDate' | 'kind'>): string | null {
+  const placement = taskPlacementDate(task)
+  if (!placement) return null
+  return task.completed ? completionDayKey(task) : placement
+}
+
 /** 開始時刻つきを時刻順で先に、残りは元の並び順 */
 function compareDayTasks(a: Task, b: Task): number {
   if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime)

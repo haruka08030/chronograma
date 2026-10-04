@@ -6,6 +6,7 @@ import { logOverlapsDateKey, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { unplannedListIds } from '../lib/listKind'
 import { toDateKey } from '../lib/dateKey'
+import { allDayCalendarKey } from '../lib/dayPlan'
 
 /** 週タイムラインに出すものを日ごとに分ける（終日の ToDo・時刻つきの予定・記録・Google の予定） */
 export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents: CalendarEvent[], days: Date[]) {
@@ -35,9 +36,11 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
         arr.push(t)
         timed.set(placement, arr)
       } else {
-        const arr = allDay.get(placement) ?? []
+        // 完了したものは終わらせた日へ
+        const key = allDayCalendarKey(t) ?? placement
+        const arr = allDay.get(key) ?? []
         arr.push(t)
-        allDay.set(placement, arr)
+        allDay.set(key, arr)
       }
     }
     return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }

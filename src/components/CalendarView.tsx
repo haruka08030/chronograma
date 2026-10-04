@@ -28,6 +28,7 @@ import {
 } from '../lib/googleEventEdit'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { taskPlacementDate } from '../lib/taskTimeRange'
+import { allDayCalendarKey } from '../lib/dayPlan'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
@@ -110,7 +111,8 @@ export function CalendarView({
     const map = new Map<string, typeof tasks>()
     for (const t of tasks) {
       if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-      const key = taskPlacementDate(t)
+      // 時刻のないものは、完了していれば終わらせた日へ（週の終日の行と同じ）
+      const key = t.startTime && t.endTime ? taskPlacementDate(t) : allDayCalendarKey(t)
       if (!key) continue
       const arr = map.get(key) ?? []
       arr.push(t)
