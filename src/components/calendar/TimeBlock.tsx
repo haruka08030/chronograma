@@ -7,6 +7,7 @@ import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { MoonSolidIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 
@@ -63,10 +64,11 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
     <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
   )
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に。
-  // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーの title で読める）
+  // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーのヒントで読める）
   const compact = height < 32
   const tight = height < 20
   const bare = height < 13
+  const timeLabel = `${task.title}  ${task.startTime} – ${task.endTime}`
 
   return (
     <button
@@ -89,7 +91,8 @@ export function TimeBlock({ task, dayKey, onPointerDown, onOpenDetail, onTap, is
         cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
-      title={`${task.title}  ${task.startTime} – ${task.endTime}`}
+      aria-label={bare ? timeLabel : undefined}
+      {...tip(timeLabel)}
       style={{
         top,
         height,
@@ -134,7 +137,7 @@ export function SlotCheck({ top, height, hStyle, label, done, onCheck }: { top: 
   )
 }
 
-/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる） */
+/** クリック / ドラッグで作成中の枠（作成カードの位置の基準にもなる）。見た目は予定・記録と同じ `gc-plan` */
 export function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup; onAnchor: (el: HTMLDivElement | null) => void; laneClass: string }) {
   const { t } = useTranslation()
   const top = timeToY(popup.startTime)
@@ -142,7 +145,7 @@ export function CreateGhost({ popup, onAnchor, laneClass }: { popup: CreatePopup
   return (
     <div
       ref={onAnchor}
-      className={`gc-solid pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
+      className={`gc-plan pointer-events-none absolute ${laneClass} z-30 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-tight shadow-lg`}
       style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
     >
       <span className="block font-medium">{t('quickCreate.untitled')}</span>

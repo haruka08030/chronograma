@@ -7,6 +7,7 @@ import { displayListName } from '../lib/displayListName'
 import { isLogTask, type Task } from '../types/task'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
+import { iconButtonClass } from './ui/iconButtonClass'
 import { PathIcon } from './PathIcon'
 import { askConfirm } from '../lib/confirmDialog'
 import { tip } from '../lib/tooltip'
@@ -163,7 +164,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                   <button
                     type="button"
                     onClick={() => void remove(task.id)}
-                    className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                    className={iconButtonClass('p-1.5!')}
                     {...tip(deleteLabel)}
                     aria-label={deleteLabel}
                   >

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useGoogleConnect } from '../hooks/useGoogleConnect'
-import { HINT_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
 
 /**
  * カレンダー上の Google カレンダー連携の 1 行。
@@ -30,7 +30,7 @@ export function GoogleConnectLine() {
     if (!error) return null
     return (
       <div className="flex shrink-0 items-center gap-2 px-4 py-2 text-xs md:px-6">
-        <span className="min-w-0 flex-1 text-red-600 dark:text-red-400">{error}</span>
+        <span className={`min-w-0 flex-1 ${ERROR_TEXT}`}>{error}</span>
         <button
           type="button"
           onClick={() => void disconnect()}
@@ -57,7 +57,7 @@ export function GoogleConnectLine() {
       {import.meta.env.DEV && redirectUri && (
         <span className="w-full font-mono text-[10px] text-zinc-400">{t('planVsActual.redirectUriHint', { uri: redirectUri })}</span>
       )}
-      {error && <span className="w-full text-red-500">{error}</span>}
+      {error && <span className={`w-full ${ERROR_TEXT}`}>{error}</span>}
     </div>
   )
 }

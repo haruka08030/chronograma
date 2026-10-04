@@ -39,6 +39,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
 import { isLogTask } from '../types/task'
+import { tip } from '../lib/tooltip'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -255,7 +256,7 @@ export function CalendarView({
                   {shownEvents.map((e) => (
                     <div
                       key={`event-${e.id}`}
-                      title={e.summary}
+                      {...tip(e.summary)}
                       draggable={canEditGoogleEvent(e, googleCanWrite)}
                       onDragStart={(ev) => {
                         ev.stopPropagation()

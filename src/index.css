@@ -178,7 +178,7 @@ body {
   --gc-surface: #18181b;
   --gc-ink: #f4f4f5;
 }
-/* 記録（実績）・外部の予定: 塗りつぶし＋白文字（このアプリで色が目立つのは「やったこと」） */
+/* 塗りつぶし＋白文字。押して選ぶチップの選んだ状態（`chipClass` の selected）。予定・記録のブロックは `gc-plan` */
 .gc-solid {
   background-color: var(--c);
   color: var(--on-c, #ffffff);
@@ -216,7 +216,7 @@ body {
   cursor: pointer;
 }
 
-/* 予定（これから）: 薄く。色が付いて目立つのは記録（実績）だけにする */
+/* 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける */
 .gc-plan {
   background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));
   border: 1px solid color-mix(in srgb, var(--c) 45%, var(--gc-surface));

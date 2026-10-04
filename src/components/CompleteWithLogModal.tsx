@@ -9,7 +9,7 @@ import { DateField } from './DateField'
 import { useTextAreaEntry } from '../hooks/useTextEntry'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
-import { HINT_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
 
 export type CompletionMode = 'as-planned' | 'shifted'
 
@@ -139,7 +139,7 @@ export function CompleteWithLogModal({
         </div>
 
         {!valid ? (
-          <p className="mt-2 text-xs text-red-500 dark:text-red-400">{t('alert.endAfterStart')}</p>
+          <p className={`mt-2 ${ERROR_TEXT}`}>{t('alert.endAfterStart')}</p>
         ) : (
           // 記録パネルと同じく、終了が開始より前なら翌日まで
           overnight && <p className={`mt-2 ${HINT_TEXT}`}>{t('records.nextDay')}</p>

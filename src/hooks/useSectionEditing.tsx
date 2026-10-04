@@ -6,6 +6,7 @@ import { SECTION_HEADING_TEXT } from '../components/ListSectionHeading'
 import { ActionMenu } from '../components/ui/ActionMenu'
 import { CloseIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { tip } from '../lib/tooltip'
+import { iconButtonClass } from '../components/ui/iconButtonClass'
 import { SectionNameInput } from '../components/todo/sectionParts'
 import { REVEAL_ON_HOVER } from '../components/ui/revealClass'
 
@@ -108,7 +109,8 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
     >
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        className={iconButtonClass('p-1!')}
+        aria-label={t('sections.renameTitle')}
         {...tip(t('sections.renameTitle'))}
         onClick={() => beginSectionRename(sectionId, title)}
       >
@@ -116,7 +118,8 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
       </button>
       <button
         type="button"
-        className="p-1 rounded text-zinc-400 hover:text-red-500"
+        className={iconButtonClass('p-1!')}
+        aria-label={t('common.delete')}
         {...tip(t('common.delete'))}
         onClick={() => deleteSectionStore(sectionId)}
       >

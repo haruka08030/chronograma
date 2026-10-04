@@ -19,6 +19,7 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
+import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
@@ -205,7 +206,7 @@ export function RecordPanel({
                 className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
               />
               {inFuture ? (
-                <span className="text-xs text-red-500 dark:text-red-400">{t('records.noFuture')}</span>
+                <span className={ERROR_TEXT}>{t('records.noFuture')}</span>
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}

@@ -13,7 +13,7 @@ import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleLogo } from './ui/GoogleLogo'
-import { HINT_TEXT, META_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
 
 export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
   const { t } = useTranslation()
@@ -186,7 +186,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             >
               {pending ? t('account.deleting') : t('account.delete')}
             </button>
-            {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
           </div>
         )}
       </div>
@@ -253,7 +253,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   className={fieldClass({}, 'w-full tracking-widest')}
                 />
-                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
                 <button
                   type="submit"
@@ -280,7 +280,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   onChange={(e) => setEmail(e.target.value)}
                   className={fieldClass({}, 'w-full')}
                 />
-                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+                {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
                 <button
                   type="submit"
