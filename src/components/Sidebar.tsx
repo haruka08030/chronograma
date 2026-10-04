@@ -32,7 +32,12 @@ const TODO_OPENER_ICON = ICON_PATHS.check
 const SETTINGS_ICON =
   'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'
 
-export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+export function Sidebar({ open, listsOnly = false, onClose }: {
+  open?: boolean
+  /** スマホのドロワーを To-Do（≡・右スワイプ）から開いたとき。To-Do のナビだけを出す */
+  listsOnly?: boolean
+  onClose?: () => void
+}) {
   const { t } = useTranslation()
   const selectedView = useTaskStore((s) => s.selectedView)
   const selectView = useTaskStore((s) => s.selectView)
@@ -124,6 +129,22 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     </aside>
   )
 
+  // To-Do から開いたドロワー: 絞り込み・リスト・ラベルだけ（今日・カレンダー・習慣は下のタブ、統計・設定は「その他」）
+  const renderTodoNavDrawer = () => (
+    <aside className="w-[min(20rem,85vw)] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
+                       flex flex-col h-full pb-[calc(3.5rem+env(safe-area-inset-bottom))]">
+      <div className="px-5 pt-5 pb-3 flex items-center gap-2 min-w-0">
+        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
+          {t('sidebar.todo')}
+        </span>
+        <SyncIndicator />
+      </div>
+      <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
+        <TodoNavContent onNavigate={onClose} />
+      </nav>
+    </aside>
+  )
+
   // md〜lg 未満は常設サイドバー側、md 未満はドロワー側に出す（同時に描画しない）
   const inlineTodoNavInFixed = isDesktop && !isLargeScreen && onTodoView
   const inlineTodoNavInDrawer = !isDesktop && onTodoView
@@ -150,7 +171,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           className={`relative bg-white outline-none dark:bg-zinc-900 ${drawer.closing ? 'animate-slide-out-left' : 'animate-slide-in-left'}`}
           onClick={(e) => e.stopPropagation()}
         >
-          {renderSidebarContent(inlineTodoNavInDrawer)}
+          {listsOnly ? renderTodoNavDrawer() : renderSidebarContent(inlineTodoNavInDrawer)}
         </div>
       </div>
     )
