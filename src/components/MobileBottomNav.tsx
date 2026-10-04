@@ -2,14 +2,15 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { isTodoSurfaceView } from '../lib/todoSurfaceView'
-import { CalendarIcon, CheckCircleIcon, MenuIcon, SunIcon } from './icons'
+import { CalendarIcon, CheckCircleIcon, HabitIcon, MenuIcon, SunIcon } from './icons'
 
-type TabId = 'planner' | 'todo' | 'calendar' | 'more'
+type TabId = 'planner' | 'todo' | 'calendar' | 'habits' | 'more'
 
-/** 1 日の計画アプリなので先頭は「今日」。記録と習慣の日々のチェックも「今日」にあり、習慣の一覧は「その他」から */
+/** 1 日の計画アプリなので先頭は「今日」。記録と習慣の日々のチェックも「今日」にある */
 const TAB_VIEWS: Record<Exclude<TabId, 'todo' | 'more'>, SmartView> = {
   planner: 'planner',
   calendar: 'calendar',
+  habits: 'habits',
 }
 
 export function MobileBottomNav({
@@ -30,6 +31,7 @@ export function MobileBottomNav({
   const active: TabId = (() => {
     if (selectedView === 'calendar') return 'calendar'
     if (selectedView === 'planner') return 'planner'
+    if (selectedView === 'habits') return 'habits'
     if (isTodoSurfaceView(selectedView)) return 'todo'
     return 'more'
   })()
@@ -69,6 +71,13 @@ export function MobileBottomNav({
       label: t('nav.calendar'),
       icon: (
         <CalendarIcon className="h-5 w-5" strokeWidth={1.75} />
+      ),
+    },
+    {
+      id: 'habits',
+      label: t('nav.habits'),
+      icon: (
+        <HabitIcon className="h-5 w-5" strokeWidth={1.75} />
       ),
     },
     {
