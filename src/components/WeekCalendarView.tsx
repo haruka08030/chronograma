@@ -7,7 +7,6 @@ import {
 } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
-  HOUR_HEIGHT,
   NIGHT_HOURS,
   timeToMinutes,
 } from '../lib/timeGrid'
@@ -55,8 +54,8 @@ import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
+import { useHourHeight, usePinchHourHeight } from '../hooks/useHourHeight'
 
-const DAY_HEIGHT = HOUR_HEIGHT * 24
 const NO_LOGS = new Map<string, Task[]>()
 
 export function WeekCalendarView({
@@ -131,7 +130,8 @@ export function WeekCalendarView({
    * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
    */
   const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
-  const gridHeight = DAY_HEIGHT + (nightDay ? NIGHT_HOURS * HOUR_HEIGHT : 0)
+  const hourHeight = useHourHeight()
+  const gridHeight = hourHeight * (24 + (nightDay ? NIGHT_HOURS : 0))
   /** 予定（左）と 記録（右）の 2 列（今日・週とも。3 日表示は狭いので予定だけ）。押した・落とした列で作るものが決まる */
   const splitLanes = !threeDay
   const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
@@ -270,6 +270,8 @@ export function WeekCalendarView({
     return () => el.removeEventListener('touchmove', hold)
   }, [timelineDrag.touchLiftedRef])
   useDragEdgeScroll(scrollRef, timelineDrag.touchLifted, timelineDrag.repoint)
+  // 2 本指でつまむと 1 時間の高さが変わる（ブラウザの拡大は止めてある）
+  usePinchHourHeight(scrollRef, timelineDrag.handlePointerCancel)
 
   const getTaskDuration = useCallback(
     (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
