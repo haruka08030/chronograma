@@ -598,12 +598,12 @@ export function HabitsView() {
                     e.stopPropagation()
                     toggleHabitDate(h.id, key)
                   }}
-                  className="relative flex justify-center"
+                  className="flex flex-col items-center gap-1"
                   aria-label={cellLabel}
                   aria-pressed={isDone || isOffTime}
                   {...tip(record ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime }) : undefined)}
                 >
-                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。時間外は丸の下（カードの余白）に小さく「時間外」 */}
+                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。時間外は丸の下に小さく「時間外」（カードの高さに入れて、枠に重ねない） */}
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
@@ -619,7 +619,7 @@ export function HabitsView() {
                     {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
                   </span>
                   {isOffTime && (
-                    <span aria-hidden className={`absolute top-full mt-1.5 whitespace-nowrap text-[10px] leading-none ${HABIT_OFF_TIME_TEXT}`}>
+                    <span aria-hidden className={`whitespace-nowrap text-[10px] leading-none ${HABIT_OFF_TIME_TEXT}`}>
                       {t('planner.habitOffTime')}
                     </span>
                   )}

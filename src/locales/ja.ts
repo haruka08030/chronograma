@@ -909,7 +909,8 @@ export default {
     endDate: '終了日',
   },
   planVsActual: {
-    googleOneLine: 'Google カレンダーの予定も並べて比べられます。',
+    // \u200b は折り返してよい所（PHRASE_WRAP と組み合わせ、語の途中で切らない）
+    googleOneLine: 'Google カレンダーの予定も\u200b並べて比べられます。',
     googleConnectShort: '接続する',
     googleLoginFirst: 'ログインして接続',
     googleLineDismissed: '設定の「Google カレンダー」からいつでも接続できます',
