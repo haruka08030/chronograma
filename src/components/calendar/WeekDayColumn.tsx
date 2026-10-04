@@ -135,7 +135,7 @@ export function WeekDayColumn({
     <div
       key={key}
       data-datekey={key}
-      className={`relative border-l border-zinc-100 dark:border-zinc-800 cursor-crosshair
+      className={`relative border-l border-zinc-200 dark:border-zinc-700 cursor-crosshair
         ${today && !singleDay ? TODAY_COLUMN : ''}
         ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}
         ${isNight ? 'overflow-hidden' : ''}`}
@@ -164,8 +164,9 @@ export function WeekDayColumn({
         timelineDrop.handleDropEvent(e, key)
       }}
     >
+      {/* 予定｜記録の境目は点線にして、日の境目（実線）と見分ける。終わった日も 2 列だと分かる */}
       {splitLanes && (
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-zinc-100 dark:border-zinc-800/60" />
+        <div className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-zinc-200 dark:border-zinc-700" />
       )}
       {/* 記録の列の「今より先」は使えないので薄く塗る */}
       {splitLanes && logLimitMin(key) !== null && (
