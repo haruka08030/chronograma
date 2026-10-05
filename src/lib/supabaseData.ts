@@ -942,7 +942,10 @@ async function pushSettingRow(
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
-  const send = (body: Record<string, unknown>) => supabase.from(table).upsert(body, { onConflict: 'user_id' }).select('updated_at')
+  // 行が無いはずの書き込み（base が無い）は insert … on conflict do nothing。2 台が同時に初めて作るとき、
+  // 後から来た方が先に作られた行を上書きせず、行が返らない（断られた）扱いになって取り直す
+  const send = (body: Record<string, unknown>) =>
+    supabase.from(table).upsert(body, { onConflict: 'user_id', ignoreDuplicates: base === null }).select('updated_at')
   let { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
   // `007` を流す前の DB には base_updated_at 列が無い。付けずに送り直す（前と同じ、端末の時刻で比べる書き込み）
   if (error && /'base_updated_at'/.test(error.message)) ({ data, error } = await send(row))

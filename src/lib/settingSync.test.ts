@@ -29,8 +29,9 @@ function fakeSettings(opts: { noBaseColumn?: boolean } = {}) {
         }
         return q
       },
-      upsert: (body: SettingsRow) => ({
+      upsert: (body: SettingsRow, o?: { ignoreDuplicates?: boolean }) => ({
         select: async () => {
+          if (o?.ignoreDuplicates && rows.has(body.user_id)) return { data: [], error: null }
           if (opts.noBaseColumn && 'base_updated_at' in body) {
             return { data: null, error: { message: "Could not find the 'base_updated_at' column of 'user_settings' in the schema cache" } }
           }
@@ -202,6 +203,14 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     await sync(client, d, 'd')
     expect(rows.get('u1')!.updated_at).toBe(d.updatedAt)
     expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'ジム'])
+  })
+
+  it('行が無いはずの書き込みは、行が既にあれば上書きしない（同時に初めて作るとき・前の DB でも）', async () => {
+    const { client, rows } = fakeSettings({ noBaseColumn: true })
+    await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
+    const res = await pushLogLabels(client, 'u1', { labels: [{ name: 'B', color: '' }], updatedAt: new Date(REAL + 1000).toISOString() }, null)
+    expect(res).toEqual({ stale: true })
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['A'])
   })
 
   it('サーバーに行が無いはずの書き込み（-infinity）は、ほかの端末が先に行を作っていれば断られる', async () => {
