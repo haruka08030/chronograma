@@ -63,6 +63,12 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   // 並べ替え中の行はネイティブ D&D でつかむので、dnd-kit とは別に受ける
   const [isOverNative, setIsOverNative] = useState(false)
   const dropHighlight = isOver || isOverNative || taskDragHoverListId === list.id
+  // いつか・買い物は色の丸の代わりに ☆ / カート（リストの色）。押すと丸と同じく色を変える
+  const kindIcon = list.kind === 'someday'
+    ? <StarIcon className="h-full w-full" strokeWidth={2} label={t('listKind.someday')} />
+    : list.kind === 'checklist'
+      ? <CartIcon className="h-full w-full" strokeWidth={2} label={t('listKind.checklist')} />
+      : null
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -105,20 +111,18 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
         data-popover-keep
         onClick={(e) => { e.stopPropagation(); onColorPick() }}
-        className="gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
-          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={colorVars(list.color)}
+        className={kindIcon
+          ? 'flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]'
+          : `gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
+          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]`}
+        style={kindIcon ? { color: list.color } : colorVars(list.color)}
         aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
         tabIndex={-1}
-      />
+      >
+        {kindIcon}
+      </button>
 
       <span className="min-w-0 flex-1 truncate">{list.name}</span>
-      {list.kind === 'someday' && (
-        <StarIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.75} label={t('listKind.someday')} />
-      )}
-      {list.kind === 'checklist' && (
-        <CartIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.75} label={t('listKind.checklist')} />
-      )}
 
       {!isInbox ? (
         // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
