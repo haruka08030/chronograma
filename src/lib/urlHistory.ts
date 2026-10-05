@@ -31,8 +31,12 @@ function applyLocation(loc: ViewLocation) {
  * - リストの削除・同期でリストが消えて開き直したときも `replaceState`（戻ると消えたリストになるので）
  * - 積むときの URL は画面のクエリだけ。置き換えるときはほかのクエリ（OAuth の戻り）とハッシュ（Supabase のログイン）を残す
  */
+/** 前に始めた購読を外す（開発時の再読み込みで二重に履歴を積まない） */
+let teardown: (() => void) | null = null
+
 export function setupUrlHistory() {
   if (typeof window === 'undefined') return
+  teardown?.()
   const initial = parseViewUrl(window.location.search)
   if (initial && viewQuery(initial) !== viewQuery(locationOf(useTaskStore.getState()))) applyLocation(initial)
 
@@ -47,12 +51,12 @@ export function setupUrlHistory() {
   }
   write(useTaskStore.getState(), 'replace')
 
-  useTaskStore.subscribe((s, prev) => {
+  const unsubscribe = useTaskStore.subscribe((s, prev) => {
     if (viewQuery(locationOf(s)) === shown) return
     write(s, fromPopState || s.lists !== prev.lists ? 'replace' : 'push')
   })
 
-  window.addEventListener('popstate', () => {
+  const onPopState = () => {
     const loc = parseViewUrl(window.location.search)
     if (!loc) return
     shown = viewQuery(loc)
@@ -64,5 +68,14 @@ export function setupUrlHistory() {
     } finally {
       fromPopState = false
     }
-  })
+  }
+  window.addEventListener('popstate', onPopState)
+
+  teardown = () => {
+    unsubscribe()
+    window.removeEventListener('popstate', onPopState)
+    teardown = null
+  }
 }
+
+import.meta.hot?.dispose(() => teardown?.())
