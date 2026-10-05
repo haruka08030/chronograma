@@ -175,7 +175,7 @@ export function TaskList({ onOpenNav }: {
 
   // 選択とキー操作（カレンダーの置き場と同じ）
   const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }), [])
-  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+  const { selected, clearSelection, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
     openDetail,
@@ -191,11 +191,13 @@ export function TaskList({ onOpenNav }: {
 
   const getDragGroupRootIds = useCallback(
     (taskId: string): string[] => {
-      const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
-      if (selected.has(taskId) && rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
-      return [taskId]
+      if (selected.has(taskId)) {
+        const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
+        if (rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
+      }
+      return soloIds(taskId)
     },
-    [active, selected],
+    [active, selected, soloIds],
   )
 
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */

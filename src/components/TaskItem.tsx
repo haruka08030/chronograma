@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
+import { memo, useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -53,7 +53,11 @@ export type TaskItemSelection = {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel, dayKey }: {
+/**
+ * 一覧の 1 行。memo なので、渡す関数・配列・選択の印は親で使い回すこと（useTaskListSelection の makeRowClick / makeSelection など）。
+ * 毎回作り直すと、関係ない行まで描き直す
+ */
+export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, dragHandle, isSubtask, selection, rowClassName, autoEdit, hideDueDatePicker = false, dragGroupIds, onNativeDragEnd, sectionLabel, dayKey }: {
   task: Task
   onClick?: () => void
   /** 修飾キー・一括選択時の行クリック（指定時はこちらを優先） */
@@ -83,7 +87,12 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
-  const { toggleTask, updateTask, archiveTask, deleteTasks, setFilterTag, showMoveBanner } = useTaskStore()
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const updateTask = useTaskStore((s) => s.updateTask)
+  const archiveTask = useTaskStore((s) => s.archiveTask)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const setFilterTag = useTaskStore((s) => s.setFilterTag)
+  const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
   const deferredComplete = useDeferredComplete(toggleTask)
   /** 押した直後は、完了の欄へ移る前からこの行を完了の見た目にする */
   const justCompleted = deferredComplete.isPending(task.id)
@@ -481,4 +490,4 @@ export function TaskItem({ task, onClick, onRowClick, onEnterCreateSibling, drag
       </button>
     </div>
   )
-}
+})

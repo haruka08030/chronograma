@@ -68,7 +68,7 @@ export function CalendarTaskDock() {
   // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
   // メニューの「実行したら選択を解除」は、選択のフックを作ったあとに入れる
   const clearSelectedRef = useRef<() => void>(() => {})
-  const { selected, clearSelection: clearSelected, makeRowClick, makeSelection } = useTaskListSelection({
+  const { selected, clearSelection: clearSelected, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
     rowIds: activeIds,
     openDetail,
     toggleRow: toggleTask,
@@ -87,8 +87,8 @@ export function CalendarTaskDock() {
   )
   const getDragGroupIds = useCallback(
     (id: string): string[] =>
-      selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : [id],
-    [selected, selectedInOrder],
+      selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : soloIds(id),
+    [selected, selectedInOrder, soloIds],
   )
 
   return (

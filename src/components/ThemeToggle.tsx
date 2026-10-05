@@ -4,7 +4,8 @@ import { MoonIcon, SunBrightIcon } from './icons'
 
 export function ThemeToggle() {
   const { t } = useTranslation()
-  const { theme, toggleTheme } = useTaskStore()
+  const theme = useTaskStore((s) => s.theme)
+  const toggleTheme = useTaskStore((s) => s.toggleTheme)
 
   return (
     <button

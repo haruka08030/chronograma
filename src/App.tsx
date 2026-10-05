@@ -2,7 +2,7 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
@@ -76,7 +76,6 @@ const SettingsView = lazy(() => import('./components/SettingsView').then((m) => 
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
 const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })))
-import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
@@ -145,8 +144,11 @@ function rankForListReorderDrag(id: string): number {
 /** 離したときの動き。速さと動き方は他の出入りと同じ（index.css の --ease-standard） */
 const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
 
-function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask: boolean; count: number }) {
+/** つかんでいる行。そのタスクだけを購読する（App 全体を tasks の変化で描き直さない） */
+function DragOverlayTaskRow({ taskId, isSubtask, count }: { taskId: string; isSubtask: boolean; count: number }) {
   const { t } = useTranslation()
+  const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId))
+  if (!task) return null
   const isMulti = count > 1
   return (
     // 少しだけ大きくして、持ち上げている感じを出す
@@ -179,7 +181,6 @@ export default function App() {
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
-  const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
   const selectedList = useTaskStore((s) => (s.selectedListId ? s.lists.find((l) => l.id === s.selectedListId) ?? null : null))
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
@@ -592,11 +593,6 @@ export default function App() {
     }
   })()
 
-  const dragOverlayTaskEntity = useMemo(
-    () => (dragOverlayTask ? tasks.find((task) => task.id === dragOverlayTask.taskId) ?? null : null),
-    [dragOverlayTask, tasks],
-  )
-
   return (
     <DndContext
       sensors={sensors}
@@ -682,9 +678,9 @@ export default function App() {
 
       {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
       <DragOverlay dropAnimation={DROP_ANIMATION}>
-        {dragOverlayTaskEntity && dragOverlayTask ? (
+        {dragOverlayTask ? (
           <DragOverlayTaskRow
-            task={dragOverlayTaskEntity}
+            taskId={dragOverlayTask.taskId}
             isSubtask={dragOverlayTask.isSubtask}
             count={dragOverlayTask.count}
           />

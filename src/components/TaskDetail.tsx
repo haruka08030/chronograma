@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, paletteColors } from '../store/taskStore'
+import { useShallow } from 'zustand/react/shallow'
 import { isLogTask, type Task, type Priority, type Recurrence } from '../types/task'
 import { TaskItem } from './TaskItem'
 import { TimeInput } from './TimeInput'
@@ -40,6 +41,8 @@ const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'wee
 const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 /** 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる） */
+const NO_SUBTASKS: Task[] = []
+
 export function TaskDetail({
   task,
   closing = false,
@@ -77,7 +80,6 @@ export function TaskDetail({
   const updateTimes = (patch: Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>>) =>
     updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストには締切や予定を付けない（付けると期限のビューに戻ってきてしまう）
   const listKind = lists.find((l) => l.id === task.listId)?.kind ?? 'tasks'
@@ -135,14 +137,15 @@ export function TaskDetail({
   // メモは打つたびに保存している。離れたら表示に戻すだけ
   const memoEntry = useTextAreaEntry({ onCommit: () => setEditingMemo(false) })
 
-  const subtasks = useMemo(
-    () =>
+  // 子だけを購読する（ほかのタスクの変化で詳細を描き直さない）
+  const subtasks = useTaskStore(
+    useShallow((s) =>
       isLog
-        ? []
-        : tasks
+        ? NO_SUBTASKS
+        : s.tasks
             .filter((t) => t.parentId === task.id)
             .sort((a, b) => a.order - b.order),
-    [isLog, tasks, task.id],
+    ),
   )
 
   const sectionsForTaskList = useMemo(

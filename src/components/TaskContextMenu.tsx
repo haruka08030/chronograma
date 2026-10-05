@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { useShallow } from 'zustand/react/shallow'
 import { IS_MAC, shortcutLabel } from '../lib/keyboard'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
@@ -48,12 +48,11 @@ export function TaskContextMenu({
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const sections = useTaskStore((s) => s.sections)
-  const allTasks = useTaskStore((s) => s.tasks)
   const bulk = useBulkTaskActions()
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
 
-  const targets = useMemo(() => allTasks.filter((x) => taskIds.includes(x.id)), [allTasks, taskIds])
+  const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   /** 全部が同じ値ならその値（チェックを付ける） */
   const shared = <T,>(pick: (task: (typeof targets)[number]) => T): T | undefined => {
     const values = new Set(targets.map(pick))

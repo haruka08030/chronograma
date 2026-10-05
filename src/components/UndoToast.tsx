@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { useShallow } from 'zustand/react/shallow'
+import type { Task } from '../types/task'
 import { undoGoogleDelete } from '../lib/googleEventEdit'
 import { UNDO_WINDOW_MS, toastTitle } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
@@ -19,10 +21,19 @@ const MOBILE_FLOAT_BOTTOM =
  * `undoBanner`（`pushUndo` にラベルを渡した操作）から出す。以前は削除専用で、
  * 一括アーカイブやセクション削除が戻せることが画面から分からなかった。
  */
+const NO_TASKS: Task[] = []
+
 export function UndoToast() {
   const { t } = useTranslation()
   const recentDeletes = useTaskStore((s) => s.recentDeletes)
-  const tasks = useTaskStore((s) => s.tasks)
+  // 消したタスクだけを購読する（ほかのタスクの変化でトーストを描き直さない）
+  const deletedTasks = useTaskStore(
+    useShallow((s) => {
+      if (s.recentDeletes.length === 0) return NO_TASKS
+      const ids = new Set(s.recentDeletes.flatMap((b) => b.ids))
+      return s.tasks.filter((x) => ids.has(x.id))
+    }),
+  )
   const undoBanner = useTaskStore((s) => s.undoBanner)
   const googleUndo = useTaskStore((s) => s.googleUndo)
   const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
@@ -66,8 +77,7 @@ export function UndoToast() {
   /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
   function deletedMessage() {
     const ids = new Set(deletedIds)
-    const deleted = tasks.filter((x) => ids.has(x.id))
-    const roots = deleted.filter((x) => !x.parentId || !ids.has(x.parentId))
+    const roots = deletedTasks.filter((x) => !x.parentId || !ids.has(x.parentId))
     if (roots.length === 1 && roots[0].title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].title) })
     if (roots.length > 1) return t('undo.tasksDeleted', { count: roots.length })
     return t('undo.message')

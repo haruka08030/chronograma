@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { addDays, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useBulkTaskActions } from './useBulkTaskActions'
 import { useDateFormat } from './useDateFormat'
 import { appToday } from '../lib/timeZone'
@@ -17,8 +18,7 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
   const { t } = useTranslation()
   const df = useDateFormat()
   const bulk = useBulkTaskActions()
-  const tasks = useTaskStore((s) => s.tasks)
-  const targets = tasks.filter((x) => taskIds.includes(x.id))
+  const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   const keys = new Set(targets.map((x) => x.scheduledDate ?? null))
   const shared = keys.size === 1 ? [...keys][0] : undefined
   const today = appToday()

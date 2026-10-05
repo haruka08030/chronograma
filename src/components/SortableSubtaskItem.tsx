@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { memo, useMemo, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -7,7 +7,7 @@ import { NestDragGuide } from './NestDragGuide'
 import type { Task } from '../types/task'
 import { subtaskDragId } from '../lib/subtaskDnD'
 
-export function SortableSubtaskItem({
+export const SortableSubtaskItem = memo(function SortableSubtaskItem({
   task,
   onClick,
   onRowClick,
@@ -46,7 +46,8 @@ export function SortableSubtaskItem({
     zIndex: isDragging ? 10 : undefined,
   }
 
-  const handle = (
+  // つまみは useSortable の attributes / listeners が変わったときだけ作り直す（TaskItem の memo を効かせる）
+  const handle = useMemo(() => (
     <button
       type="button"
       {...attributes}
@@ -64,7 +65,7 @@ export function SortableSubtaskItem({
         <circle cx="15" cy="18" r="1.5" />
       </svg>
     </button>
-  )
+  ), [attributes, listeners, t])
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
@@ -83,4 +84,4 @@ export function SortableSubtaskItem({
       {children}
     </div>
   )
-}
+})
