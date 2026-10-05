@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { HINT_TEXT } from '../ui/textClass'
-import { ChevronRightIcon } from '../icons'
+import { ChevronRightIcon, ExternalLinkIcon } from '../icons'
 
 /** 設定のまとまり。見出しは枠の外、中身は 1 枚の枠に行を区切り線で並べる */
 export function SettingsGroup({
@@ -27,18 +27,30 @@ export function SettingsGroup({
   )
 }
 
-/** 次のページへ進む 1 行（右に ›）。連携の「管理」、スマホの「統計」など */
-export function SettingsLinkRow({ label, hint, onClick }: { label: ReactNode; hint?: ReactNode; onClick: () => void }) {
+const LINK_ROW_CLASS = 'flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+
+/**
+ * 行ごと押して先へ進む 1 行。`onClick` は次のページ・画面（右に ›）、`href` は別のタブで開くページ（右に ↗）。
+ * 連携の「管理」、ラベルの編集、規約など
+ */
+export function SettingsLinkRow({ label, hint, ...to }: { label: ReactNode; hint?: ReactNode } & ({ onClick: () => void } | { href: string })) {
+  const body = (
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm text-zinc-800 dark:text-zinc-200">{label}</span>
+      {hint && <span className={`mt-0.5 block ${HINT_TEXT}`}>{hint}</span>}
+    </span>
+  )
+  if ('href' in to) {
+    return (
+      <a href={to.href} target="_blank" rel="noopener" className={LINK_ROW_CLASS}>
+        {body}
+        <ExternalLinkIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+      </a>
+    )
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm text-zinc-800 dark:text-zinc-200">{label}</span>
-        {hint && <span className={`mt-0.5 block ${HINT_TEXT}`}>{hint}</span>}
-      </span>
+    <button type="button" onClick={to.onClick} className={LINK_ROW_CLASS}>
+      {body}
       <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-400" />
     </button>
   )

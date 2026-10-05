@@ -7,7 +7,7 @@ import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { categoryHex, colorVars } from '../../lib/logCategoryColors'
 import { appToday } from '../../lib/timeZone'
 import { LabelsDialog } from '../labels/LabelsDialog'
-import { buttonClass } from '../ui/buttonClass'
+import { SettingsLinkRow } from './SettingsPrimitives'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
@@ -97,11 +97,7 @@ export function CategoryManager() {
         })}
       </ul>
 
-      <div className="px-4 py-3">
-        <button type="button" onClick={() => setEditorOpen(true)} className={buttonClass({ variant: 'secondary', size: 'md' })}>
-          {t('labels.edit')}
-        </button>
-      </div>
+      <SettingsLinkRow label={t('labels.edit')} onClick={() => setEditorOpen(true)} />
 
       {(unlisted.length > 0 || uncategorized > 0) && (
         <div className={`space-y-2 px-4 py-3 ${HINT_TEXT}`}>

@@ -74,42 +74,30 @@ export function AutoBackupSettings() {
     URL.revokeObjectURL(url)
   }
 
+  // 見出しの行の下に、控えを 1 件ずつ設定の行として並べる（枠の中に枠を作らない）
   return (
-    <div>
-      <SettingsRow label={t('autoBackup.title')} />
-      {backups !== null && (
-        <div className="px-4 pb-3">
-          {backups.length === 0 ? (
-            <p className={META_TEXT}>{t('autoBackup.empty')}</p>
-          ) : (
-            <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-100 px-3 dark:divide-zinc-800 dark:border-zinc-800">
-              {backups.map((b) => (
-                <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
-                  <div className="min-w-[12rem] flex-1">
-                    <p className="text-sm text-zinc-800 dark:text-zinc-200">
-                      {when(b.savedAt)}
-                      <span className={`ml-2 ${META_TEXT}`}>
-                        {t(`autoBackup.${KIND_LABEL[b.kind]}`)}
-                      </span>
-                    </p>
-                    <p className={META_TEXT}>
-                      {t('autoBackup.counts', { todos: b.todoCount, logs: b.logCount })}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restore(b)}>
-                      {t('autoBackup.restoreMissing')}
-                    </button>
-                    <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void download(b)}>
-                      {t('autoBackup.download')}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+    <>
+      <SettingsRow label={t('autoBackup.title')} help={backups?.length === 0 ? t('autoBackup.empty') : undefined} />
+      {/* 日時と件数は潰さず 1 行で読めるように、幅が足りなければボタンを下の行へ回す */}
+      {backups?.map((b) => (
+        <div key={b.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+          <div className="min-w-[12rem] flex-1">
+            <p className="text-sm text-zinc-800 dark:text-zinc-200">
+              {when(b.savedAt)}
+              <span className={`ml-2 ${META_TEXT}`}>{t(`autoBackup.${KIND_LABEL[b.kind]}`)}</span>
+            </p>
+            <p className={META_TEXT}>{t('autoBackup.counts', { todos: b.todoCount, logs: b.logCount })}</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restore(b)}>
+              {t('autoBackup.restoreMissing')}
+            </button>
+            <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void download(b)}>
+              {t('autoBackup.download')}
+            </button>
+          </div>
         </div>
-      )}
-    </div>
+      ))}
+    </>
   )
 }
