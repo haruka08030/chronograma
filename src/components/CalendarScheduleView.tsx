@@ -1,4 +1,5 @@
-import { Suspense, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -140,9 +141,9 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
           </button>
         </div>
       </div>
-      <Suspense fallback={null}>
+      <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
-      </Suspense>
+      </OverlaySuspense>
     </div>
   )
 }

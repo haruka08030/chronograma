@@ -1,4 +1,5 @@
-import { Suspense, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { OverlaySuspense } from '../components/ui/OverlaySuspense'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
 import type { CompleteWithLogDraft } from '../components/CompleteWithLogModal'
@@ -48,7 +49,7 @@ export function useCompleteWithLog() {
   }, [draft, addTimeLog, toggleTask])
 
   const modal = draft ? (
-    <Suspense fallback={null}>
+    <OverlaySuspense>
       <CompleteWithLogModal
         draft={draft}
         radioGroupName="completion-mode"
@@ -56,7 +57,7 @@ export function useCompleteWithLog() {
         onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
         onSubmit={submit}
       />
-    </Suspense>
+    </OverlaySuspense>
   ) : null
 
   return { open, modal }

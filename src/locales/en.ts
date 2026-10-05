@@ -441,6 +441,8 @@ export default {
     reload: 'Reload',
     goToday: 'Go to Today',
     details: 'Error details',
+    loadFailed: "Couldn't open this. Check your connection and try again.",
+    retry: 'Try again',
   },
   app: {
     searchPlaceholderTouch: 'Search',

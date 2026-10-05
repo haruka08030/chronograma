@@ -1,4 +1,5 @@
-import { Suspense, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
@@ -271,9 +272,9 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
           </div>
         )}
       </div>
-      <Suspense fallback={null}>
+      <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
-      </Suspense>
+      </OverlaySuspense>
     </div>
   )
 }

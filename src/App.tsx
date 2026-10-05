@@ -2,9 +2,11 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Suspense, useEffect, useState, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { OverlaySuspense } from './components/ui/OverlaySuspense'
+import { lazyNamed } from './lib/lazyComponent'
 import i18n from './i18n/config'
 import { useTaskStore } from './store/taskStore'
 import { Sidebar } from './components/Sidebar'
@@ -60,15 +62,15 @@ import {
 } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
-const CalendarHubView = lazy(() => import('./components/CalendarHubView').then((m) => ({ default: m.CalendarHubView })))
-const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
-const HabitsView = lazy(() => import('./components/HabitsView').then((m) => ({ default: m.HabitsView })))
-const TaskBinView = lazy(() => import('./components/TaskBinView').then((m) => ({ default: m.TaskBinView })))
-const CompletedTasksView = lazy(() => import('./components/CompletedTasksView').then((m) => ({ default: m.CompletedTasksView })))
-const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
-const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
-const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
-const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })))
+const CalendarHubView = lazyNamed(() => import('./components/CalendarHubView'), 'CalendarHubView')
+const StatsView = lazyNamed(() => import('./components/StatsView'), 'StatsView')
+const HabitsView = lazyNamed(() => import('./components/HabitsView'), 'HabitsView')
+const TaskBinView = lazyNamed(() => import('./components/TaskBinView'), 'TaskBinView')
+const CompletedTasksView = lazyNamed(() => import('./components/CompletedTasksView'), 'CompletedTasksView')
+const SettingsView = lazyNamed(() => import('./components/SettingsView'), 'SettingsView')
+const TaskList = lazyNamed(() => import('./components/TaskList'), 'TaskList')
+const SearchResults = lazyNamed(() => import('./components/SearchResults'), 'SearchResults')
+const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'ShortcutsHelp')
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
@@ -692,9 +694,9 @@ export default function App() {
         </div>
 
         {showShortcuts && (
-          <Suspense fallback={null}>
+          <OverlaySuspense>
             <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
-          </Suspense>
+          </OverlaySuspense>
         )}
         <OverlayHost />
         <UndoToast />

@@ -441,6 +441,8 @@ export default {
     reload: '再読み込み',
     goToday: '今日を開く',
     details: 'エラーの詳細',
+    loadFailed: '開けませんでした。回線を確かめて、もう一度お試しください。',
+    retry: 'もう一度',
   },
   app: {
     searchPlaceholderTouch: '検索',

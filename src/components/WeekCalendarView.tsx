@@ -1,4 +1,5 @@
-import { Suspense, useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { NIGHT_HOURS, timeToMinutes } from '../lib/timeGrid'
@@ -508,7 +509,7 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      <Suspense fallback={null}>
+      <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
         {eventCard && (
           <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
@@ -527,7 +528,7 @@ export function WeekCalendarView({
             }}
           />
         )}
-      </Suspense>
+      </OverlaySuspense>
     </div>
   )
 }

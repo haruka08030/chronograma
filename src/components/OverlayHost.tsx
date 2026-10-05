@@ -1,4 +1,5 @@
-import { Suspense, useEffect } from 'react'
+import { useEffect } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTaskStore } from '../store/taskStore'
 import { closeTaskDetail, closeTaskMenu, openTaskDetail, useOverlays } from '../lib/overlays'
 import { GoogleEventMenu, preloadOverlays, TaskContextMenu, TaskDetail, TaskEventMenu, TimeSlotMenu } from './lazyOverlays'
@@ -14,7 +15,7 @@ export function OverlayHost() {
   // 詳細・メニューは別ファイル。最初に開くときも待たないよう、手すきのときに読んでおく
   useEffect(() => preloadOverlays(), [])
   return (
-    <Suspense fallback={null}>
+    <OverlaySuspense>
       {detail.shown && <TaskDetail task={detail.shown} closing={detail.closing} onClose={closeTaskDetail} />}
       {menu?.kind === 'task' && (
         <TaskContextMenu
@@ -35,6 +36,6 @@ export function OverlayHost() {
         <TimeSlotMenu key={menu.taskId} x={menu.x} y={menu.y} taskId={menu.taskId} dateKey={menu.dateKey} onClose={closeTaskMenu} />
       )}
       {menu?.kind === 'google' && <GoogleEventMenu x={menu.x} y={menu.y} eventId={menu.eventId} onClose={closeTaskMenu} />}
-    </Suspense>
+    </OverlaySuspense>
   )
 }
