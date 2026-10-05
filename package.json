@@ -12,7 +12,8 @@
     "test": "vitest run",
     "shots": "node scripts/shots/capture.mjs",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

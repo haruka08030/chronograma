@@ -1,0 +1,8 @@
+#!/bin/sh
+# コミットする前に、ステージしたファイルの書式（Prettier）を確かめる。崩れていればコミットを止める
+files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs|cjs|json|css|html|yml|yaml)$')
+[ -z "$files" ] && exit 0
+echo "$files" | xargs npx --no-install prettier --check --ignore-unknown >/dev/null 2>&1 && exit 0
+echo "pre-commit: 書式が崩れています。npm run format をかけてから、もう一度コミットしてください" >&2
+echo "$files" | xargs npx --no-install prettier --list-different --ignore-unknown >&2
+exit 1
