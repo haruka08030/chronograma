@@ -42,4 +42,6 @@
 - 新しいファイルも何度流しても同じ形になるように書く（`add column if not exists`、`drop constraint if exists` してから `add constraint` など）。
 - 1 ファイル 1 変更。ファイル名は `NNN_何を変えるか.sql`。
 
+- 動きは pgTAP の [`../tests/`](../tests/) で確かめる（手元は `supabase start` → `supabase test db`、CI でも流す）。
+
 ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。

@@ -31,6 +31,16 @@ npm run dev
 
 ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。
 
+DB のテスト（RLS とトリガー、pgTAP の `supabase/tests/*.sql`）は Docker と Supabase CLI で、手元の DB に対して流します（本番には向けない）:
+
+```bash
+supabase start    # 手元の DB を起こし、supabase/migrations を 001 から流す
+supabase test db  # supabase/tests を流す
+supabase db reset # migration を足した・変えたときに流し直す
+```
+
+CI は migration を 2 回流し（何度流しても同じ形になること）、Edge Function を `deno check` し、DB のテストを流します。
+
 ## スマホで使う（PWA）
 
 - **iPhone / iPad**: Safari で開き、共有ボタン →「ホーム画面に追加」

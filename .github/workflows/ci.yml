@@ -51,3 +51,60 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Edge Function の型チェック（Supabase の実行環境と同じ Deno で、npm: / https: の import も解決する）
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # node_modules は入れない（npm: の依存は Deno のキャッシュに取る）
+      - name: Type-check Edge Functions
+        run: deno check --node-modules-dir=none supabase/functions/*/index.ts
+
+  # 本物の Postgres（Supabase のローカルの DB）に migration を流し、RLS とトリガーを pgTAP で確かめる
+  database:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      # DB だけ起こす。起こすときに supabase/migrations を 001 から番号順に流す
+      - name: Start database and apply migrations
+        run: supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Check every migration was applied
+        run: |
+          files=$(ls supabase/migrations/[0-9][0-9][0-9]_*.sql | wc -l)
+          applied=$(psql "$DB_URL" -tAc "select count(*) from supabase_migrations.schema_migrations")
+          echo "files=$files applied=$applied"
+          test "$files" -eq "$applied"
+
+      # 本番と同じく pg_cron を有効にしてから、全部をもう一度流す（何度流しても同じ形になること・010 のジョブ）
+      - name: Apply every migration again (idempotent)
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pg_cron"
+          for f in supabase/migrations/[0-9][0-9][0-9]_*.sql; do
+            echo "== $f"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      # 010 をもう一度流しても、ジョブは 1 つのまま（同じ名前で置き換わる）。ジョブの文がそのまま動くこと
+      - name: Check the tombstone purge job
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/migrations/010_sync_tombstone_limits.sql
+          test "$(psql "$DB_URL" -tAc "select count(*) from cron.job where jobname = 'purge-sync-tombstones'")" -eq 1
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "do \$\$ begin execute (select command from cron.job where jobname = 'purge-sync-tombstones'); end \$\$"
+
+      # supabase/tests/*.sql（pgTAP）
+      - name: Database tests
+        run: supabase test db
