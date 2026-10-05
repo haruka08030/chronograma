@@ -29,6 +29,7 @@ import { SectionLabel } from './ui/SectionLabel'
 import { META_TEXT } from './ui/textClass'
 import { ColorLabelCard } from './labels/ColorLabelCard'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
+import { colorVars } from '../lib/logCategoryColors'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -104,9 +105,9 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
         data-popover-keep
         onClick={(e) => { e.stopPropagation(); onColorPick() }}
-        className="h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
+        className="gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
           touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={{ backgroundColor: list.color }}
+        style={colorVars(list.color)}
         aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
         tabIndex={-1}
       />
@@ -220,9 +221,9 @@ function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }:
         onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
         aria-expanded={isEditing}
         {...tip(t('labels.editOne'), { name: true })}
-        className="ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 touch-manipulation
-          dark:ring-white/10 md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={{ backgroundColor: label.hex }}
+        className="gc-dot ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full touch-manipulation
+          md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
+        style={colorVars(label.hex)}
       />
       <button
         type="button"

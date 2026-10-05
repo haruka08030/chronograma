@@ -17,6 +17,7 @@ import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
+import { colorVars } from '../lib/logCategoryColors'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -142,7 +143,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                   <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
                     {list && (
                       <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: list.color }} />
+                        <span className="gc-dot h-2 w-2 rounded-full" style={colorVars(list.color)} />
                         {displayListName(list.id, list.name)}
                       </span>
                     )}

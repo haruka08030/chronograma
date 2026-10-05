@@ -4,6 +4,7 @@ import { LIST_KINDS } from '../types/list'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { CartIcon, CheckIcon, PencilIcon, StarIcon, TrashIcon } from './icons'
+import { colorVars } from '../lib/logCategoryColors'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 const KIND_ICON = {
@@ -36,7 +37,7 @@ export function ListContextMenu({ x, y, listId, onClose, onRename }: {
       kind: 'sub',
       id: 'color',
       label: t('sidebar.listColorDialog'),
-      icon: <span className="mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: list.color }} aria-hidden />,
+      icon: <span className="gc-dot mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={colorVars(list.color)} aria-hidden />,
       leaves: [],
       extra: (close) => (
         <ColorSwatches

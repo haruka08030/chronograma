@@ -540,7 +540,7 @@ export function HabitsView() {
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: offDay ? '#a1a1aa' : h.color }} aria-hidden />
+              <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(offDay ? '#a1a1aa' : h.color)} aria-hidden />
               <div className="min-w-0">
                 <p
                   className={`truncate text-base font-semibold tracking-tight ${
@@ -822,7 +822,7 @@ export function HabitsView() {
               <ul className="mt-1 divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
                 {archivedHabits.map((h) => (
                   <li key={h.id} {...habitMenuProps(h.id)} className="flex select-none items-center gap-3 px-4 py-2.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: h.color }} aria-hidden />
+                    <span className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full" style={colorVars(h.color)} aria-hidden />
                     <span className="min-w-0 flex-1 truncate text-sm text-zinc-600 dark:text-zinc-400">{h.title}</span>
                     <button
                       type="button"

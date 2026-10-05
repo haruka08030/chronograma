@@ -183,9 +183,6 @@ body {
   background-color: var(--c);
   color: var(--on-c, #ffffff);
 }
-.gc-dot {
-  background-color: var(--c);
-}
 
 
 /* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */
@@ -216,7 +213,9 @@ body {
   cursor: pointer;
 }
 
-/* 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける */
+/*
+ * 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける。
+ */
 .gc-plan {
   background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));
   border: 1px solid color-mix(in srgb, var(--c) 45%, var(--gc-surface));
@@ -226,6 +225,18 @@ body {
   background-color: color-mix(in srgb, var(--c) 20%, var(--gc-surface));
   border-color: color-mix(in srgb, var(--c) 45%, var(--gc-surface));
   color: color-mix(in srgb, var(--c) 35%, var(--gc-ink));
+}
+/*
+ * 色の丸（フォルダ・ラベル・習慣の丸、色選択、記録の内訳の棒）: 予定タイルと同じ抜け感の塗りに、くっきりした色の縁。
+ * 小さいので塗りは予定タイルより少し濃く、縁はその色そのもの
+ */
+.gc-dot {
+  background-color: color-mix(in srgb, var(--c) 30%, var(--gc-surface));
+  border: 1px solid var(--c);
+  color: color-mix(in srgb, var(--c) 40%, var(--gc-ink));
+}
+.dark .gc-dot {
+  background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
 }
 
 /* 睡眠の記録: 夜の色の薄い帯。色の付いた記録・予定の枠より目立たせない */

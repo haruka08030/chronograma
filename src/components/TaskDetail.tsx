@@ -33,6 +33,7 @@ import { sectionLabelClass } from './ui/sectionLabelClass'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { colorVars } from '../lib/logCategoryColors'
 
 const RECURRENCE_TYPES: (Recurrence['type'] | 'none')[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
 
@@ -597,8 +598,8 @@ export function TaskDetail({
                 <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.list')}</label>
                 <div className="flex items-center gap-2">
                   <span
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0] }}
+                    className="gc-dot w-3 h-3 rounded-full flex-shrink-0"
+                    style={colorVars(lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0])}
                   />
                   <select
                     value={task.listId}

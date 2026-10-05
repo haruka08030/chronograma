@@ -15,6 +15,7 @@ import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { useScheduleEntry } from '../hooks/useScheduleEntry'
+import { colorVars } from '../lib/logCategoryColors'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -112,7 +113,7 @@ export function TaskContextMenu({
     .map((l) => ({
       id: `list-${l.id}`,
       label: displayListName(l.id, l.name),
-      icon: <span className="mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: l.color }} />,
+      icon: <span className="gc-dot mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={colorVars(l.color)} />,
       checked: sharedList === l.id,
       run: done(() => bulk.moveToList(taskIds, l.id)),
     }))

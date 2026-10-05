@@ -13,6 +13,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
 import { META_TEXT } from '../ui/textClass'
+import { colorVars } from '../../lib/logCategoryColors'
 
 const SORT_OPTIONS: SortMode[] = ['manual', 'dueDate', 'priority', 'title', 'createdAt']
 /** いつか・チェックリストは締切・優先度を持たないので、その並び順は出さない */
@@ -76,8 +77,8 @@ export function TaskListHeader({
               <MenuIcon className="h-5 w-5" strokeWidth={1.75} />
             </button>
           )}
-          {colorView && (
-            <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: filterColor }} aria-hidden />
+          {colorView && filterColor && (
+            <span className="gc-dot h-3.5 w-3.5 shrink-0 rounded-full" style={colorVars(filterColor)} aria-hidden />
           )}
           {title}
         </h1>

@@ -23,6 +23,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { colorVars } from '../../lib/logCategoryColors'
 
 const WIDTH = 320
 
@@ -145,7 +146,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         </button>
       </div>
       <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3">
-        <span className="mt-1.5 h-3.5 w-3.5 rounded" style={{ backgroundColor: hex }} aria-hidden />
+        <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           {editable ? (
             <input

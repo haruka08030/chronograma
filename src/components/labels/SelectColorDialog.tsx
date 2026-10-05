@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
+import { CALENDAR_COLORS } from '../../lib/googleColors'
 import { hexToHsv, hsvToHex } from '../../lib/colorMath'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { CheckIcon, PencilSquareIcon } from '../icons'
@@ -8,6 +8,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { tip } from '../../lib/tooltip'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
+import { colorVars } from '../../lib/logCategoryColors'
 
 const CHECK = (
   <CheckIcon className="h-4 w-4" strokeWidth={3} />
@@ -74,8 +75,8 @@ export function SelectColorDialog({
                 aria-checked={selected}
                 {...tip(t(`googleColors.${c.key}`), { name: true })}
                 onClick={() => applyHex(c.hex)}
-                className="flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
-                style={{ backgroundColor: c.hex, color: textOnHex(c.hex) }}
+                className="gc-dot flex aspect-square items-center justify-center rounded-full transition-transform hover:scale-110"
+                style={colorVars(c.hex)}
               >
                 {selected && CHECK}
               </button>
@@ -86,8 +87,8 @@ export function SelectColorDialog({
         <div className="mt-6 flex gap-4">
           <div className="flex flex-col items-center gap-3">
             <span
-              className="flex h-14 w-14 items-center justify-center rounded-full text-2xl"
-              style={{ backgroundColor: hex, color: textOnHex(hex) }}
+              className="gc-dot flex h-14 w-14 items-center justify-center rounded-full text-2xl"
+              style={colorVars(hex)}
               aria-hidden
             >
               A

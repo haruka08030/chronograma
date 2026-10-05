@@ -6,6 +6,7 @@ import { TASK_PREFIX } from './SortableTaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
 import type { TaskList } from '../types/list'
+import { colorVars } from '../lib/logCategoryColors'
 
 export const MOBILE_DROP_PREFIX = 'mobile-drop::'
 
@@ -23,8 +24,8 @@ function MobileListChip({ list }: { list: TaskList }) {
           : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600'}`}
     >
       <span
-        className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/10"
-        style={{ backgroundColor: list.color }}
+        className="gc-dot w-2 h-2 rounded-full flex-shrink-0"
+        style={colorVars(list.color)}
       />
       <span className="truncate text-zinc-800 dark:text-zinc-100">{list.name}</span>
     </div>

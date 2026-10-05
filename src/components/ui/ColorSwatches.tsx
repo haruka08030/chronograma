@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CALENDAR_COLORS, textOnHex } from '../../lib/googleColors'
+import { CALENDAR_COLORS } from '../../lib/googleColors'
 import { CheckIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
+import { colorVars } from '../../lib/logCategoryColors'
 
 /** 丸の直径（24px） */
 const SWATCH_SIZE = '1.5rem'
@@ -59,8 +60,8 @@ export function ColorSwatches({
             aria-checked={isSelected}
             {...tip(name, { name: true })}
             onClick={() => onChoose(sw.hex)}
-            className="flex aspect-square w-full items-center justify-center rounded-full transition-transform hover:scale-110"
-            style={{ backgroundColor: sw.hex, color: textOnHex(sw.hex) }}
+            className="gc-dot flex aspect-square w-full items-center justify-center rounded-full transition-transform hover:scale-110"
+            style={colorVars(sw.hex)}
           >
             {isSelected && <CheckIcon className="h-3 w-3" strokeWidth={3.5} />}
           </button>

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { CALENDAR_COLORS } from '../../lib/googleColors'
-import { categoryHex, colorKeyForHex, unnamedColorKeys } from '../../lib/logCategoryColors'
+import { categoryHex, colorKeyForHex, unnamedColorKeys, colorVars } from '../../lib/logCategoryColors'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { SelectColorDialog } from './SelectColorDialog'
 import { CaretDownIcon, PlusIcon, TrashIcon } from '../icons'
@@ -81,7 +81,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                     aria-label={t('labels.changeColor')}
                     className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-3 transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-accent-500 dark:hover:bg-zinc-700"
                   >
-                    <span className="h-5 w-5 rounded-full" style={{ backgroundColor: r.hex }} aria-hidden />
+                    <span className="gc-dot h-5 w-5 rounded-full" style={colorVars(r.hex)} aria-hidden />
                     <CaretDownIcon className="h-3 w-3 text-zinc-600 dark:text-zinc-300" />
                   </button>
                   <input

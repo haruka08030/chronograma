@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { isLogTask, type Task } from '../../types/task'
 import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
-import { recordHex } from '../../lib/logCategoryColors'
+import { recordHex, colorVars } from '../../lib/logCategoryColors'
 import { planTiming } from '../../lib/planTiming'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit'
@@ -16,7 +16,7 @@ const ICON = 'h-4 w-4 flex-shrink-0'
 
 /** 色の丸（中のメニューを開く項目のアイコン） */
 function Dot({ hex }: { hex: string }) {
-  return <span className="mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} aria-hidden />
+  return <span className="gc-dot mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={colorVars(hex)} aria-hidden />
 }
 
 /**
