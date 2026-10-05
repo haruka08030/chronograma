@@ -310,3 +310,11 @@ button:not(:disabled):has(> svg:only-child):active {
 html[data-timer-open] .timer-safe {
   padding-bottom: 6rem;
 }
+
+/* 行を選んでいる間の下のバー（SelectionBar）も同じ。タイマーと重なると 2 段になる */
+html[data-selection-open] .timer-safe {
+  padding-bottom: 6rem;
+}
+html[data-timer-open][data-selection-open] .timer-safe {
+  padding-bottom: 10rem;
+}

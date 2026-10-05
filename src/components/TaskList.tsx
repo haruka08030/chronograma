@@ -1,5 +1,4 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
-import { INVERSE_SURFACE } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
@@ -12,7 +11,8 @@ import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import { CheckCircleIcon, CloseIcon } from './icons'
+import { CheckCircleIcon, CheckIcon } from './icons'
+import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
@@ -316,32 +316,12 @@ export function TaskList({ onOpenNav }: {
         </div>
       </div>
       {sectionMenuElement}
-      {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 animate-toast-in md:bottom-6 [@media(hover:hover)]:hidden">
-          <div className={`flex items-center gap-1 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
-            <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
-            <button
-              type="button"
-              className="rounded-full px-3 py-1.5 font-semibold touch-manipulation"
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect()
-                openTaskMenu({ kind: 'task', x: r.left, y: r.top, taskIds: [...selected], above: true, onDone: clearSelection })
-              }}
-            >
-              {t('taskMenu.actions')}
-            </button>
-            <button
-              type="button"
-              aria-label={t('taskList.clearSelection')}
-              className="rounded-full p-2 touch-manipulation"
-              onClick={clearSelection}
-            >
-              <CloseIcon className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 選んでいる間: 件数・完了・「操作」を下に出す（今日の計画と同じバー） */}
+      <SelectionBar
+        selectedIds={selected}
+        actions={[{ label: t('taskList.selectionComplete'), icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />, onClick: () => bulk.complete([...selected]) }]}
+        onClear={clearSelection}
+      />
     </div>
   )
 }

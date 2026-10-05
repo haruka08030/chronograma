@@ -31,6 +31,7 @@ import { Segmented } from './ui/Segmented'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
+import { SelectionBar } from './ui/SelectionBar'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
@@ -192,6 +193,30 @@ export function TodayPlannerView() {
   useEffect(() => {
     clearSelectedRef.current = clearSelection
   }, [clearSelection])
+
+  /**
+   * 選んでいる間に下のバーに出す操作。この画面でよく使う日の付け替えを先頭に:
+   * 今日やる行だけなら「明日へ」、候補・やり残し・期限切れだけなら「今日やる」、混ざっていれば完了だけ
+   */
+  const selectionActions = (() => {
+    const ids = [...selected]
+    const openIds = new Set(open.map((x) => x.id))
+    const complete = { label: t('taskList.selectionComplete'), icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />, onClick: () => bulk.complete(ids) }
+    const many = (label: string) => (ids.length > 1 ? label : undefined)
+    if (ids.every((id) => openIds.has(id))) {
+      return [
+        { label: t('taskList.selectionTomorrow'), icon: <CalendarArrowIcon className="h-3.5 w-3.5" />, onClick: () => rescheduleTasks(ids, tomorrowKey, many(t('undo.tasksMovedToTomorrow', { count: ids.length }))) },
+        complete,
+      ]
+    }
+    if (ids.every((id) => !openIds.has(id))) {
+      return [
+        { label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'), icon: <CalendarArrowIcon className="h-3.5 w-3.5" />, onClick: () => rescheduleTasks(ids, dateKey, many(t('undo.tasksMovedToToday', { count: ids.length }))) },
+        complete,
+      ]
+    }
+    return [complete]
+  })()
 
   const submitDraft = () => {
     if (!draft.trim()) return
@@ -656,6 +681,8 @@ export function TodayPlannerView() {
         </div>
         <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
       </section>
+
+      <SelectionBar selectedIds={selected} actions={selectionActions} onClear={clearSelection} />
     </div>
   )
 }
