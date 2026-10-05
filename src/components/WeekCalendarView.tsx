@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { Suspense, useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import {
   startOfWeek,
   endOfWeek,
@@ -33,9 +33,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery'
 import { isLogTask, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
-import { EventPopover } from './timeline/EventPopover'
-import { GoogleEventPopover } from './timeline/GoogleEventPopover'
-import { QuickCreatePopover } from './timeline/QuickCreatePopover'
+import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
 import { appTodayKey } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
@@ -498,6 +496,7 @@ export function WeekCalendarView({
         </div>
       </div>
 
+      <Suspense fallback={null}>
       {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
       {eventCard && (
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
@@ -516,6 +515,7 @@ export function WeekCalendarView({
           }}
         />
       )}
+      </Suspense>
     </div>
   )
 }

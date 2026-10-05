@@ -31,7 +31,7 @@
 | 領域       | 内容                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ランタイム | React 19, TypeScript                                                                                                                                                                 |
-| ビルド     | Vite 8                                                                                                                                                                               |
+| ビルド     | Vite 8（`vite.config.ts` で react / i18n / supabase / dnd-kit / date-fns を別ファイルに分ける。開いたときだけ要る詳細・メニュー・ポップオーバーは `src/components/lazyOverlays.ts` で遅延読み込みし、手すきのときに先読み） |
 | スタイル   | Tailwind CSS 4（`@tailwindcss/vite`）, `src/index.css`                                                                                                                               |
 | 状態       | Zustand 5 + `persist`                                                                                                                                                                |
 | DnD        | `@dnd-kit/core`, `sortable`, `utilities`                                                                                                                                             |
@@ -471,7 +471,8 @@ service_role で読み書き）。トークンの列（`google_oauth.refresh_tok
 
 - `dev` — Vite 開発サーバー
 - `build` — `tsc -b` && `vite build`
-- `lint` — ESLint
+- `lint` — ESLint（CI で必須）
+- `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 
 ## 実装時の注意

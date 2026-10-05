@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
@@ -21,7 +21,7 @@ import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
-import { GoogleEventPopover } from './timeline/GoogleEventPopover'
+import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { META_TEXT } from './ui/textClass'
 
@@ -282,7 +282,7 @@ export function CalendarDayPanel({
           </div>
         )}
       </div>
-      {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      <Suspense fallback={null}>{googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}</Suspense>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -6,7 +6,7 @@ import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { TaskItem } from './TaskItem'
-import { GoogleEventPopover } from './timeline/GoogleEventPopover'
+import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon } from './icons'
@@ -146,7 +146,7 @@ export function CalendarScheduleView({
           </button>
         </div>
       </div>
-      {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      <Suspense fallback={null}>{googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}</Suspense>
     </div>
   )
 }

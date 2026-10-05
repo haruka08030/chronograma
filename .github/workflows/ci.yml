@@ -23,10 +23,7 @@ jobs:
 
       - run: npm ci
 
-      # lint は既存の指摘が残っているので、落ちても後続を走らせて全体を一度で見る
       - name: Lint
-        id: lint
-        continue-on-error: true
         run: npm run lint
 
       # 単体テスト（node）と部品のテスト（jsdom）
@@ -51,9 +48,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Fail if lint failed
-        if: steps.lint.outcome == 'failure'
-        run: |
-          echo "::error::npm run lint が失敗しました（上の Lint ステップのログを参照）"
-          exit 1

@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-ビルドは `npm run build`、Lint は `npm run lint` です。
+ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。
 
 ## スマホで使う（PWA）
 
