@@ -1,8 +1,8 @@
 import { calendarColorHex, googleEventHex, hasOwnEventColor } from './googleColors'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
+import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { pad2 } from './clockTime'
@@ -14,19 +14,6 @@ type GoogleCalendarPayload = {
   error?: string
 }
 
-async function parseFunctionError(error: unknown): Promise<string> {
-  if (error instanceof FunctionsHttpError) {
-    try {
-      const body = (await error.context.json()) as { error?: string }
-      if (body?.error) return body.error
-    } catch {
-      /* ignore parse failure */
-    }
-  }
-  if (error instanceof Error) return error.message
-  return 'Edge Function request failed'
-}
-
 async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
   body: Record<string, unknown>,
 ): Promise<T> {
@@ -35,10 +22,8 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
 
   const { data, error } = await sb.functions.invoke('google-calendar', { body })
 
-  if (error) {
-    const msg = await parseFunctionError(error)
-    throw new Error(msg)
-  }
+  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, error }）。古い関数は 200 で { ok: false } を返す
+  if (error) throw new Error(await functionErrorMessage(error))
 
   const payload = (data ?? {}) as T
   if (payload.error && payload.ok === false) {
@@ -265,30 +250,35 @@ export async function fetchCalendarEvents(
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
-  const payload = await invokeGoogleCalendar<{
+  type EventsPayload = {
     events?: CalendarEvent[]
     calendarColor?: string | null
     calendarColorId?: string | null
     connected?: boolean
     canWrite?: boolean
     error?: string
-  }>({
-    action: 'events',
-    // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
-    timeMin: fromAppWall(timeMin).toISOString(),
-    timeMax: fromAppWall(timeMax).toISOString(),
-    timeZone: appTimeZone(),
-  })
-
-  if (payload.error) {
-    if (shouldDisconnectAfterFetchError(payload.error)) {
+  }
+  let payload: EventsPayload
+  try {
+    payload = await invokeGoogleCalendar<EventsPayload>({
+      action: 'events',
+      // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
+      timeMin: fromAppWall(timeMin).toISOString(),
+      timeMax: fromAppWall(timeMax).toISOString(),
+      timeZone: appTimeZone(),
+    })
+    // 古い関数は失敗も 200 で { events: [], error } を返す
+    if (payload.error) throw new Error(payload.error)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (shouldDisconnectAfterFetchError(message)) {
       try {
         await disconnectGoogleCalendar()
       } catch {
         /* ignore */
       }
     }
-    throw new Error(payload.error)
+    throw e
   }
   // 自分で色を付けていない予定はカレンダーの色
   lastCalendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)

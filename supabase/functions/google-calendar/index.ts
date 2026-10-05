@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
@@ -44,13 +45,6 @@ type GoogleEventItem = {
   organizer?: { self?: boolean }
   guestsCanModify?: boolean
   locked?: boolean
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 function intlPart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
@@ -226,12 +220,12 @@ Deno.serve(withCors(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return jsonResponse({ error: 'Server misconfigured' }, 500)
+      return errorResponse(500, 'Server misconfigured')
     }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return errorResponse(401, 'Missing Authorization header')
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -244,14 +238,15 @@ Deno.serve(withCors(async (req) => {
     } = await userClient.auth.getUser()
 
     if (userError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return errorResponse(401, 'Unauthorized')
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
     if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.google))) {
-      return jsonResponse({ ok: false, error: 'Too many requests. Wait a moment, then try again.' }, 429)
+      return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
     }
-    const body = req.method === 'POST' ? await req.json() : {}
+    const body = await readJsonBody(req)
+    if (!body) return errorResponse(400, BAD_JSON)
     const action = (body.action as string) ?? ''
 
     const tokenContext = secretContext.google(user.id)
@@ -279,13 +274,13 @@ Deno.serve(withCors(async (req) => {
       const code = body.code as string | undefined
       const redirectUri = body.redirect_uri as string | undefined
       if (!code?.trim() || !redirectUri?.trim()) {
-        return jsonResponse({ ok: false, error: 'code and redirect_uri are required' })
+        return errorResponse(400, 'code and redirect_uri are required')
       }
 
       const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
       const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
       if (!clientId || !clientSecret) {
-        return jsonResponse({ ok: false, error: 'Google OAuth secrets are not configured on the server' })
+        return errorResponse(500, 'Google OAuth secrets are not configured on the server')
       }
       // コードは 1 回しか交換できないので、保存できないと分かっていれば交換する前に止める
       requireSecretKey()
@@ -314,10 +309,7 @@ Deno.serve(withCors(async (req) => {
         } catch {
           /* JSON でなければ code なし */
         }
-        return jsonResponse({
-          ok: false,
-          error: `Google code exchange failed: ${code || tokenRes.status}`,
-        })
+        return errorResponse(502, `Google code exchange failed: ${code || tokenRes.status}`)
       }
 
       const tokenData = (await tokenRes.json()) as {
@@ -328,10 +320,7 @@ Deno.serve(withCors(async (req) => {
 
       const refreshToken = tokenData.refresh_token
       if (!refreshToken) {
-        return jsonResponse({
-          ok: false,
-          error: 'Google did not return a refresh token. Revoke app access in your Google account, then reconnect.',
-        })
+        return errorResponse(502, 'Google did not return a refresh token. Revoke app access in your Google account, then reconnect.')
       }
 
       const { error } = await admin.from('google_oauth').upsert(
@@ -347,7 +336,7 @@ Deno.serve(withCors(async (req) => {
 
       if (error) {
         console.error('[google] save token failed', error.message)
-        return jsonResponse({ ok: false, error: 'Failed to save Google connection' })
+        return errorResponse(500, 'Failed to save Google connection')
       }
       return jsonResponse({ ok: true })
     }
@@ -369,7 +358,7 @@ Deno.serve(withCors(async (req) => {
 
       if (error) {
         console.error('[google] disconnect failed', error.message)
-        return jsonResponse({ error: 'Failed to disconnect' }, 500)
+        return errorResponse(500, 'Failed to disconnect')
       }
       return jsonResponse({ ok: true })
     }
@@ -379,7 +368,7 @@ Deno.serve(withCors(async (req) => {
 
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
-        return jsonResponse({ error: 'Failed to load Google connection' }, 500)
+        return errorResponse(500, 'Failed to load Google connection')
       }
       if (!row?.refresh_token) {
         return jsonResponse({ connected: false })
@@ -405,21 +394,17 @@ Deno.serve(withCors(async (req) => {
       const timeMin = body.timeMin as string | undefined
       const timeMax = body.timeMax as string | undefined
       if (!timeMin || !timeMax) {
-        return jsonResponse({ events: [], error: 'timeMin and timeMax are required' })
+        return errorResponse(400, 'timeMin and timeMax are required')
       }
 
       const { row, error: fetchError } = await loadConnection()
 
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
-        return jsonResponse({ error: 'Failed to load Google connection' }, 500)
+        return errorResponse(500, 'Failed to load Google connection')
       }
       if (!row?.refresh_token) {
-        return jsonResponse({
-          events: [],
-          connected: false,
-          error: 'Google Calendar not connected. Reconnect in settings.',
-        })
+        return jsonResponse({ ok: false, events: [], connected: false, error: 'Google Calendar not connected. Reconnect in settings.' }, 409)
       }
 
       try {
@@ -453,6 +438,7 @@ Deno.serve(withCors(async (req) => {
         const scopeMissing = message.includes('Calendar API error 403')
         if (!needsReconnect) console.error('[google] events failed', message)
         return jsonResponse({
+          ok: false,
           events: [],
           connected: false,
           error: scopeMissing
@@ -460,7 +446,7 @@ Deno.serve(withCors(async (req) => {
             : needsReconnect
               ? 'Google Calendar authorization expired. Disconnect and reconnect.'
               : 'Google Calendar request failed',
-        })
+        }, 502)
       }
     }
 
@@ -468,16 +454,16 @@ Deno.serve(withCors(async (req) => {
       const { row, error: fetchError } = await loadConnection()
       if (fetchError) {
         console.error('[google] load connection failed', fetchError.message)
-        return jsonResponse({ ok: false, error: 'Failed to load Google connection' }, 500)
+        return errorResponse(500, 'Failed to load Google connection')
       }
       if (!row?.refresh_token) {
-        return jsonResponse({ ok: false, error: 'Google Calendar not connected. Reconnect in settings.' })
+        return errorResponse(409, 'Google Calendar not connected. Reconnect in settings.')
       }
       if (!hasWriteScope(row.scope)) {
-        return jsonResponse({ ok: false, error: 'Google Calendar write scope not granted. Reconnect and approve calendar access.' })
+        return errorResponse(409, 'Google Calendar write scope not granted. Reconnect and approve calendar access.')
       }
       const eventId = (body.eventId as string | undefined)?.trim() || null
-      if (action !== 'create' && !eventId) return jsonResponse({ ok: false, error: 'eventId is required' })
+      if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
       try {
         const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
         const accessToken = await refreshGoogleAccessToken(row.refresh_token)
@@ -494,29 +480,29 @@ Deno.serve(withCors(async (req) => {
         if (message.includes('Calendar API error 403')) {
           // 権限（scope）不足と、他人の予定で変更できないのを分ける
           const scopeIssue = /insufficient|scope/i.test(message)
-          return jsonResponse({
-            ok: false,
-            error: scopeIssue
+          return errorResponse(
+            502,
+            scopeIssue
               ? 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
               : 'Google Calendar event is read-only for you.',
-          })
+          )
         }
         if (message.includes('invalid_grant') || message.includes('Calendar API error 401')) {
-          return jsonResponse({ ok: false, error: 'Google Calendar authorization expired. Disconnect and reconnect.' })
+          return errorResponse(502, 'Google Calendar authorization expired. Disconnect and reconnect.')
         }
         console.error('[google] write failed', message)
-        return jsonResponse({ ok: false, error: 'Google Calendar write failed' })
+        return errorResponse(502, 'Google Calendar write failed')
       }
     }
 
-    return jsonResponse({ error: 'Unknown action' }, 400)
+    return errorResponse(400, 'Unknown action')
   } catch (e) {
     if (e instanceof SecretKeyMissingError) {
       console.error('[google]', e.message)
-      return jsonResponse({ ok: false, error: 'Server misconfigured' }, 500)
+      return errorResponse(500, 'Server misconfigured')
     }
     // 内部のエラーは中身を返さず、サーバーのログにだけ残す
     console.error('[google]', e)
-    return jsonResponse({ ok: false, error: 'Internal error' })
+    return errorResponse(500, 'Internal error')
   }
 }))

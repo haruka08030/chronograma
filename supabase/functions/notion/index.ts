@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
@@ -46,13 +47,6 @@ class NotionError extends Error {
   constructor(public code: string, message?: string) {
     super(message ?? code)
   }
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 async function notionFetch<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
@@ -189,12 +183,12 @@ Deno.serve(withCors(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return jsonResponse({ error: 'Server misconfigured' }, 500)
+      return errorResponse(500, 'Server misconfigured')
     }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return errorResponse(401, 'Missing Authorization header')
     }
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -204,14 +198,15 @@ Deno.serve(withCors(async (req) => {
       error: userError,
     } = await userClient.auth.getUser()
     if (userError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return errorResponse(401, 'Unauthorized')
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
     if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.notion))) {
-      return jsonResponse({ ok: false, code: 'notion_rate_limited', error: 'notion_rate_limited' }, 429)
+      return errorResponse(429, 'notion_rate_limited', 'notion_rate_limited')
     }
-    const body = req.method === 'POST' ? await req.json() : {}
+    const body = await readJsonBody(req)
+    if (!body) return errorResponse(400, BAD_JSON)
     const action = (body.action as string) ?? ''
 
     const tokenContext = secretContext.notion(user.id)
@@ -249,8 +244,8 @@ Deno.serve(withCors(async (req) => {
     if (action === 'connect') {
       const token = (body.token as string | undefined)?.trim()
       const databaseId = parseDatabaseId((body.database as string | undefined) ?? '')
-      if (!token) return jsonResponse({ ok: false, code: 'notion_unauthorized' })
-      if (!databaseId) return jsonResponse({ ok: false, code: 'notion_bad_url' })
+      if (!token) return errorResponse(400, 'notion_unauthorized', 'notion_unauthorized')
+      if (!databaseId) return errorResponse(400, 'notion_bad_url', 'notion_bad_url')
       requireSecretKey()
       const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
       // 同じデータベースにつなぎ直すときは、選んであったステータスを残す
@@ -265,7 +260,7 @@ Deno.serve(withCors(async (req) => {
       const { error } = await admin.from('notion_connection').delete().eq('user_id', user.id)
       if (error) {
         console.error('[notion] disconnect', error.message)
-        return jsonResponse({ ok: false, error: 'Failed to disconnect' }, 500)
+        return errorResponse(500, 'Failed to disconnect')
       }
       return jsonResponse({ ok: true })
     }
@@ -304,7 +299,7 @@ Deno.serve(withCors(async (req) => {
       const pageId = (body.pageId as string | undefined)?.replace(/-/g, '')
       const fromStatus = body.fromStatus as string | undefined
       if (!pageId || !/^[0-9a-f]{32}$/i.test(pageId) || !fromStatus) {
-        return jsonResponse({ ok: false, error: 'pageId and fromStatus are required' }, 400)
+        return errorResponse(400, 'pageId and fromStatus are required')
       }
       const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
       const config = sanitizeConfig(row.config, schema.properties)
@@ -326,19 +321,19 @@ Deno.serve(withCors(async (req) => {
       return jsonResponse({ ok: true, advanced: true, to })
     }
 
-    return jsonResponse({ error: 'Unknown action' }, 400)
+    return errorResponse(400, 'Unknown action')
   } catch (e) {
     if (e instanceof SecretKeyMissingError) {
       console.error('[notion]', e.message)
-      return jsonResponse({ ok: false, error: 'Server misconfigured' }, 500)
+      return errorResponse(500, 'Server misconfigured')
     }
     // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
     if (e instanceof NotionError) {
       console.warn('[notion]', e.code, e.message)
-      return jsonResponse({ ok: false, code: e.code, error: e.code })
+      return errorResponse(integrationErrorStatus(e.code), e.code, e.code)
     }
     // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
     console.error('[notion]', e)
-    return jsonResponse({ ok: false, error: 'Internal error' })
+    return errorResponse(500, 'Internal error')
   }
 }))

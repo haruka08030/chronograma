@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
+import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
@@ -44,13 +45,6 @@ class CanvasError extends Error {
   constructor(public code: string, message?: string) {
     super(message ?? code)
   }
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 /** 確かめた結果を覚えておく時間。長く覚えると、確かめたあとで名前の向き先を内部へ変えられる */
@@ -293,12 +287,12 @@ Deno.serve(withCors(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return jsonResponse({ error: 'Server misconfigured' }, 500)
+      return errorResponse(500, 'Server misconfigured')
     }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return errorResponse(401, 'Missing Authorization header')
     }
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -308,18 +302,19 @@ Deno.serve(withCors(async (req) => {
       error: userError,
     } = await userClient.auth.getUser()
     if (userError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return errorResponse(401, 'Unauthorized')
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
-    const body = req.method === 'POST' ? await req.json() : {}
+    const body = await readJsonBody(req)
+    if (!body) return errorResponse(400, BAD_JSON)
     const action = (body.action as string) ?? ''
     const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
     // 学校のサイトを新しく確かめに行く connect は、ほかより少なく
     const limited =
       !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvas)) ||
       (action === 'connect' && !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvasConnect)))
-    if (limited) return jsonResponse({ ok: false, code: 'canvas_rate_limited', error: 'canvas_rate_limited' }, 429)
+    if (limited) return errorResponse(429, 'canvas_rate_limited', 'canvas_rate_limited')
 
     type Row = {
       id: string
@@ -385,7 +380,7 @@ Deno.serve(withCors(async (req) => {
 
     if (action === 'connect' && typeof body.feedUrl === 'string') {
       const feed = parseFeedUrl(body.feedUrl)
-      if (!feed) return jsonResponse({ ok: false, code: 'canvas_feed_invalid' })
+      if (!feed) return errorResponse(400, 'canvas_feed_invalid', 'canvas_feed_invalid')
       requireSecretKey()
       await assertRoomFor(new URL(feed.baseUrl).host)
       // 読めるか確かめてから保存する
@@ -413,10 +408,10 @@ Deno.serve(withCors(async (req) => {
       const token = (body.token as string | undefined)?.trim()
       // connectionId があれば、その学校のトークンだけ貼り直す
       const prev = connectionId ? (await loadRows()).find((r) => r.id === connectionId) : null
-      if (connectionId && !prev) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
+      if (connectionId && !prev) return errorResponse(400, 'canvas_bad_url', 'canvas_bad_url')
       const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
-      if (!baseUrl) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
-      if (!token) return jsonResponse({ ok: false, code: 'canvas_unauthorized' })
+      if (!baseUrl) return errorResponse(400, 'canvas_bad_url', 'canvas_bad_url')
+      if (!token) return errorResponse(400, 'canvas_unauthorized', 'canvas_unauthorized')
       requireSecretKey()
       await assertRoomFor(new URL(baseUrl).host)
       const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
@@ -440,7 +435,7 @@ Deno.serve(withCors(async (req) => {
     }
 
     if (action === 'disconnect') {
-      if (!connectionId) return jsonResponse({ ok: false, error: 'connectionId is required' }, 400)
+      if (!connectionId) return errorResponse(400, 'connectionId is required')
       // 行を消すだけでは Canvas 側にトークンが残るので、先に取り消す（失敗しても切断は進める）
       const target = (await loadRows()).find((r) => r.id === connectionId)
       if (target?.kind === 'token' && target.token) {
@@ -452,7 +447,7 @@ Deno.serve(withCors(async (req) => {
       const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
       if (error) {
         console.error('[canvas] disconnect', error.message)
-        return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' }, 500)
+        return errorResponse(500, 'canvas_api', 'canvas_api')
       }
       return jsonResponse(describe(await loadRows()))
     }
@@ -492,19 +487,19 @@ Deno.serve(withCors(async (req) => {
       const type = body.type as string | undefined
       const id = String(body.id ?? '')
       if (!row || !type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
-        return jsonResponse({ ok: false, error: 'connectionId, type, id and complete are required' }, 400)
+        return errorResponse(400, 'connectionId, type, id and complete are required')
       }
       // フィードでつないだ学校は読むだけなので、完了は Canvas に書き戻さない
       if (row.kind === 'token' && row.token) await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
       return jsonResponse({ ok: true })
     }
 
-    return jsonResponse({ error: 'Unknown action' }, 400)
+    return errorResponse(400, 'Unknown action')
   } catch (e) {
     // 学校のサイトや DB の応答の中身は返さない（ログにだけ残す）
     console.error('[canvas]', e instanceof Error ? e.message : e)
-    if (e instanceof SecretKeyMissingError) return jsonResponse({ ok: false, code: 'canvas_api', error: 'Server misconfigured' }, 500)
-    if (e instanceof CanvasError) return jsonResponse({ ok: false, code: e.code, error: e.code })
-    return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' })
+    if (e instanceof SecretKeyMissingError) return errorResponse(500, 'Server misconfigured', 'canvas_api')
+    if (e instanceof CanvasError) return errorResponse(integrationErrorStatus(e.code), e.code, e.code)
+    return errorResponse(500, 'canvas_api', 'canvas_api')
   }
 }))

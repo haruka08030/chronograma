@@ -20,9 +20,9 @@ import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/sup
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
 import { clearAutoBackups } from '../lib/autoBackup'
+import { readFunctionErrorBody } from '../lib/functionError'
 import { clearBaseline } from '../lib/syncMerge'
 import { detachWebPush } from '../lib/webPush'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 
 export type AuthContextValue = {
   session: Session | null
@@ -269,9 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const { data, error } = await sb.functions.invoke('account', { body: { action: 'delete' } })
           if (error || (data as { ok?: boolean } | null)?.ok !== true) {
-            const body = error instanceof FunctionsHttpError
-              ? ((await error.context.json().catch(() => null)) as { code?: string; error?: string } | null)
-              : null
+            const body = await readFunctionErrorBody(error)
             // 10 分より前のログインでは消せない（サーバーの本人確認）。ログインし直してから呼び直す
             if (body?.code === 'reauth_required') return { reauthRequired: true }
             const message = body ? body.error : error?.message

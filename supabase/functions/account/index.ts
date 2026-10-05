@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { withCors } from '../_shared/cors.ts'
+import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { openSecret, secretContext } from '../_shared/secretBox.ts'
 import { decodeJwtPayload, isRecentSignIn, signedInAt } from './reauth.ts'
@@ -11,13 +12,6 @@ import { decodeJwtPayload, isRecentSignIn, signedInAt } from './reauth.ts'
  * auth.admin は service_role が要るので Edge Function で行う。
  * 10 分より前にログインしたセッションからは消さず、403 `reauth_required` を返す（クライアントはログインし直してから送り直す）。
  */
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 Deno.serve(withCors(async (req) => {
   try {
@@ -37,7 +31,8 @@ Deno.serve(withCors(async (req) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return jsonResponse({ ok: false, error: 'Unauthorized' }, 401)
 
-    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const body = await readJsonBody(req)
+    if (!body) return errorResponse(400, BAD_JSON)
     if (body.action !== 'delete') return jsonResponse({ ok: false, error: 'Unknown action' }, 400)
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
