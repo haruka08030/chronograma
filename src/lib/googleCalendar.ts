@@ -149,8 +149,10 @@ export async function handleGoogleOAuthCallback(): Promise<boolean> {
   }
 
   sessionStorage.removeItem(GCAL_OAUTH_STATE_KEY)
-  const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash}`
-  window.history.replaceState({}, '', cleanUrl)
+  // OAuth の戻りの値だけ消す（画面の `?view=` などは残す）
+  const cleanUrl = new URL(window.location.href)
+  for (const key of ['code', 'state', 'scope', 'authuser', 'hd', 'prompt', 'error']) cleanUrl.searchParams.delete(key)
+  window.history.replaceState(window.history.state, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash)
   return true
 }
 

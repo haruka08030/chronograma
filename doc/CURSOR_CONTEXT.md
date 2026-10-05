@@ -46,8 +46,15 @@
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
-  起動 URL の `?view=` を `consumeLaunchView` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
+  通知タップの `?record=` / `as` / `launch` を `consumeLaunch` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
   「アプリとして使う」から案内
+- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
+  `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`
+  （解釈と組み立ては `src/lib/viewUrl.ts`。旧 `activity-log`→`planner`、`plan-vs-actual`→`calendar`）。起動時に URL の画面を開き、
+  画面が替わるたびに `pushState`、ブラウザ・Android の「戻る」（`popstate`）で URL の画面を開く。最初の履歴・戻る/進むで開いた画面・
+  リストの削除や同期でリストが替わったときは `replaceState`。積む URL は画面のクエリだけで、置き換えるときはほかのクエリ（Google の OAuth の
+  `code`・`state`）とハッシュ（Supabase のログイン）を残す。戻った先のリストが無ければ `all`。モーダル・ドロワー・検索語は URL に載せない。
+  パスは常に `/` なので `vercel.json` の書き換えは不要
 - スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / 習慣 / その他（＝設定の画面。一番上に「統計 ›」）。To‑Do のリストは題名の左の ≡ か、画面を右へ払うと出るドロワーから開く。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
 
 ## エントリ
