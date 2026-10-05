@@ -88,6 +88,7 @@ export function ActionMenu({
   y,
   above = false,
   header,
+  note,
   entries,
   onClose,
   searchable = true,
@@ -97,6 +98,8 @@ export function ActionMenu({
   above?: boolean
   /** 何についてのメニューか（タスク名・「3 件のタスク」など） */
   header?: string
+  /** 見出しの下に添えるもの（指で行を押したときのシートのメモ） */
+  note?: ReactNode
   entries: ActionEntry[]
   onClose: () => void
   /** 項目が少ないメニューは検索欄を出さない */
@@ -245,6 +248,7 @@ export function ActionMenu({
           ) : (
             <>
               {header && <MenuLabel>{header}</MenuLabel>}
+              {note}
               {entries.map((item) => (
                 <div key={item.id}>
                   {(item.divider || (item.kind === 'leaf' && item.danger)) && <MenuDivider />}
@@ -302,6 +306,7 @@ export function ActionMenu({
           </div>
         )}
         {header && <MenuLabel>{header}</MenuLabel>}
+        {note}
         {q ? (
           results.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">

@@ -20,7 +20,7 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
-import { LinkifiedText } from '../ui/LinkifiedText'
+import { MemoPreview } from '../ui/MemoPreview'
 import { isLogTask } from '../../types/task'
 
 const WIDTH = 320
@@ -150,9 +150,7 @@ export function EventPopover({
         {memo && (
           <>
             <span />
-            <p className="select-text line-clamp-3 whitespace-pre-line break-words text-xs text-zinc-500 dark:text-zinc-400">
-              <LinkifiedText text={memo} />
-            </p>
+            <MemoPreview text={memo} />
           </>
         )}
       </div>

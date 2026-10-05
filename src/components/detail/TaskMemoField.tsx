@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { useTextAreaEntry } from '../../hooks/useTextEntry'
+import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
 import { LinkifiedText } from '../ui/LinkifiedText'
 import { fieldClass } from '../ui/fieldClass'
 
@@ -12,6 +13,8 @@ export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
   const updateTask = useTaskStore((s) => s.updateTask)
   const [editingMemo, setEditingMemo] = useState(false)
   const memoTextareaRef = useRef<HTMLTextAreaElement>(null)
+  // 長く書いても入力欄の中でスクロールさせず、欄を伸ばす
+  useAutoGrowTextarea(memoTextareaRef, task.description, editingMemo)
   useEffect(() => {
     if (editingMemo) {
       const el = memoTextareaRef.current
@@ -32,7 +35,7 @@ export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
           {...memoEntry}
           placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
           rows={isLog ? 4 : 2}
-          className={fieldClass({}, 'w-full resize-none min-h-[4rem]')}
+          className={fieldClass({}, 'w-full resize-none overflow-hidden min-h-[4rem]')}
         />
       ) : task.description.trim() ? (
         <>

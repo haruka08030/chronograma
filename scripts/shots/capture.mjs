@@ -45,6 +45,8 @@ const SCREENS = [
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
   { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="タスクを完了にする"] >> visible=true >> nth=-1' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
+  // 指で行を押したときの短いシート（題名の下にメモ）
+  { name: 'planner-row-sheet', view: 'planner', mobileOnly: true, click: 'button:has-text("ES 書く（第一志望）") >> visible=true' },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
@@ -98,6 +100,15 @@ const SCREENS = [
   // タイトルを押すと編集になるので、行の左の余白を押して開く
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
   // 曜日つきの毎週（繰り返しの下に曜日のピル）
+  // メモを押して編集に入った状態（中身に合わせて欄が伸びる）
+  {
+    name: 'task-detail-memo-edit',
+    view: 'all',
+    // スマホは行を押すと短いシートが開く（詳細はそこから）
+    desktopOnly: true,
+    click: ['div.group.cursor-pointer:has-text("ES 書く（第一志望）")', 'div.cursor-text:has-text("志望動機")'],
+    clickAt: { x: 4, y: 12 },
+  },
   { name: 'task-detail-repeat', view: 'all', click: 'div.group.cursor-pointer:has-text("バイトのシフト提出")', clickAt: { x: 4, y: 12 } },
   {
     name: 'task-detail-scheduled',

@@ -24,6 +24,8 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars } from '../../lib/logCategoryColors'
+import { htmlToPlainText } from '../../lib/linkify'
+import { MemoPreview } from '../ui/MemoPreview'
 
 const WIDTH = 320
 
@@ -80,7 +82,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0))
+  // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
+  const memo = event.description ? htmlToPlainText(event.description) : ''
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + (memo ? 52 : 0))
   const smallField = fieldClass({ size: 'sm' })
 
   const commitTitle = () => {
@@ -225,6 +229,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <p className={`mt-1 ${HINT_TEXT}`}>{t('googleEdit.notEditable')}</p>
           )}
         </div>
+        {memo && (
+          <>
+            <span />
+            <MemoPreview text={memo} />
+          </>
+        )}
       </div>
       <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
         {recurring && (

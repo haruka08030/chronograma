@@ -31,6 +31,8 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { useScheduleEntry } from '../hooks/useScheduleEntry'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { colorVars } from '../lib/logCategoryColors'
+import { sourceLinkOf } from '../lib/sourceLink'
+import { MemoPreview } from './ui/MemoPreview'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -381,12 +383,23 @@ export function TaskContextMenu({
           ...openEntry,
         ]
 
+  // 指で行を押したときのシートには、メモがあれば題名の下に出す（リンクだけのメモは行の「開く」アイコンと同じなので出さない）
+  const quickMemo = quick && targets.length === 1 && !sourceLinkOf(targets[0]!.description) ? targets[0]!.description : ''
+
   return (
     <ActionMenu
       x={x}
       y={y}
       above={above}
       header={taskIds.length > 1 ? t('taskMenu.count', { count: taskIds.length }) : targets[0]?.title || t('taskMenu.one')}
+      note={
+        quickMemo && (
+          // 余白は外の箱に付ける（3 行で切る p に付けると、4 行目が余白の中に覗く）
+          <div className="px-2 pb-1.5">
+            <MemoPreview text={quickMemo} />
+          </div>
+        )
+      }
       entries={quick ? quickEntries : entries}
       onClose={onClose}
       // いつか・チェックリスト・短いシートは項目が少ないので検索欄を出さない
