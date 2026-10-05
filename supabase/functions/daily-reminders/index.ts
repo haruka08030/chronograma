@@ -16,7 +16,7 @@ import {
   type ReminderTask,
 } from './schedule.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
-import { fetchAllPages, groupBy, runPool, sendJobs } from './batch.ts'
+import { fetchAllPages, groupBy, runPool, runStatus, sendJobs } from './batch.ts'
 
 type Sub = {
   endpoint: string
@@ -212,28 +212,41 @@ Deno.serve(async (req) => {
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
-  /** 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く */
+  /**
+   * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
+   * 1 回に返るのは 1000 行まで。主キー（id）の順にページを読み切る
+   */
   const openTasks = async (userId: string): Promise<ReminderTask[]> => {
-    const { data: unplanned, error: listError } = await admin
-      .from('lists')
-      .select('id')
-      .eq('user_id', userId)
-      .in('kind', ['someday', 'checklist'])
-    if (listError) throw new Error(listError.message)
-    const excluded = new Set((unplanned ?? []).map((l: { id: string }) => l.id))
-    const { data: rows, error: taskError } = await admin
-      .from('tasks')
-      .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
-      .eq('user_id', userId)
-      .eq('completed', false)
-      .eq('is_time_log', false)
-      .is('parent_id', null)
-      .is('deleted_at', null)
-      .is('archived_at', null)
-      .or('scheduled_date.not.is.null,due_date.not.is.null')
+    const unplanned = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('lists')
+        .select('id')
+        .eq('user_id', userId)
+        .in('kind', ['someday', 'checklist'])
+        .order('id')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as { id: string }[]
+    })
+    const excluded = new Set(unplanned.map((l) => l.id))
     // 読めなかったら送らない（空のまとめを送って last_plan_sent を進めない。次の回にやり直す）
-    if (taskError) throw new Error(taskError.message)
-    return ((rows ?? []) as ReminderTask[]).filter((t) => !excluded.has(t.list_id))
+    const rows = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('tasks')
+        .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
+        .eq('user_id', userId)
+        .eq('completed', false)
+        .eq('is_time_log', false)
+        .is('parent_id', null)
+        .is('deleted_at', null)
+        .is('archived_at', null)
+        .or('scheduled_date.not.is.null,due_date.not.is.null')
+        .order('id')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as ReminderTask[]
+    })
+    return rows.filter((t) => !excluded.has(t.list_id))
   }
 
   const now = new Date()
@@ -319,6 +332,7 @@ Deno.serve(async (req) => {
       }),
     )
     sent += outcome.delivered.length
+    failed += outcome.failed.length
     for (const f of outcome.failed) {
       console.error('[daily-reminders] send failed', (f.error as { statusCode?: number }).statusCode, f.error)
     }
@@ -371,7 +385,9 @@ Deno.serve(async (req) => {
     }
   }
 
+  // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
   return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {
+    status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })
 })

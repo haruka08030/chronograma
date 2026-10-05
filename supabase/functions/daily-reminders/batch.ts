@@ -3,6 +3,7 @@
  * - 購読を 1000 行ずつ（PostgREST の上限）読み切る
  * - 利用者ごとの処理を決まった数だけ同時に走らせる（1 人の失敗でほかを止めない）
  * - 1 つの購読への送信を並べて送り、成功したものと失効したかをまとめる
+ * - 1 回の実行の応答の status を決める
  */
 
 /** PostgREST が 1 回に返す行の上限（max_rows の既定） */
@@ -83,4 +84,9 @@ export async function sendJobs<J>(jobs: readonly J[], send: (job: J) => Promise<
     else out.failed.push({ job: jobs[i], error: r.reason })
   })
   return out
+}
+
+/** 1 回の実行の応答の status。1 つでも送れなかった・処理に失敗した（`failed`）なら 500（cron の実行の記録で気づけるように） */
+export function runStatus(failed: number): number {
+  return failed > 0 ? 500 : 200
 }

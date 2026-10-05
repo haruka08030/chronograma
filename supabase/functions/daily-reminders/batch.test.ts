@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fetchAllPages, groupBy, isGoneStatus, PAGE_SIZE, runPool, sendJobs } from './batch.ts'
+import { fetchAllPages, groupBy, isGoneStatus, PAGE_SIZE, runPool, runStatus, sendJobs } from './batch.ts'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -120,5 +120,13 @@ describe('sendJobs', () => {
       running--
     })
     expect(peak).toBe(3)
+  })
+})
+
+describe('runStatus', () => {
+  it('失敗が無ければ 200、1 つでもあれば 500', () => {
+    expect(runStatus(0)).toBe(200)
+    expect(runStatus(1)).toBe(500)
+    expect(runStatus(12)).toBe(500)
   })
 })
