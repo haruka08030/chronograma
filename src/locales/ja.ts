@@ -145,6 +145,7 @@ export default {
     },
   },
   planner: {
+    untimedHeading: '時間未定',
     todayTitle: '今日',
     prevDay: '前の日',
     nextDay: '次の日',
@@ -692,6 +693,17 @@ export default {
   confirmDialog: {
     ok: 'OK',
   },
+  timeSlot: {
+    title: '時間を決める',
+    duration: '長さ',
+    minutes: '{{count}}分',
+    hours: '{{count}}時間',
+    none: 'この日の空きが見つかりません',
+    custom: 'その他の時刻…',
+    start: '開始',
+    end: '終了',
+    place: '置く',
+  },
   taskMenu: {
     search: '操作を検索…',
     count: '{{count}} 件のタスク',
@@ -758,6 +770,7 @@ export default {
     unreadable: 'この控えを読み込めませんでした',
   },
   undo: {
+    timeSet: '「{{title}}」を {{time}} に置きました',
     imported: 'バックアップを取り込みました（タスク {{count}} 件）',
     restoredFromBackup: '自動バックアップからタスク {{count}} 件を戻しました',
     sectionDeleted: '「{{name}}」を削除しました',

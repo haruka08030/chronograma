@@ -148,6 +148,7 @@ export default {
     },
   },
   planner: {
+    untimedHeading: 'No time yet',
     todayTitle: 'Today',
     prevDay: 'Previous day',
     nextDay: 'Next day',
@@ -694,6 +695,18 @@ export default {
   confirmDialog: {
     ok: 'OK',
   },
+  timeSlot: {
+    title: 'Set a time',
+    duration: 'Length',
+    minutes: '{{count}} min',
+    hours_one: '{{count}} hour',
+    hours_other: '{{count}} hours',
+    none: 'No free time left on this day',
+    custom: 'Other time…',
+    start: 'Start',
+    end: 'End',
+    place: 'Place',
+  },
   taskMenu: {
     search: 'Search actions…',
     count: '{{count}} tasks',
@@ -760,6 +773,7 @@ export default {
     unreadable: 'Could not read this backup',
   },
   undo: {
+    timeSet: 'Placed “{{title}}” at {{time}}',
     imported: 'Imported a backup ({{count}} tasks)',
     restoredFromBackup: 'Brought back {{count}} tasks from an automatic backup',
     sectionDeleted: 'Deleted “{{name}}”',

@@ -10,8 +10,9 @@ import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
-import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, PlayIcon, SectionIcon, TrashIcon } from './icons'
+import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, FlagIcon, OpenPanelIcon, PlayIcon, SectionIcon, TrashIcon } from './icons'
 import { startTimerForTask } from '../lib/timerDrop'
+import { openTaskMenu } from '../lib/overlays'
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -253,9 +254,24 @@ export function TaskContextMenu({
   const timerEntry: ActionEntry[] = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
     ? [{ kind: 'leaf', id: 'timer', label: t('planner.startTimer'), icon: <PlayIcon className={ICON} />, run: done(() => startTimerForTask(taskIds[0])) }]
     : []
+  // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
+  const untimed = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed && !targets[0].startTime ? targets[0] : null
+  const setTimeEntry: ActionEntry[] = untimed
+    ? [{
+        kind: 'leaf',
+        id: 'set-time',
+        label: t('timeSlot.title'),
+        icon: <ClockIcon className={ICON} />,
+        run: done(() => {
+          const dateKey = untimed.scheduledDate ?? untimed.dueDate ?? toDateKey(appToday())
+          queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
+        }),
+      }]
+    : []
   const quickEntries: ActionEntry[] = allWishes ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
     : allChecklist ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
     : [
+        ...setTimeEntry,
         ...todayToggleEntry,
         ...timerEntry,
         { kind: 'leaf', id: 'complete', label: t('taskList.markComplete'), icon: <CheckIcon className={ICON} />, run: done(() => bulk.complete(taskIds)) },

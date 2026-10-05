@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { buttonClass } from './buttonClass'
 import { tip } from '../../lib/tooltip'
-import { REVEAL_ON_ROW_HOVER } from './revealClass'
+import { REVEAL_ON_ROW_HOVER, SHOW_ON_ROW_HOVER } from './revealClass'
 
 /**
  * 行の右端に置くアイコンだけの操作（今日の計画の「記録を開始」「今日やる」など）。
@@ -14,12 +14,15 @@ export function RowActionButton({
   onClick,
   revealOnHover = false,
   mouseOnly = false,
+  collapse = false,
   children,
 }: {
   label: string
   onClick: () => void
   revealOnHover?: boolean
   mouseOnly?: boolean
+  /** 乗せていない間は場所も取らない（`SHOW_ON_ROW_HOVER`。行の時刻・締切と入れ替わる） */
+  collapse?: boolean
   children: ReactNode
 }) {
   return (
@@ -30,7 +33,7 @@ export function RowActionButton({
       className={buttonClass(
         { variant: 'secondary', size: 'xs' },
         `h-7 w-7 shrink-0 px-0! py-0! text-zinc-500 pointer-coarse:h-9 pointer-coarse:w-9 dark:text-zinc-400 ${
-          revealOnHover ? REVEAL_ON_ROW_HOVER : ''
+          collapse ? SHOW_ON_ROW_HOVER : revealOnHover ? REVEAL_ON_ROW_HOVER : ''
         } ${mouseOnly ? 'pointer-coarse:hidden' : ''}`,
       )}
     >

@@ -24,7 +24,7 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { ArrowRightIcon, CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon, StatsIcon } from './icons'
+import { ArrowRightIcon, CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, ClockIcon, PlayIcon, StatsIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
@@ -32,6 +32,7 @@ import { Segmented } from './ui/Segmented'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { DayNav } from './ui/DayNav'
 import { RowActionButton } from './ui/RowActionButton'
+import { HIDE_ON_ROW_HOVER } from './ui/revealClass'
 import { SelectionBar } from './ui/SelectionBar'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { InlineAddInput } from './ui/InlineAddInput'
@@ -127,6 +128,9 @@ export function TodayPlannerView() {
     () => getDayPlan(tasks, dateKey, excludedListIds),
     [tasks, dateKey, excludedListIds],
   )
+  // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
+  const timedOpen = useMemo(() => open.filter((x) => x.startTime && x.endTime), [open])
+  const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
   const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
@@ -297,7 +301,9 @@ export function TodayPlannerView() {
     return { text: t('planner.dueOn', { date: df.monthDayWeekday(group.dueDate) }), tone: META_TONE_CLASS.muted }
   }
 
-  const renderRow = (task: Task, action?: React.ReactNode, dueMode: DueMode = 'all') => {
+  /** `hoverActions`: 右端の操作が乗せたときだけ出る行（今日やる・期限切れ）。乗せている間は時刻・締切と入れ替える */
+  const renderRow = (task: Task, action?: React.ReactNode, dueMode: DueMode = 'all', hoverActions = false) => {
+    const metaHide = hoverActions ? HIDE_ON_ROW_HOVER : ''
     const meta = rowMeta(task, dueMode)
     const hasRowExtras = !task.completed && task.tags.length > 0
     const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
@@ -359,10 +365,10 @@ export function TodayPlannerView() {
           )}
         </div>
         {meta.due && !task.completed && (
-          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]}`}>{meta.due.text}</span>
+          <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]} ${metaHide}`}>{meta.due.text}</span>
         )}
         {meta.time && !task.completed && (
-          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted}`}>{meta.time}</span>
+          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>{meta.time}</span>
         )}
         {action}
       </GestureRow>
@@ -370,8 +376,23 @@ export function TodayPlannerView() {
   }
 
   /** 今日やる行の「明日へ回す」（マウスで乗せたときだけ。スマホは行のスワイプで） */
+  /** 時間未定の行の「時間を決める」（空き時間の候補を出す。マウスで乗せたときだけ。スマホは押したときのシートから） */
+  const setTimeButton = (task: Task) => (
+    <RowActionButton
+      label={t('timeSlot.title')}
+      onClick={() => {
+        const r = document.querySelector(`[data-task-row="${task.id}"]`)?.getBoundingClientRect()
+        openTaskMenu({ kind: 'timeSlot', x: r ? r.right - 288 : 0, y: r ? r.bottom + 4 : 0, taskId: task.id, dateKey })
+      }}
+      collapse
+      mouseOnly
+    >
+      <ClockIcon className="h-3.5 w-3.5" />
+    </RowActionButton>
+  )
+
   const tomorrowButton = (task: Task) => (
-    <RowActionButton label={t('taskMenu.toTomorrow')} onClick={() => rescheduleTasks([task.id], tomorrowKey)} revealOnHover mouseOnly>
+    <RowActionButton label={t('taskMenu.toTomorrow')} onClick={() => rescheduleTasks([task.id], tomorrowKey)} collapse mouseOnly>
       <ArrowRightIcon className="h-3.5 w-3.5" />
     </RowActionButton>
   )
@@ -379,7 +400,7 @@ export function TodayPlannerView() {
   // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない。
   // スマホの行にはボタンを並べない（押すと出るシート・払う操作で同じことができる）
   const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
-    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} revealOnHover mouseOnly>
+    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse mouseOnly>
       <PlayIcon className="h-3 w-3" />
     </RowActionButton>
   )
@@ -502,7 +523,7 @@ export function TodayPlannerView() {
           <div className="mt-2 px-3">
             <p className={`px-3 py-1.5 text-sm ${DUE_TONE_CLASS.overdue}`}>{t('planner.overdueHeading', { count: overdue.length })}</p>
             <ul>
-              {overdue.map((task) => renderRow(task, timerButton(task)))}
+              {overdue.map((task) => renderRow(task, timerButton(task), 'all', true))}
             </ul>
           </div>
         )}
@@ -543,7 +564,14 @@ export function TodayPlannerView() {
             <p className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">{viewingToday ? t('planner.doToday') : t('planner.doThisDay')}</p>
           )}
           <ul>
-            {open.map((task) => renderRow(task, <>{tomorrowButton(task)}{timerButton(task)}</>, 'urgent'))}
+            {timedOpen.map((task) => renderRow(task, <>{tomorrowButton(task)}{timerButton(task)}</>, 'urgent', true))}
+          </ul>
+          {/* 時間ありは時刻順に上、時間未定はその下に分ける（タイムラインに置くと上へ移る） */}
+          {timedOpen.length > 0 && untimedOpen.length > 0 && (
+            <p className="ml-11 mt-3 text-xs text-zinc-400 dark:text-zinc-500">{t('planner.untimedHeading')}</p>
+          )}
+          <ul>
+            {untimedOpen.map((task) => renderRow(task, <>{setTimeButton(task)}{tomorrowButton(task)}{timerButton(task)}</>, 'urgent', true))}
           </ul>
         </div>
 

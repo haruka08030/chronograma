@@ -11,6 +11,7 @@ export const GoogleEventMenu = lazyNamed(() => import('./timeline/EventContextMe
 export const EventPopover = lazyNamed(() => import('./timeline/EventPopover'), 'EventPopover')
 export const GoogleEventPopover = lazyNamed(() => import('./timeline/GoogleEventPopover'), 'GoogleEventPopover')
 export const QuickCreatePopover = lazyNamed(() => import('./timeline/QuickCreatePopover'), 'QuickCreatePopover')
+export const TimeSlotMenu = lazyNamed(() => import('./TimeSlotMenu'), 'TimeSlotMenu')
 export const CompleteWithLogModal = lazyNamed(() => import('./CompleteWithLogModal'), 'CompleteWithLogModal')
 
 export const preloadOverlays = () =>
@@ -22,4 +23,5 @@ export const preloadOverlays = () =>
     GoogleEventPopover.preload,
     QuickCreatePopover.preload,
     CompleteWithLogModal.preload,
+    TimeSlotMenu.preload,
   )

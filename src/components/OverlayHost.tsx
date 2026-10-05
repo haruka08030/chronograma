@@ -1,7 +1,7 @@
 import { Suspense, useEffect } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { closeTaskDetail, closeTaskMenu, openTaskDetail, useOverlays } from '../lib/overlays'
-import { GoogleEventMenu, preloadOverlays, TaskContextMenu, TaskDetail, TaskEventMenu } from './lazyOverlays'
+import { GoogleEventMenu, preloadOverlays, TaskContextMenu, TaskDetail, TaskEventMenu, TimeSlotMenu } from './lazyOverlays'
 import { usePresence } from '../hooks/usePresence'
 
 /** タスクの詳細と右クリックメニューの置き場（App に 1 つ）。開くのは `openTaskDetail` / `openTaskMenu` */
@@ -29,6 +29,9 @@ export function OverlayHost() {
         />
       )}
       {menu?.kind === 'event' && <TaskEventMenu x={menu.x} y={menu.y} taskId={menu.taskId} onClose={closeTaskMenu} onOpenDetail={openTaskDetail} />}
+      {menu?.kind === 'timeSlot' && (
+        <TimeSlotMenu key={menu.taskId} x={menu.x} y={menu.y} taskId={menu.taskId} dateKey={menu.dateKey} onClose={closeTaskMenu} />
+      )}
       {menu?.kind === 'google' && <GoogleEventMenu x={menu.x} y={menu.y} eventId={menu.eventId} onClose={closeTaskMenu} />}
     </Suspense>
   )
