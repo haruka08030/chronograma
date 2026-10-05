@@ -67,10 +67,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
             : q
           : null
       const ord = orderForNewSiblingAtFront(s.tasks, targetList, pid, pid === null ? sectionResolved : null)
-      const task = makeTask(
-        { title, listId: targetList, sectionId: pid === null ? sectionResolved ?? undefined : undefined },
-        ord,
-      )
+      const task = makeTask({ title, listId: targetList, sectionId: pid === null ? (sectionResolved ?? undefined) : undefined }, ord)
       if (parentId) task.parentId = parentId
       pushUndo()
       set((st) => ({ tasks: [...st.tasks, task] }))
@@ -90,9 +87,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const afterIndex = siblings.findIndex((t) => t.id === afterTaskId)
       if (afterIndex < 0) return undefined
       const nextSibling = siblings[afterIndex + 1]
-      const order = nextSibling
-        ? (afterTask.order + nextSibling.order) / 2
-        : afterTask.order + 1
+      const order = nextSibling ? (afterTask.order + nextSibling.order) / 2 : afterTask.order + 1
       const task = makeTask(
         {
           title,
@@ -144,11 +139,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo(label)
       const selected = new Set(ids)
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          selected.has(t.id)
-            ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null })
-            : t,
-        ),
+        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null }) : t)),
       }))
     },
     completeTasks: (ids) => {
@@ -156,14 +147,16 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
       if (targets.length === 0) return
       const first = s0.tasks.find((t) => t.id === targets[0])
-      pushUndo(targets.length > 1
-        ? { key: 'undo.tasksCompleted', params: { count: targets.length } }
-        : { key: 'undo.taskCompleted', params: { title: first?.title ?? '' } })
+      pushUndo(
+        targets.length > 1
+          ? { key: 'undo.tasksCompleted', params: { count: targets.length } }
+          : { key: 'undo.taskCompleted', params: { title: first?.title ?? '' } },
+      )
       const nowIso = new Date().toISOString()
       set((s) => ({
         // 親と子を一緒に選んだチェックリストは、親で子も済みになる。済みになったものは切り替え直さない
         tasks: targets.reduce(
-          (tasks, id) => (tasks.find((t) => t.id === id)?.completed ? tasks : toggleByListKind({ ...s, tasks }, id, nowIso) ?? tasks),
+          (tasks, id) => (tasks.find((t) => t.id === id)?.completed ? tasks : (toggleByListKind({ ...s, tasks }, id, nowIso) ?? tasks)),
           s.tasks,
         ),
       }))
@@ -173,8 +166,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo(label)
       set((s) => {
         const selected = new Set(ids)
-        const listTargets =
-          patch.listId !== undefined ? expandDescendantIds(selected, s.tasks) : null
+        const listTargets = patch.listId !== undefined ? expandDescendantIds(selected, s.tasks) : null
         return {
           tasks: s.tasks.map((t) => {
             const listHit = listTargets?.has(t.id)
@@ -203,9 +195,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const nowIso = new Date().toISOString()
       const deletedAt = Date.now()
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
-        ),
+        tasks: s.tasks.map((t) => (del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
         recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt }],
       }))
     },
@@ -215,9 +205,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const set_ = new Set(ids)
       const now = new Date().toISOString()
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          set_.has(t.id) && t.completed ? { ...t, completed: false, completedAt: null, updatedAt: now } : t,
-        ),
+        tasks: s.tasks.map((t) => (set_.has(t.id) && t.completed ? { ...t, completed: false, completedAt: null, updatedAt: now } : t)),
       }))
     },
     promoteToPlanned: (id, dateKey) => {
@@ -233,7 +221,15 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
             if (!family.has(t.id)) return t
             if (t.id === id) {
               // 「中国語」の下の「HSK 合格」だけを予定にしたら、未分類では 1 件のタスクとして出す
-              return { ...t, listId: INBOX_ID, sectionId: null, parentId: null, order: maxOrder + 1, scheduledDate: dateKey, updatedAt: now }
+              return {
+                ...t,
+                listId: INBOX_ID,
+                sectionId: null,
+                parentId: null,
+                order: maxOrder + 1,
+                scheduledDate: dateKey,
+                updatedAt: now,
+              }
             }
             return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }
           }),
@@ -250,9 +246,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const nowIso = new Date().toISOString()
       const deletedAt = Date.now()
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t,
-        ),
+        tasks: s.tasks.map((t) => (del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
         recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt }],
       }))
     },
@@ -263,9 +257,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo()
       const nowIso = new Date().toISOString()
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          ids.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
-        ),
+        tasks: s.tasks.map((t) => (ids.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t)),
         recentDeletes: withoutIds(s.recentDeletes, ids),
       }))
     },
@@ -310,9 +302,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const nowIso = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) =>
-          target.has(t.id) && !t.archivedAt && !t.deletedAt
-            ? { ...t, archivedAt: nowIso, updatedAt: nowIso }
-            : t,
+          target.has(t.id) && !t.archivedAt && !t.deletedAt ? { ...t, archivedAt: nowIso, updatedAt: nowIso } : t,
         ),
       }))
     },
@@ -323,9 +313,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo()
       const nowIso = new Date().toISOString()
       set((s) => ({
-        tasks: s.tasks.map((t) =>
-          ids.has(t.id) && t.archivedAt ? { ...t, archivedAt: null, updatedAt: nowIso } : t,
-        ),
+        tasks: s.tasks.map((t) => (ids.has(t.id) && t.archivedAt ? { ...t, archivedAt: null, updatedAt: nowIso } : t)),
       }))
     },
     undoDelete: () =>
@@ -335,9 +323,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         const restoreIds = new Set(last.ids)
         const nowIso = new Date().toISOString()
         return {
-          tasks: s.tasks.map((t) =>
-            restoreIds.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t,
-          ),
+          tasks: s.tasks.map((t) => (restoreIds.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t)),
           recentDeletes: s.recentDeletes.slice(0, -1),
         }
       }),

@@ -2,11 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
-import {
-  applicableReminders,
-  effectiveReminders,
-  type TaskReminder,
-} from '../../supabase/functions/daily-reminders/schedule.ts'
+import { applicableReminders, effectiveReminders, type TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { toReminderTask } from '../lib/localReminders'
 import { CloseIcon } from './icons'
 import { sectionLabelClass } from './ui/sectionLabelClass'

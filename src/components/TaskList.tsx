@@ -1,5 +1,4 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
-import { INVERSE_SURFACE } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
@@ -12,10 +11,13 @@ import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
-import { CheckCircleIcon, CloseIcon } from './icons'
+import { useTodayToggle } from '../hooks/useTodayToggle'
+import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
+import { CheckCircleIcon, CheckIcon } from './icons'
+import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { openTaskMenu } from '../lib/overlays'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
 import { useTaskListRows } from '../hooks/useTaskListRows'
 import { useSectionEditing } from '../hooks/useSectionEditing'
@@ -34,7 +36,12 @@ function countIncompleteDescendants(parentId: string, childrenByParent: Map<stri
   return n
 }
 
-export function TaskList() {
+export function TaskList({
+  onOpenNav,
+}: {
+  /** スマホで題名の左の ≡ を押したとき（リストのドロワーを出す） */
+  onOpenNav?: () => void
+} = {}) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const selectedListId = useTaskStore((s) => s.selectedListId)
@@ -51,13 +58,16 @@ export function TaskList() {
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const sections = useTaskStore((s) => s.sections)
-  const openDetail = openTaskDetail
+  // 行を押したとき: PC は詳細、スマホは短いシート（今日の計画と同じ）
+  const openDetail = useOpenTaskRow()
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   /** 選択の解除（下の useTaskListSelection が入れる。ドラッグの処理はそれより前に作るので参照で受ける） */
   const clearSelectionRef = useRef<() => void>(() => {})
   const { previewParentId, taskDragging } = useTaskListDnd(clearSelectionRef)
-  const { sectionTitle, sectionActions, beginDraftSection, draftSection, sectionMenuElement } =
-    useSectionEditing(selectedListId, selectedView)
+  const { sectionTitle, sectionActions, beginDraftSection, draftSection, sectionMenuElement } = useSectionEditing(
+    selectedListId,
+    selectedView,
+  )
 
   const currentList = selectedListId ? lists.find((l) => l.id === selectedListId) : null
   const presets = useTaskStore((s) => s.timeLogTagPresets)
@@ -67,10 +77,12 @@ export function TaskList() {
   const title = colorView
     ? colorLabelText(filterColor, presets, categoryColors, t)
     : selectedView
-    ? t(`sidebar.views.${selectedView}`)
-    : (currentList ? displayListName(currentList.id, currentList.name) : t('taskList.defaultTitle'))
+      ? t(`sidebar.views.${selectedView}`)
+      : currentList
+        ? displayListName(currentList.id, currentList.name)
+        : t('taskList.defaultTitle')
 
-  const selectedList = selectedListId ? lists.find((l) => l.id === selectedListId) ?? null : null
+  const selectedList = selectedListId ? (lists.find((l) => l.id === selectedListId) ?? null) : null
 
   const { filtered, groupingScope, groupBySection, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
     tasks,
@@ -87,7 +99,7 @@ export function TaskList() {
   /** 塊で分けないとき、行に出すセクション名 */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
   const sectionLabelFor = (task: { sectionId: string | null }) =>
-    !groupBySection && task.sectionId ? sectionNameById.get(task.sectionId) ?? null : null
+    !groupBySection && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -122,14 +134,17 @@ export function TaskList() {
 
   const [showCompleted, setShowCompleted] = useState(false)
 
-  const handleEnterCreateSibling = useCallback((task: Task) => {
-    const newTaskId = addTaskAfter(task.id, '')
-    if (!newTaskId) return
-    setPendingAutoEditTaskId(newTaskId)
-    queueMicrotask(() => {
-      setPendingAutoEditTaskId((prev) => (prev === newTaskId ? null : prev))
-    })
-  }, [addTaskAfter])
+  const handleEnterCreateSibling = useCallback(
+    (task: Task) => {
+      const newTaskId = addTaskAfter(task.id, '')
+      if (!newTaskId) return
+      setPendingAutoEditTaskId(newTaskId)
+      queueMicrotask(() => {
+        setPendingAutoEditTaskId((prev) => (prev === newTaskId ? null : prev))
+      })
+    },
+    [addTaskAfter],
+  )
 
   const flatActiveIds = useMemo(() => {
     const out: string[] = []
@@ -163,16 +178,18 @@ export function TaskList() {
     return out
   }, [completedTodos, childrenByParent])
 
-  const flatCombined = useMemo(
-    () => [...flatActiveIds, ...flatCompletedTodoIds],
-    [flatActiveIds, flatCompletedTodoIds],
-  )
+  const flatCombined = useMemo(() => [...flatActiveIds, ...flatCompletedTodoIds], [flatActiveIds, flatCompletedTodoIds])
 
   const bulk = useBulkTaskActions()
+  const todayToggle = useTodayToggle()
 
   // 選択とキー操作（カレンダーの置き場と同じ）
-  const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }), [])
-  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+  const openMenu = useCallback(
+    (menu: { x: number; y: number; taskIds: string[] }) =>
+      openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }),
+    [],
+  )
+  const { selected, clearSelection, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
     openDetail,
@@ -180,6 +197,8 @@ export function TaskList() {
     removeRows: deleteTasks,
     completeRows: bulk.complete,
     openMenu,
+    // いつか・チェックリストは日に置かないので、Shift+T（今日やる ⇄ 明日へ）はタスクのリストだけ
+    todayToggleRows: listKind === 'tasks' ? (ids) => todayToggle(ids).run() : undefined,
     resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
   })
   useEffect(() => {
@@ -188,24 +207,24 @@ export function TaskList() {
 
   const getDragGroupRootIds = useCallback(
     (taskId: string): string[] => {
-      const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
-      if (selected.has(taskId) && rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
-      return [taskId]
+      if (selected.has(taskId)) {
+        const rootsSelectedInOrder = active.map((t) => t.id).filter((id) => selected.has(id))
+        if (rootsSelectedInOrder.length >= 2) return rootsSelectedInOrder
+      }
+      return soloIds(taskId)
     },
-    [active, selected],
+    [active, selected, soloIds],
   )
 
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
-  const subtaskNestRow =
-    'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
+  const subtaskNestRow = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
   const subtaskNestNoDrag = subtaskNestRow
   const subtaskNestWithDrag = subtaskNestRow
 
   // チェックリストはチェックした子も親の下に残す（「カレー」の材料がそろうまでまとめて見える）
   const keepDoneChildren = listKind === 'checklist'
   const incompleteSubtasks = useCallback(
-    (parentId: string) =>
-      (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isLogTask(st)),
+    (parentId: string) => (childrenByParent.get(parentId) ?? []).filter((st) => (keepDoneChildren || !st.completed) && !isLogTask(st)),
     [childrenByParent, keepDoneChildren],
   )
 
@@ -249,22 +268,30 @@ export function TaskList() {
           groupingScope={groupingScope}
           groupBySection={groupBySection}
           onAddSection={beginDraftSection}
+          onOpenNav={onOpenNav}
         />
-
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {showQuickAdd && (
             <div className="mb-1.5">
               <QuickAdd
                 placeholder={
-                  listKind === 'someday' ? t('someday.addPlaceholder') : listKind === 'checklist' ? t('checklist.addPlaceholder') : undefined
+                  listKind === 'someday'
+                    ? t('someday.addPlaceholder')
+                    : listKind === 'checklist'
+                      ? t('checklist.addPlaceholder')
+                      : undefined
                 }
               />
             </div>
           )}
 
           {incompleteCount === 0 && !showQuickAdd && (
-            <EmptyState icon={<CheckCircleIcon strokeWidth={1} />} title={t('taskList.allDoneTitle')} hint={t('taskList.allDoneSubtitle')} />
+            <EmptyState
+              icon={<CheckCircleIcon strokeWidth={1} />}
+              title={t('taskList.allDoneTitle')}
+              hint={t('taskList.allDoneSubtitle')}
+            />
           )}
 
           <TaskListActiveContent
@@ -306,36 +333,21 @@ export function TaskList() {
               subtaskNestNoDrag={subtaskNestNoDrag}
             />
           )}
-
         </div>
       </div>
       {sectionMenuElement}
-      {/* タップの端末だけ: 右クリックの代わりに、選択中の件数と「操作」を下に出す（PC は右クリック・キーで操作する） */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 animate-toast-in md:bottom-6 [@media(hover:hover)]:hidden">
-          <div className={`flex items-center gap-1 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
-            <span className="whitespace-nowrap">{t('taskList.selectedCount', { count: selected.size })}</span>
-            <button
-              type="button"
-              className="rounded-full px-3 py-1.5 font-semibold touch-manipulation"
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect()
-                openTaskMenu({ kind: 'task', x: r.left, y: r.top, taskIds: [...selected], above: true, onDone: clearSelection })
-              }}
-            >
-              {t('taskMenu.actions')}
-            </button>
-            <button
-              type="button"
-              aria-label={t('taskList.clearSelection')}
-              className="rounded-full p-2 touch-manipulation"
-              onClick={clearSelection}
-            >
-              <CloseIcon className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 選んでいる間: 件数・完了・「操作」を下に出す（今日の計画と同じバー） */}
+      <SelectionBar
+        selectedIds={selected}
+        actions={[
+          {
+            label: t('taskList.selectionComplete'),
+            icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
+            onClick: () => bulk.complete([...selected]),
+          },
+        ]}
+        onClear={clearSelection}
+      />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { LIST_KINDS } from '../types/list'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { CartIcon, CheckIcon, PencilIcon, StarIcon, TrashIcon } from './icons'
+import { colorVars } from '../lib/logCategoryColors'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 const KIND_ICON = {
@@ -16,7 +17,13 @@ const KIND_ICON = {
  * サイドバーのリストを右クリックしたときのメニュー（名前の変更・色・種類・削除）。
  * 色は行の丸を押しても選べる。削除は確認なしで消して「元に戻す」で戻せる
  */
-export function ListContextMenu({ x, y, listId, onClose, onRename }: {
+export function ListContextMenu({
+  x,
+  y,
+  listId,
+  onClose,
+  onRename,
+}: {
   x: number
   y: number
   listId: string
@@ -36,7 +43,7 @@ export function ListContextMenu({ x, y, listId, onClose, onRename }: {
       kind: 'sub',
       id: 'color',
       label: t('sidebar.listColorDialog'),
-      icon: <span className="mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: list.color }} aria-hidden />,
+      icon: <span className="gc-dot mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" style={colorVars(list.color)} aria-hidden />,
       leaves: [],
       extra: (close) => (
         <ColorSwatches
@@ -63,7 +70,15 @@ export function ListContextMenu({ x, y, listId, onClose, onRename }: {
         run: () => setListKind(list.id, k),
       })),
     },
-    { kind: 'leaf', id: 'delete', divider: true, label: t('sidebar.deleteList'), icon: <TrashIcon className={ICON} />, danger: true, run: () => deleteList(list.id) },
+    {
+      kind: 'leaf',
+      id: 'delete',
+      divider: true,
+      label: t('sidebar.deleteList'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => deleteList(list.id),
+    },
   ]
   return <ActionMenu x={x} y={y} header={list.name} entries={entries} onClose={onClose} searchable={false} />
 }

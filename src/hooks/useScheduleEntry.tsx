@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { addDays, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useBulkTaskActions } from './useBulkTaskActions'
 import { useDateFormat } from './useDateFormat'
 import { appToday } from '../lib/timeZone'
@@ -17,8 +18,7 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
   const { t } = useTranslation()
   const df = useDateFormat()
   const bulk = useBulkTaskActions()
-  const tasks = useTaskStore((s) => s.tasks)
-  const targets = tasks.filter((x) => taskIds.includes(x.id))
+  const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   const keys = new Set(targets.map((x) => x.scheduledDate ?? null))
   const shared = keys.size === 1 ? [...keys][0] : undefined
   const today = appToday()
@@ -30,12 +30,12 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
     // 日曜は「明日」と「来週」が同じ月曜になるので 1 つにする
     .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
     .map((o): ActionLeaf => ({
-    id: `scheduled-${o.key}`,
-    label: o.label,
-    hint: df.shortDateWeekday(o.key),
-    checked: shared === o.key,
-    run: done(() => bulk.setScheduled(taskIds, o.key, o.label)),
-  }))
+      id: `scheduled-${o.key}`,
+      label: o.label,
+      hint: df.shortDateWeekday(o.key),
+      checked: shared === o.key,
+      run: done(() => bulk.setScheduled(taskIds, o.key, o.label)),
+    }))
   if (targets.some((x) => x.scheduledDate)) {
     leaves.push({ id: 'scheduled-none', label: t('taskMenu.unschedule'), run: done(() => bulk.setScheduled(taskIds, null, '')) })
   }

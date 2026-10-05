@@ -9,13 +9,7 @@ import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
-import {
-  INBOX_ID,
-  INBOX_LIST_ID,
-  LEGACY_PERSIST_STORAGE_KEY,
-  PERSIST_STORAGE_KEY,
-  STORE_VERSION,
-} from './storeConstants'
+import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
@@ -39,23 +33,10 @@ import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
  */
 
 export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeConstants'
-export type {
-  ActiveTimer,
-  CalendarMode,
-  DailyReminders,
-  SectionGrouping,
-  SettingsScrollTarget,
-  SmartView,
-  SortMode,
-} from './storeTypes'
+export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
 export type { ListColorPaletteId } from '../lib/listColorPalettes'
-export {
-  DEFAULT_LIST_COLOR_PALETTE_ID,
-  paletteColors,
-  LIST_COLOR_PALETTES,
-  normalizeListColorPaletteId,
-} from '../lib/listColorPalettes'
+export { DEFAULT_LIST_COLOR_PALETTE_ID, paletteColors, LIST_COLOR_PALETTES, normalizeListColorPaletteId } from '../lib/listColorPalettes'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import { isIncomingChange } from '../lib/changeOrigin'
 
@@ -94,73 +75,73 @@ export const useTaskStore = create<TaskState>()(
       const ctx = { set, get, undo }
 
       return {
-      tasks: [],
-      lists: initialLists(),
-      selectedListId: INBOX_ID,
-      selectedView: 'planner' as SmartView | null,
-      settingsScrollTarget: null as SettingsScrollTarget | null,
-      storageFull: false,
-      sectionScrollTarget: null as string | null,
-      calendarMode: 'week' as CalendarMode,
-      selectedCalendarDateKey: appTodayKey(),
-      theme: 'system' as 'light' | 'dark' | 'system',
-      searchQuery: '',
-      sortByKey: {} as Record<string, SortMode>,
-      sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
-      recentDeletes: [],
-      moveBannerText: null as string | null,
-      undoBanner: null as { text: string; at: number } | null,
-      googleUndo: null as { id: string; text: string; at: number } | null,
-      taskDragHoverListId: null as string | null,
-      syncState: 'idle' as SyncState,
-      lastSyncedAt: null as string | null,
-      syncRejected: [],
-      dataOwner: null as string | null,
-      quickAddRequested: false,
-      filterTag: null,
-      filterColor: null,
-      notificationsEnabled: false,
-      recordPrompts: true,
-      recordPromptTaskId: null as string | null,
-      listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
-      // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
-      timeLogTagPresets: defaultLogCategories(),
-      logCategoryColors: assignColorsInOrder(defaultLogCategories()),
-      logLabelsUpdatedAt: null,
+        tasks: [],
+        lists: initialLists(),
+        selectedListId: INBOX_ID,
+        selectedView: 'planner' as SmartView | null,
+        settingsScrollTarget: null as SettingsScrollTarget | null,
+        storageFull: false,
+        sectionScrollTarget: null as string | null,
+        calendarMode: 'week' as CalendarMode,
+        selectedCalendarDateKey: appTodayKey(),
+        theme: 'system' as 'light' | 'dark' | 'system',
+        searchQuery: '',
+        sortByKey: {} as Record<string, SortMode>,
+        sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
+        recentDeletes: [],
+        moveBannerText: null as string | null,
+        undoBanner: null as { text: string; at: number } | null,
+        googleUndo: null as { id: string; text: string; at: number } | null,
+        taskDragHoverListId: null as string | null,
+        syncState: 'idle' as SyncState,
+        lastSyncedAt: null as string | null,
+        syncRejected: [],
+        dataOwner: null as string | null,
+        quickAddRequested: false,
+        filterTag: null,
+        filterColor: null,
+        notificationsEnabled: false,
+        recordPrompts: true,
+        recordPromptTaskId: null as string | null,
+        listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
+        // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
+        timeLogTagPresets: defaultLogCategories(),
+        logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+        logLabelsUpdatedAt: null,
 
-      calendarEvents: [],
-      googleEventColors: {},
-      googleConnected: false,
-      googleAccessToken: null,
-      googleConnectionError: null,
-      googleCanWrite: false,
-      activeTimer: null,
-      completePromptTaskId: null as string | null,
-      dailyReminders: { planTime: null } as DailyReminders,
-      reminderPromptDismissed: false,
-      googleConnectLineDismissed: false,
-      dailyCapacityMinutes: 480,
-      eventReminderMinutes: null as number | null,
-      appTimeZone: null as string | null,
-      extraTimeZones: [] as ExtraTimeZone[],
-      extraTimeZonesUpdatedAt: null as string | null,
+        calendarEvents: [],
+        googleEventColors: {},
+        googleConnected: false,
+        googleAccessToken: null,
+        googleConnectionError: null,
+        googleCanWrite: false,
+        activeTimer: null,
+        completePromptTaskId: null as string | null,
+        dailyReminders: { planTime: null } as DailyReminders,
+        reminderPromptDismissed: false,
+        googleConnectLineDismissed: false,
+        dailyCapacityMinutes: 480,
+        eventReminderMinutes: null as number | null,
+        appTimeZone: null as string | null,
+        extraTimeZones: [] as ExtraTimeZone[],
+        extraTimeZonesUpdatedAt: null as string | null,
 
-      habits: [],
+        habits: [],
 
-      sections: [] as ListSection[],
-      quickAddSectionId: null as string | null,
+        sections: [] as ListSection[],
+        quickAddSectionId: null as string | null,
 
-      ...createSectionsSlice(ctx),
-      ...createTaskTreeSlice(ctx),
-      ...createTasksSlice(ctx),
-      ...createListsSlice(ctx),
-      ...createHabitsSlice(ctx),
-      ...createTimeLogsSlice(ctx),
-      ...createGoogleSlice(ctx),
-      ...createSettingsSlice(ctx),
-      ...createUiSlice(ctx),
-      ...createDataSlice(ctx),
-      ...undo.actions,
+        ...createSectionsSlice(ctx),
+        ...createTaskTreeSlice(ctx),
+        ...createTasksSlice(ctx),
+        ...createListsSlice(ctx),
+        ...createHabitsSlice(ctx),
+        ...createTimeLogsSlice(ctx),
+        ...createGoogleSlice(ctx),
+        ...createSettingsSlice(ctx),
+        ...createUiSlice(ctx),
+        ...createDataSlice(ctx),
+        ...undo.actions,
       }
     },
     {
@@ -260,7 +241,6 @@ useTaskStore.subscribe((s, prev) => {
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
-
 
 let adoptingFromOtherTab = false
 /** いまの更新が他のタブからの取り込みか（同期はそのタブが送るので、こちらからは送らない） */

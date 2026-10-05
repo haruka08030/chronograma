@@ -33,11 +33,7 @@ export function useWeekScrollPosition({
     // 夜中（区切りの前）に前の日を開いたときは、1 日表示なら 24 時の下に続く今の時刻へ。週表示は夜の予定・記録が見えるよう夕方から
     const lateNight = !showNow && (singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d)))
     const nowHours = now.getHours() + now.getMinutes() / 60
-    const hours = showNow
-      ? Math.max(0, nowHours - 1.5)
-      : lateNight
-        ? (singleDay ? 24 + nowHours - 1.5 : 17)
-        : 7.5
+    const hours = showNow ? Math.max(0, nowHours - 1.5) : lateNight ? (singleDay ? 24 + nowHours - 1.5 : 17) : 7.5
     // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
     if (keepScrollOnFlipRef.current) {
       keepScrollOnFlipRef.current = false

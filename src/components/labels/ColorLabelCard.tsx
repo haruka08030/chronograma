@@ -88,13 +88,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
       />
       {current && (
         <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            onClick={remove}
-            aria-label={t('labels.remove')}
-            {...tip(t('labels.remove'))}
-            className={iconButtonClass('-mb-2 -mr-2')}
-          >
+          <button type="button" onClick={remove} {...tip(t('labels.remove'), { name: true })} className={iconButtonClass('-mb-2 -mr-2')}>
             <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
           </button>
         </div>

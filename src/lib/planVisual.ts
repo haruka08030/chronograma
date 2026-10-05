@@ -18,7 +18,7 @@ export function planVisualState(
   const [y, m, d] = dateKey.split('-').map(Number)
   // 時刻つきは終了時刻、時刻なし（終日）はその日の終わりを過ぎたら「終わった」
   const end = task.endTime
-    ? new Date(y!, m! - 1, d!, ...task.endTime.split(':').map(Number) as [number, number])
+    ? new Date(y!, m! - 1, d!, ...(task.endTime.split(':').map(Number) as [number, number]))
     : new Date(y!, m! - 1, d! + 1)
   return end.getTime() < now.getTime() ? 'missed' : 'upcoming'
 }

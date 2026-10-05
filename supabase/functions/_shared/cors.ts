@@ -5,12 +5,7 @@
  */
 
 /** 開発サーバー（vite / vite preview）。`ALLOW_DEV_ORIGINS=true` のときだけ許可する */
-export const DEV_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-]
+export const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173']
 
 const ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type'
 
@@ -52,10 +47,7 @@ export function corsHeadersFor(origin: string | null, allowed: string[]): Record
 export function withCors(handler: (req: Request) => Promise<Response>): (req: Request) => Promise<Response> {
   return async (req) => {
     const origin = req.headers.get('Origin')
-    const allowed = parseAllowedOrigins(
-      Deno.env.get('ALLOWED_ORIGINS'),
-      devOriginsEnabled(Deno.env.get('ALLOW_DEV_ORIGINS')),
-    )
+    const allowed = parseAllowedOrigins(Deno.env.get('ALLOWED_ORIGINS'), devOriginsEnabled(Deno.env.get('ALLOW_DEV_ORIGINS')))
     const cors = corsHeadersFor(origin, allowed)
     if (req.method === 'OPTIONS') {
       return new Response(cors['Access-Control-Allow-Origin'] ? 'ok' : 'forbidden', {

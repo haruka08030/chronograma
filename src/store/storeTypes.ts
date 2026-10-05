@@ -22,18 +22,7 @@ export type ToastText = string | { key: string; params?: Record<string, string |
 export type CalendarMode = 'month' | 'week' | 'threeDay' | 'schedule'
 
 export type SmartView =
-  | 'planner'
-  | 'all'
-  | 'today'
-  | 'upcoming'
-  | 'overdue'
-  | 'calendar'
-  | 'stats'
-  | 'habits'
-  | 'completed'
-  | 'archived'
-  | 'deleted'
-  | 'settings'
+  'planner' | 'all' | 'today' | 'upcoming' | 'overdue' | 'calendar' | 'stats' | 'habits' | 'completed' | 'archived' | 'deleted' | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
 export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google'
@@ -157,17 +146,9 @@ export interface TaskState {
    * サブタスクを別のルート親の下へ移動、または同一親内で順序変更。
    * `insertBeforeChildId` が兄弟に存在すればその手前、なければ末尾。
    */
-  moveSubtaskInList: (
-    taskId: string,
-    newParentId: string,
-    insertBeforeChildId: string | null,
-  ) => void
+  moveSubtaskInList: (taskId: string, newParentId: string, insertBeforeChildId: string | null) => void
   /** ルートタスクを別タスクの子へ（TickTick のネスト DnD）。`insertBeforeChildId` なしは末尾 */
-  nestRootUnderParent: (
-    taskId: string,
-    parentId: string,
-    insertBeforeChildId: string | null,
-  ) => void
+  nestRootUnderParent: (taskId: string, parentId: string, insertBeforeChildId: string | null) => void
   /** ルート直下のサブタスクをルートへ昇格（左ドラッグで 1 段上へ）。旧親の直後に同セクションで挿入 */
   promoteSubtaskToRoot: (taskId: string) => void
   /** 右ドラッグで 1 段下げる: 直前の表示兄弟の子にする。兄弟が無ければ何もしない（戻り値 false） */
@@ -354,15 +335,9 @@ export interface TaskState {
   reorderTask: (id: string, newOrder: number) => void
   reorderTasks: (orderedIds: string[]) => void
   /** ルートタスクを別リストへ。子タスクは listId のみ追随。末尾 order。同一リストは no-op */
-  moveTaskToList: (
-    taskId: string,
-    listId: string,
-  ) => { moved: boolean; listName?: string; listId?: string }
+  moveTaskToList: (taskId: string, listId: string) => { moved: boolean; listName?: string; listId?: string }
   /** 複数ルートを同一リストへ（相対順維持・末尾に連続 order）。各ルートの子は追随 */
-  moveTasksToList: (
-    rootTaskIds: string[],
-    listId: string,
-  ) => { moved: boolean; listName?: string; listId?: string; count?: number }
+  moveTasksToList: (rootTaskIds: string[], listId: string) => { moved: boolean; listName?: string; listId?: string; count?: number }
 
   moveBannerText: ToastText | null
   showMoveBanner: (text: ToastText) => void
@@ -425,4 +400,3 @@ export interface TaskState {
   /** CSV からタスクを追加（既存データは保持） */
   importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
 }
-

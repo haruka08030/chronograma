@@ -37,8 +37,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
     },
     addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
-      const endDate =
-        endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
+      const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
       const log = makeTask(
         {
           title,
@@ -126,15 +125,18 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         completePromptTaskId: null,
         tasks: [
           ...s.tasks,
-          makeTask({
-            title: timer.taskTitle,
-            listId: INBOX_ID,
-            ...times,
-            kind: 'log',
-            completed: true,
-            tags: timer.tags,
-            color: timer.color ?? null,
-          }, maxOrder + 1),
+          makeTask(
+            {
+              title: timer.taskTitle,
+              listId: INBOX_ID,
+              ...times,
+              kind: 'log',
+              completed: true,
+              tags: timer.tags,
+              color: timer.color ?? null,
+            },
+            maxOrder + 1,
+          ),
         ],
       }))
     },
@@ -159,18 +161,21 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         completePromptTaskId: linked && !linked.completed ? linked.id : null,
         tasks: [
           ...s.tasks,
-          makeTask({
-            title: timer.taskTitle,
-            listId: INBOX_ID,
-            dueDate,
-            endDate,
-            startTime,
-            endTime,
-            kind: 'log',
-            completed: true,
-            tags: timer.tags,
-            color: timer.color ?? null,
-          }, maxOrder + 1),
+          makeTask(
+            {
+              title: timer.taskTitle,
+              listId: INBOX_ID,
+              dueDate,
+              endDate,
+              startTime,
+              endTime,
+              kind: 'log',
+              completed: true,
+              tags: timer.tags,
+              color: timer.color ?? null,
+            },
+            maxOrder + 1,
+          ),
         ],
       }))
     },

@@ -7,7 +7,11 @@ export const SECTION_HEADING_TEXT = 'text-[11px] font-semibold uppercase trackin
  * いつか・チェックリストのセクション見出し。押すと上の入力欄からこのセクションに追加する
  * （もう一度押すと解除）。追加先になっている間は To-Do 一覧と同じ枠を出す
  */
-export function ListSectionHeading({ section, isTarget, onToggleTarget }: {
+export function ListSectionHeading({
+  section,
+  isTarget,
+  onToggleTarget,
+}: {
   section: ListSection
   isTarget: boolean
   onToggleTarget: () => void

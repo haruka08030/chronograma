@@ -200,7 +200,14 @@ function mergeKind<T extends { id: string }>(
       const hashes = baseFields?.rows[l.id]
       // 控え・サーバーの行と同じ書き方にそろえて比べる。手元のほうを丸ごと使うなら手元の行そのもの
       const ln = normalize(l)
-      const row = mergeRow(ln, r, hashes && baseFields ? { order: baseFields.order, hashes: hashes.split('.') } : null, stamp, nowIso, clockOffsetMs)
+      const row = mergeRow(
+        ln,
+        r,
+        hashes && baseFields ? { order: baseFields.order, hashes: hashes.split('.') } : null,
+        stamp,
+        nowIso,
+        clockOffsetMs,
+      )
       merged.push(row === ln ? l : row)
       continue
     }
@@ -239,9 +246,7 @@ export function mergeHabitDates(
     const rd = new Set(r.completedDates)
     const base = baseDates?.[h.id]
     const baseSet = base ? new Set(base) : null
-    const dates = [...new Set([...ld, ...rd])]
-      .filter((d) => !(baseSet?.has(d) && (!ld.has(d) || !rd.has(d))))
-      .sort()
+    const dates = [...new Set([...ld, ...rd])].filter((d) => !(baseSet?.has(d) && (!ld.has(d) || !rd.has(d)))).sort()
     const current = [...h.completedDates].sort()
     const same = dates.length === current.length && dates.every((d, i) => d === current[i])
     return same ? h : { ...h, completedDates: dates, updatedAt: nowIso }
@@ -259,7 +264,15 @@ export function mergeSnapshots(
   const lists = mergeKind(local.lists, remote.lists, baseline.lists, (l) => stampMs(l.updatedAt), f?.lists, off)
   const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt), f?.sections, off)
   // タスクの時刻は端末のタイムゾーンで書き方が違う。項目ごとに比べる前に、サーバーの行をこの端末の書き方にそろえる
-  const tasks = mergeKind(local.tasks, remote.tasks.map((t) => reanchorTask(t)), baseline.tasks, (t) => stampMs(t.updatedAt), f?.tasks, off, (t) => reanchorTask(t))
+  const tasks = mergeKind(
+    local.tasks,
+    remote.tasks.map((t) => reanchorTask(t)),
+    baseline.tasks,
+    (t) => stampMs(t.updatedAt),
+    f?.tasks,
+    off,
+    (t) => reanchorTask(t),
+  )
   const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt), f?.habits, off)
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
 
@@ -273,17 +286,14 @@ export function mergeSnapshots(
     }
   }
   // 消えたリストの付け替え先。Canvas の古いリスト（学校ごと）は Canvas のリストへ（未分類に課題を散らさない）
-  const fallbackList = (listId: string) =>
-    isCanvasListId(listId) && listIds.has(CANVAS_LIST_ID) ? CANVAS_LIST_ID : SYNC_INBOX_LIST_ID
+  const fallbackList = (listId: string) => (isCanvasListId(listId) && listIds.has(CANVAS_LIST_ID) ? CANVAS_LIST_ID : SYNC_INBOX_LIST_ID)
   const mergedSections = sections.merged
     .map((s) => (listIds.has(s.listId) || fallbackList(s.listId) !== CANVAS_LIST_ID ? s : { ...s, listId: CANVAS_LIST_ID }))
     .filter((s) => listIds.has(s.listId))
   // 消えたリストのセクションがサーバーに残っていると、リストの削除が外部キー（on delete no action）で通らない。一緒に消す
   const keptSectionIds = new Set(mergedSections.map((s) => s.id))
   const remoteSectionIds = new Set(remote.sections.map((s) => s.id))
-  const orphanSections = sections.merged
-    .filter((s) => !keptSectionIds.has(s.id) && remoteSectionIds.has(s.id))
-    .map((s) => s.id)
+  const orphanSections = sections.merged.filter((s) => !keptSectionIds.has(s.id) && remoteSectionIds.has(s.id)).map((s) => s.id)
   const sectionListById = new Map(mergedSections.map((s) => [s.id, s.listId]))
   const taskIds = new Set(tasks.merged.map((t) => t.id))
   const mergedTasks = tasks.merged.map((t) => {
@@ -329,7 +339,12 @@ export const DEFAULT_LIST_IDS = { someday: 'default-someday', checklist: 'defaul
  * 前の版の初期リストの名前（どの言語で作られたか分からないので、全部の言語の名前）。
  * 前の版は初期リストを言語ごとの名前・ばらばらの id で作っていた
  */
-const LEGACY_DEFAULT_NAMES = new Set<string>([jaLocale.lists.defaultSomeday, jaLocale.lists.defaultShopping, enLocale.lists.defaultSomeday, enLocale.lists.defaultShopping])
+const LEGACY_DEFAULT_NAMES = new Set<string>([
+  jaLocale.lists.defaultSomeday,
+  jaLocale.lists.defaultShopping,
+  enLocale.lists.defaultSomeday,
+  enLocale.lists.defaultShopping,
+])
 
 /**
  * ログインせずに使っていた端末の初回同期で、最初から作られる「いつか」「買い物」が
@@ -349,8 +364,7 @@ export function withoutDuplicateDefaults(local: SyncSnapshot, remote: SyncSnapsh
 }
 
 export function baselineFrom(s: SyncSnapshot): SyncBaseline {
-  const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) =>
-    Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
+  const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) => Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
   return {
     lists: ids(s.lists, (l) => stampMs(l.updatedAt)),
     sections: ids(s.sections, (sec) => stampMs(sec.updatedAt)),

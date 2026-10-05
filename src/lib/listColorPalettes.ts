@@ -2,13 +2,7 @@ import { GOOGLE_COLOR_HEXES } from './googleColors'
 
 /** 旧: リスト／習慣の色パレット（設定での切り替えは廃止。ID はバックアップ互換のためだけに残す） */
 
-export type ListColorPaletteId =
-  | 'pastel-rainbow'
-  | 'tint-rainbow'
-  | 'candy-soft'
-  | 'neon-mute'
-  | 'cool-pastel'
-  | 'mono-hue'
+export type ListColorPaletteId = 'pastel-rainbow' | 'tint-rainbow' | 'candy-soft' | 'neon-mute' | 'cool-pastel' | 'mono-hue'
 
 interface ListColorPalette {
   id: ListColorPaletteId

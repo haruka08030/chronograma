@@ -9,6 +9,7 @@ import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
+import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { buildRecurrence } from './recurrence'
 
@@ -291,13 +292,9 @@ function rowToHabit(row: HabitRow): Habit {
     }
   }
   const datesRaw = row.completed_dates
-  const completedDates = Array.isArray(datesRaw)
-    ? datesRaw.filter((d): d is string => typeof d === 'string')
-    : []
+  const completedDates = Array.isArray(datesRaw) ? datesRaw.filter((d): d is string => typeof d === 'string') : []
   const inferredMode = inferHabitTimeMode(row.start_time, row.end_time)
-  const timeMode = row.time_mode === 'none' || row.time_mode === 'fixed' || row.time_mode === 'range'
-    ? row.time_mode
-    : inferredMode
+  const timeMode = row.time_mode === 'none' || row.time_mode === 'fixed' || row.time_mode === 'range' ? row.time_mode : inferredMode
   return {
     id: row.id,
     title: row.title,
@@ -335,7 +332,8 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
   if (!Array.isArray(raw)) return null
   return raw.filter(
     (r): r is TaskReminder =>
-      typeof r === 'object' && r !== null &&
+      typeof r === 'object' &&
+      r !== null &&
       ['start', 'due', 'dueDay'].includes((r as TaskReminder).at) &&
       Number.isFinite((r as TaskReminder).minutes),
   )
@@ -353,23 +351,13 @@ function rowToTaskFields(row: TaskRow): Task {
     const r = row.recurrence as Record<string, unknown>
     const type = r.type
     const interval = r.interval
-    if (
-      (type === 'daily' || type === 'weekly' || type === 'monthly' || type === 'yearly') &&
-      typeof interval === 'number'
-    ) {
+    if ((type === 'daily' || type === 'weekly' || type === 'monthly' || type === 'yearly') && typeof interval === 'number') {
       recurrence = buildRecurrence(type, interval, r.weekdays)
     }
   }
   const priority =
-    row.priority === 'low' || row.priority === 'medium' || row.priority === 'high' || row.priority === 'none'
-      ? row.priority
-      : 'none'
-  const completedAt =
-    typeof row.completed_at === 'string'
-      ? row.completed_at
-      : row.completed
-        ? row.updated_at
-        : null
+    row.priority === 'low' || row.priority === 'medium' || row.priority === 'high' || row.priority === 'none' ? row.priority : 'none'
+  const completedAt = typeof row.completed_at === 'string' ? row.completed_at : row.completed ? row.updated_at : null
   return {
     id: row.id,
     title: row.title,
@@ -462,11 +450,7 @@ const PAGE_SIZE = 1000
  * 三方向マージで「他端末で消された」扱いになって手元から消えていた。
  * 件数も一緒に受け取り、全部そろうまでページを送る。毎回の push で行の並びが変わるので id 順に固定する
  */
-async function fetchAllRows<T>(
-  supabase: SupabaseClient,
-  table: string,
-  userId: string,
-): Promise<{ rows: T[] } | { error: string }> {
+async function fetchAllRows<T>(supabase: SupabaseClient, table: string, userId: string): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
   let total: number | null = null
   do {
@@ -493,9 +477,7 @@ async function fetchAllRows<T>(
 export async function fetchListsTasksHabits(
   supabase: SupabaseClient,
   userId: string,
-): Promise<
-  { lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }
-> {
+): Promise<{ lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }> {
   const listRows = await fetchAllRows<ListRow>(supabase, 'lists', userId)
   if ('error' in listRows) return listRows
   const sectionRows = await fetchAllRows<SectionRow>(supabase, 'list_sections', userId)
@@ -513,21 +495,126 @@ export async function fetchListsTasksHabits(
   }
 }
 
+/** 消えた行の印（`008` の sync_tombstones）。印があれば、その行はいまサーバーに無い */
+export type SyncTombstone = { table: SyncTable; id: string; deletedAt: string }
+
+/** 前回の取得より後に変わった行と、消えた行の印 */
+export interface SyncChanges {
+  lists: TaskList[]
+  sections: ListSection[]
+  tasks: Task[]
+  habits: Habit[]
+  tombstones: SyncTombstone[]
+}
+
+const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'habits']
+
+/**
+ * `since` より後の行を、`keys` の順（先頭は時刻の列）に全部取る。続きは最後の行より後（keyset）から取るので、
+ * 取っている間に行が消えたり変わったりしても飛ばさない（変わった行は後ろへ回り、続きか次の取得で届く）。
+ * 件数は最初の 1 回だけ数える（`since` より後だけなので、索引で軽い）
+ */
+async function fetchRowsSince<T extends Record<string, unknown>>(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+  since: string,
+  keys: readonly [string, ...string[]],
+): Promise<{ rows: T[] } | { error: string; code?: string }> {
+  const rows: T[] = []
+  let total: number | null = null
+  for (;;) {
+    let q = supabase
+      .from(table)
+      .select('*', rows.length === 0 ? { count: 'exact' } : undefined)
+      .eq('user_id', userId)
+      .gt(keys[0], since)
+    const last = rows[rows.length - 1]
+    if (last) {
+      // (k1, k2, …) > (最後の行の値): k1 > v1 か、k1 = v1 で k2 > v2 か …
+      const v = (k: string) => quoteFilterValue(String(last[k]))
+      const parts = keys.map((k, i) => {
+        const eqs = keys.slice(0, i).map((p) => `${p}.eq.${v(p)}`)
+        return eqs.length === 0 ? `${k}.gt.${v(k)}` : `and(${[...eqs, `${k}.gt.${v(k)}`].join(',')})`
+      })
+      q = q.or(parts.join(','))
+    }
+    for (const k of keys) q = q.order(k)
+    const { data, count, error } = await q.limit(PAGE_SIZE)
+    if (error) return { error: error.message, code: error.code }
+    if (rows.length === 0) total = count ?? null
+    const page = (data ?? []) as T[]
+    if (page.length === 0) break
+    rows.push(...page)
+    if (total !== null && rows.length >= total) break
+  }
+  return { rows }
+}
+
+/** `008` を流す前の DB（印の表が無い） */
+function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
+  return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
+}
+
+/**
+ * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
+ * `unsupported` は関数が無い DB（`008` を流す前）
+ */
+export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string; unsupported?: boolean }> {
+  const { data, error } = await supabase.rpc('sync_server_now')
+  if (error) {
+    const missing =
+      /sync_server_now/.test(error.message) &&
+      (error.code === 'PGRST202' || error.code === '42883' || /could not find|does not exist/i.test(error.message))
+    return missing ? { error: error.message, unsupported: true } : { error: `sync_server_now: ${error.message}` }
+  }
+  const at = typeof data === 'string' ? data : null
+  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value', unsupported: true }
+  return { at }
+}
+
+/**
+ * 差分の取得: `since` より後に変わった行と、`since` より後に消えた行の印。
+ * 行を先に、印を後に取る（印は取った時点でその行がサーバーに無いことを示すので、行より後に取れば行の取得と食い違わない）。
+ * `unsupported` は差分を取れない DB（`008` を流す前）。全部を取り直す
+ */
+export async function fetchChangesSince(
+  supabase: SupabaseClient,
+  userId: string,
+  since: string,
+): Promise<SyncChanges | { error: string; unsupported?: boolean }> {
+  const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
+  for (const table of SYNC_TABLES) {
+    const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
+    if ('error' in res) return { error: `${table}: ${res.error}` }
+    got[table] = res.rows
+  }
+  const ts = await fetchRowsSince<{ table_name: string; row_id: string; deleted_at: string }>(supabase, 'sync_tombstones', userId, since, [
+    'deleted_at',
+    'table_name',
+    'row_id',
+  ])
+  if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  return {
+    lists: (got.lists as unknown as ListRow[]).map(rowToList),
+    sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
+    tasks: (got.tasks as unknown as TaskRow[]).map(rowToTask),
+    habits: (got.habits as unknown as HabitRow[]).map(rowToHabit),
+    tombstones: ts.rows
+      .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
+      .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
+  }
+}
+
 /** Remote is only default inbox and no tasks (and no extra lists / habits). */
-function isTrivialRemote(
-  lists: TaskList[],
-  tasks: Task[],
-  habits: Habit[],
-  sections: ListSection[],
-): boolean {
+function isTrivialRemote(lists: TaskList[], tasks: Task[], habits: Habit[], sections: ListSection[]): boolean {
   if (tasks.length > 0 || habits.length > 0 || sections.length > 0) return false
   const nonInbox = lists.filter((l) => l.id !== INBOX_LIST_ID)
   return nonInbox.length === 0
 }
 
 export type HydrateDecision =
-  | { kind: 'use_remote'; lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] }
-  | { kind: 'push_local' }
+  { kind: 'use_remote'; lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { kind: 'push_local' }
 
 /** Decide first sync: upload local-only data vs replace with server snapshot. */
 export function decideHydrate(
@@ -545,10 +632,10 @@ export function decideHydrate(
   }
   if (isTrivialRemote(remoteLists, remoteTasks, remoteHabits, remoteSections)) {
     const localHasData =
-      localTasks.length > 0
-      || localHabits.length > 0
-      || localSections.length > 0
-      || localLists.filter((l) => l.id !== INBOX_LIST_ID).length > 0
+      localTasks.length > 0 ||
+      localHabits.length > 0 ||
+      localSections.length > 0 ||
+      localLists.filter((l) => l.id !== INBOX_LIST_ID).length > 0
     if (localHasData) return { kind: 'push_local' }
   }
   return { kind: 'use_remote', lists: remoteLists, tasks: remoteTasks, habits: remoteHabits, sections: remoteSections }
@@ -673,7 +760,13 @@ export async function pushListsTasksHabits(
   const sectionRows = changedOnly('list_sections', sections, remote?.sections, (s) => sectionToRow(userId, s))
   // 端末ごとにアプリのタイムゾーンが違うと、同じ瞬間でも列の書き方（timeZoneAnchor と時刻）が違う。
   // 両方をこの端末のタイムゾーンの書き方にそろえてから比べ、書き方の違いだけでは送らない（2 台で全件を送り合わない）
-  const taskRows = changedOnly('tasks', tasks, remote?.tasks, (t) => taskToRow(userId, t), (t) => reanchorTask(t))
+  const taskRows = changedOnly(
+    'tasks',
+    tasks,
+    remote?.tasks,
+    (t) => taskToRow(userId, t),
+    (t) => reanchorTask(t),
+  )
   const habitRows = changedOnly('habits', habits, remote?.habits, (h) => habitToRow(userId, h))
   let isolateRequests = 0
   /** 行だけの問題なら切り分けを続けてよいか。上限を超えたら全体の失敗にする */
@@ -693,7 +786,8 @@ export async function pushListsTasksHabits(
       for (const row of rows) {
         const r = rejected.get(`${table}:${row.id}`)
         // base_updated_at の制約で落ちたのは行の中身のせいではない（取得と送信の間に行が消えた）。覚えずに次も送る
-        if (r?.op === 'upsert' && !r.message.includes('base_updated_at')) knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
+        if (r?.op === 'upsert' && !r.message.includes('base_updated_at'))
+          knownRejected.set(rejectKey(table, row.id), { row: JSON.stringify(row), message: r.message })
         else knownRejected.delete(rejectKey(table, row.id))
       }
     }
@@ -704,9 +798,7 @@ export async function pushListsTasksHabits(
   // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
   let onConflict = 'user_id,id'
   const send = (table: SyncTable, rows: { id: string }[]) => {
-    const body = sendBase && bases
-      ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT }))
-      : rows
+    const body = sendBase && bases ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT })) : rows
     // 受け付けた行だけが返る。返らなかった行は、取得した後に他の端末が変えていた（サーバーが断った）
     return supabase.from(table).upsert(body, { onConflict }).select('id, updated_at')
   }
@@ -732,9 +824,12 @@ export async function pushListsTasksHabits(
         continue
       }
       written.push({ table, id: r.id, updatedAt: at })
-      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う
+      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う。
+      // 前の値（未来の時刻のこともある）の 1 マイクロ秒後に進めた時刻はサーバーの時計ではないので測らない
       const ms = Date.parse(at)
-      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id)) {
+      const baseMs = Date.parse(bases?.[table].get(r.id) ?? '')
+      const bumped = Number.isFinite(baseMs) && ms - baseMs <= 1
+      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id) && !bumped) {
         const offset = Math.round(ms - midpoint)
         clockOffsetMs = clockOffsetMs === undefined ? offset : Math.min(clockOffsetMs, offset)
       }
@@ -794,7 +889,10 @@ export async function pushListsTasksHabits(
   let e1 = await upsert('lists', listRows)
   // 古い DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
   if (e1 && /kind/.test(e1)) {
-    e1 = await upsert('lists', listRows.map((row) => ({ ...row, kind: undefined })))
+    e1 = await upsert(
+      'lists',
+      listRows.map((row) => ({ ...row, kind: undefined })),
+    )
   }
   if (e1) return finish(e1)
 
@@ -889,10 +987,13 @@ export async function pushListsTasksHabits(
   let eH = await upsert('habits', habitRows)
   // `003` を流す前の DB には archived_at が無い。アーカイブなしで送り直す（列を足せば次回から送る）
   if (isMissingArchivedAtColumnError(eH)) {
-    eH = await upsert('habits', habitRows.map(({ archived_at, ...rest }) => {
-      void archived_at
-      return rest
-    }))
+    eH = await upsert(
+      'habits',
+      habitRows.map(({ archived_at, ...rest }) => {
+        void archived_at
+        return rest
+      }),
+    )
   }
   if (eH) return finish(eH)
 
@@ -916,10 +1017,7 @@ export async function pushListsTasksHabits(
 }
 
 /** ラベル表（`user_settings.log_labels`）。行が無ければ null */
-export async function fetchLogLabels(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<RemoteLabels | null | { error: string }> {
+export async function fetchLogLabels(supabase: SupabaseClient, userId: string): Promise<RemoteLabels | null | { error: string }> {
   const { data, error } = await supabase.from('user_settings').select('log_labels, updated_at').eq('user_id', userId).maybeSingle()
   if (error) return { error: error.message }
   if (!data) return null
@@ -931,11 +1029,39 @@ export async function fetchLogLabels(
   return { labels, updatedAt: String(data.updated_at) }
 }
 
-export async function pushLogLabels(supabase: SupabaseClient, userId: string, labels: RemoteLabels): Promise<{ error?: string }> {
-  const { error } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, { onConflict: 'user_id' })
-  return error ? { error: error.message } : {}
+/**
+ * `user_settings` / `user_extra_time_zones` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
+ */
+async function pushSettingRow(
+  supabase: SupabaseClient,
+  table: 'user_settings' | 'user_extra_time_zones',
+  row: Record<string, unknown> & { user_id: string; updated_at: string },
+  base: string | null,
+): Promise<SettingPushResult> {
+  // 行が無いはずの書き込み（base が無い）は insert … on conflict do nothing。2 台が同時に初めて作るとき、
+  // 後から来た方が先に作られた行を上書きせず、行が返らない（断られた）扱いになって取り直す
+  const send = (body: Record<string, unknown>) =>
+    supabase
+      .from(table)
+      .upsert(body, { onConflict: 'user_id', ignoreDuplicates: base === null })
+      .select('updated_at')
+  let { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
+  // `007` を流す前の DB には base_updated_at 列が無い。付けずに送り直す（前と同じ、端末の時刻で比べる書き込み）
+  if (error && /'base_updated_at'/.test(error.message)) ({ data, error } = await send(row))
+  if (error) return { error: error.message }
+  const back = ((data ?? []) as { updated_at?: unknown }[])[0]
+  if (!back || back.updated_at == null) return { stale: true }
+  return { updatedAt: String(back.updated_at) }
+}
+
+export function pushLogLabels(
+  supabase: SupabaseClient,
+  userId: string,
+  labels: RemoteLabels,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_settings', { user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, base)
 }
 
 /** 他のタイムゾーンと付けた名前（`user_extra_time_zones.zones`）。行が無ければ null */
@@ -949,9 +1075,11 @@ export async function fetchExtraTimeZones(
   return { zones: normalizeExtraTimeZones(data.zones), updatedAt: String(data.updated_at) }
 }
 
-export async function pushExtraTimeZones(supabase: SupabaseClient, userId: string, value: RemoteExtraTimeZones): Promise<{ error?: string }> {
-  const { error } = await supabase
-    .from('user_extra_time_zones')
-    .upsert({ user_id: userId, zones: value.zones, updated_at: value.updatedAt }, { onConflict: 'user_id' })
-  return error ? { error: error.message } : {}
+export function pushExtraTimeZones(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteExtraTimeZones,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_extra_time_zones', { user_id: userId, zones: value.zones, updated_at: value.updatedAt }, base)
 }

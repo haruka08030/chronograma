@@ -31,7 +31,7 @@
 | 領域       | 内容                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ランタイム | React 19, TypeScript                                                                                                                                                                 |
-| ビルド     | Vite 8                                                                                                                                                                               |
+| ビルド     | Vite 8（`vite.config.ts` で react / i18n / supabase / dnd-kit / date-fns を別ファイルに分ける。開いたときだけ要る詳細・メニュー・ポップオーバーは `src/components/lazyOverlays.ts` で遅延読み込みし、手すきのときに先読み） |
 | スタイル   | Tailwind CSS 4（`@tailwindcss/vite`）, `src/index.css`                                                                                                                               |
 | 状態       | Zustand 5 + `persist`                                                                                                                                                                |
 | DnD        | `@dnd-kit/core`, `sortable`, `utilities`                                                                                                                                             |
@@ -46,9 +46,16 @@
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
-  起動 URL の `?view=` を `consumeLaunchView` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
+  通知タップの `?record=` / `as` / `launch` を `consumeLaunch` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
   「アプリとして使う」から案内
-- スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / ログ / その他。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
+- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
+  `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`
+  （解釈と組み立ては `src/lib/viewUrl.ts`。旧 `activity-log`→`planner`、`plan-vs-actual`→`calendar`）。起動時に URL の画面を開き、
+  画面が替わるたびに `pushState`、ブラウザ・Android の「戻る」（`popstate`）で URL の画面を開く。最初の履歴・戻る/進むで開いた画面・
+  リストの削除や同期でリストが替わったときは `replaceState`。積む URL は画面のクエリだけで、置き換えるときはほかのクエリ（Google の OAuth の
+  `code`・`state`）とハッシュ（Supabase のログイン）を残す。戻った先のリストが無ければ `all`。モーダル・ドロワー・検索語は URL に載せない。
+  パスは常に `/` なので `vercel.json` の書き換えは不要
+- スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / 習慣 / 設定。統計は「今日」の上の段の右端のアイコンから開く（開いているあいだは「今日」タブが選ばれる）。To‑Do のリストは題名の左の ≡ か、画面を右へ払うと出るドロワーから開く。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
 
 ## エントリ
 
@@ -63,8 +70,8 @@
   面＋`completed` / `archived` / `deleted`）のときだけ、サイドバーの**右**に細い
   `TodoNavPanel`（`w-52`）を常設し（`useIsLargeScreen`）、その右がメイン列。
   詳細は列ではなくオーバーレイシートなので、メイン列は常に一覧のみ。
-  サイドバー自体はどのビューでも全タブを表示し続ける。**md 未満**は下部に `MobileBottomNav`（To‑Do /
-  カレンダー / ログ / 習慣 / その他＝サイドバー）。メイン列は
+  サイドバー自体はどのビューでも全タブを表示し続ける。**md 未満**は下部に `MobileBottomNav`（今日 / To‑Do /
+  カレンダー / 習慣 / 設定）。メイン列は
   `pb-[calc(3.5rem+safe-area)]`、`FloatingTimer` / Undo・Move トースト /
   モバイルリストドロップ帯はナビの上にオフセット。viewport は
   `viewport-fit=cover`（`index.html`）
@@ -93,7 +100,7 @@
   時刻があれば予定（`scheduledDate`+時間幅、長さ未指定は 60 分）、日付だけなら To‑Do では期限日・「今日の計画」では予定日
 - **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
-- **同期**: `useSupabaseSync` は毎回 取得 → `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
+- **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
   （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
   マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
@@ -368,6 +375,7 @@
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
+- **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`、メモリだけ・ログインごと）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。全部を取る（`fetchListsTasksHabits`）のは: タブを開いた・ログインした最初の同期、この端末でこの人として初めて、目印が無い、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、`008` の前の DB（そのログインの間ずっと）。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
 - **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除も取得した版のままの行だけ（`id` と `updated_at` の組で消す）。`base_updated_at` 列が無い DB では付けずに送り直す。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
@@ -398,7 +406,7 @@
 
 | パス                                                                                                       | 役割                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Sidebar.tsx`                                                                                              | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。**ナビの内容はビューに依らず一定**: 「To‑Do」行＋カレンダー等の他スマートビュー、**統計**はスクロールナビの下・フッター区切り線の上に単独行。「To‑Do」行は To‑Do 系ビュー（`isTodoNavView`）で選択表示になり、押すと `all`（すべて）へ切替（すでに To‑Do 系なら何もしない）。To‑Do のサブナビ（期限別／リスト／アーカイブ・ゴミ箱）は **lg 以上では `TodoNavPanel`**、**lg 未満では「To‑Do」行直下にインデントして展開**（md〜lg 未満は常設サイドバー側、md 未満はドロワー側。`useIsDesktop` / `useIsLargeScreen` で排他にし、リスト行の DnD id を二重登録しない）。常設サイドバーとドロワーは CSS で出し分けず**片方だけマウント**する（state / ref の共有を避ける）。モバイルドロワーは不透明背景で、下端は `pb-[calc(3.5rem+safe-area)]` で `MobileBottomNav` を避ける。**フッターは通知トグルのみ**（エクスポート／JSON インポート／CSV 取り込みは `SettingsView` の「データ」節へ移動）                                                                                                                                                           |
+| `Sidebar.tsx`                                                                                              | ヘッダ左のアイコンでメニュー（設定・外観へ／アカウント節へ／`VITE_APP_INSTALL_URL` があれば入手リンク）。ナビに設定行は無し。**ナビの内容はビューに依らず一定**: 「To‑Do」行＋カレンダー等の他スマートビュー、**統計**はスクロールナビの下・フッター区切り線の上に単独行。「To‑Do」行は To‑Do 系ビュー（`isTodoNavView`）で選択表示になり、押すと `all`（すべて）へ切替（すでに To‑Do 系なら何もしない）。To‑Do のサブナビ（期限別／リスト／アーカイブ・ゴミ箱）は **lg 以上では `TodoNavPanel`**、**lg 未満では「To‑Do」行直下にインデントして展開**（md〜lg 未満は常設サイドバー側。`useIsDesktop` / `useIsLargeScreen` で排他にし、リスト行の DnD id を二重登録しない）。**md 未満のドロワーは To‑Do のナビだけ**（To‑Do の題名の左の ≡、または To‑Do 画面を右へ払うと出る。画面の左端は OS・ブラウザの「戻る」が先に取るので端に頼らない）。常設サイドバーとドロワーは CSS で出し分けず**片方だけマウント**する（state / ref の共有を避ける）。モバイルドロワーは不透明背景で、下端は `pb-[calc(3.5rem+safe-area)]` で `MobileBottomNav` を避ける。**フッターは通知トグルのみ**（エクスポート／JSON インポート／CSV 取り込みは `SettingsView` の「データ」節へ移動）                                                                                                                                                           |
 | `TodoNavPanel.tsx` | To‑Do のサブナビ本体（`TodoNavContent`：「すべて／今日／近日中／期限切れ」→区切り→リスト（小見出しなし・並べ替え／色／改名／削除。**各リスト直下にそのリストのセクション行**をインデント表示し、タップで `selectList`＋`quickAddSectionId`）と「リストを追加」→区切り→「アーカイブ済み／ゴミ箱」）と、lg 以上でサイドバー右に常設する細いパネル（`TodoNavPanel`、`w-52`、見出しは「To‑Do」）。`App.tsx` が `isTodoNavView` && `useIsLargeScreen` のときだけマウント。リスト名の追加／改名は **Enter は `!isComposing` のときだけ確定** |
 | `SmartViewRow.tsx` | サイドバー／`TodoNavPanel` 共通のスマートビュー行（`button` ＋アイコン＋`sidebar.views.*` ラベル＋選択スタイル。選択中は `aria-current="page"`） |
 | `TaskList.tsx`, `TaskItem.tsx`, `SortableTaskItem.tsx`, `SortableSubtaskItem.tsx`, `NestDragGuide.tsx` | 一覧・ソート・DnD（多段サブタスク・`DnDSubtreeRows` 等。階層変更は水平ドラッグ。右ドラッグ中は `NestDragGuide` でサブ化プレビュー）。`TaskItem` は**タイトルクリックでインライン編集**（修飾キー・一括選択時は従来どおり行操作）。行のその他の領域のクリックで `onRowClick`→詳細。タイトル下には期限テキスト（今日/日付/期限超過）と**メモ（`description`）の最初の非空行を1行だけ truncate 表示**し、期限編集はホバー時の日付アイコン／詳細（`hideDueDatePicker` で日付アイコン非表示可）。ホバーで**キュー（リスト）型 SVG**のリスト移動メニュー（ルートのみ）・**アーカイブ（箱）アイコン**・削除。アーカイブと削除は行のアイコンをワンクリックで実行。**md 未満は日付アイコン／アーカイブ／削除を出さず、⋮ メニューにアーカイブ・削除を畳む**（行の固定アイコンで幅を食うとタイトルが 80px 程度しか残らないため。サブタスク行の ⋮ は md 未満だけ）                                                                                                                                                                                                                                                                                                                                                 |
@@ -422,7 +430,7 @@
 | `SearchResults.tsx`                                                                                        | 検索                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `AccountMenu.tsx`                                                                                          | ログイン / ログアウト（設定では `variant="settings"`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `ThemeToggle.tsx`                                                                                          | ライト・ダーク切替（主に設定画面）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `FloatingTimer.tsx`, `UndoToast.tsx`, `MoveToast.tsx`, `MobileBottomNav.tsx`                               | 周辺 UI。md 未満はボトムナビ＋ safe-area 上にフロート。`MobileBottomNav` で主要画面切替（タブでビューを切り替えると `onNavigate` でサイドバードロワーを閉じる） |
+| `FloatingTimer.tsx`, `UndoToast.tsx`, `MoveToast.tsx`, `MobileBottomNav.tsx`                               | 周辺 UI。md 未満はボトムナビ＋ safe-area 上にフロート。`MobileBottomNav` で主要画面切替（統計は「今日」から開き、そのあいだは「今日」が選ばれる。完了済み・アーカイブ・ゴミ箱は「To‑Do」。タブでビューを切り替えると `onNavigate` でドロワーを閉じる） |
 
 補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` / `timeToY` /
 `formatTimeLabel`
@@ -447,8 +455,8 @@
 
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、インデックス、トリガー、関数、RLS）。
-SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は 002 から番号順の新しいファイルで足し、コミット済みのファイルは書き換えない。本番への適用は Supabase CLI（`supabase db query --linked -f <ファイル>`）。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` は `skip_stale_write`（`001`、`005` で `search_path` を固定）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：新しいほうに合わせ、初めての端末は両方を合わせる）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は番号順の新しいファイルで足し、コミット済みのファイルの SQL は書き換えない。本番への適用は `supabase db push --linked`（先に `--dry-run` で確かめる）。
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` / `user_extra_time_zones` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。`base_updated_at` 列が無い DB では付けずに送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
 付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
@@ -464,7 +472,8 @@ service_role で読み書き）。トークンの列（`google_oauth.refresh_tok
 
 - `dev` — Vite 開発サーバー
 - `build` — `tsc -b` && `vite build`
-- `lint` — ESLint
+- `lint` — ESLint（CI で必須）
+- `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 
 ## 実装時の注意

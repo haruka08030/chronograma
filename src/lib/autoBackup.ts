@@ -74,9 +74,7 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
 }
 
 async function getAll(): Promise<AutoBackup[]> {
-  return ((await withStore<AutoBackup[]>('readonly', (s) => s.getAll())) ?? []).sort((a, b) =>
-    b.savedAt.localeCompare(a.savedAt),
-  )
+  return ((await withStore<AutoBackup[]>('readonly', (s) => s.getAll())) ?? []).sort((a, b) => b.savedAt.localeCompare(a.savedAt))
 }
 
 /**
@@ -195,11 +193,7 @@ export interface RestorableData {
  * 控えにあって今は無いものだけを足す（今あるものは触らない）。
  * 足したものは更新時刻を今にする。古い時刻のままだと、同期で「他端末で消された」と見なされてまた消える
  */
-export function restoreMissing(
-  current: RestorableData,
-  backup: RestorableData,
-  now: string,
-): { next: RestorableData; addedTasks: number } {
+export function restoreMissing(current: RestorableData, backup: RestorableData, now: string): { next: RestorableData; addedTasks: number } {
   const listIds = new Set(current.lists.map((l) => l.id))
   const lists = [...current.lists]
   for (const l of backup.lists) {

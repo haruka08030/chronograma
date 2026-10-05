@@ -11,9 +11,23 @@ const T1 = '2026-10-02T09:05:00.000Z'
 function task(fields: Partial<Task> = {}): Task {
   return {
     ...TASK_DEFAULTS,
-    id: 'gym', title: 'ジム', description: '', completed: false, completedAt: null, createdAt: T0, updatedAt: T0,
-    order: 0, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: null, endTime: null,
-    priority: 'none', tags: [], recurrence: { type: 'weekly', interval: 1 },
+    id: 'gym',
+    title: 'ジム',
+    description: '',
+    completed: false,
+    completedAt: null,
+    createdAt: T0,
+    updatedAt: T0,
+    order: 0,
+    listId: '__inbox__',
+    sectionId: null,
+    parentId: null,
+    dueDate: '2026-10-02',
+    startTime: null,
+    endTime: null,
+    priority: 'none',
+    tags: [],
+    recurrence: { type: 'weekly', interval: 1 },
     ...fields,
   }
 }
@@ -58,9 +72,9 @@ describe('曜日つきの毎週の次回', () => {
   it('やる日は締切と同じ日数だけずらす', () => {
     const r = { type: 'weekly' as const, interval: 1, weekdays: [1, 3] }
     // 月曜締切・前日の日曜にやる → 水曜締切・火曜にやる
-    const next = toggleTaskCompletion(
-      [task({ dueDate: '2026-10-05', scheduledDate: '2026-10-04', recurrence: r })], 'gym', T1,
-    )!.find((t) => t.id !== 'gym')!
+    const next = toggleTaskCompletion([task({ dueDate: '2026-10-05', scheduledDate: '2026-10-04', recurrence: r })], 'gym', T1)!.find(
+      (t) => t.id !== 'gym',
+    )!
     expect(next).toMatchObject({ id: 'gym@2026-10-07', dueDate: '2026-10-07', scheduledDate: '2026-10-06', recurrence: r })
   })
 })
@@ -84,7 +98,12 @@ describe('toggleTaskCompletion', () => {
     expect(done).toMatchObject({ completed: true, completedAt: T1, updatedAt: T1 })
     const next = out.find((t) => t.id === 'gym@2026-10-09')!
     expect(next).toMatchObject({
-      completed: false, completedAt: null, dueDate: '2026-10-09', scheduledDate: '2026-10-08', createdAt: T1, updatedAt: T1,
+      completed: false,
+      completedAt: null,
+      dueDate: '2026-10-09',
+      scheduledDate: '2026-10-08',
+      createdAt: T1,
+      updatedAt: T1,
     })
   })
 
@@ -99,7 +118,9 @@ describe('toggleTaskCompletion', () => {
     const completed = toggleTaskCompletion([task()], 'gym', T1)!
     expect(ids(toggleTaskCompletion(completed, 'gym', T1))).toEqual(['gym'])
 
-    const touched = completed.map((t) => (t.id === 'gym@2026-10-09' ? { ...t, title: 'ジム（脚）', updatedAt: '2026-10-02T10:00:00.000Z' } : t))
+    const touched = completed.map((t) =>
+      t.id === 'gym@2026-10-09' ? { ...t, title: 'ジム（脚）', updatedAt: '2026-10-02T10:00:00.000Z' } : t,
+    )
     const undone = toggleTaskCompletion(touched, 'gym', T1)!
     expect(ids(undone)).toEqual(['gym', 'gym@2026-10-09'])
     expect(undone.find((t) => t.id === 'gym')).toMatchObject({ completed: false, completedAt: null })

@@ -34,7 +34,9 @@ export function TimerDropZone() {
       if (canStartTimerFor(task)) window.setTimeout(() => setTimerDragActive(true), 0)
     }
     // 落とし先の drop ハンドラより先に消すと drop が届かないので、次のタスクで閉じる
-    const onEnd = () => { window.setTimeout(() => setTimerDragActive(false), 0) }
+    const onEnd = () => {
+      window.setTimeout(() => setTimerDragActive(false), 0)
+    }
     window.addEventListener('dragstart', onStart)
     window.addEventListener('dragend', onEnd)
     window.addEventListener('drop', onEnd)
@@ -74,9 +76,11 @@ function TimerDropTarget({ over, label }: { over: boolean; label: string }) {
       className={`fixed left-1/2 z-[60] -translate-x-1/2 top-[calc(0.75rem+env(safe-area-inset-top))]
         flex items-center gap-2.5 whitespace-nowrap rounded-full border px-5 py-3 text-sm font-medium shadow-xl
         transition-[scale,background-color,border-color,box-shadow] duration-150
-        ${highlighted
-          ? 'scale-105 border-accent-400 bg-accent-50 text-accent-700 ring-2 ring-accent-400 dark:border-accent-400 dark:bg-zinc-800 dark:text-accent-300'
-          : 'border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'}`}
+        ${
+          highlighted
+            ? 'scale-105 border-accent-400 bg-accent-50 text-accent-700 ring-2 ring-accent-400 dark:border-accent-400 dark:bg-zinc-800 dark:text-accent-300'
+            : 'border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
+        }`}
     >
       <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full bg-red-500 ${highlighted ? 'animate-pulse' : ''}`} />
       {label}

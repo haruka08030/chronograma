@@ -72,7 +72,9 @@ function fakeSupabase(
             eq: (_col: string, v: string) => ((userId = v), q),
             order: () => q,
             range: async (from: number, to: number) => {
-              const mine = all().filter((r) => r.user_id === userId).sort((a, b) => a.id.localeCompare(b.id))
+              const mine = all()
+                .filter((r) => r.user_id === userId)
+                .sort((a, b) => a.id.localeCompare(b.id))
               const data = mine.slice(from, Math.min(to + 1, from + maxRows))
               return { data, count: mine.length, error: null }
             },
@@ -85,7 +87,10 @@ function fakeSupabase(
               return { data: null, error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } }
             }
             if (noBaseColumn && rows.some((r) => 'base_updated_at' in r)) {
-              return { data: null, error: { code: 'PGRST204', message: `Could not find the 'base_updated_at' column of '${table}' in the schema cache` } }
+              return {
+                data: null,
+                error: { code: 'PGRST204', message: `Could not find the 'base_updated_at' column of '${table}' in the schema cache` },
+              }
             }
             // Postgres と同じく、1 行でも拒否されたらまとめて落ちる
             const bad = rejectRow && rows.map((r) => rejectRow(table, r)).find(Boolean)
@@ -264,7 +269,10 @@ describe('pushListsTasksHabits', () => {
 
   it('sends only rows that differ from what the server already has', async () => {
     const { client, upserts } = fakeSupabase({})
-    const fetched = await fetchListsTasksHabits(fakeSupabase({ lists: [], list_sections: [], tasks: [task('same'), task('edited')], habits: [] }).client, 'u1')
+    const fetched = await fetchListsTasksHabits(
+      fakeSupabase({ lists: [], list_sections: [], tasks: [task('same'), task('edited')], habits: [] }).client,
+      'u1',
+    )
     if ('error' in fetched) throw new Error(fetched.error)
     const same = fetched.tasks.find((t) => t.id === 'same')!
     const edited = fetched.tasks.find((t) => t.id === 'edited')!
@@ -277,7 +285,16 @@ describe('pushListsTasksHabits', () => {
   it('splits large deletes so the request URL stays short', async () => {
     const { client, deletes } = fakeSupabase({})
     const ids = Array.from({ length: 250 }, (_, i) => `t${i}`)
-    await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: ids }, { lists: [], tasks: [], habits: [], sections: [] })
+    await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [],
+      [],
+      [],
+      { ...noDeletes, tasks: ids },
+      { lists: [], tasks: [], habits: [], sections: [] },
+    )
     expect(deletes.map((d) => d.ids.length)).toEqual([100, 100, 50])
   })
 
@@ -363,16 +380,33 @@ const habitRow = (id: string, patch: Record<string, unknown> = {}): Row => ({
 
 describe('habits.archived_at', () => {
   it('reads rows without the column (before 003) as active, and keeps the archive stamp', async () => {
-    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [], habits: [habitRow('old'), habitRow('arch', { archived_at: '2026-10-02T00:00:00+00:00' })] })
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [habitRow('old'), habitRow('arch', { archived_at: '2026-10-02T00:00:00+00:00' })],
+    })
     const res = await fetchListsTasksHabits(client, 'u1')
     if ('error' in res) throw new Error(res.error)
-    expect(res.habits.map((h) => [h.id, h.archivedAt])).toEqual([['arch', '2026-10-02T00:00:00+00:00'], ['old', null]])
+    expect(res.habits.map((h) => [h.id, h.archivedAt])).toEqual([
+      ['arch', '2026-10-02T00:00:00+00:00'],
+      ['old', null],
+    ])
   })
 
   it('sends archived_at, and resends without it when the DB has no column yet', async () => {
     const h: Habit = {
-      id: 'h', title: 'h', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' },
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedDates: [], archivedAt: '2026-10-02T00:00:00.000Z',
+      id: 'h',
+      title: 'h',
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      completedDates: [],
+      archivedAt: '2026-10-02T00:00:00.000Z',
     }
     const ok = fakeSupabase({})
     await pushListsTasksHabits(ok.client, 'u-arch', [], [], [h], [], noDeletes)
@@ -400,10 +434,16 @@ describe('server time and stale writes (#77)', () => {
     const { client, upserts, tables } = fakeSupabase(fresh())
     const remote = await fetchAll(client)
     const a = remote.tasks.find((t) => t.id === 'a')!
-    const local = [{ ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' }, { ...a, id: 'new' }]
+    const local = [
+      { ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' },
+      { ...a, id: 'new' },
+    ]
     const res = await pushListsTasksHabits(client, 'u1', [], local, [], [], noDeletes, remote)
     const sent = upserts.find((u) => u.table === 'tasks')!.rows
-    expect(sent.map((r) => [r.id, r.base_updated_at])).toEqual([['a', '2026-01-01T00:00:00.000Z'], ['new', '-infinity']])
+    expect(sent.map((r) => [r.id, r.base_updated_at])).toEqual([
+      ['a', '2026-01-01T00:00:00.000Z'],
+      ['new', '-infinity'],
+    ])
     expect(res.stale).toEqual([])
     expect(res.written.map((w) => w.id)).toEqual(['a', 'new'])
     // サーバーの時刻が入り、base_updated_at は行に残らない
@@ -417,7 +457,16 @@ describe('server time and stale writes (#77)', () => {
     const { client, tables } = fakeSupabase(fresh())
     const remote = await fetchAll(client)
     const a = remote.tasks.find((t) => t.id === 'a')!
-    await pushListsTasksHabits(client, 'u1', [], [{ ...a, title: 'future', updatedAt: '2099-01-01T00:00:00.000Z' }], [], [], noDeletes, remote)
+    await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [{ ...a, title: 'future', updatedAt: '2099-01-01T00:00:00.000Z' }],
+      [],
+      [],
+      noDeletes,
+      remote,
+    )
     expect(tables.tasks!.find((r) => r.id === 'a')!.updated_at).toMatch(/^2026-10-03/)
   })
 
@@ -454,6 +503,27 @@ describe('server time and stale writes (#77)', () => {
     expect(res.clockOffsetMs).toBeLessThan(65_000)
   })
 
+  it('does not measure the clock from a row whose time was only bumped past a future-dated old version', async () => {
+    // 前の版のアプリ（時計が 1 年進んだ）が書いた行。サーバーはその 1 マイクロ秒（偽物では 1 ミリ秒）後にするだけ
+    const rows = fresh()
+    rows.tasks[0] = task('a')
+    rows.tasks[0].updated_at = '2027-10-03T00:00:00.000Z'
+    const { client } = fakeSupabase(rows, { serverNow: () => new Date(Date.now()).toISOString() })
+    const remote = await fetchAll(client)
+    const res = await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [{ ...remote.tasks.find((t) => t.id === 'a')!, title: 'x' }],
+      [],
+      [],
+      noDeletes,
+      remote,
+    )
+    expect(res.written.map((w) => w.updatedAt)).toEqual(['2027-10-03T00:00:00.001Z'])
+    expect(res.clockOffsetMs).toBeUndefined()
+  })
+
   it('does not resend a row that differs from the server only in updated_at', async () => {
     const { client, upserts } = fakeSupabase(fresh())
     const remote = await fetchAll(client)
@@ -466,7 +536,16 @@ describe('server time and stale writes (#77)', () => {
     const { client, upserts, tables } = fakeSupabase(fresh(), { noBaseColumn: true })
     const remote = await fetchAll(client)
     const a = remote.tasks.find((t) => t.id === 'a')!
-    const res = await pushListsTasksHabits(client, 'u1', [], [{ ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' }], [], [], noDeletes, remote)
+    const res = await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [{ ...a, title: 'edited', updatedAt: '2026-01-02T00:00:00.000Z' }],
+      [],
+      [],
+      noDeletes,
+      remote,
+    )
     expect(res.error).toBeUndefined()
     expect(upserts.at(-1)!.rows.every((r) => !('base_updated_at' in r))).toBe(true)
     expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'edited', updated_at: '2026-01-02T00:00:00.000Z' })
@@ -477,9 +556,25 @@ describe('server time and stale writes (#77)', () => {
   it('an old app (no base) still writes, and still cannot overwrite with an older time', async () => {
     const { client, tables } = fakeSupabase(fresh())
     // 前の版のアプリ = 取得を渡さない書き込み
-    await pushListsTasksHabits(client, 'u1', [], [{ ...fetchedTasks(['a'])[0]!, title: 'old app', updatedAt: '2026-02-01T00:00:00.000Z' }], [], [], noDeletes)
+    await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [{ ...fetchedTasks(['a'])[0]!, title: 'old app', updatedAt: '2026-02-01T00:00:00.000Z' }],
+      [],
+      [],
+      noDeletes,
+    )
     expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'old app' })
-    await pushListsTasksHabits(client, 'u1', [], [{ ...fetchedTasks(['a'])[0]!, title: 'older', updatedAt: '2026-01-15T00:00:00.000Z' }], [], [], noDeletes)
+    await pushListsTasksHabits(
+      client,
+      'u1',
+      [],
+      [{ ...fetchedTasks(['a'])[0]!, title: 'older', updatedAt: '2026-01-15T00:00:00.000Z' }],
+      [],
+      [],
+      noDeletes,
+    )
     expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'old app' })
   })
 

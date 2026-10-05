@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -82,7 +82,11 @@ export function SleepStatsCard() {
         </figcaption>
         <div className="flex gap-2">
           {/* 縦軸（上が寝る側、下が起きる側） */}
-          <div className="relative w-9 shrink-0 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" style={{ height: CHART_HEIGHT }} aria-hidden>
+          <div
+            className="relative w-9 shrink-0 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500"
+            style={{ height: CHART_HEIGHT }}
+            aria-hidden
+          >
             {ticks.map((m) => (
               <span key={m} className="absolute right-0 -translate-y-1/2" style={{ top: y(m) }}>
                 {clockLabel(m)}
@@ -92,7 +96,12 @@ export function SleepStatsCard() {
           <div className="min-w-0 flex-1">
             <div className="relative" style={{ height: CHART_HEIGHT }}>
               {ticks.map((m) => (
-                <div key={m} className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800" style={{ top: y(m) }} aria-hidden />
+                <div
+                  key={m}
+                  className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800"
+                  style={{ top: y(m) }}
+                  aria-hidden
+                />
               ))}
               <div className="absolute inset-0 flex gap-0.5" onPointerLeave={() => setFocusKey(null)}>
                 {summary.nights.map((n, i) => (
@@ -110,10 +119,16 @@ export function SleepStatsCard() {
                   >
                     {n && (
                       <span
-                        className={`gc-sleep absolute left-1/2 w-2.5 -translate-x-1/2 rounded ring-1 ring-inset transition-shadow sm:w-3 ${
-                          focused.dateKey === n.dateKey ? 'ring-sleep' : 'ring-sleep/30 group-hover:ring-sleep'
+                        className={`gc-plan absolute left-1/2 w-2.5 -translate-x-1/2 rounded outline-offset-1 outline-sleep sm:w-3 ${
+                          focused.dateKey === n.dateKey ? 'outline-2' : 'group-hover:outline-2'
                         }`}
-                        style={{ top: y(n.bedOffset), height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4) }}
+                        style={
+                          {
+                            '--c': 'var(--color-sleep)',
+                            top: y(n.bedOffset),
+                            height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4),
+                          } as CSSProperties
+                        }
                       />
                     )}
                   </button>

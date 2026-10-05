@@ -15,7 +15,8 @@ export function recurrenceNextId(id: string, nextDue: string): string {
 export function nextDueDate(current: string, recurrence: NonNullable<Task['recurrence']>): string {
   const d = new Date(current + 'T00:00:00')
   switch (recurrence.type) {
-    case 'daily': return toDateKey(addDays(d, recurrence.interval))
+    case 'daily':
+      return toDateKey(addDays(d, recurrence.interval))
     case 'weekly': {
       // 曜日つき（毎週 月・水）: 同じ週の次の曜日。週の最後の曜日の後は interval 週先の最初の曜日
       const days = readRecurrenceWeekdays(recurrence.weekdays)
@@ -26,8 +27,10 @@ export function nextDueDate(current: string, recurrence: NonNullable<Task['recur
       const monday = addDays(d, 1 - dow)
       return toDateKey(addDays(addWeeks(monday, recurrence.interval), days[0]! - 1))
     }
-    case 'monthly': return toDateKey(addMonths(d, recurrence.interval))
-    case 'yearly': return toDateKey(addYears(d, recurrence.interval))
+    case 'monthly':
+      return toDateKey(addMonths(d, recurrence.interval))
+    case 'yearly':
+      return toDateKey(addYears(d, recurrence.interval))
   }
 }
 
@@ -35,12 +38,7 @@ export function nextDueDate(current: string, recurrence: NonNullable<Task['recur
  * 次の回のやる日。曜日つきの毎週は回の間隔がそろわないので、締切と同じ日数だけずらす（締切の前日にやる、を保つ）。
  * それ以外はやる日にも同じ繰り返しを当てる
  */
-function nextScheduledDate(
-  scheduled: string,
-  due: string,
-  nextDue: string,
-  recurrence: NonNullable<Task['recurrence']>,
-): string {
+function nextScheduledDate(scheduled: string, due: string, nextDue: string, recurrence: NonNullable<Task['recurrence']>): string {
   if (recurrence.type === 'weekly' && readRecurrenceWeekdays(recurrence.weekdays)) {
     return toDateKey(addDays(fromDateKey(scheduled), differenceInCalendarDays(fromDateKey(nextDue), fromDateKey(due))))
   }
@@ -79,7 +77,7 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
           dueDate: nextDue,
           scheduledDate: tsk.scheduledDate
             ? nextScheduledDate(tsk.scheduledDate, tsk.dueDate, nextDue, tsk.recurrence)
-            : tsk.scheduledDate ?? null,
+            : (tsk.scheduledDate ?? null),
           createdAt: now,
           updatedAt: now,
         }
@@ -87,9 +85,7 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
       }
     } else {
       // 完了を取り消したら、そのとき作った次回を片付ける（まだ手を付けていなければ）
-      newTasks = newTasks.filter(
-        (t) => !(t.id === nextId && !t.completed && t.updatedAt === t.createdAt),
-      )
+      newTasks = newTasks.filter((t) => !(t.id === nextId && !t.completed && t.updatedAt === t.createdAt))
     }
   }
   return newTasks

@@ -23,7 +23,15 @@ function a11y(label?: string) {
 function strokeIcon(d: string) {
   return function StrokeIcon({ className, style, strokeWidth = 2, label }: IconProps) {
     return (
-      <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth} {...a11y(label)}>
+      <svg
+        className={className}
+        style={style}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        {...a11y(label)}
+      >
         <path strokeLinecap="round" strokeLinejoin="round" d={d} />
       </svg>
     )
@@ -53,6 +61,7 @@ export const ChevronLeftIcon = strokeIcon(ICON_PATHS.chevronLeft)
 export const PencilIcon = strokeIcon(ICON_PATHS.pencil)
 export const ClockIcon = strokeIcon(ICON_PATHS.clock)
 export const PlayIcon = filledIcon(ICON_PATHS.play)
+export const StopIcon = filledIcon(ICON_PATHS.stop)
 export const GlobeIcon = strokeIcon(ICON_PATHS.globe)
 export const RepeatIcon = strokeIcon(ICON_PATHS.repeat)
 export const CaretDownIcon = filledIcon(ICON_PATHS.caretDown)
@@ -65,6 +74,8 @@ export const OpenPanelIcon = strokeIcon(ICON_PATHS.openPanel)
 export const SunIcon = strokeIcon(ICON_PATHS.sun)
 export const CheckCircleIcon = strokeIcon(ICON_PATHS.checkCircle)
 export const MenuIcon = strokeIcon(ICON_PATHS.menu)
+export const StatsIcon = strokeIcon(ICON_PATHS.stats)
+export const SettingsIcon = strokeIcon(ICON_PATHS.settings)
 export const MoonSolidIcon = filledIcon(ICON_PATHS.moonSolid)
 export const MapPinIcon = strokeIcon(ICON_PATHS.mapPin)
 export const ExternalLinkIcon = strokeIcon(ICON_PATHS.externalLink)

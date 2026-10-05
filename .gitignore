@@ -34,3 +34,9 @@ supabase/.temp/
 
 # 作業用の git worktree（機能ごとにブランチを切って作業する場所）
 .claude/worktrees/
+
+# Playwright（npm run test:e2e）
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

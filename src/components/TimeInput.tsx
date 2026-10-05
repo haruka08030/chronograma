@@ -10,6 +10,8 @@ interface TimeInputProps {
   disabled?: boolean
   className?: string
   placeholder?: string
+  /** 時刻だけでは何の欄か分からないところ（見出しの無い欄）の読み上げ名 */
+  ariaLabel?: string
   /**
    * 値が空でピッカーを開いたときに最初にハイライト／スクロールする時刻 (HH:MM)。
    * 未指定なら現在時刻周辺を初期表示する。
@@ -81,11 +83,15 @@ export function TimeInput({
   onChange,
   disabled = false,
   className = '',
-  placeholder = '00:00',
+  // 空欄は --:--（00:00 だと設定済みの 0 時に見える）
+  placeholder = '--:--',
   pickerDefault,
+  ariaLabel,
 }: TimeInputProps) {
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
+  // 下に候補（max-h-64）が収まらない欄（画面の下に浮くカードなど）は上に開く
+  const [dropUp, setDropUp] = useState(false)
   const openRef = useRef(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -139,6 +145,12 @@ export function TimeInput({
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [commitDraft])
 
+  const openList = () => {
+    const rect = rootRef.current?.getBoundingClientRect()
+    setDropUp(rect ? window.innerHeight - rect.bottom < 272 && rect.top > window.innerHeight - rect.bottom : false)
+    setOpen(true)
+  }
+
   const selectValue = (next: string) => {
     onChange(next)
     setDraft(next)
@@ -153,7 +165,7 @@ export function TimeInput({
       if (!open) {
         const idx = options.indexOf(normalizeTime(draft) ?? '')
         setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
-        setOpen(true)
+        openList()
       } else {
         setHighlightIndex((prev) => Math.min(prev + 1, options.length - 1))
       }
@@ -164,7 +176,7 @@ export function TimeInput({
       if (!open) {
         const idx = options.indexOf(normalizeTime(draft) ?? '')
         setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
-        setOpen(true)
+        openList()
       } else {
         setHighlightIndex((prev) => Math.max(prev - 1, 0))
       }
@@ -174,10 +186,7 @@ export function TimeInput({
       e.preventDefault()
       const normalizedDraft = normalizeTime(draft)
       const highlightedOption = options[highlightIndex]
-      const shouldPreferTypedValue =
-        normalizedDraft !== null &&
-        normalizedDraft !== '' &&
-        normalizedDraft !== highlightedOption
+      const shouldPreferTypedValue = normalizedDraft !== null && normalizedDraft !== '' && normalizedDraft !== highlightedOption
 
       if (shouldPreferTypedValue) {
         commitDraft()
@@ -212,7 +221,7 @@ export function TimeInput({
     setDraft(nextDraft)
     const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
     setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
-    setOpen(true)
+    openList()
   }
 
   return (
@@ -241,13 +250,14 @@ export function TimeInput({
         placeholder={placeholder}
         className={className}
         role="combobox"
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-autocomplete="list"
       />
       {open && !disabled && (
         <div
           ref={listRef}
-          className={`absolute z-40 mt-1 max-h-64 w-full origin-top animate-pop-in overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
+          className={`absolute z-40 max-h-64 w-full animate-pop-in ${dropUp ? 'bottom-full mb-1 origin-bottom' : 'mt-1 origin-top'} overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
           role="listbox"
         >
           {options.map((option, idx) => {
@@ -256,7 +266,9 @@ export function TimeInput({
             return (
               <button
                 key={option}
-                ref={(node) => { optionRefs.current[idx] = node }}
+                ref={(node) => {
+                  optionRefs.current[idx] = node
+                }}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(option)}

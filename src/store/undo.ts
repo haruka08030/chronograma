@@ -172,10 +172,16 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
 
   /** 取り消し・やり直しで戻した削除は、削除のトーストの一覧からも外す */
   const pruneDeletedTasks = () => {
-    const stillDeleted = new Set(get().tasks.filter((t) => t.deletedAt).map((t) => t.id))
+    const stillDeleted = new Set(
+      get()
+        .tasks.filter((t) => t.deletedAt)
+        .map((t) => t.id),
+    )
     const batches = get().recentDeletes
     if (batches.some((b) => b.ids.some((id) => !stillDeleted.has(id)))) {
-      set({ recentDeletes: batches.map((b) => ({ ...b, ids: b.ids.filter((id) => stillDeleted.has(id)) })).filter((b) => b.ids.length > 0) })
+      set({
+        recentDeletes: batches.map((b) => ({ ...b, ids: b.ids.filter((id) => stillDeleted.has(id)) })).filter((b) => b.ids.length > 0),
+      })
     }
   }
 

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useGoogleConnect } from '../hooks/useGoogleConnect'
-import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, PHRASE_WRAP } from './ui/textClass'
 import { iconButtonClass } from './ui/iconButtonClass'
 import { CloseIcon } from './icons'
 import { tip } from '../lib/tooltip'
@@ -12,7 +12,9 @@ import { notify } from '../lib/notify'
  * 未接続なら「並べて比べられます · 接続する ×」。× で閉じたら出さない（接続は設定の「Google カレンダー」から）。
  * 接続中は何も出さず（日付バーの点で示す）、問題があるときだけ赤い 1 行と切断を出す。切断は設定からもできる。
  */
-export function GoogleConnectLine({ hideInvite = false }: {
+export function GoogleConnectLine({
+  hideInvite = false,
+}: {
   /** 未接続の案内だけ出さない（エラーの 1 行は出す）。スマホ幅で下に時間未定のタスクを開いている間 */
   hideInvite?: boolean
 } = {}) {
@@ -28,9 +30,7 @@ export function GoogleConnectLine({ hideInvite = false }: {
     return (
       <div className="mx-4 my-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300 md:mx-6">
         <p className="font-medium">{t('planVsActual.googleUnavailableHeading')}</p>
-        <p className="text-xs mt-1 opacity-80">
-          {t('planVsActual.googleUnavailableBody')}
-        </p>
+        <p className="text-xs mt-1 opacity-80">{t('planVsActual.googleUnavailableBody')}</p>
       </div>
     )
   }
@@ -57,7 +57,7 @@ export function GoogleConnectLine({ hideInvite = false }: {
   // スマホ幅で文が折り返しても、接続と × は右に並べたままにする
   return (
     <div className={`flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 py-1 pl-4 pr-2 md:pl-6 md:pr-4 ${HINT_TEXT}`}>
-      <span className="min-w-0 flex-1 md:flex-none">{t('planVsActual.googleOneLine')}</span>
+      <span className={`min-w-0 flex-1 md:flex-none ${PHRASE_WRAP}`}>{t('planVsActual.googleOneLine')}</span>
       <button
         type="button"
         onClick={() => (user ? void connect() : openSettingsWithScroll('account'))}

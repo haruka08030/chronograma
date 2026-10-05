@@ -4,12 +4,13 @@ import { getSupabase } from '../lib/supabase'
 import {
   decideHydrate,
   fetchExtraTimeZones,
-  fetchListsTasksHabits,
   fetchLogLabels,
   pushExtraTimeZones,
   pushListsTasksHabits,
   pushLogLabels,
 } from '../lib/supabaseData'
+import { runSettingSync, type SettingSyncDeps } from '../lib/settingSync'
+import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -92,16 +93,12 @@ export function useSupabaseSync() {
     let staleRetries = 0
     /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
     let limitHit = false
+    /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
+    const pull = createPullState()
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
-      if (
-        cur.lists === next.lists &&
-        cur.tasks === next.tasks &&
-        cur.habits === next.habits &&
-        cur.sections === next.sections
-      )
-        return
+      if (cur.lists === next.lists && cur.tasks === next.tasks && cur.habits === next.habits && cur.sections === next.sections) return
       // 同期で手元のタスクが減るときは、減る前を控えておく（他端末での削除でも、取り違えでも戻せるように）
       if (cur.tasks !== next.tasks) {
         const nextIds = new Set(next.tasks.map((t) => t.id))
@@ -122,47 +119,62 @@ export function useSupabaseSync() {
       }
     }
 
-    /** ラベル表（名前・並び・色）を合わせる。失敗してもタスクの同期は止めない（次の同期でまた合わせる） */
-    const syncLabels = async () => {
-      const remoteLabels = await fetchLogLabels(supabase, userId)
-      if (cancelled) return
-      if (remoteLabels && 'error' in remoteLabels) {
-        console.error('[sync] labels', remoteLabels.error)
-        return
-      }
-      const s = useTaskStore.getState()
-      const plan = planLabelSync({ presets: s.timeLogTagPresets, colors: s.logCategoryColors, updatedAt: s.logLabelsUpdatedAt }, remoteLabels)
-      if (plan.apply) {
-        const { presets, colors, updatedAt } = plan.apply
-        asIncomingChange(() => useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }))
-      }
-      if (plan.push) {
-        const res = await pushLogLabels(supabase, userId, plan.push)
-        if (res.error) console.error('[sync] labels', res.error)
-        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: plan.push!.updatedAt }))
-      }
-    }
+    const syncSetting = <
+      R extends { updatedAt: string },
+      A extends { updatedAt: string },
+      P extends { updatedAt: string; base: string | null },
+    >(
+      s: SettingSyncDeps<R, A, P>,
+    ) =>
+      runSettingSync(userId, s, {
+        isCancelled: () => cancelled,
+        clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0,
+        maxStaleRetries: MAX_STALE_RETRIES,
+      })
 
-    /** 他のタイムゾーン（並び・名前）を合わせる。ラベル表と同じく、失敗してもタスクの同期は止めない */
-    const syncExtraTimeZones = async () => {
-      const remote = await fetchExtraTimeZones(supabase, userId)
-      if (cancelled) return
-      if (remote && 'error' in remote) {
-        console.error('[sync] time zones', remote.error)
-        return
-      }
-      const s = useTaskStore.getState()
-      const plan = planExtraTimeZoneSync({ zones: s.extraTimeZones, updatedAt: s.extraTimeZonesUpdatedAt }, remote)
-      if (plan.apply) {
-        const { zones, updatedAt } = plan.apply
-        asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt }))
-      }
-      if (plan.push) {
-        const res = await pushExtraTimeZones(supabase, userId, plan.push)
-        if (res.error) console.error('[sync] time zones', res.error)
-        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: plan.push!.updatedAt }))
-      }
-    }
+    /** ラベル表（名前・並び・色） */
+    const syncLabels = () =>
+      syncSetting({
+        key: 'labels',
+        fetch: () => fetchLogLabels(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planLabelSync(
+            { presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+          )
+        },
+        localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
+        applyLocal: ({ presets, colors, updatedAt }) =>
+          asIncomingChange(() =>
+            useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }),
+          ),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
+        push: (p) => pushLogLabels(supabase, userId, p, p.base),
+      })
+
+    /** 他のタイムゾーン（並び・名前） */
+    const syncExtraTimeZones = () =>
+      syncSetting({
+        key: 'zones',
+        fetch: () => fetchExtraTimeZones(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planExtraTimeZoneSync(
+            { zones: st.extraTimeZones, updatedAt: st.extraTimeZonesUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+          )
+        },
+        localUpdatedAt: () => useTaskStore.getState().extraTimeZonesUpdatedAt,
+        applyLocal: ({ zones, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: at })),
+        push: (p) => pushExtraTimeZones(supabase, userId, p, p.base),
+      })
 
     /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
     const syncSettings = async () => {
@@ -176,18 +188,34 @@ export function useSupabaseSync() {
     const syncOnceLocked = async (): Promise<boolean> => {
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
-      const remote = await fetchListsTasksHabits(supabase, userId)
+      // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
+      const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
+      const pulled = await pullRemote(supabase, userId, pull, { full: !known })
       if (cancelled) return true
-      if ('error' in remote) {
-        console.error('[sync]', remote.error)
+      if ('error' in pulled) {
+        console.error('[sync]', pulled.error)
         return false
+      }
+      let remote = pulled.snapshot
+      if (!pulled.full && known) {
+        // 差分で取りこぼしがあると、手元の行を「他の端末で消された」と読んでしまう。消えた印の無い行があれば全部を取り直す
+        const missing = missingWithoutTombstone(localSnapshot(), known, remote, pulled.tombstoned)
+        if (missing.length > 0) {
+          console.warn('[sync] delta missed rows, fetching everything', missing.slice(0, 5))
+          const again = await pullRemote(supabase, userId, pull, { full: true })
+          if (cancelled) return true
+          if ('error' in again) {
+            console.error('[sync]', again.error)
+            return false
+          }
+          remote = again.snapshot
+        }
       }
 
       const owner = useTaskStore.getState().dataOwner
       // 持ち主の記録が無い古い版のデータ（*legacy*）は、この人として同期したことがあればこの人のもの。
       // この人としては無く、ほかの人として同期した控えがあれば、その人のもの（混ぜずに外す）
-      const legacyOfOther =
-        owner === LEGACY_DATA_OWNER && !loadBaseline(userId) && hasOtherUsersBaseline(userId)
+      const legacyOfOther = owner === LEGACY_DATA_OWNER && !loadBaseline(userId) && hasOtherUsersBaseline(userId)
       if ((owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) || legacyOfOther) {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
@@ -209,12 +237,20 @@ export function useSupabaseSync() {
         // この端末で初めての同期
         const local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
-          remote.lists, remote.tasks, remote.habits, remote.sections,
-          local.lists, local.tasks, local.habits, local.sections,
+          remote.lists,
+          remote.tasks,
+          remote.habits,
+          remote.sections,
+          local.lists,
+          local.tasks,
+          local.habits,
+          local.sections,
         )
         const remoteListIds = new Set(remote.lists.map((l) => l.id))
         const onlyInitial =
-          local.tasks.length === 0 && local.habits.length === 0 && local.sections.length === 0 &&
+          local.tasks.length === 0 &&
+          local.habits.length === 0 &&
+          local.sections.length === 0 &&
           local.lists.every((l) => l.id === INBOX_LIST_ID || remoteListIds.has(l.id))
         if (decision.kind === 'use_remote' && onlyInitial) {
           // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）。
@@ -238,8 +274,7 @@ export function useSupabaseSync() {
         const local = localSnapshot()
         const result = mergeSnapshots(local, remote, baseline)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
-        const same = <T,>(a: T[], b: T[]) =>
-          a.length === b.length && a.every((x, i) => x === b[i])
+        const same = <T>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i])
         const merged: SyncSnapshot = {
           lists: same(result.merged.lists, local.lists) ? local.lists : result.merged.lists,
           tasks: same(result.merged.tasks, local.tasks) ? local.tasks : result.merged.tasks,
@@ -251,13 +286,13 @@ export function useSupabaseSync() {
         deletes = result.deletes
       }
 
-      const res = await pushListsTasksHabits(
-        supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote,
-      )
+      const res = await pushListsTasksHabits(supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote)
       if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
+        // 途中まで届いた行・消えた行がある。次は全部を取り直す
+        pull.forceFull = true
         return false
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
@@ -267,6 +302,8 @@ export function useSupabaseSync() {
       if (stamped !== toPush) apply(adoptServerStamps(localSnapshot(), toPush, stamped))
       // 取得した後に他の端末が変えていた行は届いていない。控えは取得した版にして（次の同期で項目ごとに合わせる）、すぐ取り直す
       done(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale]), res.clockOffsetMs)
+      // 送れた行・消せた行を前回取得したサーバーの内容に入れる。断られた行があれば次は全部を取る
+      afterPush(pull, stamped, deletes, res)
       if (res.stale.length > 0 && staleRetries < MAX_STALE_RETRIES) {
         staleRetries++
         rerun = true

@@ -39,7 +39,11 @@ function item(id: string, patch: Partial<CanvasItem> = {}): CanvasItem {
   }
 }
 
-function reconcile(tasks: Task[], items: CanvasItem[], extra: Partial<typeof opts & { skipIds: Set<string>; pulled: Record<string, PulledFields> }> = {}) {
+function reconcile(
+  tasks: Task[],
+  items: CanvasItem[],
+  extra: Partial<typeof opts & { skipIds: Set<string>; pulled: Record<string, PulledFields> }> = {},
+) {
   return reconcileCanvasItems({ lists: [inbox], sections: [], tasks }, { ...WINDOW, items }, { ...opts, ...extra })
 }
 
@@ -145,7 +149,12 @@ describe('reconcileCanvasItems', () => {
     const a = reconcile([], [item('1')])
     const b = reconcileCanvasItems(
       { lists: a.lists, sections: a.sections, tasks: a.tasks },
-      { id: OTHER, windowStart: WINDOW.windowStart, windowEnd: WINDOW.windowEnd, items: [item('1', { courseId: '9', courseName: 'オンライン講座' })] },
+      {
+        id: OTHER,
+        windowStart: WINDOW.windowStart,
+        windowEnd: WINDOW.windowEnd,
+        items: [item('1', { courseId: '9', courseName: 'オンライン講座' })],
+      },
       opts,
     )
     expect(b.lists.filter((l) => l.id.startsWith('canvas-list')).map((l) => l.id)).toEqual([CANVAS_LIST_ID])
@@ -171,7 +180,10 @@ describe('mergeCanvasLists', () => {
       },
       NOW,
     )!
-    expect(r.lists.map((l) => [l.id, l.name])).toEqual([['inbox', 'Inbox'], [CANVAS_LIST_ID, '大学']])
+    expect(r.lists.map((l) => [l.id, l.name])).toEqual([
+      ['inbox', 'Inbox'],
+      [CANVAS_LIST_ID, '大学'],
+    ])
     expect(r.sections.map((s) => [s.id, s.listId, s.order])).toEqual([
       ['s-b1', CANVAS_LIST_ID, 2],
       ['s-a1', CANVAS_LIST_ID, 0],
@@ -197,7 +209,14 @@ describe('canvasCourseSectionsToTags', () => {
     }))
     const mine = { ...tasks[0], id: 'mine', sectionId: 'my-sec' }
     const r = canvasCourseSectionsToTags(
-      { sections: [sec(canvasSectionId(CONN, '101'), '経済学入門'), sec('canvas-course-77', '経済学入門', 'other-list'), sec('my-sec', '自分の')], tasks: [...tasks, mine] },
+      {
+        sections: [
+          sec(canvasSectionId(CONN, '101'), '経済学入門'),
+          sec('canvas-course-77', '経済学入門', 'other-list'),
+          sec('my-sec', '自分の'),
+        ],
+        tasks: [...tasks, mine],
+      },
       NOW,
     )
     expect(r.converted).toBe(true)
@@ -237,4 +256,3 @@ describe('canvasFeedUrlProblem', () => {
     expect(canvasFeedUrlProblem('')).toBeNull()
   })
 })
-

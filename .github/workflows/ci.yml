@@ -23,20 +23,31 @@ jobs:
 
       - run: npm ci
 
-      # lint は既存の指摘が残っているので、落ちても後続を走らせて全体を一度で見る
       - name: Lint
-        id: lint
-        continue-on-error: true
         run: npm run lint
 
+      - name: Format
+        run: npm run format:check
+
+      # 単体テスト（node）と部品のテスト（jsdom）
       - name: Test
         run: npm test
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # 画面を通しで動かすテスト（dev サーバーを起こし、Supabase なしの端末保存で動かす）
+      - name: E2E
+        run: npm run test:e2e
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build
         run: npm run build
-
-      - name: Fail if lint failed
-        if: steps.lint.outcome == 'failure'
-        run: |
-          echo "::error::npm run lint が失敗しました（上の Lint ステップのログを参照）"
-          exit 1

@@ -1,4 +1,4 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
+import { readFunctionErrorBody } from './functionError'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -86,18 +86,10 @@ async function invokeCanvas<T>(body: Record<string, unknown>): Promise<T> {
   const sb = getSupabase()
   if (!sb) throw new CanvasRequestError(null, 'Supabase is not configured')
   const { data, error } = await sb.functions.invoke('canvas', { body })
+  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, code, error }）。古い関数は 200 で { ok: false } を返す
   if (error) {
-    let message = error.message
-    if (error instanceof FunctionsHttpError) {
-      try {
-        const b = (await error.context.json()) as { error?: string; code?: string }
-        if (b?.code) throw new CanvasRequestError(b.code, b.error ?? b.code)
-        if (b?.error) message = b.error
-      } catch (e) {
-        if (e instanceof CanvasRequestError) throw e
-      }
-    }
-    throw new CanvasRequestError(null, message)
+    const b = await readFunctionErrorBody(error)
+    throw new CanvasRequestError(b?.code ?? null, b?.error ?? b?.code ?? error.message)
   }
   const payload = (data ?? {}) as T & { ok?: boolean; code?: string; error?: string }
   if (payload.ok === false) {
@@ -119,8 +111,7 @@ const invokeConnections = <T extends { connections: unknown[] }>(body: Record<st
 
 export const fetchCanvasStatus = () => invokeConnections<CanvasStatus>({ action: 'status' })
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
-export const connectCanvas = (token: string, baseUrl: string) =>
-  invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
+export const connectCanvas = (token: string, baseUrl: string) => invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
 /**
  * 貼られた URL がカレンダーフィード（`https://<学校>/feeds/calendars/….ics`）か。違えば理由を返す。
  * カレンダー画面そのもの（`/calendar#view_name=…`）を貼る間違いが多いので、それは分けて案内する
@@ -143,8 +134,7 @@ export const connectCanvasFeed = (feedUrl: string) => invokeConnections<CanvasSt
 /** つないであった学校のトークンだけ貼り直す */
 export const renewCanvasToken = (connectionId: string, token: string) =>
   invokeConnections<CanvasStatus>({ action: 'connect', token, connectionId })
-export const disconnectCanvas = (connectionId: string) =>
-  invokeConnections<CanvasStatus>({ action: 'disconnect', connectionId })
+export const disconnectCanvas = (connectionId: string) => invokeConnections<CanvasStatus>({ action: 'disconnect', connectionId })
 export const fetchCanvasItems = () => invokeConnections<CanvasItemsPayload>({ action: 'items' })
 export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
   invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })

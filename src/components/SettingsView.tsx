@@ -18,7 +18,7 @@ import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
@@ -26,7 +26,8 @@ import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 
 /**
- * 設定。よく触るもの（表示・通知とリズム・記録の分類）を上に、アカウントやデータの入出力を下に。
+ * 設定。上から アカウント → ラベル → 通知・計画 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
+ * 誰として使っているかを先頭に、よく触るもの（記録の分類）を上に、一度決めたら触らないものを下に。
  * どのまとまりも「見出し + 1 枚の枠に行を並べる」形に揃える。
  * 外部連携は使う人だけが使うので、トップには接続中のものだけを出し、つなぐ・設定するのは次のページにする。
  */
@@ -118,6 +119,24 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
 
+        <SettingsGroup id="settings-account" title={t('settings.account')}>
+          {isSupabaseConfigured ? (
+            <div className="px-4 py-3">
+              <AccountMenu variant="settings" />
+            </div>
+          ) : (
+            <SettingsRow label={t('settings.syncOffTitle')} help={t('settings.supabaseOff')} />
+          )}
+        </SettingsGroup>
+
+        <SettingsGroup id="settings-categories" title={t('categories.title')}>
+          <CategoryManager />
+        </SettingsGroup>
+
+        <DailyRhythmSettings />
+
+        <TimeZoneSettings />
+
         <SettingsGroup id="settings-appearance" title={t('settings.appearance')}>
           <SettingsRow label={t('settings.theme')}>
             <Segmented
@@ -144,44 +163,45 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           </SettingsRow>
         </SettingsGroup>
 
-        <DailyRhythmSettings />
-
-        <TimeZoneSettings />
-
-        <SettingsGroup id="settings-categories" title={t('categories.title')}>
-          <CategoryManager />
-        </SettingsGroup>
-
-        <SettingsGroup id="settings-account" title={t('settings.account')}>
-          {isSupabaseConfigured ? (
-            <div className="px-4 py-3">
-              <AccountMenu variant="settings" />
-            </div>
-          ) : (
-            <SettingsRow label={t('settings.account')} help={t('settings.supabaseOff')} />
-          )}
-        </SettingsGroup>
-
         <IntegrationsSummary onOpen={onOpenIntegrations} />
-
-        <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
-          <InstallAppSection />
-          <SettingsRow label={t('settings.legalTitle')}>
-            <a href="/privacy.html" target="_blank" rel="noopener" className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('settings.privacyPolicy')}</a>
-            <a href="/terms.html" target="_blank" rel="noopener" className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('settings.terms')}</a>
-          </SettingsRow>
-        </SettingsGroup>
 
         <SettingsGroup id="settings-data" title={t('settings.data')}>
           <SettingsRow label={t('settings.backupTitle')}>
-            <button type="button" onClick={exportData} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.export')}</button>
-            <button type="button" onClick={() => jsonInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.import')}</button>
+            <button type="button" onClick={exportData} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+              {t('sidebar.export')}
+            </button>
+            <button
+              type="button"
+              onClick={() => jsonInputRef.current?.click()}
+              className={buttonClass({ variant: 'secondary', size: 'md' })}
+            >
+              {t('sidebar.import')}
+            </button>
           </SettingsRow>
           <AutoBackupSettings />
           <RestoreBeforeImportRow />
           <SettingsRow label={t('settings.csvTitle')}>
-            <button type="button" onClick={() => csvInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.importCsv')}</button>
+            <button
+              type="button"
+              onClick={() => csvInputRef.current?.click()}
+              className={buttonClass({ variant: 'secondary', size: 'md' })}
+            >
+              {t('sidebar.importCsv')}
+            </button>
           </SettingsRow>
+        </SettingsGroup>
+
+        <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
+          <InstallAppSection />
+        </SettingsGroup>
+
+        {/* 規約は読みに行くだけのものなので、見出しを立てず一番下に小さな行で置く */}
+        <SettingsGroup>
+          <SettingsLinkRow label={t('settings.privacyPolicy')} href="/privacy.html" />
+          <SettingsLinkRow label={t('settings.terms')} href="/terms.html" />
+        </SettingsGroup>
+
+        {/* 書き出し・読み込みのファイル選び（枠の行の区切り線が掛からないよう枠の外に置く） */}
         <input
           ref={jsonInputRef}
           type="file"
@@ -250,7 +270,6 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
             e.target.value = ''
           }}
         />
-        </SettingsGroup>
       </div>
     </div>
   )
@@ -276,14 +295,18 @@ function RestoreBeforeImportRow() {
   if (!saved) return null
 
   return (
-    <SettingsRow
-      label={t('settings.restoreImportTitle')}
-    >
+    <SettingsRow label={t('settings.restoreImportTitle')}>
       <button
         type="button"
         className={buttonClass({ variant: 'secondary', size: 'md' })}
         onClick={async () => {
-          if (!(await askConfirm({ message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }), confirmLabel: i18n.t('settings.restoreImportAction') }))) return
+          if (
+            !(await askConfirm({
+              message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }),
+              confirmLabel: i18n.t('settings.restoreImportAction'),
+            }))
+          )
+            return
           if (restoreBeforeImport()) {
             setSaved(null)
             setReloadKey((n) => n + 1)

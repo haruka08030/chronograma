@@ -20,8 +20,20 @@ const setup = (kind: 'tasks' | 'checklist') => {
   const now = new Date().toISOString()
   const base = {
     ...TASK_DEFAULTS,
-    description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now, order: 0,
-    listId: 'l', sectionId: null, dueDate: null, startTime: null, endTime: null, priority: 'none' as const, tags: [], recurrence: null,
+    description: '',
+    completed: false,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    order: 0,
+    listId: 'l',
+    sectionId: null,
+    dueDate: null,
+    startTime: null,
+    endTime: null,
+    priority: 'none' as const,
+    tags: [],
+    recurrence: null,
   }
   useTaskStore.setState({
     lists: [{ id: 'l', name: 'L', color: '#33B679', order: 0, kind }],
@@ -32,7 +44,12 @@ const setup = (kind: 'tasks' | 'checklist') => {
     ],
   })
 }
-const done = () => useTaskStore.getState().tasks.filter((t) => t.completed).map((t) => t.id).sort()
+const done = () =>
+  useTaskStore
+    .getState()
+    .tasks.filter((t) => t.completed)
+    .map((t) => t.id)
+    .sort()
 
 describe('完了の切り替えはリストの種類で変わる', () => {
   it('チェックリスト: 子がそろうと親も済み', () => {

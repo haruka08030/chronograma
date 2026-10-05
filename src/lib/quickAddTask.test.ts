@@ -52,7 +52,11 @@ vi.mock('../store/taskStore', () => ({
   },
 }))
 vi.mock('../i18n/config', () => ({
-  default: { t: (k: string, o?: { date?: string }) => (o?.date ? `${k}:${o.date}` : k), resolvedLanguage: 'ja', getFixedT: () => () => 'M/d' },
+  default: {
+    t: (k: string, o?: { date?: string }) => (o?.date ? `${k}:${o.date}` : k),
+    resolvedLanguage: 'ja',
+    getFixedT: () => () => 'M/d',
+  },
 }))
 vi.mock('./timeZone', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./timeZone')>()),
@@ -67,7 +71,12 @@ const added = (id: string | undefined) => store.tasks.find((t) => t.id === id)!
 
 beforeEach(() => {
   store.selectedListId = '__inbox__'
-  store.lists = [list('__inbox__', 'Inbox'), list('school', '授業'), list('someday', 'いつか', 'someday'), list('shop', '買い物', 'checklist')]
+  store.lists = [
+    list('__inbox__', 'Inbox'),
+    list('school', '授業'),
+    list('someday', 'いつか', 'someday'),
+    list('shop', '買い物', 'checklist'),
+  ]
   store.tasks = []
   store.showMoveBanner.mockClear()
 })
@@ -212,7 +221,12 @@ describe('サブタスク（親とリストは固定）', () => {
 })
 
 describe('繰り返し（最初の回の日が締切）', () => {
-  const rep = (type: 'daily' | 'weekly' | 'monthly' | 'yearly', interval = 1, weekdays: number[] | null = null, monthDay: number | null = null) => ({
+  const rep = (
+    type: 'daily' | 'weekly' | 'monthly' | 'yearly',
+    interval = 1,
+    weekdays: number[] | null = null,
+    monthDay: number | null = null,
+  ) => ({
     type,
     interval,
     weekdays,

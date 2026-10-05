@@ -4,7 +4,44 @@ import { DAY_START_HOUR } from './timeZone'
 
 export { timeToMinutes } from './clockTime'
 
-export const HOUR_HEIGHT = 60
+/** 1 時間の高さ（px）の既定と、ピンチで変えられる幅 */
+export const DEFAULT_HOUR_HEIGHT = 60
+export const MIN_HOUR_HEIGHT = 30
+export const MAX_HOUR_HEIGHT = 180
+const HOUR_HEIGHT_KEY = 'chronograma_hour_height'
+
+function readHourHeight(): number {
+  try {
+    const v = Number(globalThis.localStorage?.getItem(HOUR_HEIGHT_KEY))
+    return v >= MIN_HOUR_HEIGHT && v <= MAX_HOUR_HEIGHT ? v : DEFAULT_HOUR_HEIGHT
+  } catch {
+    return DEFAULT_HOUR_HEIGHT
+  }
+}
+
+/**
+ * 1 時間の高さ（px）。タイムラインのピンチで変わり、端末に残す（同期はしない）。
+ * 読むたびに今の値になる（ES モジュールの live binding）。描くところは `useHourHeight()` で変わったら描き直す
+ */
+export let HOUR_HEIGHT = readHourHeight()
+const hourHeightListeners = new Set<() => void>()
+
+export function setHourHeight(px: number) {
+  const next = Math.round(Math.min(MAX_HOUR_HEIGHT, Math.max(MIN_HOUR_HEIGHT, px)))
+  if (next === HOUR_HEIGHT) return
+  HOUR_HEIGHT = next
+  try {
+    globalThis.localStorage?.setItem(HOUR_HEIGHT_KEY, String(next))
+  } catch {
+    /* 保存できなくても今の画面では効く */
+  }
+  for (const l of hourHeightListeners) l()
+}
+
+export function subscribeHourHeight(listener: () => void): () => void {
+  hourHeightListeners.add(listener)
+  return () => hourHeightListeners.delete(listener)
+}
 export const HOURS = Array.from({ length: 24 }, (_, i) => i)
 /** 1 日表示で 24 時の下に続けて出す次の日の時間（1 日の区切り `DAY_START_HOUR` まで） */
 export const NIGHT_HOURS = DAY_START_HOUR
@@ -25,7 +62,6 @@ export function yToTime(y: number): string {
 export function formatTimeLabel(hour: number): string {
   return `${hour}:00`
 }
-
 
 /** 分を「1時間15分」/「1h 15m」のように表示の言語で書く */
 export function formatDuration(minutes: number): string {

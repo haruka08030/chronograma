@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseCanvasFeed } from './ical.ts'
 import { withCors } from '../_shared/cors.ts'
+import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
@@ -41,16 +42,12 @@ type PlannerOverride = { id: number; plannable_type: string; plannable_id: numbe
 const MAX_CONNECTIONS = 5
 
 class CanvasError extends Error {
-  constructor(public code: string, message?: string) {
+  constructor(
+    public code: string,
+    message?: string,
+  ) {
     super(message ?? code)
   }
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 /** 確かめた結果を覚えておく時間。長く覚えると、確かめたあとで名前の向き先を内部へ変えられる */
@@ -70,9 +67,7 @@ async function assertPublicHost(host: string): Promise<void> {
   const hit = checkedHosts.get(host)
   let ok = hit && Date.now() - hit.at < HOST_CHECK_TTL_MS ? hit.ok : undefined
   if (ok === undefined) {
-    const lookups = await Promise.all(
-      (['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])),
-    )
+    const lookups = await Promise.all((['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])))
     const addresses = lookups.flat()
     ok = addresses.length > 0 && !addresses.some(isPrivateAddress)
     checkedHosts.set(host, { ok, at: Date.now() })
@@ -234,7 +229,7 @@ async function plannerItems(baseUrl: string, token: string) {
       id: String(i.plannable_id),
       title: (i.plannable?.title ?? '').trim(),
       courseId: i.course_id != null ? String(i.course_id) : null,
-      courseName: i.course_id != null ? courseCodes.get(String(i.course_id)) ?? i.context_name ?? null : null,
+      courseName: i.course_id != null ? (courseCodes.get(String(i.course_id)) ?? i.context_name ?? null) : null,
       url: i.html_url ? new URL(i.html_url, baseUrl).toString() : baseUrl,
       dueAt: i.plannable?.due_at ?? i.plannable?.todo_date ?? i.plannable_date ?? null,
       done: isDone(i),
@@ -287,224 +282,230 @@ async function setMarkedComplete(baseUrl: string, token: string, type: string, i
   })
 }
 
-Deno.serve(withCors(async (req) => {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return jsonResponse({ error: 'Server misconfigured' }, 500)
-    }
+Deno.serve(
+  withCors(async (req) => {
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+        return errorResponse(500, 'Server misconfigured')
+      }
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
-    }
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser()
-    if (userError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
-    }
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return errorResponse(401, 'Missing Authorization header')
+      }
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const {
+        data: { user },
+        error: userError,
+      } = await userClient.auth.getUser()
+      if (userError || !user) {
+        return errorResponse(401, 'Unauthorized')
+      }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey)
-    const body = req.method === 'POST' ? await req.json() : {}
-    const action = (body.action as string) ?? ''
-    const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
-    // 学校のサイトを新しく確かめに行く connect は、ほかより少なく
-    const limited =
-      !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvas)) ||
-      (action === 'connect' && !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvasConnect)))
-    if (limited) return jsonResponse({ ok: false, code: 'canvas_rate_limited', error: 'canvas_rate_limited' }, 429)
+      const admin = createClient(supabaseUrl, serviceRoleKey)
+      const body = await readJsonBody(req)
+      if (!body) return errorResponse(400, BAD_JSON)
+      const action = (body.action as string) ?? ''
+      const connectionId = typeof body.connectionId === 'string' ? body.connectionId : null
+      // 学校のサイトを新しく確かめに行く connect は、ほかより少なく
+      const limited =
+        !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvas)) ||
+        (action === 'connect' && !(await withinRateLimit(admin, user.id, RATE_LIMITS.canvasConnect)))
+      if (limited) return errorResponse(429, 'canvas_rate_limited', 'canvas_rate_limited')
 
-    type Row = {
-      id: string
-      base_url: string
-      kind: 'token' | 'ical'
-      token: string | null
-      feed_url: string | null
-      user_name: string | null
-      token_expires_at: string | null
-      token_checked_at: string | null
-    }
-    const loadRows = async (): Promise<Row[]> => {
-      const { data, error } = await admin
-        .from('canvas_connection')
-        .select('id, base_url, kind, token, feed_url, user_name, token_expires_at, token_checked_at')
-        .eq('user_id', user.id)
-        .order('updated_at')
-      if (error) throw new Error(error.message)
-      // トークンとフィードの URL は暗号化して置く。暗号化する前の行は、読んだついでに書き直す
-      return await Promise.all(((data ?? []) as Row[]).map(async (r) => {
-        const token = r.token ? await openSecret(r.token, secretContext.canvasToken(user.id, r.id)) : null
-        const feedUrl = r.feed_url ? await openSecret(r.feed_url, secretContext.canvasFeed(user.id, r.id)) : null
-        const patch: Record<string, string> = {}
-        if (token && r.token && needsSeal(r.token)) patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
-        if (feedUrl && r.feed_url && needsSeal(r.feed_url)) patch.feed_url = await sealSecret(feedUrl, secretContext.canvasFeed(user.id, r.id))
-        if (Object.keys(patch).length > 0) {
-          await admin.from('canvas_connection').update(patch).eq('user_id', user.id).eq('id', r.id)
-        }
-        return { ...r, token, feed_url: feedUrl }
-      }))
-    }
-    /** 設定画面に返す形。トークンは含めない */
-    const describe = (rows: Row[]) => ({
-      ok: true,
-      connections: rows.map((r) => ({
-        id: r.id,
-        kind: r.kind,
-        baseUrl: r.base_url,
-        userName: r.user_name,
-        expiresAt: r.kind === 'token' ? r.token_expires_at : null,
-      })),
-    })
-
-    /** 期限の確認と延長。失敗しても同期は止めない */
-    const refreshExpiry = async (r: { id: string; base_url: string; token: string }) => {
-      try {
-        const expiresAt = await checkTokenExpiry(r.base_url, r.token)
-        await admin
+      type Row = {
+        id: string
+        base_url: string
+        kind: 'token' | 'ical'
+        token: string | null
+        feed_url: string | null
+        user_name: string | null
+        token_expires_at: string | null
+        token_checked_at: string | null
+      }
+      const loadRows = async (): Promise<Row[]> => {
+        const { data, error } = await admin
           .from('canvas_connection')
-          .update({ token_expires_at: expiresAt, token_checked_at: new Date().toISOString() })
+          .select('id, base_url, kind, token, feed_url, user_name, token_expires_at, token_checked_at')
           .eq('user_id', user.id)
-          .eq('id', r.id)
-      } catch (e) {
-        console.warn('[canvas] token check failed', e instanceof Error ? e.message : e)
-      }
-    }
-
-    /** 1 人がつなげる学校の数（行が増え続けて、同期のたびに外へ取りに行く先が増えないように） */
-    const assertRoomFor = async (host: string) => {
-      const rows = await loadRows()
-      if (rows.length >= MAX_CONNECTIONS && !rows.some((r) => r.id === host)) throw new CanvasError('canvas_too_many')
-    }
-
-    if (action === 'connect' && typeof body.feedUrl === 'string') {
-      const feed = parseFeedUrl(body.feedUrl)
-      if (!feed) return jsonResponse({ ok: false, code: 'canvas_feed_invalid' })
-      requireSecretKey()
-      await assertRoomFor(new URL(feed.baseUrl).host)
-      // 読めるか確かめてから保存する
-      await feedItems(feed.baseUrl, feed.feedUrl)
-      const { error } = await admin.from('canvas_connection').upsert(
-        {
-          user_id: user.id,
-          id: new URL(feed.baseUrl).host,
-          base_url: feed.baseUrl,
-          kind: 'ical',
-          token: null,
-          feed_url: await sealSecret(feed.feedUrl, secretContext.canvasFeed(user.id, new URL(feed.baseUrl).host)),
-          user_name: null,
-          token_expires_at: null,
-          token_checked_at: null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,id' },
-      )
-      if (error) throw new Error(error.message)
-      return jsonResponse(describe(await loadRows()))
-    }
-
-    if (action === 'connect') {
-      const token = (body.token as string | undefined)?.trim()
-      // connectionId があれば、その学校のトークンだけ貼り直す
-      const prev = connectionId ? (await loadRows()).find((r) => r.id === connectionId) : null
-      if (connectionId && !prev) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
-      const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
-      if (!baseUrl) return jsonResponse({ ok: false, code: 'canvas_bad_url' })
-      if (!token) return jsonResponse({ ok: false, code: 'canvas_unauthorized' })
-      requireSecretKey()
-      await assertRoomFor(new URL(baseUrl).host)
-      const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
-      const { error } = await admin.from('canvas_connection').upsert(
-        {
-          user_id: user.id,
-          id: new URL(baseUrl).host,
-          base_url: baseUrl,
-          kind: 'token',
-          token: await sealSecret(token, secretContext.canvasToken(user.id, new URL(baseUrl).host)),
-          feed_url: null,
-          user_name: self.name ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,id' },
-      )
-      if (error) throw new Error(error.message)
-      // 貼ったばかりのトークンも、すぐ期限を延ばしておく
-      await refreshExpiry({ id: new URL(baseUrl).host, base_url: baseUrl, token })
-      return jsonResponse(describe(await loadRows()))
-    }
-
-    if (action === 'disconnect') {
-      if (!connectionId) return jsonResponse({ ok: false, error: 'connectionId is required' }, 400)
-      // 行を消すだけでは Canvas 側にトークンが残るので、先に取り消す（失敗しても切断は進める）
-      const target = (await loadRows()).find((r) => r.id === connectionId)
-      if (target?.kind === 'token' && target.token) {
-        await canvasRequest(target.base_url, target.token, `${target.base_url}/login/oauth2/token`, {
-          method: 'DELETE',
-          signal: AbortSignal.timeout(5000),
-        }).catch((e) => console.warn('[canvas] revoke failed', e instanceof Error ? e.message : e))
-      }
-      const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
-      if (error) {
-        console.error('[canvas] disconnect', error.message)
-        return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' }, 500)
-      }
-      return jsonResponse(describe(await loadRows()))
-    }
-
-    const rows = await loadRows()
-
-    if (action === 'status') {
-      // トークンの期限切れは同期のエラーで分かるので、ここでは Canvas を呼ばない
-      return jsonResponse(describe(rows))
-    }
-
-    if (action === 'items') {
-      // 1 校のトークンが切れていても、ほかの学校は取り込む
-      const connections = await Promise.all(
-        rows.map(async (r) => {
-          try {
-            if (r.kind === 'ical') return { id: r.id, ...(await feedItems(r.base_url, r.feed_url ?? '')) }
-            const token = r.token ?? ''
-            const result = { id: r.id, ...(await plannerItems(r.base_url, token)) }
-            if (!r.token_checked_at || Date.now() - Date.parse(r.token_checked_at) > CHECK_EVERY_MS) {
-              await refreshExpiry({ id: r.id, base_url: r.base_url, token })
+          .order('updated_at')
+        if (error) throw new Error(error.message)
+        // トークンとフィードの URL は暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+        return await Promise.all(
+          ((data ?? []) as Row[]).map(async (r) => {
+            const token = r.token ? await openSecret(r.token, secretContext.canvasToken(user.id, r.id)) : null
+            const feedUrl = r.feed_url ? await openSecret(r.feed_url, secretContext.canvasFeed(user.id, r.id)) : null
+            const patch: Record<string, string> = {}
+            if (token && r.token && needsSeal(r.token)) patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
+            if (feedUrl && r.feed_url && needsSeal(r.feed_url))
+              patch.feed_url = await sealSecret(feedUrl, secretContext.canvasFeed(user.id, r.id))
+            if (Object.keys(patch).length > 0) {
+              await admin.from('canvas_connection').update(patch).eq('user_id', user.id).eq('id', r.id)
             }
-            return result
-          } catch (e) {
-            // 想定外の失敗（Canvas が JSON でない応答を返したなど）でも、その学校だけのエラーにして、ほかの学校は取り込む
-            if (e instanceof CanvasError) return { id: r.id, error: e.code }
-            console.error('[canvas] items', r.id, e instanceof Error ? e.message : e)
-            return { id: r.id, error: 'canvas_api' }
-          }
-        }),
-      )
-      return jsonResponse({ ok: true, connections })
-    }
-
-    if (action === 'complete') {
-      const row = rows.find((r) => r.id === connectionId)
-      const type = body.type as string | undefined
-      const id = String(body.id ?? '')
-      if (!row || !type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
-        return jsonResponse({ ok: false, error: 'connectionId, type, id and complete are required' }, 400)
+            return { ...r, token, feed_url: feedUrl }
+          }),
+        )
       }
-      // フィードでつないだ学校は読むだけなので、完了は Canvas に書き戻さない
-      if (row.kind === 'token' && row.token) await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
-      return jsonResponse({ ok: true })
-    }
+      /** 設定画面に返す形。トークンは含めない */
+      const describe = (rows: Row[]) => ({
+        ok: true,
+        connections: rows.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          baseUrl: r.base_url,
+          userName: r.user_name,
+          expiresAt: r.kind === 'token' ? r.token_expires_at : null,
+        })),
+      })
 
-    return jsonResponse({ error: 'Unknown action' }, 400)
-  } catch (e) {
-    // 学校のサイトや DB の応答の中身は返さない（ログにだけ残す）
-    console.error('[canvas]', e instanceof Error ? e.message : e)
-    if (e instanceof SecretKeyMissingError) return jsonResponse({ ok: false, code: 'canvas_api', error: 'Server misconfigured' }, 500)
-    if (e instanceof CanvasError) return jsonResponse({ ok: false, code: e.code, error: e.code })
-    return jsonResponse({ ok: false, code: 'canvas_api', error: 'canvas_api' })
-  }
-}))
+      /** 期限の確認と延長。失敗しても同期は止めない */
+      const refreshExpiry = async (r: { id: string; base_url: string; token: string }) => {
+        try {
+          const expiresAt = await checkTokenExpiry(r.base_url, r.token)
+          await admin
+            .from('canvas_connection')
+            .update({ token_expires_at: expiresAt, token_checked_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+            .eq('id', r.id)
+        } catch (e) {
+          console.warn('[canvas] token check failed', e instanceof Error ? e.message : e)
+        }
+      }
+
+      /** 1 人がつなげる学校の数（行が増え続けて、同期のたびに外へ取りに行く先が増えないように） */
+      const assertRoomFor = async (host: string) => {
+        const rows = await loadRows()
+        if (rows.length >= MAX_CONNECTIONS && !rows.some((r) => r.id === host)) throw new CanvasError('canvas_too_many')
+      }
+
+      if (action === 'connect' && typeof body.feedUrl === 'string') {
+        const feed = parseFeedUrl(body.feedUrl)
+        if (!feed) return errorResponse(400, 'canvas_feed_invalid', 'canvas_feed_invalid')
+        requireSecretKey()
+        await assertRoomFor(new URL(feed.baseUrl).host)
+        // 読めるか確かめてから保存する
+        await feedItems(feed.baseUrl, feed.feedUrl)
+        const { error } = await admin.from('canvas_connection').upsert(
+          {
+            user_id: user.id,
+            id: new URL(feed.baseUrl).host,
+            base_url: feed.baseUrl,
+            kind: 'ical',
+            token: null,
+            feed_url: await sealSecret(feed.feedUrl, secretContext.canvasFeed(user.id, new URL(feed.baseUrl).host)),
+            user_name: null,
+            token_expires_at: null,
+            token_checked_at: null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,id' },
+        )
+        if (error) throw new Error(error.message)
+        return jsonResponse(describe(await loadRows()))
+      }
+
+      if (action === 'connect') {
+        const token = (body.token as string | undefined)?.trim()
+        // connectionId があれば、その学校のトークンだけ貼り直す
+        const prev = connectionId ? (await loadRows()).find((r) => r.id === connectionId) : null
+        if (connectionId && !prev) return errorResponse(400, 'canvas_bad_url', 'canvas_bad_url')
+        const baseUrl = prev?.base_url ?? parseBaseUrl((body.baseUrl as string | undefined) ?? '')
+        if (!baseUrl) return errorResponse(400, 'canvas_bad_url', 'canvas_bad_url')
+        if (!token) return errorResponse(400, 'canvas_unauthorized', 'canvas_unauthorized')
+        requireSecretKey()
+        await assertRoomFor(new URL(baseUrl).host)
+        const self = await canvasJson<{ name?: string }>(baseUrl, token, '/api/v1/users/self')
+        const { error } = await admin.from('canvas_connection').upsert(
+          {
+            user_id: user.id,
+            id: new URL(baseUrl).host,
+            base_url: baseUrl,
+            kind: 'token',
+            token: await sealSecret(token, secretContext.canvasToken(user.id, new URL(baseUrl).host)),
+            feed_url: null,
+            user_name: self.name ?? null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,id' },
+        )
+        if (error) throw new Error(error.message)
+        // 貼ったばかりのトークンも、すぐ期限を延ばしておく
+        await refreshExpiry({ id: new URL(baseUrl).host, base_url: baseUrl, token })
+        return jsonResponse(describe(await loadRows()))
+      }
+
+      if (action === 'disconnect') {
+        if (!connectionId) return errorResponse(400, 'connectionId is required')
+        // 行を消すだけでは Canvas 側にトークンが残るので、先に取り消す（失敗しても切断は進める）
+        const target = (await loadRows()).find((r) => r.id === connectionId)
+        if (target?.kind === 'token' && target.token) {
+          await canvasRequest(target.base_url, target.token, `${target.base_url}/login/oauth2/token`, {
+            method: 'DELETE',
+            signal: AbortSignal.timeout(5000),
+          }).catch((e) => console.warn('[canvas] revoke failed', e instanceof Error ? e.message : e))
+        }
+        const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
+        if (error) {
+          console.error('[canvas] disconnect', error.message)
+          return errorResponse(500, 'canvas_api', 'canvas_api')
+        }
+        return jsonResponse(describe(await loadRows()))
+      }
+
+      const rows = await loadRows()
+
+      if (action === 'status') {
+        // トークンの期限切れは同期のエラーで分かるので、ここでは Canvas を呼ばない
+        return jsonResponse(describe(rows))
+      }
+
+      if (action === 'items') {
+        // 1 校のトークンが切れていても、ほかの学校は取り込む
+        const connections = await Promise.all(
+          rows.map(async (r) => {
+            try {
+              if (r.kind === 'ical') return { id: r.id, ...(await feedItems(r.base_url, r.feed_url ?? '')) }
+              const token = r.token ?? ''
+              const result = { id: r.id, ...(await plannerItems(r.base_url, token)) }
+              if (!r.token_checked_at || Date.now() - Date.parse(r.token_checked_at) > CHECK_EVERY_MS) {
+                await refreshExpiry({ id: r.id, base_url: r.base_url, token })
+              }
+              return result
+            } catch (e) {
+              // 想定外の失敗（Canvas が JSON でない応答を返したなど）でも、その学校だけのエラーにして、ほかの学校は取り込む
+              if (e instanceof CanvasError) return { id: r.id, error: e.code }
+              console.error('[canvas] items', r.id, e instanceof Error ? e.message : e)
+              return { id: r.id, error: 'canvas_api' }
+            }
+          }),
+        )
+        return jsonResponse({ ok: true, connections })
+      }
+
+      if (action === 'complete') {
+        const row = rows.find((r) => r.id === connectionId)
+        const type = body.type as string | undefined
+        const id = String(body.id ?? '')
+        if (!row || !type || !PLANNABLE_TYPES.has(type) || !/^\d+$/.test(id) || typeof body.complete !== 'boolean') {
+          return errorResponse(400, 'connectionId, type, id and complete are required')
+        }
+        // フィードでつないだ学校は読むだけなので、完了は Canvas に書き戻さない
+        if (row.kind === 'token' && row.token) await setMarkedComplete(row.base_url, row.token, type, id, body.complete)
+        return jsonResponse({ ok: true })
+      }
+
+      return errorResponse(400, 'Unknown action')
+    } catch (e) {
+      // 学校のサイトや DB の応答の中身は返さない（ログにだけ残す）
+      console.error('[canvas]', e instanceof Error ? e.message : e)
+      if (e instanceof SecretKeyMissingError) return errorResponse(500, 'Server misconfigured', 'canvas_api')
+      if (e instanceof CanvasError) return errorResponse(integrationErrorStatus(e.code), e.code, e.code)
+      return errorResponse(500, 'canvas_api', 'canvas_api')
+    }
+  }),
+)

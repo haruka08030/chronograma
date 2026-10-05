@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DependencyList, type MouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DependencyList, type MouseEvent } from 'react'
 import { useHotkey } from './useHotkey'
 import { SHORTCUTS, useSelectAllShortcut } from '../lib/shortcuts'
 import { isModKey } from '../lib/keyboard'
@@ -22,6 +22,7 @@ export function useTaskListSelection({
   removeRows,
   completeRows,
   openMenu,
+  todayToggleRows,
   resetOn,
 }: {
   /** 上から順の、操作できる行（⌘A・↑↓・枠の対象） */
@@ -35,6 +36,8 @@ export function useTaskListSelection({
   completeRows: (ids: string[]) => void
   /** 右クリック・⌘/ のメニューを開く。`above` は (x, y) の上に出す */
   openMenu: (menu: { x: number; y: number; taskIds: string[]; above?: boolean }) => void
+  /** Shift+T: 今日やる ⇄ 明日へ回す（`useTodayToggle`）。渡さない一覧では効かせない */
+  todayToggleRows?: (ids: string[]) => void
   /** これが変わったら選択と枠を外す（開いているリスト・絞り込みなど） */
   resetOn: DependencyList
 }) {
@@ -76,50 +79,90 @@ export function useTaskListSelection({
     lastAnchorRef.current = id
   }, [])
 
-  const makeRowClick = useCallback(
-    (id: string) => (e: MouseEvent) => {
-      goneCursorRef.current = null
-      setCursorId(id)
-      setCursorVisible(false)
-      if (e.shiftKey && lastAnchorRef.current !== null) {
-        const ia = rangeIds.indexOf(lastAnchorRef.current)
-        const ib = rangeIds.indexOf(id)
-        if (ia >= 0 && ib >= 0) {
-          const lo = Math.min(ia, ib)
-          const hi = Math.max(ia, ib)
-          setSelected((prev) => {
-            const n = new Set(prev)
-            for (let i = lo; i <= hi; i++) n.add(rangeIds[i])
-            return n
-          })
-        }
-        lastAnchorRef.current = id
-        return
-      }
-      if (isModKey(e) || selectedRef.current.size > 0) {
-        toggleInSelection(id)
-        return
-      }
-      openDetail(id)
-      lastAnchorRef.current = id
-    },
-    [rangeIds, openDetail, toggleInSelection],
-  )
+  // 行に渡す関数・選択の印は行ごとに同じものを使い回す（memo した TaskItem が、関係ない行の変化で描き直さないように）。
+  // 中身は押したときの最新の値を参照で読む
+  const latestRef = useRef({ rangeIds, openDetail, openMenu })
+  useLayoutEffect(() => {
+    latestRef.current = { rangeIds, openDetail, openMenu }
+  })
+  const rowClickCacheRef = useRef(new Map<string, (e: MouseEvent) => void>())
+  const selectionCacheRef = useRef(new Map<string, TaskItemSelection>())
 
-  const makeSelection = useCallback(
-    (id: string): TaskItemSelection => ({
-      selected: selected.has(id),
-      reveal: selected.size > 0,
-      onToggle: () => toggleInSelection(id),
-      cursor: cursorVisible && cursorId === id,
-      onContextMenu: (e) => {
+  const makeRowClick = useCallback(
+    (id: string) => {
+      const cached = rowClickCacheRef.current.get(id)
+      if (cached) return cached
+      const onRowClick = (e: MouseEvent) => {
+        goneCursorRef.current = null
         setCursorId(id)
         setCursorVisible(false)
-        // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる
-        openMenu({ x: e.clientX, y: e.clientY, taskIds: selected.has(id) && selected.size > 1 ? [...selected] : [id] })
-      },
-    }),
-    [selected, toggleInSelection, cursorVisible, cursorId, openMenu],
+        if (e.shiftKey && lastAnchorRef.current !== null) {
+          const range = latestRef.current.rangeIds
+          const ia = range.indexOf(lastAnchorRef.current)
+          const ib = range.indexOf(id)
+          if (ia >= 0 && ib >= 0) {
+            const lo = Math.min(ia, ib)
+            const hi = Math.max(ia, ib)
+            setSelected((prev) => {
+              const n = new Set(prev)
+              for (let i = lo; i <= hi; i++) n.add(range[i])
+              return n
+            })
+          }
+          lastAnchorRef.current = id
+          return
+        }
+        if (isModKey(e) || selectedRef.current.size > 0) {
+          toggleInSelection(id)
+          return
+        }
+        latestRef.current.openDetail(id)
+        lastAnchorRef.current = id
+      }
+      rowClickCacheRef.current.set(id, onRowClick)
+      return onRowClick
+    },
+    [toggleInSelection],
+  )
+
+  /** 1 行だけをつかむときの `[id]`（行ごとに同じ配列。memo した行の dragGroupIds に渡す） */
+  const soloCacheRef = useRef(new Map<string, string[]>())
+  const soloIds = useCallback((id: string): string[] => {
+    const cache = soloCacheRef.current
+    let solo = cache.get(id)
+    if (!solo) {
+      solo = [id]
+      cache.set(id, solo)
+    }
+    return solo
+  }, [])
+
+  const makeSelection = useCallback(
+    (id: string): TaskItemSelection => {
+      const isSelected = selected.has(id)
+      const reveal = selected.size > 0
+      const cursor = cursorVisible && cursorId === id
+      const cached = selectionCacheRef.current.get(id)
+      if (cached && cached.selected === isSelected && cached.reveal === reveal && cached.cursor === cursor) return cached
+      const next: TaskItemSelection = {
+        selected: isSelected,
+        reveal,
+        onToggle: cached?.onToggle ?? (() => toggleInSelection(id)),
+        cursor,
+        onContextMenu:
+          cached?.onContextMenu ??
+          ((e) => {
+            setCursorId(id)
+            setCursorVisible(false)
+            // 選択中の行なら選択中のすべてに、それ以外はその行だけに効かせる
+            const sel = selectedRef.current
+            latestRef.current.openMenu({ x: e.clientX, y: e.clientY, taskIds: sel.has(id) && sel.size > 1 ? [...sel] : [id] })
+          }),
+      }
+      selectionCacheRef.current.set(id, next)
+      return next
+    },
+    [selected, toggleInSelection, cursorVisible, cursorId],
   )
 
   // ⌘A: 操作できる行をすべて選ぶ
@@ -172,7 +215,8 @@ export function useTaskListSelection({
     const cursor = cursorRow()
     const down = e.key === 'ArrowDown'
     const i = cursor ? rowIds.indexOf(cursor) : -1
-    const next = i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
+    const next =
+      i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
     goneCursorRef.current = null
     if (e.shiftKey) {
       // 起点（最初に Shift を押した行）から枠までを選ぶ。戻れば選択も縮む（OS・Gmail と同じ）
@@ -206,6 +250,13 @@ export function useTaskListSelection({
     else if (target) toggleRow(target)
     else return false
   })
+  useHotkey(SHORTCUTS.todayToggle.hotkeys, () => {
+    const target = targetRow()
+    const ids = selectedRef.current.size > 0 ? [...selectedRef.current] : target ? [target] : []
+    if (!todayToggleRows || ids.length === 0) return false
+    todayToggleRows(ids)
+    clearSelection()
+  })
   useHotkey(SHORTCUTS.openMenu.hotkeys, () => {
     // ⌘/（Notion と同じ）: 選択中（なければ枠の行）のメニューを、その行の下に開く
     const target = targetRow()
@@ -230,5 +281,5 @@ export function useTaskListSelection({
     toggleRow(target)
   })
 
-  return { selected, clearSelection, makeRowClick, makeSelection, completeSelected, removeSelected }
+  return { selected, clearSelection, makeRowClick, makeSelection, soloIds, completeSelected, removeSelected }
 }

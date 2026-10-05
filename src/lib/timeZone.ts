@@ -98,7 +98,6 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-
 /**
  * 1 日の区切り（時）。これより前の夜中は、まだ前の日として扱う。
  * 0:30 に開いたときに「今日」が翌日に変わり、まだ寝ていないのにその日の予定や記録が見えなくなっていた
@@ -144,7 +143,6 @@ export function isNowOnDay(d: Date): boolean {
 export function isAppPast(d: Date): boolean {
   return d.getTime() < zonedNow().getTime()
 }
-
 
 export interface WallClock {
   /** `yyyy-MM-dd` */
@@ -251,8 +249,6 @@ export function allTimeZones(): string[] {
     /* 既定の一覧 */
   }
   const now = Date.now()
-  zoneListCache = [...zones].sort(
-    (a, b) => zoneOffsetMinutes(a, now) - zoneOffsetMinutes(b, now) || a.localeCompare(b),
-  )
+  zoneListCache = [...zones].sort((a, b) => zoneOffsetMinutes(a, now) - zoneOffsetMinutes(b, now) || a.localeCompare(b))
   return zoneListCache
 }

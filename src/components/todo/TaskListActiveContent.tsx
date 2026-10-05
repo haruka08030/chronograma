@@ -59,161 +59,95 @@ export function TaskListActiveContent({
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
   return canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
-      {showSectionBlocks && sectionBlocks ? (
-        sectionBlocks.map((block) => {
-          const sectionId = block.sectionId
-          const blockKey = `${block.listId}::${sectionId ?? 'none'}::${block.headerKind}`
-          const canQuickTarget = Boolean(selectedListId) && selectedListId === block.listId
-          const isQuickTarget =
-            canQuickTarget &&
-            ((sectionId === null && quickAddSectionId === '') ||
-              (sectionId !== null && quickAddSectionId === sectionId))
-          // セクションの外にタスクが無いときの「セクションなし」は、ドラッグ中（外へ戻す落とし先）だけ出す
-          if (block.headerKind === 'section-none' && block.tasks.length === 0 && !taskDragging) return null
-          return (
-            <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
-              {block.listTitle ? (
-                <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
-                  {block.listTitle}
-                </div>
-              ) : null}
-              {block.headerKind === 'section-named' && sectionId !== null ? (
-                <SectionHeaderDnD
-                  listId={block.listId}
-                  sectionId={sectionId}
-                  isQuickTarget={isQuickTarget}
-                  titleButton={sectionTitle(sectionId, block.title, canQuickTarget)}
-                  actions={sectionActions(sectionId, block.title)}
-                />
-              ) : (
-                <div
-                  className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
+      {showSectionBlocks && sectionBlocks
+        ? sectionBlocks.map((block) => {
+            const sectionId = block.sectionId
+            const blockKey = `${block.listId}::${sectionId ?? 'none'}::${block.headerKind}`
+            const canQuickTarget = Boolean(selectedListId) && selectedListId === block.listId
+            const isQuickTarget =
+              canQuickTarget &&
+              ((sectionId === null && quickAddSectionId === '') || (sectionId !== null && quickAddSectionId === sectionId))
+            // セクションの外にタスクが無いときの「セクションなし」は、ドラッグ中（外へ戻す落とし先）だけ出す
+            if (block.headerKind === 'section-none' && block.tasks.length === 0 && !taskDragging) return null
+            return (
+              <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
+                {block.listTitle ? (
+                  <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
+                    {block.listTitle}
+                  </div>
+                ) : null}
+                {block.headerKind === 'section-named' && sectionId !== null ? (
+                  <SectionHeaderDnD
+                    listId={block.listId}
+                    sectionId={sectionId}
+                    isQuickTarget={isQuickTarget}
+                    titleButton={sectionTitle(sectionId, block.title, canQuickTarget)}
+                    actions={sectionActions(sectionId, block.title)}
+                  />
+                ) : (
+                  <div
+                    className={`relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 transition-colors bg-white dark:bg-zinc-900
                     ${isQuickTarget ? 'ring-1 ring-accent-400/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
                     ${block.headerKind === 'list-only' ? 'text-zinc-700 dark:text-zinc-200' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className={`min-w-0 flex-1 text-left truncate ${
-                      block.headerKind === 'list-only'
-                        ? 'text-xs font-semibold tracking-tight'
-                        : SECTION_HEADING_TEXT
-                    }`}
-                    onClick={() => {
-                      if (canQuickTarget && block.headerKind === 'section-none') setQuickAddSectionId('')
-                    }}
                   >
-                    {block.title}
-                  </button>
-                </div>
-              )}
-              {block.tasks.flatMap((t) => [
-                <SortableTaskItem
-                  key={t.id}
-                  task={t}
-                  dragGroupRootIds={getDragGroupRootIds(t.id)}
-                  onRowClick={makeRowClick(t.id)}
-                  onEnterCreateSibling={handleEnterCreateSibling}
-                  selection={makeSelection(t.id)}
-                  autoEdit={pendingAutoEditTaskId === t.id}
-                  showNestGuide={t.id === previewParentId}
-                />,
-                ...DnDSubtreeRows({
-                  parentId: t.id,
-                  depth: 0,
-                  incompleteSubtasks,
-                  makeRowClick,
-                  makeSelection,
-                  onEnterCreateSibling: handleEnterCreateSibling,
-                  pendingAutoEditTaskId,
-                  subtaskNestWithDrag,
-                  nestPreviewParentId: previewParentId,
-                }),
-              ])}
-              {block.headerKind !== 'list-only' ? (
-                <SectionDropZone
-                  listId={block.listId}
-                  sectionId={block.sectionId}
-                  empty={block.headerKind === 'section-none' && block.tasks.length === 0}
-                />
-              ) : null}
-            </div>
-          )
-        })
-      ) : (
-        active.flatMap((t) => [
-          <SortableTaskItem
-            key={t.id}
-            task={t}
-            dragGroupRootIds={getDragGroupRootIds(t.id)}
-            onRowClick={makeRowClick(t.id)}
-            onEnterCreateSibling={handleEnterCreateSibling}
-            selection={makeSelection(t.id)}
-            autoEdit={pendingAutoEditTaskId === t.id}
-            showNestGuide={t.id === previewParentId}
-          />,
-          ...DnDSubtreeRows({
-            parentId: t.id,
-            depth: 0,
-            incompleteSubtasks,
-            makeRowClick,
-            makeSelection,
-            onEnterCreateSibling: handleEnterCreateSibling,
-            pendingAutoEditTaskId,
-            subtaskNestWithDrag,
-            nestPreviewParentId: previewParentId,
-          }),
-        ])
-      )}
-    </SortableContext>
-  ) : showSectionBlocks && sectionBlocks ? (
-    // 並べ替え中もセクションはそのまま。並び順は各セクションの中だけに効かせ、名前の変更・削除もできる。
-    // 空の「セクションなし」は手動のときのドロップ先なので、並べ替え中は出さない
-    sectionBlocks.filter((block) => block.headerKind !== 'section-none' || block.tasks.length > 0).map((block) => (
-      <div
-        key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`}
-        data-section-anchor={block.sectionId ?? undefined}
-        className="relative scroll-mt-2 pt-3 first:pt-1"
-      >
-        {block.listTitle ? (
-          <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
-            {block.listTitle}
-          </div>
-        ) : null}
-        {block.headerKind === 'section-named' && block.sectionId !== null ? (
-          <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
-            <div className="min-w-0 flex-1">
-              {sectionTitle(block.sectionId, block.title, Boolean(selectedListId) && selectedListId === block.listId)}
-            </div>
-            {sectionActions(block.sectionId, block.title)}
-          </div>
-        ) : (
-        <button
-          type="button"
-          className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
-            block.headerKind === 'list-only'
-              ? 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
-              : SECTION_HEADING_TEXT
-          }`}
-          onClick={() => {
-            if (selectedListId === block.listId) {
-              setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)
-            }
-          }}
-        >
-          {block.title}
-        </button>
-        )}
-        {block.tasks.map((t) => (
-          <div key={t.id}>
-            <TaskItem
+                    <button
+                      type="button"
+                      className={`min-w-0 flex-1 text-left truncate ${
+                        block.headerKind === 'list-only' ? 'text-xs font-semibold tracking-tight' : SECTION_HEADING_TEXT
+                      }`}
+                      onClick={() => {
+                        if (canQuickTarget && block.headerKind === 'section-none') setQuickAddSectionId('')
+                      }}
+                    >
+                      {block.title}
+                    </button>
+                  </div>
+                )}
+                {block.tasks.flatMap((t) => [
+                  <SortableTaskItem
+                    key={t.id}
+                    task={t}
+                    dragGroupRootIds={getDragGroupRootIds(t.id)}
+                    onRowClick={makeRowClick(t.id)}
+                    onEnterCreateSibling={handleEnterCreateSibling}
+                    selection={makeSelection(t.id)}
+                    autoEdit={pendingAutoEditTaskId === t.id}
+                    showNestGuide={t.id === previewParentId}
+                  />,
+                  ...DnDSubtreeRows({
+                    parentId: t.id,
+                    depth: 0,
+                    incompleteSubtasks,
+                    makeRowClick,
+                    makeSelection,
+                    onEnterCreateSibling: handleEnterCreateSibling,
+                    pendingAutoEditTaskId,
+                    subtaskNestWithDrag,
+                    nestPreviewParentId: previewParentId,
+                  }),
+                ])}
+                {block.headerKind !== 'list-only' ? (
+                  <SectionDropZone
+                    listId={block.listId}
+                    sectionId={block.sectionId}
+                    empty={block.headerKind === 'section-none' && block.tasks.length === 0}
+                  />
+                ) : null}
+              </div>
+            )
+          })
+        : active.flatMap((t) => [
+            <SortableTaskItem
+              key={t.id}
               task={t}
+              dragGroupRootIds={getDragGroupRootIds(t.id)}
               onRowClick={makeRowClick(t.id)}
               onEnterCreateSibling={handleEnterCreateSibling}
               selection={makeSelection(t.id)}
               autoEdit={pendingAutoEditTaskId === t.id}
-              dragGroupIds={getDragGroupRootIds(t.id)}
-            />
-            {StaticSubtreeRows({
+              showNestGuide={t.id === previewParentId}
+            />,
+            ...DnDSubtreeRows({
               parentId: t.id,
               depth: 0,
               incompleteSubtasks,
@@ -221,12 +155,73 @@ export function TaskListActiveContent({
               makeSelection,
               onEnterCreateSibling: handleEnterCreateSibling,
               pendingAutoEditTaskId,
-              subtaskNestNoDrag,
-            })}
-          </div>
-        ))}
-      </div>
-    ))
+              subtaskNestWithDrag,
+              nestPreviewParentId: previewParentId,
+            }),
+          ])}
+    </SortableContext>
+  ) : showSectionBlocks && sectionBlocks ? (
+    // 並べ替え中もセクションはそのまま。並び順は各セクションの中だけに効かせ、名前の変更・削除もできる。
+    // 空の「セクションなし」は手動のときのドロップ先なので、並べ替え中は出さない
+    sectionBlocks
+      .filter((block) => block.headerKind !== 'section-none' || block.tasks.length > 0)
+      .map((block) => (
+        <div
+          key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`}
+          data-section-anchor={block.sectionId ?? undefined}
+          className="relative scroll-mt-2 pt-3 first:pt-1"
+        >
+          {block.listTitle ? (
+            <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">{block.listTitle}</div>
+          ) : null}
+          {block.headerKind === 'section-named' && block.sectionId !== null ? (
+            <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+              <div className="min-w-0 flex-1">
+                {sectionTitle(block.sectionId, block.title, Boolean(selectedListId) && selectedListId === block.listId)}
+              </div>
+              {sectionActions(block.sectionId, block.title)}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`relative z-10 w-full text-left px-3 py-1.5 mb-0.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
+                block.headerKind === 'list-only'
+                  ? 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
+                  : SECTION_HEADING_TEXT
+              }`}
+              onClick={() => {
+                if (selectedListId === block.listId) {
+                  setQuickAddSectionId(block.sectionId === null ? '' : block.sectionId)
+                }
+              }}
+            >
+              {block.title}
+            </button>
+          )}
+          {block.tasks.map((t) => (
+            <div key={t.id}>
+              <TaskItem
+                task={t}
+                onRowClick={makeRowClick(t.id)}
+                onEnterCreateSibling={handleEnterCreateSibling}
+                selection={makeSelection(t.id)}
+                autoEdit={pendingAutoEditTaskId === t.id}
+                dragGroupIds={getDragGroupRootIds(t.id)}
+              />
+              {StaticSubtreeRows({
+                parentId: t.id,
+                depth: 0,
+                incompleteSubtasks,
+                makeRowClick,
+                makeSelection,
+                onEnterCreateSibling: handleEnterCreateSibling,
+                pendingAutoEditTaskId,
+                subtaskNestNoDrag,
+              })}
+            </div>
+          ))}
+        </div>
+      ))
   ) : (
     active.map((t) => (
       <div key={t.id}>

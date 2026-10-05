@@ -21,7 +21,11 @@ export function readDraggedTaskIds(dataTransfer: DataTransfer): string[] {
   const single = dataTransfer.getData(TASK_DND_TYPE)
   if (single) return [single]
   const text = dataTransfer.getData('text/plain')
-  if (text) return text.split(',').map((s) => s.trim()).filter(Boolean)
+  if (text)
+    return text
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
   return []
 }
 
@@ -36,7 +40,9 @@ export function useTaskNativeDragActive(): boolean {
     }
     // 落とし先の drop ハンドラより先に消すと、ドラッグ中だけ出した落とし先ごと外れて drop が届かない。
     // バブリングで拾い、さらに次のタスクへ回してから閉じる
-    const onEnd = () => { window.setTimeout(() => setActive(false), 0) }
+    const onEnd = () => {
+      window.setTimeout(() => setActive(false), 0)
+    }
     window.addEventListener('dragstart', onStart)
     window.addEventListener('dragend', onEnd)
     window.addEventListener('drop', onEnd)
@@ -56,7 +62,6 @@ export interface DropPreview {
   label: string
 }
 
-
 interface UseTimelineDropOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
   getTaskDuration?: (taskId: string) => number | null
@@ -68,24 +73,26 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null)
   const enterCountRef = useRef(0)
 
-
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes(TASK_DND_TYPE)) return
     enterCountRef.current++
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent, dateKey: string) => {
-    if (!acceptTaskDrag(e)) return
-    markTimelineDragOver(e.nativeEvent)
-    const y = getRelativeY(e.clientY, dateKey)
-    const startTime = yToTime(y)
-    const startMin = timeToMinutes(startTime)
-    const duration = DEFAULT_DURATION_MIN
-    const endMin = Math.min(startMin + duration, 24 * 60)
-    const actualDuration = endMin - startMin
-    const height = (actualDuration / 60) * HOUR_HEIGHT
-    setDropPreview({ dateKey, top: y, height, label: `${startTime} – ${minutesToTime(endMin)}` })
-  }, [getRelativeY])
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, dateKey: string) => {
+      if (!acceptTaskDrag(e)) return
+      markTimelineDragOver(e.nativeEvent)
+      const y = getRelativeY(e.clientY, dateKey)
+      const startTime = yToTime(y)
+      const startMin = timeToMinutes(startTime)
+      const duration = DEFAULT_DURATION_MIN
+      const endMin = Math.min(startMin + duration, 24 * 60)
+      const actualDuration = endMin - startMin
+      const height = (actualDuration / 60) * HOUR_HEIGHT
+      setDropPreview({ dateKey, top: y, height, label: `${startTime} – ${minutesToTime(endMin)}` })
+    },
+    [getRelativeY],
+  )
 
   const handleDragLeave = useCallback(() => {
     enterCountRef.current--
@@ -95,25 +102,31 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
     }
   }, [])
 
-  const handleDropEvent = useCallback((e: React.DragEvent, dateKey: string) => {
-    e.preventDefault()
-    enterCountRef.current = 0
-    const taskIds = readDraggedTaskIds(e.dataTransfer)
-    if (!taskIds.length) { setDropPreview(null); return }
-    const y = getRelativeY(e.clientY, dateKey)
-    // 複数選択時はドロップ位置から順に重ならないよう積み上げて配置する
-    let cursorMin = timeToMinutes(yToTime(y))
-    for (const taskId of taskIds) {
-      const raw = getTaskDuration?.(taskId) ?? DEFAULT_DURATION_MIN
-      const duration = raw > 0 ? raw : DEFAULT_DURATION_MIN
-      const startMin = Math.min(cursorMin, 24 * 60 - duration)
-      const clampedStart = Math.max(0, startMin)
-      const endMin = Math.min(clampedStart + duration, 24 * 60)
-      onDrop(taskId, dateKey, minutesToTime(clampedStart), minutesToTime(endMin))
-      cursorMin = endMin
-    }
-    setDropPreview(null)
-  }, [getRelativeY, getTaskDuration, onDrop])
+  const handleDropEvent = useCallback(
+    (e: React.DragEvent, dateKey: string) => {
+      e.preventDefault()
+      enterCountRef.current = 0
+      const taskIds = readDraggedTaskIds(e.dataTransfer)
+      if (!taskIds.length) {
+        setDropPreview(null)
+        return
+      }
+      const y = getRelativeY(e.clientY, dateKey)
+      // 複数選択時はドロップ位置から順に重ならないよう積み上げて配置する
+      let cursorMin = timeToMinutes(yToTime(y))
+      for (const taskId of taskIds) {
+        const raw = getTaskDuration?.(taskId) ?? DEFAULT_DURATION_MIN
+        const duration = raw > 0 ? raw : DEFAULT_DURATION_MIN
+        const startMin = Math.min(cursorMin, 24 * 60 - duration)
+        const clampedStart = Math.max(0, startMin)
+        const endMin = Math.min(clampedStart + duration, 24 * 60)
+        onDrop(taskId, dateKey, minutesToTime(clampedStart), minutesToTime(endMin))
+        cursorMin = endMin
+      }
+      setDropPreview(null)
+    },
+    [getRelativeY, getTaskDuration, onDrop],
+  )
 
   return {
     dropPreview,

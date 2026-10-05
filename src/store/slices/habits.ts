@@ -9,13 +9,7 @@ import type { SliceContext } from './sliceTypes'
 
 type HabitsActions = Pick<
   TaskState,
-  | 'addHabit'
-  | 'updateHabit'
-  | 'deleteHabit'
-  | 'archiveHabit'
-  | 'restoreHabit'
-  | 'toggleHabitDate'
-  | 'completeHabitAsPlanned'
+  'addHabit' | 'updateHabit' | 'deleteHabit' | 'archiveHabit' | 'restoreHabit' | 'toggleHabitDate' | 'completeHabitAsPlanned'
 >
 
 export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActions {
@@ -42,9 +36,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     updateHabit: (id, patch) => {
       pushUndo()
       return set((s) => ({
-        habits: s.habits.map((h) =>
-          h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h,
-        ),
+        habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h)),
       }))
     },
     deleteHabit: (id) => {
@@ -85,12 +77,14 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       // 記録を作ったときは、どのラベルで残したかを出す（習慣の色＝ラベルなので、黙って付くと気付けない）
       const record = 'tasks' in patch ? patch.tasks[patch.tasks.length - 1] : undefined
       const name = get().habits.find((h) => h.id === habitId)?.title ?? ''
-      pushUndo(record
-        ? {
-            key: record.category ? 'undo.habitRecordedLabel' : 'undo.habitRecorded',
-            params: { name, label: record.category ?? '' },
-          }
-        : undefined)
+      pushUndo(
+        record
+          ? {
+              key: record.category ? 'undo.habitRecordedLabel' : 'undo.habitRecorded',
+              params: { name, label: record.category ?? '' },
+            }
+          : undefined,
+      )
       set(patch)
     },
   }

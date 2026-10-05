@@ -60,9 +60,7 @@ export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
           updateNestPreview(null)
           return
         }
-        const taskId = id.startsWith(SUBTASK_PREFIX)
-          ? parseSubtaskDragId(id)
-          : id.slice(TASK_PREFIX.length)
+        const taskId = id.startsWith(SUBTASK_PREFIX) ? parseSubtaskDragId(id) : id.slice(TASK_PREFIX.length)
         if (!taskId || !isIndentIntent(delta)) {
           updateNestPreview(null)
           return

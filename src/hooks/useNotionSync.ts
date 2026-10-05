@@ -109,16 +109,12 @@ export function useNotionSync() {
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
           const cols = paletteColors(s.listColorPaletteId)
-          const result = reconcileNotionPages(
-            { lists: s.lists, tasks: s.tasks },
-            res,
-            {
-              now: new Date().toISOString(),
-              listColor: cols[s.lists.length % cols.length],
-              titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
-              pulled: loadPulled(notionPulledKey(userId)),
-            },
-          )
+          const result = reconcileNotionPages({ lists: s.lists, tasks: s.tasks }, res, {
+            now: new Date().toISOString(),
+            listColor: cols[s.lists.length % cols.length],
+            titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
+            pulled: loadPulled(notionPulledKey(userId)),
+          })
           savePulled(notionPulledKey(userId), result.pulled)
           result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
           if (result.changed) asIncomingChange(() => useTaskStore.setState({ lists: result.lists, tasks: result.tasks }))

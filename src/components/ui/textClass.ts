@@ -26,3 +26,9 @@ export const ERROR_TEXT = 'text-xs text-red-600 dark:text-red-400'
 
 /** 連携の設定などの「1. 2. 3.」の手順。文字は HINT_TEXT */
 export const STEPS_LIST_CLASS = `list-decimal space-y-1 pl-5 ${HINT_TEXT}`
+
+/**
+ * 日本語の文を語の途中で折り返さない（「比べ／られます」のように切れない）。折り返してよい所は文言に \u200b を入れておく。
+ * 入りきらない長い語だけは、はみ出さないよう途中でも折り返す
+ */
+export const PHRASE_WRAP = '[word-break:keep-all] [overflow-wrap:anywhere]'

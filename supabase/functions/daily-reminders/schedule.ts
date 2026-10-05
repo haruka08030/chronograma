@@ -123,7 +123,11 @@ export function defaultReminders(t: ReminderTask, s: ReminderSettings): TaskRemi
 /** 基準が無い通知（開始時刻の無いタスクの「開始 10 分前」など）は外す */
 export function applicableReminders(t: ReminderTask, list: readonly TaskReminder[]): TaskReminder[] {
   return list.filter((r) =>
-    r.at === 'start' ? Boolean(planDate(t)) : r.at === 'due' ? Boolean(t.due_date && minutesOfClock(t.due_time) != null) : Boolean(t.due_date),
+    r.at === 'start'
+      ? Boolean(planDate(t))
+      : r.at === 'due'
+        ? Boolean(t.due_date && minutesOfClock(t.due_time) != null)
+        : Boolean(t.due_date),
   )
 }
 
@@ -163,12 +167,7 @@ export function planEndMs(t: ReminderTask): number | null {
  * `(fromMs, toMs]` に鳴る通知。開始前・締切前・予定のあとの記録の確認。
  * 呼び出し側で、完了・削除・アーカイブ済み、サブタスク、いつか / チェックリストのリストを除いておく。
  */
-export function remindersInWindow(
-  tasks: readonly ReminderTask[],
-  s: ReminderSettings,
-  fromMs: number,
-  toMs: number,
-): FiredReminder[] {
+export function remindersInWindow(tasks: readonly ReminderTask[], s: ReminderSettings, fromMs: number, toMs: number): FiredReminder[] {
   const out: FiredReminder[] = []
   const inWindow = (ms: number | null): ms is number => ms != null && ms > fromMs && ms <= toMs
   for (const t of tasks) {

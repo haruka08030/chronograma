@@ -45,7 +45,13 @@ export type ActionSub = {
 
 export type ActionEntry = ({ kind: 'leaf' } & ActionLeaf) | ({ kind: 'sub' } & ActionSub)
 
-function LeafRow({ leaf, active, onHover, onRun, withGroup = false }: {
+function LeafRow({
+  leaf,
+  active,
+  onHover,
+  onRun,
+  withGroup = false,
+}: {
   leaf: ActionLeaf
   active: boolean
   onHover: () => void
@@ -53,7 +59,16 @@ function LeafRow({ leaf, active, onHover, onRun, withGroup = false }: {
   withGroup?: boolean
 }) {
   return (
-    <MenuItem icon={leaf.icon} hint={leaf.hint} keys={leaf.keys} checked={leaf.checked} danger={leaf.danger} active={active} onMouseEnter={onHover} onClick={onRun}>
+    <MenuItem
+      icon={leaf.icon}
+      hint={leaf.hint}
+      keys={leaf.keys}
+      checked={leaf.checked}
+      danger={leaf.danger}
+      active={active}
+      onMouseEnter={onHover}
+      onClick={onRun}
+    >
       {withGroup && leaf.group && <span className="text-zinc-400 dark:text-zinc-500">{leaf.group} › </span>}
       {leaf.label}
     </MenuItem>
@@ -291,7 +306,14 @@ export function ActionMenu({
           results.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
               {results.map((leaf, i) => (
-                <LeafRow key={leaf.id} leaf={leaf} active={i === activeIndex} onHover={() => setActive(i)} onRun={() => runLeaf(leaf)} withGroup />
+                <LeafRow
+                  key={leaf.id}
+                  leaf={leaf}
+                  active={i === activeIndex}
+                  onHover={() => setActive(i)}
+                  onRun={() => runLeaf(leaf)}
+                  withGroup
+                />
               ))}
             </div>
           ) : (

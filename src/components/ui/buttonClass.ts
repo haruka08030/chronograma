@@ -17,11 +17,9 @@ const BASE =
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-accent-600 text-on-accent hover:bg-accent-700',
-  secondary:
-    'border border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
+  secondary: 'border border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
   ghost: 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
-  danger:
-    'border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10',
+  danger: 'border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10',
   link: 'text-accent-600 hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10',
 }
 

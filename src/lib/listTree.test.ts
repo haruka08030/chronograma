@@ -6,11 +6,29 @@ import { TASK_DEFAULTS } from './taskDefaults'
 const NOW = '2026-10-03T10:00:00.000Z'
 const task = (id: string, parentId: string | null = null, completed = false): Task => ({
   ...TASK_DEFAULTS,
-  id, title: id, description: '', completed, completedAt: completed ? NOW : null, createdAt: NOW, updatedAt: NOW,
-  order: 0, listId: 'shop', sectionId: null, parentId, dueDate: null, startTime: null, endTime: null,
-  priority: 'none', tags: [], recurrence: null,
+  id,
+  title: id,
+  description: '',
+  completed,
+  completedAt: completed ? NOW : null,
+  createdAt: NOW,
+  updatedAt: NOW,
+  order: 0,
+  listId: 'shop',
+  sectionId: null,
+  parentId,
+  dueDate: null,
+  startTime: null,
+  endTime: null,
+  priority: 'none',
+  tags: [],
+  recurrence: null,
 })
-const done = (tasks: Task[] | null) => (tasks ?? []).filter((t) => t.completed).map((t) => t.id).sort()
+const done = (tasks: Task[] | null) =>
+  (tasks ?? [])
+    .filter((t) => t.completed)
+    .map((t) => t.id)
+    .sort()
 
 describe('toggleChecklistTree', () => {
   const curry = () => [task('curry'), task('onion', 'curry'), task('carrot', 'curry')]

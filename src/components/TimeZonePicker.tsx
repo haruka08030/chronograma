@@ -75,7 +75,8 @@ export function TimeZonePicker({
       const below = window.innerHeight - rect.bottom - 8
       const above = rect.top - 8
       // 下に入らなければ上に開く（スマホの下から出るカードの中など）
-      const top = below >= LIST_HEIGHT + 48 || below >= above ? rect.bottom + 4 : Math.max(8, rect.top - 4 - Math.min(above, LIST_HEIGHT + 48))
+      const top =
+        below >= LIST_HEIGHT + 48 || below >= above ? rect.bottom + 4 : Math.max(8, rect.top - 4 - Math.min(above, LIST_HEIGHT + 48))
       setPos({ left, top, maxHeight: Math.max(160, Math.min(LIST_HEIGHT, (top > rect.top ? below : above) - 48)) })
     }
     setOpen(true)
@@ -84,7 +85,10 @@ export function TimeZonePicker({
   // 開いたら今の値を見える位置に
   useLayoutEffect(() => {
     if (!open) return
-    const i = Math.max(0, filtered.findIndex((r) => r.tz === value))
+    const i = Math.max(
+      0,
+      filtered.findIndex((r) => r.tz === value),
+    )
     setHighlight(query ? 0 : i)
     inputRef.current?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 開いたときと絞り込みが変わったときだけ
@@ -120,7 +124,7 @@ export function TimeZonePicker({
           onClick={toggle}
           className={fieldClass({ size: 'sm', active: open }, 'max-w-[16rem] truncate text-left')}
         >
-          {value ? zoneOptionLabel(value, locale) : nullOption ?? zoneCityName('UTC')}
+          {value ? zoneOptionLabel(value, locale) : (nullOption ?? zoneCityName('UTC'))}
         </button>
       )}
       {open && pos && (

@@ -22,7 +22,12 @@ describe('decodeJwtPayload', () => {
 
 describe('signedInAt', () => {
   it('amr のいちばん新しい時刻（秒）を使う', () => {
-    const payload = { amr: [{ method: 'oauth', timestamp: 1000 }, { method: 'otp', timestamp: 2000 }] }
+    const payload = {
+      amr: [
+        { method: 'oauth', timestamp: 1000 },
+        { method: 'otp', timestamp: 2000 },
+      ],
+    }
     expect(signedInAt(payload, '2020-01-01T00:00:00Z')).toBe(2_000_000)
   })
 

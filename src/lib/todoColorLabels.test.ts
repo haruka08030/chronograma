@@ -128,12 +128,19 @@ describe('colorLabelEditRows（ナビの色ラベルのカード）', () => {
   })
 
   it('名前を空にしても元の名前のまま（消すのは削除だけ）', () => {
-    expect(colorLabelEditRows('#33B679', { name: ' ', hex: '#33B679' }, presets, colors)[0]).toEqual({ from: '勉強', name: '勉強', color: 'sage' })
+    expect(colorLabelEditRows('#33B679', { name: ' ', hex: '#33B679' }, presets, colors)[0]).toEqual({
+      from: '勉強',
+      name: '勉強',
+      color: 'sage',
+    })
   })
 
   it('名前の無い色に名前を書くと、その色のラベルを作る', () => {
     expect(colorLabelEditRows('#039BE5', { name: '読書', hex: '#039BE5' }, presets, colors).at(-1)).toEqual({
-      from: null, name: '読書', color: 'peacock', fromHex: '#039BE5',
+      from: null,
+      name: '読書',
+      color: 'peacock',
+      fromHex: '#039BE5',
     })
   })
 

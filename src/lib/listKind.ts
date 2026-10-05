@@ -15,11 +15,7 @@ export function isPlannableTask(task: Pick<Task, 'listId'>, excluded: ReadonlySe
 }
 
 /** クイック追加の `@名前` からリストを探す（大文字小文字・全角半角の空白は無視。未分類は表示名でも一致） */
-export function findListByName(
-  lists: readonly TaskList[],
-  name: string,
-  displayName: (list: TaskList) => string,
-): TaskList | null {
+export function findListByName(lists: readonly TaskList[], name: string, displayName: (list: TaskList) => string): TaskList | null {
   const key = name.normalize('NFKC').trim().toLowerCase()
   if (!key) return null
   const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()

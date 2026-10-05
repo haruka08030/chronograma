@@ -50,5 +50,5 @@ One connection per school; `connectionId` is the Canvas hostname (`xxx.instructu
 | `disconnect` | `{ "connectionId": "…" }` | `{ connections }` |
 
 `done` is true when the item is submitted, excused, graded, or marked complete in Canvas.
-Errors come back as `{ ok: false, code }` with `code` one of `canvas_unauthorized`, `canvas_bad_url`, `canvas_feed_invalid`, `canvas_rate_limited`, `canvas_api`.
+Errors come back as `{ ok: false, code, error }` with a non-2xx status (400 for bad input or a malformed JSON body, 401 when not signed in, 429 when rate limited, 502 when the Canvas site rejects or fails, 500 for server errors) with `code` one of `canvas_unauthorized`, `canvas_bad_url`, `canvas_feed_invalid`, `canvas_rate_limited`, `canvas_api`.
 Only `https` hostnames are accepted as the Canvas URL, and the token is never sent to any other host (including pagination links).

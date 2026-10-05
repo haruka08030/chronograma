@@ -23,7 +23,6 @@ export interface TimerRecordTimes {
   endTime: string
 }
 
-
 /**
  * 開始・終了から記録の日付と時刻を作る。
  * 記録として短すぎる / 終了が開始より前 / 日付が壊れている場合は null。

@@ -164,9 +164,7 @@ export function WeekAllDayRow({
                   <span className="truncate">{t.title}</span>
                 </div>
               ))}
-              {allDayAddDate === key && (
-                <CalendarInlineTaskAdd dateKey={key} onDone={() => setAllDayAddDate(null)} />
-              )}
+              {allDayAddDate === key && <CalendarInlineTaskAdd dateKey={key} onDone={() => setAllDayAddDate(null)} />}
             </div>
           )
         })}

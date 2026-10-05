@@ -29,15 +29,20 @@ export function parseBaseUrl(input: string): string | null {
 }
 
 function isPrivateV4(a: number, b: number, c: number): boolean {
-  return a === 0 || a === 10 || a === 127 ||
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
     (a === 100 && b >= 64 && b <= 127) || // CGNAT
     (a === 169 && b === 254) || // リンクローカル（クラウドのメタデータ）
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
     (a === 192 && b === 0 && (c === 0 || c === 2)) ||
     (a === 198 && (b === 18 || b === 19)) || // ベンチマーク用
-    (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) || // 文書用
-    a >= 224 // マルチキャスト・予約
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) || // 文書用
+    a >= 224
+  ) // マルチキャスト・予約
 }
 
 /** IPv6 を 8 つの 16 ビットの数に広げる。形が違えば null */
@@ -78,9 +83,11 @@ export function isPrivateAddress(ip: string): boolean {
   if (w[0] === 0x64 && w[1] === 0xff9b && w.slice(2, 6).every((x) => x === 0)) return embeddedV4()
   // 2002:aabb:ccdd::（6to4。中の IPv4 で決める）
   if (w[0] === 0x2002) return isPrivateV4(w[1] >> 8, w[1] & 255, w[2] >> 8)
-  return (w[0] & 0xfe00) === 0xfc00 || // ユニークローカル fc00::/7
+  return (
+    (w[0] & 0xfe00) === 0xfc00 || // ユニークローカル fc00::/7
     (w[0] & 0xffc0) === 0xfe80 || // リンクローカル fe80::/10
     (w[0] & 0xffc0) === 0xfec0 || // サイトローカル（廃止）
     (w[0] & 0xff00) === 0xff00 || // マルチキャスト
-    (w[0] === 0x2001 && w[1] === 0x0db8) // 文書用
+    (w[0] === 0x2001 && w[1] === 0x0db8)
+  ) // 文書用
 }

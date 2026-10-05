@@ -2,7 +2,7 @@ import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import i18n from './i18n/config'
@@ -33,22 +33,16 @@ import {
   parseSectionDropId,
   SECTION_DROP_PREFIX,
 } from './lib/mainListTasks'
-import {
-  DRAGSEC_PREFIX,
-  DROPSEC_PREFIX,
-  parseSectionReorderId,
-} from './lib/sectionReorderDnD'
-import {
-  SUBTASK_PREFIX,
-  parseSubtaskDragId,
-} from './lib/subtaskDnD'
+import { DRAGSEC_PREFIX, DROPSEC_PREFIX, parseSectionReorderId } from './lib/sectionReorderDnD'
+import { SUBTASK_PREFIX, parseSubtaskDragId } from './lib/subtaskDnD'
 import { shortcutLabel } from './lib/keyboard'
 import { TooltipHost } from './components/ui/Tooltip'
 import { OverlayHost } from './components/OverlayHost'
 import { SHORTCUTS, dispatchNav, dispatchSelectAll } from './lib/shortcuts'
 import { useHotkey } from './hooks/useHotkey'
 import { isTodoNavView, isTodoSurfaceView, sortKeyOf, sortModeOf } from './lib/todoSurfaceView'
-import { useIsLargeScreen } from './hooks/useMediaQuery'
+import { useIsDesktop, useIsLargeScreen } from './hooks/useMediaQuery'
+import { useSwipeNav } from './hooks/useSwipeNav'
 import { canNestUnder } from './lib/taskDepth'
 import { isIndentIntent, isOutdentIntent } from './lib/taskDragIntent'
 import {
@@ -75,7 +69,6 @@ const SettingsView = lazy(() => import('./components/SettingsView').then((m) => 
 const TaskList = lazy(() => import('./components/TaskList').then((m) => ({ default: m.TaskList })))
 const SearchResults = lazy(() => import('./components/SearchResults').then((m) => ({ default: m.SearchResults })))
 const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })))
-import type { Task } from './types/task'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
 import { CloseIcon } from './components/icons'
@@ -144,8 +137,11 @@ function rankForListReorderDrag(id: string): number {
 /** 離したときの動き。速さと動き方は他の出入りと同じ（index.css の --ease-standard） */
 const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
 
-function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask: boolean; count: number }) {
+/** つかんでいる行。そのタスクだけを購読する（App 全体を tasks の変化で描き直さない） */
+function DragOverlayTaskRow({ taskId, isSubtask, count }: { taskId: string; isSubtask: boolean; count: number }) {
   const { t } = useTranslation()
+  const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId))
+  if (!task) return null
   const isMulti = count > 1
   return (
     // 少しだけ大きくして、持ち上げている感じを出す
@@ -168,6 +164,9 @@ function DragOverlayTaskRow({ task, isSubtask, count }: { task: Task; isSubtask:
   )
 }
 
+/** 画面上端の帯の色（`index.html` の theme-color と同じ。ダークは本文の背景 zinc-900） */
+const THEME_COLOR = { light: '#ffffff', dark: '#18181b' } as const
+
 export default function App() {
   const { t } = useTranslation()
   // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
@@ -178,15 +177,18 @@ export default function App() {
 
   const theme = useTaskStore((s) => s.theme)
   const selectedView = useTaskStore((s) => s.selectedView)
-  const tasks = useTaskStore((s) => s.tasks)
   const searchQuery = useTaskStore((s) => s.searchQuery)
-  const selectedList = useTaskStore((s) => (s.selectedListId ? s.lists.find((l) => l.id === s.selectedListId) ?? null : null))
+  const selectedList = useTaskStore((s) => (s.selectedListId ? (s.lists.find((l) => l.id === s.selectedListId) ?? null) : null))
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const isDesktop = useIsDesktop()
+  /** タスク・リストをドラッグしている間（横に動かしてもドロワーを出さない） */
+  const dragActiveRef = useRef(false)
+  const mainRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -196,12 +198,15 @@ export default function App() {
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    dragActiveRef.current = true
     const activeId = String(event.active.id)
     const group = (event.active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
     const count = group && group.length > 1 ? group.length : 1
     const draggedId = activeId.startsWith(TASK_PREFIX)
       ? activeId.slice(TASK_PREFIX.length)
-      : activeId.startsWith(SUBTASK_PREFIX) ? parseSubtaskDragId(activeId) : null
+      : activeId.startsWith(SUBTASK_PREFIX)
+        ? parseSubtaskDragId(activeId)
+        : null
     if (draggedId && canStartTimerFor(useTaskStore.getState().tasks.find((t) => t.id === draggedId))) {
       setTimerDragActive(true)
     }
@@ -218,11 +223,13 @@ export default function App() {
   }, [])
 
   const handleDragCancel = useCallback(() => {
+    dragActiveRef.current = false
     setDragOverlayTask(null)
     setTimerDragActive(false)
   }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    dragActiveRef.current = false
     setDragOverlayTask(null)
     setTimerDragActive(false)
     const { active, over } = event
@@ -232,7 +239,9 @@ export default function App() {
     if (over?.id === TIMER_DROP_ID) {
       const taskId = activeId.startsWith(SUBTASK_PREFIX)
         ? parseSubtaskDragId(activeId)
-        : activeId.startsWith(TASK_PREFIX) ? activeId.slice(TASK_PREFIX.length) : null
+        : activeId.startsWith(TASK_PREFIX)
+          ? activeId.slice(TASK_PREFIX.length)
+          : null
       if (taskId) startTimerForTask(taskId)
       return
     }
@@ -242,9 +251,7 @@ export default function App() {
     if (activeId.startsWith(TASK_PREFIX) || activeId.startsWith(SUBTASK_PREFIX)) {
       const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
       const isMultiGroup = !!group && group.length > 1
-      const movedId = activeId.startsWith(SUBTASK_PREFIX)
-        ? parseSubtaskDragId(activeId)
-        : activeId.slice(TASK_PREFIX.length)
+      const movedId = activeId.startsWith(SUBTASK_PREFIX) ? parseSubtaskDragId(activeId) : activeId.slice(TASK_PREFIX.length)
       if (movedId && !isMultiGroup) {
         const state = useTaskStore.getState()
 
@@ -256,9 +263,7 @@ export default function App() {
         // 左ドラッグ = 1 段上げる（サブタスクのみ）
         if (isOutdentIntent(event.delta) && activeId.startsWith(SUBTASK_PREFIX)) {
           const moved = state.tasks.find((t) => t.id === movedId)
-          const parent = moved?.parentId
-            ? state.tasks.find((t) => t.id === moved.parentId)
-            : null
+          const parent = moved?.parentId ? state.tasks.find((t) => t.id === moved.parentId) : null
           if (moved?.parentId && parent) {
             if (parent.parentId != null) {
               // 親もサブタスク → 祖父母の直下（旧親の直後）へ
@@ -267,7 +272,7 @@ export default function App() {
                 .sort((a, b) => a.order - b.order)
                 .map((t) => t.id)
               const parentIdx = gpChildren.indexOf(parent.id)
-              const insertBefore = parentIdx >= 0 ? gpChildren[parentIdx + 1] ?? null : null
+              const insertBefore = parentIdx >= 0 ? (gpChildren[parentIdx + 1] ?? null) : null
               state.moveSubtaskInList(movedId, parent.parentId, insertBefore)
             } else {
               // 親がルート → ルートへ昇格
@@ -339,14 +344,11 @@ export default function App() {
       state.nestRootUnderParent(taskId, fallbackParentId, overTaskId)
     } else if (
       activeId.startsWith(TASK_PREFIX) &&
-      (overId.startsWith(TASK_PREFIX) ||
-        parseSectionDropId(overId) ||
-        parseSectionReorderId(overId, DROPSEC_PREFIX))
+      (overId.startsWith(TASK_PREFIX) || parseSectionDropId(overId) || parseSectionReorderId(overId, DROPSEC_PREFIX))
     ) {
       const state = useTaskStore.getState()
       const taskId = activeId.slice(TASK_PREFIX.length)
-      const group =
-        (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
 
       const currentOrdered = getOrderedActiveRootTasksForDnD({
         tasks: state.tasks,
@@ -359,21 +361,13 @@ export default function App() {
         listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
         excludedListIds: unplannedListIds(state.lists),
       })
-      const built = buildReorderedActiveRootIdsForGroup(
-        currentOrdered,
-        taskId,
-        overId,
-        group,
-        state.sections,
-        state.selectedListId,
-      )
+      const built = buildReorderedActiveRootIdsForGroup(currentOrdered, taskId, overId, group, state.sections, state.selectedListId)
       if (built) {
         state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
       }
     } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(LABEL_DROP_PREFIX)) {
       const taskId = activeId.slice(TASK_PREFIX.length)
-      const group =
-        (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+      const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
       labelDroppedTasks(group, overId.slice(LABEL_DROP_PREFIX.length))
     } else if (activeId.startsWith(TASK_PREFIX)) {
       // サイドバー行は useSortable が list:: を、別途 useDroppable が drop:: を同じノードに登録する。
@@ -384,8 +378,7 @@ export default function App() {
       else if (overId.startsWith(LIST_PREFIX)) listId = overId.slice(LIST_PREFIX.length)
       if (listId) {
         const taskId = activeId.slice(TASK_PREFIX.length)
-        const group =
-          (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+        const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
         moveDroppedTasks(group, listId)
       }
     } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
@@ -404,8 +397,14 @@ export default function App() {
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)')
-    const apply = () =>
-      document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media?.matches === true))
+    const apply = () => {
+      const dark = theme === 'dark' || (theme === 'system' && media?.matches === true)
+      document.documentElement.classList.toggle('dark', dark)
+      // 画面上端の帯（ステータスバー・ブラウザの帯）も端末ではなくアプリのテーマに合わせ、背景と同じ色にする
+      for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+        meta.content = dark ? THEME_COLOR.dark : THEME_COLOR.light
+      }
+    }
     apply()
     if (theme !== 'system' || !media) return
     media.addEventListener('change', apply)
@@ -439,7 +438,10 @@ export default function App() {
   })
   useHotkey(SHORTCUTS.search.hotkeys, () => {
     if (!searchRef.current) useTaskStore.getState().selectView('all')
-    whenElement(() => searchRef.current, (el) => el.focus())
+    whenElement(
+      () => searchRef.current,
+      (el) => el.focus(),
+    )
   })
   useHotkey(SHORTCUTS.help.hotkeys, () => setShowShortcuts(true))
 
@@ -467,38 +469,57 @@ export default function App() {
   }
 
   // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
-  useHotkey(SHORTCUTS.searchAnywhere.hotkeys, () => {
-    // `/` と同じ: 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから入る
-    if (!searchRef.current) useTaskStore.getState().selectView('all')
-    whenElement(() => searchRef.current, (el) => el.focus())
-  }, { scope: 'always', allowInInputs: true })
-  useHotkey(SHORTCUTS.createAnywhere.hotkeys, () => {
-    const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
-    if (quickAdd instanceof HTMLInputElement) {
-      quickAdd.focus()
-    } else if (quickAdd) {
-      quickAdd.click()
-    } else {
-      useTaskStore.getState().requestQuickAdd()
-    }
-  }, { scope: 'always', allowInInputs: true })
-  useHotkey(SHORTCUTS.selectAll.hotkeys, () => {
-    // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
-    // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
-    if (dispatchSelectAll()) return
-    const anchor = window.getSelection()?.anchorNode
-    const box = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('.select-text')
-    if (box) window.getSelection()?.selectAllChildren(box)
-  }, { scope: 'always' })
+  useHotkey(
+    SHORTCUTS.searchAnywhere.hotkeys,
+    () => {
+      // `/` と同じ: 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから入る
+      if (!searchRef.current) useTaskStore.getState().selectView('all')
+      whenElement(
+        () => searchRef.current,
+        (el) => el.focus(),
+      )
+    },
+    { scope: 'always', allowInInputs: true },
+  )
+  useHotkey(
+    SHORTCUTS.createAnywhere.hotkeys,
+    () => {
+      const quickAdd = document.querySelector<HTMLElement>('[data-quickadd]')
+      if (quickAdd instanceof HTMLInputElement) {
+        quickAdd.focus()
+      } else if (quickAdd) {
+        quickAdd.click()
+      } else {
+        useTaskStore.getState().requestQuickAdd()
+      }
+    },
+    { scope: 'always', allowInInputs: true },
+  )
+  useHotkey(
+    SHORTCUTS.selectAll.hotkeys,
+    () => {
+      // To-Do 一覧ならタスクを全選択。それ以外は、メモなど選べる文字の中にいるときだけその中を全選択し、
+      // 画面全体（ボタンや見出しまで）が青くなるブラウザ標準の全選択はしない
+      if (dispatchSelectAll()) return
+      const anchor = window.getSelection()?.anchorNode
+      const box = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('.select-text')
+      if (box) window.getSelection()?.selectAllChildren(box)
+    },
+    { scope: 'always' },
+  )
   // 入力中はブラウザのテキスト取り消しを優先する（allowInInputs なし）。戻すものが無ければブラウザに任せる
-  useHotkey(SHORTCUTS.undo.hotkeys, () => {
-    const state = useTaskStore.getState()
-    // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
-    if (state.googleUndo && undoGoogleDelete()) return
-    if (state.undoLastOperation()) return
-    if (state.recentDeletes.length === 0) return false
-    state.undoDelete()
-  }, { scope: 'always' })
+  useHotkey(
+    SHORTCUTS.undo.hotkeys,
+    () => {
+      const state = useTaskStore.getState()
+      // 消したばかりの Google の予定は、トーストと同じくそれを先に戻す
+      if (state.googleUndo && undoGoogleDelete()) return
+      if (state.undoLastOperation()) return
+      if (state.recentDeletes.length === 0) return false
+      state.undoDelete()
+    },
+    { scope: 'always' },
+  )
   useHotkey(SHORTCUTS.redo.hotkeys, () => useTaskStore.getState().redoLastOperation(), { scope: 'always' })
   // 記録を止める（l → Enter で間違えて始めたときも、マウスに持ち替えずに止められる。1 分未満は記録に残らない）
   useHotkey(SHORTCUTS.stopLog.hotkeys, () => {
@@ -558,27 +579,43 @@ export default function App() {
   // 細い To‑Do パネルは lg 以上のみ。それ未満は置く幅がないのでサイドバー内に畳み込む
   const showTodoNavPanel = isLargeScreen && isTodoNavView(selectedView)
 
+  // スマホの To-Do は、画面のどこからでも右へ払うとドロワー（リスト）が出る。
+  // 画面の左端からは OS・ブラウザの「戻る」が先に取るので、端に頼らない
+  useSwipeNav(
+    mainRef,
+    !isDesktop && isTodoSurface && !searchQuery.trim()
+      ? (dir) => {
+          if (dir === -1) setSidebarOpen(true)
+        }
+      : undefined,
+    () => dragActiveRef.current,
+    { follow: false },
+  )
+
   const mainContent = (() => {
     if (searchQuery.trim()) return <SearchResults />
     switch (selectedView) {
-      case 'planner': return <TodayPlannerView />
-      case 'calendar': return <CalendarHubView />
-      case 'stats': return <StatsView />
-      case 'habits': return <HabitsView />
-      case 'completed': return <CompletedTasksView />
-      case 'archived': return <TaskBinView mode="archived" />
-      case 'deleted': return <TaskBinView mode="deleted" />
-      case 'settings': return <SettingsView />
+      case 'planner':
+        return <TodayPlannerView />
+      case 'calendar':
+        return <CalendarHubView />
+      case 'stats':
+        return <StatsView />
+      case 'habits':
+        return <HabitsView />
+      case 'completed':
+        return <CompletedTasksView />
+      case 'archived':
+        return <TaskBinView mode="archived" />
+      case 'deleted':
+        return <TaskBinView mode="deleted" />
+      case 'settings':
+        return <SettingsView />
       default:
         // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
-        return <TaskList />
+        return <TaskList onOpenNav={() => setSidebarOpen(true)} />
     }
   })()
-
-  const dragOverlayTaskEntity = useMemo(
-    () => (dragOverlayTask ? tasks.find((task) => task.id === dragOverlayTask.taskId) ?? null : null),
-    [dragOverlayTask, tasks],
-  )
 
   return (
     <DndContext
@@ -593,10 +630,12 @@ export default function App() {
 
         {showTodoNavPanel ? <TodoNavPanel /> : null}
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <div
+          ref={mainRef}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0"
+        >
           {!hideGlobalHeader && (
             <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
-
               <div className="relative min-w-0 flex-1 max-w-2xl">
                 <svg
                   className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
@@ -605,14 +644,20 @@ export default function App() {
                   stroke="currentColor"
                   strokeWidth={1.75}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                  />
                 </svg>
                 <input
                   ref={searchRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={onSearchKeyDown}
-                  placeholder={isLargeScreen ? t('app.searchPlaceholder', { key: shortcutLabel(['mod', 'K']) }) : t('app.searchPlaceholderTouch')}
+                  placeholder={
+                    isLargeScreen ? t('app.searchPlaceholder', { key: shortcutLabel(['mod', 'K']) }) : t('app.searchPlaceholderTouch')
+                  }
                   className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
                 />
                 {searchQuery && (
@@ -639,7 +684,7 @@ export default function App() {
               }}
             >
               {/* 画面を切り替えたら、空白から急に変わらずふわっと出す（リストを替えただけでは作り直さない） */}
-              <div key={searchQuery.trim() ? 'search' : selectedView ?? 'list'} className="flex min-h-0 flex-1 flex-col animate-fade-in">
+              <div key={searchQuery.trim() ? 'search' : (selectedView ?? 'list')} className="flex min-h-0 flex-1 flex-col animate-fade-in">
                 <Suspense fallback={<div className="flex-1" />}>{mainContent}</Suspense>
               </div>
             </ErrorBoundary>
@@ -658,20 +703,13 @@ export default function App() {
         <StorageFullBanner />
         <FloatingTimer />
         <RecordPromptHost />
-        <MobileBottomNav
-          onOpenMore={() => setSidebarOpen(true)}
-          onNavigate={() => setSidebarOpen(false)}
-        />
+        <MobileBottomNav onNavigate={() => setSidebarOpen(false)} />
       </div>
 
       {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
       <DragOverlay dropAnimation={DROP_ANIMATION}>
-        {dragOverlayTaskEntity && dragOverlayTask ? (
-          <DragOverlayTaskRow
-            task={dragOverlayTaskEntity}
-            isSubtask={dragOverlayTask.isSubtask}
-            count={dragOverlayTask.count}
-          />
+        {dragOverlayTask ? (
+          <DragOverlayTaskRow taskId={dragOverlayTask.taskId} isSubtask={dragOverlayTask.isSubtask} count={dragOverlayTask.count} />
         ) : null}
       </DragOverlay>
 

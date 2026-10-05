@@ -103,7 +103,7 @@ async function show(n: Shown, onClick: () => void) {
 }
 
 function range(start: string | null, end: string | null): string {
-  return end ? `${start} – ${end}` : start ?? ''
+  return end ? `${start} – ${end}` : (start ?? '')
 }
 
 function dayLabel(date: string, today: string): string {
@@ -146,12 +146,18 @@ export function morningMessage(tasks: readonly ReminderTask[], today: string): S
     d.planned > 0 ? i18n.t('reminders.planned', { count: d.planned }) : null,
     d.due.length > 0
       ? i18n.t('reminders.due', {
-          items: d.due.map((x) => (x.time ? i18n.t('reminders.dueItem', { title: x.title, time: x.time }) : x.title)).join(i18n.t('reminders.listSep')),
+          items: d.due
+            .map((x) => (x.time ? i18n.t('reminders.dueItem', { title: x.title, time: x.time }) : x.title))
+            .join(i18n.t('reminders.listSep')),
         })
       : null,
     d.overdue > 0 ? i18n.t('reminders.overdue', { count: d.overdue }) : null,
   ].filter(Boolean)
-  return { title: i18n.t('reminders.morningTitle'), body: parts.length > 0 ? parts.join(sep) : i18n.t('reminders.emptyDay'), tag: 'chronograma-morning' }
+  return {
+    title: i18n.t('reminders.morningTitle'),
+    body: parts.length > 0 ? parts.join(sep) : i18n.t('reminders.emptyDay'),
+    tag: 'chronograma-morning',
+  }
 }
 
 /** 30 秒ごとに呼ぶ。通知の許可が無ければ何もしない */
@@ -186,7 +192,10 @@ export function checkLocalReminders(ctx: {
   }
   const timer = ctx.activeTimer
   if (timer && staleTimerDue(timer.startedAt, Date.now(), state.timer)) {
-    void show({ title: i18n.t('reminders.timerTitle'), body: i18n.t('reminders.timerBody', { title: timer.taskTitle }), tag: 'chronograma-timer' }, ctx.onOpen)
+    void show(
+      { title: i18n.t('reminders.timerTitle'), body: i18n.t('reminders.timerBody', { title: timer.taskTitle }), tag: 'chronograma-timer' },
+      ctx.onOpen,
+    )
     state.timer = timer.startedAt
   }
   saveState({ ...state, last: nowWall, keys })

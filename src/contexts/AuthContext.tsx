@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
   handleGoogleOAuthCallback,
@@ -20,9 +13,10 @@ import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/sup
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
 import { clearAutoBackups } from '../lib/autoBackup'
+import { readFunctionErrorBody } from '../lib/functionError'
 import { clearBaseline } from '../lib/syncMerge'
+import { clearSettingSyncedAt } from '../lib/settingSync'
 import { detachWebPush } from '../lib/webPush'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 
 export type AuthContextValue = {
   session: Session | null
@@ -53,18 +47,9 @@ const noopAuth: AuthContextValue = {
   deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
 }
 
-const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>([
-  'SIGNED_IN',
-  'USER_UPDATED',
-  'TOKEN_REFRESHED',
-  'INITIAL_SESSION',
-])
+const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>(['SIGNED_IN', 'USER_UPDATED', 'TOKEN_REFRESHED', 'INITIAL_SESSION'])
 
-const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>([
-  'INITIAL_SESSION',
-  'SIGNED_IN',
-  'USER_UPDATED',
-])
+const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>(['INITIAL_SESSION', 'SIGNED_IN', 'USER_UPDATED'])
 
 let googleSyncQueue: Promise<void> = Promise.resolve()
 
@@ -83,17 +68,13 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
       if (handled) {
         const connected = await isGoogleCalendarConnected()
         useTaskStore.getState().setGoogleConnected(connected)
-        useTaskStore.getState().setGoogleConnectionError(
-          connected ? null : useTaskStore.getState().googleConnectionError,
-        )
+        useTaskStore.getState().setGoogleConnectionError(connected ? null : useTaskStore.getState().googleConnectionError)
         if (connected) return
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Google OAuth callback failed'
       useTaskStore.getState().setGoogleConnected(false)
-      useTaskStore.getState().setGoogleConnectionError(
-        localizeGoogleError(raw, (key) => i18n.t(key)),
-      )
+      useTaskStore.getState().setGoogleConnectionError(localizeGoogleError(raw, (key) => i18n.t(key)))
       return
     }
   }
@@ -153,7 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sb = getSupabase()
     if (!sb) return
 
-    sb.auth.getSession()
+    sb.auth
+      .getSession()
       .then(({ data: { session: s } }) => {
         if (s) lastUserId = s.user.id
         setSession(s)
@@ -202,9 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const limit = otpRateLimit(error)
           if (limit) {
             return {
-              error: limit.seconds != null
-                ? i18n.t('account.otpWaitSeconds', { count: limit.seconds })
-                : i18n.t('account.otpRateLimited'),
+              error: limit.seconds != null ? i18n.t('account.otpWaitSeconds', { count: limit.seconds }) : i18n.t('account.otpRateLimited'),
             }
           }
           return { error: error.message }
@@ -269,9 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const { data, error } = await sb.functions.invoke('account', { body: { action: 'delete' } })
           if (error || (data as { ok?: boolean } | null)?.ok !== true) {
-            const body = error instanceof FunctionsHttpError
-              ? ((await error.context.json().catch(() => null)) as { code?: string; error?: string } | null)
-              : null
+            const body = await readFunctionErrorBody(error)
             // 10 分より前のログインでは消せない（サーバーの本人確認）。ログインし直してから呼び直す
             if (body?.code === 'reauth_required') return { reauthRequired: true }
             const message = body ? body.error : error?.message
@@ -285,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
         useTaskStore.getState().resetLocalData()
         clearBaseline(userId)
+        clearSettingSyncedAt(userId)
         await clearAutoBackups(userId)
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)

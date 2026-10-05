@@ -30,11 +30,7 @@ export function subtreeHeightBelow(tasks: Task[], rootId: string): number {
 }
 
 /** `taskId` を `parentId` の直下に置いたとき、部分木の最大深さが上限を超えないか */
-export function canNestUnder(
-  tasks: Task[],
-  taskId: string,
-  parentId: string,
-): boolean {
+export function canNestUnder(tasks: Task[], taskId: string, parentId: string): boolean {
   if (taskId === parentId) return false
   const parentDepth = taskDepth(tasks, parentId)
   const height = subtreeHeightBelow(tasks, taskId)
@@ -52,13 +48,7 @@ export function getIndentTargetId(tasks: Task[], taskId: string): string | null 
 
   const siblings =
     task.parentId == null
-      ? tasks.filter(
-          (t) =>
-            t.parentId == null &&
-            t.listId === task.listId &&
-            t.sectionId === task.sectionId &&
-            isVisibleForIndent(t),
-        )
+      ? tasks.filter((t) => t.parentId == null && t.listId === task.listId && t.sectionId === task.sectionId && isVisibleForIndent(t))
       : tasks.filter((t) => t.parentId === task.parentId && isVisibleForIndent(t))
 
   const ordered = siblings.sort((a, b) => a.order - b.order).map((t) => t.id)

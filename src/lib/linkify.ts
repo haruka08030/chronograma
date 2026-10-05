@@ -3,9 +3,7 @@
 const URL_REGEX = /(https?:\/\/[^\s<>"')]+)/gi
 
 /** テキストを「通常文字列」と「URL」のセグメントに分割する。 */
-export type LinkifySegment =
-  | { type: 'text'; value: string }
-  | { type: 'url'; value: string }
+export type LinkifySegment = { type: 'text'; value: string } | { type: 'url'; value: string }
 
 export function linkifySegments(text: string): LinkifySegment[] {
   if (!text) return []

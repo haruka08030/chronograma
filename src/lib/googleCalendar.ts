@@ -1,8 +1,8 @@
 import { calendarColorHex, googleEventHex, hasOwnEventColor } from './googleColors'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
+import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { pad2 } from './clockTime'
@@ -14,31 +14,14 @@ type GoogleCalendarPayload = {
   error?: string
 }
 
-async function parseFunctionError(error: unknown): Promise<string> {
-  if (error instanceof FunctionsHttpError) {
-    try {
-      const body = (await error.context.json()) as { error?: string }
-      if (body?.error) return body.error
-    } catch {
-      /* ignore parse failure */
-    }
-  }
-  if (error instanceof Error) return error.message
-  return 'Edge Function request failed'
-}
-
-async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
-  body: Record<string, unknown>,
-): Promise<T> {
+async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(body: Record<string, unknown>): Promise<T> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
   const { data, error } = await sb.functions.invoke('google-calendar', { body })
 
-  if (error) {
-    const msg = await parseFunctionError(error)
-    throw new Error(msg)
-  }
+  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, error }）。古い関数は 200 で { ok: false } を返す
+  if (error) throw new Error(await functionErrorMessage(error))
 
   const payload = (data ?? {}) as T
   if (payload.error && payload.ok === false) {
@@ -49,8 +32,7 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // Edge Function `google-calendar` の SCOPES とそろえる
-const SCOPES =
-  'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+const SCOPES = 'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 const GCAL_OAUTH_STATE_KEY = 'chronograma_gcal_oauth_state'
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 
@@ -149,8 +131,10 @@ export async function handleGoogleOAuthCallback(): Promise<boolean> {
   }
 
   sessionStorage.removeItem(GCAL_OAUTH_STATE_KEY)
-  const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash}`
-  window.history.replaceState({}, '', cleanUrl)
+  // OAuth の戻りの値だけ消す（画面の `?view=` などは残す）
+  const cleanUrl = new URL(window.location.href)
+  for (const key of ['code', 'state', 'scope', 'authuser', 'hd', 'prompt', 'error']) cleanUrl.searchParams.delete(key)
+  window.history.replaceState(window.history.state, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash)
   return true
 }
 
@@ -189,10 +173,7 @@ export async function isGoogleCalendarConnected(): Promise<boolean> {
   }
 }
 
-export function localizeGoogleError(
-  message: string,
-  t: (key: string, options?: Record<string, string>) => string,
-): string {
+export function localizeGoogleError(message: string, t: (key: string, options?: Record<string, string>) => string): string {
   const lower = message.toLowerCase()
   if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
   if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
@@ -217,7 +198,6 @@ export function localizeGoogleError(
   }
   return message
 }
-
 
 function formatYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
@@ -256,37 +236,39 @@ export function googleWriteGeneration(): number {
   return writesInFlight > 0 ? -1 : writeGeneration
 }
 
-export async function fetchCalendarEvents(
-  timeMin: Date,
-  timeMax: Date,
-): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
+export async function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
-  const payload = await invokeGoogleCalendar<{
+  type EventsPayload = {
     events?: CalendarEvent[]
     calendarColor?: string | null
     calendarColorId?: string | null
     connected?: boolean
     canWrite?: boolean
     error?: string
-  }>({
-    action: 'events',
-    // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
-    timeMin: fromAppWall(timeMin).toISOString(),
-    timeMax: fromAppWall(timeMax).toISOString(),
-    timeZone: appTimeZone(),
-  })
-
-  if (payload.error) {
-    if (shouldDisconnectAfterFetchError(payload.error)) {
+  }
+  let payload: EventsPayload
+  try {
+    payload = await invokeGoogleCalendar<EventsPayload>({
+      action: 'events',
+      // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
+      timeMin: fromAppWall(timeMin).toISOString(),
+      timeMax: fromAppWall(timeMax).toISOString(),
+      timeZone: appTimeZone(),
+    })
+    // 古い関数は失敗も 200 で { events: [], error } を返す
+    if (payload.error) throw new Error(payload.error)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (shouldDisconnectAfterFetchError(message)) {
       try {
         await disconnectGoogleCalendar()
       } catch {
         /* ignore */
       }
     }
-    throw new Error(payload.error)
+    throw e
   }
   // 自分で色を付けていない予定はカレンダーの色
   lastCalendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)
@@ -347,7 +329,15 @@ export function applyTimingLocally(e: CalendarEvent, t: GoogleEventTiming): Cale
     new Date(instantFromWall(x.dateTime.slice(0, 10), x.dateTime.slice(11, 16), x.timeZone)).toISOString()
   const start = 'dateTime' in g.start ? instant(g.start) : g.start.date
   const end = 'dateTime' in g.end ? instant(g.end) : g.end.date
-  return normalizeCalendarEventTimes({ ...e, isAllDay, date: t.date, startTime: isAllDay ? null : t.startTime, endTime: isAllDay ? null : t.endTime, start, end })
+  return normalizeCalendarEventTimes({
+    ...e,
+    isAllDay,
+    date: t.date,
+    startTime: isAllDay ? null : t.startTime,
+    endTime: isAllDay ? null : t.endTime,
+    start,
+    end,
+  })
 }
 
 async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent | null> {

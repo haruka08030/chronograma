@@ -44,7 +44,12 @@ function nextWeekday(today: Date, dow: number): Date {
   return addDays(today, (dow - today.getDay() + 7) % 7)
 }
 
-const repeatOf = (type: Recurrence['type'], interval: number, weekdays: number[] | null = null, monthDay: number | null = null): QuickAddRepeat => ({
+const repeatOf = (
+  type: Recurrence['type'],
+  interval: number,
+  weekdays: number[] | null = null,
+  monthDay: number | null = null,
+): QuickAddRepeat => ({
   type,
   interval,
   weekdays,
@@ -164,7 +169,7 @@ type Piece =
 
 function clockMinutes(h: number, m: number, meridiem?: string): number | null {
   let hour = h
-  if (meridiem === '午後' || meridiem === 'pm') hour = h % 12 + 12
+  if (meridiem === '午後' || meridiem === 'pm') hour = (h % 12) + 12
   else if (meridiem === '午前' || meridiem === 'am') hour = h % 12
   if (hour > 24 || m > 59) return null
   return (hour % 24) * 60 + m
@@ -195,7 +200,11 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   if (repeat) return { piece: { kind: 'repeat', repeat: repeat.repeat }, rest: repeat.rest }
 
   const low = s.toLowerCase()
-  const words: [string, number][] = [['today', 0], ['tomorrow', 1], ['tmr', 1]]
+  const words: [string, number][] = [
+    ['today', 0],
+    ['tomorrow', 1],
+    ['tmr', 1],
+  ]
   if (localeJa) words.push(['明後日', 2], ['あさって', 2], ['明日', 1], ['あした', 1], ['今日', 0], ['きょう', 0])
   for (const [w, offset] of words) {
     if (low.startsWith(w)) return { piece: { kind: 'date', date: addDays(today, offset) }, rest: s.slice(w.length) }
@@ -345,8 +354,10 @@ export function parseQuickAddTitle(
       if (p.kind === 'repeat') repeat = p.repeat
       else if (p.kind === 'date') date = p.date
       else if (p.kind === 'time') start = p.min
-      else if (p.kind === 'range') { start = p.start; end = p.end }
-      else if (p.kind === 'duration') duration = p.min
+      else if (p.kind === 'range') {
+        start = p.start
+        end = p.end
+      } else if (p.kind === 'duration') duration = p.min
       else if (p.kind === 'deadline') deadline = true
     }
   }

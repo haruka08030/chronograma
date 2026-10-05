@@ -1,6 +1,6 @@
 # Supabase migrations（Chronograma）
 
-スキーマは `001` から番号順に積み重ねる。新しいプロジェクトは **SQL Editor で番号順に全部実行**すれば最新の形になる（Postgres 15 以上。Supabase は 15 以上）。各ファイルは何度流しても同じ形になる。本番（リンク済みのプロジェクト）へは Supabase CLI で流す: `supabase db query --linked -f supabase/migrations/<ファイル>`。
+スキーマは `001` から番号順に積み重ねる。新しいプロジェクトは **SQL Editor で番号順に全部実行**すれば最新の形になる（Postgres 15 以上。Supabase は 15 以上）。各ファイルは何度流しても同じ形になる。本番（リンク済みのプロジェクト）へは `supabase db push --linked`（本番の適用履歴 `supabase_migrations.schema_migrations` に無い番号のファイルだけを流して記録する）。流す前に `supabase migration list --linked` か `supabase db push --linked --dry-run` で何が流れるかを確かめる。
 
 | ファイル | 内容 |
 |----------|------|
@@ -10,6 +10,9 @@
 | [`004_sync_server_time.sql`](004_sync_server_time.sql) | `lists` / `list_sections` / `tasks` / `habits` の書き込みをトリガー `sync_write_guard` で確かめる（001 の `skip_stale_write` をこの 4 つの表で置き換える）。`base_updated_at`（端末がもとにした版。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
 | [`005_skip_stale_write_search_path.sql`](005_skip_stale_write_search_path.sql) | 001 のトリガー関数 `skip_stale_write` の `search_path` を空に固定する（動きは同じ） |
 | [`006_row_limits.sql`](006_row_limits.sql) | 1 人が持てる行数の上限（`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100）。トリガー `enforce_row_limit`（文ごとに 1 回、新しく入った行がある利用者だけ数える）。upsert で既にある行を更新する分は数えない。超えると errcode `P0001`・メッセージ `row_limit_exceeded` で文ごと断る |
+| [`007_settings_server_time.sql`](007_settings_server_time.sql) | `user_settings` / `user_extra_time_zones` の書き込みをトリガー `settings_write_guard` で確かめる（この 2 つの表の `skip_stale_write` を置き換える）。考え方は `004` と同じ: `base_updated_at`（端末がもとにした版。行が無いはずのときは `-infinity`。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
+| [`008_sync_tombstones.sql`](008_sync_tombstones.sql) | 消えた行の印 `sync_tombstones`（`(user_id, table_name, row_id)` と `deleted_at`）。`lists` / `list_sections` / `tasks` / `habits` の行を消すと（どの版のアプリからでも）トリガー `record_sync_tombstones` が印を残し、同じ id の行がまた入ると印を消す。アカウントの削除（cascade）では残さず、それまでの印も消す。端末からは本人の行の select だけ（書くのはトリガー、SECURITY DEFINER）。端末は差分の取得で、変わった行とこの印だけを取る。差分の目印にするサーバーの時刻を返す `sync_server_now()`（`authenticated` だけ実行できる）。`004` が前提 |
+| [`009_sync_updated_at_index.sql`](009_sync_updated_at_index.sql) | 差分の取得のための索引 `(user_id, updated_at)`（`lists` / `list_sections` / `tasks` / `habits`） |
 
 テーブル（最新の形）:
 
@@ -26,12 +29,14 @@
 | `notion_connection` | Notion の統合トークン（暗号化して保存）と対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |
 | `edge_rate_limits` | Edge Function の呼び出し回数（利用者ごと・機能ごとの固定の時間枠）。クライアント向けポリシーなし。数えるのは `hit_rate_limit`（service_role だけが呼べる） |
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
+| `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。自動では消さない。端末は 6 時間ごとに全部を取り直すので、30 日より古い印は消してよい（`delete from public.sync_tombstones where deleted_at < now() - interval '30 days'`） |
 
 **メモ**
 
 - `lists` / `list_sections` / `tasks` / `habits` の主キーは `(user_id, id)`。未分類 `__inbox__` のように ID が全員で同じでもぶつからない。外部キーも同じ利用者の行だけを指す。
 - `sort_order` は `double precision`（間に挿入すると中間値になるため）。
-- スキーマを変えるときは、次の番号（002 から）の新しいファイルを足す。**コミット済みのファイルは書き換えない**（適用済みの DB と食い違うため）。
+- `001` はそれまでの変更をまとめたベースライン（全テーブルの最新の形）。本番の適用履歴は番号（`001`〜）でファイルと一致する（名前の列はまとめる前のもの。CLI は番号だけで照らし合わせる）。
+- スキーマを変えるときは、次の番号の新しいファイルを足す。**コミット済みのファイルの SQL は書き換えない**（適用済みの DB と食い違うため）。コメントだけの修正はよい。
 - 新しいファイルも何度流しても同じ形になるように書く（`add column if not exists`、`drop constraint if exists` してから `add constraint` など）。
 - 1 ファイル 1 変更。ファイル名は `NNN_何を変えるか.sql`。
 

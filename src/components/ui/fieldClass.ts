@@ -14,9 +14,12 @@
  */
 export type FieldSize = 'md' | 'sm'
 
+/** 入力欄のフォーカスの藍のリング。枠の形が違う欄（睡眠の行の時刻など）もフォーカスはこれで見せる */
+export const FIELD_FOCUS_RING = 'focus-visible:ring-2 focus-visible:ring-accent-500/40'
+
 const BASE =
   'rounded-lg border border-zinc-200 bg-transparent text-zinc-900 outline-none transition-[border-color,box-shadow] ' +
-  'placeholder:text-zinc-400 enabled:hover:border-zinc-300 focus-visible:ring-2 focus-visible:ring-accent-500/40 ' +
+  `placeholder:text-zinc-400 enabled:hover:border-zinc-300 ${FIELD_FOCUS_RING} ` +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
   'aria-invalid:border-red-400 aria-invalid:focus-visible:ring-red-500/30 ' +
   'dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:enabled:hover:border-zinc-600 dark:aria-invalid:border-red-500/60 ' +
@@ -30,9 +33,6 @@ const SIZE: Record<FieldSize, string> = {
 
 const ACTIVE = 'ring-2 ring-accent-500/40'
 
-export function fieldClass(
-  { size = 'md', active = false }: { size?: FieldSize; active?: boolean } = {},
-  extra = '',
-): string {
+export function fieldClass({ size = 'md', active = false }: { size?: FieldSize; active?: boolean } = {}, extra = ''): string {
   return `${BASE} ${SIZE[size]}${active ? ` ${ACTIVE}` : ''}${extra ? ` ${extra}` : ''}`
 }

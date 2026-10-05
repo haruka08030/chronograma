@@ -37,7 +37,9 @@ export function useCalendarItemDrag(): CalendarItemDragState {
   return useSyncExternalStore(
     (f) => {
       subscribers.add(f)
-      return () => { subscribers.delete(f) }
+      return () => {
+        subscribers.delete(f)
+      }
     },
     () => state,
   )

@@ -7,11 +7,9 @@ import { requestCanvasSync } from '../../hooks/useCanvasSync'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { disconnectNotion, fetchNotionStatus } from '../../lib/notion'
 import { disconnectCanvas, fetchCanvasStatus, type CanvasConnection } from '../../lib/canvas'
-import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
+import { SettingsGroup, SettingsLinkRow, SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
-import { ChevronRightIcon } from '../icons'
 import { askConfirm } from '../../lib/confirmDialog'
-import { HINT_TEXT } from '../ui/textClass'
 
 /**
  * 設定のトップに置く外部連携のまとめ。使う人だけが使う機能なので、つなぐ・細かく設定するのは次のページ
@@ -64,9 +62,7 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
   return (
     <SettingsGroup id="settings-integrations" title={t('integrations.title')}>
       {google.connected && google.clientId && (
-        <SettingsRow label={t('googleSettings.title')}>
-          {disconnectButton(() => void run(() => google.disconnect()))}
-        </SettingsRow>
+        <SettingsRow label={t('googleSettings.title')}>{disconnectButton(() => void run(() => google.disconnect()))}</SettingsRow>
       )}
       {notion !== null && (
         <SettingsRow label="Notion" help={notion}>
@@ -85,7 +81,14 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
         return (
           <SettingsRow key={c.id} label="Canvas" help={host}>
             {disconnectButton(async () => {
-              if (!(await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true }))) return
+              if (
+                !(await askConfirm({
+                  message: t('canvas.disconnectConfirm', { host }),
+                  confirmLabel: t('canvas.disconnect'),
+                  danger: true,
+                }))
+              )
+                return
               void run(async () => {
                 setCanvas((await disconnectCanvas(c.id)).connections)
                 requestCanvasSync()
@@ -94,19 +97,11 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
           </SettingsRow>
         )
       })}
-      <button
-        type="button"
+      <SettingsLinkRow
+        label={anyConnected ? t('integrations.manage') : t('integrations.add')}
+        hint={anyConnected ? undefined : t('integrations.services')}
         onClick={onOpen}
-        className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm text-zinc-800 dark:text-zinc-200">
-            {anyConnected ? t('integrations.manage') : t('integrations.add')}
-          </span>
-          {!anyConnected && <span className={`mt-0.5 block ${HINT_TEXT}`}>{t('integrations.services')}</span>}
-        </span>
-        <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-400" />
-      </button>
+      />
     </SettingsGroup>
   )
 }

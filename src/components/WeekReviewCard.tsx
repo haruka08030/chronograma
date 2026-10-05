@@ -63,9 +63,7 @@ export function WeekReviewCard() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
-          <p className={META_TEXT}>
-            {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
-          </p>
+          <p className={META_TEXT}>{t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}</p>
         </div>
         <DayNav
           onToday={() => setWeekOffset(0)}
@@ -94,7 +92,9 @@ export function WeekReviewCard() {
 
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
-          <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
+          <SectionLabel as="figcaption" className="mb-2">
+            {t('weekReview.loggedPerDay')}
+          </SectionLabel>
           <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
@@ -125,16 +125,16 @@ export function WeekReviewCard() {
                   }}
                   className="group flex h-full flex-1 cursor-pointer flex-col justify-end"
                 >
-                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色。タイムラインのカードと同じ薄い塗り＋枠） */}
+                  {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「よく使った時間」と同じ色。今日の計画の記録の棒と同じ `gc-dot` で、隙間なく積む。分類の境目は線 1 本） */}
                   <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-t transition-opacity group-hover:opacity-85"
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-t-[3px] transition-opacity group-hover:opacity-85"
                     style={{ height: `${h}%`, minHeight: dayBar > 0 ? 2 : 0 }}
                   >
                     {day?.tagMinutes.map((x) => (
                       <div
                         key={x.tag}
-                        className="gc-plan w-full shrink-0"
-                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), height: `${(x.minutes / dayBar) * 100}%` }}
+                        className="gc-dot w-full basis-0 not-last:border-t-0"
+                        style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), flexGrow: x.minutes }}
                       />
                     ))}
                   </div>
@@ -156,7 +156,9 @@ export function WeekReviewCard() {
         </figure>
 
         <div>
-          <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
+          <SectionLabel as="h3" className="mb-2">
+            {t('weekReview.topTags')}
+          </SectionLabel>
           {review.topTags.length === 0 ? (
             <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
@@ -164,8 +166,14 @@ export function WeekReviewCard() {
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-plan h-2.5 w-2.5 shrink-0 rounded-[3px]" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
+                    <span
+                      className="gc-dot h-2 w-2 shrink-0 rounded-full"
+                      style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))}
+                      aria-hidden
+                    />
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">
+                      {recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}
+                    </span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>
                 </li>

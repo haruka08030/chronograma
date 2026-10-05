@@ -48,9 +48,12 @@ export function CalendarMobileHeader({
     { locale: dateLocale },
   )
   const modeLabel = (m: CalendarMode) =>
-    m === 'schedule' ? t('calendarHub.modeSchedule')
-      : m === 'week' ? t('calendarHub.modeDay')
-        : m === 'threeDay' ? t('calendarHub.modeThreeDay')
+    m === 'schedule'
+      ? t('calendarHub.modeSchedule')
+      : m === 'week'
+        ? t('calendarHub.modeDay')
+        : m === 'threeDay'
+          ? t('calendarHub.modeThreeDay')
           : t('common.month')
   const modeEntries: ActionEntry[] = MOBILE_MODES.map((m) => ({
     kind: 'leaf',
@@ -126,9 +129,7 @@ export function CalendarMobileHeader({
           />
         </div>
       )}
-      {modeMenu && (
-        <ActionMenu x={modeMenu.x} y={modeMenu.y} entries={modeEntries} onClose={() => setModeMenu(null)} searchable={false} />
-      )}
+      {modeMenu && <ActionMenu x={modeMenu.x} y={modeMenu.y} entries={modeEntries} onClose={() => setModeMenu(null)} searchable={false} />}
     </div>
   )
 }

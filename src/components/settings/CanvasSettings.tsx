@@ -91,7 +91,12 @@ export function CanvasSettings() {
             : undefined
       }
     >
-      <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={sync.syncing} onClick={() => requestCanvasSync()}>
+      <button
+        type="button"
+        className={buttonClass({ variant: 'secondary', size: 'md' })}
+        disabled={sync.syncing}
+        onClick={() => requestCanvasSync()}
+      >
         {t('canvas.syncNowAction')}
       </button>
     </SettingsRow>
@@ -119,7 +124,9 @@ export function CanvasSettings() {
           onRenew={(token) => act(c.id, () => renewCanvasToken(c.id, token))}
           onDisconnect={async () => {
             const host = new URL(c.baseUrl).host
-            if (await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })) {
+            if (
+              await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })
+            ) {
               void act(c.id, () => disconnectCanvas(c.id))
             }
           }}
@@ -264,7 +271,17 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
 }
 
 /** フォームの下の「キャンセル」「接続する」 */
-function FormButtons({ busy, ready, submitLabel, onCancel }: { busy: boolean; ready: boolean; submitLabel: string; onCancel?: () => void }) {
+function FormButtons({
+  busy,
+  ready,
+  submitLabel,
+  onCancel,
+}: {
+  busy: boolean
+  ready: boolean
+  submitLabel: string
+  onCancel?: () => void
+}) {
   const { t } = useTranslation()
   return (
     <div className="flex justify-end gap-2">
@@ -273,7 +290,11 @@ function FormButtons({ busy, ready, submitLabel, onCancel }: { busy: boolean; re
           {t('common.cancel')}
         </button>
       )}
-      <button type="submit" disabled={busy || !ready} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
+      <button
+        type="submit"
+        disabled={busy || !ready}
+        className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}
+      >
         {busy ? t('canvas.connecting') : submitLabel}
       </button>
     </div>
@@ -324,7 +345,12 @@ function TokenForm({
       <ol className={STEPS_LIST_CLASS}>
         <li>
           {settingsUrl ? (
-            <a href={settingsUrl} target="_blank" rel="noreferrer" className="text-accent-600 underline-offset-2 hover:underline dark:text-accent-400">
+            <a
+              href={settingsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent-600 underline-offset-2 hover:underline dark:text-accent-400"
+            >
               {t('canvas.step1Link')}
             </a>
           ) : (
@@ -350,13 +376,7 @@ function TokenForm({
       )}
       <label className="block">
         <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.tokenLabel')}</span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className={field}
-        />
+        <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} className={field} />
       </label>
       <FormButtons busy={busy} ready={ready} submitLabel={t(renew ? 'canvas.renew' : 'canvas.connect')} onCancel={onCancel} />
     </form>

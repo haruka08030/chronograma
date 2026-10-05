@@ -13,11 +13,7 @@ import { pad2 } from './clockTime'
  * 時刻の無い（日付だけの）タスクは動かない。
  */
 
-export type TaskTimeFields = Pick<
-  Task,
-  'kind' | 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'
->
-
+export type TaskTimeFields = Pick<Task, 'kind' | 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'endDate'>
 
 function nextDay(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)

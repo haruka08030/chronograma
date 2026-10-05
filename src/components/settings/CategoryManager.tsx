@@ -7,7 +7,7 @@ import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { categoryHex, colorVars } from '../../lib/logCategoryColors'
 import { appToday } from '../../lib/timeZone'
 import { LabelsDialog } from '../labels/LabelsDialog'
-import { buttonClass } from '../ui/buttonClass'
+import { SettingsLinkRow } from './SettingsPrimitives'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
@@ -56,7 +56,6 @@ export function CategoryManager() {
     return [...set]
   }, [tasks, presets])
 
-
   const uncategorized = usage.get('') ?? 0
 
   return (
@@ -66,12 +65,13 @@ export function CategoryManager() {
           const vars = colorVars(categoryHex(name, colors))
           const minutes = usage.get(name) ?? 0
           return (
-            <li key={name} className="group relative flex min-h-12 items-center gap-3 border-b border-zinc-100 px-4 py-2 last:border-b-0 dark:border-zinc-800">
+            <li
+              key={name}
+              className="group relative flex min-h-12 items-center gap-3 border-b border-zinc-100 px-4 py-2 last:border-b-0 dark:border-zinc-800"
+            >
               <span className="gc-dot h-4 w-4 shrink-0 rounded-full" style={vars} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
-              <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
-                {minutes > 0 ? formatDuration(minutes) : t('categories.unused')}
-              </span>
+              <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{minutes > 0 ? formatDuration(minutes) : t('categories.unused')}</span>
               <div className={`flex shrink-0 items-center ${REVEAL_ON_HOVER}`}>
                 <button
                   type="button"
@@ -97,11 +97,7 @@ export function CategoryManager() {
         })}
       </ul>
 
-      <div className="px-4 py-3">
-        <button type="button" onClick={() => setEditorOpen(true)} className={buttonClass({ variant: 'secondary', size: 'md' })}>
-          {t('labels.edit')}
-        </button>
-      </div>
+      <SettingsLinkRow label={t('labels.edit')} onClick={() => setEditorOpen(true)} />
 
       {(unlisted.length > 0 || uncategorized > 0) && (
         <div className={`space-y-2 px-4 py-3 ${HINT_TEXT}`}>
@@ -109,12 +105,7 @@ export function CategoryManager() {
             <div className="flex flex-wrap items-center gap-1.5">
               <span>{t('categories.unlisted')}</span>
               {unlisted.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => addLogCategory(name)}
-                  className={chipClass({ variant: 'add', size: 'sm' })}
-                >
+                <button key={name} type="button" onClick={() => addLogCategory(name)} className={chipClass({ variant: 'add', size: 'sm' })}>
                   ＋ {name}
                 </button>
               ))}

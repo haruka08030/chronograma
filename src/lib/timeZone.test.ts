@@ -134,7 +134,14 @@ describe('taskTimeZone', () => {
 
 describe('タイムゾーンの違う 2 台の同期', () => {
   it('同じ瞬間なら、相手の書き方の行をこちらに直すと手元の行と同じになる（送らなくてよい）', () => {
-    const tokyo = { ...base, scheduledDate: '2026-10-05', startTime: '07:00', endTime: '08:00', endDate: null, timeZoneAnchor: 'Asia/Tokyo' } as Task
+    const tokyo = {
+      ...base,
+      scheduledDate: '2026-10-05',
+      startTime: '07:00',
+      endTime: '08:00',
+      endDate: null,
+      timeZoneAnchor: 'Asia/Tokyo',
+    } as Task
     const newYork = reanchorTask(tokyo, 'America/New_York')
     expect(newYork).toMatchObject({ scheduledDate: '2026-10-04', startTime: '18:00', timeZoneAnchor: 'America/New_York' })
     expect(reanchorTask(newYork, 'Asia/Tokyo')).toEqual(tokyo)

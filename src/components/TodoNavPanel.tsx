@@ -29,21 +29,39 @@ import { SectionLabel } from './ui/SectionLabel'
 import { META_TEXT } from './ui/textClass'
 import { ColorLabelCard } from './labels/ColorLabelCard'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
+import { colorVars } from '../lib/logCategoryColors'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
-  { id: 'today', icon: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' },
+  {
+    id: 'today',
+    icon: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z',
+  },
   { id: 'upcoming', icon: ICON_PATHS.calendar },
-  { id: 'overdue', icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
+  {
+    id: 'overdue',
+    icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',
+  },
 ]
 
 const BIN_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'completed', icon: ICON_PATHS.checkCircle },
-  { id: 'archived', icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z' },
+  {
+    id: 'archived',
+    icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z',
+  },
   { id: 'deleted', icon: ICON_PATHS.trash },
 ]
 
-function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, onColorPick, onContextMenu }: {
+function SortableListItem({
+  list,
+  isSelected,
+  onSelect,
+  onStartEdit,
+  onDelete,
+  onColorPick,
+  onContextMenu,
+}: {
   list: TaskList
   isSelected: boolean
   onSelect: () => void
@@ -57,11 +75,25 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
   const isInbox = list.id === INBOX_LIST_ID
   const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
   const sortableId = `${LIST_PREFIX}${list.id}`
-  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId, disabled: isInbox })
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortableId, disabled: isInbox })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
   // 並べ替え中の行はネイティブ D&D でつかむので、dnd-kit とは別に受ける
   const [isOverNative, setIsOverNative] = useState(false)
   const dropHighlight = isOver || isOverNative || taskDragHoverListId === list.id
+  // いつか・買い物は色の丸の代わりに ☆ / カート（リストの色）。押すと丸と同じく色を変える
+  const kindIcon =
+    list.kind === 'someday' ? (
+      <StarIcon className="h-full w-full" strokeWidth={2} label={t('listKind.someday')} />
+    ) : list.kind === 'checklist' ? (
+      <CartIcon className="h-full w-full" strokeWidth={2} label={t('listKind.checklist')} />
+    ) : null
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -72,16 +104,23 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
 
   return (
     <div
-      ref={(node) => { setSortableRef(node); setDropRef(node) }}
+      ref={(node) => {
+        setSortableRef(node)
+        setDropRef(node)
+      }}
       style={style}
       className={`group flex items-center gap-2 pl-2 pr-3 py-2 rounded-lg cursor-pointer transition-colors text-sm border-l-[3px] border-l-transparent
-        ${dropHighlight
-          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-          : isSelected
-            ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
-            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+        ${
+          dropHighlight
+            ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+            : isSelected
+              ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
+              : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+        }`}
       onClick={onSelect}
-      onDoubleClick={() => { if (!isInbox) onStartEdit() }}
+      onDoubleClick={() => {
+        if (!isInbox) onStartEdit()
+      }}
       onContextMenu={(e) => {
         if (isInbox) return
         e.preventDefault()
@@ -103,21 +142,24 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
         disabled={isInbox}
         // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
         data-popover-keep
-        onClick={(e) => { e.stopPropagation(); onColorPick() }}
-        className="h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10
-          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={{ backgroundColor: list.color }}
+        onClick={(e) => {
+          e.stopPropagation()
+          onColorPick()
+        }}
+        className={
+          kindIcon
+            ? 'flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]'
+            : `gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
+          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]`
+        }
+        style={kindIcon ? { color: list.color } : colorVars(list.color)}
         aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
         tabIndex={-1}
-      />
+      >
+        {kindIcon}
+      </button>
 
       <span className="min-w-0 flex-1 truncate">{list.name}</span>
-      {list.kind === 'someday' && (
-        <StarIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.75} label={t('listKind.someday')} />
-      )}
-      {list.kind === 'checklist' && (
-        <CartIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.75} label={t('listKind.checklist')} />
-      )}
 
       {!isInbox ? (
         // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
@@ -129,14 +171,16 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
             type="button"
             className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
             tabIndex={-1}
-            {...tip(t('sidebar.reorderList'))}
-            aria-label={t('sidebar.reorderList')}
+            {...tip(t('sidebar.reorderList'), { name: true })}
             onClick={(e) => e.stopPropagation()}
           >
             <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <circle cx="7" cy="4" r="1.5" /><circle cx="13" cy="4" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="16" r="1.5" /><circle cx="13" cy="16" r="1.5" />
+              <circle cx="7" cy="4" r="1.5" />
+              <circle cx="13" cy="4" r="1.5" />
+              <circle cx="7" cy="10" r="1.5" />
+              <circle cx="13" cy="10" r="1.5" />
+              <circle cx="7" cy="16" r="1.5" />
+              <circle cx="13" cy="16" r="1.5" />
             </svg>
           </button>
           {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
@@ -155,7 +199,10 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onStartEdit() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onStartEdit()
+            }}
             className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.renameList')}
           >
@@ -163,7 +210,10 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
             className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
             aria-label={t('sidebar.deleteList')}
           >
@@ -179,7 +229,14 @@ function SortableListItem({ list, isSelected, onSelect, onStartEdit, onDelete, o
  * 色ラベルの行。押すとその色で絞り、タスクを落とすとその色を付ける。丸を押すと名前と色を変えるカード（`ColorLabelCard`）。
  * 手動並びは ⋮⋮（dnd-kit）、並べ替え中は行ごとのネイティブ D&D でつかむので、両方を受ける
  */
-function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }: {
+function ColorLabelRow({
+  label,
+  name,
+  isSelected,
+  isEditing,
+  onSelect,
+  onEdit,
+}: {
   label: TodoColorLabel
   name: string
   isSelected: boolean
@@ -207,11 +264,13 @@ function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }:
         labelDroppedTasks(readDraggedTaskIds(e.dataTransfer), label.hex)
       }}
       className={`flex w-full items-center rounded-lg text-sm transition-colors
-        ${isOver
-          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
-          : isSelected
-            ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
-            : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+        ${
+          isOver
+            ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+            : isSelected
+              ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+              : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+        }`}
     >
       <button
         type="button"
@@ -219,12 +278,11 @@ function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }:
         data-popover-keep={isEditing || undefined}
         // カードは行の横に出す（丸の横だと名前に重なる）
         onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
-        aria-label={t('labels.editOne')}
         aria-expanded={isEditing}
-        {...tip(t('labels.editOne'))}
-        className="ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full ring-1 ring-black/10 touch-manipulation
-          dark:ring-white/10 md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={{ backgroundColor: label.hex }}
+        {...tip(t('labels.editOne'), { name: true })}
+        className="gc-dot ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full touch-manipulation
+          md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
+        style={colorVars(label.hex)}
       />
       <button
         type="button"
@@ -233,9 +291,7 @@ function ColorLabelRow({ label, name, isSelected, isEditing, onSelect, onEdit }:
         className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2 pr-3 text-left"
       >
         <span className="min-w-0 flex-1 truncate">{name}</span>
-        {label.count > 0 && (
-          <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>
-        )}
+        {label.count > 0 && <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{label.count}</span>}
       </button>
     </div>
   )
@@ -249,9 +305,11 @@ function SubNavRow({ label, selected, onClick }: { label: string; selected: bool
       onClick={onClick}
       aria-current={selected ? 'page' : undefined}
       className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors
-        ${selected
-          ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
-          : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+        ${
+          selected
+            ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+            : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+        }`}
     >
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
@@ -275,7 +333,10 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
         ariaLabel={t('sidebar.listColorDialog')}
         columns={6}
         selectedHex={current}
-        onChoose={(hex) => { onChange(hex); onClose() }}
+        onChoose={(hex) => {
+          onChange(hex)
+          onClose()
+        }}
       />
     </div>
   )
@@ -391,7 +452,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           const isSelected = selectedListId === list.id && selectedView === null
           // 「セクションで分ける」がオフのリストは一覧に見出しが無いので、下のセクション行も出さない
           const listSections = groupsBySection(sortModeOf(sortByKey, list.id), sectionGrouping, { listId: list.id })
-            ? sectionsByList.get(list.id) ?? []
+            ? (sectionsByList.get(list.id) ?? [])
             : []
 
           if (editingId === list.id) {
@@ -414,7 +475,10 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                 list={list}
                 isSelected={isSelected && !quickAddSectionId && !filterTag}
                 onSelect={() => handleNav(() => selectList(list.id))}
-                onStartEdit={() => { setEditingId(list.id); setEditName(list.name) }}
+                onStartEdit={() => {
+                  setEditingId(list.id)
+                  setEditName(list.name)
+                }}
                 onDelete={() => deleteList(list.id)}
                 onColorPick={() => setColorPickId(colorPickId === list.id ? null : list.id)}
                 onContextMenu={(e) => setListMenu({ x: e.clientX, y: e.clientY, listId: list.id })}
@@ -438,11 +502,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                   />
                 ))}
               {colorPickId === list.id && (
-                <ColorPicker
-                  current={list.color}
-                  onChange={(c) => updateListColor(list.id, c)}
-                  onClose={() => setColorPickId(null)}
-                />
+                <ColorPicker current={list.color} onChange={(c) => updateListColor(list.id, c)} onClose={() => setColorPickId(null)} />
               )}
             </div>
           )
@@ -510,9 +570,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           onSelect={() => handleNav(() => selectView(v.id))}
         />
       ))}
-      {labelCard && (
-        <ColorLabelCard key={labelCard.hex} {...labelCard} onClose={() => setLabelCard(null)} />
-      )}
+      {labelCard && <ColorLabelCard key={labelCard.hex} {...labelCard} onClose={() => setLabelCard(null)} />}
       {listMenu && (
         <ListContextMenu
           {...listMenu}
@@ -546,12 +604,12 @@ export function TodoNavPanel() {
   }, [droppableContainers, measureDroppableContainers])
   useDragEdgeScroll(navRef, draggingTask, remeasure)
   return (
-    <aside className="flex h-full w-52 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/30
-                      dark:border-zinc-800 dark:bg-zinc-900/30">
+    <aside
+      className="flex h-full w-52 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/30
+                      dark:border-zinc-800 dark:bg-zinc-900/30"
+    >
       <div className="px-4 pt-5 pb-3">
-        <span className="truncate text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          {t('sidebar.todo')}
-        </span>
+        <span className="truncate text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('sidebar.todo')}</span>
       </div>
       <nav ref={navRef} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
         <TodoNavContent />

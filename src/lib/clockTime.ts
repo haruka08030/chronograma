@@ -31,6 +31,6 @@ export function toMinutes(hhmm: string): number | null {
 export function addClockMinutes(hhmm: string, deltaMinutes: number): string {
   const base = toMinutes(hhmm)
   if (base === null) return ''
-  const total = ((base + deltaMinutes) % 1440 + 1440) % 1440
+  const total = (((base + deltaMinutes) % 1440) + 1440) % 1440
   return minutesToTime(total)
 }

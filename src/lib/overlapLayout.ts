@@ -104,10 +104,7 @@ export function layoutPlanAndLog(
   mode: 'columns' | 'cascade',
   fixedLanes = false,
 ): Map<string, CSSProperties> {
-  const all = [
-    ...plans.map((p) => ({ ...p, isLog: false })),
-    ...logs.map((l) => ({ ...l, isLog: true })),
-  ].sort((a, b) => a.top - b.top)
+  const all = [...plans.map((p) => ({ ...p, isLog: false })), ...logs.map((l) => ({ ...l, isLog: true }))].sort((a, b) => a.top - b.top)
 
   const clusters: (typeof all)[] = []
   let clusterEnd = -Infinity

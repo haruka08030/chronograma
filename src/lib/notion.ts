@@ -1,4 +1,4 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
+import { readFunctionErrorBody } from './functionError'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import { getSupabase, sendFunctionOnLeave } from './supabase'
@@ -66,18 +66,10 @@ async function invokeNotion<T>(body: Record<string, unknown>): Promise<T> {
   const sb = getSupabase()
   if (!sb) throw new NotionRequestError(null, 'Supabase is not configured')
   const { data, error } = await sb.functions.invoke('notion', { body })
+  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, code, error }）。古い関数は 200 で { ok: false } を返す
   if (error) {
-    let message = error.message
-    if (error instanceof FunctionsHttpError) {
-      try {
-        const b = (await error.context.json()) as { error?: string; code?: string }
-        if (b?.code) throw new NotionRequestError(b.code, b.error ?? b.code)
-        if (b?.error) message = b.error
-      } catch (e) {
-        if (e instanceof NotionRequestError) throw e
-      }
-    }
-    throw new NotionRequestError(null, message)
+    const b = await readFunctionErrorBody(error)
+    throw new NotionRequestError(b?.code ?? null, b?.error ?? b?.code ?? error.message)
   }
   const payload = (data ?? {}) as T & { ok?: boolean; code?: string; error?: string }
   if (payload.ok === false) {
@@ -87,8 +79,7 @@ async function invokeNotion<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export const fetchNotionStatus = () => invokeNotion<NotionStatus>({ action: 'status' })
-export const connectNotion = (token: string, database: string) =>
-  invokeNotion<NotionStatus>({ action: 'connect', token, database })
+export const connectNotion = (token: string, database: string) => invokeNotion<NotionStatus>({ action: 'connect', token, database })
 export const saveNotionConfig = (config: NotionConfig) => invokeNotion<NotionStatus>({ action: 'config', config })
 export const disconnectNotion = () => invokeNotion<{ ok: true }>({ action: 'disconnect' })
 export const fetchNotionPages = () => invokeNotion<NotionPagesPayload>({ action: 'pages' })
@@ -165,7 +156,10 @@ export function reconcileNotionPages(
   let lists = state.lists
   if (!lists.some((l) => l.id === NOTION_LIST_ID)) {
     const maxOrder = Math.max(0, ...lists.map((l) => l.order))
-    lists = [...lists, { id: NOTION_LIST_ID, name: payload.databaseTitle, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now }]
+    lists = [
+      ...lists,
+      { id: NOTION_LIST_ID, name: payload.databaseTitle, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now },
+    ]
     changed = true
   }
 

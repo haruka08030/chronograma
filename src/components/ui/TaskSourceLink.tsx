@@ -8,8 +8,7 @@ const SERVICE_NAME = { canvas: 'Canvas', notion: 'Notion' } as const
 /** 「Canvas で開く」「Notion で開く」「リンクを開く」 */
 function useSourceLinkLabel() {
   const { t } = useTranslation()
-  return (link: SourceLink) =>
-    link.service ? t('taskItem.openIn', { name: SERVICE_NAME[link.service] }) : t('taskItem.openLink')
+  return (link: SourceLink) => (link.service ? t('taskItem.openIn', { name: SERVICE_NAME[link.service] }) : t('taskItem.openLink'))
 }
 
 /**
@@ -35,8 +34,7 @@ export function TaskSourceLink({
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       draggable={false}
-      aria-label={label}
-      {...tip(label)}
+      {...tip(label, { name: true })}
       className={className}
     >
       <ExternalLinkIcon className={iconClassName} />

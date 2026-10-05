@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { timerRecordTimes } from './timerRecord'
 
 /** ローカル時刻で日付をまたぐ判定をするので、テストもローカル時刻で書く */
-const at = (y: number, mo: number, d: number, h: number, mi: number) =>
-  new Date(y, mo - 1, d, h, mi).toISOString()
+const at = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi).toISOString()
 
 describe('timerRecordTimes', () => {
   it('同じ日なら endDate は null', () => {

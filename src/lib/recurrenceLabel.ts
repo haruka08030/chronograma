@@ -11,9 +11,7 @@ const WORKDAYS = '1,2,3,4,5'
 export function recurrenceLabel(t: TFunction, recurrence: Recurrence, dueDate: string | null): string {
   const { type, interval } = recurrence
   const repeat =
-    interval === 1
-      ? t(`taskDetail.recurrenceIntervals.${type}`)
-      : t(`taskDetail.recurrenceSummary.${type}`, { count: interval })
+    interval === 1 ? t(`taskDetail.recurrenceIntervals.${type}`) : t(`taskDetail.recurrenceSummary.${type}`, { count: interval })
   const days = recurrenceWeekdays(recurrence, dueDate)
   if (days.length === 0) return repeat
   if (interval === 1 && days.join(',') === WORKDAYS) return t('taskDetail.recurrenceSummary.everyWorkday')

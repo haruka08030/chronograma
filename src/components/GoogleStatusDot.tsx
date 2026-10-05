@@ -13,12 +13,7 @@ export function GoogleStatusDot() {
 
   const label = t('planVsActual.googleConnected')
   return (
-    <span
-      tabIndex={0}
-      role="img"
-      aria-label={label}
-      className="group relative flex shrink-0 items-center p-1.5 outline-none"
-    >
+    <span tabIndex={0} role="img" aria-label={label} className="group relative flex shrink-0 items-center p-1.5 outline-none">
       <span className="block h-2 w-2 rounded-full bg-emerald-500 group-focus-visible:ring-2 group-focus-visible:ring-emerald-300" />
       <span
         aria-hidden

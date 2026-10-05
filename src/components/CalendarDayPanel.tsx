@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
@@ -21,17 +21,13 @@ import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
-import { GoogleEventPopover } from './timeline/GoogleEventPopover'
+import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { META_TEXT } from './ui/textClass'
 
 type DayPanelTab = 'planned' | 'log'
 
-export function CalendarDayPanel({
-  selectedDateKey,
-}: {
-  selectedDateKey: string
-}) {
+export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string }) {
   const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const tasks = useTaskStore((s) => s.tasks)
@@ -127,8 +123,7 @@ export function CalendarDayPanel({
   )
 
   const totalLoggedMinutes = useMemo(
-    () =>
-      logItems.reduce((acc, item) => (isSleepTask(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
+    () => logItems.reduce((acc, item) => (isSleepTask(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
     [logItems, selectedDateKey],
   )
 
@@ -136,9 +131,7 @@ export function CalendarDayPanel({
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div
         className={`flex h-full min-h-0 min-w-0 flex-1 flex-col transition-colors ${
-          dragOver
-            ? DROP_HIGHLIGHT_CLASS
-            : 'bg-zinc-50/70 dark:bg-zinc-900/70'
+          dragOver ? DROP_HIGHLIGHT_CLASS : 'bg-zinc-50/70 dark:bg-zinc-900/70'
         }`}
         onDragOver={(e) => {
           if (acceptTaskDrag(e)) setDragOver(true)
@@ -167,19 +160,12 @@ export function CalendarDayPanel({
           <div className="flex items-center justify-between gap-2">
             <h2 className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dateLabel}</h2>
             {tab === 'planned' && !adding && (
-              <CalendarAddTaskButton
-                onClick={() => setAdding(true)}
-                className="h-6 w-6 shrink-0 p-1 opacity-70 hover:opacity-100"
-              />
+              <CalendarAddTaskButton onClick={() => setAdding(true)} className="h-6 w-6 shrink-0 p-1 opacity-70 hover:opacity-100" />
             )}
           </div>
           {tab === 'planned' && adding && (
             <div className="mt-2">
-              <CalendarInlineTaskAdd
-                dateKey={selectedDateKey}
-                size="md"
-                onDone={() => setAdding(false)}
-              />
+              <CalendarInlineTaskAdd dateKey={selectedDateKey} size="md" onDone={() => setAdding(false)} />
             </div>
           )}
         </div>
@@ -232,7 +218,9 @@ export function CalendarDayPanel({
                     <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
                   ))}
                   {executedItems.length > 0 && (
-                    <div className={`${externalEvents.length > 0 || plannedItems.length > 0 ? 'mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700' : ''}`}>
+                    <div
+                      className={`${externalEvents.length > 0 || plannedItems.length > 0 ? 'mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700' : ''}`}
+                    >
                       <SectionLabel as="p" className="mb-2 px-2">
                         {t('calendarDayPanel.executedSection', { count: executedItems.length })}
                       </SectionLabel>
@@ -253,36 +241,39 @@ export function CalendarDayPanel({
               <>
                 {totalLoggedMinutes > 0 && (
                   <p className={`mb-2 px-1 ${META_TEXT}`}>
-                    {t('calendarDayPanel.totalLogged')}{' '}<span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">{formatDuration(totalLoggedMinutes)}</span>
+                    {t('calendarDayPanel.totalLogged')}{' '}
+                    <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">{formatDuration(totalLoggedMinutes)}</span>
                   </p>
                 )}
-              <div className="space-y-1.5">
-                {logItems.map((item) => (
-                  // タイムラインの記録と同じく、ラベルの色の薄い塗り＋枠（睡眠は睡眠の色）
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openDetail(item.id)}
-                    className={`${isSleepTask(item) ? 'gc-sleep' : 'gc-plan'} block w-full rounded-lg px-3 py-2 text-left`}
-                    style={colorVars(recordHex(item, logCategoryColors))}
-                  >
-                    <div className="truncate text-sm font-medium">{item.title}</div>
-                    <div className="mt-0.5 text-xs opacity-70">
-                      {item.startTime && item.endTime
-                        ? `${item.startTime} – ${item.endTime}${
-                            isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
-                          }`
-                        : t('calendarDayPanel.timeUnset')}
-                    </div>
-                  </button>
-                ))}
-              </div>
+                <div className="space-y-1.5">
+                  {logItems.map((item) => (
+                    // タイムラインの記録と同じく、ラベルの色の薄い塗り＋枠（睡眠は睡眠の色）
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openDetail(item.id)}
+                      className={`${isSleepTask(item) ? 'gc-sleep' : 'gc-plan'} block w-full rounded-lg px-3 py-2 text-left`}
+                      style={colorVars(recordHex(item, logCategoryColors))}
+                    >
+                      <div className="truncate text-sm font-medium">{item.title}</div>
+                      <div className="mt-0.5 text-xs opacity-70">
+                        {item.startTime && item.endTime
+                          ? `${item.startTime} – ${item.endTime}${
+                              isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
+                            }`
+                          : t('calendarDayPanel.timeUnset')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </>
             )}
           </div>
         )}
       </div>
-      {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      <Suspense fallback={null}>
+        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      </Suspense>
     </div>
   )
 }

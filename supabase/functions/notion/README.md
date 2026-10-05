@@ -25,5 +25,5 @@ No secrets to set: each user pastes their own internal integration secret in Set
 | `advance` | `{ "pageId": "…", "fromStatus": "…" }` | `{ advanced }` — only if the row is still in `fromStatus` |
 | `disconnect` | `{}` | `{ ok: true }` |
 
-Errors come back as `{ ok: false, code }` with `code` one of `notion_unauthorized`, `notion_not_shared`, `notion_bad_url`, `notion_rate_limited`, `notion_api`.
+Errors come back as `{ ok: false, code, error }` with a non-2xx status (400 for bad input or a malformed JSON body, 401 when not signed in, 429 when rate limited, 502 when the Notion API rejects or fails, 500 for server errors) with `code` one of `notion_unauthorized`, `notion_not_shared`, `notion_bad_url`, `notion_rate_limited`, `notion_api`.
 Pinned to Notion API version `2022-06-28` (database query endpoint).

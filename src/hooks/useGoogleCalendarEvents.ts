@@ -1,12 +1,7 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import {
-  fetchCalendarEvents,
-  googleWriteGeneration,
-  localizeGoogleError,
-  shouldDisconnectAfterFetchError,
-} from '../lib/googleCalendar'
+import { fetchCalendarEvents, googleWriteGeneration, localizeGoogleError, shouldDisconnectAfterFetchError } from '../lib/googleCalendar'
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
 
 /** Google 側で変えた予定を拾う間隔（画面に戻ったときはすぐ取り直す） */

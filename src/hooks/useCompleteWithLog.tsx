@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
-import { CompleteWithLogModal, type CompleteWithLogDraft } from '../components/CompleteWithLogModal'
+import type { CompleteWithLogDraft } from '../components/CompleteWithLogModal'
+import { CompleteWithLogModal } from '../components/lazyOverlays'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
@@ -16,24 +17,21 @@ export function useCompleteWithLog() {
   const [draft, setDraft] = useState<CompleteWithLogDraft | null>(null)
 
   /** 時刻の無い予定・完了済みは何もしない */
-  const open = useCallback(
-    (task: Task) => {
-      const placement = taskPlacementDate(task)
-      if (task.completed || isLogTask(task) || !placement || !task.startTime || !task.endTime) return
-      setDraft({
-        taskId: task.id,
-        title: task.title,
-        date: placement,
-        endDate: task.endDate ?? placement,
-        startTime: task.startTime,
-        endTime: task.endTime,
-        memo: task.description.trim(),
-        mode: 'as-planned',
-        ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
-      })
-    },
-    [],
-  )
+  const open = useCallback((task: Task) => {
+    const placement = taskPlacementDate(task)
+    if (task.completed || isLogTask(task) || !placement || !task.startTime || !task.endTime) return
+    setDraft({
+      taskId: task.id,
+      title: task.title,
+      date: placement,
+      endDate: task.endDate ?? placement,
+      startTime: task.startTime,
+      endTime: task.endTime,
+      memo: task.description.trim(),
+      mode: 'as-planned',
+      ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
+    })
+  }, [])
 
   const submit = useCallback(() => {
     if (!draft) return
@@ -50,13 +48,15 @@ export function useCompleteWithLog() {
   }, [draft, addTimeLog, toggleTask])
 
   const modal = draft ? (
-    <CompleteWithLogModal
-      draft={draft}
-      radioGroupName="completion-mode"
-      onClose={() => setDraft(null)}
-      onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
-      onSubmit={submit}
-    />
+    <Suspense fallback={null}>
+      <CompleteWithLogModal
+        draft={draft}
+        radioGroupName="completion-mode"
+        onClose={() => setDraft(null)}
+        onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
+        onSubmit={submit}
+      />
+    </Suspense>
   ) : null
 
   return { open, modal }

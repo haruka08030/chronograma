@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { consumeLaunch, setupPwa, type LaunchHandlers } from './lib/pwa'
 import { useTaskStore } from './store/taskStore'
+import { setupUrlHistory } from './lib/urlHistory'
 
 const launch: LaunchHandlers = {
   openView: (view) => useTaskStore.getState().selectView(view),
@@ -40,6 +41,8 @@ for (const type of ['gesturestart', 'gesturechange'] as const) {
 
 setupPwa(launch)
 consumeLaunch(launch)
+// 開いている画面を URL と履歴に載せる（起動 URL の `?view=` / `?list=` もここで開く）
+setupUrlHistory()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

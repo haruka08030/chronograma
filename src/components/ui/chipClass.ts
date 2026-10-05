@@ -28,7 +28,6 @@ export function chipClass(
   { variant, size = 'xs', hover = false, selected = false }: { variant: ChipVariant; size?: ChipSize; hover?: boolean; selected?: boolean },
   extra = '',
 ): string {
-  const look =
-    variant === 'fill' ? `${FILL} ${hover ? FILL_HOVER : ''}` : variant === 'add' ? ADD : selected ? SELECTED : OUTLINE
+  const look = variant === 'fill' ? `${FILL} ${hover ? FILL_HOVER : ''}` : variant === 'add' ? ADD : selected ? SELECTED : OUTLINE
   return `${BASE} ${SIZE[size]} ${look} ${extra}`.replace(/\s+/g, ' ').trim()
 }

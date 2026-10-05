@@ -4,7 +4,8 @@
  * - ROW_CURSOR_CLASS: ↑↓ で動かしている行（キーで動かしている間だけ）。色はボタンのフォーカスの枠（index.css）と同じ
  * - ROW_PRESS_CLASS: 押している間。タッチではホバーの色が出ない（Tailwind 4 の hover: はマウスだけ）ので、押せたことをこれで見せる
  */
-export const ROW_SELECTED_CLASS = 'bg-accent-50/70 dark:bg-accent-500/10'
+/** 選んだ行はホバー（灰色）と見分けられる青の薄い塗り。行のホバー・キーの枠の塗りより優先し、乗せても灰色に戻らない */
+export const ROW_SELECTED_CLASS = 'bg-date-50! hover:bg-date-100/70! dark:bg-date-500/15! dark:hover:bg-date-500/20!'
 
 export const ROW_CURSOR_CLASS = 'bg-zinc-50 ring-2 ring-inset ring-date-400/70 dark:bg-zinc-800/40 dark:ring-date-400/60'
 

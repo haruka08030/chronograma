@@ -23,7 +23,13 @@ async function restoreLatest() {
     window.alert(t('crash.noBackup'))
     return
   }
-  if (!(await askConfirm({ message: t('crash.restoreConfirm', { date: formatDate(new Date(backup.savedAt), 'monthDayTime') }), confirmLabel: t('crash.restore') }))) return
+  if (
+    !(await askConfirm({
+      message: t('crash.restoreConfirm', { date: formatDate(new Date(backup.savedAt), 'monthDayTime') }),
+      confirmLabel: t('crash.restore'),
+    }))
+  )
+    return
   const { useTaskStore } = await import('../../store/taskStore')
   if (!useTaskStore.getState().importData(backup.json)) {
     window.alert(t('crash.noBackup'))
@@ -59,15 +65,11 @@ export class ErrorBoundary extends Component<
       <div
         role="alert"
         className={`flex flex-col items-center justify-center gap-3 px-4 text-center ${
-          scope === 'app'
-            ? 'h-dvh bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100'
-            : 'flex-1 min-h-0'
+          scope === 'app' ? 'h-dvh bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100' : 'flex-1 min-h-0'
         }`}
       >
         <h1 className="text-base font-semibold">{t('crash.title')}</h1>
-        <p className={`max-w-sm ${SUBTLE_TEXT}`}>
-          {t(scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}
-        </p>
+        <p className={`max-w-sm ${SUBTLE_TEXT}`}>{t(scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}</p>
         <div className="mt-1 flex flex-wrap justify-center gap-2">
           <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => window.location.reload()}>
             {t('crash.reload')}

@@ -20,18 +20,38 @@ const OLD = '2026-01-01T00:00:00.000Z'
 function task(id: string, title: string) {
   return {
     ...TASK_DEFAULTS,
-    id, title, description: '', completed: false, completedAt: null, createdAt: OLD, updatedAt: OLD, order: 0,
-    listId: '__inbox__', sectionId: null, parentId: null, dueDate: null, startTime: null, endTime: null,
-    priority: 'none' as const, tags: [], recurrence: null,
+    id,
+    title,
+    description: '',
+    completed: false,
+    completedAt: null,
+    createdAt: OLD,
+    updatedAt: OLD,
+    order: 0,
+    listId: '__inbox__',
+    sectionId: null,
+    parentId: null,
+    dueDate: null,
+    startTime: null,
+    endTime: null,
+    priority: 'none' as const,
+    tags: [],
+    recurrence: null,
   }
 }
-const titles = () => useTaskStore.getState().tasks.map((t) => t.title).sort()
+const titles = () =>
+  useTaskStore
+    .getState()
+    .tasks.map((t) => t.title)
+    .sort()
 const tick = () => new Promise((r) => queueMicrotask(() => r(null)))
 
 beforeEach(() => {
   useTaskStore.setState({ tasks: [task('a', 'A'), task('b', 'B')], recentDeletes: [], activeTimer: null })
   // 前のテストの履歴を残さない
-  while (useTaskStore.getState().undoLastOperation()) { /* 空にする */ }
+  while (useTaskStore.getState().undoLastOperation()) {
+    /* 空にする */
+  }
 })
 
 describe('⌘Z は変えた行だけを戻す', () => {

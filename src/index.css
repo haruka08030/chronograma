@@ -1,9 +1,9 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   /* アクセントは墨色（Google のグレー）。画面の色は記録・ラベル・締切などデータだけにする */
   --color-accent-50: #f1f3f4;
   --color-accent-100: #e8eaed;
@@ -57,48 +57,98 @@
   --animate-breathe: breathe 3s ease-in-out infinite;
 
   @keyframes pop-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes sheet-in {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes toast-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes slide-in {
-    from { transform: translateX(100%); }
-    to { transform: none; }
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
   }
   @keyframes slide-in-left {
-    from { transform: translateX(-100%); }
-    to { transform: none; }
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
   }
   @keyframes check-in {
-    from { opacity: 0; transform: scale(0.6); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes slide-out {
-    to { transform: translateX(100%); }
+    to {
+      transform: translateX(100%);
+    }
   }
   @keyframes slide-out-left {
-    to { transform: translateX(-100%); }
+    to {
+      transform: translateX(-100%);
+    }
   }
   @keyframes toast-out {
-    to { opacity: 0; transform: translateY(8px); }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
   @keyframes fade-out {
-    to { opacity: 0; }
+    to {
+      opacity: 0;
+    }
   }
   @keyframes breathe {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 }
 
@@ -107,13 +157,16 @@
  * 個々の部品で止めると漏れるので、ここ 1 か所で止める
  */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
-  button:active, button:not(:disabled):has(> svg:only-child):active {
+  button:active,
+  button:not(:disabled):has(> svg:only-child):active {
     scale: none !important;
   }
 }
@@ -183,10 +236,6 @@ body {
   background-color: var(--c);
   color: var(--on-c, #ffffff);
 }
-.gc-dot {
-  background-color: var(--c);
-}
-
 
 /* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */
 .hue-slider {
@@ -216,7 +265,9 @@ body {
   cursor: pointer;
 }
 
-/* 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける */
+/*
+ * 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける。
+ */
 .gc-plan {
   background-color: color-mix(in srgb, var(--c) 14%, var(--gc-surface));
   border: 1px solid color-mix(in srgb, var(--c) 45%, var(--gc-surface));
@@ -226,6 +277,25 @@ body {
   background-color: color-mix(in srgb, var(--c) 20%, var(--gc-surface));
   border-color: color-mix(in srgb, var(--c) 45%, var(--gc-surface));
   color: color-mix(in srgb, var(--c) 35%, var(--gc-ink));
+}
+/*
+ * 色の丸（フォルダ・ラベル・習慣の丸、色選択、記録の内訳の棒）: 予定タイルと同じ抜け感の塗りに、くっきりした色の縁。
+ * 小さいので塗りは予定タイルより少し濃く、縁はその色そのもの
+ */
+.gc-dot {
+  background-color: color-mix(in srgb, var(--c) 30%, var(--gc-surface));
+  border: 1px solid var(--c);
+  color: color-mix(in srgb, var(--c) 40%, var(--gc-ink));
+}
+.dark .gc-dot {
+  background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
+}
+/* 色の細い線（To-Do 行の左の縦線）: 縁を付けると線の中に線が見えてごちゃつくので、丸の中の色だけで塗る。丸と同じ 30% だと細すぎて黄色が消えるので少し濃く */
+.gc-line {
+  background-color: color-mix(in srgb, var(--c) 55%, var(--gc-surface));
+}
+.dark .gc-line {
+  background-color: color-mix(in srgb, var(--c) 55%, var(--gc-surface));
 }
 
 /* 睡眠の記録: 夜の色の薄い帯。色の付いた記録・予定の枠より目立たせない */
@@ -261,7 +331,7 @@ body {
   }
   input,
   textarea,
-  [contenteditable]:not([contenteditable="false"]) {
+  [contenteditable]:not([contenteditable='false']) {
     -webkit-user-select: text;
     user-select: text;
   }
@@ -279,7 +349,7 @@ body {
   }
 
   /* キーボードで動かしたときだけ、いまどこにいるかを枠で見せる */
-  :where(button, a, [role="button"], [role="checkbox"], [role="tab"], summary):focus-visible {
+  :where(button, a, [role='button'], [role='checkbox'], [role='tab'], summary):focus-visible {
     outline: 2px solid var(--color-date-400);
     outline-offset: 2px;
   }
@@ -298,4 +368,12 @@ button:not(:disabled):has(> svg:only-child):active {
 /* 記録中は浮くタイマーが画面の下に重なる。スクロールする面の下に余白を足し、一番下の行まで出せるようにする（@layer の外で、各所の pb-* より優先） */
 html[data-timer-open] .timer-safe {
   padding-bottom: 6rem;
+}
+
+/* 行を選んでいる間の下のバー（SelectionBar）も同じ。タイマーと重なると 2 段になる */
+html[data-selection-open] .timer-safe {
+  padding-bottom: 6rem;
+}
+html[data-timer-open][data-selection-open] .timer-safe {
+  padding-bottom: 10rem;
 }

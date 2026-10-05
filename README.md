@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-ビルドは `npm run build`、Lint は `npm run lint` です。
+ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。
 
 ## スマホで使う（PWA）
 
@@ -41,7 +41,7 @@ npm run dev
 ## Supabase のセットアップ（マルチデバイス同期）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
-2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から `005` まで。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
+2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から最後の番号まで。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
    どのファイルも何度流しても同じ形になります。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。

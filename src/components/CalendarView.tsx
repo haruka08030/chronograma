@@ -1,14 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  format,
-  isSameMonth,
-} from 'date-fns'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format, isSameMonth } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
@@ -187,14 +179,20 @@ export function CalendarView({
                             hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
                             ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
-                onClickCapture={onOpenDay ? (e) => {
-                  if ((e.target as Element).closest('button')) return
-                  e.stopPropagation()
-                  onOpenDay(key)
-                } : undefined}
+                onClickCapture={
+                  onOpenDay
+                    ? (e) => {
+                        if ((e.target as Element).closest('button')) return
+                        e.stopPropagation()
+                        onOpenDay(key)
+                      }
+                    : undefined
+                }
                 onDoubleClick={() => setAddingDate(key)}
-                onDragOver={(e) => { if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key) }}
-                onDragLeave={() => setDragOverDate((prev) => prev === key ? null : prev)}
+                onDragOver={(e) => {
+                  if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key)
+                }}
+                onDragLeave={() => setDragOverDate((prev) => (prev === key ? null : prev))}
                 onDrop={(e) => {
                   if (!isTaskDrag(e, { googleEvents: true })) return
                   e.preventDefault()
@@ -206,19 +204,23 @@ export function CalendarView({
                     return
                   }
                   const ids = readDraggedTaskIds(e.dataTransfer)
-                  const taskIds = ids.length ? ids : (dragTaskIdRef.current ? [dragTaskIdRef.current] : [])
+                  const taskIds = ids.length ? ids : dragTaskIdRef.current ? [dragTaskIdRef.current] : []
                   asOneUndo(() => {
                     // 取り消しの文は最初の 1 回の分が出る（asOneUndo）
                     const label = movedToDateLabel(taskIds, tasks, key)
                     for (const taskId of taskIds) {
                       const existingTask = tasks.find((t) => t.id === taskId)
                       if (existingTask) {
-                        updateTask(taskId, {
-                          scheduledDate: key,
-                          startTime: existingTask.startTime,
-                          endTime: existingTask.endTime,
-                          kind: 'todo',
-                        }, label)
+                        updateTask(
+                          taskId,
+                          {
+                            scheduledDate: key,
+                            startTime: existingTask.startTime,
+                            endTime: existingTask.endTime,
+                            kind: 'todo',
+                          },
+                          label,
+                        )
                       }
                     }
                   })
@@ -226,12 +228,15 @@ export function CalendarView({
                 }}
               >
                 <div className="mb-1 flex items-center justify-between gap-1">
-                  <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
-                    ${today || selected
-                      ? dayMarkerClass({ today, selected })
-                      : inMonth
+                  <div
+                    className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
+                    ${
+                      today || selected
+                        ? dayMarkerClass({ today, selected })
+                        : inMonth
                           ? 'text-zinc-500 dark:text-zinc-400'
-                          : 'text-zinc-300 dark:text-zinc-600'}`}
+                          : 'text-zinc-300 dark:text-zinc-600'
+                    }`}
                   >
                     {format(day, 'd')}
                   </div>
@@ -243,7 +248,8 @@ export function CalendarView({
                     }}
                     // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
                     className={`h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
-                      selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'}`}
+                      selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'
+                    }`}
                   />
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
@@ -252,13 +258,22 @@ export function CalendarView({
                     if (!recs) return null
                     const total = [...recs.values()].reduce((a, b) => a + b, 0)
                     return (
-                      <div className="flex items-center gap-1.5 px-1 pb-0.5" title={t('calendar.recordedTotal', { time: formatDurationShort(total) })}>
+                      <div
+                        className="flex items-center gap-1.5 px-1 pb-0.5"
+                        title={t('calendar.recordedTotal', { time: formatDurationShort(total) })}
+                      >
                         <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
                           {[...recs.entries()].map(([cat, min]) => (
-                            <div key={cat} className="gc-dot" style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / total) * 100}%` }} />
+                            <div
+                              key={cat}
+                              className="gc-dot"
+                              style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / total) * 100}%` }}
+                            />
                           ))}
                         </div>
-                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">{formatDurationShort(total)}</span>
+                        <span className="shrink-0 text-[9px] tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {formatDurationShort(total)}
+                        </span>
                       </div>
                     )
                   })()}
@@ -274,7 +289,10 @@ export function CalendarView({
                         ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
                         ev.dataTransfer.effectAllowed = 'move'
                       }}
-                      onDragEnd={() => { setDraggedGoogleEvent(null); setDragOverDate(null) }}
+                      onDragEnd={() => {
+                        setDraggedGoogleEvent(null)
+                        setDragOverDate(null)
+                      }}
                       onContextMenu={(ev) => {
                         ev.preventDefault()
                         ev.stopPropagation()
@@ -283,7 +301,7 @@ export function CalendarView({
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
                         ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                      style={colorVars(eventState(e, key) === 'upcoming' ? e.color ?? DEFAULT_GOOGLE_EVENT_HEX : '#BDBDBD')}
+                      style={colorVars(eventState(e, key) === 'upcoming' ? (e.color ?? DEFAULT_GOOGLE_EVENT_HEX) : '#BDBDBD')}
                     >
                       {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯。色は予定ごと */}
                       {e.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
@@ -302,13 +320,23 @@ export function CalendarView({
                         startTaskDrag(e, t.id)
                         beginCalendarItemNativeDrag()
                       }}
-                      onDragEnd={() => { dragTaskIdRef.current = null; setDragOverDate(null) }}
-                      onClick={(e) => { e.stopPropagation(); openDetail(t.id) }}
+                      onDragEnd={() => {
+                        dragTaskIdRef.current = null
+                        setDragOverDate(null)
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openDetail(t.id)
+                      }}
                       // 時刻つきの予定・記録はタイムラインと同じメニュー、時刻なしのタスクは To-Do と同じメニュー
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        openTaskMenu(t.startTime || isLogTask(t) ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id } : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                        openTaskMenu(
+                          t.startTime || isLogTask(t)
+                            ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id }
+                            : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] },
+                        )
                       }}
                       className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
@@ -333,16 +361,13 @@ export function CalendarView({
                       {t('calendar.moreItems', { count: hiddenCount })}
                     </span>
                   )}
-                  {addingDate === key && (
-                    <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />
-                  )}
+                  {addingDate === key && <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />}
                 </div>
               </div>
             )
           })}
         </div>
       </div>
-
     </div>
   )
 }

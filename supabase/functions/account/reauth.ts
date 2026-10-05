@@ -18,7 +18,10 @@ export function decodeJwtPayload(authHeader: string): Record<string, unknown> | 
   const part = token.split('.')[1]
   if (!part) return null
   try {
-    const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')
+    const b64 = part
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(part.length / 4) * 4, '=')
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
     const payload = JSON.parse(new TextDecoder().decode(bytes))
     return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null

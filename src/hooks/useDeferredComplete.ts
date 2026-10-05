@@ -42,25 +42,31 @@ export function useDeferredComplete(commit: (taskId: string) => void) {
     })
   }, [])
 
-  const toggle = useCallback((taskId: string, completed: boolean) => {
-    const waiting = timers.current.get(taskId)
-    if (waiting !== undefined) {
-      window.clearTimeout(waiting)
-      timers.current.delete(taskId)
-      drop(taskId)
-      return
-    }
-    if (completed || prefersReducedMotion()) {
-      commitRef.current(taskId)
-      return
-    }
-    setPending((prev) => new Set(prev).add(taskId))
-    timers.current.set(taskId, window.setTimeout(() => {
-      timers.current.delete(taskId)
-      drop(taskId)
-      commitRef.current(taskId)
-    }, COMPLETE_DELAY_MS))
-  }, [drop])
+  const toggle = useCallback(
+    (taskId: string, completed: boolean) => {
+      const waiting = timers.current.get(taskId)
+      if (waiting !== undefined) {
+        window.clearTimeout(waiting)
+        timers.current.delete(taskId)
+        drop(taskId)
+        return
+      }
+      if (completed || prefersReducedMotion()) {
+        commitRef.current(taskId)
+        return
+      }
+      setPending((prev) => new Set(prev).add(taskId))
+      timers.current.set(
+        taskId,
+        window.setTimeout(() => {
+          timers.current.delete(taskId)
+          drop(taskId)
+          commitRef.current(taskId)
+        }, COMPLETE_DELAY_MS),
+      )
+    },
+    [drop],
+  )
 
   const isPending = useCallback((taskId: string) => pending.has(taskId), [pending])
 

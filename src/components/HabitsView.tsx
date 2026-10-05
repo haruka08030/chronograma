@@ -5,19 +5,11 @@ import { useTaskStore } from '../store/taskStore'
 import { hexForGoogleKey } from '../lib/googleColors'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive, type Habit, type HabitTimeMode, type HabitWeekday } from '../types/habit'
-import {
-  canSubmitHabitDraft,
-  habitFrequencyFromDraft,
-  toggleHabitWeekdaySelection,
-} from '../lib/habitDraft'
-import {
-  completionRatioOnDate,
-  consistencyForLast7Days,
-  currentStreakDays,
-} from '../lib/habitStats'
+import { canSubmitHabitDraft, habitFrequencyFromDraft, toggleHabitWeekdaySelection } from '../lib/habitDraft'
+import { completionRatioOnDate, consistencyForLast7Days, currentStreakDays } from '../lib/habitStats'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { HABIT_ON_TIME_TOLERANCE_MIN, buildHabitRecordIndex, habitDayStatus, habitRecordFor } from '../lib/habitTiming'
-import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../lib/habitMark'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
 import { colorVars, labelForHex } from '../lib/logCategoryColors'
 import { TimeInput } from './TimeInput'
 
@@ -57,13 +49,7 @@ const DEFAULT_HABIT_COLOR = hexForGoogleKey('sage')!
 
 const iconTrash = ICON_PATHS.trash
 
-function ColorPicker({
-  color,
-  onPick,
-}: {
-  color: string
-  onPick: (hex: string) => void
-}) {
+function ColorPicker({ color, onPick }: { color: string; onPick: (hex: string) => void }) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)
@@ -71,11 +57,11 @@ function ColorPicker({
   const label = labelForHex(color, presets, colors)
   return (
     <div className="flex flex-col gap-2">
-      <SectionLabel as="span" level="field">{t('habits.color')}</SectionLabel>
+      <SectionLabel as="span" level="field">
+        {t('habits.color')}
+      </SectionLabel>
       <ColorPalette bare selectedHex={color} onChoose={onPick} />
-      <p className={HINT_TEXT}>
-        {label ? t('habits.colorLabel', { label }) : t('habits.colorNoLabel')}
-      </p>
+      <p className={HINT_TEXT}>{label ? t('habits.colorLabel', { label }) : t('habits.colorNoLabel')}</p>
     </div>
   )
 }
@@ -157,23 +143,19 @@ function HabitTimeFields({
 
       {mode === 'fixed' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <SectionLabel as="span" level="field">{t('habits.timeAt')}</SectionLabel>
-          <TimeInput
-            value={startTime}
-            onChange={onStartTimeChange}
-            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
-          />
+          <SectionLabel as="span" level="field">
+            {t('habits.timeAt')}
+          </SectionLabel>
+          <TimeInput value={startTime} onChange={onStartTimeChange} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
         </div>
       ) : null}
 
       {mode === 'range' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <SectionLabel as="span" level="field">{t('habits.time')}</SectionLabel>
-          <TimeInput
-            value={startTime}
-            onChange={onStartTimeChange}
-            className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
-          />
+          <SectionLabel as="span" level="field">
+            {t('habits.time')}
+          </SectionLabel>
+          <TimeInput value={startTime} onChange={onStartTimeChange} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
             value={endTime}
@@ -184,11 +166,7 @@ function HabitTimeFields({
         </div>
       ) : null}
 
-      {mode !== 'none' ? (
-        <p className={HINT_TEXT}>
-          {t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}
-        </p>
-      ) : null}
+      {mode !== 'none' ? <p className={HINT_TEXT}>{t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}</p> : null}
     </div>
   )
 }
@@ -234,24 +212,21 @@ export function HabitsView() {
     setEditingHabitId(null)
   }, [])
 
-  const beginEdit = useCallback(
-    (h: Habit) => {
-      setEditingHabitId(h.id)
-      setEditTitle(h.title)
-      if (h.frequency.type === 'daily') {
-        setEditFreq('daily')
-        setEditWeekdays(DEFAULT_WEEKDAYS)
-      } else {
-        setEditFreq('weekly')
-        setEditWeekdays([...h.frequency.weekdays].sort((a, b) => a - b))
-      }
-      setEditTimeMode(h.timeMode)
-      setEditStartTime(h.startTime ?? '09:00')
-      setEditEndTime(h.endTime ?? '10:00')
-      setEditColor(h.color)
-    },
-    [],
-  )
+  const beginEdit = useCallback((h: Habit) => {
+    setEditingHabitId(h.id)
+    setEditTitle(h.title)
+    if (h.frequency.type === 'daily') {
+      setEditFreq('daily')
+      setEditWeekdays(DEFAULT_WEEKDAYS)
+    } else {
+      setEditFreq('weekly')
+      setEditWeekdays([...h.frequency.weekdays].sort((a, b) => a - b))
+    }
+    setEditTimeMode(h.timeMode)
+    setEditStartTime(h.startTime ?? '09:00')
+    setEditEndTime(h.endTime ?? '10:00')
+    setEditColor(h.color)
+  }, [])
 
   useEffect(() => {
     if (!editingHabitId || habits.some((h) => h.id === editingHabitId)) return
@@ -375,36 +350,27 @@ export function HabitsView() {
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
   const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
-  const focusDate = useMemo(
-    () => fromDateKey(selectedCalendarDateKey),
-    [selectedCalendarDateKey],
-  )
+  const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
   const weekDates = useMemo(() => {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
   const todayKey = toDateKey(appToday())
-  const habitWeekdayLabels = useMemo(
-    () => t('habits.weekdays', { returnObjects: true }) as string[],
-    [t],
-  )
+  const habitWeekdayLabels = useMemo(() => t('habits.weekdays', { returnObjects: true }) as string[], [t])
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
   const focusDateLabel = df.monthDayWeekday(focusDate)
   const isFocusToday = selectedCalendarDateKey === todayKey
 
-  const habitsScheduledForFocus = useMemo(
-    () => habits.filter((h) => isHabitScheduledOnDate(h, focusDate)),
-    [habits, focusDate],
-  )
-  const habitsOffFocus = useMemo(
-    () => habits.filter((h) => !isHabitScheduledOnDate(h, focusDate)),
-    [habits, focusDate],
-  )
+  const habitsScheduledForFocus = useMemo(() => habits.filter((h) => isHabitScheduledOnDate(h, focusDate)), [habits, focusDate])
+  const habitsOffFocus = useMemo(() => habits.filter((h) => !isHabitScheduledOnDate(h, focusDate)), [habits, focusDate])
 
-  const shiftFocusDay = useCallback((delta: number) => {
-    setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta)))
-  }, [focusDate, setSelectedCalendarDateKey])
+  const shiftFocusDay = useCallback(
+    (delta: number) => {
+      setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta)))
+    },
+    [focusDate, setSelectedCalendarDateKey],
+  )
 
   const goFocusToday = useCallback(() => {
     setSelectedCalendarDateKey(todayKey)
@@ -423,11 +389,12 @@ export function HabitsView() {
             .sort((a, b) => a - b)
             .map((d) => format(addDays(ISO_MONDAY, d - 1), 'E', { locale: dateLocale }))
             .join(t('habits.weekdaySeparator'))
-    const timeText = h.timeMode === 'range' && h.startTime && h.endTime
-      ? t('habits.timeRange', { start: h.startTime, end: h.endTime })
-      : h.timeMode === 'fixed' && h.startTime
-        ? t('habits.timeAtValue', { time: h.startTime })
-        : null
+    const timeText =
+      h.timeMode === 'range' && h.startTime && h.endTime
+        ? t('habits.timeRange', { start: h.startTime, end: h.endTime })
+        : h.timeMode === 'fixed' && h.startTime
+          ? t('habits.timeAtValue', { time: h.startTime })
+          : null
 
     const cardSurface = offDay
       ? 'border-dashed border-zinc-200/90 bg-zinc-50/90 dark:border-zinc-600/80 dark:bg-zinc-950/45'
@@ -447,8 +414,7 @@ export function HabitsView() {
                   type="button"
                   onClick={(e) => handleDelete(h.id, e)}
                   className={iconButtonClass('-mr-1.5 -mt-1.5')}
-                  {...tip(t('common.delete'))}
-                  aria-label={t('common.delete')}
+                  {...tip(t('common.delete'), { name: true })}
                 >
                   <PathIcon d={iconTrash} className="w-4 h-4" strokeWidth={1.5} />
                 </button>
@@ -508,11 +474,7 @@ export function HabitsView() {
                 >
                   {t('common.save')}
                 </button>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className={buttonClass({ variant: 'secondary', size: 'md' })}
-                >
+                <button type="button" onClick={cancelEdit} className={buttonClass({ variant: 'secondary', size: 'md' })}>
                   {t('common.cancel')}
                 </button>
               </div>
@@ -541,7 +503,7 @@ export function HabitsView() {
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: offDay ? '#a1a1aa' : h.color }} aria-hidden />
+              <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(offDay ? '#a1a1aa' : h.color)} aria-hidden />
               <div className="min-w-0">
                 <p
                   className={`truncate text-base font-semibold tracking-tight ${
@@ -580,13 +542,15 @@ export function HabitsView() {
               const isDone = status === 'done'
               const isOffTime = status === 'offTime'
               const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
-              const cellTitle = record
-                ? t('habits.offTimeTooltip', { date: key, start: record.startTime, end: record.endTime })
-                : key
+              // 読み上げは「10月3日 (土) 達成」。時間外は時刻も添える（ツールチップはタッチでは見えないため）
+              const cellDate = df.monthDayWeekday(d)
+              const cellLabel = record
+                ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
+                : isDone
+                  ? t('habits.cellDoneAria', { date: cellDate })
+                  : cellDate
               // 丸の塗りは達成の色なので、今日は曜日の文字で、選んだ日は枠で示す（カレンダーと同じ藍）
-              const ringClass = isCellFocus
-                ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-transparent'
-                : ''
+              const ringClass = isCellFocus ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-transparent' : ''
               return (
                 <button
                   key={key}
@@ -595,11 +559,14 @@ export function HabitsView() {
                     e.stopPropagation()
                     toggleHabitDate(h.id, key)
                   }}
-                  className="flex justify-center"
-                  aria-label={cellTitle}
-                  {...tip(cellTitle)}
+                  className="flex flex-col items-center gap-1"
+                  aria-label={cellLabel}
+                  aria-pressed={isDone || isOffTime}
+                  {...tip(
+                    record ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime }) : undefined,
+                  )}
                 >
-                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。「時間外」の文字は入らないのでツールチップで */}
+                  {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。時間外は丸の下に小さく「時間外」（カードの高さに入れて、枠に重ねない） */}
                   <span
                     className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                       isDone
@@ -612,8 +579,17 @@ export function HabitsView() {
                     } ${ringClass}`}
                     style={colorVars(h.color)}
                   >
-                    {isDone || isOffTime ? <CheckIcon className="h-4 w-4" strokeWidth={3} /> : <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>}
+                    {isDone || isOffTime ? (
+                      <CheckIcon className="h-4 w-4" strokeWidth={3} />
+                    ) : (
+                      <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{habitWeekdayLabels[di]}</span>
+                    )}
                   </span>
+                  {isOffTime && (
+                    <span aria-hidden className={`whitespace-nowrap text-[10px] leading-none ${HABIT_OFF_TIME_TEXT}`}>
+                      {t('planner.habitOffTime')}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -634,11 +610,7 @@ export function HabitsView() {
               if (showComposer) closeComposer()
               else setShowComposer(true)
             }}
-            className={
-              showComposer
-                ? buttonClass({ variant: 'secondary', size: 'sm' })
-                : buttonClass({ variant: 'primary', size: 'sm' })
-            }
+            className={showComposer ? buttonClass({ variant: 'secondary', size: 'sm' }) : buttonClass({ variant: 'primary', size: 'sm' })}
           >
             {showComposer ? t('common.close') : t('habits.addHabitCta')}
           </button>
@@ -785,23 +757,23 @@ export function HabitsView() {
         ) : null}
 
         <ul className="space-y-3">
-        {habits.length === 0 && (
-          <li>
-            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
-          </li>
-        )}
-        {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
-          <p className={`py-2 ${SUBTLE_TEXT}`}>{t('habits.noneScheduledForDay')}</p>
-        )}
-        {habitsScheduledForFocus.map((h) => renderHabitRow(h, false))}
-        {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
-          <li className="list-none">
-            <div className="pt-4 pb-1">
-              <SectionLabel as="h3">{t('habits.offDaySectionTitle')}</SectionLabel>
-            </div>
-          </li>
-        ) : null}
-        {habitsOffFocus.map((h) => renderHabitRow(h, true))}
+          {habits.length === 0 && (
+            <li>
+              <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+            </li>
+          )}
+          {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
+            <p className={`py-2 ${SUBTLE_TEXT}`}>{t('habits.noneScheduledForDay')}</p>
+          )}
+          {habitsScheduledForFocus.map((h) => renderHabitRow(h, false))}
+          {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
+            <li className="list-none">
+              <div className="pt-4 pb-1">
+                <SectionLabel as="h3">{t('habits.offDaySectionTitle')}</SectionLabel>
+              </div>
+            </li>
+          ) : null}
+          {habitsOffFocus.map((h) => renderHabitRow(h, true))}
         </ul>
 
         {archivedHabits.length > 0 && (
@@ -813,13 +785,9 @@ export function HabitsView() {
               <ul className="mt-1 divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
                 {archivedHabits.map((h) => (
                   <li key={h.id} {...habitMenuProps(h.id)} className="flex select-none items-center gap-3 px-4 py-2.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: h.color }} aria-hidden />
+                    <span className="gc-dot h-2.5 w-2.5 shrink-0 rounded-full" style={colorVars(h.color)} aria-hidden />
                     <span className="min-w-0 flex-1 truncate text-sm text-zinc-600 dark:text-zinc-400">{h.title}</span>
-                    <button
-                      type="button"
-                      onClick={() => restoreHabit(h.id)}
-                      className={buttonClass({ variant: 'ghost', size: 'xs' })}
-                    >
+                    <button type="button" onClick={() => restoreHabit(h.id)} className={buttonClass({ variant: 'ghost', size: 'xs' })}>
                       <RestoreIcon className="h-3.5 w-3.5" />
                       {t('habits.restore')}
                     </button>

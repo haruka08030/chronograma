@@ -23,6 +23,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { colorVars } from '../../lib/logCategoryColors'
 
 const WIDTH = 320
 
@@ -43,11 +44,14 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   useEffect(() => {
     pendingTitleRef.current = titleDraft
   }, [titleDraft])
-  useEffect(() => () => {
-    const draft = pendingTitleRef.current
-    const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
-    if (draft !== null && ev) void renameGoogleEvent(ev, draft)
-  }, [eventId])
+  useEffect(
+    () => () => {
+      const draft = pendingTitleRef.current
+      const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
+      if (draft !== null && ev) void renameGoogleEvent(ev, draft)
+    },
+    [eventId],
+  )
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
@@ -55,12 +59,16 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
   // 入力欄の外の Esc は層の仕組みが閉じる。欄が自分で使った Esc（時刻の取り消し）では閉じない
   useHotkey('Escape', () => onClose(), { scope: layer, allowInInputs: true })
-  useHotkey(SHORTCUTS.delete.hotkeys, () => {
-    const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
-    if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
-    removeGoogleEvent(ev)
-    onClose()
-  }, { scope: layer })
+  useHotkey(
+    SHORTCUTS.delete.hotkeys,
+    () => {
+      const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
+      if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
+      removeGoogleEvent(ev)
+      onClose()
+    },
+    { scope: layer },
+  )
 
   useEffect(() => {
     ref.current?.focus()
@@ -106,17 +114,17 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }
 
   return (
-    <div
-      ref={ref}
-      role="dialog"
-      aria-label={event.summary}
-      tabIndex={-1}
-      className={anchoredCardClass(sheet)}
-      style={style}
-    >
+    <div ref={ref} role="dialog" aria-label={event.summary} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
-          <a href={event.htmlLink} target="_blank" rel="noreferrer" className={iconButtonClass()} aria-label={t('googleEdit.openInGoogle')} {...tip(t('googleEdit.openInGoogle'))}>
+          <a
+            href={event.htmlLink}
+            target="_blank"
+            rel="noreferrer"
+            className={iconButtonClass()}
+            aria-label={t('googleEdit.openInGoogle')}
+            {...tip(t('googleEdit.openInGoogle'))}
+          >
             <OpenPanelIcon className="h-4 w-4" strokeWidth={1.75} />
           </a>
         )}
@@ -145,7 +153,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         </button>
       </div>
       <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3">
-        <span className="mt-1.5 h-3.5 w-3.5 rounded" style={{ backgroundColor: hex }} aria-hidden />
+        <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           {editable ? (
             <input
@@ -177,9 +185,17 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               </div>
               {event.startTime && event.endTime && (
                 <div className="flex w-full items-center gap-1.5">
-                  <TimeInput value={event.startTime} onChange={(v) => v && commitTiming({ startTime: v })} className={`w-[5.5rem] ${smallField}`} />
+                  <TimeInput
+                    value={event.startTime}
+                    onChange={(v) => v && commitTiming({ startTime: v })}
+                    className={`w-[5.5rem] ${smallField}`}
+                  />
                   <span className="text-zinc-400">–</span>
-                  <TimeInput value={event.endTime} onChange={(v) => v && commitTiming({ endTime: v })} className={`w-[5.5rem] ${smallField}`} />
+                  <TimeInput
+                    value={event.endTime}
+                    onChange={(v) => v && commitTiming({ endTime: v })}
+                    className={`w-[5.5rem] ${smallField}`}
+                  />
                 </div>
               )}
             </div>

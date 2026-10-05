@@ -23,11 +23,7 @@ function dateKeyToNoon(ymd: string): Date {
  * - タイムログ: `dueDate`（開始日）
  * - 通常タスク: `scheduledDate`（予定日）。無ければ `dueDate`（期限日）にフォールバック
  */
-export function taskPlacementDate(task: {
-  dueDate?: string | null
-  scheduledDate?: string | null
-  kind?: TaskKind
-}): string | null {
+export function taskPlacementDate(task: { dueDate?: string | null; scheduledDate?: string | null; kind?: TaskKind }): string | null {
   if (isLogTask(task)) return task.dueDate ?? null
   return task.scheduledDate ?? task.dueDate ?? null
 }
@@ -110,10 +106,7 @@ export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
 }
 
 /** その日の列に表示するタイムログの top/height（px）。重ならなければ null */
-export function timeLogSegmentLayoutForDay(
-  task: Task,
-  dateKey: string,
-): { top: number; height: number; span: number } | null {
+export function timeLogSegmentLayoutForDay(task: Task, dateKey: string): { top: number; height: number; span: number } | null {
   if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime) return null
   const iv = taskTimedInterval(task)
   if (!iv) return null

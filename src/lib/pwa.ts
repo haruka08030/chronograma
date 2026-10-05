@@ -2,6 +2,7 @@
  * PWA（ホーム画面に追加）まわり: Service Worker 登録・インストール案内・通知タップからの画面遷移。
  */
 import type { SmartView } from '../store/taskStore'
+import { toSmartView } from './viewUrl'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -53,8 +54,6 @@ export async function promptInstall(): Promise<boolean> {
   return outcome === 'accepted'
 }
 
-const VIEWS: readonly SmartView[] = ['planner', 'all', 'today', 'upcoming', 'overdue', 'calendar', 'stats', 'habits']
-
 /** 記録の確認の通知から: 予定どおりに記録する / 記録を入れる画面を開く */
 export interface RecordLaunch {
   taskId: string
@@ -67,22 +66,18 @@ export interface LaunchHandlers {
 }
 
 /**
- * `?view=planner` や `?record=<id>&as=planned` のような起動 URL（ショートカット・通知タップ）を読んで消す。
- * 読んだら `handlers` を呼ぶ
+ * 通知タップの `?record=<id>&as=planned` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
   const url = new URL(window.location.href)
-  const raw = url.searchParams.get('view')
-  // 統合した旧画面へのショートカットは統合先で開く（記録→今日、予定と記録→カレンダー）
-  const view = (raw === 'activity-log' ? 'planner' : raw === 'plan-vs-actual' ? 'calendar' : raw) as SmartView | null
   const record = url.searchParams.get('record')
   const asPlanned = url.searchParams.get('as') === 'planned'
   const nonce = url.searchParams.get('launch')
-  const keys = ['view', 'source', 'record', 'as', 'launch']
+  const keys = ['source', 'record', 'as', 'launch']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
-  if (view && VIEWS.includes(view)) handlers.openView(view)
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })
@@ -125,8 +120,8 @@ export function setupPwa(handlers: LaunchHandlers) {
   navigator.serviceWorker.addEventListener(
     'message',
     (e: MessageEvent<{ type?: string; view?: string; taskId?: string; asPlanned?: boolean }>) => {
-      const view = e.data?.view as SmartView | undefined
-      if (e.data?.type === 'open-view' && view && VIEWS.includes(view)) handlers.openView(view)
+      const view = toSmartView(e.data?.view)
+      if (e.data?.type === 'open-view' && view) handlers.openView(view)
       if (e.data?.type === 'record' && e.data.taskId) handlers.record({ taskId: e.data.taskId, asPlanned: e.data.asPlanned === true })
     },
   )

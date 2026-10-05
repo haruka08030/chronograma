@@ -27,10 +27,7 @@ function titleSimilarity(a: string, b: string): number {
   return overlap / Math.max(wordsA.size, wordsB.size)
 }
 
-function timeOverlapRatio(
-  pStart: string, pEnd: string,
-  aStart: string, aEnd: string,
-): number {
+function timeOverlapRatio(pStart: string, pEnd: string, aStart: string, aEnd: string): number {
   const ps = timeToMinutes(pStart)
   const pe = timeToMinutes(pEnd)
   const as_ = timeToMinutes(aStart)
@@ -50,10 +47,7 @@ const TIME_OVERLAP_THRESHOLD = 0.15
 const DRIFT_THRESHOLD_MINUTES = 10
 
 /** 予定（Google・習慣・自分で配置したタスク）とタイムログを突き合わせる */
-export function matchPlanAndActualForDate(
-  planned: PlannedItem[],
-  actualLogs: Task[],
-): MatchedPair[] {
+export function matchPlanAndActualForDate(planned: PlannedItem[], actualLogs: Task[]): MatchedPair[] {
   const timedPlanned = planned.filter((e) => e.startTime && e.endTime)
   const timedActual = actualLogs.filter((t) => t.startTime && t.endTime)
 

@@ -13,12 +13,7 @@ import { CalendarMobileHeader } from './CalendarMobileHeader'
 import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
-import {
-  setUnscheduleHover,
-  UNSCHEDULE_DROP_ATTR,
-  UNSCHEDULE_PATCH,
-  useCalendarItemDrag,
-} from '../lib/calendarItemDrag'
+import { setUnscheduleHover, UNSCHEDULE_DROP_ATTR, UNSCHEDULE_PATCH, useCalendarItemDrag } from '../lib/calendarItemDrag'
 import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
@@ -51,18 +46,24 @@ export function CalendarHubView() {
     else setWeekAnchor(d)
   }
 
-  const applyPickedDate = useCallback((key: string) => {
-    setSelectedCalendarDateKey(key)
-    const d = fromDateKey(key)
-    setMonthCursor(startOfMonth(d))
-    setWeekAnchor(d)
-  }, [setSelectedCalendarDateKey])
+  const applyPickedDate = useCallback(
+    (key: string) => {
+      setSelectedCalendarDateKey(key)
+      const d = fromDateKey(key)
+      setMonthCursor(startOfMonth(d))
+      setWeekAnchor(d)
+    },
+    [setSelectedCalendarDateKey],
+  )
 
   /** スマホ幅の月のマスを押したとき: その日の 1 日表示へ */
-  const openDay = useCallback((key: string) => {
-    setCalendarMode('week')
-    applyPickedDate(key)
-  }, [setCalendarMode, applyPickedDate])
+  const openDay = useCallback(
+    (key: string) => {
+      setCalendarMode('week')
+      applyPickedDate(key)
+    },
+    [setCalendarMode, applyPickedDate],
+  )
 
   const onGoToday = useCallback(() => {
     const today = appToday()
@@ -72,21 +73,27 @@ export function CalendarHubView() {
     setWeekAnchor(today)
   }, [setSelectedCalendarDateKey])
 
-  const stepPeriod = useCallback((dir: -1 | 1) => {
-    if (calendarMode === 'month') {
-      setMonthCursor((m) => (dir < 0 ? subMonths(m, 1) : addMonths(m, 1)))
-      return
-    }
-    const next = addDays(fromDateKey(selectedDateKey), dir * pageDays)
-    setWeekAnchor(next)
-    setSelectedCalendarDateKey(toDateKey(next))
-  }, [calendarMode, pageDays, selectedDateKey, setSelectedCalendarDateKey])
+  const stepPeriod = useCallback(
+    (dir: -1 | 1) => {
+      if (calendarMode === 'month') {
+        setMonthCursor((m) => (dir < 0 ? subMonths(m, 1) : addMonths(m, 1)))
+        return
+      }
+      const next = addDays(fromDateKey(selectedDateKey), dir * pageDays)
+      setWeekAnchor(next)
+      setSelectedCalendarDateKey(toDateKey(next))
+    },
+    [calendarMode, pageDays, selectedDateKey, setSelectedCalendarDateKey],
+  )
   /** スマホの 1 日表示で上の曜日の帯を払ったとき: 同じ曜日のまま前後の週へ */
-  const stepWeek = useCallback((dir: -1 | 1) => {
-    const next = addDays(fromDateKey(selectedDateKey), dir * 7)
-    setWeekAnchor(next)
-    setSelectedCalendarDateKey(toDateKey(next))
-  }, [selectedDateKey, setSelectedCalendarDateKey])
+  const stepWeek = useCallback(
+    (dir: -1 | 1) => {
+      const next = addDays(fromDateKey(selectedDateKey), dir * 7)
+      setWeekAnchor(next)
+      setSelectedCalendarDateKey(toDateKey(next))
+    },
+    [selectedDateKey, setSelectedCalendarDateKey],
+  )
   const onPrevPeriod = useCallback(() => stepPeriod(-1), [stepPeriod])
   const onNextPeriod = useCallback(() => stepPeriod(1), [stepPeriod])
 
@@ -118,56 +125,54 @@ export function CalendarHubView() {
       })
     },
   }
-  const unscheduleHighlight = itemDrag.overUnschedule
-    ? DROP_HIGHLIGHT_CLASS
-    : ''
+  const unscheduleHighlight = itemDrag.overUnschedule ? DROP_HIGHLIGHT_CLASS : ''
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {isDesktop ? (
         <>
-        <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-          <div className="flex min-w-0 items-center gap-2">
-            <Segmented
-              role="tab"
-              ariaLabel={t('calendarHub.calendarTabsAria')}
-              value={calendarMode}
-              onChange={setMode}
-              // スマホ幅は CalendarMobileHeader のメニュー（日 / 3日 / 月 / スケジュール）
-              options={[
-                { value: 'month', label: t('common.month') },
-                { value: 'week', label: t('common.week') },
-                { value: 'schedule', label: t('calendarHub.modeSchedule') },
-              ]}
-              className="shrink-0"
-            />
+          <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+            <div className="flex min-w-0 items-center gap-2">
+              <Segmented
+                role="tab"
+                ariaLabel={t('calendarHub.calendarTabsAria')}
+                value={calendarMode}
+                onChange={setMode}
+                // スマホ幅は CalendarMobileHeader のメニュー（日 / 3日 / 月 / スケジュール）
+                options={[
+                  { value: 'month', label: t('common.month') },
+                  { value: 'week', label: t('common.week') },
+                  { value: 'schedule', label: t('calendarHub.modeSchedule') },
+                ]}
+                className="shrink-0"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setDockOpen((o) => !o)}
+              aria-pressed={dockOpen}
+              {...tip(t('calendarHub.dockHint'))}
+              // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                dockOpen
+                  ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {t('calendarHub.dockToggle')}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setDockOpen((o) => !o)}
-            aria-pressed={dockOpen}
-            {...tip(t('calendarHub.dockHint'))}
-            // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              dockOpen
-                ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-            }`}
-          >
-            {t('calendarHub.dockToggle')}
-          </button>
-        </div>
 
-        <CalendarDateNav
-          mode={calendarMode}
+          <CalendarDateNav
+            mode={calendarMode}
             selectedDateKey={selectedDateKey}
-          monthCursor={monthCursor}
-          weekAnchor={weekAnchor}
-          onGoToday={onGoToday}
-          onPrevPeriod={onPrevPeriod}
-          onNextPeriod={onNextPeriod}
-          onPickDate={applyPickedDate}
-        />
+            monthCursor={monthCursor}
+            weekAnchor={weekAnchor}
+            onGoToday={onGoToday}
+            onPrevPeriod={onPrevPeriod}
+            onNextPeriod={onNextPeriod}
+            onPickDate={applyPickedDate}
+          />
         </>
       ) : (
         <CalendarMobileHeader
@@ -223,14 +228,17 @@ export function CalendarHubView() {
             >
               <CalendarTaskDock />
             </div>
-          ) : itemDrag.active && !itemDrag.fromGrid && (
-            <div
-              {...unscheduleDropProps}
-              className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors
+          ) : (
+            itemDrag.active &&
+            !itemDrag.fromGrid && (
+              <div
+                {...unscheduleDropProps}
+                className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors
                 dark:border-zinc-700 dark:text-zinc-400 ${unscheduleHighlight}`}
-            >
-              {t('calendarHub.dropToUnschedule')}
-            </div>
+              >
+                {t('calendarHub.dropToUnschedule')}
+              </div>
+            )
           )}
         </div>
         <aside className="hidden h-full w-[360px] shrink-0 border-l border-zinc-200 dark:border-zinc-800 lg:block">

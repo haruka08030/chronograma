@@ -42,21 +42,15 @@ export function SearchResults() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <div className="px-6 pt-8 pb-2">
-          <h1 className={PAGE_TITLE_CLASS}>
-            {t('search.title')}
-          </h1>
-          <p className={`mt-1 ${META_TEXT}`}>
-            {t('search.countLine', { query, count: results.length })}
-          </p>
+          <h1 className={PAGE_TITLE_CLASS}>{t('search.title')}</h1>
+          <p className={`mt-1 ${META_TEXT}`}>{t('search.countLine', { query, count: results.length })}</p>
         </div>
 
         <div className="flex-1 px-4 pb-4 space-y-1">
           {results.length === 0 ? (
             <EmptyState icon={<SearchIcon strokeWidth={1} />} title={t('search.empty')} />
           ) : (
-            results.map((r) => (
-              <TaskItem key={r.id} task={r} onRowClick={makeRowClick(r.id)} selection={makeSelection(r.id)} />
-            ))
+            results.map((r) => <TaskItem key={r.id} task={r} onRowClick={makeRowClick(r.id)} selection={makeSelection(r.id)} />)
           )}
         </div>
       </div>

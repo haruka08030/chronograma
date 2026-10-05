@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { memo, useMemo, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -7,7 +7,7 @@ import { NestDragGuide } from './NestDragGuide'
 import type { Task } from '../types/task'
 import { subtaskDragId } from '../lib/subtaskDnD'
 
-export function SortableSubtaskItem({
+export const SortableSubtaskItem = memo(function SortableSubtaskItem({
   task,
   onClick,
   onRowClick,
@@ -28,14 +28,7 @@ export function SortableSubtaskItem({
   children?: ReactNode
 }) {
   const id = subtaskDragId(task.id)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
   const { t } = useTranslation()
   const style = {
@@ -46,24 +39,28 @@ export function SortableSubtaskItem({
     zIndex: isDragging ? 10 : undefined,
   }
 
-  const handle = (
-    <button
-      type="button"
-      {...attributes}
-      {...listeners}
-      aria-label={t('common.dragToReorder')}
-      className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
-      tabIndex={-1}
-    >
-      <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="9" cy="6" r="1.5" />
-        <circle cx="15" cy="6" r="1.5" />
-        <circle cx="9" cy="12" r="1.5" />
-        <circle cx="15" cy="12" r="1.5" />
-        <circle cx="9" cy="18" r="1.5" />
-        <circle cx="15" cy="18" r="1.5" />
-      </svg>
-    </button>
+  // つまみは useSortable の attributes / listeners が変わったときだけ作り直す（TaskItem の memo を効かせる）
+  const handle = useMemo(
+    () => (
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={t('common.dragToReorder')}
+        className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
+        tabIndex={-1}
+      >
+        <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="9" cy="6" r="1.5" />
+          <circle cx="15" cy="6" r="1.5" />
+          <circle cx="9" cy="12" r="1.5" />
+          <circle cx="15" cy="12" r="1.5" />
+          <circle cx="9" cy="18" r="1.5" />
+          <circle cx="15" cy="18" r="1.5" />
+        </svg>
+      </button>
+    ),
+    [attributes, listeners, t],
   )
 
   return (
@@ -83,4 +80,4 @@ export function SortableSubtaskItem({
       {children}
     </div>
   )
-}
+})

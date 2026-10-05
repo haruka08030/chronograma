@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, getDayPlan, getMoreSuggestions } from './dayPlan'
+import { calendarDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -62,6 +62,29 @@ describe('getMoreSuggestions', () => {
   })
 })
 
+describe('groupCandidatesByDue', () => {
+  it('heads each deadline within a week by its day, then later deadlines, then undated', () => {
+    const groups = groupCandidatesByDue(
+      [
+        task('far', { dueDate: '2026-10-20' }),
+        task('thu1', { dueDate: '2026-10-01' }),
+        task('undated'),
+        task('sat', { dueDate: '2026-10-03' }),
+        task('thu2', { dueDate: '2026-10-01' }),
+        task('week', { dueDate: '2026-10-06' }),
+      ],
+      DAY,
+    )
+    expect(groups.map((g) => [g.kind === 'day' ? g.dueDate : g.kind, g.tasks.map((t) => t.id)])).toEqual([
+      ['2026-10-01', ['thu1', 'thu2']],
+      ['2026-10-03', ['sat']],
+      ['2026-10-06', ['week']],
+      ['later', ['far']],
+      ['none', ['undated']],
+    ])
+  })
+})
+
 describe('getDayPlan overdue', () => {
   const tasks = [
     task('pastDue', { dueDate: '2026-09-29' }),
@@ -103,12 +126,11 @@ describe('getDayPlan done', () => {
       // 東京の 9/30 7:00（UTC ではまだ 9/29）
       doneAt('2026-09-29T22:00:00Z'),
     ]
-    expect(getDayPlan(tasks, DAY).done.map((t) => t.id).sort()).toEqual([
-      '2026-09-29T22:00:00Z',
-      '2026-09-30T03:00:00Z',
-      '2026-09-30T05:00:00Z',
-      '2026-09-30T17:00:00Z',
-    ])
+    expect(
+      getDayPlan(tasks, DAY)
+        .done.map((t) => t.id)
+        .sort(),
+    ).toEqual(['2026-09-29T22:00:00Z', '2026-09-30T03:00:00Z', '2026-09-30T05:00:00Z', '2026-09-30T17:00:00Z'])
     expect(getDayPlan(tasks, '2026-09-29').done.map((t) => t.id)).toEqual(['2026-09-29T05:00:00Z'])
   })
 })
