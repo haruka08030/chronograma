@@ -20,12 +20,12 @@ create policy user_extra_time_zones_update_own on public.user_extra_time_zones f
 drop policy if exists user_extra_time_zones_delete_own on public.user_extra_time_zones;
 create policy user_extra_time_zones_delete_own on public.user_extra_time_zones for delete using (auth.uid() = user_id);
 
--- 大きさの上限（005 と同じ考え方。タイムゾーンは 2 つまで・名前は 40 字まで）
+-- 大きさの上限（001 の各表の上限と同じ考え方。タイムゾーンは 2 つまで・名前は 40 字まで）
 alter table public.user_extra_time_zones drop constraint if exists user_extra_time_zones_size_check;
 alter table public.user_extra_time_zones add constraint user_extra_time_zones_size_check
   check (octet_length(zones::text) <= 4000);
 
--- 古い書き込みは捨てる（010 と同じ）
+-- 古い書き込みは捨てる（001 の skip_stale_write と同じ）
 drop trigger if exists skip_stale_write on public.user_extra_time_zones;
 create trigger skip_stale_write before update on public.user_extra_time_zones
   for each row execute function public.skip_stale_write();

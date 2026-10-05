@@ -31,7 +31,8 @@
 
 - `lists` / `list_sections` / `tasks` / `habits` の主キーは `(user_id, id)`。未分類 `__inbox__` のように ID が全員で同じでもぶつからない。外部キーも同じ利用者の行だけを指す。
 - `sort_order` は `double precision`（間に挿入すると中間値になるため）。
-- スキーマを変えるときは、次の番号（002 から）の新しいファイルを足す。**コミット済みのファイルは書き換えない**（適用済みの DB と食い違うため）。
+- `001` はそれまでの変更をまとめたベースライン（全テーブルの最新の形）。本番の適用履歴（`supabase_migrations.schema_migrations`）には、まとめる前の番号と名前が残っていて、ファイルと一致しない。そのため本番へは `db push` ではなく、足したファイルだけを `supabase db query --linked -f` で流す。
+- スキーマを変えるときは、次の番号の新しいファイルを足す。**コミット済みのファイルの SQL は書き換えない**（適用済みの DB と食い違うため）。コメントだけの修正はよい。
 - 新しいファイルも何度流しても同じ形になるように書く（`add column if not exists`、`drop constraint if exists` してから `add constraint` など）。
 - 1 ファイル 1 変更。ファイル名は `NNN_何を変えるか.sql`。
 
