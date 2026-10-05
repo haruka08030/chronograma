@@ -20,6 +20,10 @@ export function planTiming(task: Task, now: Date = zonedNow()): { dateKey: strin
     Boolean(dateKey && task.startTime && task.endTime) &&
     (dateKey! < todayKey || (dateKey === todayKey && task.startTime! < nowHm))
   const endKey = task.endDate ?? dateKey
-  const ended = Boolean(endKey && task.endTime) && (endKey! < todayKey || (endKey === todayKey && task.endTime! <= nowHm))
+  // 0:00 終わり（23:00–0:00 など）はその日のうちは終わっていない
+  const endsAtMidnight = task.endTime === '00:00' && !task.endDate
+  const ended =
+    Boolean(endKey && task.endTime) &&
+    (endKey! < todayKey || (endKey === todayKey && !endsAtMidnight && task.endTime! <= nowHm))
   return { dateKey, canLogAsPlanned, ended }
 }

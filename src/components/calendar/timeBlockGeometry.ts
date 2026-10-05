@@ -1,5 +1,5 @@
 import type { Task, TaskKind } from '../../types/task'
-import { timeToY } from '../../lib/timeGrid'
+import { HOUR_HEIGHT, timeToY } from '../../lib/timeGrid'
 import { timeLogSegmentLayoutForDay } from '../../lib/taskTimeRange'
 
 /** 週タイムラインのブロック用（列上では開始・終了時刻が必須。Google 等の外部ブロックは最小形） */
@@ -29,6 +29,8 @@ export function blockGeometry(
 ): { top: number; height: number; span: number } {
   const seg = isLog && dayKey ? timeLogSegmentLayoutForDay(task as Task, dayKey) : null
   const top = seg?.top ?? timeToY(task.startTime)
-  const span = seg?.span ?? Math.max(timeToY(task.endTime) - top, 0)
+  // 0:00 に終わる予定（23:00–0:00 など）はその日の終わりまで
+  const endY = task.endTime === '00:00' ? 24 * HOUR_HEIGHT : timeToY(task.endTime)
+  const span = seg?.span ?? Math.max(endY - top, 0)
   return { top, height: Math.max(span, MIN_BLOCK_PX), span }
 }
