@@ -22,6 +22,7 @@ type SettingsActions = Pick<
   | 'setDailyReminders'
   | 'dismissReminderPrompt'
   | 'dismissGoogleConnectLine'
+  | 'finishOnboarding'
   | 'setDailyCapacityMinutes'
   | 'setAppTimeZone'
   | 'setExtraTimeZones'
@@ -142,6 +143,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
     dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
+    finishOnboarding: () => set({ onboardingDone: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setAppTimeZone: (tz) => {
       const next = tz && isValidTimeZone(tz) ? tz : null

@@ -10,7 +10,7 @@ export const MAX_EXTRA_TIME_ZONES = 2
 
 export const PERSIST_STORAGE_KEY = 'chronograma-storage'
 /** 保存形式の版。上げたら migrate に手順を足す */
-export const STORE_VERSION = 38
+export const STORE_VERSION = 39
 export const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
 
 /**

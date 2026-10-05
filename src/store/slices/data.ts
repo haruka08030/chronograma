@@ -12,6 +12,7 @@ import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
+import { hasExistingData } from '../../lib/onboarding'
 
 type DataActions = Pick<
   TaskState,
@@ -131,6 +132,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         timeLogTagPresets: parsed.timeLogTagPresets ?? [],
         logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
         quickAddSectionId: null,
+        // バックアップを持っている人には、はじめの案内を出さない
+        onboardingDone: before.onboardingDone || hasExistingData(parsed),
       })
       return true
     },

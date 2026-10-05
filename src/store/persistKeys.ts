@@ -26,6 +26,7 @@ export const DATA_KEYS = [
   'dailyReminders',
   'reminderPromptDismissed',
   'googleConnectLineDismissed',
+  'onboardingDone',
   'dailyCapacityMinutes',
   'eventReminderMinutes',
   'appTimeZone',

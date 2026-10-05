@@ -30,6 +30,7 @@ import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
+import { hasExistingData } from '../lib/onboarding'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -238,6 +239,8 @@ export function useSupabaseSync() {
 
       if (!baseline) {
         // この端末で初めての同期
+        // アカウントにもうデータがある人（別の端末で使っていた人）には、はじめの案内を出さない
+        if (hasExistingData(remote) && !useTaskStore.getState().onboardingDone) useTaskStore.getState().finishOnboarding()
         const local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
           remote.lists,

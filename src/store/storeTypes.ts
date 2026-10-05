@@ -113,6 +113,11 @@ export interface TaskState {
   reminderPromptDismissed: boolean
   /** カレンダーの「Google カレンダーも並べられます · 接続する」の 1 行を閉じたか（接続は設定から） */
   googleConnectLineDismissed: boolean
+  /**
+   * 今日の画面の「はじめの 3 ステップ」を終えた・閉じたか（端末に保存）。
+   * 前の版から使っている人・バックアップを取り込んだ人・初めての同期でアカウントのデータが届いた人は true
+   */
+  onboardingDone: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -253,6 +258,7 @@ export interface TaskState {
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
   dismissGoogleConnectLine: () => void
+  finishOnboarding: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void

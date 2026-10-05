@@ -1,4 +1,4 @@
-import { useId, type HTMLAttributes, type Ref } from 'react'
+import { useId, useState, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -10,6 +10,8 @@ import { PlannerTaskRow, type PlannerRowEnv } from './PlannerTaskRow'
 import { MoveHereButton, SetTimeButton, TimerButton, TomorrowButton } from './PlannerRowActions'
 import { PlannerAddInput } from './PlannerAddInput'
 import { PlannerListStatus } from './PlannerListStatus'
+import { PlannerOnboarding } from './PlannerOnboarding'
+import { focusQuickAdd } from '../../lib/quickAddFocus'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間あり → 時間未定）→ 追加欄 → 一言。
@@ -47,8 +49,12 @@ export function PlannerTodoSection({
   const ids = useId()
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
+  const onboardingDone = useTaskStore((s) => s.onboardingDone)
+  const [draft, setDraft] = useState('')
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
+  // はじめの案内を出している間は、書き方の例は案内の方に出す（追加欄と 2 回出さない）
+  const showOnboarding = viewingToday && !onboardingDone
   const moveHere = (task: Task) => <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />
 
   const moveAllLeftOver = () =>
@@ -170,9 +176,24 @@ export function PlannerTodoSection({
         </div>
       </div>
 
-      <PlannerAddInput dateKey={dateKey} />
+      <PlannerAddInput
+        dateKey={dateKey}
+        draft={draft}
+        onDraftChange={setDraft}
+        showExample={!showOnboarding && totalCount === 0 && overdue.length === 0 && leftOver.length === 0}
+      />
 
       <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} />
+
+      {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に 3 ステップ */}
+      {showOnboarding && (
+        <PlannerOnboarding
+          onUseExample={(text) => {
+            setDraft(text)
+            focusQuickAdd()
+          }}
+        />
+      )}
     </>
   )
 }

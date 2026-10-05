@@ -8,7 +8,7 @@
 
 const PERSIST_KEY = 'chronograma-storage'
 /** `taskStore.ts` の persist version と合わせる。古いと migrate が走って構図が変わる */
-const PERSIST_VERSION = 38
+const PERSIST_VERSION = 39
 
 const INBOX_ID = '__inbox__'
 const SOMEDAY_ID = 'seed-someday'
@@ -356,6 +356,8 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       selectedCalendarDateKey: today,
       sortMode: 'manual',
       notificationsEnabled: false,
+      // 使っている人の画面を撮る（はじめの案内は出さない）
+      onboardingDone: true,
       timeLogTagPresets: ['睡眠', '授業', '課題', 'バイト', '就活'],
       // 新規ユーザーと同じ割り当て順（assignColorsInOrder）。To‑Do の色ラベル（color）もこの色で名前が付く
       logCategoryColors: { 睡眠: 'peacock', 授業: 'sage', 課題: 'tangerine', バイト: 'lavender', 就活: 'banana' },

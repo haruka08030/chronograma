@@ -12,6 +12,7 @@ import { assignColorsInOrder, labelForHex } from '../lib/logCategoryColors'
 import { nearestGoogleHex } from '../lib/googleColors'
 import { looksLikeSleep } from '../lib/sleep'
 import { normalizeExtraTimeZones } from '../lib/extraTimeZones'
+import { hasExistingData } from '../lib/onboarding'
 import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
@@ -309,6 +310,10 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // タスクの種類は kind 1 つで持つ（それまでは「記録か」「睡眠か」の 2 つの印）。updatedAt は変えない（v30 と同じ理由）
     const tasks = (state.tasks as LegacyTask[] | undefined) ?? []
     state.tasks = tasks.map(withKindFromFlags)
+  }
+  if (version < 39) {
+    // はじめの 3 ステップの案内はこの版から。すでにタスク・記録・習慣のある人には出さない
+    state.onboardingDone = hasExistingData(state as { tasks?: unknown[]; habits?: unknown[] })
   }
   return state as unknown as TaskState
 }
