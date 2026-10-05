@@ -41,7 +41,12 @@ function rowDateText(d: Date, language: string | undefined): string {
   return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
 }
 
-function dueDateLabel(iso: string, time: string | null, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
+function dueDateLabel(
+  iso: string,
+  time: string | null,
+  todayLabel: string,
+  language: string | undefined,
+): { text: string; tone: DateTone } {
   const d = parseISO(iso)
   const tone = dueToneOf(iso, time, appTodayKey())
   return { text: isAppToday(d) ? todayLabel : rowDateText(d, language), tone }

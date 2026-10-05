@@ -40,7 +40,10 @@ export function dueMeta(task: Task, day: PlannerDay): DueMeta {
   if (!task.dueDate) return null
   const tone = dueToneOf(task.dueDate, task.dueTime, dateKey, { now })
   if (task.dueDate === dateKey) {
-    return { text: task.dueTime ? t('planner.dueAt', { time: task.dueTime }) : t('planner.dueToday'), tone: tone === 'overdue' ? 'overdue' : 'today' }
+    return {
+      text: task.dueTime ? t('planner.dueAt', { time: task.dueTime }) : t('planner.dueToday'),
+      tone: tone === 'overdue' ? 'overdue' : 'today',
+    }
   }
   if (task.dueDate < dateKey) {
     return { text: t('planner.dueLate', { count: differenceInCalendarDays(date, fromDateKey(task.dueDate)) }), tone: 'overdue' }
