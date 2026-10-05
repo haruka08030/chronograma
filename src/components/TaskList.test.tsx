@@ -70,4 +70,17 @@ describe('TaskList（読み上げ）', () => {
     expect(input).toHaveFocus()
     expect(screen.getByRole('listbox')).not.toHaveAttribute('aria-activedescendant')
   })
+
+  it('セクションの塊は listbox の中の group（名前はセクション名）で、その中に行の option', () => {
+    const state = useTaskStore.getState()
+    const listId = state.selectedListId!
+    const sectionId = state.addSection(listId, 'Errands')
+    const taskId = state.addTask('Buy milk')!
+    useTaskStore.getState().updateTask(taskId, { sectionId })
+    renderList()
+
+    const list = screen.getByRole('listbox')
+    const group = within(list).getByRole('group', { name: 'Errands' })
+    expect(within(group).getByRole('option', { name: 'Buy milk' })).toBeInTheDocument()
+  })
 })

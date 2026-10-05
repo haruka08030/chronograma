@@ -652,6 +652,7 @@ export default {
     subtaskPlaceholder: 'Add subtask',
     deleteLog: 'Delete this entry',
     deleteTask: 'Delete this task',
+    editMemo: 'Edit notes',
     titleEditAria: 'Edit title',
     memoPlaceholderLog: 'Notes…',
     memoPlaceholderTask: 'Add notes…',

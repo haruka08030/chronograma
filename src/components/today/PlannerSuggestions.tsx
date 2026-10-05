@@ -19,6 +19,7 @@ export function PlannerSuggestions({
   onToggle,
   hasMoreToShow,
   moreSentinelRef,
+  groupId,
 }: {
   env: PlannerRowEnv
   /** 締切間近（「すべて追加」の対象） */
@@ -28,6 +29,8 @@ export function PlannerSuggestions({
   onToggle: () => void
   hasMoreToShow: boolean
   moreSentinelRef: RefObject<HTMLDivElement | null>
+  /** まとまりの id（今日の計画の listbox が aria-owns で自分の中に入れる） */
+  groupId: (group: DueGroup) => string
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -60,7 +63,7 @@ export function PlannerSuggestions({
             return (
               <div key={group.kind === 'day' ? group.dueDate : group.kind}>
                 <p className={`ml-11 text-xs ${i === 0 ? 'mt-2' : 'mt-4'} ${heading.tone}`}>{heading.text}</p>
-                <ul>
+                <ul id={groupId(group)} role="group" aria-label={heading.text}>
                   {group.tasks.map((task) => (
                     <PlannerTaskRow
                       key={task.id}

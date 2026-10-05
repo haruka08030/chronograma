@@ -10,6 +10,9 @@ import { TaskItem, type TaskItemSelection } from '../TaskItem'
 import { DnDSubtreeRows, StaticSubtreeRows } from './subtaskRows'
 import { SectionDropZone } from './sectionParts'
 
+/** 読み上げ: セクションの塊は listbox の中の group。名前はリスト名とセクション名 */
+const groupLabel = (block: SectionBlockRow) => (block.listTitle ? `${block.listTitle} ${block.title}` : block.title)
+
 /**
  * To-Do 一覧の未完了のタスク。手動の並び順はドラッグで並べ替えられる行、それ以外は並べた順の行。
  * どちらもセクションの塊で分けるときは、セクションの見出しの下に出す
@@ -70,7 +73,13 @@ export function TaskListActiveContent({
             // セクションの外にタスクが無いときの「セクションなし」は、ドラッグ中（外へ戻す落とし先）だけ出す
             if (block.headerKind === 'section-none' && block.tasks.length === 0 && !taskDragging) return null
             return (
-              <div key={blockKey} data-section-anchor={sectionId ?? undefined} className="relative scroll-mt-2 pt-3 first:pt-1">
+              <div
+                key={blockKey}
+                role="group"
+                aria-label={groupLabel(block)}
+                data-section-anchor={sectionId ?? undefined}
+                className="relative scroll-mt-2 pt-3 first:pt-1"
+              >
                 {block.listTitle ? (
                   <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">
                     {block.listTitle}
@@ -168,6 +177,8 @@ export function TaskListActiveContent({
       .map((block) => (
         <div
           key={`${block.listId}::${block.sectionId ?? 'none'}::${block.headerKind}`}
+          role="group"
+          aria-label={groupLabel(block)}
           data-section-anchor={block.sectionId ?? undefined}
           className="relative scroll-mt-2 pt-3 first:pt-1"
         >

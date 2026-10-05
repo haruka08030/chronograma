@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -13,7 +13,8 @@ export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => v
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState(task.title)
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const titleTextRef = useRef<HTMLHeadingElement>(null)
+  const titleTextRef = useRef<HTMLButtonElement>(null)
+  const hintId = useId()
   // 題名の編集を Enter・Esc で閉じたら、フォーカスを題名に戻す
   useFocusBackOnClose(editingTitle, titleTextRef)
 
@@ -53,27 +54,25 @@ export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => v
             value={titleValue}
             onChange={(e) => setTitleValue(e.target.value)}
             {...titleEntry}
+            aria-label={t('taskDetail.titleEditAria')}
             className="w-full text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent outline-none
                          border-b-2 border-accent-400 pb-0.5 break-words"
           />
         ) : (
-          <h2
-            ref={titleTextRef}
-            onClick={() => setEditingTitle(true)}
-            tabIndex={0}
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- タイトルを押して名前を変える。button への置き換えは TaskDetail の分割のあとで
-            role="button"
-            aria-label={t('taskDetail.titleEditAria')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                setEditingTitle(true)
-              }
-            }}
-            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words cursor-text
-                         hover:bg-zinc-50 dark:hover:bg-zinc-800/40 rounded-md px-1 -mx-1 transition-colors"
-          >
-            {task.title}
+          // 見出しの中に本物のボタン（押す・Enter・Space で名前を変える）。読み上げの名前は題名、説明に「タイトルを編集」
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words">
+            <button
+              ref={titleTextRef}
+              type="button"
+              onClick={() => setEditingTitle(true)}
+              aria-describedby={hintId}
+              className="-mx-1 block w-[calc(100%+0.5rem)] cursor-text rounded-md px-1 text-left break-words transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+            >
+              {task.title}
+            </button>
+            <span id={hintId} hidden>
+              {t('taskDetail.titleEditAria')}
+            </span>
           </h2>
         )}
       </div>

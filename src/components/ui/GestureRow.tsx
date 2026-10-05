@@ -14,6 +14,7 @@ export function GestureRow({
   enabled = true,
   className = '',
   rowProps,
+  itemRole,
   children,
 }: {
   right?: RowSwipeAction
@@ -22,13 +23,15 @@ export function GestureRow({
   enabled?: boolean
   className?: string
   rowProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string>
+  /** 外の `li` の役割。中の行が listbox の option のときは 'none'（list の項目にしない） */
+  itemRole?: 'none'
   children: ReactNode
 }) {
   const rowRef = useRef<HTMLDivElement>(null)
   const swipe = useRowSwipe(rowRef, { right, left }, enabled)
   const longPress = useLongPress((e) => onLongPress?.(e), enabled && !!onLongPress)
   return (
-    <li className="relative rounded-lg">
+    <li role={itemRole} className="relative rounded-lg">
       {swipe.backdrop}
       <div
         ref={rowRef}

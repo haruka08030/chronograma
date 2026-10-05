@@ -652,6 +652,7 @@ export default {
     subtaskPlaceholder: 'サブタスクを追加',
     deleteLog: 'この記録を削除',
     deleteTask: 'このタスクを削除',
+    editMemo: 'メモを編集',
     titleEditAria: 'タイトルを編集',
     memoPlaceholderLog: '補足メモ…',
     memoPlaceholderTask: 'メモを追加...',

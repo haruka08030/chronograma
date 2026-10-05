@@ -56,6 +56,8 @@ export function PlannerTaskRow({
   const meta = rowMeta(task, dueMode, day)
   const hasRowExtras = !task.completed && task.tags.length > 0
   const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
+  // 選べる行は listbox の option（名前は題名、選んでいるかは aria-selected）
+  const optionId = sel?.optionId
   // スマホ: 右へ払うと完了、左へ払うと今日やる行は明日へ・それ以外は今日（この日）へ。長押しで選択を始める
   const committed = dueMode === 'urgent'
   const swipeLeft: RowSwipeAction = committed
@@ -84,8 +86,12 @@ export function PlannerTaskRow({
       onLongPress={sel ? (e) => sel.onToggle(e as unknown as MouseEvent) : undefined}
       className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
         ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
+      itemRole={optionId ? 'none' : undefined}
       rowProps={{
         'data-task-row': task.id,
+        ...(optionId
+          ? { id: optionId, role: 'option', 'aria-selected': Boolean(sel?.selected), 'aria-labelledby': `${optionId}-title` }
+          : {}),
         draggable: !task.completed,
         onDragStart: (e) => {
           startTaskDrag(e, task.id)
@@ -110,6 +116,7 @@ export function PlannerTaskRow({
       <div className="min-w-0 flex-1">
         <button
           type="button"
+          id={optionId ? `${optionId}-title` : undefined}
           // ⌘・Shift で選ぶ、選んでいる間は押すと選ぶ・外す、ふだんは詳細（To-Do 一覧と同じ）
           onClick={(e) => (sel ? makeRowClick(task.id)(e) : openDetail(task.id))}
           className={`block w-full truncate text-left text-[15px] transition-colors ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { getDayPlan } from '../lib/dayPlan'
+import { getDayPlan, type DueGroup } from '../lib/dayPlan'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -134,7 +134,7 @@ export function TodayPlannerView() {
     [showLeftOver, leftOver, overdue, open, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
-  const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+  const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
     rowIds,
     openDetail,
     toggleRow: toggleTask,
@@ -186,6 +186,11 @@ export function TodayPlannerView() {
 
   const totalCount = open.length + done.length
   const showWrapUp = viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
+
+  // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
+  const idPrefix = useId()
+  const suggestionGroupId = (group: DueGroup) => `${idPrefix}due-${group.kind === 'day' ? group.dueDate : group.kind}`
+  const ownedGroupIds = showSuggestions ? candidateGroups.map(suggestionGroupId) : []
 
   /** 行が共通で使うもの */
   const rowEnv: PlannerRowEnv = {
@@ -240,6 +245,8 @@ export function TodayPlannerView() {
           timedOpen={timedOpen}
           untimedOpen={untimedOpen}
           totalCount={totalCount}
+          listboxProps={listboxProps}
+          ownedGroupIds={ownedGroupIds}
         />
 
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
@@ -251,6 +258,7 @@ export function TodayPlannerView() {
             onToggle={() => setShowSuggestions((v) => !v)}
             hasMoreToShow={hasMoreToShow}
             moreSentinelRef={moreSentinelRef}
+            groupId={suggestionGroupId}
           />
         )}
 

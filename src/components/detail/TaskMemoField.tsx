@@ -35,20 +35,27 @@ export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
           className={fieldClass({}, 'w-full resize-none min-h-[4rem]')}
         />
       ) : task.description.trim() ? (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- メモの中のリンクを押せるようにボタンにしない。キーではメモ欄の編集に入れない（TaskDetail の分割のあとで直す）
-        <div
-          onClick={() => {
-            // 文字を選んでコピーしたいときは編集に切り替えない
-            if (window.getSelection()?.toString()) return
-            setEditingMemo(true)
-          }}
-          className="select-text w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+        <>
+          {/* キーで編集に入るボタン（見えない。フォーカス中は下のメモに枠を出す）。メモの中のリンクを押せるよう、メモ自体はボタンにしない */}
+          <button type="button" onClick={() => setEditingMemo(true)} className="peer sr-only">
+            {t('taskDetail.editMemo')}
+          </button>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 押して編集はマウスの近道。キーは上の見えないボタン */}
+          <div
+            onClick={() => {
+              // 文字を選んでコピーしたいときは編集に切り替えない
+              if (window.getSelection()?.toString()) return
+              setEditingMemo(true)
+            }}
+            className="select-text w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                        bg-transparent text-zinc-900 dark:text-zinc-100 min-h-[4rem]
                        whitespace-pre-wrap break-words cursor-text
-                       hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
-        >
-          <LinkifiedText text={task.description} />
-        </div>
+                       hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors
+                       peer-focus-visible:ring-2 peer-focus-visible:ring-accent-500/40"
+          >
+            <LinkifiedText text={task.description} />
+          </div>
+        </>
       ) : (
         <button
           type="button"
