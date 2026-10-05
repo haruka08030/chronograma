@@ -46,7 +46,7 @@ describe('他のタイムゾーンの表示名', () => {
 
 describe('他のタイムゾーンの同期', () => {
   it('サーバーに無ければ手元を送る', () => {
-    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, null, NOW)).toEqual({ push: { zones: [london], updatedAt: T1 } })
+    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, null, NOW)).toEqual({ push: { zones: [london], updatedAt: T1, base: null } })
   })
 
   it('サーバーが新しければ、ほかの端末で付けた名前に合わせる', () => {
@@ -57,11 +57,22 @@ describe('他のタイムゾーンの同期', () => {
   it('手元が新しければ送る（名前を消したのも送る）', () => {
     const cleared = { tz: 'Europe/London', label: '' }
     const plan = planExtraTimeZoneSync({ zones: [cleared], updatedAt: T2 }, { zones: [london], updatedAt: T1 }, NOW)
-    expect(plan).toEqual({ push: { zones: [cleared], updatedAt: T2 } })
+    expect(plan).toEqual({ push: { zones: [cleared], updatedAt: T2, base: T1 } })
   })
 
-  it('同じ時刻・同じ中身なら何もしない', () => {
-    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, { zones: [london], updatedAt: T1 }, NOW)).toEqual({})
+  it('同じ時刻・同じ中身なら、もとにした版をそろえるだけ', () => {
+    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, { zones: [london], updatedAt: T1 }, NOW)).toEqual({ adopt: T1 })
+    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1, syncedAt: T1 }, { zones: [london], updatedAt: T1 }, NOW)).toEqual({})
+  })
+
+  it('もとにした版がサーバーのままで手元を変えていれば、その版を付けて送る', () => {
+    const plan = planExtraTimeZoneSync({ zones: [ny], updatedAt: T2, syncedAt: T1 }, { zones: [london], updatedAt: T1 }, NOW)
+    expect(plan).toEqual({ push: { zones: [ny], updatedAt: T2, base: T1 } })
+  })
+
+  it('手元を変えていなければ、手元の時刻が後でもほかの端末の版に合わせる', () => {
+    const plan = planExtraTimeZoneSync({ zones: [ny], updatedAt: T1, syncedAt: T1 }, { zones: [london], updatedAt: '2026-09-01T00:00:00.000001+00:00' }, NOW)
+    expect(plan.apply?.zones).toEqual([london])
   })
 
   it('初めて同期する端末は両方を合わせる（サーバーの並びが先、名前はサーバーに無ければ手元の名前）', () => {
@@ -71,7 +82,7 @@ describe('他のタイムゾーンの同期', () => {
       NOW,
     )
     expect(plan.apply).toEqual({ zones: [ny, { tz: 'Europe/London', label: '' }], updatedAt: NOW })
-    expect(plan.push).toEqual({ zones: [ny, { tz: 'Europe/London', label: '' }], updatedAt: NOW })
+    expect(plan.push).toEqual({ zones: [ny, { tz: 'Europe/London', label: '' }], updatedAt: NOW, base: T1 })
   })
 
   it('初めての端末でも、サーバーと同じになるなら送らない', () => {

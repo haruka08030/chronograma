@@ -1,11 +1,12 @@
 /**
  * 記録のラベル表（分類名の並びと色）の同期。サーバーには利用者ごとに 1 行（`user_settings.log_labels`）。
- * - どちらかが新しければ、新しいほうに合わせる（ラベル表はまとめて 1 つの値として扱う）
+ * - ラベル表はまとめて 1 つの値として扱う。どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）
  * - この端末でまだ一度も同期していない（変えた時刻が無い）ときは、両方を合わせる（どちらの端末のラベルも消さない）。
  *   ただし手元が最初に作られた初期ラベルのままならサーバーに合わせる（英語で開いた端末の Study… が日本語のラベル表に足されない）
  */
 import jaLocale from '../locales/ja'
 import enLocale from '../locales/en'
+import { settingSyncStep } from './settingSync'
 
 export type LogLabelRow = { name: string; color: string }
 
@@ -14,6 +15,8 @@ export type LocalLabels = {
   colors: Record<string, string>
   /** この端末でラベル表を最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   updatedAt: string | null
+  /** 手元のラベル表のもとになったサーバーの版（`settingSync.ts`）。まだ無ければ null */
+  syncedAt?: string | null
 }
 
 export type RemoteLabels = { labels: LogLabelRow[]; updatedAt: string }
@@ -44,29 +47,44 @@ const sameRows = (a: readonly LogLabelRow[], b: readonly LogLabelRow[]) =>
 export type LabelSyncPlan = {
   /** 手元に当てる（presets・colors・時刻） */
   apply?: { presets: string[]; colors: Record<string, string>; updatedAt: string }
-  /** サーバーに送る */
-  push?: RemoteLabels
+  /** サーバーに送る。`base` はもとにしたサーバーの版（サーバーに行が無ければ null） */
+  push?: RemoteLabels & { base: string | null }
+  /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
+  adopt?: string
 }
 
-export function planLabelSync(local: LocalLabels, remote: RemoteLabels | null, nowIso: string = new Date().toISOString()): LabelSyncPlan {
+export function planLabelSync(
+  local: LocalLabels,
+  remote: RemoteLabels | null,
+  nowIso: string = new Date().toISOString(),
+  clockOffsetMs = 0,
+): LabelSyncPlan {
   const localRows = labelsToRows(local.presets, local.colors)
-  if (!remote) return { push: { labels: localRows, updatedAt: local.updatedAt ?? nowIso } }
-  if (local.updatedAt === null) {
-    // 初めて: サーバーの並びのあとに、手元にしか無いラベルを足す。同じ名前の色はサーバーの色
-    const fromRemote = rowsToLocal(remote.labels)
-    if (isUntouchedDefault(local.presets) && fromRemote.presets.length > 0) return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
-    const presets = [...fromRemote.presets, ...local.presets.filter((n) => !fromRemote.presets.includes(n))]
-    const colors = { ...local.colors, ...fromRemote.colors }
-    const mergedRows = labelsToRows(presets, colors)
-    if (sameRows(mergedRows, remote.labels)) return { apply: { presets, colors, updatedAt: remote.updatedAt } }
-    return { apply: { presets, colors, updatedAt: nowIso }, push: { labels: mergedRows, updatedAt: nowIso } }
+  const step = settingSyncStep(
+    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
+    remote,
+    !!remote && sameRows(localRows, remote.labels),
+    clockOffsetMs,
+  )
+  if (!remote) return { push: { labels: localRows, updatedAt: local.updatedAt ?? nowIso, base: null } }
+  switch (step.kind) {
+    case 'initial': {
+      // 初めて: サーバーの並びのあとに、手元にしか無いラベルを足す。同じ名前の色はサーバーの色
+      const fromRemote = rowsToLocal(remote.labels)
+      if (isUntouchedDefault(local.presets) && fromRemote.presets.length > 0) return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
+      const presets = [...fromRemote.presets, ...local.presets.filter((n) => !fromRemote.presets.includes(n))]
+      const colors = { ...local.colors, ...fromRemote.colors }
+      const mergedRows = labelsToRows(presets, colors)
+      if (sameRows(mergedRows, remote.labels)) return { apply: { presets, colors, updatedAt: remote.updatedAt } }
+      return { apply: { presets, colors, updatedAt: nowIso }, push: { labels: mergedRows, updatedAt: nowIso, base: remote.updatedAt } }
+    }
+    case 'apply':
+      return { apply: { ...rowsToLocal(remote.labels), updatedAt: remote.updatedAt } }
+    case 'push':
+      return { push: { labels: localRows, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
+    case 'adopt':
+      return { adopt: remote.updatedAt }
+    default:
+      return {}
   }
-  const lt = Date.parse(local.updatedAt)
-  const rt = Date.parse(remote.updatedAt)
-  if (rt > lt) {
-    const fromRemote = rowsToLocal(remote.labels)
-    return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
-  }
-  if (lt > rt && !sameRows(localRows, remote.labels)) return { push: { labels: localRows, updatedAt: local.updatedAt } }
-  return {}
 }

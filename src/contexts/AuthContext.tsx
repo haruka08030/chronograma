@@ -22,6 +22,7 @@ import { backupNow } from '../hooks/useAutoBackup'
 import { clearAutoBackups } from '../lib/autoBackup'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { clearBaseline } from '../lib/syncMerge'
+import { clearSettingSyncedAt } from '../lib/settingSync'
 import { detachWebPush } from '../lib/webPush'
 
 export type AuthContextValue = {
@@ -283,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
         useTaskStore.getState().resetLocalData()
         clearBaseline(userId)
+        clearSettingSyncedAt(userId)
         await clearAutoBackups(userId)
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)

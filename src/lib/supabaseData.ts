@@ -9,6 +9,7 @@ import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
+import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { buildRecurrence } from './recurrence'
 
@@ -931,11 +932,33 @@ export async function fetchLogLabels(
   return { labels, updatedAt: String(data.updated_at) }
 }
 
-export async function pushLogLabels(supabase: SupabaseClient, userId: string, labels: RemoteLabels): Promise<{ error?: string }> {
-  const { error } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, { onConflict: 'user_id' })
-  return error ? { error: error.message } : {}
+/**
+ * `user_settings` / `user_extra_time_zones` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
+ */
+async function pushSettingRow(
+  supabase: SupabaseClient,
+  table: 'user_settings' | 'user_extra_time_zones',
+  row: Record<string, unknown> & { user_id: string; updated_at: string },
+  base: string | null,
+): Promise<SettingPushResult> {
+  const send = (body: Record<string, unknown>) => supabase.from(table).upsert(body, { onConflict: 'user_id' }).select('updated_at')
+  let { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
+  // `007` を流す前の DB には base_updated_at 列が無い。付けずに送り直す（前と同じ、端末の時刻で比べる書き込み）
+  if (error && /'base_updated_at'/.test(error.message)) ({ data, error } = await send(row))
+  if (error) return { error: error.message }
+  const back = ((data ?? []) as { updated_at?: unknown }[])[0]
+  if (!back || back.updated_at == null) return { stale: true }
+  return { updatedAt: String(back.updated_at) }
+}
+
+export function pushLogLabels(
+  supabase: SupabaseClient,
+  userId: string,
+  labels: RemoteLabels,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_settings', { user_id: userId, log_labels: labels.labels, updated_at: labels.updatedAt }, base)
 }
 
 /** 他のタイムゾーンと付けた名前（`user_extra_time_zones.zones`）。行が無ければ null */
@@ -949,9 +972,11 @@ export async function fetchExtraTimeZones(
   return { zones: normalizeExtraTimeZones(data.zones), updatedAt: String(data.updated_at) }
 }
 
-export async function pushExtraTimeZones(supabase: SupabaseClient, userId: string, value: RemoteExtraTimeZones): Promise<{ error?: string }> {
-  const { error } = await supabase
-    .from('user_extra_time_zones')
-    .upsert({ user_id: userId, zones: value.zones, updated_at: value.updatedAt }, { onConflict: 'user_id' })
-  return error ? { error: error.message } : {}
+export function pushExtraTimeZones(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteExtraTimeZones,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_extra_time_zones', { user_id: userId, zones: value.zones, updated_at: value.updatedAt }, base)
 }

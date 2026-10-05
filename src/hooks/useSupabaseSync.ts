@@ -10,6 +10,7 @@ import {
   pushListsTasksHabits,
   pushLogLabels,
 } from '../lib/supabaseData'
+import { runSettingSync, type SettingSyncDeps } from '../lib/settingSync'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -122,47 +123,40 @@ export function useSupabaseSync() {
       }
     }
 
-    /** ラベル表（名前・並び・色）を合わせる。失敗してもタスクの同期は止めない（次の同期でまた合わせる） */
-    const syncLabels = async () => {
-      const remoteLabels = await fetchLogLabels(supabase, userId)
-      if (cancelled) return
-      if (remoteLabels && 'error' in remoteLabels) {
-        console.error('[sync] labels', remoteLabels.error)
-        return
-      }
-      const s = useTaskStore.getState()
-      const plan = planLabelSync({ presets: s.timeLogTagPresets, colors: s.logCategoryColors, updatedAt: s.logLabelsUpdatedAt }, remoteLabels)
-      if (plan.apply) {
-        const { presets, colors, updatedAt } = plan.apply
-        asIncomingChange(() => useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }))
-      }
-      if (plan.push) {
-        const res = await pushLogLabels(supabase, userId, plan.push)
-        if (res.error) console.error('[sync] labels', res.error)
-        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: plan.push!.updatedAt }))
-      }
-    }
+    const syncSetting = <R extends { updatedAt: string }, A extends { updatedAt: string }, P extends { updatedAt: string; base: string | null }>(
+      s: SettingSyncDeps<R, A, P>,
+    ) => runSettingSync(userId, s, { isCancelled: () => cancelled, clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0, maxStaleRetries: MAX_STALE_RETRIES })
 
-    /** 他のタイムゾーン（並び・名前）を合わせる。ラベル表と同じく、失敗してもタスクの同期は止めない */
-    const syncExtraTimeZones = async () => {
-      const remote = await fetchExtraTimeZones(supabase, userId)
-      if (cancelled) return
-      if (remote && 'error' in remote) {
-        console.error('[sync] time zones', remote.error)
-        return
-      }
-      const s = useTaskStore.getState()
-      const plan = planExtraTimeZoneSync({ zones: s.extraTimeZones, updatedAt: s.extraTimeZonesUpdatedAt }, remote)
-      if (plan.apply) {
-        const { zones, updatedAt } = plan.apply
-        asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt }))
-      }
-      if (plan.push) {
-        const res = await pushExtraTimeZones(supabase, userId, plan.push)
-        if (res.error) console.error('[sync] time zones', res.error)
-        else if (!plan.apply) asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: plan.push!.updatedAt }))
-      }
-    }
+    /** ラベル表（名前・並び・色） */
+    const syncLabels = () =>
+      syncSetting({
+        key: 'labels',
+        fetch: () => fetchLogLabels(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planLabelSync({ presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
+        applyLocal: ({ presets, colors, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
+        push: (p) => pushLogLabels(supabase, userId, p, p.base),
+      })
+
+    /** 他のタイムゾーン（並び・名前） */
+    const syncExtraTimeZones = () =>
+      syncSetting({
+        key: 'zones',
+        fetch: () => fetchExtraTimeZones(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planExtraTimeZoneSync({ zones: st.extraTimeZones, updatedAt: st.extraTimeZonesUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().extraTimeZonesUpdatedAt,
+        applyLocal: ({ zones, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: at })),
+        push: (p) => pushExtraTimeZones(supabase, userId, p, p.base),
+      })
 
     /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
     const syncSettings = async () => {

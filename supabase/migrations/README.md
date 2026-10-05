@@ -10,6 +10,7 @@
 | [`004_sync_server_time.sql`](004_sync_server_time.sql) | `lists` / `list_sections` / `tasks` / `habits` の書き込みをトリガー `sync_write_guard` で確かめる（001 の `skip_stale_write` をこの 4 つの表で置き換える）。`base_updated_at`（端末がもとにした版。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
 | [`005_skip_stale_write_search_path.sql`](005_skip_stale_write_search_path.sql) | 001 のトリガー関数 `skip_stale_write` の `search_path` を空に固定する（動きは同じ） |
 | [`006_row_limits.sql`](006_row_limits.sql) | 1 人が持てる行数の上限（`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100）。トリガー `enforce_row_limit`（文ごとに 1 回、新しく入った行がある利用者だけ数える）。upsert で既にある行を更新する分は数えない。超えると errcode `P0001`・メッセージ `row_limit_exceeded` で文ごと断る |
+| [`007_settings_server_time.sql`](007_settings_server_time.sql) | `user_settings` / `user_extra_time_zones` の書き込みをトリガー `settings_write_guard` で確かめる（この 2 つの表の `skip_stale_write` を置き換える）。考え方は `004` と同じ: `base_updated_at`（端末がもとにした版。行が無いはずのときは `-infinity`。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
 
 テーブル（最新の形）:
 

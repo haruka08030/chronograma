@@ -1,5 +1,6 @@
 import { MAX_EXTRA_TIME_ZONES } from '../store/storeConstants'
 import { isValidTimeZone, zoneOptionLabel } from './timeZone'
+import { settingSyncStep } from './settingSync'
 
 /**
  * 時間バーに並べる他のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」）。
@@ -40,15 +41,23 @@ export function extraZoneFullLabel(zone: ExtraTimeZone, locale?: string, at: num
 
 /**
  * 他のタイムゾーンの同期。サーバーには利用者ごとに 1 行（`user_extra_time_zones`）。並びと名前をまとめて 1 つの値として扱う。
- * - どちらかが新しければ、新しいほうに合わせる
+ * - どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）
  * - この端末でまだ一度も同期していない（変えた時刻が無い）ときは、両方を合わせる（どちらの端末のタイムゾーンも消さない）
  */
-export type LocalExtraTimeZones = { zones: ExtraTimeZone[]; updatedAt: string | null }
+export type LocalExtraTimeZones = {
+  zones: ExtraTimeZone[]
+  updatedAt: string | null
+  /** 手元の並びのもとになったサーバーの版（`settingSync.ts`）。まだ無ければ null */
+  syncedAt?: string | null
+}
 export type RemoteExtraTimeZones = { zones: ExtraTimeZone[]; updatedAt: string }
 
 export type ExtraTimeZoneSyncPlan = {
   apply?: { zones: ExtraTimeZone[]; updatedAt: string }
-  push?: RemoteExtraTimeZones
+  /** サーバーに送る。`base` はもとにしたサーバーの版（サーバーに行が無ければ null） */
+  push?: RemoteExtraTimeZones & { base: string | null }
+  /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
+  adopt?: string
 }
 
 const sameZones = (a: readonly ExtraTimeZone[], b: readonly ExtraTimeZone[]) =>
@@ -58,21 +67,33 @@ export function planExtraTimeZoneSync(
   local: LocalExtraTimeZones,
   remote: RemoteExtraTimeZones | null,
   nowIso: string = new Date().toISOString(),
+  clockOffsetMs = 0,
 ): ExtraTimeZoneSyncPlan {
-  if (!remote) return { push: { zones: local.zones, updatedAt: local.updatedAt ?? nowIso } }
+  if (!remote) return { push: { zones: local.zones, updatedAt: local.updatedAt ?? nowIso, base: null } }
   const remoteZones = normalizeExtraTimeZones(remote.zones)
-  if (local.updatedAt === null) {
-    // 初めて: サーバーの並びのあとに、手元にしか無いタイムゾーンを足す。名前はサーバーに無ければ手元の名前
-    const zones = normalizeExtraTimeZones([
-      ...remoteZones.map((r) => ({ ...r, label: r.label || local.zones.find((l) => l.tz === r.tz)?.label || '' })),
-      ...local.zones,
-    ])
-    if (sameZones(zones, remoteZones)) return { apply: { zones, updatedAt: remote.updatedAt } }
-    return { apply: { zones, updatedAt: nowIso }, push: { zones, updatedAt: nowIso } }
+  const step = settingSyncStep(
+    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
+    remote,
+    sameZones(local.zones, remoteZones),
+    clockOffsetMs,
+  )
+  switch (step.kind) {
+    case 'initial': {
+      // 初めて: サーバーの並びのあとに、手元にしか無いタイムゾーンを足す。名前はサーバーに無ければ手元の名前
+      const zones = normalizeExtraTimeZones([
+        ...remoteZones.map((r) => ({ ...r, label: r.label || local.zones.find((l) => l.tz === r.tz)?.label || '' })),
+        ...local.zones,
+      ])
+      if (sameZones(zones, remoteZones)) return { apply: { zones, updatedAt: remote.updatedAt } }
+      return { apply: { zones, updatedAt: nowIso }, push: { zones, updatedAt: nowIso, base: remote.updatedAt } }
+    }
+    case 'apply':
+      return { apply: { zones: remoteZones, updatedAt: remote.updatedAt } }
+    case 'push':
+      return { push: { zones: local.zones, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
+    case 'adopt':
+      return { adopt: remote.updatedAt }
+    default:
+      return {}
   }
-  const lt = Date.parse(local.updatedAt)
-  const rt = Date.parse(remote.updatedAt)
-  if (rt > lt) return { apply: { zones: remoteZones, updatedAt: remote.updatedAt } }
-  if (lt > rt && !sameZones(local.zones, remoteZones)) return { push: { zones: local.zones, updatedAt: local.updatedAt } }
-  return {}
 }
