@@ -295,8 +295,8 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
       }}
     >
       {rowHex && (
-        // 丸・タイルと同じガラス風（薄い塗り＋くっきり縁）。ベタ塗りだとここだけポップに浮く
-        <span aria-hidden className="gc-dot absolute left-0.5 top-2 bottom-2 w-[5px] rounded-full" style={colorVars(rowHex)} />
+        // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
+        <span aria-hidden className="gc-line absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={colorVars(rowHex)} />
       )}
       {hasSortableHandle ? (
         <span className="touch-none flex-shrink-0">{dragHandle}</span>

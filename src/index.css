@@ -238,6 +238,13 @@ body {
 .dark .gc-dot {
   background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
 }
+/* 色の細い線（To-Do 行の左の縦線）: 縁を付けると線の中に線が見えてごちゃつくので、丸の中の色だけで塗る。丸と同じ 30% だと細すぎて黄色が消えるので少し濃く */
+.gc-line {
+  background-color: color-mix(in srgb, var(--c) 55%, var(--gc-surface));
+}
+.dark .gc-line {
+  background-color: color-mix(in srgb, var(--c) 55%, var(--gc-surface));
+}
 
 /* 睡眠の記録: 夜の色の薄い帯。色の付いた記録・予定の枠より目立たせない */
 .gc-sleep {
