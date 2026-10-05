@@ -10,6 +10,7 @@ export type TimeBlockTask = {
   endTime: string
   completed: boolean
   dueDate?: string | null
+  dueTime?: string | null
   endDate?: string | null
   kind?: TaskKind
   parentId?: string | null

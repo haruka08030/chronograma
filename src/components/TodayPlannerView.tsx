@@ -13,6 +13,7 @@ import { unplannedListIds } from '../lib/listKind'
 import { requestPermission } from '../lib/notifications'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS } from './ui/dueTone'
+import { dueToneOf } from '../lib/dueTone'
 import { startTimerForTask } from '../lib/timerDrop'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
@@ -301,13 +302,14 @@ export function TodayPlannerView() {
   }
   const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (!task.dueDate) return null
+    const tone = dueToneOf(task.dueDate, task.dueTime, dateKey, { now })
     if (task.dueDate === dateKey) {
-      return { text: task.dueTime ? t('planner.dueAt', { time: task.dueTime }) : t('planner.dueToday'), tone: 'today' }
+      return { text: task.dueTime ? t('planner.dueAt', { time: task.dueTime }) : t('planner.dueToday'), tone: tone === 'overdue' ? 'overdue' : 'today' }
     }
     if (task.dueDate < dateKey) {
       return { text: t('planner.dueLate', { count: differenceInCalendarDays(date, fromDateKey(task.dueDate)) }), tone: 'overdue' }
     }
-    return { text: t('planner.dueOn', { date: shortDate(task.dueDate) }), tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
+    return { text: t('planner.dueOn', { date: shortDate(task.dueDate) }), tone: tone === 'overdue' || tone === 'tomorrow' ? tone : 'muted' }
   }
 
   /** 候補のまとまりの見出し（締切の日）。今日・明日は締切の色で焦らせる */

@@ -7,7 +7,8 @@ import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
-import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
+import { appTodayKey, isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
+import { dueToneOf } from '../lib/dueTone'
 import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -40,10 +41,10 @@ function rowDateText(d: Date, language: string | undefined): string {
   return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
 }
 
-function dueDateLabel(iso: string, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
+function dueDateLabel(iso: string, time: string | null, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
   const d = parseISO(iso)
-  if (isAppToday(d)) return { text: todayLabel, tone: 'today' }
-  return { text: rowDateText(d, language), tone: dateTone(d) }
+  const tone = dueToneOf(iso, time, appTodayKey())
+  return { text: isAppToday(d) ? todayLabel : rowDateText(d, language), tone }
 }
 
 export type TaskItemSelection = {
@@ -187,7 +188,7 @@ export const TaskItem = memo(function TaskItem({
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const language = i18n.resolvedLanguage
-  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
+  const due = task.dueDate ? dueDateLabel(task.dueDate, task.dueTime, t('common.today'), language) : null
   const dueOnRowDay = !!dayKey && task.dueDate === dayKey
   const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
