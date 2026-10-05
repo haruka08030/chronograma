@@ -5,6 +5,7 @@ import { downloadRawData, latestAutoBackup } from '../../lib/crashRecovery'
 import { askConfirm } from '../../lib/confirmDialog'
 import { formatDate } from '../../lib/dateFormat'
 import { SUBTLE_TEXT } from './textClass'
+import { reportError } from '../../lib/errorReport'
 
 /**
  * 描画中のエラーで画面全体が真っ白にならないようにする。
@@ -50,6 +51,7 @@ export class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[error-boundary:${this.props.scope}]`, error, info.componentStack)
+    reportError('render', error, { scope: this.props.scope, componentStack: info.componentStack?.slice(0, 1500) })
   }
 
   componentDidUpdate(prev: { resetKey?: string }) {

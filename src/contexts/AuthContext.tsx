@@ -8,6 +8,7 @@ import {
 } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
+import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
@@ -162,6 +163,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  // エラーの報告はログイン中の人として送る（ログアウトしたら送らない）
+  const reportUserId = session?.user.id ?? null
+  useEffect(() => setErrorReportUser(reportUserId), [reportUserId])
 
   const value = useMemo<AuthContextValue>(
     () => ({

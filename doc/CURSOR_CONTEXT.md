@@ -462,6 +462,26 @@ service_role で読み書き）。トークンの列（`google_oauth.refresh_tok
 DB のテストは pgTAP の `supabase/tests/*.sql`（RLS: 他人の行・anon、`004` / `007` の書き込みの確かめ、`008` / `010` の印と上限、`006` の行数の上限）。手元では `supabase start` → `supabase test db`（Docker が要る。本番には向けない）。CI（`.github/workflows/ci.yml`）の `database` は DB だけ起こして migration を流し、pg_cron を有効にしてもう一度全部を流し（何度流しても同じ形・`010` のジョブ）、`supabase test db`。`functions` は全 Edge Function を `deno check`。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
+### 端末のエラー（`client_errors`、`011`）
+
+ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で 1 件ずつ insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`main.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 回の起動で 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。SQL Editor で見る:
+
+```sql
+select created_at, kind, message, url, app_version, extra, left(stack, 400) as stack
+from public.client_errors
+where created_at > now() - interval '7 days'
+order by created_at desc
+limit 100;
+
+-- 多いものから
+select kind, message, count(*) as n, count(distinct user_id) as users, max(created_at) as last
+from public.client_errors
+where created_at > now() - interval '7 days'
+group by kind, message
+order by n desc
+limit 50;
+```
+
 ## 環境変数（`.env.example`）
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase

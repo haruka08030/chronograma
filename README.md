@@ -52,7 +52,7 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
 2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から最後の番号まで。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
-   どのファイルも何度流しても同じ形になります。先に **Database → Extensions** で `pg_cron` を有効にしておくと、`010` が古い同期の印を毎日消すジョブを作ります（後から有効にしたら `010` を流し直す）。
+   どのファイルも何度流しても同じ形になります。先に **Database → Extensions** で `pg_cron` を有効にしておくと、`010`（古い同期の印）と `011`（端末のエラーの記録）を 30 日で消す毎日のジョブができます（後から有効にしたら `010`・`011` を流し直す）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。

@@ -11,6 +11,7 @@
  * サーバーの版が `syncedAt` と違えば、ほかの端末が変えている。両方のときだけ編集時刻を比べる
  * （手元の時刻はサーバーの時計に直す。前回同期で測ったずれ `clockOffsetMs`）
  */
+import { reportSyncError } from './errorReport'
 
 export type SettingSyncStep =
   /** サーバーに行が無い・手元が新しい: 送る（`base` はサーバーの版、行が無ければ null） */
@@ -127,6 +128,7 @@ export async function runSettingSync<
     if (cancelled()) return
     if (remote && 'error' in remote) {
       console.error(`[sync] ${s.key}`, remote.error)
+      reportSyncError(`settings:${s.key}`, remote.error)
       return
     }
     const plannedAt = s.localUpdatedAt()
@@ -146,6 +148,7 @@ export async function runSettingSync<
     if (cancelled()) return
     if ('error' in res) {
       console.error(`[sync] ${s.key}`, res.error)
+      reportSyncError(`settings:${s.key}`, res.error)
       return
     }
     if ('stale' in res) continue
@@ -154,4 +157,6 @@ export async function runSettingSync<
     saveSettingSyncedAt(userId, s.key, res.updatedAt)
     return
   }
+  // 取り直しても毎回断られた
+  reportSyncError(`settings:${s.key}`, `still stale after ${retries} retries`)
 }

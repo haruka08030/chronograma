@@ -14,6 +14,7 @@
 | [`008_sync_tombstones.sql`](008_sync_tombstones.sql) | 消えた行の印 `sync_tombstones`（`(user_id, table_name, row_id)` と `deleted_at`）。`lists` / `list_sections` / `tasks` / `habits` の行を消すと（どの版のアプリからでも）トリガー `record_sync_tombstones` が印を残し、同じ id の行がまた入ると印を消す。アカウントの削除（cascade）では残さず、それまでの印も消す。端末からは本人の行の select だけ（書くのはトリガー、SECURITY DEFINER）。端末は差分の取得で、変わった行とこの印だけを取る。差分の目印にするサーバーの時刻を返す `sync_server_now()`（`authenticated` だけ実行できる）。`004` が前提 |
 | [`009_sync_updated_at_index.sql`](009_sync_updated_at_index.sql) | 差分の取得のための索引 `(user_id, updated_at)`（`lists` / `list_sections` / `tasks` / `habits`） |
 | [`010_sync_tombstone_limits.sql`](010_sync_tombstone_limits.sql) | `sync_tombstones` の上限と自動削除。1 人 50,000 件を超えたら古い印から消し（断らない。印を入れるのは利用者の削除の中なので）、消した印の一番新しい `deleted_at` を `sync_tombstone_purges.last_deleted_at` に残す（端末は本人の行の select だけ。差分の目印がこれより前なら全部を取り直す）。トリガー `trim_sync_tombstones`（文ごとに 1 回、SECURITY DEFINER）。30 日より古い印は pg_cron のジョブ `purge-sync-tombstones`（毎日 03:17 UTC）が消す。`pg_cron` が無い DB ではジョブを作らない（有効にしてから流し直すと作る） |
+| [`011_client_errors.sql`](011_client_errors.sql) | 端末のエラーの記録 `client_errors`（種類 `render` / `error` / `unhandledrejection` / `sync` / `chunk`・メッセージ・スタック・場所・版・ブラウザ・`extra`）。大きさの上限 `client_errors_size_check`。端末は本人の行の insert だけ（読む・消すのは service_role）。1 人あたり新しい 500 件まで（トリガー `trim_client_errors` が古いものから消す。断らない）。30 日より古い行は pg_cron のジョブ `chronograma-client-errors-purge` が毎日 3:23（UTC）に消す（pg_cron が無ければジョブは作らない。入れたら流し直す） |
 
 テーブル（最新の形）:
 
@@ -32,6 +33,7 @@
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
+| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「端末のエラーを見る」） |
 
 **メモ**
 

@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { consumeLaunch, setupPwa, type LaunchHandlers } from './lib/pwa'
 import { useTaskStore } from './store/taskStore'
 import { setupUrlHistory } from './lib/urlHistory'
+import { installGlobalErrorReporting } from './lib/errorReport'
 
 const launch: LaunchHandlers = {
   openView: (view) => useTaskStore.getState().selectView(view),
@@ -39,6 +40,8 @@ for (const type of ['gesturestart', 'gesturechange'] as const) {
   document.addEventListener(type, (event) => event.preventDefault(), { passive: false })
 }
 
+// 拾われなかったエラーを記録する（ログイン中だけ送る。`client_errors`）
+installGlobalErrorReporting()
 setupPwa(launch)
 consumeLaunch(launch)
 // 開いている画面を URL と履歴に載せる（起動 URL の `?view=` / `?list=` もここで開く）
