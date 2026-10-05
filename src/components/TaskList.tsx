@@ -11,6 +11,7 @@ import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
+import { useTodayToggle } from '../hooks/useTodayToggle'
 import { CheckCircleIcon, CheckIcon } from './icons'
 import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
@@ -172,6 +173,7 @@ export function TaskList({ onOpenNav }: {
   )
 
   const bulk = useBulkTaskActions()
+  const todayToggle = useTodayToggle()
 
   // 選択とキー操作（カレンダーの置き場と同じ）
   const openMenu = useCallback((menu: { x: number; y: number; taskIds: string[] }) => openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }), [])
@@ -183,6 +185,8 @@ export function TaskList({ onOpenNav }: {
     removeRows: deleteTasks,
     completeRows: bulk.complete,
     openMenu,
+    // いつか・チェックリストは日に置かないので、Shift+T（今日やる ⇄ 明日へ）はタスクのリストだけ
+    todayToggleRows: listKind === 'tasks' ? (ids) => todayToggle(ids).run() : undefined,
     resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
   })
   useEffect(() => {

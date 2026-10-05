@@ -418,6 +418,7 @@ export default {
     edit: 'Open details of the open event or task',
     delete: 'Delete the open event or selected tasks',
     completeSelected: 'Complete selected tasks',
+    todayToggle: 'Do today / move to tomorrow',
     moveRow: 'Move between tasks (Shift to extend the selection)',
     openRow: 'Open the task',
     completeRow: 'Complete the task',
@@ -704,6 +705,8 @@ export default {
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
     open: 'Open details',
+    doToday: 'Do today',
+    toTomorrow: 'Move to tomorrow',
   },
   completedView: {
     yesterday: 'Yesterday',

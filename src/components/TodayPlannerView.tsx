@@ -24,7 +24,8 @@ import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } f
 import { colorVars, logLabelFromTask } from '../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../lib/habitMark'
 import { isAppToday, appToday } from '../lib/timeZone'
-import { CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon, StatsIcon } from './icons'
+import { ArrowRightIcon, CalendarArrowIcon, CalendarDoubleArrowIcon, CheckIcon, PlayIcon, StatsIcon } from './icons'
+import { useTodayToggle } from '../hooks/useTodayToggle'
 import { tip } from '../lib/tooltip'
 import { buttonClass } from './ui/buttonClass'
 import { Segmented } from './ui/Segmented'
@@ -73,6 +74,7 @@ export function TodayPlannerView() {
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const todayToggle = useTodayToggle()
   const bulk = useBulkTaskActions()
   const startTimer = useTaskStore((s) => s.startTimer)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
@@ -188,6 +190,7 @@ export function TodayPlannerView() {
     removeRows: deleteTasks,
     completeRows: bulk.complete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
+    todayToggleRows: (ids) => todayToggle(ids).run(),
     resetOn: [dateKey],
   })
   useEffect(() => {
@@ -350,6 +353,13 @@ export function TodayPlannerView() {
   }
 
   // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない
+  /** 今日やる行の「明日へ回す」（マウスで乗せたときだけ。スマホは行のスワイプで） */
+  const tomorrowButton = (task: Task) => (
+    <RowActionButton label={t('taskMenu.toTomorrow')} onClick={() => rescheduleTasks([task.id], tomorrowKey)} revealOnHover mouseOnly>
+      <ArrowRightIcon className="h-3.5 w-3.5" />
+    </RowActionButton>
+  )
+
   const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
     <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} revealOnHover>
       <PlayIcon className="h-3 w-3" />
@@ -510,7 +520,7 @@ export function TodayPlannerView() {
             <p className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">{viewingToday ? t('planner.doToday') : t('planner.doThisDay')}</p>
           )}
           <ul>
-            {open.map((task) => renderRow(task, timerButton(task), 'urgent'))}
+            {open.map((task) => renderRow(task, <>{tomorrowButton(task)}{timerButton(task)}</>, 'urgent'))}
           </ul>
         </div>
 

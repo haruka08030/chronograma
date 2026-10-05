@@ -415,6 +415,7 @@ export default {
     edit: '開いている予定・To-Do の行の詳細を開く',
     delete: '開いている予定・選んだタスクを削除',
     completeSelected: '選んだタスクを完了',
+    todayToggle: '今日やる / 明日へ回す',
     moveRow: 'To-Do の行を移動（Shift で選択を広げる）',
     openRow: '行の詳細を開く',
     completeRow: '行を完了',
@@ -702,6 +703,8 @@ export default {
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
     open: '詳細を開く',
+    doToday: '今日やる',
+    toTomorrow: '明日へ回す',
   },
   completedView: {
     yesterday: '昨日',

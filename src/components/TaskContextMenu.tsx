@@ -10,11 +10,12 @@ import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
-import { ArchiveIcon, ArrowRightIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, SectionIcon, TrashIcon } from './icons'
+import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, SectionIcon, TrashIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { useScheduleEntry } from '../hooks/useScheduleEntry'
+import { useTodayToggle } from '../hooks/useTodayToggle'
 import { colorVars } from '../lib/logCategoryColors'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
@@ -136,8 +137,21 @@ export function TaskContextMenu({
         ]
 
   const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
+  // いちばん使う日の付け替えは、サブメニューを開かずに先頭で押せるようにする（今日の行なら明日へ、それ以外は今日へ）
+  const todayToggle = useTodayToggle()(targets.filter((x) => !x.completed).map((x) => x.id))
+  const todayToggleEntry: ActionEntry[] = targets.some((x) => !x.completed)
+    ? [{
+        kind: 'leaf',
+        id: 'today-toggle',
+        label: todayToggle.label,
+        icon: <CalendarArrowIcon className={ICON} />,
+        keys: shortcutLabel(['Shift', 'T']),
+        run: done(todayToggle.run),
+      }]
+    : []
   // 予定日（いつやる）を先に、期限（締切）はその下。「明日やる」を期限で動かして締切を変えてしまわないように
   const plannedEntries: ActionEntry[] = [
+    ...todayToggleEntry,
     scheduleEntry,
     {
       kind: 'sub',

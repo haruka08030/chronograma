@@ -22,6 +22,7 @@ export function useTaskListSelection({
   removeRows,
   completeRows,
   openMenu,
+  todayToggleRows,
   resetOn,
 }: {
   /** 上から順の、操作できる行（⌘A・↑↓・枠の対象） */
@@ -35,6 +36,8 @@ export function useTaskListSelection({
   completeRows: (ids: string[]) => void
   /** 右クリック・⌘/ のメニューを開く。`above` は (x, y) の上に出す */
   openMenu: (menu: { x: number; y: number; taskIds: string[]; above?: boolean }) => void
+  /** Shift+T: 今日やる ⇄ 明日へ回す（`useTodayToggle`）。渡さない一覧では効かせない */
+  todayToggleRows?: (ids: string[]) => void
   /** これが変わったら選択と枠を外す（開いているリスト・絞り込みなど） */
   resetOn: DependencyList
 }) {
@@ -245,6 +248,13 @@ export function useTaskListSelection({
     if (selectedRef.current.size > 0) completeSelected()
     else if (target) toggleRow(target)
     else return false
+  })
+  useHotkey(SHORTCUTS.todayToggle.hotkeys, () => {
+    const target = targetRow()
+    const ids = selectedRef.current.size > 0 ? [...selectedRef.current] : target ? [target] : []
+    if (!todayToggleRows || ids.length === 0) return false
+    todayToggleRows(ids)
+    clearSelection()
   })
   useHotkey(SHORTCUTS.openMenu.hotkeys, () => {
     // ⌘/（Notion と同じ）: 選択中（なければ枠の行）のメニューを、その行の下に開く
