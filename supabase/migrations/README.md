@@ -11,6 +11,8 @@
 | [`005_skip_stale_write_search_path.sql`](005_skip_stale_write_search_path.sql) | 001 のトリガー関数 `skip_stale_write` の `search_path` を空に固定する（動きは同じ） |
 | [`006_row_limits.sql`](006_row_limits.sql) | 1 人が持てる行数の上限（`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100）。トリガー `enforce_row_limit`（文ごとに 1 回、新しく入った行がある利用者だけ数える）。upsert で既にある行を更新する分は数えない。超えると errcode `P0001`・メッセージ `row_limit_exceeded` で文ごと断る |
 | [`007_settings_server_time.sql`](007_settings_server_time.sql) | `user_settings` / `user_extra_time_zones` の書き込みをトリガー `settings_write_guard` で確かめる（この 2 つの表の `skip_stale_write` を置き換える）。考え方は `004` と同じ: `base_updated_at`（端末がもとにした版。行が無いはずのときは `-infinity`。行には残さない）を送った書き込みは、サーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）は前と同じ |
+| [`008_sync_tombstones.sql`](008_sync_tombstones.sql) | 消えた行の印 `sync_tombstones`（`(user_id, table_name, row_id)` と `deleted_at`）。`lists` / `list_sections` / `tasks` / `habits` の行を消すと（どの版のアプリからでも）トリガー `record_sync_tombstones` が印を残し、同じ id の行がまた入ると印を消す。アカウントの削除（cascade）では残さず、それまでの印も消す。端末からは本人の行の select だけ（書くのはトリガー、SECURITY DEFINER）。端末は差分の取得で、変わった行とこの印だけを取る。`004` が前提 |
+| [`009_sync_updated_at_index.sql`](009_sync_updated_at_index.sql) | 差分の取得のための索引 `(user_id, updated_at)`（`lists` / `list_sections` / `tasks` / `habits`） |
 
 テーブル（最新の形）:
 
@@ -27,6 +29,7 @@
 | `notion_connection` | Notion の統合トークン（暗号化して保存）と対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |
 | `edge_rate_limits` | Edge Function の呼び出し回数（利用者ごと・機能ごとの固定の時間枠）。クライアント向けポリシーなし。数えるのは `hit_rate_limit`（service_role だけが呼べる） |
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
+| `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。自動では消さない。端末は 6 時間ごとに全部を取り直すので、30 日より古い印は消してよい（`delete from public.sync_tombstones where deleted_at < now() - interval '30 days'`） |
 
 **メモ**
 

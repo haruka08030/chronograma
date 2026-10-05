@@ -514,6 +514,98 @@ export async function fetchListsTasksHabits(
   }
 }
 
+/** 消えた行の印（`008` の sync_tombstones）。印があれば、その行はいまサーバーに無い */
+export type SyncTombstone = { table: SyncTable; id: string; deletedAt: string }
+
+/** 前回の取得より後に変わった行と、消えた行の印 */
+export interface SyncChanges {
+  lists: TaskList[]
+  sections: ListSection[]
+  tasks: Task[]
+  habits: Habit[]
+  tombstones: SyncTombstone[]
+}
+
+const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'habits']
+
+/**
+ * `since` より後の行を、`keys` の順（先頭は時刻の列）に全部取る。続きは最後の行より後（keyset）から取るので、
+ * 取っている間に行が消えたり変わったりしても飛ばさない（変わった行は後ろへ回り、続きか次の取得で届く）。
+ * 件数は最初の 1 回だけ数える（`since` より後だけなので、索引で軽い）
+ */
+async function fetchRowsSince<T extends Record<string, unknown>>(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+  since: string,
+  keys: readonly [string, ...string[]],
+): Promise<{ rows: T[] } | { error: string; code?: string }> {
+  const rows: T[] = []
+  let total: number | null = null
+  for (;;) {
+    let q = supabase
+      .from(table)
+      .select('*', rows.length === 0 ? { count: 'exact' } : undefined)
+      .eq('user_id', userId)
+      .gt(keys[0], since)
+    const last = rows[rows.length - 1]
+    if (last) {
+      // (k1, k2, …) > (最後の行の値): k1 > v1 か、k1 = v1 で k2 > v2 か …
+      const v = (k: string) => quoteFilterValue(String(last[k]))
+      const parts = keys.map((k, i) => {
+        const eqs = keys.slice(0, i).map((p) => `${p}.eq.${v(p)}`)
+        return eqs.length === 0 ? `${k}.gt.${v(k)}` : `and(${[...eqs, `${k}.gt.${v(k)}`].join(',')})`
+      })
+      q = q.or(parts.join(','))
+    }
+    for (const k of keys) q = q.order(k)
+    const { data, count, error } = await q.limit(PAGE_SIZE)
+    if (error) return { error: error.message, code: error.code }
+    if (rows.length === 0) total = count ?? null
+    const page = (data ?? []) as T[]
+    if (page.length === 0) break
+    rows.push(...page)
+    if (total !== null && rows.length >= total) break
+  }
+  return { rows }
+}
+
+/** `008` を流す前の DB（印の表が無い） */
+function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
+  return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
+}
+
+/**
+ * 差分の取得: `since` より後に変わった行と、`since` より後に消えた行の印。
+ * 行を先に、印を後に取る（印は取った時点でその行がサーバーに無いことを示すので、行より後に取れば行の取得と食い違わない）。
+ * `unsupported` は差分を取れない DB（`008` を流す前）。全部を取り直す
+ */
+export async function fetchChangesSince(
+  supabase: SupabaseClient,
+  userId: string,
+  since: string,
+): Promise<SyncChanges | { error: string; unsupported?: boolean }> {
+  const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
+  for (const table of SYNC_TABLES) {
+    const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
+    if ('error' in res) return { error: `${table}: ${res.error}` }
+    got[table] = res.rows
+  }
+  const ts = await fetchRowsSince<{ table_name: string; row_id: string; deleted_at: string }>(
+    supabase, 'sync_tombstones', userId, since, ['deleted_at', 'table_name', 'row_id'],
+  )
+  if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  return {
+    lists: (got.lists as unknown as ListRow[]).map(rowToList),
+    sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
+    tasks: (got.tasks as unknown as TaskRow[]).map(rowToTask),
+    habits: (got.habits as unknown as HabitRow[]).map(rowToHabit),
+    tombstones: ts.rows
+      .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
+      .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
+  }
+}
+
 /** Remote is only default inbox and no tasks (and no extra lists / habits). */
 function isTrivialRemote(
   lists: TaskList[],

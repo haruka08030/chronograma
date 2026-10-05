@@ -4,13 +4,13 @@ import { getSupabase } from '../lib/supabase'
 import {
   decideHydrate,
   fetchExtraTimeZones,
-  fetchListsTasksHabits,
   fetchLogLabels,
   pushExtraTimeZones,
   pushListsTasksHabits,
   pushLogLabels,
 } from '../lib/supabaseData'
 import { runSettingSync, type SettingSyncDeps } from '../lib/settingSync'
+import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
   hasOtherUsersBaseline,
@@ -93,6 +93,8 @@ export function useSupabaseSync() {
     let staleRetries = 0
     /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
     let limitHit = false
+    /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
+    const pull = createPullState()
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -170,11 +172,28 @@ export function useSupabaseSync() {
     const syncOnceLocked = async (): Promise<boolean> => {
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
-      const remote = await fetchListsTasksHabits(supabase, userId)
+      // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
+      const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
+      const pulled = await pullRemote(supabase, userId, pull, { full: !known, clockOffsetMs: known?.clockOffsetMs })
       if (cancelled) return true
-      if ('error' in remote) {
-        console.error('[sync]', remote.error)
+      if ('error' in pulled) {
+        console.error('[sync]', pulled.error)
         return false
+      }
+      let remote = pulled.snapshot
+      if (!pulled.full && known) {
+        // 差分で取りこぼしがあると、手元の行を「他の端末で消された」と読んでしまう。消えた印の無い行があれば全部を取り直す
+        const missing = missingWithoutTombstone(localSnapshot(), known, remote, pulled.tombstoned)
+        if (missing.length > 0) {
+          console.warn('[sync] delta missed rows, fetching everything', missing.slice(0, 5))
+          const again = await pullRemote(supabase, userId, pull, { full: true, clockOffsetMs: known.clockOffsetMs })
+          if (cancelled) return true
+          if ('error' in again) {
+            console.error('[sync]', again.error)
+            return false
+          }
+          remote = again.snapshot
+        }
       }
 
       const owner = useTaskStore.getState().dataOwner
@@ -252,6 +271,8 @@ export function useSupabaseSync() {
       if (res.error) {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
+        // 途中まで届いた行・消えた行がある。次は全部を取り直す
+        pull.forceFull = true
         return false
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
@@ -261,6 +282,8 @@ export function useSupabaseSync() {
       if (stamped !== toPush) apply(adoptServerStamps(localSnapshot(), toPush, stamped))
       // 取得した後に他の端末が変えていた行は届いていない。控えは取得した版にして（次の同期で項目ごとに合わせる）、すぐ取り直す
       done(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale]), res.clockOffsetMs)
+      // 送れた行・消せた行を前回取得したサーバーの内容に入れる。断られた行があれば次は全部を取る
+      afterPush(pull, stamped, deletes, res)
       if (res.stale.length > 0 && staleRetries < MAX_STALE_RETRIES) {
         staleRetries++
         rerun = true
