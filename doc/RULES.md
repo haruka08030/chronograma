@@ -9,7 +9,7 @@
 
 ## デプロイ
 
-スキーマを変えたら、足したファイルだけを `supabase db query --linked -f supabase/migrations/<ファイル>` で本番に流す。`supabase db push --linked` は使わない（本番の適用履歴がファイルと合っていない）。Edge Function は `supabase functions deploy <名前>`。
+スキーマを変えたら `supabase db push --linked --dry-run` で流れるファイルを確かめ、`supabase db push --linked` で本番に流す（適用履歴に記録される）。Edge Function は `supabase functions deploy <名前>`。
 
 スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
 
