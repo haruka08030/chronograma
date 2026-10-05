@@ -448,29 +448,28 @@ const PAGE_SIZE = 1000
 /**
  * 利用者の行を全部取る。1 回で取ると上限（既定 1,000 行）で切れ、返ってこなかった行が
  * 三方向マージで「他端末で消された」扱いになって手元から消えていた。
- * 件数も一緒に受け取り、全部そろうまでページを送る。毎回の push で行の並びが変わるので id 順に固定する
+ * id 順に、続きは最後に受け取った id より後（keyset）から、空のページが返るまで取る。
+ * 取っている間に他端末が行を消しても後ろの行はずれず、行が変わっても id は変わらないので、飛ばしも重複も無い
+ * （offset で送ると、前の方の行が消えた分だけ後ろの行を取り飛ばしていた）。
+ * サーバーの上限がページの大きさより小さくても、空になるまで送るので取りこぼさない
  */
-async function fetchAllRows<T>(supabase: SupabaseClient, table: string, userId: string): Promise<{ rows: T[] } | { error: string }> {
+async function fetchAllRows<T extends { id: string }>(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
-  let total: number | null = null
-  do {
-    const { data, count, error } = await supabase
-      .from(table)
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .order('id')
-      .range(rows.length, rows.length + PAGE_SIZE - 1)
-    if (error) return { error: error.message }
+  for (;;) {
+    let q = supabase.from(table).select('*').eq('user_id', userId)
+    const last = rows[rows.length - 1]
+    if (last) q = q.gt('id', last.id)
+    const { data, error } = await q.order('id').limit(PAGE_SIZE)
+    // 途中で失敗したら、途中までの結果ではマージしない（足りない行が「消された」扱いになる）
+    if (error) return { error: `${table}: ${error.message}` }
     const page = (data ?? []) as T[]
-    total = count
-    // 取得中に行が減ると最後のページが空になる。途中までの結果でマージすると足りない行が
-    // 「消された」扱いになるので、次の同期でやり直す
-    if (page.length === 0) {
-      if (total !== null && rows.length < total) return { error: `${table}: fetched ${rows.length} of ${total} rows` }
-      break
-    }
+    if (page.length === 0) break
     rows.push(...page)
-  } while (total !== null && rows.length < total)
+  }
   return { rows }
 }
 
