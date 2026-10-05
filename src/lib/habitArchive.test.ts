@@ -40,6 +40,12 @@ describe('アーカイブした習慣', () => {
     expect(habitToPlannedItem(archived, DAY)).toBeNull()
   })
 
+  it('時刻ひとつの習慣も、✓ で作る記録と同じ枠でタイムラインに出す', () => {
+    const fixed = habit('gym', { timeMode: 'fixed', startTime: '09:30', endTime: null })
+    expect(habitToPlannedItem(fixed, DAY)).toMatchObject({ startTime: '09:30', endTime: '09:45' })
+    expect(habitToPlannedItem(habit('n', { timeMode: 'none', startTime: null, endTime: null }), DAY)).toBeNull()
+  })
+
   it('項目の無い古い習慣は使用中として扱う', () => {
     const legacy = { ...habit('h'), archivedAt: undefined } as unknown as Habit
     expect(isHabitScheduledOnDate(legacy, fromDateKey(DAY))).toBe(true)
