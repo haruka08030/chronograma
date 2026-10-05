@@ -18,7 +18,7 @@ import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
-import { SettingsGroup, SettingsRow } from './settings/SettingsPrimitives'
+import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { askConfirm } from '../lib/confirmDialog'
@@ -95,6 +95,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const exportData = useTaskStore((s) => s.exportData)
   const importData = useTaskStore((s) => s.importData)
   const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
+  const selectView = useTaskStore((s) => s.selectView)
   const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'ja'
 
   useLayoutEffect(() => {
@@ -117,6 +118,13 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
     <div className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
+
+        {/* スマホは「その他」タブがこの画面。統計の入口もここ（PC 幅は左のサイドバーにある） */}
+        <div className="md:hidden">
+          <SettingsGroup>
+            <SettingsLinkRow label={t('sidebar.views.stats')} onClick={() => selectView('stats')} />
+          </SettingsGroup>
+        </div>
 
         <SettingsGroup id="settings-appearance" title={t('settings.appearance')}>
           <SettingsRow label={t('settings.theme')}>

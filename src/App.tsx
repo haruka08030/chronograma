@@ -185,12 +185,6 @@ export default function App() {
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const isLargeScreen = useIsLargeScreen()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  /** To-Do から開いたドロワーは To-Do のナビだけ（ほかの画面・統計・設定は下のタブと「その他」にある）。閉じる動きのあいだも中身を変えないよう、開いた時に決める */
-  const [drawerListsOnly, setDrawerListsOnly] = useState(false)
-  const openDrawer = useCallback((listsOnly: boolean) => {
-    setDrawerListsOnly(listsOnly)
-    setSidebarOpen(true)
-  }, [])
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [dragOverlayTask, setDragOverlayTask] = useState<{ taskId: string; isSubtask: boolean; count: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -576,7 +570,7 @@ export default function App() {
   // 画面の左端からは OS・ブラウザの「戻る」が先に取るので、端に頼らない
   useSwipeNav(
     mainRef,
-    !isDesktop && isTodoSurface && !searchQuery.trim() ? (dir) => { if (dir === -1) openDrawer(true) } : undefined,
+    !isDesktop && isTodoSurface && !searchQuery.trim() ? (dir) => { if (dir === -1) setSidebarOpen(true) } : undefined,
     () => dragActiveRef.current,
     { follow: false },
   )
@@ -594,7 +588,7 @@ export default function App() {
       case 'settings': return <SettingsView />
       default:
         // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
-        return <TaskList onOpenNav={() => openDrawer(true)} />
+        return <TaskList onOpenNav={() => setSidebarOpen(true)} />
     }
   })()
 
@@ -612,7 +606,7 @@ export default function App() {
       onDragCancel={handleDragCancel}
     >
       <div className="h-dvh min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
-        <Sidebar open={sidebarOpen} listsOnly={drawerListsOnly} onClose={() => setSidebarOpen(false)} />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {showTodoNavPanel ? <TodoNavPanel /> : null}
 
@@ -682,7 +676,6 @@ export default function App() {
         <FloatingTimer />
         <RecordPromptHost />
         <MobileBottomNav
-          onOpenMore={() => openDrawer(false)}
           onNavigate={() => setSidebarOpen(false)}
         />
       </div>

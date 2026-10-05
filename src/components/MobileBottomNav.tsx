@@ -7,18 +7,18 @@ import { CalendarIcon, CheckCircleIcon, HabitIcon, MenuIcon, SunIcon } from './i
 type TabId = 'planner' | 'todo' | 'calendar' | 'habits' | 'more'
 
 /** 1 日の計画アプリなので先頭は「今日」。記録と習慣の日々のチェックも「今日」にある */
-const TAB_VIEWS: Record<Exclude<TabId, 'todo' | 'more'>, SmartView> = {
+const TAB_VIEWS: Record<Exclude<TabId, 'todo'>, SmartView> = {
   planner: 'planner',
   calendar: 'calendar',
   habits: 'habits',
+  // その他は設定の画面（統計への入口も設定の上にある）。統計を開いているあいだも「その他」が選ばれる
+  more: 'settings',
 }
 
 export function MobileBottomNav({
-  onOpenMore,
   onNavigate,
 }: {
-  onOpenMore: () => void
-  /** タブでビューを切り替えたとき（開いているサイドバードロワーを閉じる） */
+  /** タブでビューを切り替えたとき（開いているドロワーを閉じる） */
   onNavigate?: () => void
 }) {
   const { t } = useTranslation()
@@ -38,10 +38,6 @@ export function MobileBottomNav({
 
   const go = (tab: TabId) => {
     setSearchQuery('')
-    if (tab === 'more') {
-      onOpenMore()
-      return
-    }
     onNavigate?.()
     if (tab === 'todo') {
       if (selectedListId) selectList(selectedListId)

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { HINT_TEXT } from '../ui/textClass'
+import { ChevronRightIcon } from '../icons'
 
 /** 設定のまとまり。見出しは枠の外、中身は 1 枚の枠に行を区切り線で並べる */
 export function SettingsGroup({
@@ -10,18 +11,36 @@ export function SettingsGroup({
   children,
 }: {
   id?: string
-  title: string
+  /** 無ければ見出しを出さず枠だけ（「統計 ›」のように行の名前だけで分かるもの） */
+  title?: string
   description?: string
   children: ReactNode
 }) {
   return (
     <section id={id} className="scroll-mt-6">
-      <h2 className={`px-1 ${CARD_TITLE_CLASS}`}>{title}</h2>
+      {title && <h2 className={`px-1 ${CARD_TITLE_CLASS}`}>{title}</h2>}
       {description && <p className={`mt-0.5 px-1 ${HINT_TEXT}`}>{description}</p>}
-      <div className="mt-2 divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className={`${title || description ? 'mt-2' : ''} divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900`}>
         {children}
       </div>
     </section>
+  )
+}
+
+/** 次のページへ進む 1 行（右に ›）。連携の「管理」、スマホの「統計」など */
+export function SettingsLinkRow({ label, hint, onClick }: { label: ReactNode; hint?: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm text-zinc-800 dark:text-zinc-200">{label}</span>
+        {hint && <span className={`mt-0.5 block ${HINT_TEXT}`}>{hint}</span>}
+      </span>
+      <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+    </button>
   )
 }
 

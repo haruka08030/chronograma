@@ -61,7 +61,7 @@ const SCREENS = [
   {
     name: 'todo-label-card',
     view: 'all',
-    mobileClick: 'nav[aria-label] button:has-text("その他")',
+    mobileClick: 'button[aria-label="リストを開く"] >> visible=true',
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
