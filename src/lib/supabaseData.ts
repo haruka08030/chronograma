@@ -504,6 +504,8 @@ export interface SyncChanges {
   tasks: Task[]
   habits: Habit[]
   tombstones: SyncTombstone[]
+  /** `since` より後の印のうち、サーバーが上限で消したものがある（`010` の sync_tombstone_purges）。差分では消えた行が分からないので、全部を取り直す */
+  tombstonesTrimmed: boolean
 }
 
 const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'habits']
@@ -555,6 +557,14 @@ function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
   return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
 }
 
+/** `010` を流す前の DB（上限で消した印の表が無い）。印は消えていないので、差分のままでよい */
+function isMissingPurgeTable(e: { message: string; code?: string }): boolean {
+  return (
+    /sync_tombstone_purges/.test(e.message) &&
+    (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.message))
+  )
+}
+
 /**
  * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
  * `unsupported` は関数が無い DB（`008` を流す前）
@@ -594,6 +604,14 @@ export async function fetchChangesSince(
     'row_id',
   ])
   if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  // 上限で消した印の一番新しい時刻（`010`）。印を取った後に読むので、取った印より前に消えた分は必ず見える
+  const trimmed = await supabase
+    .from('sync_tombstone_purges')
+    .select('last_deleted_at')
+    .eq('user_id', userId)
+    .gt('last_deleted_at', since)
+    .limit(1)
+  if (trimmed.error && !isMissingPurgeTable(trimmed.error)) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
   return {
     lists: (got.lists as unknown as ListRow[]).map(rowToList),
     sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
@@ -602,6 +620,7 @@ export async function fetchChangesSince(
     tombstones: ts.rows
       .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
       .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
+    tombstonesTrimmed: (trimmed.data ?? []).length > 0,
   }
 }
 

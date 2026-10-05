@@ -10,6 +10,7 @@ import {
   missingWithoutTombstone,
   needsFullFetch,
   pullRemote,
+  TOMBSTONE_RETENTION_MS,
   type PullState,
 } from './syncPull'
 import {
@@ -605,6 +606,42 @@ describe('needsFullFetch', () => {
     expect(needsFullFetch({ ...ready(), deltaUnsupported: true }, 1_000_001)).toBe(true)
     expect(needsFullFetch(ready(), 1_000_000 + FULL_FETCH_INTERVAL_MS)).toBe(true)
   })
+  it('前回の取得が印を残す 30 日（からさかのぼる 5 分を引いた分）より前なら全部', () => {
+    // 6 時間ごとの取り直しより先に来ることは無いが、全部の取得の時刻とは別に見る
+    const state = { ...ready(), lastFullAt: Number.MAX_SAFE_INTEGER - 1 }
+    const at = 1_000_000 + TOMBSTONE_RETENTION_MS - DELTA_OVERLAP_MS
+    expect(needsFullFetch(state, at - 1)).toBe(false)
+    expect(needsFullFetch(state, at)).toBe(true)
+  })
+})
+
+describe('上限で消された印 (#208)', () => {
+  it('目印より後の印がサーバーの上限で消えていたら、差分を当てずに全部を取る', async () => {
+    const { db, phone, pc } = await setup()
+    tick(db, [phone, pc], 60_000)
+    removeTask(pc, 'b')
+    await syncDevice(db, pc)
+    // `010` の trim_sync_tombstones: b の印を消し、消した印の時刻を残す
+    const gone = db.tables.sync_tombstones!.find((t) => t.row_id === 'b')!
+    db.tables.sync_tombstones = db.tables.sync_tombstones!.filter((t) => t !== gone)
+    db.tables.sync_tombstone_purges = [{ user_id: 'u1', last_deleted_at: gone.deleted_at }]
+    tick(db, [phone, pc], 60_000)
+    await syncDevice(db, phone)
+    expect([phone.fullPulls, phone.deltaPulls]).toEqual([1, 0])
+    expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+  })
+
+  it('消えた印が目印より前なら差分のまま', async () => {
+    const { db, phone, pc } = await setup()
+    db.tables.sync_tombstone_purges = [{ user_id: 'u1', last_deleted_at: '2026-01-01T00:00:00.000000+00:00' }]
+    tick(db, [phone, pc], 60_000)
+    removeTask(pc, 'b')
+    await syncDevice(db, pc)
+    tick(db, [phone, pc], 60_000)
+    await syncDevice(db, phone)
+    expect([phone.fullPulls, phone.deltaPulls]).toEqual([0, 1])
+    expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+  })
 })
 
 describe('目印', () => {
@@ -628,6 +665,7 @@ describe('applyChanges', () => {
     tasks: [],
     habits: [],
     tombstones: [],
+    tombstonesTrimmed: false,
     ...patch,
   })
   it('変わった行は置き換え、新しい行は足し、印のある行は外す。何度当てても同じ', () => {
