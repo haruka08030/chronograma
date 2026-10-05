@@ -26,6 +26,7 @@ import { useLongPress } from '../hooks/useLongPress'
 import { useRowSwipe } from '../hooks/useRowSwipe'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { colorVars } from '../lib/logCategoryColors'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
@@ -294,7 +295,8 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
       }}
     >
       {rowHex && (
-        <span aria-hidden className="absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={{ backgroundColor: rowHex }} />
+        // 丸・タイルと同じガラス風（薄い塗り＋くっきり縁）。ベタ塗りだとここだけポップに浮く
+        <span aria-hidden className="gc-dot absolute left-0.5 top-2 bottom-2 w-[5px] rounded-full" style={colorVars(rowHex)} />
       )}
       {hasSortableHandle ? (
         <span className="touch-none flex-shrink-0">{dragHandle}</span>
