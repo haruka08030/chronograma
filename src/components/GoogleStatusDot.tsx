@@ -13,6 +13,7 @@ export function GoogleStatusDot() {
 
   const label = t('planVsActual.googleConnected')
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 押しても何もしない印。キーでも説明（ツールチップ）を出せるようにフォーカスだけ受ける
     <span tabIndex={0} role="img" aria-label={label} className="group relative flex shrink-0 items-center p-1.5 outline-none">
       <span className="block h-2 w-2 rounded-full bg-emerald-500 group-focus-visible:ring-2 group-focus-visible:ring-emerald-300" />
       <span

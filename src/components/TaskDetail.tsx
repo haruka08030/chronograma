@@ -202,6 +202,7 @@ export function TaskDetail({
               ref={titleTextRef}
               onClick={() => setEditingTitle(true)}
               tabIndex={0}
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- タイトルを押して名前を変える。button への置き換えは TaskDetail の分割のあとで
               role="button"
               aria-label={t('taskDetail.titleEditAria')}
               onKeyDown={(e) => {
@@ -240,6 +241,7 @@ export function TaskDetail({
             className={fieldClass({}, 'w-full resize-none min-h-[4rem]')}
           />
         ) : task.description.trim() ? (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- メモの中のリンクを押せるようにボタンにしない。キーではメモ欄の編集に入れない（TaskDetail の分割のあとで直す）
           <div
             onClick={() => {
               // 文字を選んでコピーしたいときは編集に切り替えない
@@ -254,14 +256,15 @@ export function TaskDetail({
             <LinkifiedText text={task.description} />
           </div>
         ) : (
-          <div
+          <button
+            type="button"
             onClick={() => setEditingMemo(true)}
-            className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
+            className="block w-full text-left px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700
                            bg-transparent text-zinc-400 min-h-[4rem] cursor-text
                            hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
           >
             {isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
-          </div>
+          </button>
         )}
       </div>
 
@@ -676,8 +679,10 @@ export function TaskDetail({
   )
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} onKeyDown={trapTab} inert={closing}>
       <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
       <div
         ref={panelRef}
         role="dialog"

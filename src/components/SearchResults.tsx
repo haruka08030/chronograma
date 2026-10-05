@@ -25,7 +25,7 @@ export function SearchResults() {
 
   // 選択とキー操作は To-Do 一覧と同じ（検索欄の ↓ で最初の結果に枠が移る）
   const clearSelectedRef = useRef<() => void>(() => {})
-  const { clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+  const { clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
     rowIds: resultIds,
     openDetail: openTaskDetail,
     toggleRow: toggleTask,
@@ -50,7 +50,11 @@ export function SearchResults() {
           {results.length === 0 ? (
             <EmptyState icon={<SearchIcon strokeWidth={1} />} title={t('search.empty')} />
           ) : (
-            results.map((r) => <TaskItem key={r.id} task={r} onRowClick={makeRowClick(r.id)} selection={makeSelection(r.id)} />)
+            <div {...listboxProps} aria-label={t('search.title')} className="space-y-1 outline-none">
+              {results.map((r) => (
+                <TaskItem key={r.id} task={r} onRowClick={makeRowClick(r.id)} selection={makeSelection(r.id)} />
+              ))}
+            </div>
           )}
         </div>
       </div>

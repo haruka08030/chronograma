@@ -43,6 +43,7 @@ export function Modal({
   const trapTab = useFocusTrap(ref, { initialFocus })
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため・ダイアログのキーをまとめて受けるため
     <div
       data-popover-keep
       className="fixed inset-0 z-[80] flex animate-fade-in items-center justify-center bg-black/30 p-4 dark:bg-black/50"

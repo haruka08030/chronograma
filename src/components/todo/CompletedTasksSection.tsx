@@ -66,7 +66,17 @@ export function CompletedTasksSection({
         )}
       </div>
       {showCompleted && (
-        <div className="space-y-0.5 mt-1">
+        // 読み上げ: 完了した行も選べる（Shift・⌘ のクリック）ので、未完了とは別の listbox にする
+        <div
+          role="listbox"
+          aria-multiselectable
+          aria-label={
+            listKind === 'someday'
+              ? t('someday.fulfilledHeading', { count: completedTodos.length })
+              : t('checklist.checkedHeading', { count: completedTodos.length })
+          }
+          className="space-y-0.5 mt-1"
+        >
           {completedTodos.map((t) => (
             <div key={t.id}>
               <TaskItem

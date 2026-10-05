@@ -11,6 +11,7 @@ export type CompletionShape = 'circle' | 'square' | 'star'
  * - 見た目は 20px（サブタスクは 16px）、枠 1.5px。優先度があれば枠をその色に、完了は墨の塗り＋✓
  * - 押せる範囲は周りを広げて 40px（負のマージンで行の高さは変えない）
  * - `justCompleted`: 押した直後（完了の欄へ移る前）。✓ を小さく出して、押せたことを見せる
+ * - 読み上げ: チェックボックス（aria-checked = 完了）。`label` にはタスク名を入れる（「「牛乳を買う」を完了」）
  * - `inert`: 複数選択中。押せない薄い印にして、押したら行の選ぶ・外すになる（選ぶ枠のすぐ隣で完了になる事故を防ぐ）
  */
 export function CompletionCircle({
@@ -39,6 +40,8 @@ export function CompletionCircle({
     return (
       <button
         type="button"
+        role="checkbox"
+        aria-checked={completed}
         onClick={onClick}
         aria-label={label}
         tabIndex={inert ? -1 : undefined}
@@ -60,6 +63,8 @@ export function CompletionCircle({
   return (
     <button
       type="button"
+      role="checkbox"
+      aria-checked={completed}
       onClick={onClick}
       aria-label={label}
       tabIndex={inert ? -1 : undefined}

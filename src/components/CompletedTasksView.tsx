@@ -82,7 +82,7 @@ export function CompletedTasksView() {
       openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }),
     [],
   )
-  const { clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
+  const { clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
     rowIds: flatIds,
     openDetail: openTaskDetail,
     toggleRow: toggleTask,
@@ -122,36 +122,39 @@ export function CompletedTasksView() {
         {days.length === 0 ? (
           <EmptyState icon={<CheckCircleIcon strokeWidth={1} />} title={t('completedView.empty')} />
         ) : (
-          days.map((day) => (
-            <section key={day.key} className="pt-4 first:pt-2">
-              <SectionLabel as="h2" className="px-1 pb-1">
-                {dayLabel(day.key)}
-              </SectionLabel>
-              <div className="space-y-0.5">
-                {day.tasks.map((task) => (
-                  <div key={task.id}>
-                    <TaskItem
-                      task={task}
-                      onRowClick={makeRowClick(task.id)}
-                      selection={makeSelection(task.id)}
-                      sectionLabel={listLabel(task)}
-                      hideDueDatePicker
-                    />
-                    {CompletedSubtreeRows({
-                      parentId: task.id,
-                      depth: 0,
-                      childrenByParent,
-                      makeRowClick,
-                      makeSelection,
-                      onEnterCreateSibling: () => {},
-                      pendingAutoEditTaskId: null,
-                      subtaskNestNoDrag: SUBTASK_NEST,
-                    })}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))
+          // 読み上げ: 日ごとの塊（group）をまとめて 1 つの listbox に（↑↓ は日をまたいで動く）
+          <div {...listboxProps} aria-label={t('sidebar.views.completed')} className="outline-none">
+            {days.map((day) => (
+              <section key={day.key} role="group" aria-label={dayLabel(day.key)} className="pt-4 first:pt-2">
+                <SectionLabel as="h2" className="px-1 pb-1">
+                  {dayLabel(day.key)}
+                </SectionLabel>
+                <div className="space-y-0.5">
+                  {day.tasks.map((task) => (
+                    <div key={task.id}>
+                      <TaskItem
+                        task={task}
+                        onRowClick={makeRowClick(task.id)}
+                        selection={makeSelection(task.id)}
+                        sectionLabel={listLabel(task)}
+                        hideDueDatePicker
+                      />
+                      {CompletedSubtreeRows({
+                        parentId: task.id,
+                        depth: 0,
+                        childrenByParent,
+                        makeRowClick,
+                        makeSelection,
+                        onEnterCreateSibling: () => {},
+                        pendingAutoEditTaskId: null,
+                        subtaskNestNoDrag: SUBTASK_NEST,
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </div>

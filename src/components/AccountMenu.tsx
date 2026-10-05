@@ -301,6 +301,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       </button>
       {open && (
         <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
           <div
             className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
               isSettings ? 'left-0 origin-top-left' : 'right-0 origin-top-right'

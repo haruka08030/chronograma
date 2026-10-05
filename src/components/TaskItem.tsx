@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -53,6 +53,8 @@ export type TaskItemSelection = {
   reveal: boolean
   /** ↑↓ で選んでいる行（キー操作中だけ枠を出す） */
   cursor?: boolean
+  /** 一覧（listbox）の中の option としての id。aria-activedescendant が指す */
+  optionId?: string
   /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは選択に使う） */
   onContextMenu?: (e: React.MouseEvent) => void
 }
@@ -221,14 +223,14 @@ export const TaskItem = memo(function TaskItem({
   const longPress = useLongPress((e) => selection?.onToggle(e as unknown as React.MouseEvent), !!selection && !editing)
 
   const beginTitleInteraction = useCallback(
-    (e: React.MouseEvent | React.KeyboardEvent) => {
+    (e: React.MouseEvent) => {
       e.stopPropagation()
       if (e.shiftKey || isModKey(e)) {
-        onRowClick?.(e as unknown as MouseEvent)
+        onRowClick?.(e)
         return
       }
       if (selection?.reveal && onRowClick) {
-        onRowClick(e as unknown as MouseEvent)
+        onRowClick(e)
         return
       }
       setEditValue(task.title)
@@ -244,6 +246,7 @@ export const TaskItem = memo(function TaskItem({
   }
 
   const rowRef = useRef<HTMLDivElement>(null)
+  const optionId = selection?.optionId
   useEffect(() => {
     if (selection?.cursor) rowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selection?.cursor])
@@ -278,9 +281,14 @@ export const TaskItem = memo(function TaskItem({
   return (
     <div className="relative rounded-xl">
       {swipe.backdrop}
+      {/* 行のクリックはマウスの近道。キーでは一覧（listbox）の ↑↓・Enter・Space と、行の中のボタン（タイトル・完了・メニュー）で同じことができる */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         ref={rowRef}
         data-task-row={task.id}
+        {...(optionId
+          ? { id: optionId, role: 'option', 'aria-selected': Boolean(selection?.selected), 'aria-labelledby': `${optionId}-title` }
+          : {})}
         draggable={rowNativeDraggable}
         onDragStart={rowNativeDraggable ? handleDragStart : undefined}
         onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
@@ -359,12 +367,10 @@ export const TaskItem = memo(function TaskItem({
           }}
           label={
             listKind === 'someday'
-              ? t(task.completed ? 'someday.unfulfillItem' : 'someday.fulfillItem', { title: task.title })
-              : task.completed
-                ? timeLog
-                  ? t('taskItem.unlogIncomplete')
-                  : t('taskItem.markIncomplete')
-                : t('taskItem.markComplete')
+              ? t('someday.fulfillItem', { title: task.title })
+              : task.completed && timeLog
+                ? t('taskItem.unlogItem', { title: task.title })
+                : t('taskItem.completeItem', { title: task.title })
           }
         />
 
@@ -372,6 +378,7 @@ export const TaskItem = memo(function TaskItem({
           {editing ? (
             <input
               ref={inputRef}
+              aria-label={t('taskDetail.titleEditAria')}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               {...titleEntryWithSibling}
@@ -381,22 +388,17 @@ export const TaskItem = memo(function TaskItem({
                        border-b border-accent-400 pb-0.5 -mb-[3px] ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
             />
           ) : (
-            <span
+            <button
+              type="button"
+              id={optionId ? `${optionId}-title` : undefined}
               data-task-title
-              role="button"
-              tabIndex={0}
               onClick={beginTitleInteraction}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return
-                e.preventDefault()
-                beginTitleInteraction(e)
-              }}
-              className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
+              className={`block w-full truncate text-left cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
             >
               {task.title || '\u00A0'}
-            </span>
+            </button>
           )}
 
           {notePreview && (

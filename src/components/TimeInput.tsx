@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { pad2, toMinutes } from '../lib/clockTime'
 import { isSubmitEnter } from '../lib/keyboard'
 import { zonedNow } from '../lib/timeZone'
@@ -97,6 +97,7 @@ export function TimeInput({
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const listId = useId()
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const options = useMemo(() => buildTimeOptions(15), [])
 
@@ -251,12 +252,15 @@ export function TimeInput({
         className={className}
         role="combobox"
         aria-label={ariaLabel}
+        aria-controls={listId}
         aria-expanded={open}
+        aria-activedescendant={open && highlightIndex >= 0 ? `${listId}-${highlightIndex}` : undefined}
         aria-autocomplete="list"
       />
       {open && !disabled && (
         <div
           ref={listRef}
+          id={listId}
           className={`absolute z-40 max-h-64 w-full animate-pop-in ${dropUp ? 'bottom-full mb-1 origin-bottom' : 'mt-1 origin-top'} overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
           role="listbox"
         >
@@ -266,6 +270,7 @@ export function TimeInput({
             return (
               <button
                 key={option}
+                id={`${listId}-${idx}`}
                 ref={(node) => {
                   optionRefs.current[idx] = node
                 }}

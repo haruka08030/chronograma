@@ -120,6 +120,7 @@ export function QuickCreatePopover({
   const listColor = plannable.find((l) => l.id === listId)?.color ?? '#7986CB'
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- ダイアログの中のキー（Esc で閉じる）をまとめて受ける
     <div
       ref={ref}
       role="dialog"

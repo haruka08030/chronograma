@@ -189,7 +189,7 @@ export function TaskList({
       openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }),
     [],
   )
-  const { selected, clearSelection, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
+  const { selected, clearSelection, makeRowClick, makeSelection, soloIds, listboxProps } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
     openDetail,
@@ -294,27 +294,30 @@ export function TaskList({
             />
           )}
 
-          <TaskListActiveContent
-            canDrag={canDrag}
-            flatManualSortableIds={flatManualSortableIds}
-            showSectionBlocks={showSectionBlocks}
-            sectionBlocks={sectionBlocks}
-            active={active}
-            selectedListId={selectedListId}
-            taskDragging={taskDragging}
-            previewParentId={previewParentId}
-            pendingAutoEditTaskId={pendingAutoEditTaskId}
-            sectionTitle={sectionTitle}
-            sectionActions={sectionActions}
-            sectionLabelFor={sectionLabelFor}
-            getDragGroupRootIds={getDragGroupRootIds}
-            makeRowClick={makeRowClick}
-            makeSelection={makeSelection}
-            handleEnterCreateSibling={handleEnterCreateSibling}
-            incompleteSubtasks={incompleteSubtasks}
-            subtaskNestWithDrag={subtaskNestWithDrag}
-            subtaskNestNoDrag={subtaskNestNoDrag}
-          />
+          {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
+          <div {...listboxProps} aria-label={title} className="space-y-0.5 outline-none">
+            <TaskListActiveContent
+              canDrag={canDrag}
+              flatManualSortableIds={flatManualSortableIds}
+              showSectionBlocks={showSectionBlocks}
+              sectionBlocks={sectionBlocks}
+              active={active}
+              selectedListId={selectedListId}
+              taskDragging={taskDragging}
+              previewParentId={previewParentId}
+              pendingAutoEditTaskId={pendingAutoEditTaskId}
+              sectionTitle={sectionTitle}
+              sectionActions={sectionActions}
+              sectionLabelFor={sectionLabelFor}
+              getDragGroupRootIds={getDragGroupRootIds}
+              makeRowClick={makeRowClick}
+              makeSelection={makeSelection}
+              handleEnterCreateSibling={handleEnterCreateSibling}
+              incompleteSubtasks={incompleteSubtasks}
+              subtaskNestWithDrag={subtaskNestWithDrag}
+              subtaskNestNoDrag={subtaskNestNoDrag}
+            />
+          </div>
 
           {draftSection}
 

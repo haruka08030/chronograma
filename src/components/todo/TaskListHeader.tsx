@@ -136,11 +136,9 @@ export function TaskListHeader({
                   <>
                     <MenuDivider />
                     {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
-                    <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-                      <span
-                        className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200"
-                        onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
-                      >
+                    {/* 文字を押してもスイッチが切り替わる（label の中の button） */}
+                    <label className="flex items-center justify-between gap-3 px-2 py-1.5">
+                      <span className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200">
                         {t('taskList.groupBySection')}
                       </span>
                       <Switch
@@ -148,7 +146,7 @@ export function TaskListHeader({
                         onChange={(on) => setSectionGrouping(groupingScope, on)}
                         label={t('taskList.groupBySection')}
                       />
-                    </div>
+                    </label>
                   </>
                 )}
               </div>

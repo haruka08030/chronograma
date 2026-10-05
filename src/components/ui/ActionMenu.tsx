@@ -347,6 +347,7 @@ export function ActionMenu({
         <div
           ref={subRef}
           role="menu"
+          tabIndex={-1}
           data-popover-keep
           className={`fixed z-[71] p-1 ${openedSub.width === 'lg' ? 'w-[272px]' : 'w-56'} ${POPOVER_PANEL}`}
           style={{ left: -9999, top: 0 }}

@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DependencyList, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DependencyList,
+  type FocusEvent,
+  type MouseEvent,
+} from 'react'
 import { useHotkey } from './useHotkey'
 import { SHORTCUTS, useSelectAllShortcut } from '../lib/shortcuts'
 import { isModKey } from '../lib/keyboard'
@@ -13,6 +23,9 @@ const MENU_ROOM = 340
  * - ⌘A で全部、↑↓ で行を動く（Shift で選択を広げる）、Enter・e で詳細、Space で完了
  * - 選択中（なければ枠の行）: Delete で削除、⌘Enter で完了、⌘/ でメニュー、Esc で解除
  * 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）。対象がなければ次へ回す
+ *
+ * 読み上げ: 行を包む箱に `listboxProps` を付ける（listbox・複数選択）。行は option（`TaskItemSelection.optionId`・aria-selected）。
+ * ↑↓ で箱にフォーカスを移し、枠の行を aria-activedescendant で伝える（キーは今までどおり window で受ける。入力中は動かさない）
  */
 export function useTaskListSelection({
   rowIds,
@@ -49,6 +62,10 @@ export function useTaskListSelection({
   /** ↑↓ で動かす行。枠はキーで動かしている間だけ出す（マウスで押した行も覚えて、そこから続ける） */
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [cursorVisible, setCursorVisible] = useState(false)
+  /** 行を包む listbox。↑↓ でここへフォーカスを移す（読み上げに枠の行を伝える） */
+  const listboxRef = useRef<HTMLDivElement>(null)
+  const idPrefix = useId()
+  const optionId = useCallback((id: string) => `${idPrefix}row-${id}`, [idPrefix])
 
   useEffect(() => {
     selectedRef.current = selected
@@ -149,6 +166,7 @@ export function useTaskListSelection({
         reveal,
         onToggle: cached?.onToggle ?? (() => toggleInSelection(id)),
         cursor,
+        optionId: optionId(id),
         onContextMenu:
           cached?.onContextMenu ??
           ((e) => {
@@ -162,7 +180,7 @@ export function useTaskListSelection({
       selectionCacheRef.current.set(id, next)
       return next
     },
-    [selected, toggleInSelection, cursorVisible, cursorId],
+    [selected, toggleInSelection, cursorVisible, cursorId, optionId],
   )
 
   // ⌘A: 操作できる行をすべて選ぶ
@@ -212,6 +230,10 @@ export function useTaskListSelection({
 
   useHotkey(SHORTCUTS.moveRow.hotkeys, (e) => {
     if (rowIds.length === 0) return false
+    // 読み上げ: 箱にフォーカスを置き、aria-activedescendant で枠の行を伝える。
+    // 先に移す（箱の onFocus が枠を出しても、下で決める行が後から勝つ）
+    const box = listboxRef.current
+    if (box && document.activeElement !== box) box.focus({ preventScroll: true })
     const cursor = cursorRow()
     const down = e.key === 'ArrowDown'
     const i = cursor ? rowIds.indexOf(cursor) : -1
@@ -281,5 +303,28 @@ export function useTaskListSelection({
     toggleRow(target)
   })
 
-  return { selected, clearSelection, makeRowClick, makeSelection, soloIds, completeSelected, removeSelected }
+  /** Tab で箱に入ったら（キーのときだけ）、枠を出して今の行を伝える。マウスで押したときは出さない */
+  const onListboxFocus = (e: FocusEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || cursorVisible || rowIds.length === 0) return
+    let byKeyboard = false
+    try {
+      byKeyboard = e.currentTarget.matches(':focus-visible')
+    } catch {
+      // :focus-visible を知らない環境
+    }
+    if (!byKeyboard) return
+    setCursorId(cursorRow() ?? rowIds[0])
+    setCursorVisible(true)
+  }
+  const activeRow = targetRow()
+  const listboxProps = {
+    ref: listboxRef,
+    role: 'listbox' as const,
+    'aria-multiselectable': true,
+    tabIndex: rowIds.length > 0 ? 0 : -1,
+    'aria-activedescendant': activeRow ? optionId(activeRow) : undefined,
+    onFocus: onListboxFocus,
+  }
+
+  return { selected, clearSelection, makeRowClick, makeSelection, soloIds, completeSelected, removeSelected, listboxProps }
 }

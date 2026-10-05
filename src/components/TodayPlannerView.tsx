@@ -375,7 +375,7 @@ export function TodayPlannerView() {
           priority={task.priority}
           inert={selected.size > 0}
           onClick={() => deferredComplete.toggle(task.id, task.completed)}
-          label={task.completed ? t('taskItem.markIncomplete') : t('taskItem.markComplete')}
+          label={t('taskItem.completeItem', { title: task.title })}
         />
         <div className="min-w-0 flex-1">
           <button

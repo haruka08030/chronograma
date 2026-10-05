@@ -103,6 +103,7 @@ function SortableListItem({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 行全体を押せる範囲にするマウス・指の近道。キーでは中の名前のボタンで開く
     <div
       ref={(node) => {
         setSortableRef(node)
@@ -159,7 +160,14 @@ function SortableListItem({
         {kindIcon}
       </button>
 
-      <span className="min-w-0 flex-1 truncate">{list.name}</span>
+      {/* キーではこのボタンで開く（押すと行の onClick まで届く）。行全体はマウス・指で押しやすくするための広い範囲 */}
+      <button
+        type="button"
+        aria-current={isSelected ? 'page' : undefined}
+        className="min-w-0 flex-1 truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent-400/50"
+      >
+        {list.name}
+      </button>
 
       {!isInbox ? (
         // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
@@ -321,6 +329,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
   const ref = useRef<HTMLDivElement>(null)
   useDismiss({ open: true, onClose, inside: [ref] })
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div
       ref={ref}
       className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}

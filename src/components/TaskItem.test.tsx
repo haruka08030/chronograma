@@ -21,11 +21,13 @@ describe('TaskItem', () => {
     const user = userEvent.setup()
     render(<Row id={task.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Mark complete' }))
+    const check = screen.getByRole('checkbox', { name: 'Complete “Write report”' })
+    expect(check).toHaveAttribute('aria-checked', 'false')
+    await user.click(check)
 
     // 押した直後から完了の見た目にし、少し置いてからストアを完了にする
     await waitFor(() => expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.completed).toBe(true))
-    expect(screen.getByRole('button', { name: 'Mark incomplete' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Complete “Write report”' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('完了の丸をもう一度押すと未完了に戻る', async () => {
@@ -34,7 +36,7 @@ describe('TaskItem', () => {
     const user = userEvent.setup()
     render(<Row id={task.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Mark incomplete' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Complete “Call mom”', checked: true }))
 
     expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.completed).toBe(false)
   })

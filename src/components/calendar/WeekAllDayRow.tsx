@@ -112,6 +112,7 @@ export function WeekAllDayRow({
               }}
             >
               {dayAllDayEvents.map((e) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道
                 <div
                   key={`event-all-day-${e.id}`}
                   {...tip(e.summary)}
@@ -136,6 +137,7 @@ export function WeekAllDayRow({
                 </div>
               ))}
               {dayAllDay.map((t) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
                 <div
                   key={t.id}
                   draggable

@@ -173,6 +173,7 @@ export function CalendarView({
             const selected = selectedDateKey ? key === selectedDateKey : false
 
             return (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 月のマスを押す・ダブルクリックはマウス・指の近道（キーではマスの ＋ ボタンで追加できる）
               <div
                 key={key}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
@@ -310,6 +311,7 @@ export function CalendarView({
                     </div>
                   ))}
                   {shownTasks.map((t) => (
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
                     <div
                       key={t.id}
                       draggable

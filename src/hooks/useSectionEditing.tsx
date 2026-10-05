@@ -115,6 +115,7 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
 
   /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す。指で押す画面では押せる範囲を広げる */
   const sectionActions = (sectionId: string, title: string) => (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <span className={`flex items-center gap-0.5 shrink-0 ${REVEAL_ON_HOVER}`} onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
