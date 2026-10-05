@@ -48,6 +48,26 @@ export function useSelectAllShortcut(handler: () => boolean) {
   }, [])
 }
 
+const LIST_CURSOR_EVENT = 'chronograma:list-cursor'
+
+/** 一覧の外（検索欄の ↓）から、表示中の一覧に「↓ と同じく枠を次の行（無ければ最初の行）へ」と頼む */
+export function requestListCursor() {
+  window.dispatchEvent(new Event(LIST_CURSOR_EVENT))
+}
+
+/** `requestListCursor` を表示中の一覧で受け取る */
+export function useListCursorRequest(handler: () => void) {
+  const ref = useRef(handler)
+  useEffect(() => {
+    ref.current = handler
+  })
+  useEffect(() => {
+    const on = () => ref.current()
+    window.addEventListener(LIST_CURSOR_EVENT, on)
+    return () => window.removeEventListener(LIST_CURSOR_EVENT, on)
+  }, [])
+}
+
 /**
  * ショートカットの表（1 つだけ）。処理の登録（`useHotkey(SHORTCUTS.x.hotkeys, …)`）・「?」の一覧・ボタンのヒント（`shortcutTip`）を
  * ここから作る。別々に書くと、一覧に載っているのに効かない・ヒントのキーが違う、がおきる。

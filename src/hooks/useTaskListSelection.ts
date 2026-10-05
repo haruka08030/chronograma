@@ -10,7 +10,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { useHotkey } from './useHotkey'
-import { SHORTCUTS, useSelectAllShortcut } from '../lib/shortcuts'
+import { SHORTCUTS, useListCursorRequest, useSelectAllShortcut } from '../lib/shortcuts'
 import { isModKey } from '../lib/keyboard'
 import type { TaskItemSelection } from '../components/TaskItem'
 
@@ -253,6 +253,19 @@ export function useTaskListSelection({
       shiftAnchorRef.current = null
     }
     setCursorId(next)
+    setCursorVisible(true)
+  })
+  // 検索欄の ↓（requestListCursor）: ↓ と同じく枠を次の行（無ければ最初の行）へ
+  useListCursorRequest(() => {
+    if (rowIds.length === 0) return
+    // ↓ と同じく箱にフォーカスを置き、aria-activedescendant で枠の行を伝える
+    const box = listboxRef.current
+    if (box && document.activeElement !== box) box.focus({ preventScroll: true })
+    const cursor = cursorRow()
+    const i = cursor ? rowIds.indexOf(cursor) : -1
+    goneCursorRef.current = null
+    shiftAnchorRef.current = null
+    setCursorId(rowIds[Math.min(rowIds.length - 1, i + 1)])
     setCursorVisible(true)
   })
   useHotkey(SHORTCUTS.close.hotkeys, () => {
