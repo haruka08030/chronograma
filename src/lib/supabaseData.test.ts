@@ -454,6 +454,18 @@ describe('server time and stale writes (#77)', () => {
     expect(res.clockOffsetMs).toBeLessThan(65_000)
   })
 
+  it('does not measure the clock from a row whose time was only bumped past a future-dated old version', async () => {
+    // 前の版のアプリ（時計が 1 年進んだ）が書いた行。サーバーはその 1 マイクロ秒（偽物では 1 ミリ秒）後にするだけ
+    const rows = fresh()
+    rows.tasks[0] = task('a')
+    rows.tasks[0].updated_at = '2027-10-03T00:00:00.000Z'
+    const { client } = fakeSupabase(rows, { serverNow: () => new Date(Date.now()).toISOString() })
+    const remote = await fetchAll(client)
+    const res = await pushListsTasksHabits(client, 'u1', [], [{ ...remote.tasks.find((t) => t.id === 'a')!, title: 'x' }], [], [], noDeletes, remote)
+    expect(res.written.map((w) => w.updatedAt)).toEqual(['2027-10-03T00:00:00.001Z'])
+    expect(res.clockOffsetMs).toBeUndefined()
+  })
+
   it('does not resend a row that differs from the server only in updated_at', async () => {
     const { client, upserts } = fakeSupabase(fresh())
     const remote = await fetchAll(client)

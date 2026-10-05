@@ -825,9 +825,12 @@ export async function pushListsTasksHabits(
         continue
       }
       written.push({ table, id: r.id, updatedAt: at })
-      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う
+      // サーバーが付けた時刻（送った値と違う）から時計のずれを測る。前の値より新しくするために進めた時刻もあるので、一番小さいものを使う。
+      // 前の値（未来の時刻のこともある）の 1 マイクロ秒後に進めた時刻はサーバーの時計ではないので測らない
       const ms = Date.parse(at)
-      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id)) {
+      const baseMs = Date.parse(bases?.[table].get(r.id) ?? '')
+      const bumped = Number.isFinite(baseMs) && ms - baseMs <= 1
+      if (sendBase && Number.isFinite(ms) && ms !== sentStamp.get(r.id) && !bumped) {
         const offset = Math.round(ms - midpoint)
         clockOffsetMs = clockOffsetMs === undefined ? offset : Math.min(clockOffsetMs, offset)
       }
