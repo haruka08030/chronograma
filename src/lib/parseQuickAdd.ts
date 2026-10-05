@@ -291,7 +291,7 @@ function readToken(token: string, today: Date, localeJa: boolean): Piece[] | nul
 export function parseQuickAddTitle(
   raw: string,
   localeJa: boolean,
-  /** 「今日」「明日」の基準の日（夜中はまだ前の日。`appToday`） */
+  /** 「今日」「明日」の基準の日（`appToday`） */
   now: Date = appToday(),
   /** リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
   opts: { lists?: boolean } = {},

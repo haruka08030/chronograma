@@ -112,8 +112,7 @@ export function WeekCalendarView({
   const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : gridDays.length === 3 ? 'grid-cols-3' : 'grid-cols-1'
   /**
-   * 1 日表示では、24 時の下に次の日の 0〜4 時（1 日の区切りまで）を続けて出す。
-   * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
+   * 1 日表示では、24 時の下に次の日の 0〜4 時を続けて出す（日をまたぐ予定・記録の続きが見えるように）
    */
   const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
   const hourHeight = useHourHeight()

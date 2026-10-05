@@ -16,7 +16,7 @@ export interface TaskStats {
 }
 
 /**
- * 統計画面のタスクの数字。日付はすべてアプリの日（朝 4 時区切り・アプリのタイムゾーン）で数え、
+ * 統計画面のタスクの数字。日付はすべてアプリの日（0 時区切り・アプリのタイムゾーン）で数え、
  * 今日の計画の「完了」と同じ日に入るようにする
  */
 export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskList[], todayKey: string): TaskStats {

@@ -3,7 +3,7 @@ import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
-import { appDayKeyOf, DAY_START_HOUR } from './timeZone'
+import { appDayKeyOf } from './timeZone'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -30,18 +30,15 @@ type CalendarPlacedTask = Pick<
 
 /**
  * 時刻つきの予定を、カレンダーで予定の時間帯（タイムラインのブロック・月のチップの時刻）に出すか。
- * 未完了なら出す。完了したものは、予定の日（日をまたぐならその範囲）に終えたときだけ。
- * 夜中 0〜4 時に始まる予定はアプリでは前の日なので、前の日に終えても予定の日に終えたとみなす
+ * 未完了なら出す。完了したものは、予定の日（日をまたぐならその範囲）に終えたときだけ
  */
 export function keepsTimeSlot(task: CalendarPlacedTask): boolean {
   if (!task.startTime || !task.endTime) return false
   if (!task.completed) return true
   const placement = taskPlacementDate(task)
   if (!placement) return false
-  const first =
-    task.startTime < `${String(DAY_START_HOUR).padStart(2, '0')}:00` ? toDateKey(addDays(fromDateKey(placement), -1)) : placement
   const done = completionDayKey(task)
-  return done >= first && done <= (task.endDate ?? placement)
+  return done >= placement && done <= (task.endDate ?? placement)
 }
 
 /**

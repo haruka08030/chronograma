@@ -1,10 +1,10 @@
 import { useEffect, type RefObject } from 'react'
 import { startOfWeek } from 'date-fns'
 import { HOUR_HEIGHT } from '../lib/timeGrid'
-import { isAppToday, zonedNow, isNowOnDay } from '../lib/timeZone'
+import { zonedNow, isNowOnDay } from '../lib/timeZone'
 import { toDateKey } from '../lib/dateKey'
 
-/** 週タイムラインを開いた・表示する週が変わったときの縦スクロールの位置（今・朝・夕方） */
+/** 週タイムラインを開いた・表示する週が変わったときの縦スクロールの位置（今・朝） */
 export function useWeekScrollPosition({
   scrollRef,
   keepScrollOnFlipRef,
@@ -30,10 +30,8 @@ export function useWeekScrollPosition({
     // 1 日表示で今日なら「今」が上から少し下に来るように。それ以外は朝から
     const now = zonedNow()
     const showNow = singleDay ? isNowOnDay(anchor) : days.some((d) => isNowOnDay(d))
-    // 夜中（区切りの前）に前の日を開いたときは、1 日表示なら 24 時の下に続く今の時刻へ。週表示は夜の予定・記録が見えるよう夕方から
-    const lateNight = !showNow && (singleDay ? isAppToday(anchor) : days.some((d) => isAppToday(d)))
     const nowHours = now.getHours() + now.getMinutes() / 60
-    const hours = showNow ? Math.max(0, nowHours - 1.5) : lateNight ? (singleDay ? 24 + nowHours - 1.5 : 17) : 7.5
+    const hours = showNow ? Math.max(0, nowHours - 1.5) : 7.5
     // ドラッグ中に週をめくったときは、つかんだ位置がずれないようスクロールを保つ
     if (keepScrollOnFlipRef.current) {
       keepScrollOnFlipRef.current = false
