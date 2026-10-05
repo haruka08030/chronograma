@@ -70,6 +70,8 @@ export function RecordPanel({
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => recentLogs(tasks, 2), [tasks])
+  /** スマホで分類ごとの時間（帯の下の一覧）を開いているか */
+  const [showBreakdown, setShowBreakdown] = useState(false)
 
   const dayLogs = useMemo(
     () => tasks.filter((x) => isLogTask(x) && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
@@ -154,7 +156,14 @@ export function RecordPanel({
 
   const summary = totalMinutes > 0 && (
     <div>
-      {/* 見るだけの帯。スマホでタイムラインへ行くのは上の「タイムライン」タブ */}
+      {/* 帯。スマホでは押すと分類ごとの時間を開く（最初は畳んで To-Do を上に出す）。PC は常に出す */}
+      <button
+        type="button"
+        aria-expanded={showBreakdown}
+        aria-label={t('records.breakdownToggle')}
+        onClick={() => setShowBreakdown((v) => !v)}
+        className="-my-2 block w-full py-2 md:pointer-events-none"
+      >
       <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
         {byCategory.map(([cat, min]) => (
           <span
@@ -165,7 +174,8 @@ export function RecordPanel({
           />
         ))}
       </div>
-      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+      </button>
+      <ul className={`mt-2 flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 ${showBreakdown ? 'flex' : 'hidden md:flex'}`}>
         {byCategory.map(([cat, min]) => (
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(cat, logCategoryColors))} aria-hidden />
@@ -248,7 +258,7 @@ export function RecordPanel({
             ref={timerButtonRef}
             onClick={() => setMode('timer')}
             {...shortcutTip(t('quickLog.start'), 'logView')}
-            className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm')}
+            className={buttonClass({ variant: 'primary', size: 'lg' }, 'flex-1 shadow-sm max-md:min-h-10')}
           >
             <PlayIcon className="h-4 w-4" />
             {t('quickLog.start')}
@@ -259,7 +269,7 @@ export function RecordPanel({
             type="button"
             ref={laterButtonRef}
             onClick={openManual}
-            className={buttonClass({ variant: 'secondary', size: 'lg' }, 'flex-1')}
+            className={buttonClass({ variant: 'secondary', size: 'lg' }, 'flex-1 max-md:min-h-10')}
           >
             <PlusIcon className="h-4 w-4" strokeWidth={2.5} />
             {t('records.later')}

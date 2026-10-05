@@ -258,6 +258,7 @@ export default {
   },
   records: {
     later: 'Log past time',
+    breakdownToggle: 'Time by label',
     laterPlaceholder: 'What did you do? (optional)',
     nextDay: 'until next day',
     noFuture: 'Can’t log future time',

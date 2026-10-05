@@ -452,23 +452,27 @@ export function TodayPlannerView() {
         className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
-        <header className="px-6 pb-5 pt-4 md:pt-8">
+        {/* スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く） */}
+        <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
           <div className="flex items-start justify-between gap-2">
-            <h1 className={PAGE_TITLE_CLASS}>
-              {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
-            </h1>
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h1 className={PAGE_TITLE_CLASS}>
+                {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
+              </h1>
+              {viewingToday && <span className={`truncate md:hidden ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</span>}
+            </div>
             {dayNav}
           </div>
           {viewingToday && (
-            <p className={`mt-1 ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
+            <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
           )}
           {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
-          <div className="mt-3">
+          <div className="mt-2 md:mt-3">
             <SleepRow key={dateKey} dateKey={dateKey} />
           </div>
           {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
           {(loggedMinutes > 0 || plannedMinutes > 0) && (
-            <div className="mt-5 flex items-baseline justify-between gap-3">
+            <div className="mt-3 flex items-baseline justify-between gap-3 md:mt-5">
               {loggedMinutes > 0 ? (
                 <span className="text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
                   {t('planner.summaryLogged', { time: formatDuration(loggedMinutes) })}
@@ -485,7 +489,7 @@ export function TodayPlannerView() {
               )}
             </div>
           )}
-          {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すとタイムラインへ */}
+          {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すと分類ごとの時間を開く */}
           <div className={loggedMinutes > 0 || plannedMinutes > 0 ? 'mt-2' : 'mt-4'}>
             <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} />
           </div>
