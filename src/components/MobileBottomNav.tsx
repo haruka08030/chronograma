@@ -1,18 +1,17 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
-import { isTodoSurfaceView } from '../lib/todoSurfaceView'
-import { CalendarIcon, CheckCircleIcon, HabitIcon, MenuIcon, SunIcon } from './icons'
+import { isTodoNavView } from '../lib/todoSurfaceView'
+import { CalendarIcon, CheckCircleIcon, HabitIcon, SettingsIcon, SunIcon } from './icons'
 
-type TabId = 'planner' | 'todo' | 'calendar' | 'habits' | 'more'
+type TabId = 'planner' | 'todo' | 'calendar' | 'habits' | 'settings'
 
 /** 1 日の計画アプリなので先頭は「今日」。記録と習慣の日々のチェックも「今日」にある */
 const TAB_VIEWS: Record<Exclude<TabId, 'todo'>, SmartView> = {
   planner: 'planner',
   calendar: 'calendar',
   habits: 'habits',
-  // その他は設定の画面（統計への入口も設定の上にある）。統計を開いているあいだも「その他」が選ばれる
-  more: 'settings',
+  settings: 'settings',
 }
 
 export function MobileBottomNav({
@@ -30,10 +29,11 @@ export function MobileBottomNav({
 
   const active: TabId = (() => {
     if (selectedView === 'calendar') return 'calendar'
-    if (selectedView === 'planner') return 'planner'
+    // 統計は「今日」の見出しから開く（記録の延長）
+    if (selectedView === 'planner' || selectedView === 'stats') return 'planner'
     if (selectedView === 'habits') return 'habits'
-    if (isTodoSurfaceView(selectedView)) return 'todo'
-    return 'more'
+    if (isTodoNavView(selectedView)) return 'todo'
+    return 'settings'
   })()
 
   const go = (tab: TabId) => {
@@ -77,10 +77,10 @@ export function MobileBottomNav({
       ),
     },
     {
-      id: 'more',
-      label: t('nav.more'),
+      id: 'settings',
+      label: t('nav.settings'),
       icon: (
-        <MenuIcon className="h-5 w-5" strokeWidth={1.75} />
+        <SettingsIcon className="h-5 w-5" strokeWidth={1.75} />
       ),
     },
   ]

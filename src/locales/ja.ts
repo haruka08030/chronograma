@@ -448,7 +448,7 @@ export default {
     todo: 'To‑Do',
     calendar: 'カレンダー',
     habits: '習慣',
-    more: 'その他',
+    settings: '設定',
   },
   habits: {
     title: '習慣',

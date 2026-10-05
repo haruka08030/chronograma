@@ -55,7 +55,7 @@
   リストの削除や同期でリストが替わったときは `replaceState`。積む URL は画面のクエリだけで、置き換えるときはほかのクエリ（Google の OAuth の
   `code`・`state`）とハッシュ（Supabase のログイン）を残す。戻った先のリストが無ければ `all`。モーダル・ドロワー・検索語は URL に載せない。
   パスは常に `/` なので `vercel.json` の書き換えは不要
-- スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / 習慣 / その他（＝設定の画面。一番上に「統計 ›」）。To‑Do のリストは題名の左の ≡ か、画面を右へ払うと出るドロワーから開く。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
+- スマホ幅: 下部ナビは 今日 / To‑Do / カレンダー / 習慣 / 設定。統計は「今日」の上の段の右端のアイコンから開く（開いているあいだは「今日」タブが選ばれる）。To‑Do のリストは題名の左の ≡ か、画面を右へ払うと出るドロワーから開く。「今日の計画」は md 未満で「やること / タイムライン」を切り替え
 
 ## エントリ
 
@@ -71,7 +71,7 @@
   `TodoNavPanel`（`w-52`）を常設し（`useIsLargeScreen`）、その右がメイン列。
   詳細は列ではなくオーバーレイシートなので、メイン列は常に一覧のみ。
   サイドバー自体はどのビューでも全タブを表示し続ける。**md 未満**は下部に `MobileBottomNav`（今日 / To‑Do /
-  カレンダー / 習慣 / その他＝設定）。メイン列は
+  カレンダー / 習慣 / 設定）。メイン列は
   `pb-[calc(3.5rem+safe-area)]`、`FloatingTimer` / Undo・Move トースト /
   モバイルリストドロップ帯はナビの上にオフセット。viewport は
   `viewport-fit=cover`（`index.html`）
@@ -429,7 +429,7 @@
 | `SearchResults.tsx`                                                                                        | 検索                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `AccountMenu.tsx`                                                                                          | ログイン / ログアウト（設定では `variant="settings"`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `ThemeToggle.tsx`                                                                                          | ライト・ダーク切替（主に設定画面）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `FloatingTimer.tsx`, `UndoToast.tsx`, `MoveToast.tsx`, `MobileBottomNav.tsx`                               | 周辺 UI。md 未満はボトムナビ＋ safe-area 上にフロート。`MobileBottomNav` で主要画面切替（「その他」は設定の画面。統計を開いているあいだも「その他」が選ばれる。タブでビューを切り替えると `onNavigate` でドロワーを閉じる） |
+| `FloatingTimer.tsx`, `UndoToast.tsx`, `MoveToast.tsx`, `MobileBottomNav.tsx`                               | 周辺 UI。md 未満はボトムナビ＋ safe-area 上にフロート。`MobileBottomNav` で主要画面切替（統計は「今日」から開き、そのあいだは「今日」が選ばれる。完了済み・アーカイブ・ゴミ箱は「To‑Do」。タブでビューを切り替えると `onNavigate` でドロワーを閉じる） |
 
 補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` / `timeToY` /
 `formatTimeLabel`

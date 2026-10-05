@@ -451,7 +451,7 @@ export default {
     todo: 'To‑Do',
     calendar: 'Calendar',
     habits: 'Habits',
-    more: 'More',
+    settings: 'Settings',
   },
   habits: {
     title: 'Habits',
