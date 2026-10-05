@@ -174,7 +174,7 @@ export function useSupabaseSync() {
       adoptOtherTabChanges()
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
       const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
-      const pulled = await pullRemote(supabase, userId, pull, { full: !known, clockOffsetMs: known?.clockOffsetMs })
+      const pulled = await pullRemote(supabase, userId, pull, { full: !known })
       if (cancelled) return true
       if ('error' in pulled) {
         console.error('[sync]', pulled.error)
@@ -186,7 +186,7 @@ export function useSupabaseSync() {
         const missing = missingWithoutTombstone(localSnapshot(), known, remote, pulled.tombstoned)
         if (missing.length > 0) {
           console.warn('[sync] delta missed rows, fetching everything', missing.slice(0, 5))
-          const again = await pullRemote(supabase, userId, pull, { full: true, clockOffsetMs: known.clockOffsetMs })
+          const again = await pullRemote(supabase, userId, pull, { full: true })
           if (cancelled) return true
           if ('error' in again) {
             console.error('[sync]', again.error)

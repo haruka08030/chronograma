@@ -576,6 +576,21 @@ function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
 }
 
 /**
+ * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
+ * `unsupported` は関数が無い DB（`008` を流す前）
+ */
+export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string; unsupported?: boolean }> {
+  const { data, error } = await supabase.rpc('sync_server_now')
+  if (error) {
+    const missing = /sync_server_now/.test(error.message) && (error.code === 'PGRST202' || error.code === '42883' || /could not find|does not exist/i.test(error.message))
+    return missing ? { error: error.message, unsupported: true } : { error: `sync_server_now: ${error.message}` }
+  }
+  const at = typeof data === 'string' ? data : null
+  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value', unsupported: true }
+  return { at }
+}
+
+/**
  * 差分の取得: `since` より後に変わった行と、`since` より後に消えた行の印。
  * 行を先に、印を後に取る（印は取った時点でその行がサーバーに無いことを示すので、行より後に取れば行の取得と食い違わない）。
  * `unsupported` は差分を取れない DB（`008` を流す前）。全部を取り直す

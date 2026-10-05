@@ -5,6 +5,7 @@
 --   印があれば、その行はいまサーバーに無い
 -- - アカウントの削除（auth.users からの cascade）では残さず、それまでの印も消す
 -- - 端末からは読むだけ（RLS は本人の行の select だけ）。書くのはトリガーだけ（SECURITY DEFINER、search_path は空）
+-- - sync_server_now(): サーバーの時刻。端末は取得を始めるときに呼び、次の差分の目印にする（端末の時計は使わない）
 -- - 古い印は消してよい。端末は 6 時間ごと（と開いたとき）に全部を取り直すので、それより古い印は使わない
 -- 何度流しても同じ形になる。
 
@@ -77,3 +78,15 @@ begin
     );
   end loop;
 end $$;
+
+-- 差分の取得の目印にするサーバーの時刻（呼び出した人の権限、読むだけ）
+create or replace function public.sync_server_now()
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select pg_catalog.now() $$;
+
+revoke all on function public.sync_server_now() from public, anon;
+grant execute on function public.sync_server_now() to authenticated;

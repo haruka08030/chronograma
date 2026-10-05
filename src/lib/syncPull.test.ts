@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { pushListsTasksHabits, type SyncChanges } from './supabaseData'
 import {
-  advanceCursor,
   applyChanges,
   afterPush,
   createPullState,
@@ -141,6 +140,13 @@ function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
     return gone
   }
   const client = {
+    /** `008` の sync_server_now()（前の DB には無い） */
+    rpc: async (name: string) => {
+      if (name !== 'sync_server_now' || opts.noTombstones) {
+        return { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` } }
+      }
+      return { data: fromMicros(clock), error: null }
+    },
     from(table: string) {
       return {
         select: (_cols: string, o?: { count?: string }) => {
@@ -252,14 +258,14 @@ const newDevice = (db: ReturnType<typeof fakeDb>): Device => ({
 /** useSupabaseSync の 1 往復と同じ順: 取得（差分か全部）→ 確かめ → 三方向マージ → 送信 → 控えと前回の内容に入れる */
 async function syncDevice(db: ReturnType<typeof fakeDb>, dev: Device, beforePush?: () => Promise<void>) {
   const known = dev.baseline
-  let pulled = await pullRemote(db.client, 'u1', dev.pull, { full: !known, nowMs: dev.clockMs, clockOffsetMs: known?.clockOffsetMs })
+  let pulled = await pullRemote(db.client, 'u1', dev.pull, { full: !known })
   if ('error' in pulled) throw new Error(pulled.error)
   if (pulled.full) dev.fullPulls++
   else dev.deltaPulls++
   let remote = pulled.snapshot
   if (!pulled.full && known && missingWithoutTombstone(dev.local, known, remote, pulled.tombstoned).length > 0) {
     dev.refetches++
-    pulled = await pullRemote(db.client, 'u1', dev.pull, { full: true, nowMs: dev.clockMs })
+    pulled = await pullRemote(db.client, 'u1', dev.pull, { full: true })
     if ('error' in pulled) throw new Error(pulled.error)
     remote = pulled.snapshot
   }
@@ -288,7 +294,7 @@ const titles = (s: SyncSnapshot) => Object.fromEntries(s.tasks.map((t) => [t.id,
 const serverTitles = (db: ReturnType<typeof fakeDb>) => Object.fromEntries(db.tables.tasks!.map((r) => [r.id, r.title]))
 
 /** 2 台がそれぞれ 1 回同期した状態（サーバーには a・b・c） */
-async function setup(opts: Parameters<typeof fakeDb>[0] & { offsetUnknown?: boolean } = {}) {
+async function setup(opts: Parameters<typeof fakeDb>[0] = {}) {
   const db = fakeDb(opts)
   db.tables.lists!.push({ ...inboxRow })
   db.tables.tasks!.push(taskRow('a'), taskRow('b'), taskRow('c'))
@@ -296,13 +302,6 @@ async function setup(opts: Parameters<typeof fakeDb>[0] & { offsetUnknown?: bool
   const pc = newDevice(db)
   await syncDevice(db, phone)
   await syncDevice(db, pc)
-  // どちらの端末も、前に送った行でサーバーの時計とのずれを測ってある（ずれ 0）
-  if (!opts.offsetUnknown) {
-    for (const d of [phone, pc]) d.baseline = { ...d.baseline!, clockOffsetMs: 0 }
-    tick(db, [phone, pc], 1000)
-    await syncDevice(db, phone)
-    await syncDevice(db, pc)
-  }
   for (const d of [phone, pc]) Object.assign(d, { fullPulls: 0, deltaPulls: 0, refetches: 0 })
   db.resetDownloaded()
   return { db, phone, pc }
@@ -333,16 +332,6 @@ describe('差分の取得 (#194)', () => {
     expect(phone.deltaPulls).toBe(1)
     // 何も変わっていなければ 1 行も取らない（前回の目印より 5 分前から取るが、行の時刻はもっと前）
     expect(db.downloaded.tasks ?? 0).toBe(0)
-    expect(titles(phone.local)).toEqual({ a: 'a', b: 'b', c: 'c' })
-  })
-
-  it('サーバーの時計とのずれが分からない端末は、最後に変わった行を取り直すが、何も消さない', async () => {
-    const { db, phone, pc } = await setup({ offsetUnknown: true })
-    tick(db, [phone, pc], 60 * 60_000)
-    await syncDevice(db, phone)
-    expect(phone.deltaPulls).toBe(1)
-    // 目印は見た行の時刻まで（a・b・c は同じ時刻）
-    expect(db.downloaded.tasks).toBe(3)
     expect(titles(phone.local)).toEqual({ a: 'a', b: 'b', c: 'c' })
   })
 
@@ -491,23 +480,66 @@ describe('差分の取得 (#194)', () => {
     expect(db.tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'phone', completed: true })
   })
 
-  it('端末の時計が進んで目印が先へ行きすぎても、次に送った行の時刻で気づいて全部を取り直す', async () => {
+  it('端末の時計が 10 分進んでいても（ずれの見積もりも外れていても）、見るだけの端末にほかの端末の変更と削除が届く', async () => {
     const { db, phone, pc } = await setup()
-    phone.clockMs += 60 * 60_000 // 時計が 1 時間進んだ（控えのずれは 0 のまま）
+    phone.clockMs += 10 * 60_000
+    phone.baseline = { ...phone.baseline!, clockOffsetMs: 10 * 60_000 }
+    tick(db, [phone, pc], 60_000)
     await syncDevice(db, phone)
     tick(db, [phone, pc], 60_000)
     edit(pc, 'a', { title: 'A from pc' })
+    removeTask(pc, 'c')
     await syncDevice(db, pc)
     tick(db, [phone, pc], 60_000)
     await syncDevice(db, phone)
-    // 目印がサーバーの時刻より先なので、差分では届かない（消えもしない）
-    expect(titles(phone.local)).toEqual({ a: 'a', b: 'b', c: 'c' })
-    edit(phone, 'b', { title: 'B from phone' })
-    await syncDevice(db, phone)
-    expect(phone.pull.forceFull).toBe(true)
-    await syncDevice(db, phone)
-    expect(titles(phone.local)).toEqual({ a: 'A from pc', b: 'B from phone', c: 'c' })
-    expect(serverTitles(db)).toEqual({ a: 'A from pc', b: 'B from phone', c: 'c' })
+    expect(phone.deltaPulls).toBe(2)
+    expect(phone.refetches).toBe(0)
+    expect(titles(phone.local)).toEqual({ a: 'A from pc', b: 'b' })
+  })
+
+  it('2 つのタブ（控えと手元は共有、前回の内容はタブごと）: 時計がずれていても、片方のタブの編集をもう片方が戻さず、他の端末の削除も届く', async () => {
+    const { db, phone: tabA, pc } = await setup()
+    // 同じ端末のもう 1 つのタブ。手元と控えは共有、前回取得した内容と目印はタブごと
+    const tabB = newDevice(db)
+    tabB.local = tabA.local
+    tabB.baseline = tabA.baseline
+    await syncDevice(db, tabB)
+    for (const t of [tabA, tabB]) {
+      t.clockMs += 10 * 60_000
+      t.baseline = { ...t.baseline!, clockOffsetMs: 10 * 60_000 }
+    }
+    const share = (from: Device, to: Device) => {
+      to.local = from.local
+      to.baseline = from.baseline
+    }
+    tick(db, [tabA, tabB, pc], 60_000)
+    await syncDevice(db, tabA)
+    share(tabA, tabB)
+    await syncDevice(db, tabB)
+    share(tabB, tabA)
+    // タブ A で a を v2 にして送る
+    tick(db, [tabA, tabB, pc], 60_000)
+    edit(tabA, 'a', { title: 'v2' })
+    await syncDevice(db, tabA)
+    // ほかの端末で c を消す
+    tick(db, [tabA, tabB, pc], 60_000)
+    removeTask(pc, 'c')
+    await syncDevice(db, pc)
+    // タブ B が同期（待っている間にタブ A の保存を取り込む）
+    tick(db, [tabA, tabB, pc], 60_000)
+    share(tabA, tabB)
+    await syncDevice(db, tabB)
+    expect(tabB.deltaPulls).toBeGreaterThan(0)
+    expect(titles(tabB.local)).toEqual({ a: 'v2', b: 'b' })
+    expect(serverTitles(db)).toEqual({ a: 'v2', b: 'b' })
+    // タブ B で編集しても、c は戻らず a は v3 になる
+    edit(tabB, 'a', { title: 'v3' })
+    await syncDevice(db, tabB)
+    share(tabB, tabA)
+    tick(db, [tabA, tabB, pc], 60_000)
+    await syncDevice(db, tabA)
+    expect(titles(tabA.local)).toEqual({ a: 'v3', b: 'b' })
+    expect(serverTitles(db)).toEqual({ a: 'v3', b: 'b' })
   })
 
   it('`008` を流す前の DB（印の表が無い）では、毎回全部を取って前と同じに動く', async () => {
@@ -529,27 +561,24 @@ describe('needsFullFetch', () => {
   it('前回の内容と目印があり、6 時間たっていなければ差分', () => {
     expect(needsFullFetch(ready(), 1_000_000 + 60_000)).toBe(false)
   })
-  it('前回の内容・目印が無い、取り直しの指示、差分を取れない DB、6 時間たった、時計が戻ったときは全部', () => {
+  it('前回の内容・目印が無い、取り直しの指示、差分を取れない DB、6 時間たったときは全部（時刻はサーバーの時計）', () => {
     expect(needsFullFetch(createPullState(), 0)).toBe(true)
     expect(needsFullFetch({ ...ready(), cursor: null }, 1_000_001)).toBe(true)
     expect(needsFullFetch({ ...ready(), forceFull: true }, 1_000_001)).toBe(true)
     expect(needsFullFetch({ ...ready(), deltaUnsupported: true }, 1_000_001)).toBe(true)
     expect(needsFullFetch(ready(), 1_000_000 + FULL_FETCH_INTERVAL_MS)).toBe(true)
-    expect(needsFullFetch(ready(), 999_999)).toBe(true)
   })
 })
 
-describe('advanceCursor', () => {
-  const now = Date.parse('2026-10-03T00:00:00Z')
-  it('見た時刻のうち一番新しいもの（前の目印より戻さない）', () => {
-    expect(advanceCursor(null, ['2026-10-02T00:00:00.000001+00:00', '2026-10-02T00:00:00.000002+00:00'], now)).toBe('2026-10-02T00:00:00.000002+00:00')
-    expect(advanceCursor('2026-10-02T12:00:00.000000+00:00', ['2026-10-02T00:00:00.000002+00:00'], now)).toBe('2026-10-02T12:00:00.000000+00:00')
-  })
-  it('サーバーの時計でいまより先の時刻（時計が進んだ前の版のアプリの行）は使わない', () => {
-    expect(advanceCursor(null, ['2099-01-01T00:00:00.000Z', '2026-10-02T00:00:00.000Z'], now)).toBe('2026-10-02T00:00:00.000Z')
-    expect(advanceCursor(null, ['2099-01-01T00:00:00.000Z'], now)).toBeNull()
-  })
-  it('次の差分は目印より 5 分前から取る', () => {
+describe('目印', () => {
+  it('取得を始めたときのサーバーの時刻（端末の時計ではない）。次の差分はその 5 分前から取る', async () => {
+    const db = fakeDb()
+    db.tables.tasks!.push(taskRow('a', { updated_at: '2099-01-01T00:00:00.000000+00:00' }))
+    const state = createPullState()
+    const res = await pullRemote(db.client, 'u1', state)
+    if ('error' in res) throw new Error(res.error)
+    // 時計が進んだ前の版のアプリの行（2099 年）があっても、目印はサーバーのいまの時刻
+    expect(state.cursor).toBe('2026-10-03T00:00:00.000000+00:00')
     expect(DELTA_OVERLAP_MS).toBe(5 * 60_000)
   })
 })

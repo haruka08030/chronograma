@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchChangesSince, fetchListsTasksHabits, type SyncChanges, type SyncPushResult, type SyncTable } from './supabaseData'
+import { fetchChangesSince, fetchListsTasksHabits, fetchServerNow, type SyncChanges, type SyncPushResult, type SyncTable } from './supabaseData'
 import type { SyncDeletes, SyncSnapshot } from './syncMerge'
 
 /**
@@ -8,7 +8,8 @@ import type { SyncDeletes, SyncSnapshot } from './syncMerge'
  * いまのサーバーの内容を作る。三方向マージ（`syncMerge.ts`）にはこれまでと同じく、サーバーの内容が全部そろったものを渡す。
  *
  * 差分では「取得に無い」は「消えた」ではない（変わっていないだけ）。消えたと分かるのは印があるときだけ。
- * `mirror` はメモリだけに持つ（タブごと・ログインごと）。開いたとき・ログインしたときは全部を取る
+ * `mirror` はメモリだけに持つ（タブごと・ログインごと）。開いたとき・ログインしたときは全部を取る。
+ * 時刻はすべてサーバーの時計（`008` の `sync_server_now()`）で決める。端末の時計とずれの見積もりは使わない
  */
 
 /** 前回の取得の目印から、どれだけ前までさかのぼって取り直すか。now() はトランザクションの開始時刻なので、確定の順と前後する */
@@ -20,22 +21,14 @@ export const DELTA_OVERLAP_MS = 5 * 60_000
 export const FULL_FETCH_INTERVAL_MS = 6 * 60 * 60_000
 /** 印を残しておく期間（サーバー側で消すならこれより古いもの）。前回の取得がこれより前なら全部を取り直す */
 export const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60_000
-/** 目印には、サーバーの時計でいまより先の時刻を使わない（時計が進んだ前の版のアプリが書いた行で、目印が先へ飛ばないように） */
-const FUTURE_SLACK_MS = 60_000
-/**
- * サーバーの時計とのずれが分かっているときは、取り始めたときのサーバーの時刻（の見積もり）からこれだけ前まで目印を進める。
- * 何も変わらない間に、最後に変わった行を毎回取り直さないため。見積もりの誤差の分だけ手前にする
- */
-const ESTIMATE_SLACK_MS = 60_000
-
 export interface PullState {
   /** 前回取得したサーバーの内容（と、その後この端末が送れた行）。まだ無ければ null */
   mirror: SyncSnapshot | null
-  /** 取得した行・印のサーバーの時刻のうち一番新しいもの。次はこれより `DELTA_OVERLAP_MS` 前から取る */
+  /** 前回の取得を始めたときのサーバーの時刻。次はこれより `DELTA_OVERLAP_MS` 前から取る */
   cursor: string | null
-  /** 最後に全部を取った時刻（端末の時計） */
+  /** 最後に全部を取り始めたときのサーバーの時刻（ms） */
   lastFullAt: number
-  /** 最後に取得した時刻（端末の時計） */
+  /** 最後に取得を始めたときのサーバーの時刻（ms） */
   lastPullAt: number
   /** 次は全部を取る（送った行が断られた・送信が途中で失敗した） */
   forceFull: boolean
@@ -47,11 +40,11 @@ export function createPullState(): PullState {
   return { mirror: null, cursor: null, lastFullAt: 0, lastPullAt: 0, forceFull: false, deltaUnsupported: false }
 }
 
-export function needsFullFetch(state: PullState, nowMs: number): boolean {
+/** `serverNowMs` はサーバーの時計 */
+export function needsFullFetch(state: PullState, serverNowMs: number): boolean {
   if (!state.mirror || state.cursor === null || state.forceFull || state.deltaUnsupported) return true
-  // 端末の時計が戻ったときも取り直す
-  if (nowMs < state.lastFullAt || nowMs - state.lastFullAt >= FULL_FETCH_INTERVAL_MS) return true
-  return nowMs - state.lastPullAt >= TOMBSTONE_RETENTION_MS
+  if (serverNowMs - state.lastFullAt >= FULL_FETCH_INTERVAL_MS) return true
+  return serverNowMs - state.lastPullAt >= TOMBSTONE_RETENTION_MS
 }
 
 const KIND_OF: Record<SyncTable, keyof SyncSnapshot> = { lists: 'lists', list_sections: 'sections', tasks: 'tasks', habits: 'habits' }
@@ -70,45 +63,6 @@ export function applyChanges(mirror: SyncSnapshot, changes: SyncChanges): SyncSn
     for (const x of changed) byId.set(x.id, x)
     for (const id of gone) byId.delete(id)
     out[kind] = [...byId.values()] as never
-  }
-  return out
-}
-
-/** ISO の時刻をマイクロ秒で（Postgres はマイクロ秒まで返す。Date.parse はミリ秒で切れる） */
-export function stampMicros(iso: string): number {
-  const m = /^(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:?\d\d)?$/.exec(iso)
-  if (!m) {
-    const ms = Date.parse(iso)
-    return Number.isFinite(ms) ? ms * 1000 : Number.NaN
-  }
-  const ms = Date.parse(m[1] + (m[3] ?? 'Z'))
-  if (!Number.isFinite(ms)) return Number.NaN
-  return ms * 1000 + Number((m[2] ?? '').padEnd(6, '0').slice(0, 6))
-}
-
-/**
- * 次の目印。見たサーバーの時刻のうち一番新しいもの（前の目印より戻さない）。
- * サーバーの時計でいまより先の時刻（`estServerNowMs` より先）は使わない
- */
-export function advanceCursor(prev: string | null, stamps: readonly string[], estServerNowMs: number): string | null {
-  let best = prev
-  let bestUs = prev ? stampMicros(prev) : -Infinity
-  const limitUs = (estServerNowMs + FUTURE_SLACK_MS) * 1000
-  for (const s of stamps) {
-    const us = stampMicros(s)
-    if (!Number.isFinite(us) || us > limitUs) continue
-    if (us > bestUs) {
-      best = s
-      bestUs = us
-    }
-  }
-  return best
-}
-
-function snapshotStamps(s: SyncSnapshot): string[] {
-  const out: string[] = []
-  for (const kind of ['lists', 'sections', 'tasks', 'habits'] as const) {
-    for (const x of s[kind] as { updatedAt?: string | null }[]) if (x.updatedAt) out.push(x.updatedAt)
   }
   return out
 }
@@ -138,19 +92,22 @@ export function applyPushToMirror(
 
 /**
  * いまのサーバーの内容を取る。全部を取るか差分かは `needsFullFetch`（と `full`）で決める。
+ * 最初にサーバーの時刻を取り、それを次の目印にする（その時刻より前に確定した行は、この取得で見えている。
+ * 前後して確定する行は、次の取得でさかのぼる 5 分で拾う）。
  * 差分を取れない DB なら、その場で全部を取る。`state` は取れたときだけ書き換える
  */
 export async function pullRemote(
   supabase: SupabaseClient,
   userId: string,
   state: PullState,
-  opts: { full?: boolean; clockOffsetMs?: number; nowMs?: number } = {},
+  opts: { full?: boolean } = {},
 ): Promise<{ snapshot: SyncSnapshot; full: boolean; tombstoned: ReadonlySet<string> } | { error: string }> {
-  const now = opts.nowMs ?? Date.now()
-  const estServerNow = now + (opts.clockOffsetMs ?? 0)
-  /** 取り始めたときのサーバーの時刻の見積もり（ずれが分かっているときだけ）。これより前に確定した行は、この取得で見えている */
-  const floor = opts.clockOffsetMs === undefined ? [] : [new Date(estServerNow - ESTIMATE_SLACK_MS).toISOString()]
-  if (!opts.full && !needsFullFetch(state, now)) {
+  const now = await fetchServerNow(supabase)
+  if ('error' in now && !now.unsupported) return { error: now.error }
+  if ('error' in now) state.deltaUnsupported = true
+  const startedAt = 'error' in now ? null : now.at
+  const startedMs = startedAt === null ? Number.NaN : Date.parse(startedAt)
+  if (startedAt !== null && !opts.full && !needsFullFetch(state, startedMs)) {
     const since = new Date(Date.parse(state.cursor!) - DELTA_OVERLAP_MS).toISOString()
     const changes = await fetchChangesSince(supabase, userId, since)
     if ('error' in changes && !changes.unsupported) return { error: changes.error }
@@ -158,21 +115,17 @@ export async function pullRemote(
       state.deltaUnsupported = true
     } else {
       state.mirror = applyChanges(state.mirror!, changes)
-      state.cursor = advanceCursor(state.cursor, [
-        ...snapshotStamps({ lists: changes.lists, sections: changes.sections, tasks: changes.tasks, habits: changes.habits }),
-        ...changes.tombstones.map((t) => t.deletedAt),
-        ...floor,
-      ], estServerNow)
-      state.lastPullAt = now
+      state.cursor = startedAt
+      state.lastPullAt = startedMs
       return { snapshot: state.mirror, full: false, tombstoned: new Set(changes.tombstones.map((t) => `${KIND_OF[t.table]}:${t.id}`)) }
     }
   }
   const all = await fetchListsTasksHabits(supabase, userId)
   if ('error' in all) return all
   state.mirror = all
-  state.cursor = advanceCursor(null, [...snapshotStamps(all), ...floor], estServerNow)
-  state.lastFullAt = now
-  state.lastPullAt = now
+  state.cursor = state.deltaUnsupported ? null : startedAt
+  state.lastFullAt = startedMs
+  state.lastPullAt = startedMs
   state.forceFull = false
   return { snapshot: all, full: true, tombstoned: new Set() }
 }
@@ -200,19 +153,8 @@ export function missingWithoutTombstone(
 }
 
 /**
- * 送った行にサーバーが付けた時刻（いまのサーバーの時刻）より目印が先なら、目印が先へ行きすぎている
- * （端末の時計を進めたなどで、ずれの見積もりが外れた）。そのままだと差分で行を取りこぼすので、次は全部を取る
- */
-export function checkCursorAgainstServer(state: PullState, serverStamps: readonly string[]): void {
-  if (state.cursor === null || serverStamps.length === 0) return
-  const cursorUs = stampMicros(state.cursor)
-  const nowUs = Math.min(...serverStamps.map(stampMicros).filter(Number.isFinite))
-  if (Number.isFinite(nowUs) && cursorUs > nowUs + FUTURE_SLACK_MS * 1000) state.forceFull = true
-}
-
-/**
  * 送信が終わった後: 送れた行・消せた行を前回の内容に入れる。断られた行があれば（取得した後に他の端末が変えていた）、
- * 差分で取りこぼしていないよう次は全部を取る。送った行の時刻より目印が先なら、それも全部を取る
+ * 差分で取りこぼしていないよう次は全部を取る
  */
 export function afterPush(state: PullState, pushed: SyncSnapshot, deletes: SyncDeletes, res: SyncPushResult): void {
   if (state.mirror) {
@@ -226,5 +168,4 @@ export function afterPush(state: PullState, pushed: SyncSnapshot, deletes: SyncD
     })
   }
   if (res.stale.length > 0) state.forceFull = true
-  checkCursorAgainstServer(state, res.written.map((w) => w.updatedAt))
 }
