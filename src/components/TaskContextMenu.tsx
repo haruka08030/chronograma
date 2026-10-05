@@ -10,7 +10,8 @@ import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
-import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, SectionIcon, TrashIcon } from './icons'
+import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, FlagIcon, OpenPanelIcon, PlayIcon, SectionIcon, TrashIcon } from './icons'
+import { startTimerForTask } from '../lib/timerDrop'
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -33,7 +34,10 @@ export function TaskContextMenu({
   onDone,
   onOpenDetail,
   above = false,
+  quick = false,
 }: {
+  /** 指で行を押したときの短いシート（`openTaskMenu` の `quick`） */
+  quick?: boolean
   x: number
   y: number
   /** true なら (x, y) の上に出す（スマホの「操作」ボタンから開くとき） */
@@ -242,6 +246,22 @@ export function TaskContextMenu({
     { kind: 'leaf', id: 'archive', label: t('taskItem.archive'), icon: <ArchiveIcon className={ICON} />, run: done(() => bulk.archive(taskIds)) },
     deleteEntry,
   ]
+  // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
+  const openEntry: ActionEntry[] = taskIds.length === 1 && onOpenDetail
+    ? [{ kind: 'leaf', id: 'open', divider: true, label: t('taskMenu.open'), icon: <OpenPanelIcon className={ICON} />, run: done(() => onOpenDetail(taskIds[0])) }]
+    : []
+  const timerEntry: ActionEntry[] = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
+    ? [{ kind: 'leaf', id: 'timer', label: t('planner.startTimer'), icon: <PlayIcon className={ICON} />, run: done(() => startTimerForTask(taskIds[0])) }]
+    : []
+  const quickEntries: ActionEntry[] = allWishes ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+    : allChecklist ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+    : [
+        ...todayToggleEntry,
+        ...timerEntry,
+        { kind: 'leaf', id: 'complete', label: t('taskList.markComplete'), icon: <CheckIcon className={ICON} />, run: done(() => bulk.complete(taskIds)) },
+        ...(plannable ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e)) : []),
+        ...openEntry,
+      ]
 
   return (
     <ActionMenu
@@ -249,10 +269,10 @@ export function TaskContextMenu({
       y={y}
       above={above}
       header={taskIds.length > 1 ? t('taskMenu.count', { count: taskIds.length }) : targets[0]?.title || t('taskMenu.one')}
-      entries={entries}
+      entries={quick ? quickEntries : entries}
       onClose={onClose}
-      // いつか・チェックリストは項目が少ないので検索欄を出さない
-      searchable={!allWishes && !allChecklist}
+      // いつか・チェックリスト・短いシートは項目が少ないので検索欄を出さない
+      searchable={!quick && !allWishes && !allChecklist}
     />
   )
 }

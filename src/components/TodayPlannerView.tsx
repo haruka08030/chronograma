@@ -38,7 +38,11 @@ import { InlineAddInput } from './ui/InlineAddInput'
 import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS, SECTION_HEADING_CLASS } from './ui/headingClass'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { openTaskMenu } from '../lib/overlays'
+import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
+import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { GestureRow } from './ui/GestureRow'
+import type { RowSwipeAction } from '../hooks/useRowSwipe'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { ROW_CURSOR_CLASS, ROW_PRESS_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
@@ -85,7 +89,9 @@ export function TodayPlannerView() {
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
-  const openDetail = openTaskDetail
+  // 行を押したとき: PC は詳細、スマホは短いシート（To-Do 一覧と同じ）
+  const openDetail = useOpenTaskRow()
+  const isCoarse = useIsCoarsePointer()
 
   // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
   const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
@@ -295,22 +301,33 @@ export function TodayPlannerView() {
     const meta = rowMeta(task, dueMode)
     const hasRowExtras = !task.completed && task.tags.length > 0
     const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
+    // スマホ: 右へ払うと完了、左へ払うと今日やる行は明日へ・それ以外は今日（この日）へ。長押しで選択を始める
+    const committed = dueMode === 'urgent'
+    const swipeLeft: RowSwipeAction = committed
+      ? { label: t('taskMenu.toTomorrow'), icon: <ArrowRightIcon className="h-4 w-4" />, tone: 'date', run: () => rescheduleTasks([task.id], tomorrowKey) }
+      : { label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'), icon: <CalendarArrowIcon className="h-4 w-4" />, tone: 'date', run: () => rescheduleTasks([task.id], dateKey) }
     return (
-      <li
+      <GestureRow
         key={task.id}
-        data-task-row={task.id}
-        draggable={!task.completed}
-        onDragStart={(e) => {
-          startTaskDrag(e, task.id)
-          startNativeTaskDragGhost(e, task.title)
-        }}
+        enabled={isCoarse && !task.completed && selected.size === 0}
+        right={{ label: t('taskList.selectionComplete'), icon: <CheckIcon className="h-4 w-4" strokeWidth={2.5} />, tone: 'done', run: () => deferredComplete.toggle(task.id, false) }}
+        left={swipeLeft}
+        onLongPress={sel ? (e) => sel.onToggle(e as unknown as React.MouseEvent) : undefined}
         className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
           ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
-        // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
-        onContextMenu={(e) => {
-          e.preventDefault()
-          if (sel?.onContextMenu) sel.onContextMenu(e)
-          else openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
+        rowProps={{
+          'data-task-row': task.id,
+          draggable: !task.completed,
+          onDragStart: (e) => {
+            startTaskDrag(e, task.id)
+            startNativeTaskDragGhost(e, task.title)
+          },
+          // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
+          onContextMenu: (e) => {
+            e.preventDefault()
+            if (sel?.onContextMenu) sel.onContextMenu(e)
+            else openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [task.id] })
+          },
         }}
       >
         <CompletionCircle
@@ -348,11 +365,10 @@ export function TodayPlannerView() {
           <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted}`}>{meta.time}</span>
         )}
         {action}
-      </li>
+      </GestureRow>
     )
   }
 
-  // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない
   /** 今日やる行の「明日へ回す」（マウスで乗せたときだけ。スマホは行のスワイプで） */
   const tomorrowButton = (task: Task) => (
     <RowActionButton label={t('taskMenu.toTomorrow')} onClick={() => rescheduleTasks([task.id], tomorrowKey)} revealOnHover mouseOnly>
@@ -360,8 +376,10 @@ export function TodayPlannerView() {
     </RowActionButton>
   )
 
+  // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない。
+  // スマホの行にはボタンを並べない（押すと出るシート・払う操作で同じことができる）
   const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
-    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} revealOnHover>
+    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} revealOnHover mouseOnly>
       <PlayIcon className="h-3 w-3" />
     </RowActionButton>
   )
@@ -371,6 +389,7 @@ export function TodayPlannerView() {
     <RowActionButton
       label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
       onClick={() => rescheduleTasks([task.id], dateKey)}
+      mouseOnly
     >
       <CalendarArrowIcon className="h-4 w-4" />
     </RowActionButton>

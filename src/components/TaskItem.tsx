@@ -8,7 +8,7 @@ import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
@@ -23,6 +23,9 @@ import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
 import { useLongPress } from '../hooks/useLongPress'
+import { useRowSwipe } from '../hooks/useRowSwipe'
+import { useTodayToggle } from '../hooks/useTodayToggle'
+import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
@@ -226,8 +229,34 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
     if (selection?.cursor) rowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selection?.cursor])
 
+  // スマホ: 右へ払うと完了、左へ払うと今日やる ⇄ 明日へ（タスクのリストの親タスクだけ）。今日の計画の行と同じ
+  const isCoarse = useIsCoarsePointer()
+  const todayToggle = useTodayToggle()
+  const swipe = useRowSwipe(
+    rowRef,
+    {
+      right: {
+        label: listKind === 'someday' ? t('someday.fulfill') : listKind === 'checklist' ? t('checklist.check') : t('taskList.selectionComplete'),
+        icon: <CheckIcon className="h-4 w-4" strokeWidth={2.5} />,
+        tone: 'done',
+        run: () => deferredComplete.toggle(task.id, false),
+      },
+      left: listKind === 'tasks' && !isSubtask
+        ? {
+            label: todayToggle([task.id]).label,
+            icon: <CalendarArrowIcon className="h-4 w-4" />,
+            tone: 'date',
+            run: () => todayToggle([task.id]).run(),
+          }
+        : undefined,
+    },
+    isCoarse && !editing && !selection?.reveal && !timeLog && !task.completed,
+  )
+
   // PC の行の最低の高さ（min-h）は、並べ替えハンドルの有無（手動の並べ替えかどうか）で行の高さが変わらないように
   return (
+    <div className="relative rounded-xl">
+    {swipe.backdrop}
     <div
       ref={rowRef}
       data-task-row={task.id}
@@ -240,7 +269,7 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
                   ${selection?.selected ? ROW_SELECTED_CLASS : ''}
                   ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
-                  ${rowClassName ?? ''}`}
+                  ${rowClassName ?? ''} ${swipe.swipingClass}`}
       style={{ WebkitTouchCallout: 'none' }}
       {...longPress.pointerHandlers}
       onContextMenu={(e) => {
@@ -254,7 +283,10 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
         openMenuAt(e)
       }}
       // 長押しで選択した直後の click で詳細・編集が開かないように
-      onClickCapture={longPress.onClickCapture}
+      onClickCapture={(e) => {
+        swipe.onClickCapture(e)
+        longPress.onClickCapture(e)
+      }}
       onClick={(e) => {
         if (editing) return
         if (onRowClick) onRowClick(e)
@@ -488,6 +520,7 @@ export const TaskItem = memo(function TaskItem({ task, onClick, onRowClick, onEn
       >
         <TrashIcon className="h-4 w-4 text-zinc-400" />
       </button>
+    </div>
     </div>
   )
 })

@@ -20,6 +20,7 @@ export function OverlayHost() {
           x={menu.x}
           y={menu.y}
           above={menu.above}
+          quick={menu.quick}
           taskIds={menu.taskIds}
           onClose={closeTaskMenu}
           onDone={menu.onDone}

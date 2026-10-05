@@ -5,7 +5,8 @@ import { create } from 'zustand'
  * 画面ごとに開閉の状態と描画を持つと、出し忘れ・二重に開く・閉じ方の違いが起きる
  */
 export type TaskMenuRequest =
-  | { kind: 'task'; x: number; y: number; taskIds: string[]; above?: boolean; onDone?: () => void }
+  /** `quick`: 指で行を押したときの短いシート（よく使う操作と「詳細を開く」だけ） */
+  | { kind: 'task'; x: number; y: number; taskIds: string[]; above?: boolean; quick?: boolean; onDone?: () => void }
   | { kind: 'event'; x: number; y: number; taskId: string }
   | { kind: 'google'; x: number; y: number; eventId: string }
 
