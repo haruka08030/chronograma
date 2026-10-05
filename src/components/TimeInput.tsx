@@ -83,7 +83,8 @@ export function TimeInput({
   onChange,
   disabled = false,
   className = '',
-  placeholder = '00:00',
+  // 空欄は --:--（00:00 だと設定済みの 0 時に見える）
+  placeholder = '--:--',
   pickerDefault,
   ariaLabel,
 }: TimeInputProps) {

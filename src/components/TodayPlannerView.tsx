@@ -614,7 +614,7 @@ export function TodayPlannerView() {
                           onClick={() => rescheduleTasks(suggestions.map((x) => x.id), dateKey)}
                           className={`ml-11 mt-1 ${textButton}`}
                         >
-                          {t('planner.addAllSuggestions')}
+                          {t(viewingToday ? 'planner.addAllSuggestions' : 'planner.addAllSuggestionsThisDay', { count: suggestions.length })}
                         </button>
                       )}
                     </div>
