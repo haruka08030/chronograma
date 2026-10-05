@@ -192,37 +192,29 @@ export function QuickCreatePopover({
           <TimeLogTagField value={category} onChange={setCategory} compact />
         </div>
       ) : toGoogle ? null : (
-      <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-        <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(listColor)} aria-hidden />
-        <span className="sr-only">{t('quickCreate.list')}</span>
-        <select
-          value={listId}
-          onChange={(e) => setListId(e.target.value)}
-          className="min-w-0 flex-1 rounded-md bg-transparent py-1 outline-none hover:bg-zinc-50 dark:hover:bg-zinc-700"
-        >
-          {plannable.map((l) => (
-            <option key={l.id} value={l.id}>
-              {displayListName(l.id, l.name)}
-            </option>
-          ))}
-        </select>
-      </label>
+        <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+          <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(listColor)} aria-hidden />
+          <span className="sr-only">{t('quickCreate.list')}</span>
+          <select
+            value={listId}
+            onChange={(e) => setListId(e.target.value)}
+            className="min-w-0 flex-1 rounded-md bg-transparent py-1 outline-none hover:bg-zinc-50 dark:hover:bg-zinc-700"
+          >
+            {plannable.map((l) => (
+              <option key={l.id} value={l.id}>
+                {displayListName(l.id, l.name)}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <div className="mt-4 flex items-center justify-end gap-2">
         {!asLog && !toGoogle && (
-        <button
-          type="button"
-          onClick={() => save(true)}
-          className={buttonClass({ variant: 'ghost', size: 'md' })}
-        >
-          {t('quickCreate.more')}
-        </button>
+          <button type="button" onClick={() => save(true)} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+            {t('quickCreate.more')}
+          </button>
         )}
-        <button
-          type="button"
-          onClick={() => save(false)}
-          className={buttonClass({ variant: 'primary', size: 'md' })}
-        >
+        <button type="button" onClick={() => save(false)} className={buttonClass({ variant: 'primary', size: 'md' })}>
           {/* 記録を作るボタンはどこでも「記録する」 */}
           {asLog ? t('records.save') : t('common.save')}
         </button>

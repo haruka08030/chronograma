@@ -23,7 +23,15 @@ function a11y(label?: string) {
 function strokeIcon(d: string) {
   return function StrokeIcon({ className, style, strokeWidth = 2, label }: IconProps) {
     return (
-      <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth} {...a11y(label)}>
+      <svg
+        className={className}
+        style={style}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        {...a11y(label)}
+      >
         <path strokeLinecap="round" strokeLinejoin="round" d={d} />
       </svg>
     )

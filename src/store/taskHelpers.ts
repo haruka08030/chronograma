@@ -87,12 +87,7 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   return withLogCategory(applied)
 }
 
-export function orderForNewSiblingAtFront(
-  tasks: Task[],
-  listId: string,
-  parentId: string | null,
-  sectionId: string | null = null,
-): number {
+export function orderForNewSiblingAtFront(tasks: Task[], listId: string, parentId: string | null, sectionId: string | null = null): number {
   const siblings = tasks.filter((t) => {
     if (t.listId !== listId || t.parentId !== parentId) return false
     if (parentId !== null) return true
@@ -188,7 +183,12 @@ export function inferCategoryTags(
 export function completedRecordPatch(
   s: CategoryInferenceState,
   fields: {
-    title: string; dueDate: string; startTime: string; endTime: string; color?: string | null; habitId?: string | null
+    title: string
+    dueDate: string
+    startTime: string
+    endTime: string
+    color?: string | null
+    habitId?: string | null
     /** 決まっているラベル（習慣の色）。あれば推定しない */
     label?: LogLabel
   },
@@ -202,13 +202,23 @@ export function completedRecordPatch(
   return {
     tasks: [
       ...s.tasks,
-      makeTask({
-        title, listId: INBOX_ID, dueDate, startTime, endTime, kind: 'log', completed: true,
-        tags,
-        // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
-        color: tags.length > 0 ? null : color ?? null,
-        habitId: habitId ?? null,
-      }, maxOrder + 1, now),
+      makeTask(
+        {
+          title,
+          listId: INBOX_ID,
+          dueDate,
+          startTime,
+          endTime,
+          kind: 'log',
+          completed: true,
+          tags,
+          // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
+          color: tags.length > 0 ? null : (color ?? null),
+          habitId: habitId ?? null,
+        },
+        maxOrder + 1,
+        now,
+      ),
     ],
   }
 }

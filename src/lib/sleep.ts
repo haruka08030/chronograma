@@ -19,7 +19,6 @@ export function looksLikeSleep(t: Task): boolean {
   return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))
 }
 
-
 /** 起きた日（睡眠の終わりの日） */
 export function wakeDateOf(t: Task): string | null {
   if (!t.dueDate || !t.startTime || !t.endTime) return null

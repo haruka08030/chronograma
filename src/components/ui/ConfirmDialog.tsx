@@ -35,7 +35,14 @@ export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; 
   const confirmRef = useRef<HTMLButtonElement>(null)
   const initialFocus = need ? inputRef : options.danger ? cancelRef : confirmRef
   return (
-    <Modal onClose={() => onResult(false)} initialFocus={initialFocus} labelledBy={options.title ? titleId : undefined} label={options.title ? undefined : options.message} width="sm" className="p-5">
+    <Modal
+      onClose={() => onResult(false)}
+      initialFocus={initialFocus}
+      labelledBy={options.title ? titleId : undefined}
+      label={options.title ? undefined : options.message}
+      width="sm"
+      className="p-5"
+    >
       {options.title && <ModalTitle id={titleId}>{options.title}</ModalTitle>}
       <p className={`whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300 ${options.title ? 'mt-2' : ''}`}>{options.message}</p>
       {need && (

@@ -28,8 +28,7 @@ const task = (id: string, listId: string) => ({
 
 const list = (id: string) => ({ id, name: id, color: '#888888', order: 0 })
 
-const payload = (tasks: unknown[], lists: unknown[]) =>
-  JSON.stringify({ schemaVersion: 1, tasks, lists, habits: [], listSections: [] })
+const payload = (tasks: unknown[], lists: unknown[]) => JSON.stringify({ schemaVersion: 1, tasks, lists, habits: [], listSections: [] })
 
 describe('previewBackupJson', () => {
   it('タスクとリストの件数を返す', () => {

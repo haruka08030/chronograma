@@ -44,7 +44,10 @@ type NotionPage = {
 
 /** クライアントに分かる形のエラー。文言はクライアント側で訳す */
 class NotionError extends Error {
-  constructor(public code: string, message?: string) {
+  constructor(
+    public code: string,
+    message?: string,
+  ) {
     super(message ?? code)
   }
 }
@@ -143,7 +146,10 @@ function pageStatus(page: NotionPage, prop: string): string | null {
 
 function pageTitle(page: NotionPage): string {
   const titleProp = Object.values(page.properties).find((p) => p.type === 'title')
-  return (titleProp?.title ?? []).map((t) => t.plain_text).join('').trim()
+  return (titleProp?.title ?? [])
+    .map((t) => t.plain_text)
+    .join('')
+    .trim()
 }
 
 async function queryActionPages(token: string, databaseId: string, config: NotionConfig, kind: StatusKind) {
@@ -167,7 +173,7 @@ async function queryActionPages(token: string, databaseId: string, config: Notio
           url: p.url,
           title: pageTitle(p),
           status: pageStatus(p, prop),
-          date: config.dateProperty ? p.properties[config.dateProperty]?.date?.start ?? null : null,
+          date: config.dateProperty ? (p.properties[config.dateProperty]?.date?.start ?? null) : null,
         }))
         .filter((p) => p.status !== null)
     }
@@ -177,163 +183,191 @@ async function queryActionPages(token: string, databaseId: string, config: Notio
   throw new NotionError('notion_api', 'Too many pages')
 }
 
-Deno.serve(withCors(async (req) => {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return errorResponse(500, 'Server misconfigured')
-    }
-
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return errorResponse(401, 'Missing Authorization header')
-    }
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser()
-    if (userError || !user) {
-      return errorResponse(401, 'Unauthorized')
-    }
-
-    const admin = createClient(supabaseUrl, serviceRoleKey)
-    if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.notion))) {
-      return errorResponse(429, 'notion_rate_limited', 'notion_rate_limited')
-    }
-    const body = await readJsonBody(req)
-    if (!body) return errorResponse(400, BAD_JSON)
-    const action = (body.action as string) ?? ''
-
-    const tokenContext = secretContext.notion(user.id)
-    const loadRow = async () => {
-      const { data, error } = await admin
-        .from('notion_connection')
-        .select('token, database_id, config')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (error) throw new Error(error.message)
-      const row = data as { token: string; database_id: string; config: NotionConfig } | null
-      if (!row) return null
-      // トークンは暗号化して置く。暗号化する前の行は、読んだついでに書き直す
-      const token = await openSecret(row.token, tokenContext)
-      if (needsSeal(row.token)) {
-        await admin.from('notion_connection').update({ token: await sealSecret(token, tokenContext) }).eq('user_id', user.id)
+Deno.serve(
+  withCors(async (req) => {
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+        return errorResponse(500, 'Server misconfigured')
       }
-      return { ...row, token }
-    }
 
-    const saveRow = async (token: string, databaseId: string, config: NotionConfig) => {
-      const { error } = await admin.from('notion_connection').upsert(
-        { user_id: user.id, token: await sealSecret(token, tokenContext), database_id: databaseId, config, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      )
-      if (error) throw new Error(error.message)
-    }
-
-    /** 設定画面に返す形。トークンは含めない */
-    const describe = async (token: string, databaseId: string, config: NotionConfig) => {
-      const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
-      return { ok: true, connected: true, databaseId, databaseTitle: schema.title, properties: schema.properties, config }
-    }
-
-    if (action === 'connect') {
-      const token = (body.token as string | undefined)?.trim()
-      const databaseId = parseDatabaseId((body.database as string | undefined) ?? '')
-      if (!token) return errorResponse(400, 'notion_unauthorized', 'notion_unauthorized')
-      if (!databaseId) return errorResponse(400, 'notion_bad_url', 'notion_bad_url')
-      requireSecretKey()
-      const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
-      // 同じデータベースにつなぎ直すときは、選んであったステータスを残す
-      const prev = await loadRow()
-      const config =
-        prev?.database_id === databaseId ? sanitizeConfig(prev.config, schema.properties) : defaultConfig(schema.properties)
-      await saveRow(token, databaseId, config)
-      return jsonResponse({ ok: true, connected: true, databaseId, databaseTitle: schema.title, properties: schema.properties, config })
-    }
-
-    if (action === 'disconnect') {
-      const { error } = await admin.from('notion_connection').delete().eq('user_id', user.id)
-      if (error) {
-        console.error('[notion] disconnect', error.message)
-        return errorResponse(500, 'Failed to disconnect')
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return errorResponse(401, 'Missing Authorization header')
       }
-      return jsonResponse({ ok: true })
-    }
-
-    const row = await loadRow()
-    if (!row) return jsonResponse({ ok: true, connected: false })
-
-    if (action === 'status') {
-      return jsonResponse(await describe(row.token, row.database_id, row.config))
-    }
-
-    if (action === 'config') {
-      const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
-      const config = sanitizeConfig(body.config, schema.properties)
-      await saveRow(row.token, row.database_id, config)
-      return jsonResponse({ ok: true, connected: true, databaseId: row.database_id, databaseTitle: schema.title, properties: schema.properties, config })
-    }
-
-    if (action === 'pages') {
-      const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
-      const config = sanitizeConfig(row.config, schema.properties)
-      const kind = statusKind(schema.properties, config.statusProperty)
-      if (!kind || config.actionStatuses.length === 0) {
-        return jsonResponse({ ok: true, connected: true, configured: false, databaseId: row.database_id, databaseTitle: schema.title, pages: [] })
-      }
-      const pages = await queryActionPages(row.token, row.database_id, config, kind)
-      return jsonResponse({
-        ok: true, connected: true, configured: true, databaseId: row.database_id, databaseTitle: schema.title,
-        // 日付の列を選んでいないときは、タスク側で付けた期限を消さない
-        datesEnabled: config.dateProperty !== null,
-        pages,
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
       })
-    }
+      const {
+        data: { user },
+        error: userError,
+      } = await userClient.auth.getUser()
+      if (userError || !user) {
+        return errorResponse(401, 'Unauthorized')
+      }
 
-    if (action === 'advance') {
-      const pageId = (body.pageId as string | undefined)?.replace(/-/g, '')
-      const fromStatus = body.fromStatus as string | undefined
-      if (!pageId || !/^[0-9a-f]{32}$/i.test(pageId) || !fromStatus) {
-        return errorResponse(400, 'pageId and fromStatus are required')
+      const admin = createClient(supabaseUrl, serviceRoleKey)
+      if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.notion))) {
+        return errorResponse(429, 'notion_rate_limited', 'notion_rate_limited')
       }
-      const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
-      const config = sanitizeConfig(row.config, schema.properties)
-      const kind = statusKind(schema.properties, config.statusProperty)
-      const to = config.nextStatus[fromStatus]
-      // 要アクションでなくなった（設定を外した・自動で完了した）ステータスは進めない
-      if (!kind || !to || !config.actionStatuses.includes(fromStatus)) {
-        return jsonResponse({ ok: true, advanced: false })
-      }
-      const page = await notionFetch<NotionPage>(row.token, `/pages/${pageId}`)
-      // Notion 側で既に動いていたら触らない（他の端末から同期された完了でも二重に進まない）
-      if (pageStatus(page, config.statusProperty!) !== fromStatus) {
-        return jsonResponse({ ok: true, advanced: false })
-      }
-      await notionFetch(row.token, `/pages/${pageId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ properties: { [config.statusProperty!]: { [kind]: { name: to } } } }),
-      })
-      return jsonResponse({ ok: true, advanced: true, to })
-    }
+      const body = await readJsonBody(req)
+      if (!body) return errorResponse(400, BAD_JSON)
+      const action = (body.action as string) ?? ''
 
-    return errorResponse(400, 'Unknown action')
-  } catch (e) {
-    if (e instanceof SecretKeyMissingError) {
-      console.error('[notion]', e.message)
-      return errorResponse(500, 'Server misconfigured')
+      const tokenContext = secretContext.notion(user.id)
+      const loadRow = async () => {
+        const { data, error } = await admin
+          .from('notion_connection')
+          .select('token, database_id, config')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (error) throw new Error(error.message)
+        const row = data as { token: string; database_id: string; config: NotionConfig } | null
+        if (!row) return null
+        // トークンは暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+        const token = await openSecret(row.token, tokenContext)
+        if (needsSeal(row.token)) {
+          await admin
+            .from('notion_connection')
+            .update({ token: await sealSecret(token, tokenContext) })
+            .eq('user_id', user.id)
+        }
+        return { ...row, token }
+      }
+
+      const saveRow = async (token: string, databaseId: string, config: NotionConfig) => {
+        const { error } = await admin.from('notion_connection').upsert(
+          {
+            user_id: user.id,
+            token: await sealSecret(token, tokenContext),
+            database_id: databaseId,
+            config,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        if (error) throw new Error(error.message)
+      }
+
+      /** 設定画面に返す形。トークンは含めない */
+      const describe = async (token: string, databaseId: string, config: NotionConfig) => {
+        const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
+        return { ok: true, connected: true, databaseId, databaseTitle: schema.title, properties: schema.properties, config }
+      }
+
+      if (action === 'connect') {
+        const token = (body.token as string | undefined)?.trim()
+        const databaseId = parseDatabaseId((body.database as string | undefined) ?? '')
+        if (!token) return errorResponse(400, 'notion_unauthorized', 'notion_unauthorized')
+        if (!databaseId) return errorResponse(400, 'notion_bad_url', 'notion_bad_url')
+        requireSecretKey()
+        const schema = readSchema(await notionFetch<DatabaseObject>(token, `/databases/${databaseId}`))
+        // 同じデータベースにつなぎ直すときは、選んであったステータスを残す
+        const prev = await loadRow()
+        const config = prev?.database_id === databaseId ? sanitizeConfig(prev.config, schema.properties) : defaultConfig(schema.properties)
+        await saveRow(token, databaseId, config)
+        return jsonResponse({ ok: true, connected: true, databaseId, databaseTitle: schema.title, properties: schema.properties, config })
+      }
+
+      if (action === 'disconnect') {
+        const { error } = await admin.from('notion_connection').delete().eq('user_id', user.id)
+        if (error) {
+          console.error('[notion] disconnect', error.message)
+          return errorResponse(500, 'Failed to disconnect')
+        }
+        return jsonResponse({ ok: true })
+      }
+
+      const row = await loadRow()
+      if (!row) return jsonResponse({ ok: true, connected: false })
+
+      if (action === 'status') {
+        return jsonResponse(await describe(row.token, row.database_id, row.config))
+      }
+
+      if (action === 'config') {
+        const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
+        const config = sanitizeConfig(body.config, schema.properties)
+        await saveRow(row.token, row.database_id, config)
+        return jsonResponse({
+          ok: true,
+          connected: true,
+          databaseId: row.database_id,
+          databaseTitle: schema.title,
+          properties: schema.properties,
+          config,
+        })
+      }
+
+      if (action === 'pages') {
+        const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
+        const config = sanitizeConfig(row.config, schema.properties)
+        const kind = statusKind(schema.properties, config.statusProperty)
+        if (!kind || config.actionStatuses.length === 0) {
+          return jsonResponse({
+            ok: true,
+            connected: true,
+            configured: false,
+            databaseId: row.database_id,
+            databaseTitle: schema.title,
+            pages: [],
+          })
+        }
+        const pages = await queryActionPages(row.token, row.database_id, config, kind)
+        return jsonResponse({
+          ok: true,
+          connected: true,
+          configured: true,
+          databaseId: row.database_id,
+          databaseTitle: schema.title,
+          // 日付の列を選んでいないときは、タスク側で付けた期限を消さない
+          datesEnabled: config.dateProperty !== null,
+          pages,
+        })
+      }
+
+      if (action === 'advance') {
+        const pageId = (body.pageId as string | undefined)?.replace(/-/g, '')
+        const fromStatus = body.fromStatus as string | undefined
+        if (!pageId || !/^[0-9a-f]{32}$/i.test(pageId) || !fromStatus) {
+          return errorResponse(400, 'pageId and fromStatus are required')
+        }
+        const schema = readSchema(await notionFetch<DatabaseObject>(row.token, `/databases/${row.database_id}`))
+        const config = sanitizeConfig(row.config, schema.properties)
+        const kind = statusKind(schema.properties, config.statusProperty)
+        const to = config.nextStatus[fromStatus]
+        // 要アクションでなくなった（設定を外した・自動で完了した）ステータスは進めない
+        if (!kind || !to || !config.actionStatuses.includes(fromStatus)) {
+          return jsonResponse({ ok: true, advanced: false })
+        }
+        const page = await notionFetch<NotionPage>(row.token, `/pages/${pageId}`)
+        // Notion 側で既に動いていたら触らない（他の端末から同期された完了でも二重に進まない）
+        if (pageStatus(page, config.statusProperty!) !== fromStatus) {
+          return jsonResponse({ ok: true, advanced: false })
+        }
+        await notionFetch(row.token, `/pages/${pageId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ properties: { [config.statusProperty!]: { [kind]: { name: to } } } }),
+        })
+        return jsonResponse({ ok: true, advanced: true, to })
+      }
+
+      return errorResponse(400, 'Unknown action')
+    } catch (e) {
+      if (e instanceof SecretKeyMissingError) {
+        console.error('[notion]', e.message)
+        return errorResponse(500, 'Server misconfigured')
+      }
+      // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
+      if (e instanceof NotionError) {
+        console.warn('[notion]', e.code, e.message)
+        return errorResponse(integrationErrorStatus(e.code), e.code, e.code)
+      }
+      // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
+      console.error('[notion]', e)
+      return errorResponse(500, 'Internal error')
     }
-    // Notion の応答の文言は返さない（ログにだけ残す）。クライアントは code で訳す
-    if (e instanceof NotionError) {
-      console.warn('[notion]', e.code, e.message)
-      return errorResponse(integrationErrorStatus(e.code), e.code, e.code)
-    }
-    // DB などの内部のエラーは中身を返さず、サーバーのログにだけ残す
-    console.error('[notion]', e)
-    return errorResponse(500, 'Internal error')
-  }
-}))
+  }),
+)

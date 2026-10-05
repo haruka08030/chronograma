@@ -34,9 +34,7 @@ export function canEditGoogleEvent(e: CalendarEvent, canWrite: boolean): boolean
 function upsert(next: CalendarEvent, replaceId = next.id) {
   const s = useTaskStore.getState()
   const exists = s.calendarEvents.some((e) => e.id === replaceId)
-  s.setCalendarEvents(
-    exists ? s.calendarEvents.map((e) => (e.id === replaceId ? next : e)) : [...s.calendarEvents, next],
-  )
+  s.setCalendarEvents(exists ? s.calendarEvents.map((e) => (e.id === replaceId ? next : e)) : [...s.calendarEvents, next])
 }
 
 function remove(id: string) {

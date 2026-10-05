@@ -74,7 +74,9 @@ export function CompletionCircle({
               : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
         }`}
       >
-        {completed && <CheckIcon className={`${small ? 'h-2.5 w-2.5' : 'h-3 w-3'} ${justCompleted ? 'animate-check-in' : ''}`} strokeWidth={3} />}
+        {completed && (
+          <CheckIcon className={`${small ? 'h-2.5 w-2.5' : 'h-3 w-3'} ${justCompleted ? 'animate-check-in' : ''}`} strokeWidth={3} />
+        )}
       </span>
     </button>
   )

@@ -17,7 +17,13 @@ const KIND_ICON = {
  * サイドバーのリストを右クリックしたときのメニュー（名前の変更・色・種類・削除）。
  * 色は行の丸を押しても選べる。削除は確認なしで消して「元に戻す」で戻せる
  */
-export function ListContextMenu({ x, y, listId, onClose, onRename }: {
+export function ListContextMenu({
+  x,
+  y,
+  listId,
+  onClose,
+  onRename,
+}: {
   x: number
   y: number
   listId: string
@@ -64,7 +70,15 @@ export function ListContextMenu({ x, y, listId, onClose, onRename }: {
         run: () => setListKind(list.id, k),
       })),
     },
-    { kind: 'leaf', id: 'delete', divider: true, label: t('sidebar.deleteList'), icon: <TrashIcon className={ICON} />, danger: true, run: () => deleteList(list.id) },
+    {
+      kind: 'leaf',
+      id: 'delete',
+      divider: true,
+      label: t('sidebar.deleteList'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => deleteList(list.id),
+    },
   ]
   return <ActionMenu x={x} y={y} header={list.name} entries={entries} onClose={onClose} searchable={false} />
 }

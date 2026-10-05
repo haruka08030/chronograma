@@ -51,37 +51,27 @@ export function MobileBottomNav({
     {
       id: 'planner',
       label: t('nav.planner'),
-      icon: (
-        <SunIcon className="h-5 w-5" strokeWidth={1.75} />
-      ),
+      icon: <SunIcon className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       id: 'todo',
       label: t('nav.todo'),
-      icon: (
-        <CheckCircleIcon className="h-5 w-5" strokeWidth={1.75} />
-      ),
+      icon: <CheckCircleIcon className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       id: 'calendar',
       label: t('nav.calendar'),
-      icon: (
-        <CalendarIcon className="h-5 w-5" strokeWidth={1.75} />
-      ),
+      icon: <CalendarIcon className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       id: 'habits',
       label: t('nav.habits'),
-      icon: (
-        <HabitIcon className="h-5 w-5" strokeWidth={1.75} />
-      ),
+      icon: <HabitIcon className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       id: 'settings',
       label: t('nav.settings'),
-      icon: (
-        <SettingsIcon className="h-5 w-5" strokeWidth={1.75} />
-      ),
+      icon: <SettingsIcon className="h-5 w-5" strokeWidth={1.75} />,
     },
   ]
 
@@ -99,9 +89,11 @@ export function MobileBottomNav({
               type="button"
               onClick={() => go(tab.id)}
               className={`group flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 touch-manipulation transition-colors
-                ${isActive
-                  ? 'text-accent-600 dark:text-accent-400'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
+                ${
+                  isActive
+                    ? 'text-accent-600 dark:text-accent-400'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                }`}
               aria-current={isActive ? 'page' : undefined}
             >
               {/* Google のアプリと同じく、選んでいるタブはアイコンの後ろに薄いピル。押している間も同じ形で薄く出す */}

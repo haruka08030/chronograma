@@ -15,7 +15,9 @@ export function planTiming(task: Task, now: Date = zonedNow()): { dateKey: strin
   const nowHm = clockOf(now)
   const todayKey = toDateKey(now)
   const canLogAsPlanned =
-    !isLog && !task.completed && Boolean(dateKey && task.startTime && task.endTime) &&
+    !isLog &&
+    !task.completed &&
+    Boolean(dateKey && task.startTime && task.endTime) &&
     (dateKey! < todayKey || (dateKey === todayKey && task.startTime! < nowHm))
   const endKey = task.endDate ?? dateKey
   const ended = Boolean(endKey && task.endTime) && (endKey! < todayKey || (endKey === todayKey && task.endTime! <= nowHm))

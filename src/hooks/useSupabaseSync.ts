@@ -98,13 +98,7 @@ export function useSupabaseSync() {
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
-      if (
-        cur.lists === next.lists &&
-        cur.tasks === next.tasks &&
-        cur.habits === next.habits &&
-        cur.sections === next.sections
-      )
-        return
+      if (cur.lists === next.lists && cur.tasks === next.tasks && cur.habits === next.habits && cur.sections === next.sections) return
       // 同期で手元のタスクが減るときは、減る前を控えておく（他端末での削除でも、取り違えでも戻せるように）
       if (cur.tasks !== next.tasks) {
         const nextIds = new Set(next.tasks.map((t) => t.id))
@@ -125,9 +119,18 @@ export function useSupabaseSync() {
       }
     }
 
-    const syncSetting = <R extends { updatedAt: string }, A extends { updatedAt: string }, P extends { updatedAt: string; base: string | null }>(
+    const syncSetting = <
+      R extends { updatedAt: string },
+      A extends { updatedAt: string },
+      P extends { updatedAt: string; base: string | null },
+    >(
       s: SettingSyncDeps<R, A, P>,
-    ) => runSettingSync(userId, s, { isCancelled: () => cancelled, clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0, maxStaleRetries: MAX_STALE_RETRIES })
+    ) =>
+      runSettingSync(userId, s, {
+        isCancelled: () => cancelled,
+        clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0,
+        maxStaleRetries: MAX_STALE_RETRIES,
+      })
 
     /** ラベル表（名前・並び・色） */
     const syncLabels = () =>
@@ -136,11 +139,18 @@ export function useSupabaseSync() {
         fetch: () => fetchLogLabels(supabase, userId),
         plan: (remote, syncedAt, offset) => {
           const st = useTaskStore.getState()
-          return planLabelSync({ presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt }, remote, undefined, offset)
+          return planLabelSync(
+            { presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+          )
         },
         localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
         applyLocal: ({ presets, colors, updatedAt }) =>
-          asIncomingChange(() => useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt })),
+          asIncomingChange(() =>
+            useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }),
+          ),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
         push: (p) => pushLogLabels(supabase, userId, p, p.base),
       })
@@ -152,10 +162,16 @@ export function useSupabaseSync() {
         fetch: () => fetchExtraTimeZones(supabase, userId),
         plan: (remote, syncedAt, offset) => {
           const st = useTaskStore.getState()
-          return planExtraTimeZoneSync({ zones: st.extraTimeZones, updatedAt: st.extraTimeZonesUpdatedAt, syncedAt }, remote, undefined, offset)
+          return planExtraTimeZoneSync(
+            { zones: st.extraTimeZones, updatedAt: st.extraTimeZonesUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+          )
         },
         localUpdatedAt: () => useTaskStore.getState().extraTimeZonesUpdatedAt,
-        applyLocal: ({ zones, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt })),
+        applyLocal: ({ zones, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ extraTimeZones: zones, extraTimeZonesUpdatedAt: updatedAt })),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ extraTimeZonesUpdatedAt: at })),
         push: (p) => pushExtraTimeZones(supabase, userId, p, p.base),
       })
@@ -199,8 +215,7 @@ export function useSupabaseSync() {
       const owner = useTaskStore.getState().dataOwner
       // 持ち主の記録が無い古い版のデータ（*legacy*）は、この人として同期したことがあればこの人のもの。
       // この人としては無く、ほかの人として同期した控えがあれば、その人のもの（混ぜずに外す）
-      const legacyOfOther =
-        owner === LEGACY_DATA_OWNER && !loadBaseline(userId) && hasOtherUsersBaseline(userId)
+      const legacyOfOther = owner === LEGACY_DATA_OWNER && !loadBaseline(userId) && hasOtherUsersBaseline(userId)
       if ((owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) || legacyOfOther) {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
@@ -222,12 +237,20 @@ export function useSupabaseSync() {
         // この端末で初めての同期
         const local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
-          remote.lists, remote.tasks, remote.habits, remote.sections,
-          local.lists, local.tasks, local.habits, local.sections,
+          remote.lists,
+          remote.tasks,
+          remote.habits,
+          remote.sections,
+          local.lists,
+          local.tasks,
+          local.habits,
+          local.sections,
         )
         const remoteListIds = new Set(remote.lists.map((l) => l.id))
         const onlyInitial =
-          local.tasks.length === 0 && local.habits.length === 0 && local.sections.length === 0 &&
+          local.tasks.length === 0 &&
+          local.habits.length === 0 &&
+          local.sections.length === 0 &&
           local.lists.every((l) => l.id === INBOX_LIST_ID || remoteListIds.has(l.id))
         if (decision.kind === 'use_remote' && onlyInitial) {
           // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）。
@@ -251,8 +274,7 @@ export function useSupabaseSync() {
         const local = localSnapshot()
         const result = mergeSnapshots(local, remote, baseline)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
-        const same = <T,>(a: T[], b: T[]) =>
-          a.length === b.length && a.every((x, i) => x === b[i])
+        const same = <T>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i])
         const merged: SyncSnapshot = {
           lists: same(result.merged.lists, local.lists) ? local.lists : result.merged.lists,
           tasks: same(result.merged.tasks, local.tasks) ? local.tasks : result.merged.tasks,
@@ -264,9 +286,7 @@ export function useSupabaseSync() {
         deletes = result.deletes
       }
 
-      const res = await pushListsTasksHabits(
-        supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote,
-      )
+      const res = await pushListsTasksHabits(supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote)
       if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)

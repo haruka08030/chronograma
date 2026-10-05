@@ -14,9 +14,7 @@ type GoogleCalendarPayload = {
   error?: string
 }
 
-async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
-  body: Record<string, unknown>,
-): Promise<T> {
+async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(body: Record<string, unknown>): Promise<T> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
@@ -34,8 +32,7 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // Edge Function `google-calendar` の SCOPES とそろえる
-const SCOPES =
-  'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+const SCOPES = 'https://www.googleapis.com/auth/calendar.events.owned https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 const GCAL_OAUTH_STATE_KEY = 'chronograma_gcal_oauth_state'
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 
@@ -176,10 +173,7 @@ export async function isGoogleCalendarConnected(): Promise<boolean> {
   }
 }
 
-export function localizeGoogleError(
-  message: string,
-  t: (key: string, options?: Record<string, string>) => string,
-): string {
+export function localizeGoogleError(message: string, t: (key: string, options?: Record<string, string>) => string): string {
   const lower = message.toLowerCase()
   if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
   if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
@@ -204,7 +198,6 @@ export function localizeGoogleError(
   }
   return message
 }
-
 
 function formatYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
@@ -243,10 +236,7 @@ export function googleWriteGeneration(): number {
   return writesInFlight > 0 ? -1 : writeGeneration
 }
 
-export async function fetchCalendarEvents(
-  timeMin: Date,
-  timeMax: Date,
-): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
+export async function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 
@@ -339,7 +329,15 @@ export function applyTimingLocally(e: CalendarEvent, t: GoogleEventTiming): Cale
     new Date(instantFromWall(x.dateTime.slice(0, 10), x.dateTime.slice(11, 16), x.timeZone)).toISOString()
   const start = 'dateTime' in g.start ? instant(g.start) : g.start.date
   const end = 'dateTime' in g.end ? instant(g.end) : g.end.date
-  return normalizeCalendarEventTimes({ ...e, isAllDay, date: t.date, startTime: isAllDay ? null : t.startTime, endTime: isAllDay ? null : t.endTime, start, end })
+  return normalizeCalendarEventTimes({
+    ...e,
+    isAllDay,
+    date: t.date,
+    startTime: isAllDay ? null : t.startTime,
+    endTime: isAllDay ? null : t.endTime,
+    start,
+    end,
+  })
 }
 
 async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent | null> {

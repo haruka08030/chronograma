@@ -44,17 +44,19 @@ describe('runPool', () => {
   it('同時に走るのは上限の数まで', async () => {
     let running = 0
     let peak = 0
-    const results = await runPool(Array.from({ length: 25 }, (_, i) => i), 4, async (n) => {
-      running++
-      peak = Math.max(peak, running)
-      await tick()
-      running--
-      return n * 2
-    })
-    expect(peak).toBe(4)
-    expect(results.map((r) => (r.status === 'fulfilled' ? r.value : null))).toEqual(
-      Array.from({ length: 25 }, (_, i) => i * 2),
+    const results = await runPool(
+      Array.from({ length: 25 }, (_, i) => i),
+      4,
+      async (n) => {
+        running++
+        peak = Math.max(peak, running)
+        await tick()
+        running--
+        return n * 2
+      },
     )
+    expect(peak).toBe(4)
+    expect(results.map((r) => (r.status === 'fulfilled' ? r.value : null))).toEqual(Array.from({ length: 25 }, (_, i) => i * 2))
   })
 
   it('1 つが失敗してもほかは全部処理する', async () => {
@@ -82,10 +84,7 @@ describe('groupBy', () => {
       { user: 'b', e: 2 },
       { user: 'a', e: 3 },
     ]
-    expect(groupBy(subs, (s) => s.user)).toEqual([
-      [subs[0], subs[2]],
-      [subs[1]],
-    ])
+    expect(groupBy(subs, (s) => s.user)).toEqual([[subs[0], subs[2]], [subs[1]]])
   })
 })
 

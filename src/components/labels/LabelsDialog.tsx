@@ -68,69 +68,61 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <Modal onClose={onClose} labelledBy="labels-title" className="flex max-h-[min(86vh,720px)] flex-col overflow-hidden">
-          <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-700">
-            <ModalTitle id="labels-title">{t('labels.title')}</ModalTitle>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <ul ref={listRef} className="space-y-2">
-              {rows.map((r) => (
-                <li key={r.id} className="group flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setColorFor(r.id)}
-                    aria-label={t('labels.changeColor')}
-                    className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-3 transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-accent-500 dark:hover:bg-zinc-700"
-                  >
-                    <span className="gc-dot h-5 w-5 rounded-full" style={colorVars(r.hex)} aria-hidden />
-                    <CaretDownIcon className="h-3 w-3 text-zinc-600 dark:text-zinc-300" />
-                  </button>
-                  <input
-                    data-row={r.id}
-                    value={r.name}
-                    onChange={(e) => patch(r.id, { name: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (isSubmitEnter(e)) save()
-                    }}
-                    placeholder={t('labels.placeholder')}
-                    className={LABEL_NAME_INPUT_CLASS}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
-                    {...tip(t('labels.remove'), { name: true })}
-                    className={iconButtonClass(REVEAL_ON_HOVER)}
-                  >
-                    <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex items-center gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-700">
-            <button
-              type="button"
-              onClick={addRow}
-              {...tip(t('labels.add'), { name: true })}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
-            >
-              <PlusIcon className="h-5 w-5" />
-            </button>
-            <span className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              className={buttonClass({ variant: 'ghost', size: 'md' })}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              className={buttonClass({ variant: 'primary', size: 'md' })}
-            >
-              {t('common.save')}
-            </button>
-          </div>
+        <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-700">
+          <ModalTitle id="labels-title">{t('labels.title')}</ModalTitle>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <ul ref={listRef} className="space-y-2">
+            {rows.map((r) => (
+              <li key={r.id} className="group flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setColorFor(r.id)}
+                  aria-label={t('labels.changeColor')}
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-3 transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-accent-500 dark:hover:bg-zinc-700"
+                >
+                  <span className="gc-dot h-5 w-5 rounded-full" style={colorVars(r.hex)} aria-hidden />
+                  <CaretDownIcon className="h-3 w-3 text-zinc-600 dark:text-zinc-300" />
+                </button>
+                <input
+                  data-row={r.id}
+                  value={r.name}
+                  onChange={(e) => patch(r.id, { name: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (isSubmitEnter(e)) save()
+                  }}
+                  placeholder={t('labels.placeholder')}
+                  className={LABEL_NAME_INPUT_CLASS}
+                />
+                <button
+                  type="button"
+                  onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}
+                  {...tip(t('labels.remove'), { name: true })}
+                  className={iconButtonClass(REVEAL_ON_HOVER)}
+                >
+                  <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex items-center gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={addRow}
+            {...tip(t('labels.add'), { name: true })}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
+          <span className="flex-1" />
+          <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+            {t('common.cancel')}
+          </button>
+          <button type="button" onClick={save} className={buttonClass({ variant: 'primary', size: 'md' })}>
+            {t('common.save')}
+          </button>
+        </div>
       </Modal>
       {editing && (
         <SelectColorDialog

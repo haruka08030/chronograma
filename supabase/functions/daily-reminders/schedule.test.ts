@@ -76,7 +76,14 @@ describe('morningDigest', () => {
       ],
       '2026-10-05',
     )
-    expect(d).toEqual({ planned: 1, due: [{ title: 'c', time: '09:00' }, { title: 'b', time: '18:00' }], overdue: 1 })
+    expect(d).toEqual({
+      planned: 1,
+      due: [
+        { title: 'c', time: '09:00' },
+        { title: 'b', time: '18:00' },
+      ],
+      overdue: 1,
+    })
   })
 })
 

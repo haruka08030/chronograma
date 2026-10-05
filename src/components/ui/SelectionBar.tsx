@@ -41,10 +41,15 @@ export function SelectionBar({
     }
   }, [open])
   if (!open) return null
-  const button = 'whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
+  const button =
+    'whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
   return (
     <div className={`fixed left-1/2 z-40 -translate-x-1/2 animate-toast-in ${timerOpen ? BOTTOM_ABOVE_TIMER : BOTTOM}`}>
-      <div role="toolbar" aria-label={t('taskList.selectedCount', { count: selectedIds.size })} className={`flex items-center gap-0.5 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}>
+      <div
+        role="toolbar"
+        aria-label={t('taskList.selectedCount', { count: selectedIds.size })}
+        className={`flex items-center gap-0.5 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}
+      >
         <span className="mr-2 whitespace-nowrap tabular-nums">{t('taskList.selectedCount', { count: selectedIds.size })}</span>
         {actions.map((a) => (
           <button

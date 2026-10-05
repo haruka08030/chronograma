@@ -1,9 +1,7 @@
 /** 週次: 1=月 … 7=日 (date-fns の getDay ではなく ISO 曜日に合わせ getISODay: 1=月) */
 export type HabitWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
-export type HabitFrequency =
-  | { type: 'daily' }
-  | { type: 'weekly'; weekdays: HabitWeekday[] }
+export type HabitFrequency = { type: 'daily' } | { type: 'weekly'; weekdays: HabitWeekday[] }
 
 export type HabitTimeMode = 'none' | 'fixed' | 'range'
 

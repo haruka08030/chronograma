@@ -22,12 +22,10 @@ import { colorVars } from '../lib/logCategoryColors'
 type BinMode = 'archived' | 'deleted'
 
 const RESTORE_ICON = ICON_PATHS.restore
-const DELETE_ICON =
-  ICON_PATHS.trash
+const DELETE_ICON = ICON_PATHS.trash
 const ARCHIVE_BOX_ICON =
   'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
-const TRASH_BOX_ICON =
-  ICON_PATHS.trash
+const TRASH_BOX_ICON = ICON_PATHS.trash
 
 export function TaskBinView({ mode }: { mode: BinMode }) {
   const { t } = useTranslation()
@@ -55,8 +53,22 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
     }
   }
   const menuEntries = (id: string): ActionEntry[] => [
-    { kind: 'leaf', id: 'restore', label: restoreLabel, icon: <PathIcon d={RESTORE_ICON} className="h-4 w-4 flex-shrink-0" />, run: () => restore(id) },
-    { kind: 'leaf', id: 'delete', divider: true, danger: true, label: deleteLabel, icon: <PathIcon d={DELETE_ICON} className="h-4 w-4 flex-shrink-0" />, run: () => void remove(id) },
+    {
+      kind: 'leaf',
+      id: 'restore',
+      label: restoreLabel,
+      icon: <PathIcon d={RESTORE_ICON} className="h-4 w-4 flex-shrink-0" />,
+      run: () => restore(id),
+    },
+    {
+      kind: 'leaf',
+      id: 'delete',
+      divider: true,
+      danger: true,
+      label: deleteLabel,
+      icon: <PathIcon d={DELETE_ICON} className="h-4 w-4 flex-shrink-0" />,
+      run: () => void remove(id),
+    },
   ]
 
   const df = useDateFormat()
@@ -90,15 +102,14 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
-          <p className={`mt-1 ${META_TEXT}`}>
-            {t('taskBin.count', { count: rows.length })}
-          </p>
+          <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count: rows.length })}</p>
         </div>
         {mode === 'deleted' && rows.length > 0 && (
           <button
             type="button"
             onClick={async () => {
-              if (await askConfirm({ message: t('taskBin.emptyConfirm'), confirmLabel: t('taskBin.emptyTrash'), danger: true })) emptyDeleted()
+              if (await askConfirm({ message: t('taskBin.emptyConfirm'), confirmLabel: t('taskBin.emptyTrash'), danger: true }))
+                emptyDeleted()
             }}
             className={buttonClass({ variant: 'danger', size: 'sm' })}
           >
@@ -116,7 +127,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         ) : (
           rows.map(({ task, stamp, childCount }) => {
             const list = lists.find((l) => l.id === task.listId)
-            const notePreview = task.description.split('\n').find((line) => line.trim())?.trim() ?? ''
+            const notePreview =
+              task.description
+                .split('\n')
+                .find((line) => line.trim())
+                ?.trim() ?? ''
             const timeLog = isLogTask(task)
             let stampLabel = ''
             try {
@@ -134,12 +149,12 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                 className="group flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40"
               >
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm ${task.completed && !timeLog ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}>
+                  <p
+                    className={`truncate text-sm ${task.completed && !timeLog ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                  >
                     {task.title || '\u00A0'}
                   </p>
-                  {notePreview && (
-                    <p className={`mt-0.5 truncate ${META_TEXT}`}>{notePreview}</p>
-                  )}
+                  {notePreview && <p className={`mt-0.5 truncate ${META_TEXT}`}>{notePreview}</p>}
                   <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
                     {list && (
                       <span className="inline-flex items-center gap-1">
@@ -177,7 +192,14 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         )}
       </div>
       {menu && (
-        <ActionMenu x={menu.x} y={menu.y} header={menu.task.title || t('taskMenu.one')} entries={menuEntries(menu.task.id)} onClose={() => setMenu(null)} searchable={false} />
+        <ActionMenu
+          x={menu.x}
+          y={menu.y}
+          header={menu.task.title || t('taskMenu.one')}
+          entries={menuEntries(menu.task.id)}
+          onClose={() => setMenu(null)}
+          searchable={false}
+        />
       )}
     </div>
   )

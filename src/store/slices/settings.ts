@@ -35,8 +35,7 @@ type SettingsActions = Pick<
 export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsActions {
   const { pushUndo } = undo
   return {
-    toggleTheme: () =>
-      set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+    toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
     setTheme: (theme) => set({ theme }),
 
     setListColorPalette: (id) => {
@@ -100,7 +99,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           const name = row.name.trim()
           if (row.fromHex) {
             const oldHex = row.fromHex.toUpperCase()
-            const newHex = (isHexColor(row.color) ? row.color : hexForGoogleKey(row.color) ?? oldHex).toUpperCase()
+            const newHex = (isHexColor(row.color) ? row.color : (hexForGoogleKey(row.color) ?? oldHex)).toUpperCase()
             if (oldHex !== newHex) recolor.set(oldHex, newHex)
             continue
           }
@@ -135,7 +134,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           return t
         })
         // To‑Do をその色で絞っていたら、新しい色で絞り直す
-        const filterColor = s.filterColor ? recolor.get(s.filterColor.toUpperCase()) ?? s.filterColor : s.filterColor
+        const filterColor = s.filterColor ? (recolor.get(s.filterColor.toUpperCase()) ?? s.filterColor) : s.filterColor
         return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks, filterColor }
       })
     },
@@ -158,8 +157,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       }),
     setEventReminderMinutes: (minutes) => set({ eventReminderMinutes: minutes }),
 
-    toggleNotifications: () =>
-      set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
+    toggleNotifications: () => set((s) => ({ notificationsEnabled: !s.notificationsEnabled })),
     setRecordPrompts: (on) => set({ recordPrompts: on }),
     enableRecommendedNotifications: () =>
       set((s) => ({

@@ -12,10 +12,7 @@ export const PAGE_SIZE = 1000
  * `fetchPage(from, to)`（両端を含む行番号）を、短いページが返るまで呼んで全部つなげる。
  * 並びは呼ぶ側で安定したキーにしておく（ページの境目で行が重なったり抜けたりしないように）
  */
-export async function fetchAllPages<T>(
-  fetchPage: (from: number, to: number) => Promise<T[]>,
-  pageSize = PAGE_SIZE,
-): Promise<T[]> {
+export async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise<T[]>, pageSize = PAGE_SIZE): Promise<T[]> {
   const out: T[] = []
   for (let from = 0; ; from += pageSize) {
     const page = await fetchPage(from, from + pageSize - 1)

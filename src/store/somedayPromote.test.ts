@@ -21,8 +21,20 @@ describe('いつかの子を予定にする', () => {
     const now = new Date().toISOString()
     const base = {
       ...TASK_DEFAULTS,
-      description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now, order: 0,
-      listId: 'wish', sectionId: null, dueDate: null, startTime: null, endTime: null, priority: 'none' as const, tags: [], recurrence: null,
+      description: '',
+      completed: false,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      order: 0,
+      listId: 'wish',
+      sectionId: null,
+      dueDate: null,
+      startTime: null,
+      endTime: null,
+      priority: 'none' as const,
+      tags: [],
+      recurrence: null,
     }
     useTaskStore.setState({
       tasks: [

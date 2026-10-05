@@ -26,6 +26,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Format
+        run: npm run format:check
+
       # 単体テスト（node）と部品のテスト（jsdom）
       - name: Test
         run: npm test

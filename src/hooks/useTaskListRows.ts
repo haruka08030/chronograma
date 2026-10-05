@@ -50,7 +50,6 @@ export function useTaskListRows({
   }, [lists])
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
 
-
   const filtered = useMemo(
     () =>
       getFilteredRootTasks({
@@ -77,15 +76,15 @@ export function useTaskListRows({
   /** 手動以外の並び順でセクションの塊を出すか。リストはリストごと、「すべて」は lists、今日・近日中・期限切れは dueViews */
   const groupingScope: SectionGroupingScope = selectedListId
     ? { listId: selectedListId }
-    : selectedView === 'all' || selectedView === null ? 'lists' : 'dueViews'
+    : selectedView === 'all' || selectedView === null
+      ? 'lists'
+      : 'dueViews'
   const groupBySection = groupsBySection(sortMode, sectionGrouping, groupingScope)
   const showSectionBlocks = useMemo(() => {
     if (!groupBySection) return false
     if (selectedListId) return listSectionsOrdered.length > 0
     if (!multiListSectionMode || sections.length === 0) return false
-    const listIds = new Set(
-      filtered.filter((t) => !t.completed && !isLogTask(t)).map((t) => t.listId),
-    )
+    const listIds = new Set(filtered.filter((t) => !t.completed && !isLogTask(t)).map((t) => t.listId))
     return sections.some((s) => listIds.has(s.listId))
   }, [groupBySection, selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
 
@@ -105,7 +104,19 @@ export function useTaskListRows({
       listOrderById,
       excludedListIds,
     })
-  }, [filtered, showSectionBlocks, tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, listOrderById, excludedListIds])
+  }, [
+    filtered,
+    showSectionBlocks,
+    tasks,
+    selectedView,
+    selectedListId,
+    sortMode,
+    filterTag,
+    filterColor,
+    sections,
+    listOrderById,
+    excludedListIds,
+  ])
 
   const sectionBlocks = useMemo((): SectionBlockRow[] | null => {
     if (!showSectionBlocks) return null
@@ -157,9 +168,7 @@ export function useTaskListRows({
       const listTasks = activeByList.get(list.id)
       if (!listTasks || listTasks.length === 0) continue
 
-      const listSecs = sections
-        .filter((s) => s.listId === list.id)
-        .sort((a, b) => a.order - b.order)
+      const listSecs = sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)
       const listLabel = displayListName(list.id, list.name)
 
       if (listSecs.length === 0) {
@@ -185,12 +194,7 @@ export function useTaskListRows({
       }
 
       let first = true
-      const pushRow = (
-        sectionId: string | null,
-        title: string,
-        tasksIn: typeof active,
-        headerKind: 'section-none' | 'section-named',
-      ) => {
+      const pushRow = (sectionId: string | null, title: string, tasksIn: typeof active, headerKind: 'section-none' | 'section-named') => {
         rows.push({
           listId: list.id,
           sectionId,

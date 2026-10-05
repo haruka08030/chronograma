@@ -62,9 +62,7 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
   return (
     <SettingsGroup id="settings-integrations" title={t('integrations.title')}>
       {google.connected && google.clientId && (
-        <SettingsRow label={t('googleSettings.title')}>
-          {disconnectButton(() => void run(() => google.disconnect()))}
-        </SettingsRow>
+        <SettingsRow label={t('googleSettings.title')}>{disconnectButton(() => void run(() => google.disconnect()))}</SettingsRow>
       )}
       {notion !== null && (
         <SettingsRow label="Notion" help={notion}>
@@ -83,7 +81,14 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
         return (
           <SettingsRow key={c.id} label="Canvas" help={host}>
             {disconnectButton(async () => {
-              if (!(await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true }))) return
+              if (
+                !(await askConfirm({
+                  message: t('canvas.disconnectConfirm', { host }),
+                  confirmLabel: t('canvas.disconnect'),
+                  danger: true,
+                }))
+              )
+                return
               void run(async () => {
                 setCanvas((await disconnectCanvas(c.id)).connections)
                 requestCanvasSync()

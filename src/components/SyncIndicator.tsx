@@ -72,10 +72,13 @@ export function SyncIndicator() {
     const s = useTaskStore.getState()
     const names = rejected.slice(0, 3).map((r) => {
       const item =
-        r.table === 'tasks' ? s.tasks.find((x) => x.id === r.id)?.title
-        : r.table === 'habits' ? s.habits.find((x) => x.id === r.id)?.title
-        : r.table === 'lists' ? s.lists.find((x) => x.id === r.id)?.name
-        : s.sections.find((x) => x.id === r.id)?.name
+        r.table === 'tasks'
+          ? s.tasks.find((x) => x.id === r.id)?.title
+          : r.table === 'habits'
+            ? s.habits.find((x) => x.id === r.id)?.title
+            : r.table === 'lists'
+              ? s.lists.find((x) => x.id === r.id)?.name
+              : s.sections.find((x) => x.id === r.id)?.name
       return t('sync.rejectedName', { name: (item || r.id).slice(0, 40) })
     })
     const title = [t('sync.rejected', { count: rejected.length }), t('sync.rejectedItems', { names: names.join(' ') })].join('\n')
@@ -88,17 +91,10 @@ export function SyncIndicator() {
   }
 
   // 行数の上限に達した: 接続が戻っても送れないので、消せば送れると伝える
-  const detail =
-    syncState === 'limit' ? t('sync.limit')
-    : when ? t('sync.errorWithLast', { when })
-    : t('sync.error')
+  const detail = syncState === 'limit' ? t('sync.limit') : when ? t('sync.errorWithLast', { when }) : t('sync.error')
 
   return (
-    <span
-      className="flex shrink-0 items-center gap-1 text-amber-600 dark:text-amber-500"
-      {...tip(detail)}
-      role="status"
-    >
+    <span className="flex shrink-0 items-center gap-1 text-amber-600 dark:text-amber-500" {...tip(detail)} role="status">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
       <span className="truncate text-[11px]">{t('sync.errorShort')}</span>
     </span>

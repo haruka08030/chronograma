@@ -17,24 +17,21 @@ export function useCompleteWithLog() {
   const [draft, setDraft] = useState<CompleteWithLogDraft | null>(null)
 
   /** 時刻の無い予定・完了済みは何もしない */
-  const open = useCallback(
-    (task: Task) => {
-      const placement = taskPlacementDate(task)
-      if (task.completed || isLogTask(task) || !placement || !task.startTime || !task.endTime) return
-      setDraft({
-        taskId: task.id,
-        title: task.title,
-        date: placement,
-        endDate: task.endDate ?? placement,
-        startTime: task.startTime,
-        endTime: task.endTime,
-        memo: task.description.trim(),
-        mode: 'as-planned',
-        ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
-      })
-    },
-    [],
-  )
+  const open = useCallback((task: Task) => {
+    const placement = taskPlacementDate(task)
+    if (task.completed || isLogTask(task) || !placement || !task.startTime || !task.endTime) return
+    setDraft({
+      taskId: task.id,
+      title: task.title,
+      date: placement,
+      endDate: task.endDate ?? placement,
+      startTime: task.startTime,
+      endTime: task.endTime,
+      memo: task.description.trim(),
+      mode: 'as-planned',
+      ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
+    })
+  }, [])
 
   const submit = useCallback(() => {
     if (!draft) return
@@ -52,13 +49,13 @@ export function useCompleteWithLog() {
 
   const modal = draft ? (
     <Suspense fallback={null}>
-    <CompleteWithLogModal
-      draft={draft}
-      radioGroupName="completion-mode"
-      onClose={() => setDraft(null)}
-      onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
-      onSubmit={submit}
-    />
+      <CompleteWithLogModal
+        draft={draft}
+        radioGroupName="completion-mode"
+        onClose={() => setDraft(null)}
+        onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
+        onSubmit={submit}
+      />
     </Suspense>
   ) : null
 

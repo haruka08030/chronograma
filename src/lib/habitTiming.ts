@@ -34,7 +34,6 @@ export interface HabitRecordIndex {
   deleted: Map<string, Span[]>
 }
 
-
 function dayNumber(dateKey: string): number {
   const [y, m, d] = dateKey.split('-').map(Number)
   return Math.round(Date.UTC(y, m - 1, d) / 86_400_000)
@@ -123,8 +122,7 @@ export function habitRecordFor(index: HabitRecordIndex, habit: Habit, dateKey: s
 /** その日の習慣の記録を、目標に近い順に全部（チェックを外すときにまとめて消す） */
 export function habitRecordsFor(index: HabitRecordIndex, habit: Habit, dateKey: string): Task[] {
   if (!isTimedHabit(habit)) return []
-  const byDrift = (list: Span[]) =>
-    list.sort((a, b) => drift(habit, dateKey, a) - drift(habit, dateKey, b)).map((s) => s.record)
+  const byDrift = (list: Span[]) => list.sort((a, b) => drift(habit, dateKey, a) - drift(habit, dateKey, b)).map((s) => s.record)
   return [
     ...byDrift(candidates(index.active, linkKey(habit.id), habit, dateKey)),
     ...byDrift(candidates(index.active, titleKey(habit.title), habit, dateKey)),

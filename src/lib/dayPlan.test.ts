@@ -126,12 +126,11 @@ describe('getDayPlan done', () => {
       // 東京の 9/30 7:00（UTC ではまだ 9/29）
       doneAt('2026-09-29T22:00:00Z'),
     ]
-    expect(getDayPlan(tasks, DAY).done.map((t) => t.id).sort()).toEqual([
-      '2026-09-29T22:00:00Z',
-      '2026-09-30T03:00:00Z',
-      '2026-09-30T05:00:00Z',
-      '2026-09-30T17:00:00Z',
-    ])
+    expect(
+      getDayPlan(tasks, DAY)
+        .done.map((t) => t.id)
+        .sort(),
+    ).toEqual(['2026-09-29T22:00:00Z', '2026-09-30T03:00:00Z', '2026-09-30T05:00:00Z', '2026-09-30T17:00:00Z'])
     expect(getDayPlan(tasks, '2026-09-29').done.map((t) => t.id)).toEqual(['2026-09-29T05:00:00Z'])
   })
 })

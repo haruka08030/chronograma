@@ -1,20 +1,8 @@
 import { Suspense, useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import {
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  addDays,
-} from 'date-fns'
+import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import {
-  NIGHT_HOURS,
-  timeToMinutes,
-} from '../lib/timeGrid'
-import {
-  durationMinutesForTaskId,
-  isOvernightTimeLog,
-  patchAfterTimelineMove,
-} from '../lib/taskTimeRange'
+import { NIGHT_HOURS, timeToMinutes } from '../lib/timeGrid'
+import { durationMinutesForTaskId, isOvernightTimeLog, patchAfterTimelineMove } from '../lib/taskTimeRange'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
@@ -144,8 +132,7 @@ export function WeekCalendarView({
   /** 記録は今より先には作れない。その日の記録に使える最後の分（null は制限なし＝過去の日） */
   const now = useNowMinuteTick()
   const todayKey = toDateKey(now)
-  const logLimitMin = (key: string): number | null =>
-    key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes()
+  const logLimitMin = (key: string): number | null => (key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes())
   const logLimitRef = useRef(logLimitMin)
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
@@ -189,26 +176,39 @@ export function WeekCalendarView({
   }, [])
 
   const {
-    eventCard, setEventCard, openCard, closeCard, openDetailFromCard,
-    googleCard, setGoogleCard, openGoogleCard, closeGoogleCard,
-    createAnchor, setCreateAnchorFromEl,
+    eventCard,
+    setEventCard,
+    openCard,
+    closeCard,
+    openDetailFromCard,
+    googleCard,
+    setGoogleCard,
+    openGoogleCard,
+    closeGoogleCard,
+    createAnchor,
+    setCreateAnchorFromEl,
   } = useCalendarCards(gridRef)
 
   /**
    * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
    * 習慣の枠なども同じ属性を持つので、メニューを出せるもの（タスク・Google の予定）のときだけ開いて true
    */
-  const openBlockMenu = useCallback((id: string, x: number, y: number): boolean => {
-    const { tasks, calendarEvents } = useTaskStore.getState()
-    const known = id.startsWith('event-')
-      ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
-      : tasks.some((t) => t.id === id)
-    if (!known) return false
-    setEventCard(null)
-    setGoogleCard(null)
-    openTaskMenu(id.startsWith('event-') ? { kind: 'google', x, y, eventId: id.slice('event-'.length) } : { kind: 'event', x, y, taskId: id })
-    return true
-  }, [setEventCard, setGoogleCard])
+  const openBlockMenu = useCallback(
+    (id: string, x: number, y: number): boolean => {
+      const { tasks, calendarEvents } = useTaskStore.getState()
+      const known = id.startsWith('event-')
+        ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
+        : tasks.some((t) => t.id === id)
+      if (!known) return false
+      setEventCard(null)
+      setGoogleCard(null)
+      openTaskMenu(
+        id.startsWith('event-') ? { kind: 'google', x, y, eventId: id.slice('event-'.length) } : { kind: 'event', x, y, taskId: id },
+      )
+      return true
+    },
+    [setEventCard, setGoogleCard],
+  )
 
   const timelineDrag = useTimelineDrag({
     getRelativeY,
@@ -248,14 +248,23 @@ export function WeekCalendarView({
         }
       }
       if (!prev) return
-      updateTask(taskId, { startTime, endTime }, { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } })
+      updateTask(
+        taskId,
+        { startTime, endTime },
+        { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } },
+      )
     },
-    onBlockTap: useCallback((taskId: string) => {
-      if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
-      else openCard(taskId)
-    }, [openCard, openGoogleCard]),
+    onBlockTap: useCallback(
+      (taskId: string) => {
+        if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
+        else openCard(taskId)
+      },
+      [openCard, openGoogleCard],
+    ),
     clickCreateMinutes: 60,
-    onBlockLongPress: (id, x, y) => { openBlockMenu(id, x, y) },
+    onBlockLongPress: (id, x, y) => {
+      openBlockMenu(id, x, y)
+    },
   })
   // タッチで持ち上げている間は縦スクロールを止め（指で動かす）、上下の端に寄せたら送る
   useEffect(() => {
@@ -271,10 +280,7 @@ export function WeekCalendarView({
   // 2 本指でつまむと 1 時間の高さが変わる（ブラウザの拡大は止めてある）
   usePinchHourHeight(scrollRef, timelineDrag.handlePointerCancel)
 
-  const getTaskDuration = useCallback(
-    (taskId: string): number | null => durationMinutesForTaskId(tasks, taskId),
-    [tasks],
-  )
+  const getTaskDuration = useCallback((taskId: string): number | null => durationMinutesForTaskId(tasks, taskId), [tasks])
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
@@ -326,11 +332,13 @@ export function WeekCalendarView({
     if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
       if (task && !isLogTask(task)) {
-        updateTask(d.taskId, allDayMoveKey
-          ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null }
-          : UNSCHEDULE_PATCH, allDayMoveKey
-          ? { key: 'undo.blockToAllDay', params: { title: task.title, date: shortDate(allDayMoveKey) } }
-          : { key: 'undo.blockUnscheduled', params: { title: task.title } })
+        updateTask(
+          d.taskId,
+          allDayMoveKey ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null } : UNSCHEDULE_PATCH,
+          allDayMoveKey
+            ? { key: 'undo.blockToAllDay', params: { title: task.title, date: shortDate(allDayMoveKey) } }
+            : { key: 'undo.blockUnscheduled', params: { title: task.title } },
+        )
       }
       timelineDrag.handlePointerCancel()
     } else {
@@ -423,98 +431,103 @@ export function WeekCalendarView({
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div ref={swipeStripRef} className="flex-shrink-0">
-        <WeekDayHeader
-          singleDay={singleDay}
-          days={days}
-          gridDays={gridDays}
-          gridKey0={gridKey0}
-          gutterWidth={gutterWidth}
-          selectedDateKey={selectedDateKey}
-          onSelectDate={onSelectDate}
-          setAllDayAddDate={setAllDayAddDate}
-        />
+          <WeekDayHeader
+            singleDay={singleDay}
+            days={days}
+            gridDays={gridDays}
+            gridKey0={gridKey0}
+            gutterWidth={gutterWidth}
+            selectedDateKey={selectedDateKey}
+            onSelectDate={onSelectDate}
+            setAllDayAddDate={setAllDayAddDate}
+          />
         </div>
 
         <div ref={swipeBodyRef} className="flex min-h-0 flex-1 flex-col">
+          {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
+            <WeekAllDayRow
+              gridDays={gridDays}
+              singleDay={singleDay}
+              gutterWidth={gutterWidth}
+              gridColsClass={gridColsClass}
+              allDayByDate={allDayByDate}
+              eventsByDate={eventsByDate}
+              allDayDragOver={allDayDragOver}
+              setAllDayDragOver={setAllDayDragOver}
+              allDayMoveKey={allDayMoveKey}
+              allDayAddDate={allDayAddDate}
+              setAllDayAddDate={setAllDayAddDate}
+              openGoogleCard={openGoogleCard}
+            />
+          )}
 
-        {(hasAnyAllDay || allDayAddDate || allDayMoveKey || (taskDragActive && !singleDay)) && (
-          <WeekAllDayRow
-            gridDays={gridDays}
-            singleDay={singleDay}
-            gutterWidth={gutterWidth}
-            gridColsClass={gridColsClass}
-            allDayByDate={allDayByDate}
-            eventsByDate={eventsByDate}
-            allDayDragOver={allDayDragOver}
-            setAllDayDragOver={setAllDayDragOver}
-            allDayMoveKey={allDayMoveKey}
-            allDayAddDate={allDayAddDate}
-            setAllDayAddDate={setAllDayAddDate}
-            openGoogleCard={openGoogleCard}
-          />
-        )}
-
-        <div className="relative flex min-h-0 flex-1 flex-col">
-        {activeEdge && (
-          <div
-            className={`pointer-events-none absolute inset-y-0 z-30 flex w-10 items-center justify-center bg-accent-500/10
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {activeEdge && (
+              <div
+                className={`pointer-events-none absolute inset-y-0 z-30 flex w-10 items-center justify-center bg-accent-500/10
               ${activeEdge < 0 ? 'left-0' : 'right-0'}`}
-            aria-hidden
-          >
-            {activeEdge < 0 ? <ChevronLeftIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" /> : <ChevronRightIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" />}
-          </div>
-        )}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-2"
-          onDragOver={(e) => {
-            if (taskDragActive) setEdgeDir(edgeDirAt(e.clientX, e.clientY))
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEdgeDir(null)
-          }}
-          onDropCapture={() => setEdgeDir(null)}
-        >
-          <div className="flex" style={{ height: gridHeight }}>
-            <TimeGutter dateKey={gridKey0} nightHours={nightDay ? NIGHT_HOURS : 0} />
-
+                aria-hidden
+              >
+                {activeEdge < 0 ? (
+                  <ChevronLeftIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-accent-600 dark:text-accent-300" />
+                )}
+              </div>
+            )}
             <div
-              ref={gridRef}
-              className={`flex-1 grid relative ${gridColsClass}`}
-              onPointerMove={handleGridPointerMove}
-              onPointerUp={handleGridPointerUp}
-              onPointerCancel={handleGridPointerCancel}
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden px-2"
+              onDragOver={(e) => {
+                if (taskDragActive) setEdgeDir(edgeDirAt(e.clientX, e.clientY))
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEdgeDir(null)
+              }}
+              onDropCapture={() => setEdgeDir(null)}
             >
-              {gridDays.map((day) => (
-                <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
-              ))}
-              {nightDay && <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />}
+              <div className="flex" style={{ height: gridHeight }}>
+                <TimeGutter dateKey={gridKey0} nightHours={nightDay ? NIGHT_HOURS : 0} />
+
+                <div
+                  ref={gridRef}
+                  className={`flex-1 grid relative ${gridColsClass}`}
+                  onPointerMove={handleGridPointerMove}
+                  onPointerUp={handleGridPointerUp}
+                  onPointerCancel={handleGridPointerCancel}
+                >
+                  {gridDays.map((day) => (
+                    <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
+                  ))}
+                  {nightDay && (
+                    <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        </div>
         </div>
       </div>
 
       <Suspense fallback={null}>
-      {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
-      {eventCard && (
-        <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
-      )}
-      {timelineDrag.popup && createAnchor && (
-        <QuickCreatePopover
-          anchor={createAnchor}
-          dateKey={timelineDrag.popup.dateKey}
-          startTime={timelineDrag.popup.startTime}
-          endTime={timelineDrag.popup.endTime}
-          asLog={timelineDrag.popup.intent === 'log'}
-          onClose={timelineDrag.dismissPopup}
-          onCreated={(id, more) => {
-            timelineDrag.dismissPopup()
-            if (more) openDetail(id)
-          }}
-        />
-      )}
+        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
+        {eventCard && (
+          <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
+        )}
+        {timelineDrag.popup && createAnchor && (
+          <QuickCreatePopover
+            anchor={createAnchor}
+            dateKey={timelineDrag.popup.dateKey}
+            startTime={timelineDrag.popup.startTime}
+            endTime={timelineDrag.popup.endTime}
+            asLog={timelineDrag.popup.intent === 'log'}
+            onClose={timelineDrag.dismissPopup}
+            onCreated={(id, more) => {
+              timelineDrag.dismissPopup()
+              if (more) openDetail(id)
+            }}
+          />
+        )}
       </Suspense>
     </div>
   )

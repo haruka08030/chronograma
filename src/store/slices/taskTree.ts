@@ -25,23 +25,15 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
   return {
     reorderManualRootTasks: (orderedTaskIds, sectionUpdate) => {
       const now = new Date().toISOString()
-      const sectionSet =
-        sectionUpdate && sectionUpdate.taskIds.length > 0
-          ? new Set(sectionUpdate.taskIds)
-          : null
+      const sectionSet = sectionUpdate && sectionUpdate.taskIds.length > 0 ? new Set(sectionUpdate.taskIds) : null
       const targetListId = sectionUpdate?.listId
-      const descendantsForListMove =
-        targetListId && sectionSet
-          ? expandDescendantIds(sectionUpdate!.taskIds, get().tasks)
-          : null
+      const descendantsForListMove = targetListId && sectionSet ? expandDescendantIds(sectionUpdate!.taskIds, get().tasks) : null
       pushUndo()
       set((s) => ({
         tasks: s.tasks.map((t) => {
           const idx = orderedTaskIds.indexOf(t.id)
           const inSectionPatch = Boolean(sectionSet?.has(t.id))
-          const inDescendantListMove = Boolean(
-            descendantsForListMove?.has(t.id) && targetListId && t.listId !== targetListId,
-          )
+          const inDescendantListMove = Boolean(descendantsForListMove?.has(t.id) && targetListId && t.listId !== targetListId)
           if (idx < 0 && !inDescendantListMove) return t
 
           let next: Task = idx >= 0 ? { ...t, order: idx, updatedAt: now } : { ...t, updatedAt: now }
@@ -192,13 +184,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
         const targetSectionId = parent.sectionId
 
         const rootOrder = s.tasks
-          .filter(
-            (t) =>
-              t.parentId === null &&
-              t.id !== taskId &&
-              t.listId === parent.listId &&
-              t.sectionId === targetSectionId,
-          )
+          .filter((t) => t.parentId === null && t.id !== taskId && t.listId === parent.listId && t.sectionId === targetSectionId)
           .sort((a, b) => a.order - b.order)
           .map((t) => t.id)
         const parentIdx = rootOrder.indexOf(parent.id)
@@ -254,9 +240,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
     reorderTask: (id, newOrder) => {
       pushUndo()
       return set((s) => ({
-        tasks: s.tasks.map((t) =>
-          t.id === id ? { ...t, order: newOrder, updatedAt: new Date().toISOString() } : t,
-        ),
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, order: newOrder, updatedAt: new Date().toISOString() } : t)),
       }))
     },
     reorderTasks: (orderedIds) => {
@@ -281,14 +265,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
         const maxOrder = Math.max(
           0,
           ...state.tasks
-            .filter(
-              (t) =>
-                t.listId === listId &&
-                t.parentId === null &&
-                !t.completed &&
-                isActiveTask(t) &&
-                !descendants.has(t.id),
-            )
+            .filter((t) => t.listId === listId && t.parentId === null && !t.completed && isActiveTask(t) && !descendants.has(t.id))
             .map((t) => t.order),
         )
         const rootNewOrder = maxOrder + 1
@@ -296,8 +273,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
         return {
           tasks: state.tasks.map((t) => {
             if (!descendants.has(t.id)) return t
-            if (t.id === taskId)
-              return { ...t, listId, order: rootNewOrder, sectionId: null, updatedAt: now }
+            if (t.id === taskId) return { ...t, listId, order: rootNewOrder, sectionId: null, updatedAt: now }
             return { ...t, listId, sectionId: null, updatedAt: now }
           }),
         }
@@ -327,14 +303,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
         const maxOrder = Math.max(
           0,
           ...state.tasks
-            .filter(
-              (t) =>
-                t.listId === listId &&
-                t.parentId === null &&
-                !t.completed &&
-                isActiveTask(t) &&
-                !descendantsUnion.has(t.id),
-            )
+            .filter((t) => t.listId === listId && t.parentId === null && !t.completed && isActiveTask(t) && !descendantsUnion.has(t.id))
             .map((t) => t.order),
         )
         const rootOrder = new Map<string, number>()
@@ -348,8 +317,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
             const rootId = taskToRoot.get(t.id)
             if (!rootId) return t
             const ord = rootOrder.get(rootId)
-            if (t.id === rootId && ord !== undefined)
-              return { ...t, listId, order: ord, sectionId: null, updatedAt: now }
+            if (t.id === rootId && ord !== undefined) return { ...t, listId, order: ord, sectionId: null, updatedAt: now }
             return { ...t, listId, sectionId: null, updatedAt: now }
           }),
         }

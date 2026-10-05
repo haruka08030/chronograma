@@ -53,7 +53,13 @@ export function AutoBackupSettings() {
       notify(i18n.t('autoBackup.unreadable'))
       return
     }
-    if (!(await askConfirm({ message: i18n.t('autoBackup.confirmRestore', { when: when(b.savedAt) }), confirmLabel: i18n.t('autoBackup.restoreMissing') }))) return
+    if (
+      !(await askConfirm({
+        message: i18n.t('autoBackup.confirmRestore', { when: when(b.savedAt) }),
+        confirmLabel: i18n.t('autoBackup.restoreMissing'),
+      }))
+    )
+      return
     const added = restoreMissingFromBackup(full.json)
     // 戻せたときは store が「元に戻す」付きの通知を出す
     if (added === null) notify(i18n.t('autoBackup.unreadable'))

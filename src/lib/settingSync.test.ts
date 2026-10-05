@@ -83,7 +83,12 @@ async function sync(
       key: 'labels',
       fetch: () => fetchLogLabels(sb, 'u1'),
       plan: (remote, syncedAt, offset) => {
-        const p = planLabelSync({ presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt }, remote, new Date(d.clock).toISOString(), offset)
+        const p = planLabelSync(
+          { presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt },
+          remote,
+          new Date(d.clock).toISOString(),
+          offset,
+        )
         onPlan?.(p)
         return p
       },
@@ -164,11 +169,18 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     b.edit(['授業', 'B の追加'])
     let interleaved = false
     const plans: LabelSyncPlan[] = []
-    await sync(client, a, 'a', 0, (p) => plans.push(p), async () => {
-      if (interleaved) return
-      interleaved = true
-      await sync(client, b, 'b')
-    })
+    await sync(
+      client,
+      a,
+      'a',
+      0,
+      (p) => plans.push(p),
+      async () => {
+        if (interleaved) return
+        interleaved = true
+        await sync(client, b, 'b')
+      },
+    )
     expect((plans[0].push?.labels ?? []).map((l) => l.name)).toEqual(['授業', 'A の追加'])
     // 1 回目は古い版をもとにしていて断られ、取り直した 2 回目は b の版をもとに送る（a の編集のほうが新しい）
     expect(plans).toHaveLength(2)
@@ -208,7 +220,12 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
   it('行が無いはずの書き込みは、行が既にあれば上書きしない（同時に初めて作るとき・前の DB でも）', async () => {
     const { client, rows } = fakeSettings({ noBaseColumn: true })
     await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
-    const res = await pushLogLabels(client, 'u1', { labels: [{ name: 'B', color: '' }], updatedAt: new Date(REAL + 1000).toISOString() }, null)
+    const res = await pushLogLabels(
+      client,
+      'u1',
+      { labels: [{ name: 'B', color: '' }], updatedAt: new Date(REAL + 1000).toISOString() },
+      null,
+    )
     expect(res).toEqual({ stale: true })
     expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['A'])
   })
@@ -233,7 +250,10 @@ describe('settingSyncStep', () => {
     expect(settingSyncStep({ updatedAt: S1, syncedAt: S1 }, { updatedAt: S2 }, true)).toEqual({ kind: 'adopt' })
   })
   it('手元だけ変えたら、もとにした版を付けて送る', () => {
-    expect(settingSyncStep({ updatedAt: '2030-01-01T00:00:00.000Z', syncedAt: S1 }, { updatedAt: S1 }, false)).toEqual({ kind: 'push', base: S1 })
+    expect(settingSyncStep({ updatedAt: '2030-01-01T00:00:00.000Z', syncedAt: S1 }, { updatedAt: S1 }, false)).toEqual({
+      kind: 'push',
+      base: S1,
+    })
   })
   it('サーバーに行が無ければ送る', () => {
     expect(settingSyncStep({ updatedAt: null, syncedAt: null }, null, false)).toEqual({ kind: 'push', base: null })

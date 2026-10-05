@@ -34,7 +34,12 @@ const DEFAULT_AT = '13:00'
 const SCREENS = [
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
-  { name: 'planner-tip', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")', hover: 'button[aria-label$="完了にする"] >> nth=0' },
+  {
+    name: 'planner-tip',
+    view: 'planner',
+    click: 'button[aria-expanded]:has-text("やり残し")',
+    hover: 'button[aria-label$="完了にする"] >> nth=0',
+  },
   // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
   { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
@@ -72,8 +77,18 @@ const SCREENS = [
   // スケジュール（予定の一覧）
   { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
   // スマホの見出しの「10月 ▾」でミニ月を開いた状態・表示の切り替えメニュー（PC 幅には無いボタン）
-  { name: 'calendar-mobile-month-picker', view: 'calendar', mobileOnly: true, click: 'button[aria-expanded][aria-label="日付を選択"] >> visible=true' },
-  { name: 'calendar-mobile-mode-menu', view: 'calendar', mobileOnly: true, click: 'button[aria-haspopup="menu"][aria-label] >> visible=true' },
+  {
+    name: 'calendar-mobile-month-picker',
+    view: 'calendar',
+    mobileOnly: true,
+    click: 'button[aria-expanded][aria-label="日付を選択"] >> visible=true',
+  },
+  {
+    name: 'calendar-mobile-mode-menu',
+    view: 'calendar',
+    mobileOnly: true,
+    click: 'button[aria-haspopup="menu"][aria-label] >> visible=true',
+  },
   // 終わった日（前の週）の予定と記録
   // スマホ幅は ‹ › が無い（スワイプで動く）
   { name: 'calendar-past', view: 'calendar', desktopOnly: true, click: 'button[aria-label="前の週"] >> visible=true' },
@@ -84,17 +99,33 @@ const SCREENS = [
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
   // 曜日つきの毎週（繰り返しの下に曜日のピル）
   { name: 'task-detail-repeat', view: 'all', click: 'div.group.cursor-pointer:has-text("バイトのシフト提出")', clickAt: { x: 4, y: 12 } },
-  { name: 'task-detail-scheduled', view: 'all', click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))', clickAt: { x: 4, y: 12 } },
+  {
+    name: 'task-detail-scheduled',
+    view: 'all',
+    click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))',
+    clickAt: { x: 4, y: 12 },
+  },
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
   // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
-  { name: 'habits-new-weekly', view: 'habits', click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'], scrollToBottom: true },
+  {
+    name: 'habits-new-weekly',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'],
+    scrollToBottom: true,
+  },
   // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
   { name: 'habits-menu', view: 'habits', rightClick: 'div[role="button"]:has-text("朝に 10 分ストレッチ")' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
-  { name: 'habits-archived-menu', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true, rightClick: 'li:has-text("日記を書く")' },
+  {
+    name: 'habits-archived-menu',
+    view: 'habits',
+    click: 'button[aria-expanded]:has-text("アーカイブ")',
+    scrollToBottom: true,
+    rightClick: 'li:has-text("日記を書く")',
+  },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
   // 設定の下の方（データ・アプリ・規約）
@@ -132,8 +163,12 @@ const VIEWPORTS = [
 function nowInTimeZone(timeZone, instant = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
   }).formatToParts(instant)
   const get = (t) => Number(parts.find((p) => p.type === t).value)
@@ -154,7 +189,12 @@ function parseArgs(argv) {
   // 時刻を決めないと、撮るたびに「過ぎた予定」「現在線」が動いて見比べられない。既定は昼
   const out = { only: null, themes: ['light', 'dark'], outDir: '.shots', at: DEFAULT_AT }
   for (const a of argv) {
-    if (a.startsWith('--only=')) out.only = a.slice(7).split(',').map((s) => s.trim()).filter(Boolean)
+    if (a.startsWith('--only='))
+      out.only = a
+        .slice(7)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
     else if (a === '--dark-only') out.themes = ['dark']
     else if (a === '--light-only') out.themes = ['light']
     else if (a.startsWith('--out=')) out.outDir = a.slice(6)
@@ -227,9 +267,7 @@ async function startServer() {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const screens = args.only
-    ? SCREENS.filter((s) => args.only.includes(s.name))
-    : SCREENS
+  const screens = args.only ? SCREENS.filter((s) => args.only.includes(s.name)) : SCREENS
   if (screens.length === 0) {
     throw new Error(`--only に一致する画面がありません。使えるのは: ${SCREENS.map((s) => s.name).join(', ')}`)
   }

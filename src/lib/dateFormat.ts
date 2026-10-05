@@ -29,11 +29,7 @@ export const DATE_FORMAT_NAMES = [
 export type DateFormatName = (typeof DATE_FORMAT_NAMES)[number]
 
 /** 日付（Date か日付キー `yyyy-MM-dd`）を名前の形式で、表示の言語に合わせて書く */
-export function formatDate(
-  date: Date | string,
-  name: DateFormatName,
-  language: string | undefined = i18n.resolvedLanguage,
-): string {
+export function formatDate(date: Date | string, name: DateFormatName, language: string | undefined = i18n.resolvedLanguage): string {
   const d = typeof date === 'string' ? fromDateKey(date) : date
   const pattern = i18n.getFixedT(language ?? i18n.language)(`dateFormat.${name}`)
   return format(d, pattern, { locale: dateFnsLocale(language) })

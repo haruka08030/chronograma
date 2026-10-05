@@ -24,15 +24,19 @@ export function SectionHeaderDnD({
   const dragId = sectionDragHandleId(listId, sectionId)
   const dropId = sectionDropHeaderId(listId, sectionId)
 
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+    isDragging,
+  } = useDraggable({
     id: dragId,
   })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId })
 
   /** リスト内の上下並べ替えのみ。タスクのように横方向へは動かさない */
-  const rowStyle = transform
-    ? { transform: CSS.Translate.toString({ ...transform, x: 0 }) }
-    : undefined
+  const rowStyle = transform ? { transform: CSS.Translate.toString({ ...transform, x: 0 }) } : undefined
 
   return (
     <div

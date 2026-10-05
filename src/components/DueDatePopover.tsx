@@ -103,33 +103,29 @@ export function DueDatePopover({
     setOpen(false)
   }
 
-
   return (
-    <div
-      ref={setWrapperEl}
-      className={wrapperClassName}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div ref={setWrapperEl} className={wrapperClassName} onClick={(e) => e.stopPropagation()}>
       {trigger({ open, toggle, value })}
 
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          id={dialogId}
-          // 開いている予定カードなどからは「内側」（押しても閉じない）
-          data-popover-keep
-          style={panelStyle}
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-label={t(
-            kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : kind === 'date' ? 'dueDatePicker.dateTitle' : 'dueDatePicker.title',
-          )}
-          className={`z-[90] w-[272px] p-3 ${POPOVER_PANEL}`}
-        >
-          <DatePickerBody value={value} min={min} kind={kind} onPick={pick} autoFocus />
-        </div>,
-        document.body,
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={dialogId}
+            // 開いている予定カードなどからは「内側」（押しても閉じない）
+            data-popover-keep
+            style={panelStyle}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label={t(
+              kind === 'scheduled' ? 'dueDatePicker.scheduledTitle' : kind === 'date' ? 'dueDatePicker.dateTitle' : 'dueDatePicker.title',
+            )}
+            className={`z-[90] w-[272px] p-3 ${POPOVER_PANEL}`}
+          >
+            <DatePickerBody value={value} min={min} kind={kind} onPick={pick} autoFocus />
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

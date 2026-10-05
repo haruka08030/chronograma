@@ -34,14 +34,7 @@ export const SortableTaskItem = memo(function SortableTaskItem({
   /** 一覧内サブタスク（DnD 時は親とまとめて移動） */
   children?: ReactNode
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${TASK_PREFIX}${task.id}`,
     data: { dragGroupRootIds } satisfies TaskRootDragData,
   })
@@ -56,25 +49,28 @@ export const SortableTaskItem = memo(function SortableTaskItem({
   }
 
   // つまみは useSortable の attributes / listeners が変わったときだけ作り直す（TaskItem の memo を効かせる）
-  const handle = useMemo(() => (
-    <button
-      type="button"
-      {...attributes}
-      {...listeners}
-      aria-label={t('common.dragToReorder')}
-      className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
-      tabIndex={-1}
-    >
-      <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="9" cy="6" r="1.5" />
-        <circle cx="15" cy="6" r="1.5" />
-        <circle cx="9" cy="12" r="1.5" />
-        <circle cx="15" cy="12" r="1.5" />
-        <circle cx="9" cy="18" r="1.5" />
-        <circle cx="15" cy="18" r="1.5" />
-      </svg>
-    </button>
-  ), [attributes, listeners, t])
+  const handle = useMemo(
+    () => (
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={t('common.dragToReorder')}
+        className="cursor-grab touch-none p-1.5 opacity-100 active:cursor-grabbing md:p-0.5 md:opacity-70 md:group-hover:opacity-100"
+        tabIndex={-1}
+      >
+        <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="9" cy="6" r="1.5" />
+          <circle cx="15" cy="6" r="1.5" />
+          <circle cx="9" cy="12" r="1.5" />
+          <circle cx="15" cy="12" r="1.5" />
+          <circle cx="9" cy="18" r="1.5" />
+          <circle cx="15" cy="18" r="1.5" />
+        </svg>
+      </button>
+    ),
+    [attributes, listeners, t],
+  )
 
   return (
     <div ref={setNodeRef} style={style} className="relative">

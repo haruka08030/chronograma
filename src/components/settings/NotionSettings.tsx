@@ -126,7 +126,12 @@ export function NotionSettings() {
                   : undefined
           }
         >
-          <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={sync.syncing} onClick={() => requestNotionSync()}>
+          <button
+            type="button"
+            className={buttonClass({ variant: 'secondary', size: 'md' })}
+            disabled={sync.syncing}
+            onClick={() => requestNotionSync()}
+          >
             {t('notion.syncNowAction')}
           </button>
         </SettingsRow>
@@ -186,7 +191,11 @@ function ConnectForm({ busy, onConnect }: { busy: boolean; onConnect: (token: st
         />
       </label>
       <div className="flex justify-end">
-        <button type="submit" disabled={busy || !token.trim() || !database.trim()} className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}>
+        <button
+          type="submit"
+          disabled={busy || !token.trim() || !database.trim()}
+          className={`${buttonClass({ variant: 'secondary', size: 'md' })} disabled:opacity-50`}
+        >
           {busy ? t('notion.connecting') : t('notion.connect')}
         </button>
       </div>
@@ -244,7 +253,9 @@ function ConnectedRows({
         >
           {!config.statusProperty && <option value="">{t('common.none')}</option>}
           {statusProps.map((p) => (
-            <option key={p.name} value={p.name}>{p.name}</option>
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
           ))}
         </select>
       </SettingsRow>
@@ -258,7 +269,9 @@ function ConnectedRows({
         >
           <option value="">{t('common.none')}</option>
           {dateProps.map((p) => (
-            <option key={p.name} value={p.name}>{p.name}</option>
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
           ))}
         </select>
       </SettingsRow>
@@ -288,7 +301,9 @@ function ConnectedRows({
                         {options
                           .filter((o) => o !== name)
                           .map((o) => (
-                            <option key={o} value={o}>{o}</option>
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
                           ))}
                       </select>
                     </label>

@@ -20,15 +20,35 @@ describe('繰り返しタスクの次回', () => {
   const setup = () => {
     const now = new Date().toISOString()
     useTaskStore.setState({
-      tasks: [{
-        ...TASK_DEFAULTS,
-        id: 'gym', title: 'ジム', description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now,
-        order: 0, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: null, endTime: null,
-        priority: 'none', tags: [], recurrence: { type: 'weekly', interval: 1 },
-      }],
+      tasks: [
+        {
+          ...TASK_DEFAULTS,
+          id: 'gym',
+          title: 'ジム',
+          description: '',
+          completed: false,
+          completedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          order: 0,
+          listId: '__inbox__',
+          sectionId: null,
+          parentId: null,
+          dueDate: '2026-10-02',
+          startTime: null,
+          endTime: null,
+          priority: 'none',
+          tags: [],
+          recurrence: { type: 'weekly', interval: 1 },
+        },
+      ],
     })
   }
-  const ids = () => useTaskStore.getState().tasks.map((t) => t.id).sort()
+  const ids = () =>
+    useTaskStore
+      .getState()
+      .tasks.map((t) => t.id)
+      .sort()
 
   it('完了 → 戻す → 完了 でも次回は 1 つ', () => {
     setup()

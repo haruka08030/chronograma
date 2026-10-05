@@ -26,7 +26,19 @@ const WIDTH = 288
  * その日のタイムラインの空きから近い順に 3 つと長さを出し、選ぶとその時間に置く。「その他の時刻…」で自由に入れる。
  * PC は押した所の下に小さく、スマホは下からのシート
  */
-export function TimeSlotMenu({ x, y, taskId, dateKey, onClose }: { x: number; y: number; taskId: string; dateKey: string; onClose: () => void }) {
+export function TimeSlotMenu({
+  x,
+  y,
+  taskId,
+  dateKey,
+  onClose,
+}: {
+  x: number
+  y: number
+  taskId: string
+  dateKey: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const coarse = useIsCoarsePointer()
   const desktop = useIsDesktop()
@@ -97,7 +109,10 @@ export function TimeSlotMenu({ x, y, taskId, dateKey, onClose }: { x: number; y:
             ariaLabel={t('timeSlot.duration')}
             value={String(duration)}
             onChange={(v) => setDuration(Number(v))}
-            options={DURATIONS.map((d) => ({ value: String(d), label: t(d < 60 ? 'timeSlot.minutes' : 'timeSlot.hours', { count: d < 60 ? d : d / 60 }) }))}
+            options={DURATIONS.map((d) => ({
+              value: String(d),
+              label: t(d < 60 ? 'timeSlot.minutes' : 'timeSlot.hours', { count: d < 60 ? d : d / 60 }),
+            }))}
           />
         </div>
         {slots.length > 0 ? (

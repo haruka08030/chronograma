@@ -10,7 +10,19 @@ import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
-import { ArchiveIcon, ArrowRightIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, FlagIcon, OpenPanelIcon, PlayIcon, SectionIcon, TrashIcon } from './icons'
+import {
+  ArchiveIcon,
+  ArrowRightIcon,
+  CalendarArrowIcon,
+  CalendarIcon,
+  CheckIcon,
+  ClockIcon,
+  FlagIcon,
+  OpenPanelIcon,
+  PlayIcon,
+  SectionIcon,
+  TrashIcon,
+} from './icons'
 import { startTimerForTask } from '../lib/timerDrop'
 import { openTaskMenu } from '../lib/overlays'
 import { toDateKey } from '../lib/dateKey'
@@ -95,7 +107,12 @@ export function TaskContextMenu({
       checked: sharedDue === o.key,
       run: done(() => bulk.setDue(taskIds, o.key, o.label)),
     }))
-    .concat({ id: 'due-none', label: t('dueDatePicker.clear'), checked: sharedDue === null, run: done(() => bulk.setDue(taskIds, null, '')) })
+    .concat({
+      id: 'due-none',
+      label: t('dueDatePicker.clear'),
+      checked: sharedDue === null,
+      run: done(() => bulk.setDue(taskIds, null, '')),
+    })
   const scheduleLeaves: ActionLeaf[] = [
     { label: t('dueDatePicker.today'), key: toDateKey(today) },
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
@@ -132,7 +149,12 @@ export function TaskContextMenu({
     listSections.length === 0
       ? []
       : [
-          { id: 'section-none', label: sectionNone, checked: sharedSection === null, run: done(() => bulk.moveToSection(taskIds, null, sectionNone)) },
+          {
+            id: 'section-none',
+            label: sectionNone,
+            checked: sharedSection === null,
+            run: done(() => bulk.moveToSection(taskIds, null, sectionNone)),
+          },
           ...listSections.map((sec): ActionLeaf => ({
             id: `section-${sec.id}`,
             label: sec.name,
@@ -145,14 +167,16 @@ export function TaskContextMenu({
   // いちばん使う日の付け替えは、サブメニューを開かずに先頭で押せるようにする（今日の行なら明日へ、それ以外は今日へ）
   const todayToggle = useTodayToggle()(targets.filter((x) => !x.completed).map((x) => x.id))
   const todayToggleEntry: ActionEntry[] = targets.some((x) => !x.completed)
-    ? [{
-        kind: 'leaf',
-        id: 'today-toggle',
-        label: todayToggle.label,
-        icon: <CalendarArrowIcon className={ICON} />,
-        keys: shortcutLabel(['Shift', 'T']),
-        run: done(todayToggle.run),
-      }]
+    ? [
+        {
+          kind: 'leaf',
+          id: 'today-toggle',
+          label: todayToggle.label,
+          icon: <CalendarArrowIcon className={ICON} />,
+          keys: shortcutLabel(['Shift', 'T']),
+          run: done(todayToggle.run),
+        },
+      ]
     : []
   // 予定日（いつやる）を先に、期限（締切）はその下。「明日やる」を期限で動かして締切を変えてしまわないように
   const plannedEntries: ActionEntry[] = [
@@ -213,7 +237,14 @@ export function TaskContextMenu({
     ...(openWishes.length > 0
       ? [
           ...wishEntries,
-          { kind: 'leaf' as const, id: 'complete', label: t('someday.fulfill'), icon: <CheckIcon className={ICON} />, keys: shortcutLabel(['mod', '↵']), run: done(() => bulk.complete(openWishes)) },
+          {
+            kind: 'leaf' as const,
+            id: 'complete',
+            label: t('someday.fulfill'),
+            icon: <CheckIcon className={ICON} />,
+            keys: shortcutLabel(['mod', '↵']),
+            run: done(() => bulk.complete(openWishes)),
+          },
         ]
       : []),
     { ...deleteEntry, divider: openWishes.length > 0 },
@@ -222,62 +253,133 @@ export function TaskContextMenu({
   const allChecked = targets.every((x) => x.completed)
   const checklistEntries: ActionEntry[] = [
     allChecked
-      ? { kind: 'leaf', id: 'uncheck', label: t('checklist.uncheck'), icon: <CheckIcon className={ICON} />, run: done(() => uncheckTasks(taskIds)) }
-      : { kind: 'leaf', id: 'complete', label: t('checklist.check'), icon: <CheckIcon className={ICON} />, keys: shortcutLabel(['mod', '↵']), run: done(() => bulk.complete(taskIds)) },
+      ? {
+          kind: 'leaf',
+          id: 'uncheck',
+          label: t('checklist.uncheck'),
+          icon: <CheckIcon className={ICON} />,
+          run: done(() => uncheckTasks(taskIds)),
+        }
+      : {
+          kind: 'leaf',
+          id: 'complete',
+          label: t('checklist.check'),
+          icon: <CheckIcon className={ICON} />,
+          keys: shortcutLabel(['mod', '↵']),
+          run: done(() => bulk.complete(taskIds)),
+        },
     { ...deleteEntry, divider: true },
   ]
-  const entries: ActionEntry[] = allWishes ? somedayEntries : allChecklist ? checklistEntries : [
-    ...(plannable ? plannedEntries : []),
-    { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
-    ...(sectionLeaves.length > 0
-      ? [{ kind: 'sub' as const, id: 'section', label: t('taskMenu.moveToSection'), icon: <SectionIcon className={ICON} />, leaves: sectionLeaves }]
-      : []),
-    {
-      kind: 'leaf',
-      id: 'complete',
-      divider: true,
-      label: t('taskList.markComplete'),
-      icon: <CheckIcon className={ICON} />,
-      keys: shortcutLabel(['mod', '↵']),
-      run: done(() => bulk.complete(taskIds)),
-    },
-    ...(taskIds.length === 1 && onOpenDetail
-      ? [{ kind: 'leaf' as const, id: 'open', label: t('taskMenu.open'), icon: <OpenPanelIcon className={ICON} />, keys: '↵', run: done(() => onOpenDetail(taskIds[0])) }]
-      : []),
-    { kind: 'leaf', id: 'archive', label: t('taskItem.archive'), icon: <ArchiveIcon className={ICON} />, run: done(() => bulk.archive(taskIds)) },
-    deleteEntry,
-  ]
+  const entries: ActionEntry[] = allWishes
+    ? somedayEntries
+    : allChecklist
+      ? checklistEntries
+      : [
+          ...(plannable ? plannedEntries : []),
+          { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
+          ...(sectionLeaves.length > 0
+            ? [
+                {
+                  kind: 'sub' as const,
+                  id: 'section',
+                  label: t('taskMenu.moveToSection'),
+                  icon: <SectionIcon className={ICON} />,
+                  leaves: sectionLeaves,
+                },
+              ]
+            : []),
+          {
+            kind: 'leaf',
+            id: 'complete',
+            divider: true,
+            label: t('taskList.markComplete'),
+            icon: <CheckIcon className={ICON} />,
+            keys: shortcutLabel(['mod', '↵']),
+            run: done(() => bulk.complete(taskIds)),
+          },
+          ...(taskIds.length === 1 && onOpenDetail
+            ? [
+                {
+                  kind: 'leaf' as const,
+                  id: 'open',
+                  label: t('taskMenu.open'),
+                  icon: <OpenPanelIcon className={ICON} />,
+                  keys: '↵',
+                  run: done(() => onOpenDetail(taskIds[0])),
+                },
+              ]
+            : []),
+          {
+            kind: 'leaf',
+            id: 'archive',
+            label: t('taskItem.archive'),
+            icon: <ArchiveIcon className={ICON} />,
+            run: done(() => bulk.archive(taskIds)),
+          },
+          deleteEntry,
+        ]
   // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
-  const openEntry: ActionEntry[] = taskIds.length === 1 && onOpenDetail
-    ? [{ kind: 'leaf', id: 'open', divider: true, label: t('taskMenu.open'), icon: <OpenPanelIcon className={ICON} />, run: done(() => onOpenDetail(taskIds[0])) }]
-    : []
-  const timerEntry: ActionEntry[] = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
-    ? [{ kind: 'leaf', id: 'timer', label: t('planner.startTimer'), icon: <PlayIcon className={ICON} />, run: done(() => startTimerForTask(taskIds[0])) }]
-    : []
+  const openEntry: ActionEntry[] =
+    taskIds.length === 1 && onOpenDetail
+      ? [
+          {
+            kind: 'leaf',
+            id: 'open',
+            divider: true,
+            label: t('taskMenu.open'),
+            icon: <OpenPanelIcon className={ICON} />,
+            run: done(() => onOpenDetail(taskIds[0])),
+          },
+        ]
+      : []
+  const timerEntry: ActionEntry[] =
+    taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
+      ? [
+          {
+            kind: 'leaf',
+            id: 'timer',
+            label: t('planner.startTimer'),
+            icon: <PlayIcon className={ICON} />,
+            run: done(() => startTimerForTask(taskIds[0])),
+          },
+        ]
+      : []
   // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
   const untimed = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed && !targets[0].startTime ? targets[0] : null
   const setTimeEntry: ActionEntry[] = untimed
-    ? [{
-        kind: 'leaf',
-        id: 'set-time',
-        label: t('timeSlot.title'),
-        icon: <ClockIcon className={ICON} />,
-        run: done(() => {
-          const dateKey = untimed.scheduledDate ?? untimed.dueDate ?? toDateKey(appToday())
-          queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
-        }),
-      }]
-    : []
-  const quickEntries: ActionEntry[] = allWishes ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
-    : allChecklist ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
-    : [
-        ...setTimeEntry,
-        ...todayToggleEntry,
-        ...timerEntry,
-        { kind: 'leaf', id: 'complete', label: t('taskList.markComplete'), icon: <CheckIcon className={ICON} />, run: done(() => bulk.complete(taskIds)) },
-        ...(plannable ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e)) : []),
-        ...openEntry,
+    ? [
+        {
+          kind: 'leaf',
+          id: 'set-time',
+          label: t('timeSlot.title'),
+          icon: <ClockIcon className={ICON} />,
+          run: done(() => {
+            const dateKey = untimed.scheduledDate ?? untimed.dueDate ?? toDateKey(appToday())
+            queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
+          }),
+        },
       ]
+    : []
+  const quickEntries: ActionEntry[] = allWishes
+    ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+    : allChecklist
+      ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+      : [
+          ...setTimeEntry,
+          ...todayToggleEntry,
+          ...timerEntry,
+          {
+            kind: 'leaf',
+            id: 'complete',
+            label: t('taskList.markComplete'),
+            icon: <CheckIcon className={ICON} />,
+            run: done(() => bulk.complete(taskIds)),
+          },
+          ...(plannable
+            ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e))
+            : []),
+          ...openEntry,
+        ]
 
   return (
     <ActionMenu

@@ -10,9 +10,24 @@ const NOW = '2026-10-02T00:00:00.000Z'
 function task(id: string, patch: Partial<Task> = {}): Task {
   return {
     ...TASK_DEFAULTS,
-    id, title: id, description: '', completed: false, completedAt: null, createdAt: T0, updatedAt: T0,
-    order: 0, listId: SYNC_INBOX_LIST_ID, sectionId: null, parentId: null, dueDate: null,
-    startTime: null, endTime: null, priority: 'none', tags: [], recurrence: null, ...patch,
+    id,
+    title: id,
+    description: '',
+    completed: false,
+    completedAt: null,
+    createdAt: T0,
+    updatedAt: T0,
+    order: 0,
+    listId: SYNC_INBOX_LIST_ID,
+    sectionId: null,
+    parentId: null,
+    dueDate: null,
+    startTime: null,
+    endTime: null,
+    priority: 'none',
+    tags: [],
+    recurrence: null,
+    ...patch,
   }
 }
 
@@ -49,8 +64,12 @@ describe('restoreMissing', () => {
 
 describe('idsToPrune', () => {
   const meta = (kind: AutoBackupMeta['kind'], day: number): AutoBackupMeta => ({
-    id: `${kind}-${day}`, kind, savedAt: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`,
-    dateKey: '', todoCount: 0, logCount: 0,
+    id: `${kind}-${day}`,
+    kind,
+    savedAt: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`,
+    dateKey: '',
+    todoCount: 0,
+    logCount: 0,
   })
 
   it('毎日は 14 件、同期の直前は 5 件を新しい順に残す', () => {

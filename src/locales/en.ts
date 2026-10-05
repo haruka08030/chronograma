@@ -101,8 +101,7 @@ export default {
     syncingWithLast: 'Syncing to the cloud (last synced {{when}})',
     errorShort: 'Not synced',
     error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
-    errorWithLast:
-      "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
+    errorWithLast: "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
     limit:
       "You've reached the maximum number of items, so new items can't be sent to the cloud. They're still on this device and will be sent once you delete items you no longer need.",
     rejectedShort: '{{count}} not saved',
@@ -821,10 +820,12 @@ export default {
     networkError: 'Could not reach the server. Check your connection and try again.',
     otpWaitSeconds: 'Please wait {{count}} seconds before requesting another link.',
     otpRateLimited: 'Too many sign-in emails were sent. Please wait a while (up to about an hour) and try again.',
-    linkExpired: 'This sign-in link has expired or was already used. Send a new email and open the link in the newest one (each link works once, within an hour).',
+    linkExpired:
+      'This sign-in link has expired or was already used. Send a new email and open the link in the newest one (each link works once, within an hour).',
     linkFailed: "The sign-in link couldn't be opened. Please send a new email.",
     signOut: 'Sign out',
-    signOutUnsynced: 'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
+    signOutUnsynced:
+      'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
     signIn: 'Sign in',
     checking: 'Checking sign-in status…',
     signedIn: 'Signed in',
@@ -842,8 +843,10 @@ export default {
     agreeSuffix: '.',
     delete: 'Delete account',
     deleting: 'Deleting…',
-    deleteHelp: 'Deletes your account and everything stored in the cloud: tasks, records, habits and connections. This cannot be undone. Export from "Data" first if you want a copy.',
-    deleteConfirm: 'This deletes your account and all cloud data, plus the data and automatic backups on this device. It cannot be undone. Continue?',
+    deleteHelp:
+      'Deletes your account and everything stored in the cloud: tasks, records, habits and connections. This cannot be undone. Export from "Data" first if you want a copy.',
+    deleteConfirm:
+      'This deletes your account and all cloud data, plus the data and automatic backups on this device. It cannot be undone. Continue?',
     deleteTypeEmail: 'To confirm, type your email address ({{email}})',
     deleteFailed: 'Could not delete the account. Please try again later.',
     reauthNeeded: 'Confirm it’s you before deleting. We’ll send a code to {{email}}; enter it below.',
@@ -949,8 +952,7 @@ export default {
     recording: 'Recording',
     thisWeek: 'This week',
     googleHeading: 'Google Calendar (optional)',
-    googleBody:
-      'Connect after signing in with Supabase to show external events in the left column. Habits and your tasks work without it.',
+    googleBody: 'Connect after signing in with Supabase to show external events in the left column. Habits and your tasks work without it.',
     googleUnavailableHeading: 'Google Calendar is unavailable',
     googleUnavailableBody:
       'This build has no VITE_GOOGLE_CLIENT_ID. Set it in the hosting environment variables and redeploy (env vars are inlined at build time).',
@@ -961,26 +963,20 @@ export default {
     connect: 'Connect Google Calendar',
     connecting: 'Connecting…',
     connectTimeout: 'Connection timed out. Reload the page and try again.',
-    alreadyLinked:
-      'Google is already linked. Remove app access from your Google account settings, then reconnect.',
+    alreadyLinked: 'Google is already linked. Remove app access from your Google account settings, then reconnect.',
     connectFailed: 'Couldn’t connect to Google Calendar. Try again in a moment.',
     storeTokenFailed: 'Could not save Google credentials. Try reconnecting in a moment.',
     networkError: 'Could not reach the server. Check your connection and try again.',
     supabaseNotConfigured: 'Cloud sync is not set up. Sign in first, then connect.',
     notConnected: 'Google Calendar is not connected. Use the connect button to link again.',
     rateLimited: 'Too many requests to Google Calendar. Wait a moment, then try again.',
-    tokenExpired:
-      'Google Calendar authorization expired. Disconnect and reconnect.',
-    oauthRefreshMissing:
-      'Could not obtain Google refresh token. Revoke app access in your Google account, then reconnect.',
-    scopeNotGranted:
-      'Google Calendar access was not granted. Reconnect and approve calendar permission.',
-    redirectUriMismatch:
-      'Add {{uri}} to Google Cloud Authorized redirect URIs (Credentials → OAuth Web client), then save.',
+    tokenExpired: 'Google Calendar authorization expired. Disconnect and reconnect.',
+    oauthRefreshMissing: 'Could not obtain Google refresh token. Revoke app access in your Google account, then reconnect.',
+    scopeNotGranted: 'Google Calendar access was not granted. Reconnect and approve calendar permission.',
+    redirectUriMismatch: 'Add {{uri}} to Google Cloud Authorized redirect URIs (Credentials → OAuth Web client), then save.',
     redirectUriHint:
       'In Google Cloud Console → Credentials → OAuth Web client for the Client ID below, add {{uri}} to Authorized redirect URIs (not JavaScript origins).',
-    oauthClientHint:
-      'Client ID: {{clientId}} (register the redirect URI on this client)',
+    oauthClientHint: 'Client ID: {{clientId}} (register the redirect URI on this client)',
     invalidClientSecret:
       'Google Client Secret is invalid. Re-check it in Google Cloud Console and update Supabase Edge Function secrets (GOOGLE_CLIENT_SECRET) and the Supabase Auth Google provider to the same value.',
     legendPlan: 'Plan',
@@ -1117,7 +1113,8 @@ export default {
     feedStep2: 'Paste the URL below. It’s read-only: submitting doesn’t complete the task, and completing it here doesn’t update Canvas',
     feedLabel: 'Calendar feed URL',
     feedProblem: {
-      calendarPage: 'This is the Calendar page itself. Click “Calendar Feed” at the bottom right of that page and paste the URL it shows (…/feeds/calendars/….ics)',
+      calendarPage:
+        'This is the Calendar page itself. Click “Calendar Feed” at the bottom right of that page and paste the URL it shows (…/feeds/calendars/….ics)',
       notFeed: 'This isn’t a calendar feed URL. Paste the one ending in …/feeds/calendars/….ics',
     },
     feedHelp: 'Calendar feed (read-only)',
@@ -1140,7 +1137,8 @@ export default {
       generic: 'Couldn’t reach Canvas. Try again in a moment.',
       canvas_unauthorized: 'The token is wrong or has expired. Create a new token in Canvas and paste it.',
       canvas_bad_url: 'Couldn’t read the Canvas URL. Paste the address you see after signing in (e.g. https://xxx.instructure.com).',
-      canvas_feed_invalid: 'Couldn’t read the calendar feed. Paste the “Calendar Feed” URL from Canvas Calendar again (…/feeds/calendars/….ics).',
+      canvas_feed_invalid:
+        'Couldn’t read the calendar feed. Paste the “Calendar Feed” URL from Canvas Calendar again (…/feeds/calendars/….ics).',
       canvas_rate_limited: 'Too many requests to Canvas. Wait a moment, then sync.',
       canvas_too_many: 'You can connect up to 5 schools. Disconnect one you no longer use first.',
       canvas_api: 'Canvas returned an error. Try again in a moment.',

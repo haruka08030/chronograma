@@ -221,12 +221,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         >
           {label}
         </span>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          disabled={pending}
-          className={buttonClass({ variant: 'secondary', size: 'sm' })}
-        >
+        <button type="button" onClick={handleSignOut} disabled={pending} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           {t('account.signOut')}
         </button>
         {isSettings && (
@@ -266,14 +261,13 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                     disabled={pending}
                     className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
                   >
-                    {pending && reauth === 'needed' ? t('account.sending') : reauth === 'codeSent' ? t('account.reauthResend') : t('account.reauthSend')}
+                    {pending && reauth === 'needed'
+                      ? t('account.sending')
+                      : reauth === 'codeSent'
+                        ? t('account.reauthResend')
+                        : t('account.reauthSend')}
                   </button>
-                  <button
-                    type="button"
-                    onClick={cancelReauth}
-                    disabled={pending}
-                    className={buttonClass({ variant: 'ghost', size: 'sm' })}
-                  >
+                  <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                     {t('common.cancel')}
                   </button>
                 </div>
@@ -313,14 +307,16 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className={`mb-2 ${HINT_TEXT}`}>
-              {t('account.intro')}
-            </p>
+            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.intro')}</p>
             <p className={`mb-2 ${META_TEXT}`}>
               {t('account.agreePrefix')}
-              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.terms')}</a>
+              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.terms')}
+              </a>
               {t('account.agreeAnd')}
-              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">{t('settings.privacyPolicy')}</a>
+              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.privacyPolicy')}
+              </a>
               {t('account.agreeSuffix')}
             </p>
             {!codeSentTo && isGoogleAvailable() && (
@@ -357,18 +353,10 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                 />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <button
-                  type="submit"
-                  disabled={pending || !code.trim()}
-                  className={buttonClass({ variant: 'primary', size: 'md' })}
-                >
+                <button type="submit" disabled={pending || !code.trim()} className={buttonClass({ variant: 'primary', size: 'md' })}>
                   {pending ? t('account.verifying') : t('account.verifyCode')}
                 </button>
-                <button
-                  type="button"
-                  onClick={resetToEmail}
-                  className={buttonClass({ variant: 'ghost', size: 'sm' })}
-                >
+                <button type="button" onClick={resetToEmail} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                   {t('account.changeEmail')}
                 </button>
               </form>
@@ -384,11 +372,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                 />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className={buttonClass({ variant: 'primary', size: 'md' })}
-                >
+                <button type="submit" disabled={pending} className={buttonClass({ variant: 'primary', size: 'md' })}>
                   {pending ? t('account.sending') : t('account.sendLink')}
                 </button>
               </form>

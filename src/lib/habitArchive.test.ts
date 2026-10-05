@@ -25,8 +25,17 @@ const DAY = '2026-10-01'
 
 function habit(id: string, patch: Partial<Habit> = {}): Habit {
   return {
-    id, title: id, color: '#33B679', timeMode: 'range', startTime: '07:00', endTime: '08:00',
-    frequency: { type: 'daily' }, createdAt: OLD, updatedAt: OLD, completedDates: [DAY], archivedAt: null,
+    id,
+    title: id,
+    color: '#33B679',
+    timeMode: 'range',
+    startTime: '07:00',
+    endTime: '08:00',
+    frequency: { type: 'daily' },
+    createdAt: OLD,
+    updatedAt: OLD,
+    completedDates: [DAY],
+    archivedAt: null,
     ...patch,
   }
 }
@@ -75,7 +84,9 @@ describe('archiveHabit / restoreHabit', () => {
 
   it('新しく作った習慣は使用中', () => {
     useTaskStore.setState({ habits: [] })
-    useTaskStore.getState().addHabit({ title: 'n', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' } })
+    useTaskStore
+      .getState()
+      .addHabit({ title: 'n', color: '#33B679', timeMode: 'none', startTime: null, endTime: null, frequency: { type: 'daily' } })
     expect(useTaskStore.getState().habits[0].archivedAt).toBeNull()
   })
 })

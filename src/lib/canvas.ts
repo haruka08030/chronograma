@@ -111,8 +111,7 @@ const invokeConnections = <T extends { connections: unknown[] }>(body: Record<st
 
 export const fetchCanvasStatus = () => invokeConnections<CanvasStatus>({ action: 'status' })
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
-export const connectCanvas = (token: string, baseUrl: string) =>
-  invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
+export const connectCanvas = (token: string, baseUrl: string) => invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
 /**
  * 貼られた URL がカレンダーフィード（`https://<学校>/feeds/calendars/….ics`）か。違えば理由を返す。
  * カレンダー画面そのもの（`/calendar#view_name=…`）を貼る間違いが多いので、それは分けて案内する
@@ -135,8 +134,7 @@ export const connectCanvasFeed = (feedUrl: string) => invokeConnections<CanvasSt
 /** つないであった学校のトークンだけ貼り直す */
 export const renewCanvasToken = (connectionId: string, token: string) =>
   invokeConnections<CanvasStatus>({ action: 'connect', token, connectionId })
-export const disconnectCanvas = (connectionId: string) =>
-  invokeConnections<CanvasStatus>({ action: 'disconnect', connectionId })
+export const disconnectCanvas = (connectionId: string) => invokeConnections<CanvasStatus>({ action: 'disconnect', connectionId })
 export const fetchCanvasItems = () => invokeConnections<CanvasItemsPayload>({ action: 'items' })
 export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
   invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })

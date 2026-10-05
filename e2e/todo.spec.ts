@@ -11,7 +11,10 @@ async function savedTasks(page: Page) {
 
 test('To-Do でタスクを足して完了にし、読み込み直しても残っている', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('navigation').getByRole('button', { name: /^To.Do$/ }).click()
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^To.Do$/ })
+    .click()
 
   const input = page.getByPlaceholder('Add a to-do')
   await input.fill('Buy milk')

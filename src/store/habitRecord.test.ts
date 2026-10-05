@@ -14,8 +14,17 @@ const colors = assignColorsInOrder(presets)
 
 function habit(fields: Partial<Habit> = {}): Habit {
   return {
-    id: 'h1', title: '朝ラン', color: '#123456', timeMode: 'range', startTime: '06:00', endTime: '06:30',
-    frequency: { type: 'daily' }, createdAt: NOW, updatedAt: NOW, completedDates: [], archivedAt: null,
+    id: 'h1',
+    title: '朝ラン',
+    color: '#123456',
+    timeMode: 'range',
+    startTime: '06:00',
+    endTime: '06:30',
+    frequency: { type: 'daily' },
+    createdAt: NOW,
+    updatedAt: NOW,
+    completedDates: [],
+    archivedAt: null,
     ...fields,
   }
 }
@@ -23,15 +32,34 @@ function habit(fields: Partial<Habit> = {}): Habit {
 function record(fields: Partial<Task> = {}): Task {
   return {
     ...TASK_DEFAULTS,
-    id: 'r1', title: '朝ラン', description: '', completed: true, completedAt: NOW, createdAt: NOW, updatedAt: NOW,
-    order: 5, listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
-    priority: 'none', tags: [], recurrence: null, kind: 'log',
+    id: 'r1',
+    title: '朝ラン',
+    description: '',
+    completed: true,
+    completedAt: NOW,
+    createdAt: NOW,
+    updatedAt: NOW,
+    order: 5,
+    listId: '__inbox__',
+    sectionId: null,
+    parentId: null,
+    dueDate: '2026-10-02',
+    startTime: '06:00',
+    endTime: '06:30',
+    priority: 'none',
+    tags: [],
+    recurrence: null,
+    kind: 'log',
     ...fields,
   }
 }
 
 const state = (h: Habit, tasks: Task[] = []) => ({
-  habits: [h], tasks, recentDeletes: [], timeLogTagPresets: presets, logCategoryColors: colors,
+  habits: [h],
+  tasks,
+  recentDeletes: [],
+  timeLogTagPresets: presets,
+  logCategoryColors: colors,
 })
 
 describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
@@ -42,15 +70,30 @@ describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
     const tasks = 'tasks' in patch ? patch.tasks : []
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toMatchObject({
-      title: '朝ラン', listId: '__inbox__', dueDate: '2026-10-02', startTime: '06:00', endTime: '06:30',
-      kind: 'log', completed: true, completedAt: NOW, createdAt: NOW, habitId: 'h1', order: 1,
+      title: '朝ラン',
+      listId: '__inbox__',
+      dueDate: '2026-10-02',
+      startTime: '06:00',
+      endTime: '06:30',
+      kind: 'log',
+      completed: true,
+      completedAt: NOW,
+      createdAt: NOW,
+      habitId: 'h1',
+      order: 1,
       // ラベルの色でなければ、習慣の色を名前の無い色として残す
-      tags: [], color: '#123456',
+      tags: [],
+      color: '#123456',
     })
   })
 
   it('時刻ひとつの習慣は 15 分の記録にする', () => {
-    const patch = completeHabitAsPlannedPatch(state(habit({ timeMode: 'fixed', endTime: null, startTime: '21:50' })), 'h1', '2026-10-02', env)!
+    const patch = completeHabitAsPlannedPatch(
+      state(habit({ timeMode: 'fixed', endTime: null, startTime: '21:50' })),
+      'h1',
+      '2026-10-02',
+      env,
+    )!
     const tasks = 'tasks' in patch ? patch.tasks : []
     expect(tasks[0]).toMatchObject({ startTime: '21:50', endTime: '22:05' })
   })

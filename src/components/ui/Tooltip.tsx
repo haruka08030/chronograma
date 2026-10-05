@@ -46,7 +46,11 @@ export function TooltipHost() {
       current = el
       timer = window.setTimeout(() => {
         if (current !== el || !el.isConnected) return
-        setShown({ label: el.dataset.tip ?? el.getAttribute('aria-label') ?? '', key: el.dataset.tipKey ?? null, rect: el.getBoundingClientRect() })
+        setShown({
+          label: el.dataset.tip ?? el.getAttribute('aria-label') ?? '',
+          key: el.dataset.tipKey ?? null,
+          rect: el.getBoundingClientRect(),
+        })
       }, SHOW_DELAY_MS)
     }
     // 押した・打った・スクロールしたら消す（押したあとも出続けると操作の邪魔になる）
@@ -90,9 +94,7 @@ export function TooltipHost() {
     >
       {shown.label}
       {shown.key && (
-        <kbd className="rounded border border-white/25 px-1 font-mono text-[10px] leading-4 dark:border-zinc-900/25">
-          {shown.key}
-        </kbd>
+        <kbd className="rounded border border-white/25 px-1 font-mono text-[10px] leading-4 dark:border-zinc-900/25">{shown.key}</kbd>
       )}
     </div>,
     document.body,

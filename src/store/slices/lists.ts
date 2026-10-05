@@ -7,13 +7,7 @@ import type { SliceContext } from './sliceTypes'
 
 type ListsActions = Pick<
   TaskState,
-  | 'setListKind'
-  | 'addList'
-  | 'renameList'
-  | 'updateListColor'
-  | 'deleteList'
-  | 'reorderList'
-  | 'reorderLists'
+  'setListKind' | 'addList' | 'renameList' | 'updateListColor' | 'deleteList' | 'reorderList' | 'reorderLists'
 >
 
 export function createListsSlice({ set, get, undo }: SliceContext): ListsActions {
@@ -29,7 +23,10 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
       const cols = paletteColors(get().listColorPaletteId)
       const colorIdx = get().lists.length % cols.length
       set((s) => ({
-        lists: [...s.lists, { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks', updatedAt: new Date().toISOString() }],
+        lists: [
+          ...s.lists,
+          { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks', updatedAt: new Date().toISOString() },
+        ],
       }))
     },
     renameList: (id, name) => {
@@ -52,19 +49,14 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
       set((s) => ({
         lists: s.lists.filter((l) => l.id !== id),
         sections: s.sections.filter((sec) => sec.listId !== id),
-        tasks: s.tasks.map((t) =>
-          t.listId === id ? { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now } : t,
-        ),
-        selectedListId:
-          s.selectedListId === id ? INBOX_ID : s.selectedListId,
+        tasks: s.tasks.map((t) => (t.listId === id ? { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now } : t)),
+        selectedListId: s.selectedListId === id ? INBOX_ID : s.selectedListId,
       }))
     },
     reorderList: (id, newOrder) => {
       pushUndo()
       return set((s) => ({
-        lists: s.lists.map((l) =>
-          l.id === id ? { ...l, order: newOrder, updatedAt: new Date().toISOString() } : l,
-        ),
+        lists: s.lists.map((l) => (l.id === id ? { ...l, order: newOrder, updatedAt: new Date().toISOString() } : l)),
       }))
     },
     reorderLists: (orderedIds) => {

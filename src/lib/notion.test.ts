@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
-import {
-  NOTION_LIST_ID,
-  notionTaskId,
-  parseNotionTaskId,
-  reconcileNotionPages,
-  splitNotionDate,
-  type NotionPage,
-} from './notion'
+import { NOTION_LIST_ID, notionTaskId, parseNotionTaskId, reconcileNotionPages, splitNotionDate, type NotionPage } from './notion'
 
 const NOW = '2026-09-30T00:00:00.000Z'
 const PAGE_A = '0123456789abcdef0123456789abcdef'
@@ -90,7 +83,11 @@ describe('reconcileNotionPages', () => {
     const first = reconcileOnce([page(PAGE_A, 'ES を出す', { date: '2026-10-03' })])
     const renamed = reconcileNotionPages(
       first,
-      { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す', { title: 'A株式会社', date: '2026-10-05T10:00:00.000+09:00' })] },
+      {
+        databaseTitle: '就活',
+        datesEnabled: true,
+        pages: [page(PAGE_A, 'ES を出す', { title: 'A株式会社', date: '2026-10-05T10:00:00.000+09:00' })],
+      },
       opts,
     )
     expect(renamed.tasks[0]).toMatchObject({ title: 'A株式会社：ES を出す', dueDate: '2026-10-05', dueTime: '10:00' })

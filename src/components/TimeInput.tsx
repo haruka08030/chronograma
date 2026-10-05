@@ -186,10 +186,7 @@ export function TimeInput({
       e.preventDefault()
       const normalizedDraft = normalizeTime(draft)
       const highlightedOption = options[highlightIndex]
-      const shouldPreferTypedValue =
-        normalizedDraft !== null &&
-        normalizedDraft !== '' &&
-        normalizedDraft !== highlightedOption
+      const shouldPreferTypedValue = normalizedDraft !== null && normalizedDraft !== '' && normalizedDraft !== highlightedOption
 
       if (shouldPreferTypedValue) {
         commitDraft()
@@ -269,7 +266,9 @@ export function TimeInput({
             return (
               <button
                 key={option}
-                ref={(node) => { optionRefs.current[idx] = node }}
+                ref={(node) => {
+                  optionRefs.current[idx] = node
+                }}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(option)}

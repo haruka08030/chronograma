@@ -19,9 +19,25 @@ const OLD = '2026-01-01T00:00:00.000Z'
 
 const log = (id: string, patch: Record<string, unknown> = {}) => ({
   ...TASK_DEFAULTS,
-  id, title: id, description: '', completed: true, completedAt: OLD, createdAt: OLD, updatedAt: OLD, order: 0,
-  listId: '__inbox__', sectionId: null, parentId: null, dueDate: '2026-10-01', startTime: '10:00', endTime: '11:00',
-  priority: 'none' as const, tags: [] as string[], recurrence: null, kind: 'log' as const, ...patch,
+  id,
+  title: id,
+  description: '',
+  completed: true,
+  completedAt: OLD,
+  createdAt: OLD,
+  updatedAt: OLD,
+  order: 0,
+  listId: '__inbox__',
+  sectionId: null,
+  parentId: null,
+  dueDate: '2026-10-01',
+  startTime: '10:00',
+  endTime: '11:00',
+  priority: 'none' as const,
+  tags: [] as string[],
+  recurrence: null,
+  kind: 'log' as const,
+  ...patch,
 })
 
 describe('記録の分類（category）', () => {

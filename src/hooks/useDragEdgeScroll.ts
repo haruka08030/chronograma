@@ -27,9 +27,11 @@ export function useDragEdgeScroll(ref: RefObject<HTMLElement | null>, active: bo
         const r = el.getBoundingClientRect()
         if (x >= r.left && x <= r.right) {
           const delta =
-            y < r.top + EDGE_PX ? -Math.min(1, (r.top + EDGE_PX - y) / EDGE_PX) * MAX_STEP_PX
-            : y > r.bottom - EDGE_PX ? Math.min(1, (y - (r.bottom - EDGE_PX)) / EDGE_PX) * MAX_STEP_PX
-            : 0
+            y < r.top + EDGE_PX
+              ? -Math.min(1, (r.top + EDGE_PX - y) / EDGE_PX) * MAX_STEP_PX
+              : y > r.bottom - EDGE_PX
+                ? Math.min(1, (y - (r.bottom - EDGE_PX)) / EDGE_PX) * MAX_STEP_PX
+                : 0
           if (delta !== 0) {
             const before = el.scrollTop
             el.scrollTop = before + delta

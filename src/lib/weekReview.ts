@@ -92,8 +92,7 @@ export function getWeekReview(
       if (p) planned.push(p)
     }
     const logs = tasks.filter(
-      (t) =>
-        isLogTask(t) && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepTask(t) && logOverlapsDateKey(t, key),
+      (t) => isLogTask(t) && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepTask(t) && logOverlapsDateKey(t, key),
     )
     const dayTagMinutes = new Map<string, number>()
     for (const log of logs) {

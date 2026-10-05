@@ -22,9 +22,7 @@ export interface TaskStats {
 export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskList[], todayKey: string): TaskStats {
   // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
   const excluded = unplannedListIds(lists)
-  const countedTasks = tasks.filter(
-    (t) => t.parentId === null && !isLogTask(t) && isActiveTask(t) && !excluded.has(t.listId),
-  )
+  const countedTasks = tasks.filter((t) => t.parentId === null && !isLogTask(t) && isActiveTask(t) && !excluded.has(t.listId))
   const completed = countedTasks.filter((t) => t.completed)
   const active = countedTasks.filter((t) => !t.completed)
   const completedDays = new Set(completed.map(completionDayKey))
@@ -59,4 +57,3 @@ export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskLis
 
   return { totalActive: active.length, completedThisMonth, overdue, streak, byTag }
 }
-

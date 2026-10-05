@@ -29,7 +29,6 @@ import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
 export const OPEN_TIMER_ACTION = 'open-timer'
 
-
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
   const d = zonedNow()
@@ -43,13 +42,7 @@ function nowRounded(): string {
  * 2. タイマー開始（最近の記録はワンタップで再開）と「後から記録」
  * 入力欄は押したときだけ開く。記録中は FloatingTimer に任せ、開始ボタンは隠す。
  */
-export function RecordPanel({
-  dateKey,
-  viewingToday,
-}: {
-  dateKey: string
-  viewingToday: boolean
-}) {
+export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewingToday: boolean }) {
   const { t } = useTranslation()
   const coarse = useIsCoarsePointer()
   const tasks = useTaskStore((s) => s.tasks)
@@ -164,21 +157,27 @@ export function RecordPanel({
         onClick={() => setShowBreakdown((v) => !v)}
         className="-my-2 block w-full py-2 md:pointer-events-none"
       >
-      <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
-        {byCategory.map(([cat, min]) => (
-          <span
-            key={cat}
-            className="gc-dot h-full"
-            title={`${labelOf(cat)} ${formatDuration(min)}`}
-            style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
-          />
-        ))}
-      </div>
+        <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
+          {byCategory.map(([cat, min]) => (
+            <span
+              key={cat}
+              className="gc-dot h-full"
+              title={`${labelOf(cat)} ${formatDuration(min)}`}
+              style={{ ...colorVars(recordLabelKeyHex(cat, logCategoryColors)), width: `${(min / totalMinutes) * 100}%` }}
+            />
+          ))}
+        </div>
       </button>
-      <ul className={`mt-2 flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 ${showBreakdown ? 'flex' : 'hidden md:flex'}`}>
+      <ul
+        className={`mt-2 flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 ${showBreakdown ? 'flex' : 'hidden md:flex'}`}
+      >
         {byCategory.map(([cat, min]) => (
           <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(cat, logCategoryColors))} aria-hidden />
+            <span
+              className="gc-dot h-2 w-2 shrink-0 rounded-full"
+              style={colorVars(recordLabelKeyHex(cat, logCategoryColors))}
+              aria-hidden
+            />
             <span className="max-w-[8rem] truncate">{labelOf(cat)}</span>
             <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
           </li>
@@ -203,11 +202,7 @@ export function RecordPanel({
           />
           {mode === 'manual' && (
             <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <TimeInput
-                value={start}
-                onChange={setStart}
-                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
-              />
+              <TimeInput value={start} onChange={setStart} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
               <span aria-hidden>–</span>
               <TimeInput
                 value={end}
@@ -224,11 +219,7 @@ export function RecordPanel({
           )}
           <TimeLogTagField value={category} onChange={setCategory} compact />
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={close}
-              className={buttonClass({ variant: 'ghost', size: 'sm' })}
-            >
+            <button type="button" onClick={close} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
               {t('common.cancel')}
             </button>
             <button
@@ -293,7 +284,10 @@ export function RecordPanel({
                 {...tip(running ? t('activityLog.timerRunning') : t('quickLog.resume', { title: r.title }))}
                 aria-label={running ? `${r.title}（${t('activityLog.timerRunning')}）` : t('quickLog.resume', { title: r.title })}
                 style={running ? hexVars : undefined}
-                className={chipClass({ variant: 'outline', size: 'md', selected: running }, `min-h-9 max-w-[10rem] gap-1.5 md:min-h-7 ${running ? 'cursor-default' : ''}`)}
+                className={chipClass(
+                  { variant: 'outline', size: 'md', selected: running },
+                  `min-h-9 max-w-[10rem] gap-1.5 md:min-h-7 ${running ? 'cursor-default' : ''}`,
+                )}
               >
                 {running ? (
                   <span aria-hidden className="h-1.5 w-1.5 shrink-0 animate-breathe rounded-full bg-current" />

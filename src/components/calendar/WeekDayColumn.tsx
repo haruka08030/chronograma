@@ -20,7 +20,6 @@ import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 
-
 /** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
 export function WeekDayColumn({
   day,
@@ -96,9 +95,7 @@ export function WeekDayColumn({
   const key = toDateKey(day)
   const dayTimed = timedByDate.get(key) ?? []
   const dayLogs = timeLogsByDate.get(key) ?? []
-  const dayTimedEvents = (eventsByDate.get(key) ?? []).filter(
-    (e) => !e.isAllDay && e.startTime && e.endTime,
-  )
+  const dayTimedEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay && e.startTime && e.endTime)
   const today = isAppToday(day)
   /** 前の日の 24 時の下に続けて出している夜中（この列を押しても見ている日は変えない） */
   const isNight = hourCount < 24
@@ -117,7 +114,11 @@ export function WeekDayColumn({
       ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
       ...dayHabitSlots.map(({ slot }) => ({
         id: slot.id,
-        ...blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false),
+        ...blockGeometry(
+          { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
+          key,
+          false,
+        ),
       })),
       ...dayTimedEvents.map((e) => ({
         id: `event-${e.id}`,
@@ -222,12 +223,12 @@ export function WeekDayColumn({
             colorHex={recordHex(t, logCategoryColors)}
             onPointerDown={(e) =>
               timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
-                  startTime: t.startTime!,
-                  endTime: t.endTime!,
-                  kind: 'log',
-                  dueDate: t.dueDate,
-                  endDate: t.endDate,
-                })
+                startTime: t.startTime!,
+                endTime: t.endTime!,
+                kind: 'log',
+                dueDate: t.dueDate,
+                endDate: t.endDate,
+              })
             }
             onOpenDetail={() => openCard(t.id)}
           />
@@ -250,7 +251,11 @@ export function WeekDayColumn({
           {(done || hasStarted(slot.startTime)) && (
             // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
             <SlotCheck
-              {...blockGeometry({ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false }, key, false)}
+              {...blockGeometry(
+                { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
+                key,
+                false,
+              )}
               hStyle={planStyle(slot.id)}
               done={done}
               label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
@@ -264,47 +269,49 @@ export function WeekDayColumn({
         const recorded = dayLogs.some((l) => l.title === e.summary)
         const editable = canEditGoogleEvent(e, googleCanWrite)
         return (
-        <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
-        <TimeBlock
-          task={{
-            id: `event-${e.id}`,
-            title: e.summary,
-            startTime: e.startTime!,
-            endTime: e.endTime!,
-            completed: recorded,
-          }}
-          dayKey={key}
-          hStyle={planStyle(`event-${e.id}`)}
-          colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
-          onPointerDown={(evt) => {
-            if (!editable) {
-              evt.preventDefault()
-              evt.stopPropagation()
-              return
-            }
-            // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
-            googleDragRef.current = e
-            timelineDrag.handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
-          }}
-          onTap={editable ? undefined : () => openGoogleCard(e.id)}
-          onOpenDetail={() => openGoogleCard(e.id)}
-          withCheck={hasStarted(e.startTime!) && !recorded}
-        />
-        {hasStarted(e.startTime!) && !recorded && (
-          <SlotCheck
-            {...blockGeometry({ id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false }, key, false)}
-            hStyle={planStyle(`event-${e.id}`)}
-            label={t('weekCalendar.eventToRecord')}
-            onCheck={() => {
-              // 今より先までの予定は、今までの分だけ記録にする
-              const end = limitMin !== null && timeToMinutes(e.endTime!) > limitMin
-                ? minutesToTime(limitMin)
-                : e.endTime!
-              addCompletedTaskWithTime(e.summary, key, e.startTime!, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
-            }}
-          />
-        )}
-        </div>
+          <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
+            <TimeBlock
+              task={{
+                id: `event-${e.id}`,
+                title: e.summary,
+                startTime: e.startTime!,
+                endTime: e.endTime!,
+                completed: recorded,
+              }}
+              dayKey={key}
+              hStyle={planStyle(`event-${e.id}`)}
+              colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
+              onPointerDown={(evt) => {
+                if (!editable) {
+                  evt.preventDefault()
+                  evt.stopPropagation()
+                  return
+                }
+                // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
+                googleDragRef.current = e
+                timelineDrag.handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
+              }}
+              onTap={editable ? undefined : () => openGoogleCard(e.id)}
+              onOpenDetail={() => openGoogleCard(e.id)}
+              withCheck={hasStarted(e.startTime!) && !recorded}
+            />
+            {hasStarted(e.startTime!) && !recorded && (
+              <SlotCheck
+                {...blockGeometry(
+                  { id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false },
+                  key,
+                  false,
+                )}
+                hStyle={planStyle(`event-${e.id}`)}
+                label={t('weekCalendar.eventToRecord')}
+                onCheck={() => {
+                  // 今より先までの予定は、今までの分だけ記録にする
+                  const end = limitMin !== null && timeToMinutes(e.endTime!) > limitMin ? minutesToTime(limitMin) : e.endTime!
+                  addCompletedTaskWithTime(e.summary, key, e.startTime!, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
+                }}
+              />
+            )}
+          </div>
         )
       })}
 
@@ -313,16 +320,18 @@ export function WeekDayColumn({
           className={`absolute ${laneClass(
             timelineDrag.dragPreview.kind === 'create'
               ? timelineDrag.activeCreateIntent
-              : dayLogs.some((x) => x.id === timelineDrag.dragPreview!.taskId) ? 'log' : 'schedule',
+              : dayLogs.some((x) => x.id === timelineDrag.dragPreview!.taskId)
+                ? 'log'
+                : 'schedule',
           )} rounded-md pointer-events-none z-20
-            ${timelineDrag.dragPreview.kind === 'create'
-              ? 'bg-accent-500/20 border-2 border-accent-500/60'
-              : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'}`}
+            ${
+              timelineDrag.dragPreview.kind === 'create'
+                ? 'bg-accent-500/20 border-2 border-accent-500/60'
+                : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'
+            }`}
           style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
         >
-          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-            {timelineDrag.dragPreview.label}
-          </span>
+          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{timelineDrag.dragPreview.label}</span>
         </div>
       )}
 
@@ -332,9 +341,7 @@ export function WeekDayColumn({
                      bg-accent-500/20 border-2 border-accent-500/60 border-dashed`}
           style={{ top: timelineDrop.dropPreview.top, height: timelineDrop.dropPreview.height }}
         >
-          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">
-            {timelineDrop.dropPreview.label}
-          </span>
+          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{timelineDrop.dropPreview.label}</span>
         </div>
       )}
 

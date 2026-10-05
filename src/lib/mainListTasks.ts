@@ -35,9 +35,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   if (selectedView === 'today') {
     // 期限が今日、または「今日やる」と予定日を置いたもの
     result = result.filter(
-      (t) =>
-        (t.dueDate && isAppToday(parseISO(t.dueDate))) ||
-        (t.scheduledDate && isAppToday(parseISO(t.scheduledDate))),
+      (t) => (t.dueDate && isAppToday(parseISO(t.dueDate))) || (t.scheduledDate && isAppToday(parseISO(t.scheduledDate))),
     )
   } else if (selectedView === 'upcoming') {
     const today = appToday()
@@ -75,11 +73,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
         if (!a.dueDate) return 1
         if (!b.dueDate) return -1
         // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
-        return (
-          a.dueDate.localeCompare(b.dueDate) ||
-          (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') ||
-          a.order - b.order
-        )
+        return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
       })
     case 'priority':
       return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3))
@@ -343,20 +337,14 @@ export function buildReorderedActiveRootIdsForGroup(
   const orderedGroup = rootIdsOrdered.filter((id) => sel.has(id))
   if (orderedGroup.length === 0 || !orderedGroup.includes(activeRootId)) return null
 
-  const sectionsForList = (listId: string) =>
-    sections.filter((s) => s.listId === listId).sort((a, b) => a.order - b.order)
+  const sectionsForList = (listId: string) => sections.filter((s) => s.listId === listId).sort((a, b) => a.order - b.order)
 
   const headerDrop = parseSectionReorderId(overId, DROPSEC_PREFIX)
   if (headerDrop?.sectionId) {
     if (selectedListId && headerDrop.listId !== selectedListId) return null
     const listSections = sectionsForList(headerDrop.listId)
     if (listSections.length === 0 && selectedListId) return null
-    const orderedIds = insertActiveRootIdsAtSectionHead(
-      currentOrdered,
-      orderedGroup,
-      headerDrop.sectionId,
-      listSections,
-    )
+    const orderedIds = insertActiveRootIdsAtSectionHead(currentOrdered, orderedGroup, headerDrop.sectionId, listSections)
     return {
       orderedIds,
       sectionUpdate: {
@@ -371,12 +359,7 @@ export function buildReorderedActiveRootIdsForGroup(
   if (dropParsed) {
     if (selectedListId && dropParsed.listId !== selectedListId) return null
     const listSections = sectionsForList(dropParsed.listId)
-    const orderedIds = insertActiveRootIdsForSectionDrop(
-      currentOrdered,
-      orderedGroup,
-      dropParsed.sectionId,
-      listSections,
-    )
+    const orderedIds = insertActiveRootIdsForSectionDrop(currentOrdered, orderedGroup, dropParsed.sectionId, listSections)
     return {
       orderedIds,
       sectionUpdate: {
@@ -396,10 +379,7 @@ export function buildReorderedActiveRootIdsForGroup(
   if (!overTask) return { orderedIds }
 
   const overListSections = sectionsForList(overTask.listId)
-  const useSectionPatch = Boolean(
-    (selectedListId && overListSections.length > 0) ||
-      (!selectedListId && overListSections.length > 0),
-  )
+  const useSectionPatch = Boolean((selectedListId && overListSections.length > 0) || (!selectedListId && overListSections.length > 0))
   if (!useSectionPatch) {
     // スマートビューでセクション無しリストへ寄せるときも listId を揃える
     if (!selectedListId) {
@@ -434,12 +414,5 @@ export function buildReorderedActiveRootIds(
 ): { orderedIds: string[]; sectionUpdate?: ManualRootReorderSectionUpdate } | null {
   if (!activeId.startsWith(TASK_PREFIX)) return null
   const movedId = activeId.slice(TASK_PREFIX.length)
-  return buildReorderedActiveRootIdsForGroup(
-    currentOrdered,
-    movedId,
-    overId,
-    [movedId],
-    sections,
-    selectedListId,
-  )
+  return buildReorderedActiveRootIdsForGroup(currentOrdered, movedId, overId, [movedId], sections, selectedListId)
 }

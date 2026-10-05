@@ -17,7 +17,12 @@ export function SectionDropZone({ listId, sectionId, empty = false }: { listId: 
 }
 
 /** セクション名の入力（新規・名前変更で共通）。Enter・フォーカス外しで確定、Esc で取り消し */
-export function SectionNameInput({ value, onChange, onCommit, onCancel }: {
+export function SectionNameInput({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
   value: string
   onChange: (value: string) => void
   onCommit: () => void

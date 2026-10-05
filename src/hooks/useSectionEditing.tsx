@@ -26,7 +26,13 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
   const [draftSectionListId, setDraftSectionListId] = useState<string | null>(null)
   const [draftSectionName, setDraftSectionName] = useState('')
   /** セクションの見出しの右クリックメニュー */
-  const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number; sectionId: string; title: string; canQuickTarget: boolean } | null>(null)
+  const [sectionMenu, setSectionMenu] = useState<{
+    x: number
+    y: number
+    sectionId: string
+    title: string
+    canQuickTarget: boolean
+  } | null>(null)
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -42,19 +48,25 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
     setEditingSectionName(currentName)
   }, [])
 
-  const finishSectionRename = useCallback((sectionId: string, currentName: string) => {
-    if (editingSectionId !== sectionId) return
-    const name = editingSectionName.trim()
-    if (name && name !== currentName) renameSectionStore(sectionId, name)
-    setEditingSectionId(null)
-    setEditingSectionName('')
-  }, [editingSectionId, editingSectionName, renameSectionStore])
+  const finishSectionRename = useCallback(
+    (sectionId: string, currentName: string) => {
+      if (editingSectionId !== sectionId) return
+      const name = editingSectionName.trim()
+      if (name && name !== currentName) renameSectionStore(sectionId, name)
+      setEditingSectionId(null)
+      setEditingSectionName('')
+    },
+    [editingSectionId, editingSectionName, renameSectionStore],
+  )
 
-  const cancelSectionRename = useCallback((sectionId: string) => {
-    if (editingSectionId !== sectionId) return
-    setEditingSectionId(null)
-    setEditingSectionName('')
-  }, [editingSectionId])
+  const cancelSectionRename = useCallback(
+    (sectionId: string) => {
+      if (editingSectionId !== sectionId) return
+      setEditingSectionId(null)
+      setEditingSectionName('')
+    },
+    [editingSectionId],
+  )
 
   const finishDraftSection = useCallback(() => {
     const name = draftSectionName.trim()
@@ -103,10 +115,7 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
 
   /** セクションの鉛筆（名前の変更）と × （削除）。PC はホバーで出す。指で押す画面では押せる範囲を広げる */
   const sectionActions = (sectionId: string, title: string) => (
-    <span
-      className={`flex items-center gap-0.5 shrink-0 ${REVEAL_ON_HOVER}`}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <span className={`flex items-center gap-0.5 shrink-0 ${REVEAL_ON_HOVER}`} onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         className={iconButtonClass('p-1! pointer-coarse:p-2!')}
@@ -155,13 +164,15 @@ export function useSectionEditing(selectedListId: string | null, selectedView: S
           run: () => beginSectionRename(sectionMenu.sectionId, sectionMenu.title),
         },
         ...(sectionMenu.canQuickTarget
-          ? [{
-              kind: 'leaf' as const,
-              id: 'add',
-              label: t('sections.addHere'),
-              icon: <PlusIcon className="h-4 w-4" />,
-              run: () => setQuickAddSectionId(sectionMenu.sectionId),
-            }]
+          ? [
+              {
+                kind: 'leaf' as const,
+                id: 'add',
+                label: t('sections.addHere'),
+                icon: <PlusIcon className="h-4 w-4" />,
+                run: () => setQuickAddSectionId(sectionMenu.sectionId),
+              },
+            ]
           : []),
         {
           kind: 'leaf',

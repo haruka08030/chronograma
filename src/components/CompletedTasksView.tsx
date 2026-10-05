@@ -101,10 +101,10 @@ export function CompletedTasksView() {
     key === todayKey
       ? t('common.today')
       : key === yesterdayKey
-      ? t('completedView.yesterday')
-      : key.slice(0, 4) === todayKey.slice(0, 4)
-      ? df.monthDayWeekday(key)
-      : df.shortDateWeekdayYear(key)
+        ? t('completedView.yesterday')
+        : key.slice(0, 4) === todayKey.slice(0, 4)
+          ? df.monthDayWeekday(key)
+          : df.shortDateWeekdayYear(key)
 
   const listLabel = (task: Task) => {
     const list = listById.get(task.listId)

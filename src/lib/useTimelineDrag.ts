@@ -73,7 +73,6 @@ export interface DragPreview {
   label: string
 }
 
-
 /**
  * ドラッグ作成の範囲（分）。Google カレンダーと同じく、押した 15 分枠の頭から始め、
  * 指している 15 分枠の終わりまでを覆う（四捨五入だと押した位置より下から始まってしまう）
@@ -112,7 +111,16 @@ interface UseTimelineDragOptions {
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
-  const { getRelativeY, getDateKeyFromX, onMoveDone, onResizeDone, defaultCreateIntent = 'schedule', onBlockTap, clickCreateMinutes, onBlockLongPress } = options
+  const {
+    getRelativeY,
+    getDateKeyFromX,
+    onMoveDone,
+    onResizeDone,
+    defaultCreateIntent = 'schedule',
+    onBlockTap,
+    clickCreateMinutes,
+    onBlockLongPress,
+  } = options
   const [drag, setDrag] = useState<DragState | null>(null)
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
@@ -144,163 +152,174 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     setTouchLifted(false)
   }, [])
 
-  const handleCreatePointerDown = useCallback((e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number) => {
-    if (popup) return
-    if (maxY !== undefined && getRelativeY(e.clientY, dateKey) >= maxY) return
-    // タッチでは capture を遅らせず、十分なドラッグ幅が出るまで作成扱いにしない（スクロール優先）
-    const coarse = isCoarsePointer()
-    if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
-    const y = getRelativeY(e.clientY, dateKey)
-    didMoveRef.current = false
-    beyondTapSlopRef.current = false
-    pointerStartRef.current = { x: e.clientX, y: e.clientY }
-    setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
-    if (coarse) {
-      // タッチの長押し: 押した 15 分枠の頭から既定の長さ（無ければ 1 時間）の範囲を出し、指を上下に動かすと終わりが動く
-      window.clearTimeout(createPressTimerRef.current)
-      createPressTimerRef.current = window.setTimeout(() => {
-        const slotPx = (HOUR_HEIGHT * SNAP_MINUTES) / 60
-        const startY = Math.floor(y / slotPx) * slotPx
-        let endY = startY + ((clickCreateMinutes ?? 60) / 60) * HOUR_HEIGHT
-        if (maxY !== undefined) endY = Math.min(endY, maxY)
-        createOffsetRef.current = endY - y
-        touchLiftedRef.current = true
-        setTouchLifted(true)
-        didMoveRef.current = true
-        navigator.vibrate?.(15)
-        setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, startY, currentY: endY } : prev)
-      }, TOUCH_LONG_PRESS_MS)
-    }
-  }, [getRelativeY, popup, defaultCreateIntent, clickCreateMinutes])
-
-  const handleBlockPointerDown = useCallback((
-    e: React.PointerEvent,
-    taskId: string,
-    dateKey: string,
-    startTime: string,
-    endTime: string,
-    gridEl: HTMLElement | null,
-    blockDurationSource?: {
-      startTime: string
-      endTime: string
-      kind?: TaskKind
-      dueDate?: string | null
-      endDate?: string | null
+  const handleCreatePointerDown = useCallback(
+    (e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number) => {
+      if (popup) return
+      if (maxY !== undefined && getRelativeY(e.clientY, dateKey) >= maxY) return
+      // タッチでは capture を遅らせず、十分なドラッグ幅が出るまで作成扱いにしない（スクロール優先）
+      const coarse = isCoarsePointer()
+      if (!coarse) e.currentTarget.setPointerCapture(e.pointerId)
+      const y = getRelativeY(e.clientY, dateKey)
+      didMoveRef.current = false
+      beyondTapSlopRef.current = false
+      pointerStartRef.current = { x: e.clientX, y: e.clientY }
+      setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
+      if (coarse) {
+        // タッチの長押し: 押した 15 分枠の頭から既定の長さ（無ければ 1 時間）の範囲を出し、指を上下に動かすと終わりが動く
+        window.clearTimeout(createPressTimerRef.current)
+        createPressTimerRef.current = window.setTimeout(() => {
+          const slotPx = (HOUR_HEIGHT * SNAP_MINUTES) / 60
+          const startY = Math.floor(y / slotPx) * slotPx
+          let endY = startY + ((clickCreateMinutes ?? 60) / 60) * HOUR_HEIGHT
+          if (maxY !== undefined) endY = Math.min(endY, maxY)
+          createOffsetRef.current = endY - y
+          touchLiftedRef.current = true
+          setTouchLifted(true)
+          didMoveRef.current = true
+          navigator.vibrate?.(15)
+          setDrag((prev) => (prev && prev.kind === 'create' ? { ...prev, startY, currentY: endY } : prev))
+        }, TOUCH_LONG_PRESS_MS)
+      }
     },
-  ) => {
-    if (popup) return
+    [getRelativeY, popup, defaultCreateIntent, clickCreateMinutes],
+  )
 
-    // タッチ: 押すだけはカード、長押しで持ち上げて動かす（下の端なら長さを変える）。持ち上げるまでは縦スクロールに任せる
-    if (isCoarsePointer()) {
-      e.stopPropagation()
-      const startX = e.clientX
-      const startY = e.clientY
-      const id = taskId
-      const blockRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const localY = startY - blockRect.top
-      touchPressRef.current = true
-      /** この押し込みで持ち上げたか（格子の pointerup が先に touchLiftedRef を戻すので、押し込みごとに持つ） */
-      let lifted = false
-      const timer = window.setTimeout(() => {
-        lifted = true
-        touchLiftedRef.current = true
-        setTouchLifted(true)
-        navigator.vibrate?.(15)
-        didMoveRef.current = false
-        pointerStartRef.current = { x: startX, y: startY }
-        const y = getRelativeY(startY, dateKey)
-        if (localY >= blockRect.height - Math.min(TOUCH_RESIZE_EDGE_PX, blockRect.height / 3)) {
-          setDrag({ kind: 'resize', taskId: id, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
-        } else {
-          setDrag({
-            kind: 'move',
-            taskId: id,
-            origDateKey: dateKey,
-            origStartTime: startTime,
-            origEndTime: endTime,
-            dateKey,
-            offsetY: localY,
-            currentY: y,
-            blockDurationMinutes: dragBlockDurationMinutes(blockDurationSource ?? { startTime, endTime }),
-          })
+  const handleBlockPointerDown = useCallback(
+    (
+      e: React.PointerEvent,
+      taskId: string,
+      dateKey: string,
+      startTime: string,
+      endTime: string,
+      gridEl: HTMLElement | null,
+      blockDurationSource?: {
+        startTime: string
+        endTime: string
+        kind?: TaskKind
+        dueDate?: string | null
+        endDate?: string | null
+      },
+    ) => {
+      if (popup) return
+
+      // タッチ: 押すだけはカード、長押しで持ち上げて動かす（下の端なら長さを変える）。持ち上げるまでは縦スクロールに任せる
+      if (isCoarsePointer()) {
+        e.stopPropagation()
+        const startX = e.clientX
+        const startY = e.clientY
+        const id = taskId
+        const blockRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        const localY = startY - blockRect.top
+        touchPressRef.current = true
+        /** この押し込みで持ち上げたか（格子の pointerup が先に touchLiftedRef を戻すので、押し込みごとに持つ） */
+        let lifted = false
+        const timer = window.setTimeout(() => {
+          lifted = true
+          touchLiftedRef.current = true
+          setTouchLifted(true)
+          navigator.vibrate?.(15)
+          didMoveRef.current = false
+          pointerStartRef.current = { x: startX, y: startY }
+          const y = getRelativeY(startY, dateKey)
+          if (localY >= blockRect.height - Math.min(TOUCH_RESIZE_EDGE_PX, blockRect.height / 3)) {
+            setDrag({ kind: 'resize', taskId: id, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+          } else {
+            setDrag({
+              kind: 'move',
+              taskId: id,
+              origDateKey: dateKey,
+              origStartTime: startTime,
+              origEndTime: endTime,
+              dateKey,
+              offsetY: localY,
+              currentY: y,
+              blockDurationMinutes: dragBlockDurationMinutes(blockDurationSource ?? { startTime, endTime }),
+            })
+          }
+        }, TOUCH_LONG_PRESS_MS)
+        const move = (ev: PointerEvent) => {
+          if (!lifted && (Math.abs(ev.clientX - startX) > TAP_SLOP_PX || Math.abs(ev.clientY - startY) > TAP_SLOP_PX)) {
+            window.clearTimeout(timer)
+          }
         }
-      }, TOUCH_LONG_PRESS_MS)
-      const move = (ev: PointerEvent) => {
-        if (!lifted && (Math.abs(ev.clientX - startX) > TAP_SLOP_PX || Math.abs(ev.clientY - startY) > TAP_SLOP_PX)) {
+        const finish = (ev: PointerEvent) => {
           window.clearTimeout(timer)
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', finish)
+          window.removeEventListener('pointercancel', finish)
+          // 持ち上げた後は格子の pointerup / pointercancel が片付ける
+          if (lifted) return
+          touchPressRef.current = false
+          // pointercancel はスクロールが始まった合図なので開かない
+          if (ev.type === 'pointerup' && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
+            onBlockTapRef.current?.(id)
+          }
         }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', finish)
+        window.addEventListener('pointercancel', finish)
+        return
       }
-      const finish = (ev: PointerEvent) => {
-        window.clearTimeout(timer)
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', finish)
-        window.removeEventListener('pointercancel', finish)
-        // 持ち上げた後は格子の pointerup / pointercancel が片付ける
-        if (lifted) return
-        touchPressRef.current = false
-        // pointercancel はスクロールが始まった合図なので開かない
-        if (ev.type === 'pointerup' && Math.abs(ev.clientX - startX) <= TAP_SLOP_PX && Math.abs(ev.clientY - startY) <= TAP_SLOP_PX) {
-          onBlockTapRef.current?.(id)
-        }
+
+      const blockEl = e.currentTarget as HTMLElement
+      const rect = blockEl.getBoundingClientRect()
+      const localY = e.clientY - rect.top
+      const blockHeight = rect.height
+
+      didMoveRef.current = false
+      pointerStartRef.current = { x: e.clientX, y: e.clientY }
+
+      if (gridEl) gridEl.setPointerCapture(e.pointerId)
+
+      // 短いブロックでも真ん中をつかめば動かせるよう、上下の判定幅は高さに合わせて狭める
+      const edge = resizeEdgePx(blockHeight)
+      if (localY <= edge) {
+        const y = getRelativeY(e.clientY, dateKey)
+        setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
+      } else if (localY >= blockHeight - edge) {
+        const y = getRelativeY(e.clientY, dateKey)
+        setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+      } else {
+        const offsetY = e.clientY - rect.top
+        const y = getRelativeY(e.clientY, dateKey)
+        const blockDurationMinutes = blockDurationSource
+          ? dragBlockDurationMinutes(blockDurationSource)
+          : dragBlockDurationMinutes({ startTime, endTime })
+        setDrag({
+          kind: 'move',
+          taskId,
+          origDateKey: dateKey,
+          origStartTime: startTime,
+          origEndTime: endTime,
+          dateKey,
+          offsetY,
+          currentY: y,
+          blockDurationMinutes,
+        })
       }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', finish)
-      window.addEventListener('pointercancel', finish)
-      return
-    }
-
-    const blockEl = e.currentTarget as HTMLElement
-    const rect = blockEl.getBoundingClientRect()
-    const localY = e.clientY - rect.top
-    const blockHeight = rect.height
-
-    didMoveRef.current = false
-    pointerStartRef.current = { x: e.clientX, y: e.clientY }
-
-    if (gridEl) gridEl.setPointerCapture(e.pointerId)
-
-    // 短いブロックでも真ん中をつかめば動かせるよう、上下の判定幅は高さに合わせて狭める
-    const edge = resizeEdgePx(blockHeight)
-    if (localY <= edge) {
-      const y = getRelativeY(e.clientY, dateKey)
-      setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
-    } else if (localY >= blockHeight - edge) {
-      const y = getRelativeY(e.clientY, dateKey)
-      setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
-    } else {
-      const offsetY = e.clientY - rect.top
-      const y = getRelativeY(e.clientY, dateKey)
-      const blockDurationMinutes = blockDurationSource
-        ? dragBlockDurationMinutes(blockDurationSource)
-        : dragBlockDurationMinutes({ startTime, endTime })
-      setDrag({
-        kind: 'move',
-        taskId,
-        origDateKey: dateKey,
-        origStartTime: startTime,
-        origEndTime: endTime,
-        dateKey,
-        offsetY,
-        currentY: y,
-        blockDurationMinutes,
-      })
-    }
-  }, [getRelativeY, popup])
+    },
+    [getRelativeY, popup],
+  )
 
   /** 指・カーソルの位置からドラッグ中の位置を出し直す（スクロールで格子が動いたときも使う） */
-  const applyPoint = useCallback((clientX: number, clientY: number, current: DragState) => {
-    const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
-    const y = getRelativeY(clientY, dateKey)
-    if (current.kind === 'create') {
-      // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
-      const cy = y + createOffsetRef.current
-      setDrag((prev) => prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey } : prev)
-    } else if (current.kind === 'move') {
-      setDrag((prev) => prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev)
-    } else {
-      setDrag((prev) => prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev)
-    }
-  }, [getRelativeY, getDateKeyFromX])
+  const applyPoint = useCallback(
+    (clientX: number, clientY: number, current: DragState) => {
+      const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
+      const y = getRelativeY(clientY, dateKey)
+      if (current.kind === 'create') {
+        // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
+        const cy = y + createOffsetRef.current
+        setDrag((prev) =>
+          prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey } : prev,
+        )
+      } else if (current.kind === 'move') {
+        setDrag((prev) => (prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev))
+      } else {
+        setDrag((prev) => (prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev))
+      }
+    },
+    [getRelativeY, getDateKeyFromX],
+  )
 
   /** 持ち上げ中に端でスクロールしたとき、最後の指の位置で置き場所を出し直す */
   const repoint = useCallback(() => {
@@ -308,35 +327,38 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     if (p && drag && didMoveRef.current) applyPoint(p.x, p.y, drag)
   }, [drag, applyPoint])
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!drag) return
-    lastPointRef.current = { x: e.clientX, y: e.clientY }
-    const p0 = pointerStartRef.current
-    if (p0 && !didMoveRef.current) {
-      const dx = Math.abs(e.clientX - p0.x)
-      const dy = Math.abs(e.clientY - p0.y)
-      if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) {
-        beyondTapSlopRef.current = true
-        // 持ち上げる前に指が動いた = スクロール。空き時間の長押しはやめる
-        window.clearTimeout(createPressTimerRef.current)
-      }
-      const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
-      if (dx > threshold || dy > threshold) {
-        didMoveRef.current = true
-        if (drag.kind === 'create' && isCoarsePointer() && e.currentTarget instanceof HTMLElement) {
-          try {
-            e.currentTarget.setPointerCapture(e.pointerId)
-          } catch {
-            /* already captured or unsupported */
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!drag) return
+      lastPointRef.current = { x: e.clientX, y: e.clientY }
+      const p0 = pointerStartRef.current
+      if (p0 && !didMoveRef.current) {
+        const dx = Math.abs(e.clientX - p0.x)
+        const dy = Math.abs(e.clientY - p0.y)
+        if (dx > TAP_SLOP_PX || dy > TAP_SLOP_PX) {
+          beyondTapSlopRef.current = true
+          // 持ち上げる前に指が動いた = スクロール。空き時間の長押しはやめる
+          window.clearTimeout(createPressTimerRef.current)
+        }
+        const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
+        if (dx > threshold || dy > threshold) {
+          didMoveRef.current = true
+          if (drag.kind === 'create' && isCoarsePointer() && e.currentTarget instanceof HTMLElement) {
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* already captured or unsupported */
+            }
           }
         }
       }
-    }
-    if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
-    // タッチは持ち上げるまで動かさない（持ち上げる前の動きはスクロール）
-    if (drag.kind !== 'create' && isCoarsePointer() && !touchLiftedRef.current) return
-    applyPoint(e.clientX, e.clientY, drag)
-  }, [drag, applyPoint])
+      if (drag.kind === 'create' && isCoarsePointer() && !didMoveRef.current) return
+      // タッチは持ち上げるまで動かさない（持ち上げる前の動きはスクロール）
+      if (drag.kind !== 'create' && isCoarsePointer() && !touchLiftedRef.current) return
+      applyPoint(e.clientX, e.clientY, drag)
+    },
+    [drag, applyPoint],
+  )
 
   const handlePointerUp = useCallback(() => {
     if (!drag) return
@@ -408,13 +430,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     pointerStartRef.current = null
   }, [drag, onMoveDone, onResizeDone, onBlockTap, clickCreateMinutes, onBlockLongPress, endTouchLift])
 
-  const dismissPopup = useCallback(() => { setPopup(null) }, [])
+  const dismissPopup = useCallback(() => {
+    setPopup(null)
+  }, [])
 
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
   const shiftMoveDragDate = useCallback((days: number) => {
-    setDrag((prev) => prev && prev.kind === 'move'
-      ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) }
-      : prev)
+    setDrag((prev) => (prev && prev.kind === 'move' ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) } : prev))
   }, [])
 
   const dragPreview = useMemo((): DragPreview | null => {
@@ -478,11 +500,10 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     }
   }, [drag])
 
-  const movingTaskId = drag?.kind === 'move' ? drag.taskId : (drag?.kind === 'resize' ? drag.taskId : null)
+  const movingTaskId = drag?.kind === 'move' ? drag.taskId : drag?.kind === 'resize' ? drag.taskId : null
   const didMove = didMoveRef
 
-  const activeCreateIntent: CreateIntent | null =
-    drag?.kind === 'create' ? drag.intent : null
+  const activeCreateIntent: CreateIntent | null = drag?.kind === 'create' ? drag.intent : null
 
   const handlePointerCancel = useCallback(() => {
     setDrag(null)

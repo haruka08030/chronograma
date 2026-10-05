@@ -30,8 +30,7 @@ type DataActions = Pick<
 export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   const { pushUndo } = undo
   return {
-    setSyncState: (state, lastSyncedAt) =>
-      set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
+    setSyncState: (state, lastSyncedAt) => set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
 
     setSyncRejected: (rows) => set({ syncRejected: rows }),
 
@@ -165,9 +164,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         return { imported: 0, skipped, errors }
       }
       const s = get()
-      const listByName = new Map(
-        s.lists.map((l) => [l.name.trim().toLowerCase(), l.id]),
-      )
+      const listByName = new Map(s.lists.map((l) => [l.name.trim().toLowerCase(), l.id]))
       const resolveListId = (name: string | null): string => {
         if (!name?.trim()) return INBOX_ID
         return listByName.get(name.trim().toLowerCase()) ?? INBOX_ID

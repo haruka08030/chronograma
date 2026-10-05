@@ -79,8 +79,7 @@ async function invokeNotion<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export const fetchNotionStatus = () => invokeNotion<NotionStatus>({ action: 'status' })
-export const connectNotion = (token: string, database: string) =>
-  invokeNotion<NotionStatus>({ action: 'connect', token, database })
+export const connectNotion = (token: string, database: string) => invokeNotion<NotionStatus>({ action: 'connect', token, database })
 export const saveNotionConfig = (config: NotionConfig) => invokeNotion<NotionStatus>({ action: 'config', config })
 export const disconnectNotion = () => invokeNotion<{ ok: true }>({ action: 'disconnect' })
 export const fetchNotionPages = () => invokeNotion<NotionPagesPayload>({ action: 'pages' })
@@ -157,7 +156,10 @@ export function reconcileNotionPages(
   let lists = state.lists
   if (!lists.some((l) => l.id === NOTION_LIST_ID)) {
     const maxOrder = Math.max(0, ...lists.map((l) => l.order))
-    lists = [...lists, { id: NOTION_LIST_ID, name: payload.databaseTitle, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now }]
+    lists = [
+      ...lists,
+      { id: NOTION_LIST_ID, name: payload.databaseTitle, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now },
+    ]
     changed = true
   }
 

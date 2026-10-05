@@ -167,13 +167,27 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
 
         <SettingsGroup id="settings-data" title={t('settings.data')}>
           <SettingsRow label={t('settings.backupTitle')}>
-            <button type="button" onClick={exportData} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.export')}</button>
-            <button type="button" onClick={() => jsonInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.import')}</button>
+            <button type="button" onClick={exportData} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+              {t('sidebar.export')}
+            </button>
+            <button
+              type="button"
+              onClick={() => jsonInputRef.current?.click()}
+              className={buttonClass({ variant: 'secondary', size: 'md' })}
+            >
+              {t('sidebar.import')}
+            </button>
           </SettingsRow>
           <AutoBackupSettings />
           <RestoreBeforeImportRow />
           <SettingsRow label={t('settings.csvTitle')}>
-            <button type="button" onClick={() => csvInputRef.current?.click()} className={buttonClass({ variant: 'secondary', size: 'md' })}>{t('sidebar.importCsv')}</button>
+            <button
+              type="button"
+              onClick={() => csvInputRef.current?.click()}
+              className={buttonClass({ variant: 'secondary', size: 'md' })}
+            >
+              {t('sidebar.importCsv')}
+            </button>
           </SettingsRow>
         </SettingsGroup>
 
@@ -281,14 +295,18 @@ function RestoreBeforeImportRow() {
   if (!saved) return null
 
   return (
-    <SettingsRow
-      label={t('settings.restoreImportTitle')}
-    >
+    <SettingsRow label={t('settings.restoreImportTitle')}>
       <button
         type="button"
         className={buttonClass({ variant: 'secondary', size: 'md' })}
         onClick={async () => {
-          if (!(await askConfirm({ message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }), confirmLabel: i18n.t('settings.restoreImportAction') }))) return
+          if (
+            !(await askConfirm({
+              message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }),
+              confirmLabel: i18n.t('settings.restoreImportAction'),
+            }))
+          )
+            return
           if (restoreBeforeImport()) {
             setSaved(null)
             setReloadKey((n) => n + 1)

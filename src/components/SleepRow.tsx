@@ -17,16 +17,13 @@ import { ERROR_TEXT } from './ui/textClass'
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
 
-
 /** 5 分単位に切り捨てた hh:mm */
 const floorTo5 = (min: number) => {
   const m = min - (min % 5)
   return minutesToTime(m)
 }
 
-const MoonIcon = () => (
-  <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
-)
+const MoonIcon = () => <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 
 /**
  * 今日画面の「睡眠」の 1 行。その日の朝に起きた睡眠を「何時に寝て、何時に起きたか」で入れる。
@@ -62,7 +59,6 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
     setDraftFor(draftKey)
   }
 
-
   if (!open && record?.startTime && record.endTime) {
     return (
       <button
@@ -76,7 +72,9 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
         <span className="tabular-nums">
           {record.startTime}–{record.endTime}
         </span>
-        <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(record.startTime, record.endTime))}</span>
+        <span className="tabular-nums text-zinc-400 dark:text-zinc-500">
+          {formatDuration(sleepMinutes(record.startTime, record.endTime))}
+        </span>
       </button>
     )
   }
@@ -113,7 +111,9 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       {inFuture ? (
         <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>
       ) : (
-        bed && wake && bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
+        bed &&
+        wake &&
+        bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
       )}
       <span className="ml-auto inline-flex items-center gap-0.5">
         {record && (
@@ -126,12 +126,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
           </button>
         )}
-        <button
-          type="button"
-          onClick={save}
-          disabled={!canSave}
-          className={buttonClass({ variant: 'link', size: 'xs' })}
-        >
+        <button type="button" onClick={save} disabled={!canSave} className={buttonClass({ variant: 'link', size: 'xs' })}>
           {t('sleep.save')}
         </button>
       </span>

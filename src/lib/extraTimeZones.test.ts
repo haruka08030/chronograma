@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { EXTRA_TIME_ZONE_LABEL_MAX, extraZoneFullLabel, extraZoneLabel, normalizeExtraTimeZones, planExtraTimeZoneSync } from './extraTimeZones'
+import {
+  EXTRA_TIME_ZONE_LABEL_MAX,
+  extraZoneFullLabel,
+  extraZoneLabel,
+  normalizeExtraTimeZones,
+  planExtraTimeZoneSync,
+} from './extraTimeZones'
 import { zoneOptionLabel } from './timeZone'
 
 const T1 = '2026-10-01T00:00:00.000Z'
@@ -16,9 +22,10 @@ describe('他のタイムゾーンの読み込み', () => {
   })
 
   it('使えないタイムゾーン・重複・壊れた行は外し、上限の数まで', () => {
-    expect(
-      normalizeExtraTimeZones(['Not/AZone', null, 42, { label: 'x' }, london, 'Europe/London', ny, 'Asia/Tokyo']),
-    ).toEqual([london, ny])
+    expect(normalizeExtraTimeZones(['Not/AZone', null, 42, { label: 'x' }, london, 'Europe/London', ny, 'Asia/Tokyo'])).toEqual([
+      london,
+      ny,
+    ])
   })
 
   it('名前は前後の空白を落とし、長すぎれば切る', () => {
@@ -46,11 +53,17 @@ describe('他のタイムゾーンの表示名', () => {
 
 describe('他のタイムゾーンの同期', () => {
   it('サーバーに無ければ手元を送る', () => {
-    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, null, NOW)).toEqual({ push: { zones: [london], updatedAt: T1, base: null } })
+    expect(planExtraTimeZoneSync({ zones: [london], updatedAt: T1 }, null, NOW)).toEqual({
+      push: { zones: [london], updatedAt: T1, base: null },
+    })
   })
 
   it('サーバーが新しければ、ほかの端末で付けた名前に合わせる', () => {
-    const plan = planExtraTimeZoneSync({ zones: [{ tz: 'Europe/London', label: '' }], updatedAt: T1 }, { zones: [london], updatedAt: T2 }, NOW)
+    const plan = planExtraTimeZoneSync(
+      { zones: [{ tz: 'Europe/London', label: '' }], updatedAt: T1 },
+      { zones: [london], updatedAt: T2 },
+      NOW,
+    )
     expect(plan).toEqual({ apply: { zones: [london], updatedAt: T2 } })
   })
 
@@ -71,7 +84,11 @@ describe('他のタイムゾーンの同期', () => {
   })
 
   it('手元を変えていなければ、手元の時刻が後でもほかの端末の版に合わせる', () => {
-    const plan = planExtraTimeZoneSync({ zones: [ny], updatedAt: T1, syncedAt: T1 }, { zones: [london], updatedAt: '2026-09-01T00:00:00.000001+00:00' }, NOW)
+    const plan = planExtraTimeZoneSync(
+      { zones: [ny], updatedAt: T1, syncedAt: T1 },
+      { zones: [london], updatedAt: '2026-09-01T00:00:00.000001+00:00' },
+      NOW,
+    )
     expect(plan.apply?.zones).toEqual([london])
   })
 

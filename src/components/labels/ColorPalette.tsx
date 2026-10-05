@@ -68,14 +68,16 @@ export function ColorPalette({
           return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
         })}
       />
-      {onDefault && <button
-        type="button"
-        onClick={onDefault}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-200/70 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-700"
-      >
-        <span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: defaultHex }} aria-hidden />
-        {defaultLabel}
-      </button>}
+      {onDefault && (
+        <button
+          type="button"
+          onClick={onDefault}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-200/70 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        >
+          <span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: defaultHex }} aria-hidden />
+          {defaultLabel}
+        </button>
+      )}
       {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
     </div>
   )

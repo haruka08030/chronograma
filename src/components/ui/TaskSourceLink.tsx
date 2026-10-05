@@ -8,8 +8,7 @@ const SERVICE_NAME = { canvas: 'Canvas', notion: 'Notion' } as const
 /** 「Canvas で開く」「Notion で開く」「リンクを開く」 */
 function useSourceLinkLabel() {
   const { t } = useTranslation()
-  return (link: SourceLink) =>
-    link.service ? t('taskItem.openIn', { name: SERVICE_NAME[link.service] }) : t('taskItem.openLink')
+  return (link: SourceLink) => (link.service ? t('taskItem.openIn', { name: SERVICE_NAME[link.service] }) : t('taskItem.openLink'))
 }
 
 /**

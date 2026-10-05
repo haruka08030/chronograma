@@ -23,7 +23,13 @@ function Dot({ hex }: { hex: string }) {
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
  * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・削除。記録: 色（＝ラベル）・詳細・削除
  */
-export function TaskEventMenu({ x, y, taskId, onClose, onOpenDetail }: {
+export function TaskEventMenu({
+  x,
+  y,
+  taskId,
+  onClose,
+  onOpenDetail,
+}: {
   x: number
   y: number
   taskId: string
@@ -35,7 +41,13 @@ export function TaskEventMenu({ x, y, taskId, onClose, onOpenDetail }: {
   return <TaskEventMenuBody x={x} y={y} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
-function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
+function TaskEventMenuBody({
+  x,
+  y,
+  task,
+  onClose,
+  onOpenDetail,
+}: {
   x: number
   y: number
   task: Task
@@ -86,7 +98,16 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
       : ([
           // 始まった予定は「記録して完了」を先に（予定どおり / ずれた時刻を選ぶ画面）。完了だけは記録を残さない
           ...(canLogAsPlanned
-            ? [{ kind: 'leaf' as const, id: 'record-complete', divider: true, label: t('eventCard.recordAndComplete'), icon: <ClockIcon className={ICON} />, run: () => openRecordPrompt(task.id) }]
+            ? [
+                {
+                  kind: 'leaf' as const,
+                  id: 'record-complete',
+                  divider: true,
+                  label: t('eventCard.recordAndComplete'),
+                  icon: <ClockIcon className={ICON} />,
+                  run: () => openRecordPrompt(task.id),
+                },
+              ]
             : []),
           {
             kind: 'leaf',
@@ -97,11 +118,33 @@ function TaskEventMenuBody({ x, y, task, onClose, onOpenDetail }: {
             run: () => toggleTask(task.id),
           },
           ...(!task.completed && !ended && activeTimer?.taskId !== task.id
-            ? [{ kind: 'leaf' as const, id: 'start', label: t('eventCard.startLog'), icon: <PlayIcon className="h-3.5 w-3.5" />, run: () => void startTimerForTask(task.id) }]
+            ? [
+                {
+                  kind: 'leaf' as const,
+                  id: 'start',
+                  label: t('eventCard.startLog'),
+                  icon: <PlayIcon className="h-3.5 w-3.5" />,
+                  run: () => void startTimerForTask(task.id),
+                },
+              ]
             : []),
         ] satisfies ActionEntry[])),
-    { kind: 'leaf', id: 'open', divider: isLog, label: t('taskMenu.open'), icon: <OpenPanelIcon className={ICON} />, run: () => onOpenDetail(task.id) },
-    { kind: 'leaf', id: 'delete', label: t('common.delete'), icon: <TrashIcon className={ICON} />, danger: true, run: () => deleteTask(task.id) },
+    {
+      kind: 'leaf',
+      id: 'open',
+      divider: isLog,
+      label: t('taskMenu.open'),
+      icon: <OpenPanelIcon className={ICON} />,
+      run: () => onOpenDetail(task.id),
+    },
+    {
+      kind: 'leaf',
+      id: 'delete',
+      label: t('common.delete'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => deleteTask(task.id),
+    },
   ]
   return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={entries} onClose={onClose} searchable={false} />
 }
@@ -120,42 +163,55 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
   const scope = event.recurringEventId ? 'series' : 'event'
   const entries: ActionEntry[] = [
     ...(editable
-      ? [{
-          kind: 'sub' as const,
-          id: 'color',
-          label: t('labels.pickerAria'),
-          icon: <Dot hex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX} />,
-          leaves: [],
-          width: 'lg' as const,
-          extra: (close: () => void) => (
-            <ColorPalette
-              bare
-              selectedHex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX}
-              onChoose={(h) => {
-                setGoogleEventColor(event, h, scope)
-                close()
-              }}
-              onDefault={() => {
-                setGoogleEventColor(event, null, scope)
-                close()
-              }}
-              defaultLabel={t('eventCard.googleColor')}
-              defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
-            />
-          ),
-        }]
+      ? [
+          {
+            kind: 'sub' as const,
+            id: 'color',
+            label: t('labels.pickerAria'),
+            icon: <Dot hex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX} />,
+            leaves: [],
+            width: 'lg' as const,
+            extra: (close: () => void) => (
+              <ColorPalette
+                bare
+                selectedHex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX}
+                onChoose={(h) => {
+                  setGoogleEventColor(event, h, scope)
+                  close()
+                }}
+                onDefault={() => {
+                  setGoogleEventColor(event, null, scope)
+                  close()
+                }}
+                defaultLabel={t('eventCard.googleColor')}
+                defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
+              />
+            ),
+          },
+        ]
       : []),
     ...(event.htmlLink
-      ? [{
-          kind: 'leaf' as const,
-          id: 'open-google',
-          label: t('googleEdit.openInGoogle'),
-          icon: <OpenPanelIcon className={ICON} />,
-          run: () => void window.open(event.htmlLink, '_blank', 'noopener,noreferrer'),
-        }]
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'open-google',
+            label: t('googleEdit.openInGoogle'),
+            icon: <OpenPanelIcon className={ICON} />,
+            run: () => void window.open(event.htmlLink, '_blank', 'noopener,noreferrer'),
+          },
+        ]
       : []),
     ...(editable
-      ? [{ kind: 'leaf' as const, id: 'delete', label: t('common.delete'), icon: <TrashIcon className={ICON} />, danger: true, run: () => removeGoogleEvent(event) }]
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'delete',
+            label: t('common.delete'),
+            icon: <TrashIcon className={ICON} />,
+            danger: true,
+            run: () => removeGoogleEvent(event),
+          },
+        ]
       : []),
   ]
   if (entries.length === 0) return null

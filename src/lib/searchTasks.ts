@@ -9,8 +9,6 @@ export function searchTasks(tasks: readonly Task[], query: string): Task[] {
     (t) =>
       t.parentId === null &&
       isActiveTask(t) &&
-      (t.title.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.tags.some((tag) => tag.toLowerCase().includes(q))),
+      (t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.tags.some((tag) => tag.toLowerCase().includes(q))),
   )
 }

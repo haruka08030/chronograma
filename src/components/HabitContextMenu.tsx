@@ -12,7 +12,13 @@ const ICON = 'h-4 w-4 flex-shrink-0'
  * 習慣のカードを右クリック（タッチは長押し）したときのメニュー（編集・今日の記録・アーカイブ・削除）。
  * アーカイブした習慣は「戻す」と削除だけ。削除は確認なしで消して「元に戻す」で戻せる
  */
-export function HabitContextMenu({ x, y, habitId, onClose, onEdit }: {
+export function HabitContextMenu({
+  x,
+  y,
+  habitId,
+  onClose,
+  onEdit,
+}: {
   x: number
   y: number
   habitId: string
@@ -28,12 +34,24 @@ export function HabitContextMenu({ x, y, habitId, onClose, onEdit }: {
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
   if (!habit) return null
   const remove: ActionEntry = {
-    kind: 'leaf', id: 'delete', divider: true, label: t('common.delete'), icon: <TrashIcon className={ICON} />, danger: true, run: () => deleteHabit(habit.id),
+    kind: 'leaf',
+    id: 'delete',
+    divider: true,
+    label: t('common.delete'),
+    icon: <TrashIcon className={ICON} />,
+    danger: true,
+    run: () => deleteHabit(habit.id),
   }
   let entries: ActionEntry[]
   if (habit.archivedAt) {
     entries = [
-      { kind: 'leaf', id: 'restore', label: t('habits.restore'), icon: <RestoreIcon className={ICON} />, run: () => restoreHabit(habit.id) },
+      {
+        kind: 'leaf',
+        id: 'restore',
+        label: t('habits.restore'),
+        icon: <RestoreIcon className={ICON} />,
+        run: () => restoreHabit(habit.id),
+      },
       remove,
     ]
   } else {
@@ -49,7 +67,13 @@ export function HabitContextMenu({ x, y, habitId, onClose, onEdit }: {
         icon: <CheckIcon className={ICON} />,
         run: () => toggleHabitDate(habit.id, todayKey),
       },
-      { kind: 'leaf', id: 'archive', label: t('habits.archive'), icon: <ArchiveIcon className={ICON} />, run: () => archiveHabit(habit.id) },
+      {
+        kind: 'leaf',
+        id: 'archive',
+        label: t('habits.archive'),
+        icon: <ArchiveIcon className={ICON} />,
+        run: () => archiveHabit(habit.id),
+      },
       remove,
     ]
   }

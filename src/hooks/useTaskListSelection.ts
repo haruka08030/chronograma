@@ -215,7 +215,8 @@ export function useTaskListSelection({
     const cursor = cursorRow()
     const down = e.key === 'ArrowDown'
     const i = cursor ? rowIds.indexOf(cursor) : -1
-    const next = i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
+    const next =
+      i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
     goneCursorRef.current = null
     if (e.shiftKey) {
       // 起点（最初に Shift を押した行）から枠までを選ぶ。戻れば選択も縮む（OS・Gmail と同じ）

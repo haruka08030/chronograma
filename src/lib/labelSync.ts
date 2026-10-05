@@ -71,7 +71,8 @@ export function planLabelSync(
     case 'initial': {
       // 初めて: サーバーの並びのあとに、手元にしか無いラベルを足す。同じ名前の色はサーバーの色
       const fromRemote = rowsToLocal(remote.labels)
-      if (isUntouchedDefault(local.presets) && fromRemote.presets.length > 0) return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
+      if (isUntouchedDefault(local.presets) && fromRemote.presets.length > 0)
+        return { apply: { ...fromRemote, updatedAt: remote.updatedAt } }
       const presets = [...fromRemote.presets, ...local.presets.filter((n) => !fromRemote.presets.includes(n))]
       const colors = { ...local.colors, ...fromRemote.colors }
       const mergedRows = labelsToRows(presets, colors)

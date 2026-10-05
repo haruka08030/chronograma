@@ -1,9 +1,9 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   /* アクセントは墨色（Google のグレー）。画面の色は記録・ラベル・締切などデータだけにする */
   --color-accent-50: #f1f3f4;
   --color-accent-100: #e8eaed;
@@ -57,48 +57,98 @@
   --animate-breathe: breathe 3s ease-in-out infinite;
 
   @keyframes pop-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes sheet-in {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes toast-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes slide-in {
-    from { transform: translateX(100%); }
-    to { transform: none; }
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
   }
   @keyframes slide-in-left {
-    from { transform: translateX(-100%); }
-    to { transform: none; }
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
   }
   @keyframes check-in {
-    from { opacity: 0; transform: scale(0.6); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes slide-out {
-    to { transform: translateX(100%); }
+    to {
+      transform: translateX(100%);
+    }
   }
   @keyframes slide-out-left {
-    to { transform: translateX(-100%); }
+    to {
+      transform: translateX(-100%);
+    }
   }
   @keyframes toast-out {
-    to { opacity: 0; transform: translateY(8px); }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
   @keyframes fade-out {
-    to { opacity: 0; }
+    to {
+      opacity: 0;
+    }
   }
   @keyframes breathe {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 }
 
@@ -107,13 +157,16 @@
  * 個々の部品で止めると漏れるので、ここ 1 か所で止める
  */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
-  button:active, button:not(:disabled):has(> svg:only-child):active {
+  button:active,
+  button:not(:disabled):has(> svg:only-child):active {
     scale: none !important;
   }
 }
@@ -183,7 +236,6 @@ body {
   background-color: var(--c);
   color: var(--on-c, #ffffff);
 }
-
 
 /* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */
 .hue-slider {
@@ -279,7 +331,7 @@ body {
   }
   input,
   textarea,
-  [contenteditable]:not([contenteditable="false"]) {
+  [contenteditable]:not([contenteditable='false']) {
     -webkit-user-select: text;
     user-select: text;
   }
@@ -297,7 +349,7 @@ body {
   }
 
   /* キーボードで動かしたときだけ、いまどこにいるかを枠で見せる */
-  :where(button, a, [role="button"], [role="checkbox"], [role="tab"], summary):focus-visible {
+  :where(button, a, [role='button'], [role='checkbox'], [role='tab'], summary):focus-visible {
     outline: 2px solid var(--color-date-400);
     outline-offset: 2px;
   }

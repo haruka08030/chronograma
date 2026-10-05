@@ -143,7 +143,10 @@ function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
     /** `008` の sync_server_now()（前の DB には無い） */
     rpc: async (name: string) => {
       if (name !== 'sync_server_now' || opts.noTombstones) {
-        return { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` } }
+        return {
+          data: null,
+          error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` },
+        }
       }
       return { data: fromMicros(clock), error: null }
     },
@@ -154,7 +157,11 @@ function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
           const orders: string[] = []
           const run = async (from: number, to: number) => {
             if (table === 'sync_tombstones' && opts.noTombstones) {
-              return { data: null, count: null, error: { code: 'PGRST205', message: "Could not find the table 'public.sync_tombstones' in the schema cache" } }
+              return {
+                data: null,
+                count: null,
+                error: { code: 'PGRST205', message: "Could not find the table 'public.sync_tombstones' in the schema cache" },
+              }
             }
             const rows = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
             rows.sort((a, b) => {
@@ -239,12 +246,28 @@ const taskRow = (id: string, patch: Record<string, unknown> = {}): Row => ({
   is_time_log: false,
   ...patch,
 })
-const inboxRow: Row = { id: '__inbox__', user_id: 'u1', name: 'Inbox', color: '#000', sort_order: 0, kind: 'tasks', updated_at: '2026-01-01T00:00:00.000000+00:00' }
+const inboxRow: Row = {
+  id: '__inbox__',
+  user_id: 'u1',
+  name: 'Inbox',
+  color: '#000',
+  sort_order: 0,
+  kind: 'tasks',
+  updated_at: '2026-01-01T00:00:00.000000+00:00',
+}
 
 const noDeletes = { lists: [], tasks: [], habits: [], sections: [] }
 const emptySnap = (): SyncSnapshot => ({ lists: [], tasks: [], habits: [], sections: [] })
 
-type Device = { local: SyncSnapshot; baseline: SyncBaseline | null; pull: PullState; clockMs: number; fullPulls: number; deltaPulls: number; refetches: number }
+type Device = {
+  local: SyncSnapshot
+  baseline: SyncBaseline | null
+  pull: PullState
+  clockMs: number
+  fullPulls: number
+  deltaPulls: number
+  refetches: number
+}
 const newDevice = (db: ReturnType<typeof fakeDb>): Device => ({
   local: emptySnap(),
   baseline: null,
@@ -269,19 +292,27 @@ async function syncDevice(db: ReturnType<typeof fakeDb>, dev: Device, beforePush
     if ('error' in pulled) throw new Error(pulled.error)
     remote = pulled.snapshot
   }
-  const { merged, deletes } = known ? mergeSnapshots(dev.local, remote, known) : { merged: mergeWithoutBaseline(dev.local, remote), deletes: noDeletes }
+  const { merged, deletes } = known
+    ? mergeSnapshots(dev.local, remote, known)
+    : { merged: mergeWithoutBaseline(dev.local, remote), deletes: noDeletes }
   await beforePush?.()
   const res = await pushListsTasksHabits(db.client, 'u1', merged.lists, merged.tasks, merged.habits, merged.sections, deletes, remote)
   if (res.error) throw new Error(res.error)
   const stamped = withServerStamps(merged, res.written)
   dev.local = stamped
-  dev.baseline = { ...baselineFrom(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale])), clockOffsetMs: res.clockOffsetMs ?? known?.clockOffsetMs }
+  dev.baseline = {
+    ...baselineFrom(syncedSnapshot(stamped, remote, [...res.rejected, ...res.stale])),
+    clockOffsetMs: res.clockOffsetMs ?? known?.clockOffsetMs,
+  }
   afterPush(dev.pull, stamped, deletes, res)
   return res
 }
 
 const edit = (dev: Device, id: string, patch: Partial<Task>) => {
-  dev.local = { ...dev.local, tasks: dev.local.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: new Date(dev.clockMs).toISOString() } : t)) }
+  dev.local = {
+    ...dev.local,
+    tasks: dev.local.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: new Date(dev.clockMs).toISOString() } : t)),
+  }
 }
 const addTask = (dev: Device, id: string) => {
   const base = dev.local.tasks[0]!
@@ -557,7 +588,13 @@ describe('差分の取得 (#194)', () => {
 })
 
 describe('needsFullFetch', () => {
-  const ready = (): PullState => ({ ...createPullState(), mirror: emptySnap(), cursor: '2026-10-03T00:00:00.000000+00:00', lastFullAt: 1_000_000, lastPullAt: 1_000_000 })
+  const ready = (): PullState => ({
+    ...createPullState(),
+    mirror: emptySnap(),
+    cursor: '2026-10-03T00:00:00.000000+00:00',
+    lastFullAt: 1_000_000,
+    lastPullAt: 1_000_000,
+  })
   it('前回の内容と目印があり、6 時間たっていなければ差分', () => {
     expect(needsFullFetch(ready(), 1_000_000 + 60_000)).toBe(false)
   })
@@ -585,12 +622,22 @@ describe('目印', () => {
 
 describe('applyChanges', () => {
   const t = (id: string, title = id) => ({ id, title }) as unknown as Task
-  const changes = (patch: Partial<SyncChanges>): SyncChanges => ({ lists: [], sections: [], tasks: [], habits: [], tombstones: [], ...patch })
+  const changes = (patch: Partial<SyncChanges>): SyncChanges => ({
+    lists: [],
+    sections: [],
+    tasks: [],
+    habits: [],
+    tombstones: [],
+    ...patch,
+  })
   it('変わった行は置き換え、新しい行は足し、印のある行は外す。何度当てても同じ', () => {
     const mirror = { ...emptySnap(), tasks: [t('a'), t('b')] }
     const c = changes({ tasks: [t('a', 'A'), t('n')], tombstones: [{ table: 'tasks', id: 'b', deletedAt: 'x' }] })
     const once = applyChanges(mirror, c)
-    expect(once.tasks.map((x) => [x.id, x.title])).toEqual([['a', 'A'], ['n', 'n']])
+    expect(once.tasks.map((x) => [x.id, x.title])).toEqual([
+      ['a', 'A'],
+      ['n', 'n'],
+    ])
     expect(applyChanges(once, c)).toEqual(once)
   })
   it('差分に無い行は残す（無い＝消えた、ではない）', () => {
@@ -598,7 +645,10 @@ describe('applyChanges', () => {
     expect(applyChanges(mirror, changes({}))).toEqual(mirror)
   })
   it('同じ差分に行と印があれば印を優先する（印は行より後に取っている）', () => {
-    const out = applyChanges({ ...emptySnap(), tasks: [t('a')] }, changes({ tasks: [t('a', 'A')], tombstones: [{ table: 'tasks', id: 'a', deletedAt: 'x' }] }))
+    const out = applyChanges(
+      { ...emptySnap(), tasks: [t('a')] },
+      changes({ tasks: [t('a', 'A')], tombstones: [{ table: 'tasks', id: 'a', deletedAt: 'x' }] }),
+    )
     expect(out.tasks).toEqual([])
   })
   it('印は表ごと（同じ id の別の表の行は消さない）', () => {
@@ -613,9 +663,18 @@ describe('missingWithoutTombstone', () => {
   const t = (id: string) => ({ id }) as unknown as Task
   const base = { lists: {}, sections: {}, habits: {}, tasks: { a: 1, b: 1 } }
   it('前回同期した行がサーバーの内容に無く、印も無ければ知らせる', () => {
-    expect(missingWithoutTombstone({ ...emptySnap(), tasks: [t('a'), t('b'), t('new')] }, base, { ...emptySnap(), tasks: [t('a')] }, new Set())).toEqual(['tasks:b'])
+    expect(
+      missingWithoutTombstone({ ...emptySnap(), tasks: [t('a'), t('b'), t('new')] }, base, { ...emptySnap(), tasks: [t('a')] }, new Set()),
+    ).toEqual(['tasks:b'])
   })
   it('印が届いた行・まだ送っていない新しい行は知らせない', () => {
-    expect(missingWithoutTombstone({ ...emptySnap(), tasks: [t('a'), t('b'), t('new')] }, base, { ...emptySnap(), tasks: [t('a')] }, new Set(['tasks:b']))).toEqual([])
+    expect(
+      missingWithoutTombstone(
+        { ...emptySnap(), tasks: [t('a'), t('b'), t('new')] },
+        base,
+        { ...emptySnap(), tasks: [t('a')] },
+        new Set(['tasks:b']),
+      ),
+    ).toEqual([])
   })
 })

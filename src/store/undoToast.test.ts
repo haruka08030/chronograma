@@ -20,13 +20,29 @@ const { movedToDateLabel } = await import('../lib/moveToast')
 const now = new Date().toISOString()
 const base = {
   ...TASK_DEFAULTS,
-  description: '', completed: false, completedAt: null, createdAt: now, updatedAt: now, order: 0,
-  listId: 'l', sectionId: null, dueDate: null, startTime: null, endTime: null, priority: 'none' as const, tags: [], recurrence: null, parentId: null,
+  description: '',
+  completed: false,
+  completedAt: null,
+  createdAt: now,
+  updatedAt: now,
+  order: 0,
+  listId: 'l',
+  sectionId: null,
+  dueDate: null,
+  startTime: null,
+  endTime: null,
+  priority: 'none' as const,
+  tags: [],
+  recurrence: null,
+  parentId: null,
 }
 const setup = () =>
   useTaskStore.setState({
     lists: [{ id: 'l', name: 'L', color: '#33B679', order: 0, kind: 'tasks' }],
-    tasks: [{ ...base, id: 'es', title: 'ES 書く' }, { ...base, id: 'gym', title: 'ジム' }],
+    tasks: [
+      { ...base, id: 'es', title: 'ES 書く' },
+      { ...base, id: 'gym', title: 'ジム' },
+    ],
     undoBanner: null,
   })
 const banner = () => useTaskStore.getState().undoBanner?.text
@@ -52,13 +68,22 @@ describe('画面から取り消せるように、トーストを出す', () => {
 
   it('updateTask に渡した文が出る', () => {
     setup()
-    useTaskStore.getState().updateTask('es', { startTime: '15:00', endTime: '16:00' }, { key: 'undo.blockResized', params: { title: 'ES 書く', time: '15:00–16:00' } })
+    useTaskStore
+      .getState()
+      .updateTask(
+        'es',
+        { startTime: '15:00', endTime: '16:00' },
+        { key: 'undo.blockResized', params: { title: 'ES 書く', time: '15:00–16:00' } },
+      )
     expect(banner()).toMatchObject({ key: 'undo.blockResized' })
   })
 
   it('別の日へ動かした文: 1 件は題名、複数は件数', () => {
     const tasks = [{ id: 'es', title: 'ES 書く' }]
-    expect(movedToDateLabel(['es'], tasks, '2026-10-04')).toEqual({ key: 'undo.taskMovedToDate', params: { title: 'ES 書く', date: '10/4' } })
+    expect(movedToDateLabel(['es'], tasks, '2026-10-04')).toEqual({
+      key: 'undo.taskMovedToDate',
+      params: { title: 'ES 書く', date: '10/4' },
+    })
     expect(movedToDateLabel(['es', 'x'], tasks, '2026-10-04')).toEqual({ key: 'undo.tasksMovedToDate', params: { count: 2, date: '10/4' } })
   })
 })

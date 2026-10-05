@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import {
   handleGoogleOAuthCallback,
@@ -54,18 +47,9 @@ const noopAuth: AuthContextValue = {
   deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
 }
 
-const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>([
-  'SIGNED_IN',
-  'USER_UPDATED',
-  'TOKEN_REFRESHED',
-  'INITIAL_SESSION',
-])
+const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>(['SIGNED_IN', 'USER_UPDATED', 'TOKEN_REFRESHED', 'INITIAL_SESSION'])
 
-const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>([
-  'INITIAL_SESSION',
-  'SIGNED_IN',
-  'USER_UPDATED',
-])
+const STATUS_SYNC_EVENTS = new Set<AuthChangeEvent>(['INITIAL_SESSION', 'SIGNED_IN', 'USER_UPDATED'])
 
 let googleSyncQueue: Promise<void> = Promise.resolve()
 
@@ -84,17 +68,13 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
       if (handled) {
         const connected = await isGoogleCalendarConnected()
         useTaskStore.getState().setGoogleConnected(connected)
-        useTaskStore.getState().setGoogleConnectionError(
-          connected ? null : useTaskStore.getState().googleConnectionError,
-        )
+        useTaskStore.getState().setGoogleConnectionError(connected ? null : useTaskStore.getState().googleConnectionError)
         if (connected) return
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Google OAuth callback failed'
       useTaskStore.getState().setGoogleConnected(false)
-      useTaskStore.getState().setGoogleConnectionError(
-        localizeGoogleError(raw, (key) => i18n.t(key)),
-      )
+      useTaskStore.getState().setGoogleConnectionError(localizeGoogleError(raw, (key) => i18n.t(key)))
       return
     }
   }
@@ -154,7 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sb = getSupabase()
     if (!sb) return
 
-    sb.auth.getSession()
+    sb.auth
+      .getSession()
       .then(({ data: { session: s } }) => {
         if (s) lastUserId = s.user.id
         setSession(s)
@@ -203,9 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const limit = otpRateLimit(error)
           if (limit) {
             return {
-              error: limit.seconds != null
-                ? i18n.t('account.otpWaitSeconds', { count: limit.seconds })
-                : i18n.t('account.otpRateLimited'),
+              error: limit.seconds != null ? i18n.t('account.otpWaitSeconds', { count: limit.seconds }) : i18n.t('account.otpRateLimited'),
             }
           }
           return { error: error.message }

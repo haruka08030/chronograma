@@ -29,11 +29,7 @@ export function completeHabitAsPlannedPatch(
   if (alreadyChecked && !needsRecord) return null
   const habits = alreadyChecked
     ? s.habits
-    : s.habits.map((h) =>
-        h.id === habitId
-          ? { ...h, completedDates: [...h.completedDates, dateKey].sort(), updatedAt: env.now }
-          : h,
-      )
+    : s.habits.map((h) => (h.id === habitId ? { ...h, completedDates: [...h.completedDates, dateKey].sort(), updatedAt: env.now } : h))
   if (!needsRecord) return { habits }
   return {
     habits,
@@ -63,9 +59,7 @@ export function uncheckHabitDatePatch(
   const nowIso = env.now
   return {
     habits: s.habits.map((h) =>
-      h.id === habitId
-        ? { ...h, completedDates: h.completedDates.filter((d) => d !== dateKey), updatedAt: nowIso }
-        : h,
+      h.id === habitId ? { ...h, completedDates: h.completedDates.filter((d) => d !== dateKey), updatedAt: nowIso } : h,
     ),
     tasks: s.tasks.map((t) => (removeIds.has(t.id) ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
     recentDeletes: removeIds.size > 0 ? [...s.recentDeletes, { ids: [...removeIds], at: env.deletedAt }] : s.recentDeletes,

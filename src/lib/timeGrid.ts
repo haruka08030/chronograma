@@ -63,7 +63,6 @@ export function formatTimeLabel(hour: number): string {
   return `${hour}:00`
 }
 
-
 /** 分を「1時間15分」/「1h 15m」のように表示の言語で書く */
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)

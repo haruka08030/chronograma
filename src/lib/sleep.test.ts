@@ -96,10 +96,7 @@ describe('summarizeSleep', () => {
     log(id, { kind: 'sleep', dueDate: bedDay, endDate: wakeDay, startTime: bed, endTime: wake })
 
   it('averages bedtimes across midnight and lists missing days as null', () => {
-    const tasks = [
-      night('a', '2026-09-28', '2026-09-29', '23:30', '07:00'),
-      night('b', '2026-09-30', null, '00:30', '08:00'),
-    ]
+    const tasks = [night('a', '2026-09-28', '2026-09-29', '23:30', '07:00'), night('b', '2026-09-30', null, '00:30', '08:00')]
     const s = summarizeSleep(tasks, '2026-10-01', 4)
     expect(s.nights.map((n) => n?.dateKey ?? null)).toEqual([null, '2026-09-29', '2026-09-30', null])
     expect(s.count).toBe(2)

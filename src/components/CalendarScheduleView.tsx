@@ -36,13 +36,7 @@ function byTime(a: { startTime?: string | null }, b: { startTime?: string | null
  * スケジュール（Google カレンダーと同じ予定の一覧）: 選んだ日から先の予定・To‑Do・Google の予定を日付ごとに縦に並べる。
  * 何も無い日は出さない。日付を押すとその日の 1 日表示、行は日のパネルと同じ（押すと詳細・✓ で完了）
  */
-export function CalendarScheduleView({
-  startDateKey,
-  onOpenDay,
-}: {
-  startDateKey: string
-  onOpenDay: (dateKey: string) => void
-}) {
+export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey: string; onOpenDay: (dateKey: string) => void }) {
   const { t, i18n } = useTranslation()
   const df = useDateFormat()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -90,9 +84,7 @@ export function CalendarScheduleView({
             const newMonth = i === 0 || rows[i - 1]!.day.getMonth() !== day.getMonth()
             return (
               <section key={key}>
-                {newMonth && (
-                  <h3 className="px-2 pb-1 pt-4 text-sm font-semibold text-zinc-800 dark:text-zinc-100">{df.yearMonth(day)}</h3>
-                )}
+                {newMonth && <h3 className="px-2 pb-1 pt-4 text-sm font-semibold text-zinc-800 dark:text-zinc-100">{df.yearMonth(day)}</h3>}
                 <div className="flex gap-2 border-b border-zinc-100 py-2 dark:border-zinc-800/70">
                   <button
                     type="button"
@@ -103,7 +95,9 @@ export function CalendarScheduleView({
                     }`}
                   >
                     <span className="text-[11px] font-medium">{format(day, 'E', { locale: dateLocale })}</span>
-                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold ${dayMarkerClass({ today, selected: false })}`}>
+                    <span
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold ${dayMarkerClass({ today, selected: false })}`}
+                    >
                       {format(day, 'd')}
                     </span>
                   </button>
@@ -146,7 +140,9 @@ export function CalendarScheduleView({
           </button>
         </div>
       </div>
-      <Suspense fallback={null}>{googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}</Suspense>
+      <Suspense fallback={null}>
+        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      </Suspense>
     </div>
   )
 }

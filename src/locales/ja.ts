@@ -102,9 +102,11 @@ export default {
     errorShort: '未同期',
     error: 'クラウドに同期できていません。接続が戻ると自動で送信します。',
     errorWithLast: 'クラウドに同期できていません（最後の同期: {{when}}）。接続が戻ると自動で送信します。',
-    limit: '保存できる件数の上限に達したため、新しく作ったものをクラウドに送れません。この端末には残っています。要らないものを削除すると送ります。',
+    limit:
+      '保存できる件数の上限に達したため、新しく作ったものをクラウドに送れません。この端末には残っています。要らないものを削除すると送ります。',
     rejectedShort: '{{count}} 件 未保存',
-    rejected: '{{count}} 件をクラウドに保存できませんでした（大きすぎる・形が合わないなど）。この端末には残っています。直すと送り直します。ほかの変更は同期されています。',
+    rejected:
+      '{{count}} 件をクラウドに保存できませんでした（大きすぎる・形が合わないなど）。この端末には残っています。直すと送り直します。ほかの変更は同期されています。',
     rejectedItems: '対象: {{names}}',
     rejectedName: '「{{name}}」',
     justNow: 'たった今',
@@ -558,8 +560,7 @@ export default {
     syncOffTitle: 'クラウド同期',
     supabaseOff: 'このバージョンでは使えません。データはこの端末に保存されます。',
     paletteTitle: 'リスト色パレット',
-    paletteHelp:
-      'リストの色チップと新規リストの候補に使うパレットを選べます。既存リストの色は変わりません。',
+    paletteHelp: 'リストの色チップと新規リストの候補に使うパレットを選べます。既存リストの色は変わりません。',
     selected: '選択中',
   },
   palettes: {
@@ -818,10 +819,12 @@ export default {
     networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     otpWaitSeconds: '続けて送れません。{{count}} 秒たってからもう一度お試しください。',
     otpRateLimited: 'ログイン用メールを送れる回数の上限に達しました。しばらく（長くて 1 時間ほど）待ってからお試しください。',
-    linkExpired: 'ログイン用リンクの期限が切れているか、すでに使われています。もう一度メールを送り、いちばん新しいメールのリンクを開いてください（リンクは 1 回だけ、1 時間以内に使えます）。',
+    linkExpired:
+      'ログイン用リンクの期限が切れているか、すでに使われています。もう一度メールを送り、いちばん新しいメールのリンクを開いてください（リンクは 1 回だけ、1 時間以内に使えます）。',
     linkFailed: 'ログイン用リンクを開けませんでした。もう一度メールを送ってください。',
     signOut: 'ログアウト',
-    signOutUnsynced: 'まだクラウドに送れていない変更があります。ログアウトするとこの端末からは消えます（設定 → データ の自動バックアップ「ログアウトの直前」から戻せます）。ログアウトしますか？',
+    signOutUnsynced:
+      'まだクラウドに送れていない変更があります。ログアウトするとこの端末からは消えます（設定 → データ の自動バックアップ「ログアウトの直前」から戻せます）。ログアウトしますか？',
     signIn: 'ログイン',
     checking: 'ログイン状態を確認中…',
     signedIn: 'ログイン中',
@@ -839,8 +842,10 @@ export default {
     agreeSuffix: 'に同意したものとみなします。',
     delete: 'アカウントを削除',
     deleting: '削除中…',
-    deleteHelp: 'アカウントと、クラウドに保存したタスク・記録・習慣・連携をすべて削除します。取り消せません。必要なら先に「データ」から書き出してください。',
-    deleteConfirm: 'アカウントとクラウドのデータをすべて削除します。この端末のデータと自動バックアップも消えます。取り消せません。続けますか？',
+    deleteHelp:
+      'アカウントと、クラウドに保存したタスク・記録・習慣・連携をすべて削除します。取り消せません。必要なら先に「データ」から書き出してください。',
+    deleteConfirm:
+      'アカウントとクラウドのデータをすべて削除します。この端末のデータと自動バックアップも消えます。取り消せません。続けますか？',
     deleteTypeEmail: '確認のため、メールアドレス（{{email}}）を入力してください',
     deleteFailed: 'アカウントを削除できませんでした。しばらくしてからもう一度お試しください。',
     reauthNeeded: '削除の前に本人確認をします。{{email}} にコードを送り、届いたコードを入力してください。',
@@ -929,8 +934,7 @@ export default {
     totalLogged: '合計記録時間',
     noLogs: 'まだ記録がありません',
     inlineAddPlaceholder: '記録を追加',
-    overnightHint:
-      '終了が開始より早い時刻でも保存できます。その場合は翌日の同じ時刻まで（睡眠など）として集計します。',
+    overnightHint: '終了が開始より早い時刻でも保存できます。その場合は翌日の同じ時刻まで（睡眠など）として集計します。',
     spansNextDay: '翌日 {{time}} まで',
     startDate: '開始日',
     endDate: '終了日',
@@ -947,8 +951,7 @@ export default {
     recording: '記録中',
     thisWeek: '今週',
     googleHeading: 'Google Calendar 連携（任意）',
-    googleBody:
-      'Supabase ログイン後に接続すると、外部カレンダーの予定を左列に表示できます。未接続でも習慣・自分の予定は使えます。',
+    googleBody: 'Supabase ログイン後に接続すると、外部カレンダーの予定を左列に表示できます。未接続でも習慣・自分の予定は使えます。',
     googleUnavailableHeading: 'Google Calendar 連携は利用できません',
     googleUnavailableBody:
       'このビルドに VITE_GOOGLE_CLIENT_ID が含まれていません。ホスティングの環境変数に設定して再デプロイしてください（環境変数はビルド時に埋め込まれます）。',
@@ -959,26 +962,22 @@ export default {
     connect: 'Google Calendar に接続',
     connecting: '接続中…',
     connectTimeout: '接続がタイムアウトしました。ページを再読み込みしてもう一度お試しください。',
-    alreadyLinked:
-      'Google アカウントは既にリンク済みです。Google アカウントの連携アプリから権限を削除してから再接続してください。',
+    alreadyLinked: 'Google アカウントは既にリンク済みです。Google アカウントの連携アプリから権限を削除してから再接続してください。',
     connectFailed: 'Google カレンダーにつなげませんでした。少し待ってからもう一度お試しください。',
     storeTokenFailed: 'Google の認証情報を保存できませんでした。しばらくしてから再接続してください。',
     networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     supabaseNotConfigured: 'クラウド連携が未設定です。先にログインしてから接続してください。',
     notConnected: 'Google Calendar が未接続です。接続ボタンから再度リンクしてください。',
     rateLimited: 'Google カレンダーへのアクセスが多すぎます。少し待ってからもう一度お試しください。',
-    tokenExpired:
-      'Google Calendar の認証が期限切れです。一度「切断」してから再接続してください。',
+    tokenExpired: 'Google Calendar の認証が期限切れです。一度「切断」してから再接続してください。',
     oauthRefreshMissing:
       'Google の認証トークンを取得できませんでした。Google アカウントの連携アプリから権限を削除してから再接続してください。',
-    scopeNotGranted:
-      'Google カレンダーへのアクセスが許可されていません。再接続してカレンダー権限を承認してください。',
+    scopeNotGranted: 'Google カレンダーへのアクセスが許可されていません。再接続してカレンダー権限を承認してください。',
     redirectUriMismatch:
       'Google Cloud の Authorized redirect URIs に {{uri}} が登録されていません。Credentials → OAuth Web クライアントで追加して保存してください。',
     redirectUriHint:
       'Google Cloud Console → Credentials → 下記 Client ID の OAuth Web クライアント → Authorized redirect URIs（JavaScript origins ではない）に {{uri}} を追加してください。',
-    oauthClientHint:
-      'Client ID: {{clientId}}（この ID のクライアントに redirect URI を登録）',
+    oauthClientHint: 'Client ID: {{clientId}}（この ID のクライアントに redirect URI を登録）',
     invalidClientSecret:
       'Google Client Secret が無効です。Google Cloud Console で Client Secret を再確認し、Supabase の Edge Function secrets（GOOGLE_CLIENT_SECRET）と Supabase Auth の Google プロバイダ設定を同じ値に更新してください。',
     legendPlan: '予定',
@@ -1115,7 +1114,8 @@ export default {
     feedStep2: 'URL を下に貼る。読むだけなので、提出しても自動では完了にならず、ここで完了にしても Canvas には反映されません',
     feedLabel: 'カレンダーフィードの URL',
     feedProblem: {
-      calendarPage: 'これはカレンダー画面の URL です。その画面の右下にある「カレンダーフィード」を押すと出る URL（…/feeds/calendars/….ics）を貼ってください',
+      calendarPage:
+        'これはカレンダー画面の URL です。その画面の右下にある「カレンダーフィード」を押すと出る URL（…/feeds/calendars/….ics）を貼ってください',
       notFeed: 'カレンダーフィードの URL ではありません。…/feeds/calendars/….ics で終わる URL を貼ってください',
     },
     feedHelp: 'カレンダーフィード（読むだけ）',
@@ -1137,8 +1137,10 @@ export default {
     errors: {
       generic: 'Canvas と通信できませんでした。少し待ってからもう一度お試しください。',
       canvas_unauthorized: 'トークンが正しくないか、期限が切れています。Canvas で新しいトークンを作って貼ってください。',
-      canvas_bad_url: 'Canvas の URL を読み取れませんでした。Canvas にログインしたときのアドレス（例: https://xxx.instructure.com）を貼ってください。',
-      canvas_feed_invalid: 'カレンダーフィードを読めませんでした。Canvas のカレンダーの「カレンダーフィード」の URL（…/feeds/calendars/….ics）を貼り直してください。',
+      canvas_bad_url:
+        'Canvas の URL を読み取れませんでした。Canvas にログインしたときのアドレス（例: https://xxx.instructure.com）を貼ってください。',
+      canvas_feed_invalid:
+        'カレンダーフィードを読めませんでした。Canvas のカレンダーの「カレンダーフィード」の URL（…/feeds/calendars/….ics）を貼り直してください。',
       canvas_rate_limited: 'Canvas へのアクセスが多すぎます。少し待ってから同期してください。',
       canvas_too_many: 'つなげる学校は 5 つまでです。使っていない学校を外してから追加してください。',
       canvas_api: 'Canvas からエラーが返りました。少し待ってからもう一度お試しください。',

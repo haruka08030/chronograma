@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchChangesSince, fetchListsTasksHabits, fetchServerNow, type SyncChanges, type SyncPushResult, type SyncTable } from './supabaseData'
+import {
+  fetchChangesSince,
+  fetchListsTasksHabits,
+  fetchServerNow,
+  type SyncChanges,
+  type SyncPushResult,
+  type SyncTable,
+} from './supabaseData'
 import type { SyncDeletes, SyncSnapshot } from './syncMerge'
 
 /**

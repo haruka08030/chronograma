@@ -86,7 +86,9 @@ export function TodayPlannerView() {
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
-  const anyNotification = useTaskStore((s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled)
+  const anyNotification = useTaskStore(
+    (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled,
+  )
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const now = useNowMinuteTick()
@@ -120,14 +122,21 @@ export function TodayPlannerView() {
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter((x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0)
+        .filter(
+          (x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0,
+        )
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
-  const { overdue: overdueAll, carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes } = useMemo(
-    () => getDayPlan(tasks, dateKey, excludedListIds),
-    [tasks, dateKey, excludedListIds],
-  )
+  const {
+    overdue: overdueAll,
+    carryOver,
+    dueSoon,
+    open,
+    done,
+    plannedMinutes,
+    loggedMinutes,
+  } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
   const timedOpen = useMemo(() => open.filter((x) => x.startTime && x.endTime), [open])
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
@@ -137,10 +146,7 @@ export function TodayPlannerView() {
   const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
   // その下に、締切が先のもの・日付なしなどを 10 件ずつスクロールで足していく
-  const moreSuggestions = useMemo(
-    () => getMoreSuggestions(tasks, dateKey, excludedListIds),
-    [tasks, dateKey, excludedListIds],
-  )
+  const moreSuggestions = useMemo(() => getMoreSuggestions(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
   const [moreShown, setMoreShown] = useState(MORE_SUGGESTIONS_PAGE)
   const [moreShownFor, setMoreShownFor] = useState(dateKey)
   if (moreShownFor !== dateKey) {
@@ -184,12 +190,10 @@ export function TodayPlannerView() {
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
   // 対象は開いている未完了の行を上から順に
   const rowIds = useMemo(
-    () => [
-      ...overdue,
-      ...(showLeftOver ? leftOver : []),
-      ...open,
-      ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
-    ].map((x) => x.id),
+    () =>
+      [...overdue, ...(showLeftOver ? leftOver : []), ...open, ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : [])].map(
+        (x) => x.id,
+      ),
     [showLeftOver, leftOver, overdue, open, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
@@ -214,17 +218,29 @@ export function TodayPlannerView() {
   const selectionActions = (() => {
     const ids = [...selected]
     const openIds = new Set(open.map((x) => x.id))
-    const complete = { label: t('taskList.selectionComplete'), icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />, onClick: () => bulk.complete(ids) }
+    const complete = {
+      label: t('taskList.selectionComplete'),
+      icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
+      onClick: () => bulk.complete(ids),
+    }
     const many = (label: string) => (ids.length > 1 ? label : undefined)
     if (ids.every((id) => openIds.has(id))) {
       return [
-        { label: t('taskList.selectionTomorrow'), icon: <CalendarArrowIcon className="h-3.5 w-3.5" />, onClick: () => rescheduleTasks(ids, tomorrowKey, many(t('undo.tasksMovedToTomorrow', { count: ids.length }))) },
+        {
+          label: t('taskList.selectionTomorrow'),
+          icon: <CalendarArrowIcon className="h-3.5 w-3.5" />,
+          onClick: () => rescheduleTasks(ids, tomorrowKey, many(t('undo.tasksMovedToTomorrow', { count: ids.length }))),
+        },
         complete,
       ]
     }
     if (ids.every((id) => !openIds.has(id))) {
       return [
-        { label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'), icon: <CalendarArrowIcon className="h-3.5 w-3.5" />, onClick: () => rescheduleTasks(ids, dateKey, many(t('undo.tasksMovedToToday', { count: ids.length }))) },
+        {
+          label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'),
+          icon: <CalendarArrowIcon className="h-3.5 w-3.5" />,
+          onClick: () => rescheduleTasks(ids, dateKey, many(t('undo.tasksMovedToToday', { count: ids.length }))),
+        },
         complete,
       ]
     }
@@ -240,8 +256,7 @@ export function TodayPlannerView() {
 
   const totalCount = open.length + done.length
   const overCapacity = dateKey >= toDateKey(appToday()) && plannedMinutes > dailyCapacityMinutes
-  const showWrapUp =
-    viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
+  const showWrapUp = viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
   const showReminderPrompt =
     totalCount > 0 &&
     !reminderPromptDismissed &&
@@ -270,10 +285,13 @@ export function TodayPlannerView() {
     const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
     const dueAll = dueMeta(task)
     const due =
-      mode === 'none' ? null
-      : mode === 'date' && task.dueDate ? { text: shortDate(task.dueDate), tone: 'muted' as const }
-      : mode === 'urgent' && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today' ? null
-      : dueAll
+      mode === 'none'
+        ? null
+        : mode === 'date' && task.dueDate
+          ? { text: shortDate(task.dueDate), tone: 'muted' as const }
+          : mode === 'urgent' && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today'
+            ? null
+            : dueAll
     if (!timed) return { time: null, timeOver: false, due }
     return {
       time: `${task.startTime}–${task.endTime}`,
@@ -310,13 +328,28 @@ export function TodayPlannerView() {
     // スマホ: 右へ払うと完了、左へ払うと今日やる行は明日へ・それ以外は今日（この日）へ。長押しで選択を始める
     const committed = dueMode === 'urgent'
     const swipeLeft: RowSwipeAction = committed
-      ? { label: t('taskMenu.toTomorrow'), icon: <ArrowRightIcon className="h-4 w-4" />, tone: 'date', run: () => rescheduleTasks([task.id], tomorrowKey) }
-      : { label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'), icon: <CalendarArrowIcon className="h-4 w-4" />, tone: 'date', run: () => rescheduleTasks([task.id], dateKey) }
+      ? {
+          label: t('taskMenu.toTomorrow'),
+          icon: <ArrowRightIcon className="h-4 w-4" />,
+          tone: 'date',
+          run: () => rescheduleTasks([task.id], tomorrowKey),
+        }
+      : {
+          label: viewingToday ? t('planner.doToday') : t('planner.doThisDay'),
+          icon: <CalendarArrowIcon className="h-4 w-4" />,
+          tone: 'date',
+          run: () => rescheduleTasks([task.id], dateKey),
+        }
     return (
       <GestureRow
         key={task.id}
         enabled={isCoarse && !task.completed && selected.size === 0}
-        right={{ label: t('taskList.selectionComplete'), icon: <CheckIcon className="h-4 w-4" strokeWidth={2.5} />, tone: 'done', run: () => deferredComplete.toggle(task.id, false) }}
+        right={{
+          label: t('taskList.selectionComplete'),
+          icon: <CheckIcon className="h-4 w-4" strokeWidth={2.5} />,
+          tone: 'done',
+          run: () => deferredComplete.toggle(task.id, false),
+        }}
         left={swipeLeft}
         onLongPress={sel ? (e) => sel.onToggle(e as unknown as React.MouseEvent) : undefined}
         className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
@@ -350,7 +383,9 @@ export function TodayPlannerView() {
             // ⌘・Shift で選ぶ、選んでいる間は押すと選ぶ・外す、ふだんは詳細（To-Do 一覧と同じ）
             onClick={(e) => (sel ? makeRowClick(task.id)(e) : openDetail(task.id))}
             className={`block w-full truncate text-left text-[15px] transition-colors ${hasRowExtras ? 'pt-2' : 'py-2.5'} ${
-              task.completed || deferredComplete.isPending(task.id) ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
+              task.completed || deferredComplete.isPending(task.id)
+                ? 'text-zinc-400 line-through dark:text-zinc-500'
+                : 'text-zinc-800 dark:text-zinc-100'
             }`}
           >
             {task.title}
@@ -359,7 +394,9 @@ export function TodayPlannerView() {
           {hasRowExtras && (
             <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
               {task.tags.map((tag) => (
-                <span key={tag} className={chipClass({ variant: 'fill' })}>{tag}</span>
+                <span key={tag} className={chipClass({ variant: 'fill' })}>
+                  {tag}
+                </span>
               ))}
             </div>
           )}
@@ -368,7 +405,9 @@ export function TodayPlannerView() {
           <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]} ${metaHide}`}>{meta.due.text}</span>
         )}
         {meta.time && !task.completed && (
-          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>{meta.time}</span>
+          <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>
+            {meta.time}
+          </span>
         )}
         {action}
       </GestureRow>
@@ -399,11 +438,12 @@ export function TodayPlannerView() {
 
   // 記録中でも押せる（前の記録を保存して切り替える）。いま計っているタスクには出さない。
   // スマホの行にはボタンを並べない（押すと出るシート・払う操作で同じことができる）
-  const timerButton = (task: Task) => activeTimer?.taskId === task.id ? null : (
-    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse mouseOnly>
-      <PlayIcon className="h-3 w-3" />
-    </RowActionButton>
-  )
+  const timerButton = (task: Task) =>
+    activeTimer?.taskId === task.id ? null : (
+      <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse mouseOnly>
+        <PlayIcon className="h-3 w-3" />
+      </RowActionButton>
+    )
 
   /** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。カレンダーに矢印＝その日へ移す */
   const moveHereButton = (task: Task) => (
@@ -477,16 +517,12 @@ export function TodayPlannerView() {
         <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
-              <h1 className={PAGE_TITLE_CLASS}>
-                {viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}
-              </h1>
+              <h1 className={PAGE_TITLE_CLASS}>{viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}</h1>
               {viewingToday && <span className={`truncate md:hidden ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</span>}
             </div>
             {dayNav}
           </div>
-          {viewingToday && (
-            <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>
-          )}
+          {viewingToday && <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>}
           {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
           <div className="mt-2 md:mt-3">
             <SleepRow key={dateKey} dateKey={dateKey} />
@@ -498,7 +534,9 @@ export function TodayPlannerView() {
                 <span className="text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
                   {t('planner.summaryLogged', { time: formatDuration(loggedMinutes) })}
                 </span>
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               {plannedMinutes > 0 && (
                 <span
                   className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
@@ -522,9 +560,7 @@ export function TodayPlannerView() {
         {overdue.length > 0 && (
           <div className="mt-2 px-3">
             <p className={`px-3 py-1.5 text-sm ${DUE_TONE_CLASS.overdue}`}>{t('planner.overdueHeading', { count: overdue.length })}</p>
-            <ul>
-              {overdue.map((task) => renderRow(task, timerButton(task), 'all', true))}
-            </ul>
+            <ul>{overdue.map((task) => renderRow(task, timerButton(task), 'all', true))}</ul>
           </div>
         )}
 
@@ -540,7 +576,10 @@ export function TodayPlannerView() {
                 <button
                   type="button"
                   onClick={moveAllLeftOver}
-                  className={buttonClass({ variant: 'secondary', size: 'xs' }, 'shrink-0 text-zinc-600 pointer-coarse:min-h-9 dark:text-zinc-300')}
+                  className={buttonClass(
+                    { variant: 'secondary', size: 'xs' },
+                    'shrink-0 text-zinc-600 pointer-coarse:min-h-9 dark:text-zinc-300',
+                  )}
                 >
                   <CalendarDoubleArrowIcon className="h-3.5 w-3.5" />
                   {t('planner.moveAllToToday')}
@@ -550,28 +589,47 @@ export function TodayPlannerView() {
                 !showLeftOver && moveHereButton(leftOver[0]!)
               )}
             </div>
-            {showLeftOver && (
-              <ul>
-                {leftOver.map((task) => renderRow(task, moveHereButton(task)))}
-              </ul>
-            )}
+            {showLeftOver && <ul>{leftOver.map((task) => renderRow(task, moveHereButton(task)))}</ul>}
           </div>
         )}
 
         <div className="px-3">
           {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと見出しで示す */}
           {(overdue.length > 0 || leftOver.length > 0) && open.length > 0 && (
-            <p className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">{viewingToday ? t('planner.doToday') : t('planner.doThisDay')}</p>
+            <p className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+              {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
+            </p>
           )}
           <ul>
-            {timedOpen.map((task) => renderRow(task, <>{tomorrowButton(task)}{timerButton(task)}</>, 'urgent', true))}
+            {timedOpen.map((task) =>
+              renderRow(
+                task,
+                <>
+                  {tomorrowButton(task)}
+                  {timerButton(task)}
+                </>,
+                'urgent',
+                true,
+              ),
+            )}
           </ul>
           {/* 時間ありは時刻順に上、時間未定はその下に分ける（タイムラインに置くと上へ移る） */}
           {timedOpen.length > 0 && untimedOpen.length > 0 && (
             <p className="ml-11 mt-3 text-xs text-zinc-400 dark:text-zinc-500">{t('planner.untimedHeading')}</p>
           )}
           <ul>
-            {untimedOpen.map((task) => renderRow(task, <>{setTimeButton(task)}{tomorrowButton(task)}{timerButton(task)}</>, 'urgent', true))}
+            {untimedOpen.map((task) =>
+              renderRow(
+                task,
+                <>
+                  {setTimeButton(task)}
+                  {tomorrowButton(task)}
+                  {timerButton(task)}
+                </>,
+                'urgent',
+                true,
+              ),
+            )}
           </ul>
         </div>
 
@@ -595,7 +653,9 @@ export function TodayPlannerView() {
           <div className="mt-6 px-3">
             <DisclosureButton open={showSuggestions} onToggle={() => setShowSuggestions((v) => !v)} className="w-full">
               <span className="flex-1">
-                {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
+                {suggestions.length > 0
+                  ? t('planner.suggestionsHeading', { count: suggestions.length })
+                  : t('planner.suggestionsHeadingPlain')}
               </span>
             </DisclosureButton>
             {showSuggestions && (
@@ -605,16 +665,21 @@ export function TodayPlannerView() {
                   return (
                     <div key={group.kind === 'day' ? group.dueDate : group.kind}>
                       <p className={`ml-11 text-xs ${i === 0 ? 'mt-2' : 'mt-4'} ${heading.tone}`}>{heading.text}</p>
-                      <ul>
-                        {group.tasks.map((task) => renderRow(task, moveHereButton(task), group.kind === 'later' ? 'date' : 'none'))}
-                      </ul>
+                      <ul>{group.tasks.map((task) => renderRow(task, moveHereButton(task), group.kind === 'later' ? 'date' : 'none'))}</ul>
                       {suggestions.length > 1 && group.tasks.some((x) => x.id === lastSuggestionId) && (
                         <button
                           type="button"
-                          onClick={() => rescheduleTasks(suggestions.map((x) => x.id), dateKey)}
+                          onClick={() =>
+                            rescheduleTasks(
+                              suggestions.map((x) => x.id),
+                              dateKey,
+                            )
+                          }
                           className={`ml-11 mt-1 ${textButton}`}
                         >
-                          {t(viewingToday ? 'planner.addAllSuggestions' : 'planner.addAllSuggestionsThisDay', { count: suggestions.length })}
+                          {t(viewingToday ? 'planner.addAllSuggestions' : 'planner.addAllSuggestionsThisDay', {
+                            count: suggestions.length,
+                          })}
                         </button>
                       )}
                     </div>
@@ -641,19 +706,19 @@ export function TodayPlannerView() {
                       type="button"
                       aria-pressed={status !== 'missed'}
                       aria-label={h.title}
-                      {...tip(record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined)}
+                      {...tip(
+                        record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined,
+                      )}
                       onClick={() => toggleHabitDate(h.id, dateKey)}
                       className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-[var(--c)] transition-colors touch-manipulation ${
                         status === 'done'
                           ? HABIT_DONE_FILL
                           : status === 'offTime'
-                          ? HABIT_OFF_TIME_FILL
-                          : 'hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]'
+                            ? HABIT_OFF_TIME_FILL
+                            : 'hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]'
                       }`}
                     >
-                      {status !== 'missed' && (
-                        <CheckIcon className="h-5 w-5" strokeWidth={3} />
-                      )}
+                      {status !== 'missed' && <CheckIcon className="h-5 w-5" strokeWidth={3} />}
                     </button>
                     {canTime && (
                       <button
@@ -673,9 +738,7 @@ export function TodayPlannerView() {
                       </button>
                     )}
                     <span className="line-clamp-2 w-full text-center text-xs leading-snug text-zinc-600 dark:text-zinc-300">{h.title}</span>
-                    {record && (
-                      <span className={`-mt-1 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>
-                    )}
+                    {record && <span className={`-mt-1 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>}
                   </li>
                 )
               })}
@@ -688,11 +751,7 @@ export function TodayPlannerView() {
             <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
               {t('planner.doneHeading', { count: done.length })}
             </DisclosureButton>
-            {showDone && (
-              <ul>
-                {done.map((task) => renderRow(task))}
-              </ul>
-            )}
+            {showDone && <ul>{done.map((task) => renderRow(task))}</ul>}
           </div>
         )}
 
@@ -704,7 +763,16 @@ export function TodayPlannerView() {
               )}
               <div className="flex flex-wrap gap-2">
                 {open.length > 0 && (
-                  <button type="button" onClick={() => rescheduleTasks(open.map((x) => x.id), tomorrowKey)} className={wrapUpButton}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      rescheduleTasks(
+                        open.map((x) => x.id),
+                        tomorrowKey,
+                      )
+                    }
+                    className={wrapUpButton}
+                  >
                     {t('planner.moveRestToTomorrow')}
                   </button>
                 )}

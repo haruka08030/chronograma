@@ -43,7 +43,10 @@ export function DisclosureButton({
       aria-expanded={open}
       className={`flex min-w-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-sm transition-colors ${TONE[tone].text} ${className}`}
     >
-      <ChevronRightIcon className={`h-3 w-3 shrink-0 transition-transform ${TONE[tone].chevron} ${open ? 'rotate-90' : ''}`} strokeWidth={2.5} />
+      <ChevronRightIcon
+        className={`h-3 w-3 shrink-0 transition-transform ${TONE[tone].chevron} ${open ? 'rotate-90' : ''}`}
+        strokeWidth={2.5}
+      />
       {children}
     </button>
   )

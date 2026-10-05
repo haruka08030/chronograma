@@ -33,9 +33,6 @@ const SIZE: Record<FieldSize, string> = {
 
 const ACTIVE = 'ring-2 ring-accent-500/40'
 
-export function fieldClass(
-  { size = 'md', active = false }: { size?: FieldSize; active?: boolean } = {},
-  extra = '',
-): string {
+export function fieldClass({ size = 'md', active = false }: { size?: FieldSize; active?: boolean } = {}, extra = ''): string {
   return `${BASE} ${SIZE[size]}${active ? ` ${ACTIVE}` : ''}${extra ? ` ${extra}` : ''}`
 }

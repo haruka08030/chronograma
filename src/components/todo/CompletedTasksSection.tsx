@@ -66,29 +66,29 @@ export function CompletedTasksSection({
         )}
       </div>
       {showCompleted && (
-      <div className="space-y-0.5 mt-1">
-        {completedTodos.map((t) => (
-          <div key={t.id}>
-            <TaskItem
-              task={t}
-              onRowClick={makeRowClick(t.id)}
-              onEnterCreateSibling={handleEnterCreateSibling}
-              selection={makeSelection(t.id)}
-              autoEdit={pendingAutoEditTaskId === t.id}
-            />
-            {CompletedSubtreeRows({
-              parentId: t.id,
-              depth: 0,
-              childrenByParent,
-              makeRowClick,
-              makeSelection,
-              onEnterCreateSibling: handleEnterCreateSibling,
-              pendingAutoEditTaskId,
-              subtaskNestNoDrag,
-            })}
-          </div>
-        ))}
-      </div>
+        <div className="space-y-0.5 mt-1">
+          {completedTodos.map((t) => (
+            <div key={t.id}>
+              <TaskItem
+                task={t}
+                onRowClick={makeRowClick(t.id)}
+                onEnterCreateSibling={handleEnterCreateSibling}
+                selection={makeSelection(t.id)}
+                autoEdit={pendingAutoEditTaskId === t.id}
+              />
+              {CompletedSubtreeRows({
+                parentId: t.id,
+                depth: 0,
+                childrenByParent,
+                makeRowClick,
+                makeSelection,
+                onEnterCreateSibling: handleEnterCreateSibling,
+                pendingAutoEditTaskId,
+                subtaskNestNoDrag,
+              })}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

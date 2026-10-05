@@ -20,5 +20,4 @@ export const SHOW_ON_ROW_HOVER =
   '[@media(hover:hover)]:hidden [@media(hover:hover)]:group-hover/row:inline-flex [@media(hover:hover)]:group-focus-within/row:inline-flex'
 
 /** `SHOW_ON_ROW_HOVER` のボタンが出ている間は隠す行の情報（時刻・締切） */
-export const HIDE_ON_ROW_HOVER =
-  '[@media(hover:hover)]:group-hover/row:hidden [@media(hover:hover)]:group-focus-within/row:hidden'
+export const HIDE_ON_ROW_HOVER = '[@media(hover:hover)]:group-hover/row:hidden [@media(hover:hover)]:group-focus-within/row:hidden'

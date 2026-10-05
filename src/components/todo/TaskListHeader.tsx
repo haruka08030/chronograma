@@ -83,14 +83,9 @@ export function TaskListHeader({
           {title}
         </h1>
         <div className="flex items-center gap-2 mt-1">
-          <p className={META_TEXT}>
-            {t('taskList.incompleteTasks', { count: incompleteCount })}
-          </p>
+          <p className={META_TEXT}>{t('taskList.incompleteTasks', { count: incompleteCount })}</p>
           {filterTag && (
-            <button
-              onClick={() => setFilterTag(null)}
-              className={chipClass({ variant: 'fill', hover: true })}
-            >
+            <button onClick={() => setFilterTag(null)} className={chipClass({ variant: 'fill', hover: true })}>
               {filterTag}
               <CloseIcon className="w-3 h-3" strokeWidth={2.5} />
             </button>
@@ -101,62 +96,64 @@ export function TaskListHeader({
       <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
         {selectedList && selectedList.id !== INBOX_LIST_ID && <ListKindPicker list={selectedList} />}
         {selectedListId && (
-          <button
-            type="button"
-            onClick={() => onAddSection(selectedListId)}
-            className={buttonClass({ variant: 'secondary', size: 'sm' })}
-          >
+          <button type="button" onClick={() => onAddSection(selectedListId)} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
             {t('taskList.addSection')}
           </button>
         )}
         <div ref={sortMenuRef} className="relative">
-        <button
-          type="button"
-          aria-expanded={showSort}
-          onClick={() => setShowSort(!showSort)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg
+          <button
+            type="button"
+            aria-expanded={showSort}
+            onClick={() => setShowSort(!showSort)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg
                      text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <SortIcon className="w-3.5 h-3.5" />
-          {sortOptions.find((o) => o.value === sortMode)?.label}
-        </button>
-        {showSort && (
-          <>
-            {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
-            <div role="menu" className={`absolute right-0 top-full z-20 mt-1 origin-top-right flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}>
-              {sortOptions.map((opt) => (
-                <MenuItem
-                  key={opt.value}
-                  role="menuitemradio"
-                  checked={sortMode === opt.value}
-                  onClick={() => { setSortMode(opt.value); setShowSort(false) }}
-                >
-                  {opt.label}
-                </MenuItem>
-              ))}
-              {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
-              {sortMode !== 'manual' && (
-                <>
-                  <MenuDivider />
-                  {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
-                  <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-                    <span
-                      className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200"
-                      onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
-                    >
-                      {t('taskList.groupBySection')}
-                    </span>
-                    <Switch
-                      checked={groupBySection}
-                      onChange={(on) => setSectionGrouping(groupingScope, on)}
-                      label={t('taskList.groupBySection')}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </>
-        )}
+          >
+            <SortIcon className="w-3.5 h-3.5" />
+            {sortOptions.find((o) => o.value === sortMode)?.label}
+          </button>
+          {showSort && (
+            <>
+              {/* 見出しの whitespace-nowrap を受け継いで項目が横一列にならないよう、縦に積む */}
+              <div
+                role="menu"
+                className={`absolute right-0 top-full z-20 mt-1 origin-top-right flex min-w-44 flex-col p-1 ${POPOVER_PANEL}`}
+              >
+                {sortOptions.map((opt) => (
+                  <MenuItem
+                    key={opt.value}
+                    role="menuitemradio"
+                    checked={sortMode === opt.value}
+                    onClick={() => {
+                      setSortMode(opt.value)
+                      setShowSort(false)
+                    }}
+                  >
+                    {opt.label}
+                  </MenuItem>
+                ))}
+                {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
+                {sortMode !== 'manual' && (
+                  <>
+                    <MenuDivider />
+                    {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}
+                    <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+                      <span
+                        className="cursor-pointer select-none text-sm text-zinc-700 dark:text-zinc-200"
+                        onClick={() => setSectionGrouping(groupingScope, !groupBySection)}
+                      >
+                        {t('taskList.groupBySection')}
+                      </span>
+                      <Switch
+                        checked={groupBySection}
+                        onChange={(on) => setSectionGrouping(groupingScope, on)}
+                        label={t('taskList.groupBySection')}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

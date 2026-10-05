@@ -41,7 +41,9 @@ export function StatsView() {
             ].map((x) => (
               <div key={x.label} className="px-4 py-3">
                 <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{x.label}</dt>
-                <dd className={`mt-0.5 text-xl font-semibold tabular-nums ${x.warn ? DUE_TONE_CLASS.overdue : 'text-zinc-900 dark:text-zinc-100'}`}>
+                <dd
+                  className={`mt-0.5 text-xl font-semibold tabular-nums ${x.warn ? DUE_TONE_CLASS.overdue : 'text-zinc-900 dark:text-zinc-100'}`}
+                >
                   {x.value}
                   {x.suffix && <span className="ml-0.5 text-sm font-normal text-zinc-500">{x.suffix}</span>}
                 </dd>
@@ -69,4 +71,3 @@ export function StatsView() {
     </div>
   )
 }
-

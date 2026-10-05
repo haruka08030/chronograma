@@ -15,7 +15,7 @@ export function useScheduleWish() {
       if (!dateKey || ids.length === 0) return
       const { tasks, promoteToPlanned, showMoveBanner } = useTaskStore.getState()
       for (const id of ids) promoteToPlanned(id, dateKey)
-      const title = ids.length === 1 ? tasks.find((x) => x.id === ids[0])?.title ?? '' : t('taskMenu.count', { count: ids.length })
+      const title = ids.length === 1 ? (tasks.find((x) => x.id === ids[0])?.title ?? '') : t('taskMenu.count', { count: ids.length })
       showMoveBanner(
         dateKey === appTodayKey()
           ? t('someday.movedToToday', { title })

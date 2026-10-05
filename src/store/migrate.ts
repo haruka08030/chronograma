@@ -92,9 +92,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   if (version < 11) {
     state.sections = Array.isArray(state.sections) ? state.sections : []
     state.quickAddSectionId =
-      typeof state.quickAddSectionId === 'string' || state.quickAddSectionId === null
-        ? state.quickAddSectionId
-        : null
+      typeof state.quickAddSectionId === 'string' || state.quickAddSectionId === null ? state.quickAddSectionId : null
     const tasks = (state.tasks as Record<string, unknown>[]) ?? []
     state.tasks = tasks.map((t) => ({
       ...t,
@@ -147,16 +145,11 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   }
   if (version < 16) {
     const raw = state.timeLogTagPresets
-    state.timeLogTagPresets = Array.isArray(raw)
-      ? normalizeTimeLogTagPresetList(raw.filter((x): x is string => typeof x === 'string'))
-      : []
+    state.timeLogTagPresets = Array.isArray(raw) ? normalizeTimeLogTagPresetList(raw.filter((x): x is string => typeof x === 'string')) : []
   }
   if (version < 17) {
     const raw = state.selectedCalendarDateKey
-    state.selectedCalendarDateKey =
-      typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
-        ? raw
-        : toDateKey(new Date())
+    state.selectedCalendarDateKey = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : toDateKey(new Date())
   }
   if (version < 18) {
     state.todayIncludeOverdue = state.todayIncludeOverdue === true
@@ -165,10 +158,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     const tasks = (state.tasks as Record<string, unknown>[]) ?? []
     state.tasks = tasks.map((t) => ({
       ...t,
-      endDate:
-        typeof (t as Record<string, unknown>).endDate === 'string'
-          ? ((t as Record<string, unknown>).endDate as string)
-          : null,
+      endDate: typeof (t as Record<string, unknown>).endDate === 'string' ? ((t as Record<string, unknown>).endDate as string) : null,
     }))
   }
   if (version < 20) {
@@ -204,10 +194,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     const tasks = (state.tasks as Record<string, unknown>[]) ?? []
     state.tasks = tasks.map((t) => ({
       ...t,
-      location:
-        typeof (t as Record<string, unknown>).location === 'string'
-          ? ((t as Record<string, unknown>).location as string)
-          : null,
+      location: typeof (t as Record<string, unknown>).location === 'string' ? ((t as Record<string, unknown>).location as string) : null,
     }))
   }
   if (version < 24) {
@@ -218,8 +205,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
       // 既存の「時間付き通常タスク」は期限日に予定されていたものとして予定日へ引き継ぐ
       const isLog = rec.isTimeLog === true
       const hasRange = typeof rec.startTime === 'string' && typeof rec.endTime === 'string'
-      let scheduledDate: string | null =
-        typeof rec.scheduledDate === 'string' ? (rec.scheduledDate as string) : null
+      let scheduledDate: string | null = typeof rec.scheduledDate === 'string' ? (rec.scheduledDate as string) : null
       if (scheduledDate === null && !isLog && hasRange && typeof rec.dueDate === 'string') {
         scheduledDate = rec.dueDate as string
       }

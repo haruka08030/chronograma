@@ -55,10 +55,14 @@ export function EventPopover({
 
   // カードが一番上のときだけ（上に色の一覧などが重なっていれば効かない）
   useHotkey(SHORTCUTS.edit.hotkeys, () => onOpenDetail(taskId), { scope: layer })
-  useHotkey(SHORTCUTS.delete.hotkeys, () => {
-    deleteTask(taskId)
-    onClose()
-  }, { scope: layer })
+  useHotkey(
+    SHORTCUTS.delete.hotkeys,
+    () => {
+      deleteTask(taskId)
+      onClose()
+    },
+    { scope: layer },
+  )
 
   useEffect(() => {
     ref.current?.focus()
@@ -96,7 +100,13 @@ export function EventPopover({
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {/* Google の予定のカードの「Google カレンダーで開く」と同じ位置 */}
         {sourceLink && <TaskSourceLink link={sourceLink} className={iconButtonClass()} iconClassName="h-4 w-4" />}
-        <button type="button" onClick={() => onOpenDetail(task.id)} className={iconButtonClass()} aria-label={t('eventCard.edit')} {...tip(t('eventCard.edit'), 'e')}>
+        <button
+          type="button"
+          onClick={() => onOpenDetail(task.id)}
+          className={iconButtonClass()}
+          aria-label={t('eventCard.edit')}
+          {...tip(t('eventCard.edit'), 'e')}
+        >
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
         <button
@@ -111,7 +121,13 @@ export function EventPopover({
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        <button type="button" onClick={onClose} className={iconButtonClass()} aria-label={t('common.close')} {...tip(t('common.close'), 'Esc')}>
+        <button
+          type="button"
+          onClick={onClose}
+          className={iconButtonClass()}
+          aria-label={t('common.close')}
+          {...tip(t('common.close'), 'Esc')}
+        >
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
@@ -119,7 +135,9 @@ export function EventPopover({
       <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-4">
         <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
-          <p className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}>
+          <p
+            className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}
+          >
             {task.title}
           </p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
@@ -128,13 +146,7 @@ export function EventPopover({
           </p>
         </div>
         <span />
-        <p className={META_TEXT}>
-          {isLog
-            ? t('eventCard.log')
-            : list
-              ? displayListName(list.id, list.name)
-              : ''}
-        </p>
+        <p className={META_TEXT}>{isLog ? t('eventCard.log') : list ? displayListName(list.id, list.name) : ''}</p>
         {memo && (
           <>
             <span />
@@ -147,22 +159,13 @@ export function EventPopover({
 
       {/* 記録は色＝分類、予定は色だけ（既定はリストの色） */}
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-        <ColorLabelPicker
-          task={task}
-          compact
-          label={t('labels.pickerAria')}
-          plan={!isLog}
-        />
+        <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} plan={!isLog} />
       </div>
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
           {canLogAsPlanned && (
-            <button
-              type="button"
-              onClick={recordAndComplete}
-              className={buttonClass({ variant: 'primary', size: 'sm' })}
-            >
+            <button type="button" onClick={recordAndComplete} className={buttonClass({ variant: 'primary', size: 'sm' })}>
               {t('eventCard.recordAndComplete')}
             </button>
           )}

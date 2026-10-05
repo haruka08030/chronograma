@@ -3,7 +3,6 @@ import { expandDescendantIds } from '../store/taskHelpers'
 
 const live = (t: Task) => !t.deletedAt && !t.archivedAt
 
-
 /**
  * チェックリストのチェック（親子つき）。メニュー「カレー」の下に材料を並べる使い方。
  * - 子のある行: 子ごとまとめてチェック / まとめて戻す

@@ -55,9 +55,7 @@ export function useFocusTrap(
 
 /** フォーカスが面の端に来たら反対の端へ回す（背景の画面へ抜けない） */
 function trapTab(e: KeyboardEvent, dialog: HTMLElement) {
-  const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.getClientRects().length > 0,
-  )
+  const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.getClientRects().length > 0)
   if (items.length === 0) {
     e.preventDefault()
     dialog.focus()

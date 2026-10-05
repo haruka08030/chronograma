@@ -50,7 +50,12 @@ async function pruneAssets(html) {
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(SHELL))
+      .then(() => self.skipWaiting()),
+  )
 })
 
 self.addEventListener('activate', (event) => {
@@ -82,7 +87,9 @@ self.addEventListener('fetch', (event) => {
             .then((html) =>
               caches
                 .open(CACHE)
-                .then((c) => c.put('/', new Response(html, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'text/html' } })))
+                .then((c) =>
+                  c.put('/', new Response(html, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'text/html' } })),
+                )
                 .then(() => pruneAssets(html)),
             )
             .catch(() => {}),
@@ -162,18 +169,18 @@ self.addEventListener('notificationclick', (event) => {
     target.searchParams.set('as', 'planned')
     target.searchParams.set('launch', nonce)
   }
-  const markLaunch = nonce
-    ? caches.open(LAUNCH_CACHE).then((c) => c.put(`/__launch/${nonce}`, new Response('1')))
-    : Promise.resolve()
-  event.waitUntil(markLaunch.then(() =>
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) {
-        if (new URL(w.url).origin === target.origin) {
-          w.postMessage(taskId ? { type: 'record', taskId, asPlanned } : { type: 'open-view', view: target.searchParams.get('view') })
-          return w.focus()
+  const markLaunch = nonce ? caches.open(LAUNCH_CACHE).then((c) => c.put(`/__launch/${nonce}`, new Response('1'))) : Promise.resolve()
+  event.waitUntil(
+    markLaunch.then(() =>
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+        for (const w of wins) {
+          if (new URL(w.url).origin === target.origin) {
+            w.postMessage(taskId ? { type: 'record', taskId, asPlanned } : { type: 'open-view', view: target.searchParams.get('view') })
+            return w.focus()
+          }
         }
-      }
-      return self.clients.openWindow(target.href)
-    }),
-  ))
+        return self.clients.openWindow(target.href)
+      }),
+    ),
+  )
 })

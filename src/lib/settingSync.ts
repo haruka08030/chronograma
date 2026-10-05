@@ -92,7 +92,11 @@ export function clearSettingSyncedAt(userId: string): void {
  */
 export type SettingPushResult = { updatedAt: string } | { stale: true } | { error: string }
 
-export interface SettingSyncDeps<R extends { updatedAt: string }, A extends { updatedAt: string }, P extends { updatedAt: string; base: string | null }> {
+export interface SettingSyncDeps<
+  R extends { updatedAt: string },
+  A extends { updatedAt: string },
+  P extends { updatedAt: string; base: string | null },
+> {
   key: SettingKey
   fetch: () => Promise<R | null | { error: string }>
   plan: (remote: R | null, syncedAt: string | null, clockOffsetMs: number) => { apply?: A; push?: P; adopt?: string }
@@ -107,7 +111,11 @@ export interface SettingSyncDeps<R extends { updatedAt: string }, A extends { up
  * 利用者ごとに 1 行の設定を 1 回合わせる。失敗してもタスクの同期は止めない（ログに出し、次の同期でまた合わせる）。
  * 送った後に他の端末が先に変えていたら（サーバーが断った）、取り直して合わせ直す（`maxStaleRetries` 回まで）
  */
-export async function runSettingSync<R extends { updatedAt: string }, A extends { updatedAt: string }, P extends { updatedAt: string; base: string | null }>(
+export async function runSettingSync<
+  R extends { updatedAt: string },
+  A extends { updatedAt: string },
+  P extends { updatedAt: string; base: string | null },
+>(
   userId: string,
   s: SettingSyncDeps<R, A, P>,
   opts: { isCancelled?: () => boolean; clockOffsetMs?: number; maxStaleRetries?: number } = {},

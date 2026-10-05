@@ -133,7 +133,14 @@ function orderAfterLastQuickAdd(tasks: readonly Task[], added: Task, now: number
   const prev = tasks.find((t) => t.id === lastQuickAdd!.id)
   if (!prev || prev.listId !== added.listId || prev.parentId !== added.parentId || prev.sectionId !== added.sectionId) return null
   const next = tasks
-    .filter((t) => t.id !== added.id && t.listId === prev.listId && t.parentId === prev.parentId && t.sectionId === prev.sectionId && t.order > prev.order)
+    .filter(
+      (t) =>
+        t.id !== added.id &&
+        t.listId === prev.listId &&
+        t.parentId === prev.parentId &&
+        t.sectionId === prev.sectionId &&
+        t.order > prev.order,
+    )
     .reduce<number | null>((min, t) => (min === null || t.order < min ? t.order : min), null)
   return next === null ? prev.order + 1 : (prev.order + next) / 2
 }
@@ -153,9 +160,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     lists: !isSubtask,
   })
-  const target = parsed.listName
-    ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name))
-    : null
+  const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
   const listId = target?.id ?? opts.defaultListId
   let id: string | undefined
   // 作成と日付付けは 1 回の取り消しで戻す（呼び出し側の asOneUndo の中でもよい）

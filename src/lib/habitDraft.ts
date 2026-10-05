@@ -22,16 +22,10 @@ export function canSubmitHabitDraft(d: HabitDraftFields): boolean {
   return true
 }
 
-export function habitFrequencyFromDraft(
-  freq: 'daily' | 'weekly',
-  weekdays: HabitWeekday[],
-): HabitFrequency {
+export function habitFrequencyFromDraft(freq: 'daily' | 'weekly', weekdays: HabitWeekday[]): HabitFrequency {
   return freq === 'daily' ? { type: 'daily' } : { type: 'weekly', weekdays }
 }
 
-export function toggleHabitWeekdaySelection(
-  prev: HabitWeekday[],
-  v: HabitWeekday,
-): HabitWeekday[] {
+export function toggleHabitWeekdaySelection(prev: HabitWeekday[], v: HabitWeekday): HabitWeekday[] {
   return prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => a - b)
 }

@@ -48,7 +48,13 @@ export function DayNav({
       >
         {today}
       </button>
-      <button type="button" onClick={onPrev} aria-label={prevLabel} {...shortcutTip(prevLabel, shortcuts ? 'prev' : undefined)} className={ARROW}>
+      <button
+        type="button"
+        onClick={onPrev}
+        aria-label={prevLabel}
+        {...shortcutTip(prevLabel, shortcuts ? 'prev' : undefined)}
+        className={ARROW}
+      >
         <ChevronLeftIcon className="h-4 w-4" />
       </button>
       <button

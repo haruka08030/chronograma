@@ -27,13 +27,16 @@ export function useGoogleConnect() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const resolveConnectError = useCallback((e: unknown): string => {
-    if (e instanceof Error) {
-      if (e.message === 'GOOGLE_ALREADY_LINKED') return t('planVsActual.alreadyLinked')
-      return localizeGoogleError(e.message, t)
-    }
-    return t('account.genericError')
-  }, [t])
+  const resolveConnectError = useCallback(
+    (e: unknown): string => {
+      if (e instanceof Error) {
+        if (e.message === 'GOOGLE_ALREADY_LINKED') return t('planVsActual.alreadyLinked')
+        return localizeGoogleError(e.message, t)
+      }
+      return t('account.genericError')
+    },
+    [t],
+  )
 
   // 戻る操作で読み込み中が残らないようにする
   useEffect(() => {

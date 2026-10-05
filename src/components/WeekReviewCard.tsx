@@ -63,9 +63,7 @@ export function WeekReviewCard() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className={CARD_TITLE_CLASS}>{t('weekReview.title')}</h2>
-          <p className={META_TEXT}>
-            {t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}
-          </p>
+          <p className={META_TEXT}>{t('weekReview.range', { start: df.monthDayWeekday(weekStart) })}</p>
         </div>
         <DayNav
           onToday={() => setWeekOffset(0)}
@@ -94,7 +92,9 @@ export function WeekReviewCard() {
 
       <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_12rem]">
         <figure>
-          <SectionLabel as="figcaption" className="mb-2">{t('weekReview.loggedPerDay')}</SectionLabel>
+          <SectionLabel as="figcaption" className="mb-2">
+            {t('weekReview.loggedPerDay')}
+          </SectionLabel>
           <div className="flex h-28 items-end gap-2 border-b border-zinc-200 dark:border-zinc-700">
             {Array.from({ length: 7 }, (_, i) => {
               const day = review.days[i]
@@ -156,7 +156,9 @@ export function WeekReviewCard() {
         </figure>
 
         <div>
-          <SectionLabel as="h3" className="mb-2">{t('weekReview.topTags')}</SectionLabel>
+          <SectionLabel as="h3" className="mb-2">
+            {t('weekReview.topTags')}
+          </SectionLabel>
           {review.topTags.length === 0 ? (
             <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
@@ -164,8 +166,14 @@ export function WeekReviewCard() {
               {review.topTags.map((x) => (
                 <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))} aria-hidden />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">{recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}</span>
+                    <span
+                      className="gc-dot h-2 w-2 shrink-0 rounded-full"
+                      style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))}
+                      aria-hidden
+                    />
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">
+                      {recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}
+                    </span>
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>
                 </li>

@@ -15,11 +15,16 @@ export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
           <li key={s.label} className="flex items-center justify-between py-2 text-sm">
             <span className="text-zinc-700 dark:text-zinc-300">{t(s.label)}</span>
             <span className="flex gap-1">
-              {s.keys.map((k) => (k === 'mod' ? modKeyLabel() : k)).map((k) => (
-                <kbd key={k} className="min-w-6 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-center font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-                  {k}
-                </kbd>
-              ))}
+              {s.keys
+                .map((k) => (k === 'mod' ? modKeyLabel() : k))
+                .map((k) => (
+                  <kbd
+                    key={k}
+                    className="min-w-6 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-center font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+                  >
+                    {k}
+                  </kbd>
+                ))}
             </span>
           </li>
         ))}

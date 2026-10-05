@@ -31,9 +31,30 @@ const LEGACY_KEYS: Record<string, CategoryColorKey> = {
 
 // 分類に割り当てる順番（隣り合う分類が似た色にならないよう、色相を飛ばして並べる）
 const ASSIGN_ORDER: readonly CategoryColorKey[] = [
-  'peacock', 'sage', 'tangerine', 'lavender', 'banana', 'flamingo', 'grape', 'basil', 'blueberry', 'tomato', 'graphite',
-  'cobalt', 'mango', 'eucalyptus', 'cherryBlossom', 'pistachio', 'amethyst', 'citron', 'radicchio', 'wisteria', 'pumpkin',
-  'avocado', 'cocoa', 'birch',
+  'peacock',
+  'sage',
+  'tangerine',
+  'lavender',
+  'banana',
+  'flamingo',
+  'grape',
+  'basil',
+  'blueberry',
+  'tomato',
+  'graphite',
+  'cobalt',
+  'mango',
+  'eucalyptus',
+  'cherryBlossom',
+  'pistachio',
+  'amethyst',
+  'citron',
+  'radicchio',
+  'wisteria',
+  'pumpkin',
+  'avocado',
+  'cocoa',
+  'birch',
 ]
 /** 名前から色を決めるときは以前の 11 色の範囲で（色を保存していない古い分類の色を変えないため） */
 const HASH_ORDER = ASSIGN_ORDER.slice(0, 11)

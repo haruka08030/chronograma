@@ -26,8 +26,7 @@ function formatElapsed(ms: number): string {
 }
 
 /** ボトムナビ + safe-area の上に載せる共通オフセット（md 以上は従来どおり） */
-const MOBILE_FLOAT_BOTTOM =
-  'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
+const MOBILE_FLOAT_BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 
 /**
  * これを超えたら「止め忘れ」とみなして確認を出す。
@@ -82,9 +81,7 @@ export function FloatingTimer() {
     >
       <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-          {activeTimer.taskTitle}
-        </p>
+        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{activeTimer.taskTitle}</p>
         {activeTimer.tags?.length > 0 && (
           <div className="flex gap-1 mt-0.5">
             {activeTimer.tags.map((tag) => (
@@ -95,9 +92,7 @@ export function FloatingTimer() {
           </div>
         )}
       </div>
-      <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
-        {formatElapsed(elapsed)}
-      </span>
+      <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{formatElapsed(elapsed)}</span>
       <button
         type="button"
         onClick={stopTimer}
@@ -114,7 +109,7 @@ export function FloatingTimer() {
 function CompletePrompt() {
   const { t } = useTranslation()
   const taskId = useTaskStore((s) => s.completePromptTaskId)
-  const task = useTaskStore((s) => (taskId ? s.tasks.find((x) => x.id === taskId) ?? null : null))
+  const task = useTaskStore((s) => (taskId ? (s.tasks.find((x) => x.id === taskId) ?? null) : null))
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const dismiss = useTaskStore((s) => s.dismissCompletePrompt)
   const shownAt = useRef(0)
@@ -136,14 +131,8 @@ function CompletePrompt() {
                   dark:border-zinc-700 dark:bg-zinc-800 flex items-center gap-3
                   ${MOBILE_FLOAT_BOTTOM}`}
     >
-      <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
-        {t('floatingTimer.completePrompt', { title: task.title })}
-      </p>
-      <button
-        type="button"
-        onClick={dismiss}
-        className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}
-      >
+      <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">{t('floatingTimer.completePrompt', { title: task.title })}</p>
+      <button type="button" onClick={dismiss} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}>
         {t('floatingTimer.notYet')}
       </button>
       <button
@@ -187,12 +176,8 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
                   rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl
                   dark:border-amber-500/40 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
     >
-      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-        {t('staleTimer.title')}
-      </p>
-      <p className={`mt-1 ${HINT_TEXT}`}>
-        {t('staleTimer.body', { title: taskTitle, since: df.monthDayTime(started) })}
-      </p>
+      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{t('staleTimer.title')}</p>
+      <p className={`mt-1 ${HINT_TEXT}`}>{t('staleTimer.body', { title: taskTitle, since: df.monthDayTime(started) })}</p>
 
       {editing ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -226,25 +211,13 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => stopTimer()}
-            className={buttonClass({ variant: 'primary', size: 'sm' })}
-          >
+          <button type="button" onClick={() => stopTimer()} className={buttonClass({ variant: 'primary', size: 'sm' })}>
             {t('staleTimer.stopNow')}
           </button>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className={buttonClass({ variant: 'secondary', size: 'sm' })}
-          >
+          <button type="button" onClick={() => setEditing(true)} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
             {t('staleTimer.chooseEnd')}
           </button>
-          <button
-            type="button"
-            onClick={discardActiveTimer}
-            className={buttonClass({ variant: 'ghost', size: 'sm' })}
-          >
+          <button type="button" onClick={discardActiveTimer} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
             {t('staleTimer.discard')}
           </button>
         </div>

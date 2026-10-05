@@ -56,10 +56,19 @@ describe('parseBackupJson', () => {
     const parsed = parseBackupJson(
       file({
         lists: [{ id: '__inbox__', name: '未分類' }],
-        tasks: [{
-          id: 't1', title: 'ES', listId: '__inbox__', tags: ['就活'], dueDate: '2026-10-05', dueTime: '18:00',
-          recurrence: { type: 'weekly', interval: 2 }, createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-02T00:00:00.000Z',
-        }],
+        tasks: [
+          {
+            id: 't1',
+            title: 'ES',
+            listId: '__inbox__',
+            tags: ['就活'],
+            dueDate: '2026-10-05',
+            dueTime: '18:00',
+            recurrence: { type: 'weekly', interval: 2 },
+            createdAt: '2026-10-01T00:00:00.000Z',
+            updatedAt: '2026-10-02T00:00:00.000Z',
+          },
+        ],
       }),
     )
     const t = parsed!.tasks[0]
@@ -75,8 +84,20 @@ describe('parseBackupJson', () => {
       file({
         lists: [{ id: '__inbox__', name: '未分類' }],
         tasks: [
-          { id: 't1', title: 'ジム', listId: '__inbox__', dueDate: '2026-10-05', recurrence: { type: 'weekly', interval: 1, weekdays: [5, 1, 3] } },
-          { id: 't2', title: '日記', listId: '__inbox__', dueDate: '2026-10-05', recurrence: { type: 'daily', interval: 1, weekdays: [1] } },
+          {
+            id: 't1',
+            title: 'ジム',
+            listId: '__inbox__',
+            dueDate: '2026-10-05',
+            recurrence: { type: 'weekly', interval: 1, weekdays: [5, 1, 3] },
+          },
+          {
+            id: 't2',
+            title: '日記',
+            listId: '__inbox__',
+            dueDate: '2026-10-05',
+            recurrence: { type: 'daily', interval: 1, weekdays: [1] },
+          },
         ],
       }),
     )
@@ -93,12 +114,23 @@ describe('unknown fields', () => {
         listSections: [{ id: 's1', listId: 'l1', name: '週 1', order: 0, extra: true }],
         tasks: [
           {
-            id: 't1', title: '課題', listId: 'l1', sectionId: 's1', category: '勉強', is_time_log: true,
-            reminders: [{ at: 'start', minutes: 10, url: 'https://evil.example' }, { at: 'never', minutes: 5 }],
-            injected: { deep: 1 }, user_id: 'someone-else',
+            id: 't1',
+            title: '課題',
+            listId: 'l1',
+            sectionId: 's1',
+            category: '勉強',
+            is_time_log: true,
+            reminders: [
+              { at: 'start', minutes: 10, url: 'https://evil.example' },
+              { at: 'never', minutes: 5 },
+            ],
+            injected: { deep: 1 },
+            user_id: 'someone-else',
           },
         ],
-        habits: [{ id: 'h1', title: 'ジム', frequency: { type: 'weekly', weekdays: [2], extra: 1 }, injected: 'x', user_id: 'someone-else' }],
+        habits: [
+          { id: 'h1', title: 'ジム', frequency: { type: 'weekly', weekdays: [2], extra: 1 }, injected: 'x', user_id: 'someone-else' },
+        ],
       }),
     )
     expect(parsed).not.toBeNull()
@@ -111,15 +143,53 @@ describe('unknown fields', () => {
     expect(t.reminders).toEqual([{ at: 'start', minutes: 10 }])
     expect(Object.keys(t).sort()).toEqual(
       [
-        'archivedAt', 'category', 'color', 'completed', 'completedAt', 'createdAt', 'deletedAt', 'description', 'dueDate',
-        'dueTime', 'endDate', 'endTime', 'habitId', 'id', 'kind', 'listId', 'location', 'order', 'parentId', 'priority',
-        'recurrence', 'reminders', 'scheduledDate', 'sectionId', 'startTime', 'tags', 'timeZone', 'timeZoneAnchor', 'title',
+        'archivedAt',
+        'category',
+        'color',
+        'completed',
+        'completedAt',
+        'createdAt',
+        'deletedAt',
+        'description',
+        'dueDate',
+        'dueTime',
+        'endDate',
+        'endTime',
+        'habitId',
+        'id',
+        'kind',
+        'listId',
+        'location',
+        'order',
+        'parentId',
+        'priority',
+        'recurrence',
+        'reminders',
+        'scheduledDate',
+        'sectionId',
+        'startTime',
+        'tags',
+        'timeZone',
+        'timeZoneAnchor',
+        'title',
         'updatedAt',
       ].sort(),
     )
     const h = parsed!.habits[0] as unknown as Record<string, unknown>
     expect(Object.keys(h).sort()).toEqual(
-      ['archivedAt', 'color', 'completedDates', 'createdAt', 'endTime', 'frequency', 'id', 'startTime', 'timeMode', 'title', 'updatedAt'].sort(),
+      [
+        'archivedAt',
+        'color',
+        'completedDates',
+        'createdAt',
+        'endTime',
+        'frequency',
+        'id',
+        'startTime',
+        'timeMode',
+        'title',
+        'updatedAt',
+      ].sort(),
     )
     expect(h.frequency).toEqual({ type: 'weekly', weekdays: [2] })
     expect(Object.keys(parsed!.lists[0]).sort()).toEqual(['color', 'id', 'kind', 'name', 'order'])
@@ -175,7 +245,13 @@ describe('task kind', () => {
       }),
     )!.tasks
     const payload = buildBackupPayload({
-      tasks, lists: [], habits: [], sections: [], listColorPaletteId: 'pastel-rainbow', timeLogTagPresets: [], logCategoryColors: {},
+      tasks,
+      lists: [],
+      habits: [],
+      sections: [],
+      listColorPaletteId: 'pastel-rainbow',
+      timeLogTagPresets: [],
+      logCategoryColors: {},
     })
     expect(payload.tasks).toMatchObject([
       { kind: 'log', isTimeLog: true, isSleep: false },
@@ -211,7 +287,9 @@ describe('readBackupJson', () => {
 
   it('counts rows missing required fields', () => {
     expect(problemOf(file({ lists: [inbox], tasks: [{ id: 't1' }, { title: 'x', listId: '__inbox__' }] }))).toEqual({
-      kind: 'missingFields', item: 'task', count: 2,
+      kind: 'missingFields',
+      item: 'task',
+      count: 2,
     })
     expect(problemOf(file({ lists: [{ id: 'l1' }], tasks: [] }))).toEqual({ kind: 'missingFields', item: 'list', count: 1 })
   })
@@ -224,9 +302,15 @@ describe('readBackupJson', () => {
     ]
     expect(problemOf(file({ lists: [inbox], tasks }))).toEqual({ kind: 'duplicateIds', item: 'task', count: 2, example: 'ES 2' })
     expect(problemOf(file({ lists: [inbox, { id: '__inbox__', name: '' }], tasks: [] }))).toEqual({
-      kind: 'duplicateIds', item: 'list', count: 1, example: '__inbox__',
+      kind: 'duplicateIds',
+      item: 'list',
+      count: 1,
+      example: '__inbox__',
     })
-    const listSections = [{ id: 's1', listId: '__inbox__', name: '前半' }, { id: 's1', listId: '__inbox__', name: '後半' }]
+    const listSections = [
+      { id: 's1', listId: '__inbox__', name: '前半' },
+      { id: 's1', listId: '__inbox__', name: '後半' },
+    ]
     expect(problemOf(file({ lists: [inbox], tasks: [], listSections }))).toMatchObject({ kind: 'duplicateIds', item: 'section' })
   })
 
@@ -239,7 +323,10 @@ describe('readBackupJson', () => {
     expect(problemOf(file({ lists: [inbox], tasks }))).toEqual({ kind: 'missingList', item: 'task', count: 2, example: '迷子' })
     const listSections = [{ id: 's1', listId: 'gone', name: '前半' }]
     expect(problemOf(file({ lists: [inbox], tasks: [], listSections }))).toEqual({
-      kind: 'missingList', item: 'section', count: 1, example: '前半',
+      kind: 'missingList',
+      item: 'section',
+      count: 1,
+      example: '前半',
     })
   })
 

@@ -30,12 +30,12 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
     // 日曜は「明日」と「来週」が同じ月曜になるので 1 つにする
     .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
     .map((o): ActionLeaf => ({
-    id: `scheduled-${o.key}`,
-    label: o.label,
-    hint: df.shortDateWeekday(o.key),
-    checked: shared === o.key,
-    run: done(() => bulk.setScheduled(taskIds, o.key, o.label)),
-  }))
+      id: `scheduled-${o.key}`,
+      label: o.label,
+      hint: df.shortDateWeekday(o.key),
+      checked: shared === o.key,
+      run: done(() => bulk.setScheduled(taskIds, o.key, o.label)),
+    }))
   if (targets.some((x) => x.scheduledDate)) {
     leaves.push({ id: 'scheduled-none', label: t('taskMenu.unschedule'), run: done(() => bulk.setScheduled(taskIds, null, '')) })
   }

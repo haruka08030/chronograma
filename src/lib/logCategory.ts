@@ -39,11 +39,7 @@ export interface InferLogCategoryOptions {
  * 4. Google の予定の色と同じ色の分類
  * 5. タイトルに分類名が入っている（「就活 ES」→ 就活）
  */
-export function inferLogCategory(
-  tasks: readonly Task[],
-  title: string,
-  opts: InferLogCategoryOptions = {},
-): string | null {
+export function inferLogCategory(tasks: readonly Task[], title: string, opts: InferLogCategoryOptions = {}): string | null {
   if (opts.sourceTaskId) {
     const src = tasks.find((t) => t.id === opts.sourceTaskId)
     // To-Do のタグは分類ではない。To-Do からはラベル（色）で引く

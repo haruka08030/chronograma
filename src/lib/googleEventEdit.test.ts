@@ -6,8 +6,12 @@ const store = vi.hoisted(() => {
   const s = {
     calendarEvents: [] as CalendarEvent[],
     googleUndo: null as { id: string; text: string; at: number } | null,
-    setCalendarEvents: (events: CalendarEvent[]) => { s.calendarEvents = events },
-    setGoogleUndo: (next: { id: string; text: string } | null) => { s.googleUndo = next ? { ...next, at: 0 } : null },
+    setCalendarEvents: (events: CalendarEvent[]) => {
+      s.calendarEvents = events
+    },
+    setGoogleUndo: (next: { id: string; text: string } | null) => {
+      s.googleUndo = next ? { ...next, at: 0 } : null
+    },
     showMoveBanner: vi.fn(),
     setGoogleCanWrite: vi.fn(),
   }
@@ -30,7 +34,17 @@ const { removeGoogleEvent, undoGoogleDelete, withoutPendingDeletes } = await imp
 const { UNDO_WINDOW_MS } = await import('./undoWindow')
 
 const event = (id: string): CalendarEvent =>
-  ({ id, summary: id, start: '', end: '', startTime: null, endTime: null, date: '2026-10-02', isAllDay: false, editable: true }) as CalendarEvent
+  ({
+    id,
+    summary: id,
+    start: '',
+    end: '',
+    startTime: null,
+    endTime: null,
+    date: '2026-10-02',
+    isAllDay: false,
+    editable: true,
+  }) as CalendarEvent
 
 describe('Google の予定の削除（「元に戻す」の間は Google に送らない）', () => {
   beforeEach(() => {

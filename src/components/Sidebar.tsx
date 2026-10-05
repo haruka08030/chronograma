@@ -29,7 +29,6 @@ const OTHER_VIEWS: { id: SmartView; icon: string }[] = [
 
 const TODO_OPENER_ICON = ICON_PATHS.check
 
-
 /**
  * md 以上は常設のサイドバー。md 未満は To-Do の ≡・右スワイプで出すドロワーで、中身は To-Do のナビだけ
  * （ほかの画面は下のタブ、統計・設定は「その他」タブにある）
@@ -54,16 +53,15 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     onClose?.()
   }
 
-
   // md〜lg 未満は `TodoNavPanel` を置く横幅がないので、サブナビをサイドバーに畳み込む。
   // リスト行は DnD id を持つため、常に「表示されている一枚」にだけ描画する。
   const renderSidebarContent = (withTodoNav: boolean) => (
-    <aside className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
-                       flex flex-col h-full">
+    <aside
+      className="w-60 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
+                       flex flex-col h-full"
+    >
       <div className="px-5 pt-5 pb-3 flex items-center gap-2 min-w-0">
-        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
-          {t('sidebar.brand')}
-        </span>
+        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">{t('sidebar.brand')}</span>
         <SyncIndicator />
       </div>
 
@@ -80,9 +78,11 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             if (!onTodoView) selectView('all')
           }}
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
-            ${onTodoView
-              ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
-              : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+            ${
+              onTodoView
+                ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300 font-medium'
+                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
         >
           <PathIcon d={TODO_OPENER_ICON} className="w-4 h-4 flex-shrink-0" />
           <span className="flex-1">{t('sidebar.todo')}</span>
@@ -127,12 +127,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
 
   // スマホのドロワー: 絞り込み・リスト・ラベルだけ。下端は `MobileBottomNav` に隠れるので、その分の余白を空ける
   const renderTodoNavDrawer = () => (
-    <aside className="w-[min(20rem,85vw)] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
-                       flex flex-col h-full pb-[calc(3.5rem+env(safe-area-inset-bottom))]">
+    <aside
+      className="w-[min(20rem,85vw)] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50
+                       flex flex-col h-full pb-[calc(3.5rem+env(safe-area-inset-bottom))]"
+    >
       <div className="px-5 pt-5 pb-3 flex items-center gap-2 min-w-0">
-        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">
-          {t('sidebar.todo')}
-        </span>
+        <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight truncate min-w-0">{t('sidebar.todo')}</span>
         <SyncIndicator />
       </div>
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
@@ -146,11 +146,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   if (open !== undefined) {
     // 常設とドロワーは CSS で出し分けず片方だけマウントする（state / ref の共有を避ける）
     if (isDesktop) {
-      return (
-        <div className="flex h-full min-h-0 shrink-0 self-stretch">
-          {renderSidebarContent(inlineTodoNavInFixed)}
-        </div>
-      )
+      return <div className="flex h-full min-h-0 shrink-0 self-stretch">{renderSidebarContent(inlineTodoNavInFixed)}</div>
     }
     if (!drawer.shown) return null
     return (

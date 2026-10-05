@@ -3,7 +3,16 @@ import type { Task } from '../types/task'
 import { planTiming } from './planTiming'
 
 const plan = (over: Partial<Task>): Task =>
-  ({ kind: 'task', completed: false, scheduledDate: '2026-10-03', dueDate: null, endDate: null, startTime: '10:00', endTime: '11:00', ...over }) as Task
+  ({
+    kind: 'task',
+    completed: false,
+    scheduledDate: '2026-10-03',
+    dueDate: null,
+    endDate: null,
+    startTime: '10:00',
+    endTime: '11:00',
+    ...over,
+  }) as Task
 
 const at = (ymd: string, hm: string) => new Date(`${ymd}T${hm}:00`)
 

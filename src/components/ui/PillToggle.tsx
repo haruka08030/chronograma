@@ -15,8 +15,7 @@ type PillToggleProps<T> = {
 
 const PILL = 'rounded-full border px-3 py-1 text-xs transition-colors touch-manipulation'
 const SELECTED = 'border-transparent bg-accent-600 font-medium text-on-accent hover:bg-accent-700'
-const UNSELECTED =
-  'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+const UNSELECTED = 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
 
 export function PillToggle<T extends string | number>(props: PillToggleProps<T>) {
   const { options, ariaLabel, className = '' } = props

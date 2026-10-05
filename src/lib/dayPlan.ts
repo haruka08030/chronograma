@@ -38,9 +38,8 @@ export function keepsTimeSlot(task: CalendarPlacedTask): boolean {
   if (!task.completed) return true
   const placement = taskPlacementDate(task)
   if (!placement) return false
-  const first = task.startTime < `${String(DAY_START_HOUR).padStart(2, '0')}:00`
-    ? toDateKey(addDays(fromDateKey(placement), -1))
-    : placement
+  const first =
+    task.startTime < `${String(DAY_START_HOUR).padStart(2, '0')}:00` ? toDateKey(addDays(fromDateKey(placement), -1)) : placement
   const done = completionDayKey(task)
   return done >= first && done <= (task.endDate ?? placement)
 }
@@ -118,11 +117,7 @@ export function getDayPlan(
  * 「今日やる候補」をスクロールで足していく分。やり残し・締切間近（getDayPlan）より後ろに並べる。
  * 締切がもっと先のもの（締切順）→ 日付なし（並び順）→ 先の日に置いたもの（日付順）。
  */
-export function getMoreSuggestions(
-  tasks: readonly Task[],
-  dateKey: string,
-  excludedListIds: ReadonlySet<string> = new Set(),
-): Task[] {
+export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excludedListIds: ReadonlySet<string> = new Set()): Task[] {
   const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const dueLater: Task[] = []
   const undated: Task[] = []
@@ -145,10 +140,7 @@ export function getMoreSuggestions(
 }
 
 /** 候補を締切で分けた 1 まとまり。`day` は 1 週間以内のその日、`later` はそれより先、`none` は締切なし */
-export type DueGroup =
-  | { kind: 'day'; dueDate: string; tasks: Task[] }
-  | { kind: 'later'; tasks: Task[] }
-  | { kind: 'none'; tasks: Task[] }
+export type DueGroup = { kind: 'day'; dueDate: string; tasks: Task[] } | { kind: 'later'; tasks: Task[] } | { kind: 'none'; tasks: Task[] }
 
 /** 締切の日ごとに見出しを立てる範囲（見ている日から何日先まで） */
 const DUE_GROUP_DAYS = 6

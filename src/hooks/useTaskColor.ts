@@ -15,9 +15,7 @@ export function useTaskColor(task: Task, plan = false) {
   const colors = useTaskStore((s) => s.logCategoryColors)
   const updateTask = useTaskStore((s) => s.updateTask)
   const isPlan = plan
-  const current = isPlan
-    ? task.color?.toUpperCase() ?? null
-    : task.category || task.color ? recordHex(task, colors).toUpperCase() : null
+  const current = isPlan ? (task.color?.toUpperCase() ?? null) : task.category || task.color ? recordHex(task, colors).toUpperCase() : null
   // 予定は色だけ持つが、その色にラベル（分類名）が付いていれば色名ではなくラベル名で出す
   const label = isPlan ? labelForHex(current, presets, colors) : task.category
   const currentKey = colorKeyForHex(current)
@@ -33,7 +31,7 @@ export function useTaskColor(task: Task, plan = false) {
   return {
     current,
     /** 今の色の呼び名（ラベル名 → 色名 → 既定） */
-    currentText: label ?? (currentKey ? t(`googleColors.${currentKey}`) : current ?? defaultLabel),
+    currentText: label ?? (currentKey ? t(`googleColors.${currentKey}`) : (current ?? defaultLabel)),
     choose,
     defaultLabel,
     defaultHex: NEUTRAL_HEX,

@@ -19,10 +19,12 @@ export function useTodayToggle() {
       const { tasks } = useTaskStore.getState()
       const today = appToday()
       const todayKey = toDateKey(today)
-      const toTomorrow = ids.length > 0 && ids.every((id) => {
-        const task = tasks.find((x) => x.id === id)
-        return task ? taskPlacementDate(task) === todayKey : false
-      })
+      const toTomorrow =
+        ids.length > 0 &&
+        ids.every((id) => {
+          const task = tasks.find((x) => x.id === id)
+          return task ? taskPlacementDate(task) === todayKey : false
+        })
       const key = toTomorrow ? toDateKey(addDays(today, 1)) : todayKey
       return {
         toTomorrow,

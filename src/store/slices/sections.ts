@@ -4,14 +4,7 @@ import { newId } from '../../lib/id'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 
-type SectionsActions = Pick<
-  TaskState,
-  | 'setQuickAddSectionId'
-  | 'addSection'
-  | 'renameSection'
-  | 'deleteSection'
-  | 'reorderSections'
->
+type SectionsActions = Pick<TaskState, 'setQuickAddSectionId' | 'addSection' | 'renameSection' | 'deleteSection' | 'reorderSections'>
 
 export function createSectionsSlice({ set, get, undo }: SliceContext): SectionsActions {
   const { pushUndo } = undo
@@ -26,7 +19,13 @@ export function createSectionsSlice({ set, get, undo }: SliceContext): SectionsA
       set((s) => ({
         sections: [
           ...s.sections,
-          { id: sectionId, listId, name: name?.trim() || i18n.t('sections.defaultName'), order: maxOrder + 1, updatedAt: new Date().toISOString() },
+          {
+            id: sectionId,
+            listId,
+            name: name?.trim() || i18n.t('sections.defaultName'),
+            order: maxOrder + 1,
+            updatedAt: new Date().toISOString(),
+          },
         ],
       }))
       return sectionId

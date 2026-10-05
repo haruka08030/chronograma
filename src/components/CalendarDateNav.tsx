@@ -42,11 +42,7 @@ export function CalendarDateNav({
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, triggerRef] })
 
   const periodLabel =
-    mode === 'month'
-      ? df.yearMonth(monthCursor)
-      : mode === 'schedule'
-        ? df.monthDayWeekday(selectedDateKey)
-      : df.weekRange(weekAnchor)
+    mode === 'month' ? df.yearMonth(monthCursor) : mode === 'schedule' ? df.monthDayWeekday(selectedDateKey) : df.weekRange(weekAnchor)
 
   const handlePickDay = (key: string) => {
     onPickDate(key)
@@ -77,11 +73,7 @@ export function CalendarDateNav({
             if (open) {
               setOpen(false)
             } else {
-              setPickerMonth(
-                mode === 'month'
-                  ? startOfMonth(monthCursor)
-                  : startOfMonth(fromDateKey(selectedDateKey)),
-              )
+              setPickerMonth(mode === 'month' ? startOfMonth(monthCursor) : startOfMonth(fromDateKey(selectedDateKey)))
               setOpen(true)
             }
           }}

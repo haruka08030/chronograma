@@ -3,10 +3,7 @@ import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
-import {
-  normalizeListColorPaletteId,
-  type ListColorPaletteId,
-} from './listColorPalettes'
+import { normalizeListColorPaletteId, type ListColorPaletteId } from './listColorPalettes'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
@@ -67,9 +64,7 @@ export type BackupProblem =
   /** ファイルに無い親タスクを指すサブタスクがある */
   | { kind: 'missingParent'; count: number; example: string }
 
-export type BackupReadResult =
-  | { ok: true; data: BackupImportResult }
-  | { ok: false; problem: BackupProblem }
+export type BackupReadResult = { ok: true; data: BackupImportResult } | { ok: false; problem: BackupProblem }
 
 /** 例として画面に出す名前。空なら ID */
 function exampleName(name: string, id: string): string {
@@ -77,10 +72,7 @@ function exampleName(name: string, id: string): string {
 }
 
 /** 重複している ID の件数（2 回目以降の行の数）と、最初の 1 件の名前 */
-function findDuplicateIds<T extends { id: string }>(
-  rows: T[],
-  nameOf: (row: T) => string,
-): { count: number; example: string } | null {
+function findDuplicateIds<T extends { id: string }>(rows: T[], nameOf: (row: T) => string): { count: number; example: string } | null {
   const seen = new Set<string>()
   let count = 0
   let example = ''
@@ -283,13 +275,12 @@ function normalizeHabitRow(raw: unknown): Habit | null {
   const startTime = typeof rec.startTime === 'string' ? rec.startTime : null
   const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
-    rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range'
-      ? rec.timeMode
-      : inferHabitTimeMode(startTime, endTime)
+    rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range' ? rec.timeMode : inferHabitTimeMode(startTime, endTime)
   const freq = typeof rec.frequency === 'object' && rec.frequency !== null ? (rec.frequency as Record<string, unknown>) : null
-  const weekdays = freq?.type === 'weekly' && Array.isArray(freq.weekdays)
-    ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
-    : null
+  const weekdays =
+    freq?.type === 'weekly' && Array.isArray(freq.weekdays)
+      ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
+      : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
@@ -308,8 +299,7 @@ function normalizeHabitRow(raw: unknown): Habit | null {
 }
 
 function readSectionsArray(data: Record<string, unknown>): unknown[] {
-  const raw =
-    data.listSections ?? data.list_sections ?? data.sections
+  const raw = data.listSections ?? data.list_sections ?? data.sections
   return Array.isArray(raw) ? raw : []
 }
 
@@ -344,12 +334,8 @@ export function readBackupJson(json: string): BackupReadResult {
     return { ok: false, problem: { kind: 'newerVersion', version } }
   }
 
-  const tasks = (data.tasks as unknown[])
-    .map(normalizeTaskRow)
-    .filter((t): t is Task => t !== null)
-  const lists = (data.lists as unknown[])
-    .map(normalizeListRow)
-    .filter((l): l is TaskList => l !== null)
+  const tasks = (data.tasks as unknown[]).map(normalizeTaskRow).filter((t): t is Task => t !== null)
+  const lists = (data.lists as unknown[]).map(normalizeListRow).filter((l): l is TaskList => l !== null)
 
   if (lists.length !== data.lists.length) {
     return { ok: false, problem: { kind: 'missingFields', item: 'list', count: data.lists.length - lists.length } }
@@ -362,17 +348,10 @@ export function readBackupJson(json: string): BackupReadResult {
     .map(normalizeSectionRow)
     .filter((s): s is ListSection => s !== null)
 
-  const habits = Array.isArray(data.habits)
-    ? (data.habits as unknown[])
-        .map(normalizeHabitRow)
-        .filter((h): h is Habit => h !== null)
-    : []
+  const habits = Array.isArray(data.habits) ? (data.habits as unknown[]).map(normalizeHabitRow).filter((h): h is Habit => h !== null) : []
 
   const paletteRaw = data.listColorPaletteId
-  const listColorPaletteId =
-    paletteRaw !== undefined && paletteRaw !== null
-      ? normalizeListColorPaletteId(paletteRaw)
-      : null
+  const listColorPaletteId = paletteRaw !== undefined && paletteRaw !== null ? normalizeListColorPaletteId(paletteRaw) : null
 
   const rawPresets = data.timeLogTagPresets
   const timeLogTagPresets = Array.isArray(rawPresets)
@@ -383,9 +362,7 @@ export function readBackupJson(json: string): BackupReadResult {
   const logCategoryColors =
     rawColors && typeof rawColors === 'object' && !Array.isArray(rawColors)
       ? Object.fromEntries(
-          Object.entries(rawColors as Record<string, unknown>).filter(
-            (e): e is [string, string] => typeof e[1] === 'string',
-          ),
+          Object.entries(rawColors as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string'),
         )
       : null
 
@@ -401,9 +378,17 @@ export function readBackupJson(json: string): BackupReadResult {
   const sectionById = new Map(sections.map((s) => [s.id, s]))
   const taskIds = new Set(tasks.map((t) => t.id))
 
-  const sectionsWithoutList = findBad(sections, (s) => !listIds.has(s.listId), (s) => s.name)
+  const sectionsWithoutList = findBad(
+    sections,
+    (s) => !listIds.has(s.listId),
+    (s) => s.name,
+  )
   if (sectionsWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'section', ...sectionsWithoutList } }
-  const tasksWithoutList = findBad(tasks, (t) => !listIds.has(t.listId), (t) => t.title)
+  const tasksWithoutList = findBad(
+    tasks,
+    (t) => !listIds.has(t.listId),
+    (t) => t.title,
+  )
   if (tasksWithoutList) return { ok: false, problem: { kind: 'missingList', item: 'task', ...tasksWithoutList } }
   const tasksWithBadSection = findBad(
     tasks,
@@ -411,7 +396,11 @@ export function readBackupJson(json: string): BackupReadResult {
     (t) => t.title,
   )
   if (tasksWithBadSection) return { ok: false, problem: { kind: 'missingSection', ...tasksWithBadSection } }
-  const tasksWithoutParent = findBad(tasks, (t) => Boolean(t.parentId) && !taskIds.has(t.parentId!), (t) => t.title)
+  const tasksWithoutParent = findBad(
+    tasks,
+    (t) => Boolean(t.parentId) && !taskIds.has(t.parentId!),
+    (t) => t.title,
+  )
   if (tasksWithoutParent) return { ok: false, problem: { kind: 'missingParent', ...tasksWithoutParent } }
 
   return {
@@ -434,9 +423,7 @@ export function parseBackupJson(json: string): BackupImportResult | null {
   return read.ok ? read.data : null
 }
 
-export type BackupPreview =
-  | { ok: true; tasks: number; lists: number }
-  | { ok: false; problem: BackupProblem }
+export type BackupPreview = { ok: true; tasks: number; lists: number } | { ok: false; problem: BackupProblem }
 
 /**
  * 取り込み前の下見。件数だけを返す。

@@ -42,23 +42,17 @@ export function CalendarTaskDock() {
     () =>
       dockListId === UNSCHEDULED
         ? tasks
-            .filter(
-              (t) =>
-                !t.parentId &&
-                isActiveTask(t) &&
-                !excludedListIds.has(t.listId) &&
-                !(t.startTime && t.endTime),
-            )
+            .filter((t) => !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId) && !(t.startTime && t.endTime))
             .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || a.order - b.order)
         : getFilteredRootTasks({
-        tasks,
-        selectedView: null,
-        selectedListId: dockListId,
-        // そのリストを To‑Do で開いたときと同じ並び順
-        sortMode: sortModeOf(sortByKey, dockListId),
-        filterTag,
-        sections,
-      }),
+            tasks,
+            selectedView: null,
+            selectedListId: dockListId,
+            // そのリストを To‑Do で開いたときと同じ並び順
+            sortMode: sortModeOf(sortByKey, dockListId),
+            filterTag,
+            sections,
+          }),
     [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
   )
 
@@ -68,7 +62,13 @@ export function CalendarTaskDock() {
   // 選択とキー操作は To-Do 一覧と同じ（Shift の範囲・⌘A・↑↓・Delete・⌘Enter・⌘/・Enter・Space・Esc）
   // メニューの「実行したら選択を解除」は、選択のフックを作ったあとに入れる
   const clearSelectedRef = useRef<() => void>(() => {})
-  const { selected, clearSelection: clearSelected, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
+  const {
+    selected,
+    clearSelection: clearSelected,
+    makeRowClick,
+    makeSelection,
+    soloIds,
+  } = useTaskListSelection({
     rowIds: activeIds,
     openDetail,
     toggleRow: toggleTask,
@@ -81,13 +81,9 @@ export function CalendarTaskDock() {
     clearSelectedRef.current = clearSelected
   }, [clearSelected])
 
-  const selectedInOrder = useMemo(
-    () => active.map((t) => t.id).filter((id) => selected.has(id)),
-    [active, selected],
-  )
+  const selectedInOrder = useMemo(() => active.map((t) => t.id).filter((id) => selected.has(id)), [active, selected])
   const getDragGroupIds = useCallback(
-    (id: string): string[] =>
-      selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : soloIds(id),
+    (id: string): string[] => (selected.has(id) && selectedInOrder.length >= 2 ? selectedInOrder : soloIds(id)),
     [selected, selectedInOrder, soloIds],
   )
 
@@ -105,17 +101,17 @@ export function CalendarTaskDock() {
             className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
           >
             <option value={UNSCHEDULED}>{t('calendarDock.unscheduled')}</option>
-            {sortedLists.filter((l) => !excludedListIds.has(l.id)).map((l) => (
-              <option key={l.id} value={l.id}>
-                {displayListName(l.id, l.name)}
-              </option>
-            ))}
+            {sortedLists
+              .filter((l) => !excludedListIds.has(l.id))
+              .map((l) => (
+                <option key={l.id} value={l.id}>
+                  {displayListName(l.id, l.name)}
+                </option>
+              ))}
           </select>
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {active.length === 0 && (
-            <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />
-          )}
+          {active.length === 0 && <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />}
           {selected.size > 0 && (
             <div className={`flex items-center justify-between px-2 py-1 ${META_TEXT}`}>
               <span>{t('taskList.selectedCount', { count: selected.size })}</span>

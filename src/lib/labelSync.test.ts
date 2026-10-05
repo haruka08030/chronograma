@@ -33,7 +33,13 @@ describe('ラベル表の同期', () => {
   it('この端末で初めてなら両方を合わせ、どちらのラベルも消さない', () => {
     const plan = planLabelSync(
       { presets: ['授業', 'ジム'], colors: { 授業: 'tomato', ジム: 'basil' }, updatedAt: null },
-      { labels: [{ name: '授業', color: 'sage' }, { name: 'バイト', color: 'peacock' }], updatedAt: T1 },
+      {
+        labels: [
+          { name: '授業', color: 'sage' },
+          { name: 'バイト', color: 'peacock' },
+        ],
+        updatedAt: T1,
+      },
       NOW,
     )
     expect(plan.apply?.presets).toEqual(['授業', 'バイト', 'ジム'])
@@ -46,7 +52,13 @@ describe('ラベル表の同期', () => {
     const en = ['Study', 'Assignments', 'Job hunting', 'Work', 'Exercise', 'Chores', 'Break']
     const plan = planLabelSync(
       { presets: en, colors: Object.fromEntries(en.map((n) => [n, 'sage'])), updatedAt: null },
-      { labels: [{ name: '授業', color: 'lavender' }, { name: '勉強', color: 'amethyst' }], updatedAt: T1 },
+      {
+        labels: [
+          { name: '授業', color: 'lavender' },
+          { name: '勉強', color: 'amethyst' },
+        ],
+        updatedAt: T1,
+      },
       NOW,
     )
     expect(plan.apply).toEqual({ presets: ['授業', '勉強'], colors: { 授業: 'lavender', 勉強: 'amethyst' }, updatedAt: T1 })
@@ -55,13 +67,21 @@ describe('ラベル表の同期', () => {
 
   it('同じ中身なら、もとにした版をそろえるだけ', () => {
     expect(
-      planLabelSync({ presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1 }, { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1 }, NOW),
+      planLabelSync(
+        { presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1 },
+        { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1 },
+        NOW,
+      ),
     ).toEqual({ adopt: T1 })
   })
 
   it('もとにした版のままで手元も変えていなければ何もしない', () => {
     expect(
-      planLabelSync({ presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1, syncedAt: T1 }, { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1 }, NOW),
+      planLabelSync(
+        { presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1, syncedAt: T1 },
+        { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1 },
+        NOW,
+      ),
     ).toEqual({})
   })
 })
@@ -72,19 +92,38 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
   const FAST = '2027-01-01T00:00:00.000Z' // 時計が進んだ端末で変えた時刻
 
   it('手元で変えていて、サーバーがもとにした版のままなら、その版を付けて送る', () => {
-    const plan = planLabelSync({ presets: ['授業', 'ジム'], colors: {}, updatedAt: T2, syncedAt: S1 }, { labels: [{ name: '授業', color: '' }], updatedAt: S1 }, NOW)
-    expect(plan.push).toEqual({ labels: [{ name: '授業', color: '' }, { name: 'ジム', color: '' }], updatedAt: T2, base: S1 })
+    const plan = planLabelSync(
+      { presets: ['授業', 'ジム'], colors: {}, updatedAt: T2, syncedAt: S1 },
+      { labels: [{ name: '授業', color: '' }], updatedAt: S1 },
+      NOW,
+    )
+    expect(plan.push).toEqual({
+      labels: [
+        { name: '授業', color: '' },
+        { name: 'ジム', color: '' },
+      ],
+      updatedAt: T2,
+      base: S1,
+    })
   })
 
   it('ほかの端末が変えていて手元は変えていなければ、手元の時計が進んでいてもサーバーに合わせる', () => {
     // 前は手元の時刻（時計が進んでいる）とサーバーの時刻を比べ、進んだ端末の古い値がいつも勝っていた
-    const plan = planLabelSync({ presets: ['授業'], colors: {}, updatedAt: S1, syncedAt: S1 }, { labels: [{ name: 'Study', color: '' }], updatedAt: S2 }, NOW)
+    const plan = planLabelSync(
+      { presets: ['授業'], colors: {}, updatedAt: S1, syncedAt: S1 },
+      { labels: [{ name: 'Study', color: '' }], updatedAt: S2 },
+      NOW,
+    )
     expect(plan.apply).toEqual({ presets: ['Study'], colors: {}, updatedAt: S2 })
     expect(plan.push).toBeUndefined()
   })
 
   it('時計が進んだ端末でも、手元で変えていなければ送らない（サーバーが付けた版のほうが前でも）', () => {
-    const plan = planLabelSync({ presets: ['授業'], colors: {}, updatedAt: S2, syncedAt: S2 }, { labels: [{ name: '授業', color: '' }], updatedAt: S2 }, FAST)
+    const plan = planLabelSync(
+      { presets: ['授業'], colors: {}, updatedAt: S2, syncedAt: S2 },
+      { labels: [{ name: '授業', color: '' }], updatedAt: S2 },
+      FAST,
+    )
     expect(plan).toEqual({})
   })
 

@@ -33,7 +33,6 @@ describe('textAreaKeyAction', () => {
   })
 })
 
-
 const key = (k: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({
   key: k,
   metaKey: false,

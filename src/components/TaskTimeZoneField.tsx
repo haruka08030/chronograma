@@ -14,7 +14,11 @@ import { HINT_TEXT } from './ui/textClass'
  * 時刻の行の末尾に置く小さなボタン。アプリと同じなら地球のアイコンだけ、違えば `GMT-4 New York` のように出す。
  * 選ぶと、見えている時刻の数字はそのままで、そのタイムゾーンの時刻になる。
  */
-export function TaskTimeZoneButton({ task, view, compact = false }: {
+export function TaskTimeZoneButton({
+  task,
+  view,
+  compact = false,
+}: {
   task: Task
   view: TaskTimeFields
   /** 見出しの横など、入力欄の高さに合わせないところ */
@@ -74,9 +78,5 @@ export function TaskTimeZoneNote({ task }: { task: Task }) {
   }
   if (!when) return null
 
-  return (
-    <p className={`mt-1.5 ${HINT_TEXT}`}>
-      {t('timeZone.inApp', { zone: zoneLongName(appTimeZone(), locale), when })}
-    </p>
-  )
+  return <p className={`mt-1.5 ${HINT_TEXT}`}>{t('timeZone.inApp', { zone: zoneLongName(appTimeZone(), locale), when })}</p>
 }

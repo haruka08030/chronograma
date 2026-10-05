@@ -39,7 +39,9 @@ export function useTimerDrop(): TimerDropState {
   return useSyncExternalStore(
     (f) => {
       subscribers.add(f)
-      return () => { subscribers.delete(f) }
+      return () => {
+        subscribers.delete(f)
+      }
     },
     () => state,
   )

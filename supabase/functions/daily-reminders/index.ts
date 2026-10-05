@@ -113,7 +113,7 @@ function localNow(timeZone: string, now: Date): { date: string; minutes: number 
 }
 
 function range(start: string | null, end: string | null): string {
-  return end ? `${start} – ${end}` : start ?? ''
+  return end ? `${start} – ${end}` : (start ?? '')
 }
 
 function dayLabel(msg: Msg, date: string, today: string): string {
@@ -135,10 +135,20 @@ type Payload = {
 
 function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payload {
   if (r.kind === 'start') {
-    return { title: r.title, body: msg.startBody(r.minutesBefore, range(r.startTime, r.endTime)), tag: `chronograma-start-${r.taskId}`, url: '/?view=planner' }
+    return {
+      title: r.title,
+      body: msg.startBody(r.minutesBefore, range(r.startTime, r.endTime)),
+      tag: `chronograma-start-${r.taskId}`,
+      url: '/?view=planner',
+    }
   }
   if (r.kind === 'due') {
-    return { title: msg.dueTitle(r.title), body: msg.dueBody(dayLabel(msg, r.date, today), r.startTime), tag: `chronograma-due-${r.taskId}`, url: '/?view=planner' }
+    return {
+      title: msg.dueTitle(r.title),
+      body: msg.dueBody(dayLabel(msg, r.date, today), r.startTime),
+      tag: `chronograma-due-${r.taskId}`,
+      url: '/?view=planner',
+    }
   }
   return {
     title: msg.recordTitle(r.title),
@@ -189,7 +199,9 @@ Deno.serve(async (req) => {
       const { data, error } = await admin
         .from('push_subscriptions')
         .select('*')
-        .or('plan_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null')
+        .or(
+          'plan_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null',
+        )
         .order('endpoint')
         .range(from, to)
       if (error) throw new Error(error.message)
@@ -235,8 +247,7 @@ Deno.serve(async (req) => {
     removed++
   }
 
-  const needsTasks = (sub: Sub) =>
-    Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
+  const needsTasks = (sub: Sub) => Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
 
   /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
   const processSub = async (sub: Sub, tasks: ReminderTask[]) => {
@@ -255,7 +266,12 @@ Deno.serve(async (req) => {
         d.overdue > 0 ? msg.overdue(d.overdue) : null,
       ].filter(Boolean)
       jobs.push({
-        payload: { title: msg.morningTitle, body: parts.length > 0 ? parts.join(msg.sep) : msg.emptyDay, tag: 'chronograma-morning', url: '/?view=planner' },
+        payload: {
+          title: msg.morningTitle,
+          body: parts.length > 0 ? parts.join(msg.sep) : msg.emptyDay,
+          tag: 'chronograma-morning',
+          url: '/?view=planner',
+        },
         patch: { last_plan_sent: local.date },
       })
     }
@@ -297,11 +313,10 @@ Deno.serve(async (req) => {
     if (jobs.length === 0) return
 
     const outcome = await sendJobs(jobs, (job) =>
-      webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify(job.payload),
-        { TTL: 60 * 60, timeout: SEND_TIMEOUT_MS },
-      ),
+      webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(job.payload), {
+        TTL: 60 * 60,
+        timeout: SEND_TIMEOUT_MS,
+      }),
     )
     sent += outcome.delivered.length
     for (const f of outcome.failed) {
@@ -344,7 +359,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  const results = await runPool(groupBy(subs, (s) => s.user_id), USER_CONCURRENCY, processUser)
+  const results = await runPool(
+    groupBy(subs, (s) => s.user_id),
+    USER_CONCURRENCY,
+    processUser,
+  )
   for (const r of results) {
     if (r.status === 'rejected') {
       failed++

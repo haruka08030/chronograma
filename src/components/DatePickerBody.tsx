@@ -78,15 +78,23 @@ export function DatePickerBody({
     const from = fromDateKey(tabKey)
     const dow = (from.getDay() + 6) % 7
     const next =
-      e.key === 'ArrowLeft' ? addDays(from, -1)
-      : e.key === 'ArrowRight' ? addDays(from, 1)
-      : e.key === 'ArrowUp' ? addDays(from, -7)
-      : e.key === 'ArrowDown' ? addDays(from, 7)
-      : e.key === 'PageUp' ? subMonths(from, 1)
-      : e.key === 'PageDown' ? addMonths(from, 1)
-      : e.key === 'Home' ? addDays(from, -dow)
-      : e.key === 'End' ? addDays(from, 6 - dow)
-      : null
+      e.key === 'ArrowLeft'
+        ? addDays(from, -1)
+        : e.key === 'ArrowRight'
+          ? addDays(from, 1)
+          : e.key === 'ArrowUp'
+            ? addDays(from, -7)
+            : e.key === 'ArrowDown'
+              ? addDays(from, 7)
+              : e.key === 'PageUp'
+                ? subMonths(from, 1)
+                : e.key === 'PageDown'
+                  ? addMonths(from, 1)
+                  : e.key === 'Home'
+                    ? addDays(from, -dow)
+                    : e.key === 'End'
+                      ? addDays(from, 6 - dow)
+                      : null
     if (!next) return
     e.preventDefault()
     e.stopPropagation()
@@ -98,9 +106,7 @@ export function DatePickerBody({
   return (
     <>
       <div className="mb-1 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-          {df.yearMonth(viewMonth)}
-        </span>
+        <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{df.yearMonth(viewMonth)}</span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
@@ -123,10 +129,7 @@ export function DatePickerBody({
 
       <div className="grid grid-cols-7">
         {weekdays.map((d) => (
-          <div
-            key={d}
-            className="py-1.5 text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500"
-          >
+          <div key={d} className="py-1.5 text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
             {d}
           </div>
         ))}
@@ -153,8 +156,8 @@ export function DatePickerBody({
                     today || selected
                       ? dayMarkerClass({ today, selected })
                       : inMonth
-                          ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700'
-                          : 'text-zinc-300 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-700'
+                        ? 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                        : 'text-zinc-300 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-700'
                   }`}
               >
                 {format(day, 'd')}

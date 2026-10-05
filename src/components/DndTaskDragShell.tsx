@@ -19,14 +19,13 @@ function MobileListChip({ list }: { list: TaskList }) {
       ref={setNodeRef}
       className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium
         transition-colors max-w-[40vw] truncate touch-none border-l-4 border-l-transparent
-        ${highlighted
-          ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600'
-          : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600'}`}
+        ${
+          highlighted
+            ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600'
+            : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600'
+        }`}
     >
-      <span
-        className="gc-dot w-2 h-2 rounded-full flex-shrink-0"
-        style={colorVars(list.color)}
-      />
+      <span className="gc-dot w-2 h-2 rounded-full flex-shrink-0" style={colorVars(list.color)} />
       <span className="truncate text-zinc-800 dark:text-zinc-100">{list.name}</span>
     </div>
   )

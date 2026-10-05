@@ -10,9 +10,7 @@ import { toastText } from '../lib/toastText'
 import { INVERSE_SURFACE } from './ui/surface'
 import { usePresence } from '../hooks/usePresence'
 
-const MOBILE_FLOAT_BOTTOM =
-  'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
-
+const MOBILE_FLOAT_BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 
 /**
  * 取り消せる操作のトースト。
@@ -69,7 +67,13 @@ export function UndoToast() {
   const open = visible && kind !== null
   const message = !open
     ? null
-    : kind === 'google' ? (googleUndo?.text ?? '') : kind === 'deleted' ? deletedMessage() : (undoBanner ? toastText(t, undoBanner.text) : '')
+    : kind === 'google'
+      ? (googleUndo?.text ?? '')
+      : kind === 'deleted'
+        ? deletedMessage()
+        : undoBanner
+          ? toastText(t, undoBanner.text)
+          : ''
   // 消えるときも、下へ沈む動きのあいだは前の文を出しておく（押せないようにする）
   const toast = usePresence(message)
   if (toast.shown === null) return null
@@ -83,14 +87,14 @@ export function UndoToast() {
     return t('undo.message')
   }
 
-
   // タイマー表示中は一段上へずらして重なりを避ける
-  const stacked = activeTimer
-    ? 'bottom-[calc(3.5rem+4.5rem+env(safe-area-inset-bottom))] md:bottom-24'
-    : MOBILE_FLOAT_BOTTOM
+  const stacked = activeTimer ? 'bottom-[calc(3.5rem+4.5rem+env(safe-area-inset-bottom))] md:bottom-24' : MOBILE_FLOAT_BOTTOM
 
   return (
-    <div className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`} inert={toast.closing}>
+    <div
+      className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
+      inert={toast.closing}
+    >
       <div className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
         <span className="min-w-0 line-clamp-2">{toast.shown}</span>
         <button
@@ -109,9 +113,7 @@ export function UndoToast() {
         >
           {t('undo.button')}
         </button>
-        <span className="ml-1 hidden shrink-0 text-xs text-zinc-400 dark:text-zinc-500 sm:inline">
-          {shortcutLabel(['mod', 'Z'])}
-        </span>
+        <span className="ml-1 hidden shrink-0 text-xs text-zinc-400 dark:text-zinc-500 sm:inline">{shortcutLabel(['mod', 'Z'])}</span>
       </div>
     </div>
   )

@@ -26,7 +26,10 @@ type Prop = { params: Record<string, string>; value: string }
 
 /** 折り返し（改行 + 空白）を戻して 1 行 1 プロパティにする */
 function unfold(text: string): string[] {
-  return text.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '').split('\n')
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n[ \t]/g, '')
+    .split('\n')
 }
 
 function parseLine(line: string): [string, Prop] | null {
@@ -42,7 +45,10 @@ function parseLine(line: string): [string, Prop] | null {
 }
 
 function unescapeText(value: string): string {
-  return value.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1').trim()
+  return value
+    .replace(/\\n/gi, '\n')
+    .replace(/\\([,;\\])/g, '$1')
+    .trim()
 }
 
 /** DTSTART を ISO 日時か日付に。Canvas は UTC で書くので、TZID が UTC 以外でも UTC として読む */
