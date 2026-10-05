@@ -143,3 +143,33 @@ export function getMoreSuggestions(
   placedLater.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
   return [...dueLater, ...undated, ...placedLater]
 }
+
+/** 候補を締切で分けた 1 まとまり。`day` は 1 週間以内のその日、`later` はそれより先、`none` は締切なし */
+export type DueGroup =
+  | { kind: 'day'; dueDate: string; tasks: Task[] }
+  | { kind: 'later'; tasks: Task[] }
+  | { kind: 'none'; tasks: Task[] }
+
+/** 締切の日ごとに見出しを立てる範囲（見ている日から何日先まで） */
+const DUE_GROUP_DAYS = 6
+
+/**
+ * 「今日やる候補」を締切で見出しに分ける。見出しに締切を出すので、行には日付を並べない。
+ * 1 週間以内は日ごと、それより先は 1 つ、締切なしは最後。まとまりの中は渡した順を保つ
+ */
+export function groupCandidatesByDue(tasks: readonly Task[], dateKey: string): DueGroup[] {
+  const limit = toDateKey(addDays(fromDateKey(dateKey), DUE_GROUP_DAYS))
+  const days = new Map<string, Task[]>()
+  const later: Task[] = []
+  const none: Task[] = []
+  for (const task of tasks) {
+    const due = task.dueDate
+    if (!due) none.push(task)
+    else if (due <= limit) days.set(due, [...(days.get(due) ?? []), task])
+    else later.push(task)
+  }
+  const groups: DueGroup[] = [...days.keys()].sort().map((dueDate) => ({ kind: 'day', dueDate, tasks: days.get(dueDate)! }))
+  if (later.length > 0) groups.push({ kind: 'later', tasks: later })
+  if (none.length > 0) groups.push({ kind: 'none', tasks: none })
+  return groups
+}

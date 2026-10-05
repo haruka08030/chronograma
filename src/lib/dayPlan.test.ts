@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, getDayPlan, getMoreSuggestions } from './dayPlan'
+import { calendarDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -59,6 +59,29 @@ describe('getMoreSuggestions', () => {
     const plan = getDayPlan(tasks, DAY)
     const shown = new Set([...plan.overdue, ...plan.open, ...plan.carryOver, ...plan.dueSoon].map((t) => t.id))
     expect(getMoreSuggestions(tasks, DAY).some((t) => shown.has(t.id))).toBe(false)
+  })
+})
+
+describe('groupCandidatesByDue', () => {
+  it('heads each deadline within a week by its day, then later deadlines, then undated', () => {
+    const groups = groupCandidatesByDue(
+      [
+        task('far', { dueDate: '2026-10-20' }),
+        task('thu1', { dueDate: '2026-10-01' }),
+        task('undated'),
+        task('sat', { dueDate: '2026-10-03' }),
+        task('thu2', { dueDate: '2026-10-01' }),
+        task('week', { dueDate: '2026-10-06' }),
+      ],
+      DAY,
+    )
+    expect(groups.map((g) => [g.kind === 'day' ? g.dueDate : g.kind, g.tasks.map((t) => t.id)])).toEqual([
+      ['2026-10-01', ['thu1', 'thu2']],
+      ['2026-10-03', ['sat']],
+      ['2026-10-06', ['week']],
+      ['later', ['far']],
+      ['none', ['undated']],
+    ])
   })
 })
 

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
-import { addDays } from 'date-fns'
+import { addDays, differenceInCalendarDays } from 'date-fns'
 import { useTaskStore, INBOX_LIST_ID } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
-import { getDayPlan, getMoreSuggestions } from '../lib/dayPlan'
+import { getDayPlan, getMoreSuggestions, groupCandidatesByDue, type DueGroup } from '../lib/dayPlan'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -133,7 +133,7 @@ export function TodayPlannerView() {
     setMoreShownFor(dateKey)
     setMoreShown(MORE_SUGGESTIONS_PAGE)
   }
-  const moreSentinelRef = useRef<HTMLLIElement>(null)
+  const moreSentinelRef = useRef<HTMLDivElement>(null)
   const hasMoreToShow = moreShown < moreSuggestions.length
   useEffect(() => {
     const el = moreSentinelRef.current
@@ -159,16 +159,24 @@ export function TodayPlannerView() {
 
   const shortDate = (key: string) => df.shortDate(key)
 
+  // 候補（締切間近 → その先 → 日付なし…）を締切の日の見出しで分ける。行に「〜まで」を並べない
+  const candidateGroups = useMemo(
+    () => groupCandidatesByDue([...suggestions, ...moreSuggestions.slice(0, moreShown)], dateKey),
+    [suggestions, moreSuggestions, moreShown, dateKey],
+  )
+  /** 「すべて追加」（締切間近の候補）を、その最後の行があるまとまりの下に置く */
+  const lastSuggestionId = suggestions.at(-1)?.id
+
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
   // 対象は開いている未完了の行を上から順に
   const rowIds = useMemo(
     () => [
-      ...(showLeftOver ? leftOver : []),
       ...overdue,
+      ...(showLeftOver ? leftOver : []),
       ...open,
-      ...(showSuggestions ? [...suggestions, ...moreSuggestions.slice(0, moreShown)] : []),
+      ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
     ].map((x) => x.id),
-    [showLeftOver, leftOver, overdue, open, showSuggestions, suggestions, moreSuggestions, moreShown],
+    [showLeftOver, leftOver, overdue, open, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection } = useTaskListSelection({
@@ -210,16 +218,23 @@ export function TodayPlannerView() {
   }
 
   /**
-   * 行の右端: 時刻があれば時刻、締切があれば締切（今日なら「今日まで」、過ぎていれば赤）。
-   * 今日やると決めた行（`committed`）は、過ぎた締切と今日の締切（明日へ回せない）だけ出す。
-   * 明日以降の締切は、今日やると決めたあとでは何も変えないので出さない。
-   * これから選ぶ行（やり残し・候補）は締切が選ぶ材料なので全部出す。
+   * 行の右端: 時刻があれば時刻、締切があれば締切（過ぎていれば「3日遅れ」、今日なら「今日まで」か「18:00 まで」）。
+   * `due` で締切の出し方を変える:
+   * - `all`: やり残し。締切が選ぶ材料なので全部出す
+   * - `urgent`: 今日やると決めた行。過ぎた締切と今日の締切（明日へ回せない）だけ。先の締切は決めたあとでは何も変えない
+   * - `date`: 候補の「締切が先」。見出しが締切と言っているので日付だけ
+   * - `none`: 候補の日ごとのまとまり。見出しに締切の日があるので出さない
    * 予定の時間が過ぎても終わっていなければ時刻も赤くする
    */
-  const rowMeta = (task: Task, committed: boolean): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
+  type DueMode = 'all' | 'urgent' | 'date' | 'none'
+  const rowMeta = (task: Task, mode: DueMode): { time: string | null; timeOver: boolean; due: ReturnType<typeof dueMeta> } => {
     const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === dateKey)
     const dueAll = dueMeta(task)
-    const due = committed && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today' ? null : dueAll
+    const due =
+      mode === 'none' ? null
+      : mode === 'date' && task.dueDate ? { text: shortDate(task.dueDate), tone: 'muted' as const }
+      : mode === 'urgent' && dueAll && dueAll.tone !== 'overdue' && dueAll.tone !== 'today' ? null
+      : dueAll
     if (!timed) return { time: null, timeOver: false, due }
     return {
       time: `${task.startTime}–${task.endTime}`,
@@ -229,14 +244,26 @@ export function TodayPlannerView() {
   }
   const dueMeta = (task: Task): { text: string; tone: 'muted' | 'overdue' | 'today' | 'tomorrow' } | null => {
     if (!task.dueDate) return null
-    if (task.dueDate === dateKey) return { text: t('planner.dueToday'), tone: 'today' }
-    const text = t('planner.dueOn', { date: shortDate(task.dueDate) })
-    if (task.dueDate < dateKey) return { text, tone: 'overdue' }
-    return { text, tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
+    if (task.dueDate === dateKey) {
+      return { text: task.dueTime ? t('planner.dueAt', { time: task.dueTime }) : t('planner.dueToday'), tone: 'today' }
+    }
+    if (task.dueDate < dateKey) {
+      return { text: t('planner.dueLate', { count: differenceInCalendarDays(date, fromDateKey(task.dueDate)) }), tone: 'overdue' }
+    }
+    return { text: t('planner.dueOn', { date: shortDate(task.dueDate) }), tone: task.dueDate === tomorrowKey ? 'tomorrow' : 'muted' }
   }
 
-  const renderRow = (task: Task, action?: React.ReactNode, committed = false) => {
-    const meta = rowMeta(task, committed)
+  /** 候補のまとまりの見出し（締切の日）。今日・明日は締切の色で焦らせる */
+  const dueGroupHeading = (group: DueGroup): { text: string; tone: string } => {
+    if (group.kind === 'later') return { text: t('planner.dueLater'), tone: META_TONE_CLASS.muted }
+    if (group.kind === 'none') return { text: t('planner.dueNone'), tone: META_TONE_CLASS.muted }
+    if (group.dueDate === dateKey) return { text: t('planner.dueToday'), tone: META_TONE_CLASS.today }
+    if (group.dueDate === tomorrowKey) return { text: t('planner.dueTomorrow'), tone: META_TONE_CLASS.tomorrow }
+    return { text: t('planner.dueOn', { date: df.monthDayWeekday(group.dueDate) }), tone: META_TONE_CLASS.muted }
+  }
+
+  const renderRow = (task: Task, action?: React.ReactNode, dueMode: DueMode = 'all') => {
+    const meta = rowMeta(task, dueMode)
     const hasRowExtras = !task.completed && task.tags.length > 0
     const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
     return (
@@ -401,8 +428,18 @@ export function TodayPlannerView() {
 
         <h2 className={`${sectionHeading} px-6`}>{t('planner.todoHeading')}</h2>
 
-        {leftOver.length > 0 && (
+        {/* 期限切れ → やり残し → 今日やる の順に、どの行がどこに属すか見出しで分ける。期限切れは焦らせてよいので畳まない */}
+        {overdue.length > 0 && (
           <div className="mt-2 px-3">
+            <p className={`px-3 py-1.5 text-sm ${DUE_TONE_CLASS.overdue}`}>{t('planner.overdueHeading', { count: overdue.length })}</p>
+            <ul>
+              {overdue.map((task) => renderRow(task, timerButton(task)))}
+            </ul>
+          </div>
+        )}
+
+        {leftOver.length > 0 && (
+          <div className={`${overdue.length > 0 ? 'mt-3' : 'mt-2'} px-3`}>
             {/* 見出しの右に「すべて今日へ」（» の二重矢印）、開くと行ごとに「今日やる」（→）。どちらも行のアイコンと同じ列 */}
             <div className="flex items-center gap-3 pr-3">
               <DisclosureButton tone="alert" open={showLeftOver} onToggle={() => setShowLeftOver((v) => !v)} className="flex-1">
@@ -431,10 +468,15 @@ export function TodayPlannerView() {
           </div>
         )}
 
-        <ul className="px-3">
-          {overdue.map((task) => renderRow(task, timerButton(task)))}
-          {open.map((task) => renderRow(task, timerButton(task), true))}
-        </ul>
+        <div className="px-3">
+          {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと見出しで示す */}
+          {(overdue.length > 0 || leftOver.length > 0) && open.length > 0 && (
+            <p className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">{viewingToday ? t('planner.doToday') : t('planner.doThisDay')}</p>
+          )}
+          <ul>
+            {open.map((task) => renderRow(task, timerButton(task), 'urgent'))}
+          </ul>
+        </div>
 
         {/* 追加は並んだ行の下（見出しのすぐ下に空の欄を置かない） */}
         <div className="mt-1 px-3">
@@ -461,37 +503,27 @@ export function TodayPlannerView() {
             </DisclosureButton>
             {showSuggestions && (
               <>
-                <ul>
-                  {suggestions.map((task) => (
-                    renderRow(
-                      task,
-                      moveHereButton(task),
-                    )
-                  ))}
-                </ul>
-                {suggestions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => rescheduleTasks(suggestions.map((x) => x.id), dateKey)}
-                    className={`ml-11 mt-1 ${textButton}`}
-                  >
-                    {t('planner.addAllSuggestions')}
-                  </button>
-                )}
-                {moreSuggestions.length > 0 && (
-                  <>
-                    <p className="ml-11 mt-4 text-xs text-zinc-400 dark:text-zinc-500">{t('planner.moreSuggestionsHeading')}</p>
-                    <ul>
-                      {moreSuggestions.slice(0, moreShown).map((task) => (
-                        renderRow(
-                          task,
-                          moveHereButton(task),
-                        )
-                      ))}
-                      {hasMoreToShow && <li ref={moreSentinelRef} aria-hidden className="h-px" />}
-                    </ul>
-                  </>
-                )}
+                {candidateGroups.map((group, i) => {
+                  const heading = dueGroupHeading(group)
+                  return (
+                    <div key={group.kind === 'day' ? group.dueDate : group.kind}>
+                      <p className={`ml-11 text-xs ${i === 0 ? 'mt-2' : 'mt-4'} ${heading.tone}`}>{heading.text}</p>
+                      <ul>
+                        {group.tasks.map((task) => renderRow(task, moveHereButton(task), group.kind === 'later' ? 'date' : 'none'))}
+                      </ul>
+                      {suggestions.length > 1 && group.tasks.some((x) => x.id === lastSuggestionId) && (
+                        <button
+                          type="button"
+                          onClick={() => rescheduleTasks(suggestions.map((x) => x.id), dateKey)}
+                          className={`ml-11 mt-1 ${textButton}`}
+                        >
+                          {t('planner.addAllSuggestions')}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                {hasMoreToShow && <div ref={moreSentinelRef} aria-hidden className="h-px" />}
               </>
             )}
           </div>
