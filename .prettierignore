@@ -6,3 +6,4 @@ package-lock.json
 # 手で整えた表がある文書と、公開中の規約ページは整形しない
 *.md
 public/*.html
+.claude
