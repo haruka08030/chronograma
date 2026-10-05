@@ -16,6 +16,7 @@ import {
   type ReminderTask,
 } from './schedule.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
+import { fetchAllPages, groupBy, runPool, sendJobs } from './batch.ts'
 
 type Sub = {
   endpoint: string
@@ -37,6 +38,10 @@ type Sub = {
 
 /** 送った鍵をいくつまで覚えるか（古いものから捨てる） */
 const MAX_SENT_KEYS = 300
+/** 同時に処理する利用者の数（DB とプッシュサービスへの同時接続を抑える） */
+const USER_CONCURRENCY = 10
+/** 1 通の送信を待つ上限。応答しないプッシュサービスで枠を塞がない */
+const SEND_TIMEOUT_MS = 10_000
 
 const MESSAGES = {
   ja: {
@@ -177,23 +182,34 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   })
 
-  const { data, error } = await admin
-    .from('push_subscriptions')
-    .select('*')
-    .or('plan_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null')
-  if (error) return new Response(error.message, { status: 500 })
+  // 1 回に返るのは 1000 行まで。主キーの順にページを読み切る（読み終えてから送るので、途中で消しても行はずれない）
+  let subs: Sub[]
+  try {
+    subs = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('push_subscriptions')
+        .select('*')
+        .or('plan_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null')
+        .order('endpoint')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as Sub[]
+    })
+  } catch (err) {
+    console.error('[daily-reminders] load subscriptions failed', err)
+    return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
+  }
 
-  /**
-   * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
-   * 同じ利用者の端末が複数あっても 1 回だけ読む
-   */
-  const tasksCache = new Map<string, ReminderTask[]>()
+  /** 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く */
   const openTasks = async (userId: string): Promise<ReminderTask[]> => {
-    const hit = tasksCache.get(userId)
-    if (hit) return hit
-    const { data: unplanned } = await admin.from('lists').select('id').eq('user_id', userId).in('kind', ['someday', 'checklist'])
+    const { data: unplanned, error: listError } = await admin
+      .from('lists')
+      .select('id')
+      .eq('user_id', userId)
+      .in('kind', ['someday', 'checklist'])
+    if (listError) throw new Error(listError.message)
     const excluded = new Set((unplanned ?? []).map((l: { id: string }) => l.id))
-    const { data: rows } = await admin
+    const { data: rows, error: taskError } = await admin
       .from('tasks')
       .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
       .eq('user_id', userId)
@@ -203,31 +219,33 @@ Deno.serve(async (req) => {
       .is('deleted_at', null)
       .is('archived_at', null)
       .or('scheduled_date.not.is.null,due_date.not.is.null')
-    const tasks = ((rows ?? []) as ReminderTask[]).filter((t) => !excluded.has(t.list_id))
-    tasksCache.set(userId, tasks)
-    return tasks
+    // 読めなかったら送らない（空のまとめを送って last_plan_sent を進めない。次の回にやり直す）
+    if (taskError) throw new Error(taskError.message)
+    return ((rows ?? []) as ReminderTask[]).filter((t) => !excluded.has(t.list_id))
   }
 
   const now = new Date()
   let sent = 0
   let removed = 0
-  for (const sub of (data ?? []) as Sub[]) {
-    // プッシュサービス以外の宛先へは送らない（DB の制約より前に入った行）
-    if (!isKnownPushEndpoint(sub.endpoint)) {
-      await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-      removed++
-      continue
-    }
+  let failed = 0
+
+  const removeSub = async (endpoint: string) => {
+    const { error } = await admin.from('push_subscriptions').delete().eq('endpoint', endpoint)
+    if (error) throw new Error(error.message)
+    removed++
+  }
+
+  const needsTasks = (sub: Sub) =>
+    Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
+
+  /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
+  const processSub = async (sub: Sub, tasks: ReminderTask[]) => {
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
     const nowWall = (dayWallMs(local.date) ?? 0) + local.minutes * 60_000
     const sentKeys = [...(sub.reminder_sent?.keys ?? [])]
     const sentSet = new Set(sentKeys)
     const jobs: { payload: Payload; keys?: string[]; patch?: Record<string, unknown> }[] = []
-    const needsTasks =
-      sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts
-
-    const tasks = needsTasks ? await openTasks(sub.user_id) : []
 
     if (dailyDue(sub.plan_time, sub.last_plan_sent, local.date, local.minutes)) {
       const d = morningDigest(tasks, local.date)
@@ -276,35 +294,65 @@ Deno.serve(async (req) => {
         patch: { timer_notified_for: sub.timer_started_at },
       })
     }
+    if (jobs.length === 0) return
 
-    for (const job of jobs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(job.payload),
-          { TTL: 60 * 60 },
-        )
-        sent++
-        const patch: Record<string, unknown> = { ...(job.patch ?? {}) }
-        if (job.keys) {
-          sentKeys.push(...job.keys)
-          patch.reminder_sent = { keys: sentKeys.slice(-MAX_SENT_KEYS) }
-        }
-        if (Object.keys(patch).length > 0) await admin.from('push_subscriptions').update(patch).eq('endpoint', sub.endpoint)
-      } catch (err) {
-        const status = (err as { statusCode?: number }).statusCode
-        // 購読が失効（アプリ削除・権限取り消し）したら消す
-        if (status === 404 || status === 410) {
-          await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-          removed++
-          break
-        }
-        console.error('[daily-reminders] send failed', status, err)
+    const outcome = await sendJobs(jobs, (job) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify(job.payload),
+        { TTL: 60 * 60, timeout: SEND_TIMEOUT_MS },
+      ),
+    )
+    sent += outcome.delivered.length
+    for (const f of outcome.failed) {
+      console.error('[daily-reminders] send failed', (f.error as { statusCode?: number }).statusCode, f.error)
+    }
+    // 購読が失効（アプリ削除・権限取り消し）したら消す
+    if (outcome.gone) {
+      await removeSub(sub.endpoint)
+      return
+    }
+    // 送れたものの印だけを残す（送れなかったものは次の回にもう一度）
+    const patch: Record<string, unknown> = {}
+    for (const job of outcome.delivered) {
+      Object.assign(patch, job.patch ?? {})
+      if (job.keys) sentKeys.push(...job.keys)
+    }
+    if (outcome.delivered.some((job) => job.keys)) patch.reminder_sent = { keys: sentKeys.slice(-MAX_SENT_KEYS) }
+    if (Object.keys(patch).length > 0) {
+      const { error } = await admin.from('push_subscriptions').update(patch).eq('endpoint', sub.endpoint)
+      if (error) throw new Error(error.message)
+    }
+  }
+
+  /** 1 人分。タスクは端末がいくつあっても 1 回だけ読み、端末へは並べて送る */
+  const processUser = async (userSubs: Sub[]) => {
+    const valid: Sub[] = []
+    for (const sub of userSubs) {
+      // プッシュサービス以外の宛先へは送らない（DB の制約より前に入った行）
+      if (isKnownPushEndpoint(sub.endpoint)) valid.push(sub)
+      else await removeSub(sub.endpoint)
+    }
+    if (valid.length === 0) return
+    const tasks = valid.some(needsTasks) ? await openTasks(valid[0].user_id) : []
+    const results = await Promise.allSettled(valid.map((sub) => processSub(sub, tasks)))
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        failed++
+        console.error('[daily-reminders] subscription failed', r.reason)
       }
     }
   }
 
-  return new Response(JSON.stringify({ checked: data?.length ?? 0, sent, removed }), {
+  const results = await runPool(groupBy(subs, (s) => s.user_id), USER_CONCURRENCY, processUser)
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      failed++
+      console.error('[daily-reminders] user failed', r.reason)
+    }
+  }
+
+  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
