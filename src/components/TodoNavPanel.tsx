@@ -384,8 +384,8 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const draggingTask = (active != null && String(active.id).startsWith(TASK_PREFIX)) || nativeDragActive
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const colorLabels = useMemo(
-    () => todoColorLabels(tasks, excludedListIds, presets, categoryColors, draggingTask),
-    [tasks, excludedListIds, presets, categoryColors, draggingTask],
+    () => todoColorLabels(tasks, excludedListIds, presets, categoryColors, draggingTask, filterColor),
+    [tasks, excludedListIds, presets, categoryColors, draggingTask, filterColor],
   )
   const unlabeledCount = useMemo(() => unlabeledTodoCount(tasks, excludedListIds), [tasks, excludedListIds])
 

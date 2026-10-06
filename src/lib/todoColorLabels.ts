@@ -21,7 +21,7 @@ const GOOGLE_ORDER = new Map(CALENDAR_COLORS.map((c, i) => [c.hex.toUpperCase(),
  * To‑Do のナビに出す色ラベル（タスクに色を付けたものだけ）。
  * Google と同じく、ラベルは色に付けた名前。並びは ラベルの順 → 名前の無い Google の色 → 自分で作った色。
  * 開くと「すべて」をその色で絞るので、範囲も「すべて」と同じ（記録・いつか・チェックリストは入れない）。
- * 完了済みしか残っていない色も、開いている途中で消えないよう 0 件で残す。
+ * 未完了が 0 件の色は出さない。ただし開いている色（`keepHex`）は、操作中に消えないよう 0 件で残す。
  * `withNamed` のときは、まだどのタスクにも付けていないラベル（名前を付けた色）も 0 件で後ろに足す（タスクをドラッグ中のドロップ先）。
  * いつも出ているラベルの位置は動かさず、ドラッグ中だけ出るものはその下に並べる。
  */
@@ -31,6 +31,7 @@ export function todoColorLabels(
   presets: readonly string[],
   colors: Readonly<Record<string, string>>,
   withNamed = false,
+  keepHex: string | null = null,
 ): TodoColorLabel[] {
   const counts = new Map<string, number>()
   for (const t of tasks) {
@@ -43,7 +44,9 @@ export function todoColorLabels(
     const g = GOOGLE_ORDER.get(l.hex)
     return g !== undefined ? [1, g, ''] : [2, 0, l.hex]
   }
+  const keep = keepHex?.toUpperCase()
   const shown = [...counts]
+    .filter(([hex, count]) => count > 0 || hex === keep)
     .map(([hex, count]) => ({ hex, name: labelForHex(hex, presets, colors), count }))
     .sort((a, b) => {
       const [ga, ia, ha] = rank(a)
@@ -54,7 +57,7 @@ export function todoColorLabels(
   const extra: TodoColorLabel[] = []
   for (const name of presets) {
     const hex = categoryHex(name, colors)
-    if (counts.has(hex) || extra.some((l) => l.hex === hex)) continue
+    if (shown.some((l) => l.hex === hex) || extra.some((l) => l.hex === hex)) continue
     extra.push({ hex, name: labelForHex(hex, presets, colors), count: 0 })
   }
   return [...shown, ...extra]
