@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { pickOnboardingNudge } from '../../lib/onboardingNudge'
+import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
+import { requestPermission } from '../../lib/notifications'
+import { buttonClass } from '../ui/buttonClass'
 import { tip } from '../../lib/tooltip'
 import { CloseIcon } from '../icons'
 import { iconButtonClass } from '../ui/iconButtonClass'
@@ -8,20 +11,45 @@ import { HINT_TEXT, PHRASE_WRAP } from '../ui/textClass'
 
 /**
  * はじめの 3 ステップを終えた直後に 1 回だけ出す誘い（今日の画面の追加欄の下、案内のあった場所）。
- * × で閉じたら二度と出さない（端末に保存）
+ * × で閉じたら二度と出さない（端末に保存）。iPhone の Safari ではホーム画面への追加、ほかは予定のあとの確認の通知
  */
 export function OnboardingNudges() {
   const { t } = useTranslation()
-  const onboardingDone = useTaskStore((s) => s.onboardingDone)
-  const onboardingCompleted = useTaskStore((s) => s.onboardingCompleted)
-  const installNudgeDismissed = useTaskStore((s) => s.installNudgeDismissed)
+  const nudge = useOnboardingNudge()
   const dismissInstallNudge = useTaskStore((s) => s.dismissInstallNudge)
-  const nudge = pickOnboardingNudge({ onboardingDone, onboardingCompleted, installNudgeDismissed })
+  const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
+  const setRecordPrompts = useTaskStore((s) => s.setRecordPrompts)
+  const [asking, setAsking] = useState(false)
+
+  /** 許可を聞いて、許されたら予定のあとの確認をオンにする（購読は useReminders が合わせる）。断られても閉じる */
+  const enableRecordPrompts = async () => {
+    setAsking(true)
+    try {
+      if (await requestPermission()) setRecordPrompts(true)
+    } finally {
+      setAsking(false)
+      dismissReminderPrompt()
+    }
+  }
 
   if (nudge === 'install') {
     return (
       <NudgeCard title={t('onboardingNudge.installTitle')} onClose={dismissInstallNudge}>
         <p className={`mt-0.5 ${HINT_TEXT} ${PHRASE_WRAP}`}>{t('onboardingNudge.installSteps')}</p>
+      </NudgeCard>
+    )
+  }
+  if (nudge === 'recordPrompts') {
+    return (
+      <NudgeCard title={t('onboardingNudge.recordPromptsTitle')} onClose={dismissReminderPrompt}>
+        <button
+          type="button"
+          onClick={() => void enableRecordPrompts()}
+          disabled={asking}
+          className={buttonClass({ variant: 'primary', size: 'sm' }, 'mt-2')}
+        >
+          {t('onboardingNudge.recordPromptsEnable')}
+        </button>
       </NudgeCard>
     )
   }

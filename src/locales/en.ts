@@ -204,6 +204,8 @@ export default {
     close: 'Close',
     installTitle: 'Add to your Home Screen to get notifications',
     installSteps: 'Share button → “Add to Home Screen”',
+    recordPromptsTitle: 'When a plan ends, get a notification to log it: “As planned” or “Record”',
+    recordPromptsEnable: 'Turn on notifications',
   },
   reminders: {
     morningTitle: 'Today at a glance',

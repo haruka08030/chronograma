@@ -204,6 +204,8 @@ export default {
     close: '閉じる',
     installTitle: 'ホーム画面に追加すると通知が届きます',
     installSteps: '共有ボタン →「ホーム画面に追加」',
+    recordPromptsTitle: '予定が終わったら、\u200b通知で「予定どおり\u00a0/\u00a0記録する」を\u200b聞きます',
+    recordPromptsEnable: '通知をオンにする',
   },
   reminders: {
     morningTitle: '今日のまとめ',

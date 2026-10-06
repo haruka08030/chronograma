@@ -3,6 +3,7 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { requestPermission } from '../../lib/notifications'
 import { buttonClass } from '../ui/buttonClass'
+import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
 
 /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
 const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -34,8 +35,10 @@ export function PlannerWrapUp({
     (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled || s.recordPrompts,
   )
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
+  const onboardingNudge = useOnboardingNudge()
   const showReminderPrompt =
     totalCount > 0 &&
+    onboardingNudge !== 'recordPrompts' &&
     !reminderPromptDismissed &&
     !anyNotification &&
     typeof window !== 'undefined' &&
