@@ -63,6 +63,11 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 
 ヘッダーの「ログイン」からメールアドレスを送信し、届いたリンクでサインインすると、約 1.8 秒のデバウンス後に変更がサーバーへ同期されます。同期は端末ごとの前回同期状態との**三方向マージ**なので、複数端末で編集しても他端末の追加を消しません（アプリに戻ったときと表示中 1 分ごとにも取り込みます）。
 
+### バックアップ
+
+- **Supabase 側**: DB の自動バックアップがあるかはプランによります。Pro 以上は毎日のバックアップがあり（保てる日数はプランごと）、任意の時点に戻せる PITR は有料の追加機能です。Free プランには自動バックアップが無く、しばらく使われないプロジェクトは一時停止されます。細かい条件は Supabase の料金表と **Database → Backups** の画面で確かめてください。自分で控えを取るなら `supabase db dump --linked -f backup.sql`（スキーマ）と `supabase db dump --linked --data-only -f data.sql`（データ）。
+- **アプリ側**: 各端末が IndexedDB に自動で控えを残します（`src/lib/autoBackup.ts`）。毎日の控え（その日はじめて開いたときの状態、14 日分）・同期で手元のタスクが減る直前（5 件分）・ログアウトの直前（5 件分）。戻すのは **設定** の自動バックアップか、エラーの画面の「自動バックアップから戻す」から。控えはその端末の中だけにあり、ほかの端末やサーバーには送りません。JSON の書き出し・取り込みは別にあります。
+
 ### 通知（Web Push、任意）
 
 アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
@@ -79,16 +84,21 @@ supabase secrets set \
 supabase functions deploy daily-reminders
 ```
 
-4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で 5 分ごとの呼び出しを登録（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）:
+4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で `CRON_SECRET` を Vault に入れてから、5 分ごとの呼び出しを登録します（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）。cron の文には秘密を書かず、呼ぶたびに Vault から読みます（`cron.job` の表に平文で残らない）:
 
 ```sql
+select vault.create_secret('YOUR_CRON_SECRET', 'chronograma_cron_secret');
+
 select cron.schedule(
   'chronograma-daily-reminders',
   '*/5 * * * *',
   $$
   select net.http_post(
     url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/daily-reminders',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET'),
+    headers := jsonb_build_object(
+      'x-cron-secret',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'chronograma_cron_secret')
+    ),
     timeout_milliseconds := 60000
   );
   $$
@@ -96,6 +106,16 @@ select cron.schedule(
 ```
 
 `timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5 秒で、利用者が多いと送り終える前に切れる）。
+
+秘密を平文で書いたジョブがすでにある場合は、上の `vault.create_secret` を流したあと、古いジョブを外して上の `cron.schedule` で登録し直します:
+
+```sql
+select cron.unschedule('chronograma-daily-reminders');
+-- ここで上の cron.schedule(...) を流す
+select jobname, schedule, command from cron.job where jobname = 'chronograma-daily-reminders';  -- 秘密が文に無いこと
+```
+
+秘密を変えるときは、Edge Function の secret と Vault の両方を変えます: `supabase secrets set CRON_SECRET=NEW_SECRET` と `select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
 
 通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
 

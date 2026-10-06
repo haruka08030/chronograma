@@ -16,6 +16,7 @@
 | [`010_sync_tombstone_limits.sql`](010_sync_tombstone_limits.sql) | `sync_tombstones` の上限と自動削除。1 人 50,000 件を超えたら古い印から消し（断らない。印を入れるのは利用者の削除の中なので）、消した印の一番新しい `deleted_at` を `sync_tombstone_purges.last_deleted_at` に残す（端末は本人の行の select だけ。差分の目印がこれより前なら全部を取り直す）。トリガー `trim_sync_tombstones`（文ごとに 1 回、SECURITY DEFINER）。30 日より古い印は pg_cron のジョブ `purge-sync-tombstones`（毎日 03:17 UTC）が消す。`pg_cron` が無い DB ではジョブを作らない（有効にしてから流し直すと作る） |
 | [`011_client_errors.sql`](011_client_errors.sql) | 端末のエラーの記録 `client_errors`（種類 `render` / `error` / `unhandledrejection` / `sync` / `chunk`・メッセージ・スタック・場所・版・ブラウザ・`extra`）。大きさの上限 `client_errors_size_check`。端末は本人の行の insert だけ（読む・消すのは service_role）。1 人あたり新しい 500 件まで（トリガー `trim_client_errors` が古いものから消す。断らない）。30 日より古い行は pg_cron のジョブ `chronograma-client-errors-purge` が毎日 3:23（UTC）に消す（pg_cron が無ければジョブは作らない。入れたら流し直す） |
 | [`012_reminder_runs.sql`](012_reminder_runs.sql) | 通知の送信（Edge Function `daily-reminders`）の実行の記録 `reminder_runs`（1 行、`id = 1`）。`last_ok_at` は最後に全部うまくいった回の時刻（次の回はここから今まで、上限 60 分の通知を送る）、`running_since` は走っている回の目印（同じ時間を 2 つの回が同時に送らない）。RLS あり・ポリシーなし、`anon` / `authenticated` の権限は外す（service_role だけ） |
+| [`013_hit_rate_limit_search_path.sql`](013_hit_rate_limit_search_path.sql) | 001 の `hit_rate_limit`（SECURITY DEFINER）の `search_path` を空に固定し、名前をすべてスキーマ付きにする（動きと権限は同じ。service_role だけが呼べる） |
 
 テーブル（最新の形）:
 
