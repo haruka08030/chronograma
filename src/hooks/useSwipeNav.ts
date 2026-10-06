@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { isLiftActive } from '../lib/touchLift'
 
 /** 横に動いたと決めるまでの距離（これより前に縦へ動いたらスクロールとして任せる） */
 const LOCK_PX = 10
@@ -11,7 +12,8 @@ const SLIDE_IN_PX = 40
 
 /**
  * タッチの横スワイプで前後へ送る（Google カレンダーと同じ）。指に合わせて中身を横にずらし、離したら送る・戻す。
- * 横と決まるまでは何もしないので縦スクロールの邪魔をしない。2 本指（ピンチ）・`isBlocked()` が true のとき（ドラッグ中など）は無視する。
+ * 横と決まるまでは何もしないので縦スクロールの邪魔をしない。2 本指（ピンチ）・`isBlocked()` が true のとき（ドラッグ中など）・
+ * 長押しで行を浮かせている間（`isLiftActive`）は無視する。
  * `dir` は -1 = 前（右へ払う）、1 = 次（左へ払う）。
  * `follow: false` は中身を動かさず、払ったことだけを知らせる（To-Do で右へ払ってドロワーを出すときなど）
  */
@@ -48,7 +50,7 @@ export function useSwipeNav(
     }
 
     const onStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || isBlockedRef.current?.()) {
+      if (e.touches.length !== 1 || isBlockedRef.current?.() || isLiftActive()) {
         if (axis === 'x') setShift(0, true)
         reset()
         return
@@ -60,7 +62,7 @@ export function useSwipeNav(
     }
     const onMove = (e: TouchEvent) => {
       if (!start || e.touches.length !== 1) return
-      if (isBlockedRef.current?.()) {
+      if (isBlockedRef.current?.() || isLiftActive()) {
         if (axis === 'x') setShift(0, true)
         reset()
         return

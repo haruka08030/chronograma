@@ -168,7 +168,12 @@ export default function App() {
       {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
       <DragOverlay dropAnimation={DROP_ANIMATION}>
         {dragOverlayTask ? (
-          <DragOverlayTaskRow taskId={dragOverlayTask.taskId} isSubtask={dragOverlayTask.isSubtask} count={dragOverlayTask.count} />
+          <DragOverlayTaskRow
+            taskId={dragOverlayTask.taskId}
+            isSubtask={dragOverlayTask.isSubtask}
+            count={dragOverlayTask.count}
+            lift={dragOverlayTask.lift}
+          />
         ) : null}
       </DragOverlay>
 
