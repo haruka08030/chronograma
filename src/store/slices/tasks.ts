@@ -1,7 +1,7 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
 import type { Task } from '../../types/task'
 import { INBOX_ID } from '../storeConstants'
-import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront } from '../taskHelpers'
+import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
@@ -128,18 +128,29 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       })
     },
     updateTask: (id, patch, label) => {
+      const task = get().tasks.find((t) => t.id === id)
+      // 同じ値を選び直しただけなら何もしない（取り消しの履歴・トースト・同期の書き込みを積まない）
+      if (task && !patchChangesTask(task, patch)) return
       // 作った直後の空の行に名前を付けるだけなら、作成と同じ 1 手にまとめる
-      if (!isUnnamedJustCreated(id)) pushUndo(label)
+      // メモ・場所を打っている間は 1 回分にまとめる
+      const keys = Object.keys(patch)
+      const typingKey = keys.length === 1 && (keys[0] === 'description' || keys[0] === 'location') ? `${id}:${keys[0]}` : undefined
+      if (!isUnnamedJustCreated(id)) pushUndo(label, typingKey)
       return set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))
     },
-    rescheduleTasks: (ids, dateKey, label) => {
+    rescheduleTasks: (all, dateKey, label) => {
+      const patch = { scheduledDate: dateKey, startTime: null, endTime: null }
+      const ids = all.filter((id) => {
+        const task = get().tasks.find((t) => t.id === id)
+        return task ? patchChangesTask(task, patch) : false
+      })
       if (ids.length === 0) return
       pushUndo(label)
       const selected = new Set(ids)
       set((s) => ({
-        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null }) : t)),
+        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, patch) : t)),
       }))
     },
     completeTasks: (ids) => {

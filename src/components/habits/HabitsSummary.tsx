@@ -6,10 +6,12 @@ import { completionRatioOnDate, consistencyForLast7Days, currentStreakDays } fro
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { appToday } from '../../lib/timeZone'
 import { toDateKey } from '../../lib/dateKey'
+import { useDateFormat } from '../../hooks/useDateFormat'
 
 /** 習慣の要約: 数字 2 つ（直近 7 日の達成率・続いている日数）と直近 28 日の小さなヒートマップを 1 枚に */
 export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habitRecords: HabitRecordIndex }) {
   const { t } = useTranslation()
+  const df = useDateFormat()
   const heatmapDays = useMemo(
     () =>
       Array.from({ length: 28 }, (_, i) => {
@@ -43,7 +45,7 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
               key={d.key}
               className={`h-4 rounded-sm ${d.ratio === 0 ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
               style={d.ratio === 0 ? undefined : { backgroundColor: `rgba(99, 102, 241, ${0.3 + d.ratio * 0.7})` }}
-              title={t('habits.heatmapTooltip', { date: d.key, pct: Math.round(d.ratio * 100) })}
+              title={t('habits.heatmapTooltip', { date: df.shortDateWeekday(d.key), pct: Math.round(d.ratio * 100) })}
             />
           ))}
         </div>

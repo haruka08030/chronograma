@@ -11,6 +11,7 @@ import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
 import { withLogCategory } from '../lib/taskDefaults'
+import { sameValue } from '../lib/sameValue'
 
 /** `updateTask` で書き換えられる列 */
 
@@ -85,6 +86,21 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.endTime = null
   }
   return withLogCategory(applied)
+}
+
+/**
+ * パッチを当てると何か変わるか（`updatedAt` は除く）。同じ値を選び直しただけなら false。
+ * 取り消しの履歴・トースト・同期の書き込みを、何も変えない操作で積まないために使う
+ */
+export function patchChangesTask(task: Task, patch: TaskPatch): boolean {
+  const applied = applyTaskPatch(task, patch, task.updatedAt) as unknown as Record<string, unknown>
+  const before = task as unknown as Record<string, unknown>
+  const keys = new Set([...Object.keys(before), ...Object.keys(applied)])
+  for (const k of keys) {
+    if (k === 'updatedAt') continue
+    if (!sameValue(before[k], applied[k])) return true
+  }
+  return false
 }
 
 export function orderForNewSiblingAtFront(tasks: Task[], listId: string, parentId: string | null, sectionId: string | null = null): number {

@@ -36,7 +36,7 @@ export interface UndoHistory {
    * 削除は `recentDeletes` 由来のトーストが出るので渡さない
    * （二重に出さないため）。
    */
-  pushUndo: (label?: ToastText) => void
+  pushUndo: (label?: ToastText, typingKey?: string) => void
   /**
    * Enter で増やした空の行がまだ名前を持たないまま、取り消し履歴の一番上が
    * 「その行を作る直前」の控えになっているか。名前付けと作成を 1 手として扱うのに使う
@@ -145,11 +145,23 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
   /** `asOneUndo` の中では最初の 1 回だけ積む（複数の操作を 1 回の取り消しで戻す） */
   let undoGroupDepth = 0
   let undoGroupPushed = false
-  const pushUndo = (label?: ToastText) => {
+  /** 直前に積んだのが同じ欄の打鍵なら、その欄のキー（`typingKey`） */
+  let lastTypingKey: string | null = null
+
+  /**
+   * `typingKey` を渡すと、同じ欄を続けて打っている間は 1 回分にまとめる（メモ・場所を 1 文字ずつ戻さない。
+   * 1 文字ごとに積むと、履歴の上限でその前の操作が押し出される）
+   */
+  const pushUndo = (label?: ToastText, typingKey?: string) => {
     if (undoGroupDepth > 0) {
       if (undoGroupPushed) return
       undoGroupPushed = true
     }
+    if (typingKey && typingKey === lastTypingKey && undoStack.length > 0) {
+      redoStack.length = 0
+      return
+    }
+    lastTypingKey = typingKey ?? null
     finalizeTop()
     const pending: PendingEntry = { before: dataView(get()), entry: null }
     undoStack.push(pending)
@@ -191,6 +203,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
       undoStack.pop()
     },
     clear: () => {
+      lastTypingKey = null
       undoStack.length = 0
       redoStack.length = 0
     },
@@ -205,6 +218,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
         }
       },
       undoLastOperation: () => {
+        lastTypingKey = null
         // 何も変えなかった操作（同じ値の保存など）は飛ばす
         while (undoStack.length > 0) {
           const entry = finalize(undoStack.pop()!)
@@ -220,6 +234,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
       },
 
       redoLastOperation: () => {
+        lastTypingKey = null
         const entry = redoStack.pop()
         if (!entry) return false
         const { next, inverse } = applyEntry(dataView(get()), entry, new Date().toISOString())

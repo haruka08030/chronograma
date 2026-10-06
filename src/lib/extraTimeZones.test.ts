@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  EXTRA_TIME_ZONE_LABEL_MAX,
-  extraZoneFullLabel,
-  extraZoneLabel,
-  normalizeExtraTimeZones,
-  planExtraTimeZoneSync,
-} from './extraTimeZones'
+import { EXTRA_TIME_ZONE_LABEL_MAX, extraZoneFullLabel, normalizeExtraTimeZones, planExtraTimeZoneSync } from './extraTimeZones'
 import { zoneOptionLabel } from './timeZone'
 
 const T1 = '2026-10-01T00:00:00.000Z'
@@ -40,11 +34,6 @@ describe('他のタイムゾーンの読み込み', () => {
 })
 
 describe('他のタイムゾーンの表示名', () => {
-  it('名前があれば名前、無ければタイムゾーンの名前', () => {
-    expect(extraZoneLabel(london, 'ja', AT)).toBe('ロンドンの友達')
-    expect(extraZoneLabel(ny, 'en', AT)).toBe(zoneOptionLabel('America/New_York', 'en', AT))
-  })
-
   it('ヒントには名前とタイムゾーンの両方（切れて見えない分も分かる）', () => {
     expect(extraZoneFullLabel(london, 'en', AT)).toBe(`ロンドンの友達 · ${zoneOptionLabel('Europe/London', 'en', AT)}`)
     expect(extraZoneFullLabel(ny, 'en', AT)).toBe(zoneOptionLabel('America/New_York', 'en', AT))

@@ -239,6 +239,7 @@ export default {
     insightFollowHigh: 'You followed most of your time blocks. Keep this rhythm next week.',
     insightFollowLow: 'Plans and reality drifted apart. Next week, plan a little less and leave some slack.',
     insightNoBlocks: 'Tasks are moving. Next week, block time for the important ones to compare plan and actual.',
+    insightNoBlocksNoDone: 'Next week, try blocking time for the important ones so you can compare plan and actual.',
     insightSteady: 'Steady progress. Reuse how you planned your best days.',
   },
   install: {
@@ -911,7 +912,6 @@ export default {
       'This build has no VITE_GOOGLE_CLIENT_ID. Set it in the hosting environment variables and redeploy (env vars are inlined at build time).',
     googleConnected: 'Google Calendar connected',
     googleNeedsLogin: 'Sign in first to connect Google Calendar.',
-    disconnect: 'Disconnect',
     connect: 'Connect Google Calendar',
     connecting: 'Connecting…',
     connectTimeout: 'Connection timed out. Reload the page and try again.',
@@ -998,6 +998,7 @@ export default {
   googleSettings: {
     title: 'Google Calendar',
     notConnected: 'Not connected',
+    disconnectConfirm: 'Disconnect Google Calendar? Your events stay in Google Calendar (they just stop showing here).',
   },
   notion: {
     title: 'Notion',

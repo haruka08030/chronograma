@@ -47,7 +47,8 @@ export function WeekReviewCard() {
     if (review.total === 0 && review.loggedMinutes === 0) return t('weekReview.insightEmpty')
     if (review.followRate != null && review.followRate >= 0.7) return t('weekReview.insightFollowHigh')
     if (review.followRate != null && review.followRate < 0.4) return t('weekReview.insightFollowLow')
-    if (review.plannedMinutes === 0) return t('weekReview.insightNoBlocks')
+    // 1 件も終えていない週に「進んでいます」とは言わない
+    if (review.plannedMinutes === 0) return t(review.done > 0 ? 'weekReview.insightNoBlocks' : 'weekReview.insightNoBlocksNoDone')
     return t('weekReview.insightSteady')
   })()
 
