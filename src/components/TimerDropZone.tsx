@@ -5,6 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { acceptTaskDrag } from '../lib/taskDrag'
 import { TIMER_DROP_ID, canStartTimerFor, setTimerDragActive, setTimerDropHover, startTimerForTask, useTimerDrop } from '../lib/timerDrop'
+import { useLiftHeld } from '../hooks/useTouchLift'
 
 /**
  * どの画面でも、ToDo をつかんでいる間だけ上部に出る「ここに落として計測開始」。
@@ -15,6 +16,8 @@ export function TimerDropZone() {
   const { t } = useTranslation()
   const { active, over } = useTimerDrop()
   const running = useTaskStore((s) => s.activeTimer != null)
+  // 長押しで浮かせて押さえているだけの間は出さない。指を動かしたら出す
+  const liftHeld = useLiftHeld()
 
   // ネイティブ D&D: React のハンドラが setData した後、window のバブリングで拾う。
   // dragstart 中に DOM を変えるとドラッグが切れるので、出すのは次のタスクで
@@ -39,7 +42,7 @@ export function TimerDropZone() {
     }
   }, [])
 
-  if (!active) return null
+  if (!active || liftHeld) return null
   return <TimerDropTarget over={over} label={running ? t('timerDrop.switch') : t('timerDrop.start')} />
 }
 

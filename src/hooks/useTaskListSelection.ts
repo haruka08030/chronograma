@@ -12,6 +12,7 @@ import {
 import { useHotkey } from './useHotkey'
 import { SHORTCUTS, useListCursorRequest, useSelectAllShortcut } from '../lib/shortcuts'
 import { isModKey } from '../lib/keyboard'
+import { onLiftAdd } from '../lib/touchLift'
 import type { TaskItemSelection } from '../components/TaskItem'
 
 /** ⌘/ のメニューを行の下に出すのに要る高さ（項目 8 つほど） */
@@ -20,6 +21,7 @@ const MENU_ROOM = 340
 /**
  * タスクの一覧の選択とキー操作（To-Do 一覧・今日の計画・カレンダーの置き場・検索結果で共通）。
  * - クリック: Shift で範囲、⌘ で 1 件ずつ、選択中なら選択に足す/外す、それ以外は詳細
+ * - タッチ: 行を長押しすると浮いて選択に入り、押さえたまま別の指でタップした行も足す（`lib/touchLift`）
  * - ⌘A で全部、↑↓ で行を動く（Shift で選択を広げる）、Enter・e で詳細、Space で完了
  * - 選択中（なければ枠の行）: Delete で削除、⌘Enter で完了、⌘/ でメニュー、Esc で解除
  * 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）。対象がなければ次へ回す
@@ -103,6 +105,16 @@ export function useTaskListSelection({
   useLayoutEffect(() => {
     latestRef.current = { rangeIds, openDetail, openMenu }
   })
+  // タッチの長押しで浮かせた行・押さえたまま別の指でタップした行を足す（外さない）。この一覧の行だけ
+  useEffect(
+    () =>
+      onLiftAdd((id) => {
+        if (!latestRef.current.rangeIds.includes(id)) return
+        setSelected((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
+        lastAnchorRef.current = id
+      }),
+    [],
+  )
   const rowClickCacheRef = useRef(new Map<string, (e: MouseEvent) => void>())
   const selectionCacheRef = useRef(new Map<string, TaskItemSelection>())
 

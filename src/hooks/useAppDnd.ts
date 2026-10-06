@@ -1,12 +1,21 @@
 import { useCallback, useRef, useState } from 'react'
-import { MouseSensor, TouchSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core'
+import { MouseSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_PREFIX, type TaskRootDragData } from '../components/SortableTaskItem'
 import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { canStartTimerFor, setTimerDragActive } from '../lib/timerDrop'
 import { applyDragEnd } from '../lib/dragEnd'
+import { AppTouchSensor } from '../lib/appTouchSensor'
+import { isTouchLiftEvent } from '../lib/touchLift'
+import { LONG_PRESS_MS } from './useLongPress'
 
-export type DragOverlayTask = { taskId: string; isSubtask: boolean; count: number }
+export type DragOverlayTask = {
+  taskId: string
+  isSubtask: boolean
+  count: number
+  /** タッチの長押しで浮かせた（押さえている間に別の指で足すと件数が増える） */
+  lift: boolean
+}
 
 /**
  * 画面全体の DndContext（To-Do の行・サブタスク・セクション・リストのドラッグ）に渡すもの。
@@ -18,9 +27,9 @@ export function useAppDnd() {
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    // ドラッグはどれも専用のつまみ（`touch-none` の ⋮⋮ ボタン）からしか始まらないので、
-    // タップとの判別に長い待ちは要らない。長押しの一括選択は行側（450ms）で別に拾う
-    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
+    // つまみ（`touch-none` の ⠿ ボタン）からは短い待ちで持ち上げる。
+    // スマホの To-Do の行（つまみを出さない）は長押しで浮かせ、そのまま運べる（`AppTouchSensor`）
+    useSensor(AppTouchSensor, { handleDelay: 140, liftDelay: LONG_PRESS_MS, tolerance: 8 }),
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -28,6 +37,7 @@ export function useAppDnd() {
     const activeId = String(event.active.id)
     const group = (event.active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
     const count = group && group.length > 1 ? group.length : 1
+    const lift = isTouchLiftEvent(event.activatorEvent)
     const draggedId = activeId.startsWith(TASK_PREFIX)
       ? activeId.slice(TASK_PREFIX.length)
       : activeId.startsWith(SUBTASK_PREFIX)
@@ -37,12 +47,12 @@ export function useAppDnd() {
       setTimerDragActive(true)
     }
     if (activeId.startsWith(TASK_PREFIX)) {
-      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false, count })
+      setDragOverlayTask({ taskId: activeId.slice(TASK_PREFIX.length), isSubtask: false, count, lift })
       return
     }
     if (activeId.startsWith(SUBTASK_PREFIX)) {
       const taskId = parseSubtaskDragId(activeId)
-      setDragOverlayTask(taskId ? { taskId, isSubtask: true, count: 1 } : null)
+      setDragOverlayTask(taskId ? { taskId, isSubtask: true, count: 1, lift } : null)
       return
     }
     setDragOverlayTask(null)

@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -58,7 +58,7 @@ export function PlannerTaskRow({
   const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
   // 選べる行は listbox の option（名前は題名、選んでいるかは aria-selected）
   const optionId = sel?.optionId
-  // スマホ: 右へ払うと完了、左へ払うと今日やる行は明日へ・それ以外は今日（この日）へ。長押しで選択を始める
+  // スマホ: 右へ払うと完了、左へ払うと今日やる行は明日へ・それ以外は今日（この日）へ。長押しで浮かせて選択に入れる
   const committed = dueMode === 'urgent'
   const swipeLeft: RowSwipeAction = committed
     ? {
@@ -83,7 +83,7 @@ export function PlannerTaskRow({
         run: () => deferredComplete.toggle(task.id, false),
       }}
       left={swipeLeft}
-      onLongPress={sel ? (e) => sel.onToggle(e as unknown as MouseEvent) : undefined}
+      liftId={sel ? task.id : undefined}
       className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
         ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
       itemRole={optionId ? 'none' : undefined}

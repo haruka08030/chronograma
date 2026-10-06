@@ -6,10 +6,14 @@ import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { isIndentIntent } from '../lib/taskDragIntent'
 import { getIndentTargetId } from '../lib/taskDepth'
 import { DRAGSEC_PREFIX } from '../lib/sectionReorderDnD'
+import { isTouchLiftEvent } from '../lib/touchLift'
+import { useLiftHeld } from './useTouchLift'
 
 /**
  * To-Do 一覧のドラッグの見張り。字下げ（ネスト）の案内を出す親と、タスクをドラッグ中かを返す。
- * `clearSelectionRef` は選択の解除（選択はこのフックより後に作るので参照で受ける）
+ * `clearSelectionRef` は選択の解除（選択はこのフックより後に作るので参照で受ける）。
+ * タッチの長押しで浮かせたドラッグ（`isTouchLiftEvent`）は、浮かせた行を選択に入れて今の選択ごと運ぶので、始めに選択を外さない。
+ * 動かさずに離したら（onDragCancel）選んだ状態を残し、運んで離したら外す
  */
 export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
   const [previewParentId, setPreviewParentId] = useState<string | null>(null)
@@ -32,9 +36,10 @@ export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
 
   const dndMonitor = useMemo(
     () => ({
-      onDragStart({ active }: DragStartEvent) {
+      onDragStart({ active, activatorEvent }: DragStartEvent) {
         clearNestPreview()
         const id = String(active.id)
+        const lift = isTouchLiftEvent(activatorEvent)
         setTaskDragging(id.startsWith(TASK_PREFIX) || id.startsWith(SUBTASK_PREFIX))
         if (id.startsWith(DRAGSEC_PREFIX)) {
           clearSelectionRef.current()
@@ -44,7 +49,7 @@ export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
           clearSelectionRef.current()
           return
         }
-        if (id.startsWith(TASK_PREFIX)) {
+        if (id.startsWith(TASK_PREFIX) && !lift) {
           const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
           if (!group || group.length <= 1) clearSelectionRef.current()
         }
@@ -67,15 +72,17 @@ export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
         }
         updateNestPreview(getIndentTargetId(useTaskStore.getState().tasks, taskId))
       },
-      onDragEnd({ active }: DragEndEvent) {
+      onDragEnd({ active, activatorEvent }: DragEndEvent) {
         clearNestPreview()
         setTaskDragging(false)
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
-        if (group && group.length > 1) clearSelectionRef.current()
+        if ((group && group.length > 1) || isTouchLiftEvent(activatorEvent)) clearSelectionRef.current()
       },
-      onDragCancel({ active }: DragCancelEvent) {
+      onDragCancel({ active, activatorEvent }: DragCancelEvent) {
         clearNestPreview()
         setTaskDragging(false)
+        // 浮かせて動かさずに離したときは選んだ状態のまま（選択バーを出す）
+        if (isTouchLiftEvent(activatorEvent)) return
         const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds
         if (group && group.length > 1) clearSelectionRef.current()
       },
@@ -83,6 +90,8 @@ export function useTaskListDnd(clearSelectionRef: RefObject<() => void>) {
     [clearNestPreview, updateNestPreview, clearSelectionRef],
   )
   useDndMonitor(dndMonitor)
+  // 浮かせて押さえているだけの間は、落とし先（空の「セクションなし」）を出さない。動かしたら出す
+  const liftHeld = useLiftHeld()
 
-  return { previewParentId, taskDragging }
+  return { previewParentId, taskDragging: taskDragging && !liftHeld }
 }

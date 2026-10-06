@@ -19,6 +19,8 @@ import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskMenu } from '../lib/overlays'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
+import { useLiftedRowId } from '../hooks/useTouchLift'
+import { setLiftGroupCount } from '../lib/touchLift'
 import { useTaskListRows } from '../hooks/useTaskListRows'
 import { useSectionEditing } from '../hooks/useSectionEditing'
 import { TaskListHeader } from './todo/TaskListHeader'
@@ -219,6 +221,12 @@ export function TaskList({
     },
     [active, selected, soloIds],
   )
+
+  // タッチの長押しで浮かせている間、束の件数をドラッグの見た目（バッジ）へ渡す。押さえたまま別の指で足すと増える
+  const liftedRowId = useLiftedRowId()
+  useEffect(() => {
+    if (liftedRowId) setLiftGroupCount(getDragGroupRootIds(liftedRowId).length)
+  }, [liftedRowId, getDragGroupRootIds])
 
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
   const subtaskNestRow = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'

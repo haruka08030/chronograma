@@ -1,4 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
@@ -25,12 +26,13 @@ import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
-import { useLongPress } from '../hooks/useLongPress'
+import { useRowLift } from '../hooks/useTouchLift'
+import { isLiftActive, TOUCH_LIFT_ATTR } from '../lib/touchLift'
 import { useRowSwipe } from '../hooks/useRowSwipe'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { colorVars } from '../lib/logCategoryColors'
-import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS } from './ui/rowStateClass'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -70,7 +72,7 @@ export type TaskItemSelection = {
   cursor?: boolean
   /** 一覧（listbox）の中の option としての id。aria-activedescendant が指す */
   optionId?: string
-  /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは選択に使う） */
+  /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは行を浮かせて選択に入れる） */
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
@@ -84,6 +86,7 @@ export const TaskItem = memo(function TaskItem({
   onRowClick,
   onEnterCreateSibling,
   dragHandle,
+  liftListeners,
   isSubtask,
   selection,
   rowClassName,
@@ -102,6 +105,8 @@ export const TaskItem = memo(function TaskItem({
   /** タイトル編集中 Enter で、同階層の次タスクを作成する */
   onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
+  /** スマホの手動の並びの行: つまみの代わりに行そのものに付ける dnd-kit の listeners（長押しで浮かせて運ぶ。`useRowGrip`） */
+  liftListeners?: DraggableSyntheticListeners
   /** ネイティブドラッグでまとめて動かす選択 ID（表示順・単体なら未指定/[task.id]） */
   dragGroupIds?: string[]
   /** ネイティブドラッグ終了時（成否問わず）。複数選択のクリアなどに使う */
@@ -121,7 +126,7 @@ export const TaskItem = memo(function TaskItem({
   sectionLabel?: string | null
 }) {
   const { t, i18n } = useTranslation()
-  const hasSortableHandle = !!dragHandle
+  const hasSortableHandle = !!dragHandle || !!liftListeners
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -234,8 +239,10 @@ export const TaskItem = memo(function TaskItem({
 
   const rowNativeDraggable = !hasSortableHandle
 
-  // スマホ: 行を長押しで一括選択を始める（ドラッグは左の ⋮⋮ だけなので競合しない）
-  const longPress = useLongPress((e) => selection?.onToggle(e as unknown as React.MouseEvent), !!selection && !editing)
+  // スマホ: 行を長押しすると浮いて選択に入る（押さえたまま別の指でタップした行も足す）。
+  // 手動の並びの行（liftListeners）は dnd-kit のセンサーが同じことをして、そのまま運べる
+  const lift = !!liftListeners && !editing
+  const longPress = useRowLift(task.id, !!selection && !editing && !liftListeners)
 
   const beginTitleInteraction = useCallback(
     (e: React.MouseEvent) => {
@@ -313,12 +320,14 @@ export const TaskItem = memo(function TaskItem({
                   ${selection?.selected ? ROW_SELECTED_CLASS : ''}
                   ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
+                  ${longPress.lifted ? ROW_LIFTED_CLASS : ''}
                   ${rowClassName ?? ''} ${swipe.swipingClass}`}
         style={{ WebkitTouchCallout: 'none' }}
         {...longPress.pointerHandlers}
+        {...(lift ? { ...liftListeners, [TOUCH_LIFT_ATTR]: '' } : {})}
         onContextMenu={(e) => {
-          // 長押しで出る OS のメニューを抑える（選択に使う）
-          if (longPress.isPressing()) {
+          // 長押しで出る OS のメニューを抑える（行を浮かせるのに使う）
+          if (longPress.isPressing() || isLiftActive() || (e.nativeEvent as PointerEvent).pointerType === 'touch') {
             e.preventDefault()
             return
           }
@@ -326,7 +335,7 @@ export const TaskItem = memo(function TaskItem({
           e.preventDefault()
           openMenuAt(e)
         }}
-        // 長押しで選択した直後の click で詳細・編集が開かないように
+        // 長押しで浮かせた直後の click で詳細・編集が開かないように
         onClickCapture={(e) => {
           swipe.onClickCapture(e)
           longPress.onClickCapture(e)
@@ -341,7 +350,7 @@ export const TaskItem = memo(function TaskItem({
           // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
           <span aria-hidden className="gc-line absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={colorVars(rowHex)} />
         )}
-        {hasSortableHandle ? <span className="touch-none flex-shrink-0">{dragHandle}</span> : null}
+        {dragHandle ? <span className="touch-none flex-shrink-0">{dragHandle}</span> : null}
 
         {selection ? (
           <button
