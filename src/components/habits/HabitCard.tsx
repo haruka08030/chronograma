@@ -107,7 +107,8 @@ export function HabitCard({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* 達成率のリング。期間を下に添える（統計の「今週」と期間が違うので、何の % か分かるように） */}
+          <div className="flex shrink-0 flex-col items-center gap-0.5" {...tip(t('habits.score7d'))}>
             <div
               className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100 dark:bg-zinc-800"
               style={{
@@ -118,6 +119,7 @@ export function HabitCard({
                 {weeklyProgress}%
               </div>
             </div>
+            <span className="whitespace-nowrap text-[10px] leading-none text-zinc-400 dark:text-zinc-500">{t('habits.ringPeriod')}</span>
           </div>
         </div>
 

@@ -106,6 +106,8 @@ export interface TaskState {
   activeTimer: ActiveTimer | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
   completePromptTaskId: string | null
+  /** タイマー停止後に「ラベルは？」を出す記録（ラベルなしで止めたとき。永続化しない） */
+  labelPromptLogId: string | null
   dailyReminders: DailyReminders
   /** 「今日の計画」で通知の案内を閉じたか */
   reminderPromptDismissed: boolean
@@ -258,6 +260,7 @@ export interface TaskState {
   /** 止め忘れたタイマーを記録にせず捨てる */
   discardActiveTimer: () => void
   dismissCompletePrompt: () => void
+  dismissLabelPrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
   dismissGoogleConnectLine: () => void

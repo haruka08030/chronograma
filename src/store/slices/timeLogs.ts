@@ -23,6 +23,7 @@ type TimeLogsActions = Pick<
   | 'resolveStaleTimer'
   | 'discardActiveTimer'
   | 'dismissCompletePrompt'
+  | 'dismissLabelPrompt'
   | 'stopTimer'
   | 'openRecordPrompt'
   | 'logPlanAsPlanned'
@@ -107,6 +108,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           color: color ?? null,
         },
         completePromptTaskId: null,
+        labelPromptLogId: null,
       })
     },
     /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
@@ -142,6 +144,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
     },
     discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),
     dismissCompletePrompt: () => set({ completePromptTaskId: null }),
+    dismissLabelPrompt: () => set({ labelPromptLogId: null }),
 
     stopTimer: () => {
       const timer = get().activeTimer
@@ -155,28 +158,31 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const { dueDate, endDate, startTime, endTime } = times
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
+      const log = makeTask(
+        {
+          title: timer.taskTitle,
+          listId: INBOX_ID,
+          dueDate,
+          endDate,
+          startTime,
+          endTime,
+          kind: 'log',
+          completed: true,
+          tags: timer.tags,
+          color: timer.color ?? null,
+        },
+        maxOrder + 1,
+      )
+      const completePromptTaskId = linked && !linked.completed ? linked.id : null
+      // ラベルなしで止めたら、その場でラベルを聞く（統計の 1 位が「ラベルなし」にならないように）。
+      // 同じ位置に出る「完了にしますか？」を優先し、睡眠には聞かない
+      const unlabeled = !log.category && !log.color && log.kind === 'log'
       pushUndo()
       set((s) => ({
         activeTimer: null,
-        completePromptTaskId: linked && !linked.completed ? linked.id : null,
-        tasks: [
-          ...s.tasks,
-          makeTask(
-            {
-              title: timer.taskTitle,
-              listId: INBOX_ID,
-              dueDate,
-              endDate,
-              startTime,
-              endTime,
-              kind: 'log',
-              completed: true,
-              tags: timer.tags,
-              color: timer.color ?? null,
-            },
-            maxOrder + 1,
-          ),
-        ],
+        completePromptTaskId,
+        labelPromptLogId: unlabeled && !completePromptTaskId ? log.id : null,
+        tasks: [...s.tasks, log],
       }))
     },
 

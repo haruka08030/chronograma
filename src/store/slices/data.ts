@@ -51,6 +51,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         selectedListId: INBOX_ID,
         quickAddSectionId: null,
         completePromptTaskId: null,
+        labelPromptLogId: null,
         undoBanner: null,
         moveBannerText: null,
         syncState: 'idle',
