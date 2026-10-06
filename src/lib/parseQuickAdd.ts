@@ -450,7 +450,10 @@ export function parseQuickAddTitle(
    */
   const titleParts: { text: string; kind: 'title' | 'duration' | 'deadlineWord' | 'deadlineSuffix' | 'timeOnly'; stem?: string }[] = []
 
-  const tokens = raw.trim().split(/\s+/).filter(Boolean)
+  // 「10日 締切」のように日だけの指定と締切の印を空白で離して書いても、くっつけた「10日締切」と同じに読む
+  // （日だけの「10日」は、取り違えを避けて締切の印が直後にあるときしか読まないため）
+  const joined = localeJa ? raw.replace(/([0-9０-９]{1,2}日)[\s\u3000]+(?=(?:までに?|締め?切り?|〆切り?|期限|提出))/g, '$1') : raw
+  const tokens = joined.trim().split(/\s+/).filter(Boolean)
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!
     if (pendingDeadlineWord !== null) {

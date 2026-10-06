@@ -573,7 +573,7 @@ export default {
     language: '言語',
     shortcuts: 'キーボードショートカット',
     shortcutsOpen: '一覧を見る（?）',
-    dueNotifications: '締切の前',
+    dueNotifications: '締切の前（前日 20:00・時刻があれば 3 時間前）',
     appTitle: 'アプリ',
     privacyPolicy: 'プライバシーポリシー',
     terms: '利用規約',

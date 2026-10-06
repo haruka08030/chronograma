@@ -367,6 +367,12 @@ describe('初見の学生が打つ書き方（2026-10-06 火曜）', () => {
       }
     })
 
+    it('日だけの指定と締切の印を空白で離しても読む', () => {
+      expect(ja6('レポート 10日 締切')).toMatchObject({ title: 'レポート', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('レポート 10日 まで')).toMatchObject({ title: 'レポート', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('10日 旅行')).toMatchObject({ title: '10日 旅行', date: null })
+    })
+
     it('「有効期限」は締切として読んでも語を題名に残す', () => {
       expect(ja6('パスポート有効期限 10/10')).toMatchObject({ title: 'パスポート有効期限', date: '2026-10-10', dateIsDeadline: true })
     })

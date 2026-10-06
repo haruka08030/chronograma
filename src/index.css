@@ -178,8 +178,9 @@
   --color-accent-200: #3c4043;
   --color-accent-300: #e8eaed;
   --color-accent-400: #dadce0;
-  --color-accent-500: #e8eaed;
-  --color-accent-600: #f1f3f4;
+  /* 塗りのボタン（記録する・＋習慣を追加）が暗い画面で一番まぶしくならないよう、白から一段落とす */
+  --color-accent-500: #bdc1c6;
+  --color-accent-600: #dadce0;
   --color-accent-700: #dadce0;
   --color-accent-800: #e8eaed;
   --color-accent-900: #f1f3f4;

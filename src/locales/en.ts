@@ -585,7 +585,7 @@ export default {
     language: 'Language',
     shortcuts: 'Keyboard shortcuts',
     shortcutsOpen: 'Show list (?)',
-    dueNotifications: 'Before deadlines',
+    dueNotifications: 'Before deadlines (8 pm the day before, 3 h before if timed)',
     appTitle: 'App',
     privacyPolicy: 'Privacy Policy',
     terms: 'Terms of Service',
