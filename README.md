@@ -88,13 +88,16 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/daily-reminders',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET')
+    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET'),
+    timeout_milliseconds := 60000
   );
   $$
 );
 ```
 
-通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。
+`timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5 秒で、利用者が多いと送り終える前に切れる）。
+
+通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
 
 ### Google でログイン（任意）
 
