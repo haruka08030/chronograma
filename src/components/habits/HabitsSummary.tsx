@@ -8,12 +8,12 @@ import { appToday } from '../../lib/timeZone'
 import { toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
 
-/** ヒートマップの濃さ: 0 は灰、あとは藍（日付と同じ date）の 3 段（半分未満・半分以上・全部）。濃さで連続値を描くより段の方が読める */
+/** ヒートマップの濃さ: 0 は薄い灰、あとは墨の 3 段（半分未満・半分以上・全部）。藍は日付の印だけに使う。濃さで連続値を描くより段の方が読める */
 const HEAT_LEVEL = [
-  'bg-zinc-100 dark:bg-zinc-800',
-  'bg-date-100 dark:bg-date-500/25',
-  'bg-date-300 dark:bg-date-500/55',
-  'bg-date-500 dark:bg-date-400',
+  'bg-zinc-100 dark:bg-zinc-800/60',
+  'bg-zinc-200 dark:bg-zinc-700',
+  'bg-zinc-300 dark:bg-zinc-600',
+  'bg-zinc-500 dark:bg-zinc-400',
 ] as const
 const heatLevel = (ratio: number) => (ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 1 ? 2 : 3)
 

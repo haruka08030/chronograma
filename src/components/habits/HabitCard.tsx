@@ -28,7 +28,6 @@ export function HabitCard({
   weekDates,
   habitRecords,
   todayKey,
-  focusKey,
   weekdayLabels,
   menuProps,
   onEdit,
@@ -38,7 +37,6 @@ export function HabitCard({
   weekDates: Date[]
   habitRecords: HabitRecordIndex
   todayKey: string
-  focusKey: string
   weekdayLabels: string[]
   menuProps: HabitMenuProps
   onEdit: () => void
@@ -133,7 +131,6 @@ export function HabitCard({
           {weekDates.map((d, di) => {
             const key = toDateKey(d)
             const isCellToday = key === todayKey
-            const isCellFocus = key === focusKey
             // 週に◯回でその週の回数を満たしたら、やっていない日は予定の無い日と同じ薄さにする
             const isScheduled = isHabitDueOnDate(h, d, habitRecords)
             const status = habitDayStatus(h, key, habitRecords)
@@ -147,8 +144,6 @@ export function HabitCard({
               : isDone
                 ? t('habits.cellDoneAria', { date: cellDate })
                 : cellDate
-            // 丸の塗りは達成の色なので、今日は曜日の文字で、選んだ日は枠で示す（カレンダーと同じ藍）
-            const ringClass = isCellFocus ? 'ring-2 ring-date-400 ring-offset-2 ring-offset-transparent' : ''
             return (
               <button
                 key={key}
@@ -172,7 +167,7 @@ export function HabitCard({
                         : isScheduled
                           ? 'border-[1.5px] border-zinc-300 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'
                           : 'border border-dashed border-zinc-200 text-zinc-400 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800'
-                  } ${ringClass}`}
+                  }`}
                   style={colorVars(h.color)}
                 >
                   {isDone || isOffTime ? (

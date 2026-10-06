@@ -110,7 +110,6 @@ export function HabitsView() {
         weekDates={weekDates}
         habitRecords={habitRecords}
         todayKey={todayKey}
-        focusKey={selectedCalendarDateKey}
         weekdayLabels={habitWeekdayLabels}
         menuProps={menuProps(h.id)}
         onEdit={() => beginEdit(h)}
