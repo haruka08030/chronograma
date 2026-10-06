@@ -32,6 +32,13 @@ const DEFAULT_AT = '13:00'
 
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
+  // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
+  { name: 'first-run', fresh: true },
+  { name: 'first-run-todo', fresh: true, view: 'all' },
+  { name: 'first-run-calendar', fresh: true, view: 'calendar' },
+  { name: 'first-run-habits', fresh: true, view: 'habits' },
+  { name: 'first-run-stats', fresh: true, view: 'stats' },
+  { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
   {
@@ -316,7 +323,7 @@ async function main() {
 
           const at = screen.at ?? args.at
           const instant = at ? instantAt(at, TIMEZONE) : new Date()
-          // アプリと同じく、朝 4 時までは前の日を「今日」として種を置く（timeZone.ts の DAY_START_HOUR）
+          // 朝 4 時までは前の日の種を置く（夜中の画面で、前の日の続きをしている様子を撮るため。アプリの「今日」は 0:00 で変わる）
           const seedNow = nowInTimeZone(TIMEZONE, instant)
           if (seedNow.getHours() < 4) seedNow.setDate(seedNow.getDate() - 1)
           const seed = buildSeedState({ theme, now: seedNow })
@@ -349,13 +356,21 @@ async function main() {
           await context.addInitScript(
             ([key, value]) => {
               try {
-                window.localStorage.setItem(key, value)
+                if (value) window.localStorage.setItem(key, value)
                 window.localStorage.setItem('chronograma-lang', 'ja')
               } catch {
                 /* 読めない環境ではそのまま進む */
               }
             },
-            [PERSIST_KEY, JSON.stringify(seed)],
+            // fresh: データは入れず、開く画面だけ決める（はじめの案内などは新しい人と同じに出る）
+            [
+              PERSIST_KEY,
+              screen.fresh
+                ? screen.view
+                  ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
+                  : null
+                : JSON.stringify(seed),
+            ],
           )
 
           const page = await context.newPage()
