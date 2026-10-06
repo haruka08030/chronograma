@@ -254,6 +254,7 @@ export default {
     insightNoBlocks: 'タスクは進んでいます。来週は大事なものに時間を割り当てると、予定と記録を比べられます。',
     insightNoBlocksNoDone: '大事なものに時間を割り当てると、予定と記録を比べられます。',
     insightSteady: '着実に進んでいます。',
+    insightNoDone: '記録は {{time}}。完了したタスクはまだありません。',
   },
   install: {
     title: 'アプリとして使う',
