@@ -14,12 +14,10 @@ import type { TaskList } from '../types/list'
 import { CartIcon, CloseIcon, ListBulletIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
-import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
+import { colorLabelText, NO_LABEL, todoColorLabels, unlabeledTodoCount, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { groupsBySection, sortModeOf } from '../lib/todoSurfaceView'
-import { CANVAS_LIST_ID } from '../lib/canvasIds'
-import { isActiveTask } from '../lib/taskLifecycle'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -305,7 +303,29 @@ function ColorLabelRow({
   )
 }
 
-/** リストの下に字下げして並べる行（セクション・科目タグ） */
+/** 「ラベルなし」の行。ラベルの行と同じ形で、丸は点線の空の丸（色が無い） */
+function NoLabelRow({ count, isSelected, onSelect }: { count: number; isSelected: boolean; onSelect: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={isSelected ? 'page' : undefined}
+      className={`flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-3 text-left text-sm transition-colors
+        ${
+          isSelected
+            ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+            : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+        }`}
+    >
+      <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border border-dashed border-zinc-400 md:h-3 md:w-3 dark:border-zinc-500" />
+      <span className="min-w-0 flex-1 truncate">{t('labels.none')}</span>
+      <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{count}</span>
+    </button>
+  )
+}
+
+/** リストの下に字下げして並べる行（セクション） */
 function SubNavRow({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
@@ -352,7 +372,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 /**
- * To‑Do のサブナビ本体（期限別ビュー / リスト / 色ラベル / アーカイブ・ゴミ箱）。
+ * To‑Do のサブナビ本体（期限別ビュー / 色ラベル / いつか・チェックリストのリスト / 完了済み・アーカイブ・ゴミ箱）。
  * md 以上は `TodoNavPanel` として独立パネルに、md 未満はサイドバードロワー内に描画する。
  * リスト行は DnD id を持つため、同時に二箇所へマウントしないこと。
  */
@@ -368,22 +388,11 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
   const selectListSection = useTaskStore((s) => s.selectListSection)
-  const selectListTag = useTaskStore((s) => s.selectListTag)
-  const filterTag = useTaskStore((s) => s.filterTag)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
-  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない） */
-  const courseTags = useMemo(() => {
-    const tags = new Set<string>()
-    for (const t of tasks) {
-      if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
-      for (const tag of t.tags) tags.add(tag)
-    }
-    return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
-  }, [tasks])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -392,20 +401,24 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const { active } = useDndContext()
   const nativeDragActive = useTaskNativeDragActive()
   const draggingTask = (active != null && String(active.id).startsWith(TASK_PREFIX)) || nativeDragActive
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const colorLabels = useMemo(
-    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors, draggingTask),
-    [tasks, lists, presets, categoryColors, draggingTask],
+    () => todoColorLabels(tasks, excludedListIds, presets, categoryColors, draggingTask),
+    [tasks, excludedListIds, presets, categoryColors, draggingTask],
   )
+  const unlabeledCount = useMemo(() => unlabeledTodoCount(tasks, excludedListIds), [tasks, excludedListIds])
 
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newKind, setNewKind] = useState<'someday' | 'checklist'>('checklist')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
   const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
   const [labelCard, setLabelCard] = useState<{ hex: string; anchor: AnchorRect } | null>(null)
 
-  const sorted = [...lists].sort((a, b) => a.order - b.order)
+  // To-Do はリストで分けない（ラベルで分ける）。リストはいつか・チェックリストだけ
+  const sorted = lists.filter((l) => l.kind === 'someday' || l.kind === 'checklist').sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
   const sectionsByList = new Map<string, typeof sections>()
   for (const s of sections) {
@@ -422,7 +435,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const submitNew = () => {
     const trimmed = newName.trim()
-    if (trimmed) addList(trimmed)
+    if (trimmed) addList(trimmed, newKind)
     setNewName('')
     setAdding(false)
   }
@@ -456,6 +469,38 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
 
+      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」か、タスクをここへドラッグ */}
+      {colorLabels.length > 0 && (
+        <>
+          <SectionLabel as="div" className="px-3 pb-1 pt-1">
+            {t('labels.title')}
+          </SectionLabel>
+          {colorLabels.map((label) => (
+            <ColorLabelRow
+              key={label.hex}
+              label={label}
+              name={colorLabelText(label.hex, presets, categoryColors, t)}
+              isSelected={selectedView === 'all' && filterColor === label.hex}
+              isEditing={labelCard?.hex === label.hex}
+              onSelect={() => handleNav(() => selectColor(label.hex))}
+              onEdit={(row) => {
+                const anchor = rectOf(row)
+                if (anchor) setLabelCard({ hex: label.hex, anchor })
+              }}
+            />
+          ))}
+          {/* まだラベルを付けていない To-Do（振り分けの残り）。全部がラベルなしのうちは「すべて」と同じなので出さない */}
+          {unlabeledCount > 0 && (
+            <NoLabelRow
+              count={unlabeledCount}
+              isSelected={selectedView === 'all' && filterColor === NO_LABEL}
+              onSelect={() => handleNav(() => selectColor(NO_LABEL))}
+            />
+          )}
+          <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+        </>
+      )}
+
       <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
@@ -482,7 +527,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             <div key={list.id} className="relative">
               <SortableListItem
                 list={list}
-                isSelected={isSelected && !quickAddSectionId && !filterTag}
+                isSelected={isSelected && !quickAddSectionId}
                 onSelect={() => handleNav(() => selectList(list.id))}
                 onStartEdit={() => {
                   setEditingId(list.id)
@@ -500,16 +545,6 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                   onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
                 />
               ))}
-              {/* Canvas の課題の科目タグ。押すと Canvas のリストをその科目で絞る */}
-              {list.id === CANVAS_LIST_ID &&
-                courseTags.map((tag) => (
-                  <SubNavRow
-                    key={`tag:${tag}`}
-                    label={tag}
-                    selected={isSelected && filterTag === tag}
-                    onClick={() => handleNav(() => selectListTag(list.id, tag))}
-                  />
-                ))}
               {colorPickId === list.id && (
                 <ColorPicker current={list.color} onChange={(c) => updateListColor(list.id, c)} onClose={() => setColorPickId(null)} />
               )}
@@ -520,16 +555,44 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="px-2 pb-2 pt-2">
         {adding ? (
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            {...newListEntry}
-            placeholder={t('sidebar.listPlaceholder')}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
-                       ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
-                       placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-          />
+          <div className="space-y-1.5">
+            {/* 作れるのはいつか・チェックリストだけ（To-Do はラベルで分ける） */}
+            <div role="radiogroup" aria-label={t('listKind.label')} className="flex gap-1">
+              {(['checklist', 'someday'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={newKind === k}
+                  // 押しても名前の欄から外れない（外れると追加をやめたことになる）
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setNewKind(k)}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                    newKind === k
+                      ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+                      : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {k === 'someday' ? (
+                    <StarIcon className="h-3.5 w-3.5" strokeWidth={2} />
+                  ) : (
+                    <CartIcon className="h-3.5 w-3.5" strokeWidth={2} />
+                  )}
+                  {t(`listKind.${k}`)}
+                </button>
+              ))}
+            </div>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              {...newListEntry}
+              placeholder={t('sidebar.listPlaceholder')}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
+                         ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
+                         placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+            />
+          </div>
         ) : (
           <button
             type="button"
@@ -543,30 +606,6 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         )}
       </div>
-
-      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」か、タスクをここへドラッグ */}
-      {colorLabels.length > 0 && (
-        <>
-          <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-          <SectionLabel as="div" className="px-3 pb-1 pt-1">
-            {t('labels.title')}
-          </SectionLabel>
-          {colorLabels.map((label) => (
-            <ColorLabelRow
-              key={label.hex}
-              label={label}
-              name={colorLabelText(label.hex, presets, categoryColors, t)}
-              isSelected={selectedView === 'all' && filterColor === label.hex}
-              isEditing={labelCard?.hex === label.hex}
-              onSelect={() => handleNav(() => selectColor(label.hex))}
-              onEdit={(row) => {
-                const anchor = rectOf(row)
-                if (anchor) setLabelCard({ hex: label.hex, anchor })
-              }}
-            />
-          ))}
-        </>
-      )}
 
       <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
 

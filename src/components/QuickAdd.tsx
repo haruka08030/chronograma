@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { useQuickAddTarget } from '../lib/quickAddFocus'
+import { NO_LABEL } from '../lib/todoColorLabels'
 
 /** To-Do 一覧の上の追加欄（今日画面と同じ形）。N キーなど「追加して」の合図でフォーカスする */
 export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
@@ -26,7 +27,7 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
     const { selectedListId, selectedView, filterColor } = useTaskStore.getState()
     addTaskFromQuickText(value, {
       currentListId: selectedListId,
-      color: selectedView === 'all' && filterColor ? filterColor : undefined,
+      color: selectedView === 'all' && filterColor && filterColor !== NO_LABEL ? filterColor : undefined,
     })
     setValue('')
   }

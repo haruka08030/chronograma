@@ -216,7 +216,7 @@ export interface TaskState {
   /** 未達成なら達成にして、記録が無ければ予定どおりの時刻で作る（タイムラインの習慣の枠のチェック） */
   completeHabitAsPlanned: (habitId: string, dateKey: string) => void
 
-  addList: (name: string, kind?: ListKind) => void
+  addList: (name: string, kind?: Exclude<ListKind, 'tasks'>) => void
   setListKind: (id: string, kind: ListKind) => void
   renameList: (id: string, name: string) => void
   updateListColor: (id: string, color: string) => void

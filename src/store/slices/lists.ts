@@ -14,6 +14,8 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
   const { pushUndo } = undo
   return {
     setListKind: (id, kind) => {
+      // To-Do のリスト（フォルダ）は作らない。未分類の種類も変えない
+      if (id === INBOX_ID || kind === 'tasks') return
       pushUndo()
       set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind, updatedAt: new Date().toISOString() } : l)) }))
     },
@@ -29,7 +31,7 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
             name,
             color: GOOGLE_COLOR_HEXES[colorIdx],
             order: maxOrder + 1,
-            kind: kind ?? 'tasks',
+            kind: kind ?? 'checklist',
             updatedAt: new Date().toISOString(),
           },
         ],

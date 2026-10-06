@@ -45,7 +45,7 @@ export default {
   lists: {
     defaultSomeday: 'いつか',
     defaultShopping: '買い物',
-    inbox: '未分類',
+    inbox: 'To-Do',
     unnamedList: 'リスト',
   },
   sections: {

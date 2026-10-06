@@ -104,9 +104,11 @@
   （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
   マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
-- **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks`（既定）/ `someday`（いつか・Wish）/ `checklist`（買い物など）。
+- **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
+  To‑Do はラベルで分ける。ほかの `tasks` のリストと未分類のセクションは `foldTaskFolders`（`src/lib/foldTaskFolders.ts`）がラベルに畳む
+  （`taskStore` の購読で、読み込み・同期・取り込みのどこから来ても）。未分類を開いていたら「すべて」へ（`settleTodoView`）。
   `unplannedListIds`（`src/lib/listKind.ts`）の ID は スマートビュー（今日・近日中・期限切れ・すべて）、`getDayPlan`、`getWeekReview`、
-  統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。切り替えはリスト見出しの
+  統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。いつか・チェックリストの切り替えはリスト見出しの
   `ListKindPicker`、サイドバーのリスト行に種類アイコン。新規ユーザーの初期リストは 未分類 / いつか / 買い物（`initialLists`）。
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す

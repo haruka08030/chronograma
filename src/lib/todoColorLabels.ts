@@ -12,6 +12,9 @@ export interface TodoColorLabel {
   count: number
 }
 
+/** 色ラベルの絞り込み（`filterColor`）で「ラベルなし」（色を付けていない To-Do）を開く印 */
+export const NO_LABEL = 'NONE'
+
 const GOOGLE_ORDER = new Map(CALENDAR_COLORS.map((c, i) => [c.hex.toUpperCase(), i]))
 
 /**
@@ -57,13 +60,21 @@ export function todoColorLabels(
   return [...shown, ...extra]
 }
 
-/** 色ラベルの表示名: ラベル名 → Google の色名（「セージ」など）→ 自分で作った色は `#RRGGBB` */
+/** 色を付けていない未完了の To-Do の数（ナビの「ラベルなし」。範囲は `todoColorLabels` と同じ） */
+export function unlabeledTodoCount(tasks: Task[], excludedListIds: ReadonlySet<string>): number {
+  return tasks.filter(
+    (t) => !t.color && !t.completed && !isLogTask(t) && t.parentId === null && isActiveTask(t) && !excludedListIds.has(t.listId),
+  ).length
+}
+
+/** 色ラベルの表示名: ラベル名 → Google の色名（「セージ」など）→ 自分で作った色は `#RRGGBB`。`NO_LABEL` は「ラベルなし」 */
 export function colorLabelText(
   hex: string,
   presets: readonly string[],
   colors: Readonly<Record<string, string>>,
   t: (key: string) => string,
 ): string {
+  if (hex === NO_LABEL) return t('labels.none')
   const name = labelForHex(hex, presets, colors)
   if (name) return name
   const key = colorKeyForHex(hex)
