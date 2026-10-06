@@ -1,6 +1,7 @@
 import { useId, useState, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
+import { useAuth } from '../../contexts/AuthContext'
 import type { Task } from '../../types/task'
 import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
@@ -50,11 +51,16 @@ export function PlannerTodoSection({
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const onboardingDone = useTaskStore((s) => s.onboardingDone)
+  const dataOwner = useTaskStore((s) => s.dataOwner)
+  const { user, loading: authLoading } = useAuth()
   const [draft, setDraft] = useState('')
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
   // はじめの案内を出している間は、書き方の例は案内の方に出す（追加欄と 2 回出さない）
-  const showOnboarding = viewingToday && !onboardingDone
+  // ログイン中で、この端末でこの人としての初めての同期がまだ終わっていない間は出さない（アカウントのデータが届く前に一瞬出ていた）。
+  // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
+  const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
+  const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
   const moveHere = (task: Task) => <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />
 
   const moveAllLeftOver = () =>
