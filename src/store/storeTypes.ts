@@ -116,6 +116,13 @@ export interface TaskState {
    * 前の版から使っている人・バックアップを取り込んだ人・初めての同期でアカウントのデータが届いた人は true
    */
   onboardingDone: boolean
+  /**
+   * はじめの 3 ステップをやり終えた（× で閉じたのではない）。終えた直後の 1 回だけの誘い
+   * （iPhone の Safari ならホーム画面への追加）を出してよい（端末に保存）
+   */
+  onboardingCompleted: boolean
+  /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
+  installNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -255,6 +262,9 @@ export interface TaskState {
   dismissReminderPrompt: () => void
   dismissGoogleConnectLine: () => void
   finishOnboarding: () => void
+  /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
+  completeOnboarding: () => void
+  dismissInstallNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void

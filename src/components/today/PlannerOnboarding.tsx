@@ -25,15 +25,16 @@ export function PlannerOnboarding({ onUseExample }: { onUseExample: (text: strin
   const tasks = useTaskStore((s) => s.tasks)
   const timerRunning = useTaskStore((s) => s.activeTimer !== null)
   const finishOnboarding = useTaskStore((s) => s.finishOnboarding)
+  const completeOnboarding = useTaskStore((s) => s.completeOnboarding)
   const isCoarse = useIsCoarsePointer()
   const steps = useMemo(() => onboardingSteps(tasks, timerRunning), [tasks, timerRunning])
   const allDone = allOnboardingStepsDone(steps)
 
   useEffect(() => {
     if (!allDone) return
-    const timer = window.setTimeout(finishOnboarding, ONBOARDING_DONE_MS)
+    const timer = window.setTimeout(completeOnboarding, ONBOARDING_DONE_MS)
     return () => window.clearTimeout(timer)
-  }, [allDone, finishOnboarding])
+  }, [allDone, completeOnboarding])
 
   if (allDone) {
     return (

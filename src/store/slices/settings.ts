@@ -21,6 +21,8 @@ type SettingsActions = Pick<
   | 'dismissReminderPrompt'
   | 'dismissGoogleConnectLine'
   | 'finishOnboarding'
+  | 'completeOnboarding'
+  | 'dismissInstallNudge'
   | 'setDailyCapacityMinutes'
   | 'setAppTimeZone'
   | 'setExtraTimeZones'
@@ -136,6 +138,8 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
     dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
     finishOnboarding: () => set({ onboardingDone: true }),
+    completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true }),
+    dismissInstallNudge: () => set({ installNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setAppTimeZone: (tz) => {
       const next = tz && isValidTimeZone(tz) ? tz : null

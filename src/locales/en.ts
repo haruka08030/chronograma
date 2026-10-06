@@ -200,6 +200,11 @@ export default {
     done: 'All set. Plans and records now sit side by side',
     stepDone: 'done',
   },
+  onboardingNudge: {
+    close: 'Close',
+    installTitle: 'Add to your Home Screen to get notifications',
+    installSteps: 'Share button → “Add to Home Screen”',
+  },
   reminders: {
     morningTitle: 'Today at a glance',
     planned: '{{count}} planned',

@@ -12,6 +12,7 @@ import { MoveHereButton, SetTimeButton, TimerButton, TomorrowButton } from './Pl
 import { PlannerAddInput } from './PlannerAddInput'
 import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
+import { OnboardingNudges } from './OnboardingNudges'
 import { focusQuickAdd } from '../../lib/quickAddFocus'
 
 /**
@@ -200,6 +201,8 @@ export function PlannerTodoSection({
           }}
         />
       )}
+      {/* 案内を終えた直後の 1 回だけの誘い（iPhone の Safari ならホーム画面への追加） */}
+      {viewingToday && <OnboardingNudges />}
     </>
   )
 }

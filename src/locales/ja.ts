@@ -200,6 +200,11 @@ export default {
     done: 'できました。予定と記録が並びます',
     stepDone: '済み',
   },
+  onboardingNudge: {
+    close: '閉じる',
+    installTitle: 'ホーム画面に追加すると通知が届きます',
+    installSteps: '共有ボタン →「ホーム画面に追加」',
+  },
   reminders: {
     morningTitle: '今日のまとめ',
     planned: '予定 {{count}} 件',
