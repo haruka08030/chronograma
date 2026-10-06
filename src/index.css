@@ -262,6 +262,10 @@ body {
   border: 1.5px dashed var(--c);
   color: color-mix(in srgb, var(--c) 80%, var(--gc-ink));
 }
+/* 習慣のヒートマップの 1 日のマス: やった習慣の色。小さいので縁は付けず、縦線（gc-line）と同じ濃さの塗り */
+.gc-heat {
+  background-color: color-mix(in srgb, var(--c) 60%, var(--gc-surface));
+}
 .gc-chip-on {
   border-color: var(--c);
   color: color-mix(in srgb, var(--c) 70%, var(--gc-ink));

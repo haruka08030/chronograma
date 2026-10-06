@@ -2,20 +2,12 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { subDays } from 'date-fns'
 import type { Habit } from '../../types/habit'
-import { completionRatioOnDate, consistencyForLast7Days, habitsStreak } from '../../lib/habitStats'
+import { completionRatioOnDate, consistencyForLast7Days, habitsExpectedOnDate, habitsStreak } from '../../lib/habitStats'
+import { colorVars } from '../../lib/logCategoryColors'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { appToday } from '../../lib/timeZone'
 import { toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
-
-/** ヒートマップの濃さ: 0 は薄い灰、あとは墨の 3 段（半分未満・半分以上・全部）。藍は日付の印だけに使う。濃さで連続値を描くより段の方が読める */
-const HEAT_LEVEL = [
-  'bg-zinc-100 dark:bg-zinc-800/60',
-  'bg-zinc-200 dark:bg-zinc-700',
-  'bg-zinc-300 dark:bg-zinc-600',
-  'bg-zinc-500 dark:bg-zinc-400',
-] as const
-const heatLevel = (ratio: number) => (ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 1 ? 2 : 3)
 
 /** 習慣の要約: 数字 2 つ（直近 7 日の達成率・続いている日数）と直近 28 日の小さなヒートマップを 1 枚に */
 export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habitRecords: HabitRecordIndex }) {
@@ -25,7 +17,11 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
     () =>
       Array.from({ length: 28 }, (_, i) => {
         const d = subDays(appToday(), 27 - i)
-        return { key: toDateKey(d), ratio: completionRatioOnDate(habits, d, habitRecords) }
+        return {
+          key: toDateKey(d),
+          ratio: completionRatioOnDate(habits, d, habitRecords),
+          day: habitsExpectedOnDate(habits, d, habitRecords),
+        }
       }),
     [habits, habitRecords],
   )
@@ -52,11 +48,20 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
         <p className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">{t('habits.heatmapTitle')}</p>
         <div className="grid grid-cols-14 gap-1 sm:grid-cols-28" role="img" aria-label={t('habits.heatmapHint')}>
           {heatmapDays.map((d) => (
+            // その日の習慣を縦に並べ、やった習慣だけその色で塗る（何をやった日か色で分かる。やらなかった分は灰のまま）
             <div
               key={d.key}
-              className={`h-4 rounded-sm ${HEAT_LEVEL[heatLevel(d.ratio)]}`}
+              className="flex h-4 flex-col overflow-hidden rounded-sm bg-zinc-100 dark:bg-zinc-800/60"
               title={t('habits.heatmapTooltip', { date: df.shortDateWeekday(d.key), pct: Math.round(d.ratio * 100) })}
-            />
+            >
+              {d.day.map(({ habit, done }) => (
+                <span
+                  key={habit.id}
+                  className={`min-h-px flex-1 ${done ? 'gc-heat' : ''}`}
+                  style={done ? colorVars(habit.color) : undefined}
+                />
+              ))}
+            </div>
           ))}
         </div>
       </div>

@@ -21,19 +21,22 @@ const isTimesPerWeek = (h: Habit) => h.frequency.type === 'timesPerWeek'
  * （やらなかった日で率を下げない）
  */
 export function completionRatioOnDate(habits: Habit[], d: Date, records?: HabitRecordIndex): number {
-  if (habits.length === 0) return 0
+  const day = habitsExpectedOnDate(habits, d, records)
+  if (day.length === 0) return 0
+  return day.filter((x) => x.done).length / day.length
+}
+
+/** その日に数える習慣（予定の日の習慣。週に◯回はやった日だけ）と、やったかどうか。ヒートマップの色分けと達成率で同じ数え方にする */
+export function habitsExpectedOnDate(habits: Habit[], d: Date, records?: HabitRecordIndex): { habit: Habit; done: boolean }[] {
   const key = toDateKey(d)
-  let expected = 0
-  let completed = 0
+  const out: { habit: Habit; done: boolean }[] = []
   for (const h of habits) {
     if (!isHabitScheduledOnDate(h, d)) continue
     const done = achieved(h, key, records)
     if (isTimesPerWeek(h) && !done) continue
-    expected++
-    if (done) completed++
+    out.push({ habit: h, done })
   }
-  if (expected === 0) return 0
-  return completed / expected
+  return out
 }
 
 /**
