@@ -6,6 +6,7 @@ import { unplannedListIds } from '../lib/listKind'
 import { PlusIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { InlineAddInput } from './ui/InlineAddInput'
+import { QuickAddReading } from './QuickAddReading'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -70,24 +71,28 @@ export function CalendarInlineTaskAdd({
     return true
   }
 
-  // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる
+  // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる。
+  // 入力中だけ、読み取った締切・予定を下に 1 行で出す（セルの日を既定のやる日として読む）
   return (
-    <InlineAddInput
-      ref={ref}
-      size={size === 'md' ? 'md' : 'sm'}
-      value={value}
-      onValueChange={setValue}
-      onSubmit={() => {
-        if (!commit()) onDone()
-      }}
-      onCancel={onDone}
-      onBlurSubmit={() => {
-        commit()
-        onDone()
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      placeholder={t('calendar.addTaskPlaceholder')}
-    />
+    <div className="min-w-0">
+      <InlineAddInput
+        ref={ref}
+        size={size === 'md' ? 'md' : 'sm'}
+        value={value}
+        onValueChange={setValue}
+        onSubmit={() => {
+          if (!commit()) onDone()
+        }}
+        onCancel={onDone}
+        onBlurSubmit={() => {
+          commit()
+          onDone()
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        placeholder={t('calendar.addTaskPlaceholder')}
+      />
+      <QuickAddReading text={value} defaultDate={dateKey} className={size === 'md' ? 'mt-1 px-3' : 'mt-0.5 px-1'} />
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { INBOX_LIST_ID } from '../../store/taskStore'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useQuickAddTarget } from '../../lib/quickAddFocus'
 import { InlineAddInput } from '../ui/InlineAddInput'
+import { QuickAddReading } from '../QuickAddReading'
 
 /**
  * 今日の計画の追加欄（並んだ行の下。見出しのすぐ下に空の欄を置かない）。
@@ -42,6 +43,8 @@ export function PlannerAddInput({
         onSubmit={submit}
         placeholder={showExample ? t('planner.addPlaceholderExample') : t('planner.addPlaceholder')}
       />
+      {/* 入力中だけ、読み取った締切・予定を 1 行で（見ている日を既定のやる日として読む） */}
+      <QuickAddReading text={draft} defaultDate={dateKey} className="mt-1" />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { addDays, isValid, startOfDay } from 'date-fns'
+import { addDays, isValid, startOfDay, startOfWeek } from 'date-fns'
 import { appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { pad2 } from './clockTime'
@@ -19,10 +19,12 @@ export type ParsedQuickAdd = {
   title: string
   /** 日付キーワード（今日/明日/曜日/9/30 など） */
   date: string | null
-  /** 「明日まで」「by fri」のように締切として書いたか。違えば「やる日」 */
+  /** 「明日まで」「10/10 締切」「by fri」のように締切として書いたか。違えば「やる日」 */
   dateIsDeadline: boolean
+  /** 締切の時刻（`HH:mm`）。「23:59まで」「10/10 23:59 締切」のように締切の印と時刻を書いたとき。このときは予定にしない */
+  dueTime: string | null
   tags: string[]
-  /** 時刻指定（`HH:mm`）。あれば予定としてタイムラインに置く */
+  /** 時刻指定（`HH:mm`）。あれば予定としてタイムラインに置く（締切の時刻は `dueTime`） */
   startTime: string | null
   endTime: string | null
   /** `@買い物` のようなリスト指定（名前そのまま。解決は呼び出し側で） */
@@ -161,6 +163,8 @@ function readEnRepeat(next: string[]): { repeat: QuickAddRepeat; used: number } 
 type Piece =
   | { kind: 'repeat'; repeat: QuickAddRepeat }
   | { kind: 'date'; date: Date }
+  /** 「今週中」「来週中」: 日付と締切の印をいっしょに書いたもの */
+  | { kind: 'due'; date: Date }
   | { kind: 'time'; min: number }
   | { kind: 'range'; start: number; end: number }
   | { kind: 'duration'; min: number }
@@ -193,6 +197,14 @@ function readClock(s: string, localeJa: boolean): { min: number; rest: string; e
   return null
 }
 
+/** 締切の印。「まで」と同じに読む（前後どちらに書いてもよい） */
+const DEADLINE_MARK = /^(?:までに?|締め?切り?|〆切り?|期限|提出):?/
+/** 締切の印だけの語（「A社 ES 10/10 締切」の「締切」）。日時を書いたときだけ印として読み、無ければ題名に残す */
+const DEADLINE_WORD = /^(?:までに?|締め?切り?|〆切り?|期限|提出):?$/
+
+/** 日付の直後の曜日の書き添え「10/8(木)」の「(木)」は読み飛ばす */
+const skipWeekdayNote = (rest: string) => rest.replace(/^\((?:[日月火水木金土](?:曜日?)?|sun|mon|tue|wed|thu|fri|sat)\)/i, '')
+
 /** トークン先頭から 1 片だけ読む。読めなければ null */
 function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; rest: string } | null {
   // 繰り返しを先に読む（「毎週月曜」を月曜の日付として読まない）
@@ -211,6 +223,11 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   }
 
   let m: RegExpMatchArray | null
+  // 今週中・今週まで → 今週の日曜が締切。来週中 → 来週の日曜（週は月曜はじまり。カレンダーと同じ）
+  if (localeJa && (m = s.match(/^(今|来)週(?:中|いっぱい|(?=までに?))/))) {
+    const sunday = addDays(startOfWeek(today, { weekStartsOn: 1 }), m[1] === '来' ? 13 : 6)
+    return { piece: { kind: 'due', date: sunday }, rest: s.slice(m[0].length) }
+  }
   if (localeJa && (m = s.match(/^(?:来週の?)?([日月火水木金土])曜(?:日)?/))) {
     const dow = JA_WEEKDAYS.indexOf(m[1]!)
     // 来週 = 次の月曜から始まる週
@@ -223,7 +240,7 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   }
   if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) {
     const d = fromDateKey(m[0])
-    if (isValid(d)) return { piece: { kind: 'date', date: startOfDay(d) }, rest: s.slice(m[0].length) }
+    if (isValid(d)) return { piece: { kind: 'date', date: startOfDay(d) }, rest: skipWeekdayNote(s.slice(m[0].length)) }
   }
   // 9/30, 10月3日（過ぎていれば来年）
   if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{1,2})月(\d{1,2})日/)))) {
@@ -232,13 +249,13 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     let d = new Date(today.getFullYear(), month, day)
     if (d.getMonth() !== month) return null
     if (d < today) d = new Date(today.getFullYear() + 1, month, day)
-    return { piece: { kind: 'date', date: d }, rest: s.slice(m[0].length) }
+    return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
   }
 
-  // 時刻、または範囲（15:00-16:30 / 15時〜16時半 / 3pm-4pm）
+  // 時刻、または範囲（15:00-16:30 / 15時〜16時半 / 17時から22時 / 3pm-4pm）
   const clock = readClock(s, localeJa)
   if (clock) {
-    const sep = clock.rest.match(/^\s*[-〜~–]\s*/)
+    const sep = clock.rest.match(localeJa ? /^\s*(?:[-〜~–—]|から)\s*/ : /^\s*[-〜~–—]\s*/)
     const endClock = sep ? readClock(clock.rest.slice(sep[0].length), localeJa) : null
     // 「3-4」のように両辺とも素の数字なら時刻と断定できないので読まない
     if (endClock && endClock.min > clock.min && (clock.explicit || endClock.explicit)) {
@@ -261,30 +278,100 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     return { piece: { kind: 'duration', min: Number(m[1]) }, rest: s.slice(m[0].length) }
   }
 
-  // 締切の印（「明日まで」「金曜までに」）
-  if (localeJa && (m = s.match(/^までに?/))) return { piece: { kind: 'deadline' }, rest: s.slice(m[0].length) }
+  // 締切の印（「明日まで」「金曜までに」「10/10締切」「締切:10/10」）
+  if (localeJa && (m = s.match(DEADLINE_MARK))) return { piece: { kind: 'deadline' }, rest: s.slice(m[0].length) }
   // つなぎ語（「15時から1時間」「明日の」）
   if (localeJa && (m = s.match(/^(から|の|に)/))) return { piece: { kind: 'filler' }, rest: s.slice(m[0].length) }
   return null
 }
 
-/** トークン全体が日時表現だけでできていればその片を返す（1 文字でも余れば null＝タイトルの一部） */
-function readToken(token: string, today: Date, localeJa: boolean): Piece[] | null {
+type ReadToken = { pieces: Piece[]; tailAt: number | null }
+
+/**
+ * トークン全体が日時表現だけでできていればその片を返す（1 文字でも余れば null＝タイトルの一部）。
+ * ただし時刻の直後の括弧書き「14:00–15:00(オンライン)」は題名に戻す（`tailAt` から後ろが題名）
+ */
+function readToken(token: string, today: Date, localeJa: boolean): ReadToken | null {
   const pieces: Piece[] = []
   let rest = token
+  let tailAt: number | null = null
   while (rest.length > 0) {
+    if (rest.startsWith('(') && pieces.some((p) => p.kind === 'time' || p.kind === 'range')) {
+      tailAt = token.length - rest.length
+      break
+    }
     const r = readPiece(rest, today, localeJa)
     if (!r || r.rest.length === rest.length) return null
     pieces.push(r.piece)
     rest = r.rest
   }
-  return pieces.every((p) => p.kind === 'filler' || p.kind === 'deadline') ? null : pieces
+  return pieces.every((p) => p.kind === 'filler' || p.kind === 'deadline') ? null : { pieces, tailAt }
+}
+
+/** 全角の数字・コロン・括弧などを半角にそろえる（NFKC）。題名は元の文字のまま返すので、元の位置（`at`）も覚えておく */
+function normalizeWithMap(s: string): { text: string; at: number[] } {
+  let text = ''
+  const at: number[] = []
+  let i = 0
+  for (const ch of s) {
+    const n = ch.normalize('NFKC')
+    for (let k = 0; k < n.length; k++) at.push(i)
+    text += n
+    i += ch.length
+  }
+  at.push(s.length)
+  return { text, at }
+}
+
+/** 素の数字の範囲「17-22」 */
+const BARE_RANGE = /^(\d{1,2})[-~〜–—](\d{1,2})$/
+/** 範囲の後ろの語がこれで始まれば、時刻ではなく量や番号（「2-3 ページ」「10-12 問」） */
+const COUNT_AFTER =
+  /^(?:ページ|頁|章|問|題|回|個|人|枚|冊|行|節|課|番|点|号|巻|話|p\.?$|pp\.?|pages?\b|ch(?:apters?)?\b|problems?\b|questions?\b|exercises?\b|lessons?\b|units?\b|slides?\b|%)/i
+/** 範囲の前の語がこれで終われば、時刻ではなく番号（「教科書 10-12」「p. 17-20」「第 3-4」） */
+const COUNT_BEFORE =
+  /(?:第|ページ|頁|章|問|問題|問題集|教科書|テキスト|ドリル|範囲|課題|\bp\.?|\bpp\.?|\bpages?|\bch(?:apters?)?\.?|\bproblems?|\bquestions?|\bexercises?|\blessons?|\bunits?|\bno\.?|#)$/i
+
+/**
+ * 「バイト 17-22」の素の数字の範囲を時刻の範囲として読む（語として単独で書いたときだけ）。
+ * 「2-3 ページ」「教科書 10-12」のような番号と取り違えないよう、前後の語と範囲のありそうさ
+ * （6 時から始まり 24 時までに終わる 12 時間以内）を見る。読めなければ null
+ */
+function readBareRange(token: string, prev: string | undefined, next: string | undefined): Piece | null {
+  const m = token.match(BARE_RANGE)
+  if (!m) return null
+  const start = Number(m[1])
+  const end = Number(m[2])
+  if (start < 6 || end <= start || end > 24 || end - start > 12) return null
+  if (next && COUNT_AFTER.test(next.normalize('NFKC'))) return null
+  if (prev && COUNT_BEFORE.test(prev.normalize('NFKC'))) return null
+  // 24 時はその日の終わり（23:59）
+  return { kind: 'range', start: start * 60, end: Math.min(end * 60, 24 * 60 - 1) }
+}
+
+/**
+ * 題名にくっついた時刻の範囲「バイト17時〜22時」「バイト17:00-22:00」を分ける。返す `at` から後ろが範囲。
+ * 範囲（「時」か「:」のある書き方。素の数字どうしは読まない）だけを読み、
+ * 「第3-4章」「A1017:00」のように番号の続きに見えるもの（直前が数字・記号・「第」）は分けない
+ */
+function splitAttachedRange(text: string, today: Date, localeJa: boolean): { at: number; read: ReadToken } | null {
+  for (let i = 1; i < text.length; i++) {
+    const startsClock = /\d/.test(text[i]!) || (localeJa && /^午[前後]/.test(text.slice(i)))
+    if (!startsClock) continue
+    // 最初の数字（午前・午後）の位置でだけ試す。それより後ろの数字では分けない
+    if (/[\d:/.#第-]/.test(text[i - 1]!)) return null
+    const read = readToken(text.slice(i), today, localeJa)
+    return read && read.pieces.length === 1 && read.pieces[0]!.kind === 'range' ? { at: i, read } : null
+  }
+  return null
 }
 
 /**
  * クイック追加の入力から #タグ・日付・時刻・長さ・繰り返しを取り出す。
  * 日時表現は空白で区切られた語として書く（例: 「明日15時 企画会議 1時間 #仕事」「mtg fri 3pm-4pm」）。
- * 日付は「やる日」。締切にしたいときは「明日まで 課題」「essay by fri」と書く。
+ * 時刻の範囲だけは題名にくっつけてもよい（「バイト17時〜22時」）。全角の数字・コロンも読む。
+ * 日付は「やる日」。締切にしたいときは「明日まで 課題」「A社 ES 10/10 23:59 締切」「今週中 レポート」「essay by fri」と書く。
+ * 締切の印と時刻を書いたら、時刻は締切の時刻（`dueTime`）で予定にはしない。
  * 繰り返しは「毎日」「毎週金」「毎週月水」「平日」「毎月15日」「every fri」「every mon wed」「every weekday」「every 2 weeks」
  * （最初の回の決め方は `quickAddTask.ts`）
  */
@@ -305,10 +392,16 @@ export function parseQuickAddTitle(
   let pendingDeadlineWord: string | null = null
   let start: number | null = null
   let end: number | null = null
+  let isRange = false
   let duration: number | null = null
   let repeat: QuickAddRepeat | null = null
-  /** 長さだけの語は、時刻が無ければタイトルに戻すので位置を覚えておく */
-  const titleParts: { text: string; durationOnly: boolean }[] = []
+  /**
+   * 題名の語。日時の読み取りの結果で題名に戻すかが決まる語には印を付けておく
+   * - duration: 長さだけの語。時刻が無ければ戻す
+   * - deadlineWord: 「締切」「提出」だけの語。日時が無ければ戻す
+   * - timeOnly: 時刻だけの語。予定にできなかった（23:59 で頭打ちになり長さが 0）なら戻す
+   */
+  const titleParts: { text: string; kind: 'title' | 'duration' | 'deadlineWord' | 'timeOnly' }[] = []
 
   const tokens = raw.trim().split(/\s+/).filter(Boolean)
   for (let i = 0; i < tokens.length; i++) {
@@ -316,8 +409,9 @@ export function parseQuickAddTitle(
     if (pendingDeadlineWord !== null) {
       const word = pendingDeadlineWord
       pendingDeadlineWord = null
-      if (readToken(token, today, localeJa)?.some((p) => p.kind === 'date')) deadline = true
-      else titleParts.push({ text: word, durationOnly: false })
+      const next = readToken(token.normalize('NFKC'), today, localeJa)
+      if (next?.pieces.some((p) => p.kind === 'date' || p.kind === 'due')) deadline = true
+      else titleParts.push({ text: word, kind: 'title' })
     }
     // 表示言語が日本語でも英語で書けるように、by / due は言語を問わず読む
     if (/^(by|due)$/i.test(token)) {
@@ -342,40 +436,93 @@ export function parseQuickAddTitle(
       if (name && !tags.includes(name)) tags.push(name)
       continue
     }
-    const pieces = readToken(token, today, localeJa)
-    if (!pieces) {
-      titleParts.push({ text: token, durationOnly: false })
+    const norm = normalizeWithMap(token)
+    if (localeJa && DEADLINE_WORD.test(norm.text)) {
+      titleParts.push({ text: token, kind: 'deadlineWord' })
       continue
     }
-    if (pieces.every((p) => p.kind === 'duration' || p.kind === 'filler')) {
-      titleParts.push({ text: token, durationOnly: true })
+    const bare = readBareRange(norm.text, tokens[i - 1], tokens[i + 1])
+    let found: ReadToken | null = bare ? { pieces: [bare], tailAt: null } : readToken(norm.text, today, localeJa)
+    /** 語のうち題名に戻す前の部分（「バイト17時〜22時」の「バイト」。元の文字のまま） */
+    let before = ''
+    if (!found) {
+      const split = splitAttachedRange(norm.text, today, localeJa)
+      if (split) {
+        found = { pieces: split.read.pieces, tailAt: split.read.tailAt == null ? null : split.at + split.read.tailAt }
+        before = token.slice(0, norm.at[split.at])
+      }
     }
+    if (!found) {
+      titleParts.push({ text: token, kind: 'title' })
+      continue
+    }
+    const { pieces, tailAt } = found
+    // 後ろの括弧書き（「(オンライン)」。元の文字のまま）
+    const after = tailAt == null ? '' : token.slice(norm.at[tailAt])
+    if (before || after) titleParts.push({ text: before + after, kind: 'title' })
+    else if (pieces.every((p) => p.kind === 'duration' || p.kind === 'filler')) titleParts.push({ text: token, kind: 'duration' })
+    else if (pieces.every((p) => p.kind === 'time' || p.kind === 'filler')) titleParts.push({ text: token, kind: 'timeOnly' })
     for (const p of pieces) {
       if (p.kind === 'repeat') repeat = p.repeat
       else if (p.kind === 'date') date = p.date
-      else if (p.kind === 'time') start = p.min
-      else if (p.kind === 'range') {
+      else if (p.kind === 'due') {
+        date = p.date
+        deadline = true
+      } else if (p.kind === 'time') {
+        start = p.min
+        end = null
+        isRange = false
+      } else if (p.kind === 'range') {
         start = p.start
         end = p.end
+        isRange = true
       } else if (p.kind === 'duration') duration = p.min
       else if (p.kind === 'deadline') deadline = true
     }
   }
-  if (pendingDeadlineWord !== null) titleParts.push({ text: pendingDeadlineWord, durationOnly: false })
+  if (pendingDeadlineWord !== null) titleParts.push({ text: pendingDeadlineWord, kind: 'title' })
 
-  if (start != null && end == null) end = Math.min(start + (duration ?? DEFAULT_BLOCK_MINUTES), 24 * 60 - 1)
+  // 「締切」「提出」だけの語は、日時も書いたときだけ締切の印
+  const deadlineWordUsed = titleParts.some((p) => p.kind === 'deadlineWord') && (date != null || repeat != null || start != null)
+  if (deadlineWordUsed) deadline = true
+
+  // 締切の印と時刻 → 締切の時刻（予定にはしない）。範囲なら終わりの時刻
+  let dueTime: number | null = null
+  if (deadline && start != null) {
+    dueTime = isRange && end != null ? end : start
+    start = null
+    end = null
+  }
+
+  // 終わりが 23:59 で頭打ちになり長さが 0 なら予定にしない（時刻は題名に戻す）
+  let timeDropped = false
+  if (start != null && end == null) {
+    end = Math.min(start + (duration ?? DEFAULT_BLOCK_MINUTES), 24 * 60 - 1)
+    if (end <= start) {
+      start = null
+      end = null
+      timeDropped = true
+    }
+  }
 
   const title =
     titleParts
-      .filter((p) => !p.durationOnly || start == null)
+      .filter(
+        (p) =>
+          p.kind === 'title' ||
+          (p.kind === 'duration' && start == null) ||
+          (p.kind === 'deadlineWord' && !deadlineWordUsed) ||
+          (p.kind === 'timeOnly' && timeDropped),
+      )
       .map((p) => p.text)
       .join(' ')
       .trim() || raw.trim()
   return {
     title,
     date: date ? toDateKey(date) : null,
-    // 繰り返しの「毎週金曜まで」は日付が無くても締切（最初の回の日は繰り返しから決める）
-    dateIsDeadline: deadline && (date != null || repeat != null),
+    // 繰り返しの「毎週金曜まで」は日付が無くても締切（最初の回の日は繰り返しから決める）。「23:59まで」は時刻だけの締切
+    dateIsDeadline: deadline && (date != null || repeat != null || dueTime != null),
+    dueTime: dueTime != null ? hm(dueTime) : null,
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
