@@ -45,24 +45,28 @@ export function PlannerOnboarding({ onUseExample }: { onUseExample: (text: strin
     )
   }
 
-  const example = t('onboarding.example')
+  // 時間の決まったもの（バイト）と締切のあるもの（レポート）。押すと追加欄に入る
+  const examples = [t('onboarding.example'), t('onboarding.example2')]
   const items = [
     {
       key: 'add',
       done: steps.added,
       label: t('onboarding.add'),
       hint: (
-        <>
-          {t('onboarding.addHint')}{' '}
-          <button
-            type="button"
-            onClick={() => onUseExample(example)}
-            aria-label={t('onboarding.useExample', { text: example })}
-            className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-zinc-700 transition-colors touch-manipulation hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-          >
-            {example}
-          </button>
-        </>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          {t('onboarding.addHint')}
+          {examples.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => onUseExample(example)}
+              aria-label={t('onboarding.useExample', { text: example })}
+              className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-zinc-700 transition-colors touch-manipulation hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              {example}
+            </button>
+          ))}
+        </span>
       ),
     },
     {

@@ -30,6 +30,7 @@ export function PlannerHeader({
   const { t } = useTranslation()
   const df = useDateFormat()
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
+  const onboardingDone = useTaskStore((s) => s.onboardingDone)
   const overCapacity = dateKey >= toDateKey(appToday()) && plannedMinutes > dailyCapacityMinutes
   // スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く）
   return (
@@ -42,10 +43,13 @@ export function PlannerHeader({
         {dayNav}
       </div>
       {viewingToday && <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>}
-      {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない */}
-      <div className="mt-2 md:mt-3">
-        <SleepRow key={dateKey} dateKey={dateKey} />
-      </div>
+      {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない。
+          はじめの案内が出ている間は出さない（最初に目に入るのが睡眠だと、何をするアプリか分からない） */}
+      {onboardingDone && (
+        <div className="mt-2 md:mt-3">
+          <SleepRow key={dateKey} dateKey={dateKey} />
+        </div>
+      )}
       {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
       {(loggedMinutes > 0 || plannedMinutes > 0) && (
         <div className="mt-3 flex items-baseline justify-between gap-3 md:mt-5">
