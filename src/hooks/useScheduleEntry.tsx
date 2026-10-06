@@ -9,6 +9,7 @@ import { toDateKey } from '../lib/dateKey'
 import { DatePickerBody } from '../components/DatePickerBody'
 import { ClockIcon } from '../components/icons'
 import type { ActionEntry, ActionLeaf } from '../components/ui/ActionMenu'
+import { menuDateHint } from '../lib/menuDateHint'
 
 /**
  * メニューの「予定日 › 今日 / 明日 / 来週 / 日付… / 予定をはずす」（タスクの行と予定ブロックで共通）。
@@ -44,6 +45,8 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
     id: 'scheduled',
     label: t('taskMenu.scheduled'),
     icon: <ClockIcon className={iconClass} />,
+    // 今の実行日（時刻があれば開始時刻も）。選んだタスクで違えば出さない
+    hint: menuDateHint(targets.map((x) => ({ date: x.scheduledDate ?? null, time: x.scheduledDate ? (x.startTime ?? null) : null }))),
     leaves,
     width: 'lg',
     extra: (close) => (

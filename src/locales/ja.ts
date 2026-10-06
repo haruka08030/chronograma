@@ -288,6 +288,7 @@ export default {
   records: {
     later: '後から記録',
     breakdownToggle: '分類ごとの時間',
+    breakdownMore: 'ほか',
     laterPlaceholder: '何をした？（空欄ならラベル名で記録）',
     nextDay: '翌日まで',
     noFuture: '今より先は記録できません',
@@ -736,6 +737,7 @@ export default {
     nextWeek: '来週',
     scheduled: '実行日',
     unschedule: '実行日を外す',
+    dueDateTime: '日時を指定…',
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
     open: '詳細を開く',

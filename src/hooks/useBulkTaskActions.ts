@@ -51,6 +51,11 @@ export function useBulkTaskActions() {
           many(ids, dateKey ? t('undo.dueSet', { count: ids.length, label: dateLabel }) : t('undo.dueCleared', { count: ids.length })),
         )
       },
+      /** 締切の日付と時刻をまとめて（「日時を指定…」）。時刻が空なら時刻なしの締切 */
+      setDueAt: (all: string[], dateKey: string, time: string | null, label: string) => {
+        const ids = changing(all, (x) => x.dueDate !== dateKey || (x.dueTime ?? null) !== time)
+        bulkUpdateTasks(ids, { dueDate: dateKey, dueTime: time }, many(ids, t('undo.dueSet', { count: ids.length, label })))
+      },
       setPriority: (all: string[], priority: Priority) => {
         const ids = changing(all, (x) => x.priority !== priority)
         bulkUpdateTasks(ids, { priority }, many(ids, t('undo.prioritySet', { count: ids.length, label: t(`common.${priority}`) })))

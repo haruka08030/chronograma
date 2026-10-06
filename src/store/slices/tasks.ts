@@ -185,14 +185,15 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
           tasks: s.tasks.map((t) => {
             const listHit = listTargets?.has(t.id)
             const prioHit = patch.priority !== undefined && selected.has(t.id)
-            const dueHit = patch.dueDate !== undefined && selected.has(t.id)
+            const dueHit = (patch.dueDate !== undefined || patch.dueTime !== undefined) && selected.has(t.id)
             const secHit = patch.sectionId !== undefined && selected.has(t.id)
             const colorHit = patch.color !== undefined && selected.has(t.id)
             if (!listHit && !prioHit && !dueHit && !secHit && !colorHit) return t
-            const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>> = {}
+            const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'dueTime' | 'sectionId' | 'color'>> = {}
             if (listHit && patch.listId !== undefined) piece.listId = patch.listId
             if (prioHit) piece.priority = patch.priority
-            if (dueHit) piece.dueDate = patch.dueDate
+            if (dueHit && patch.dueDate !== undefined) piece.dueDate = patch.dueDate
+            if (dueHit && patch.dueTime !== undefined) piece.dueTime = patch.dueTime
             if (secHit) piece.sectionId = patch.sectionId
             if (colorHit) piece.color = patch.color
             return applyTaskPatch(t, piece)

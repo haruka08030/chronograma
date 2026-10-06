@@ -35,6 +35,8 @@ export type ActionSub = {
   id: string
   label: string
   icon?: ReactNode
+  /** 右の › の前に出す今の値（「締切 ›」の「今日 18:00」など） */
+  hint?: string
   divider?: boolean
   leaves: ActionLeaf[]
   /** 項目の下に足すもの（カレンダー・色の一覧など）。`close` で閉じる */
@@ -256,6 +258,7 @@ export function ActionMenu({
                     <MenuItem
                       aria-haspopup="menu"
                       icon={item.icon}
+                      hint={item.hint}
                       trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
                       onClick={() => openSub(item.id, false)}
                     >
@@ -334,6 +337,7 @@ export function ActionMenu({
                   aria-haspopup="menu"
                   aria-expanded={sub === item.id}
                   icon={item.icon}
+                  hint={item.hint}
                   active={i === activeIndex || sub === item.id}
                   trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
                   onMouseEnter={() => hoverSub(i, item.id)}

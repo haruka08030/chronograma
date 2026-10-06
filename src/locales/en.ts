@@ -300,6 +300,7 @@ export default {
   records: {
     later: 'Log past time',
     breakdownToggle: 'Time by label',
+    breakdownMore: 'and more',
     laterPlaceholder: 'What did you do? (optional)',
     nextDay: 'until next day',
     noFuture: 'Can’t log future time',
@@ -756,6 +757,7 @@ export default {
     nextWeek: 'Next week',
     scheduled: 'Do date',
     unschedule: 'Remove plan',
+    dueDateTime: 'Date and time…',
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
     open: 'Open details',
