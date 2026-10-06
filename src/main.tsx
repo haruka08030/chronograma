@@ -20,6 +20,7 @@ const launch: LaunchHandlers = {
     if (asPlanned) s.logPlanAsPlanned(taskId)
     else s.openRecordPrompt(taskId)
   },
+  add: () => useTaskStore.getState().requestQuickAdd(),
 }
 // デプロイ後に古いタブで別画面を開くと、古いファイル名がもう無くて読み込みに失敗する。
 // 1 回だけ読み込み直して新しい版にする（失敗し続けるときに再読み込みを繰り返さないよう、1 分は空ける。

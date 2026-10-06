@@ -550,6 +550,8 @@ export default {
     themeLight: 'ライト',
     themeDark: 'ダーク',
     language: '言語',
+    shortcuts: 'キーボードショートカット',
+    shortcutsOpen: '一覧を見る（?）',
     dueNotifications: '締切の前',
     appTitle: 'アプリ',
     privacyPolicy: 'プライバシーポリシー',

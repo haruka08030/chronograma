@@ -27,6 +27,7 @@ import { taskListCollision } from './lib/dndCollision'
 import { useIsDesktop, useIsLargeScreen } from './hooks/useMediaQuery'
 import { useSwipeNav } from './hooks/useSwipeNav'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useShortcutsHelpRequest } from './lib/shortcuts'
 import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useReminders } from './hooks/useReminders'
@@ -67,6 +68,7 @@ export default function App() {
   const { sensors, dragOverlayTask, dragActiveRef, handleDragStart, handleDragEnd, handleDragCancel } = useAppDnd()
 
   useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true) })
+  useShortcutsHelpRequest(() => setShowShortcuts(true))
   useReminders()
 
   const isTodoSurface = isTodoSurfaceView(selectedView)

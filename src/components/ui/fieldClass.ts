@@ -22,7 +22,7 @@ const BASE =
   `placeholder:text-zinc-400 enabled:hover:border-zinc-300 ${FIELD_FOCUS_RING} ` +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
   'aria-invalid:border-red-400 aria-invalid:focus-visible:ring-red-500/30 ' +
-  'dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:enabled:hover:border-zinc-600 dark:aria-invalid:border-red-500/60 ' +
+  'dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-400 dark:enabled:hover:border-zinc-600 dark:aria-invalid:border-red-500/60 ' +
   // 地なしの select の候補が、ダークで白地に白い文字にならないように（Windows などの候補は地を引き継がない）
   'dark:[&_option]:bg-zinc-800'
 

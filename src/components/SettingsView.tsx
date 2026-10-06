@@ -20,6 +20,7 @@ import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
+import { openShortcutsHelp } from '../lib/shortcuts'
 import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
@@ -159,6 +160,14 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               ]}
             />
           </SettingsRow>
+          {/* キーボードのある環境だけ（タッチだけの端末では使えない） */}
+          <div className="hidden [@media(hover:hover)]:block">
+            <SettingsRow label={t('settings.shortcuts')}>
+              <button type="button" onClick={openShortcutsHelp} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+                {t('settings.shortcutsOpen')}
+              </button>
+            </SettingsRow>
+          </div>
         </SettingsGroup>
 
         <IntegrationsSummary onOpen={onOpenIntegrations} />
