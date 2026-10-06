@@ -501,7 +501,13 @@ export function parseQuickAddTitle(
     }
     if (!found) {
       const suffix = localeJa ? norm.text.match(DEADLINE_SUFFIX) : null
-      if (suffix) titleParts.push({ text: token, kind: 'deadlineSuffix', stem: token.slice(0, norm.at[suffix[1]!.length]) })
+      // 「有効期限」は名前の一部（パスポート有効期限）なので、締切として読んでも語はそのまま題名に残す
+      if (suffix)
+        titleParts.push({
+          text: token,
+          kind: 'deadlineSuffix',
+          stem: norm.text.endsWith('有効期限') ? token : token.slice(0, norm.at[suffix[1]!.length]),
+        })
       else titleParts.push({ text: token, kind: 'title' })
       continue
     }
