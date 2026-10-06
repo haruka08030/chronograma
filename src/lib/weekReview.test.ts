@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { foldLabelMinutes, getWeekReview } from './weekReview'
+import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from './weekReview'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
@@ -63,5 +63,39 @@ describe('foldLabelMinutes', () => {
     const { shown, others } = foldLabelMinutes(rows(8))
     expect(shown.map((x) => x.tag)).toEqual(['l0', 'l1', 'l2', 'l3', 'l4'])
     expect(others).toBe(55 + 54 + 53)
+  })
+})
+
+describe('loggedMinutesVsPrevWeek', () => {
+  const log = (id: string, date: string, start: string, end: string) =>
+    task(id, { kind: 'log', dueDate: date, startTime: start, endTime: end })
+  // 今週（9/28〜）は土曜 10/03 まで。前の週は同じ土曜 9/26 までで比べる
+  const tasks = [
+    log('this', '2026-10-01', '10:00', '11:40'),
+    log('prevTue', '2026-09-22', '10:00', '11:00'),
+    log('prevSun', '2026-09-27', '10:00', '15:00'),
+  ]
+
+  it('前の週の同じ曜日までと比べる', () => {
+    const now = at('20:00')
+    const review = getWeekReview(tasks, [], now, new Set(), now)
+    expect(review.loggedMinutes).toBe(100)
+    expect(loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, [], now, new Set(), now)).toBe(40)
+  })
+
+  it('過ぎた週どうしは丸ごと比べる', () => {
+    const now = at('20:00')
+    const anchor = new Date('2026-09-23T12:00:00')
+    const review = getWeekReview(tasks, [], anchor, new Set(), now)
+    expect(review.loggedMinutes).toBe(360)
+    // 前の週（9/14〜）は記録なし
+    expect(loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, [], anchor, new Set(), now)).toBeNull()
+    const next = new Date('2026-10-01T12:00:00')
+    expect(loggedMinutesVsPrevWeek(0, tasks, [], next, new Set(), new Date('2026-10-10T12:00:00'))).toBe(-360)
+  })
+
+  it('前の週に記録が無ければ null', () => {
+    const now = at('20:00')
+    expect(loggedMinutesVsPrevWeek(100, [tasks[0]], [], now, new Set(), now)).toBeNull()
   })
 })
