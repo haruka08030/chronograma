@@ -363,7 +363,7 @@ describe('backupProblemText', () => {
     )
     await i18n.changeLanguage('en')
     expect(backupProblemText({ kind: 'duplicateIds', item: 'list', count: 1, example: 'a'.repeat(30) })).toBe(
-      `1 list(s) have a duplicate ID (e.g. "${'a'.repeat(20)}…").`,
+      `1 list has a duplicate ID (e.g. "${'a'.repeat(20)}…").`,
     )
     await i18n.changeLanguage(before)
   })

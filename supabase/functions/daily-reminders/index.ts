@@ -49,7 +49,7 @@ const MESSAGES = {
     morningTitle: '今日のまとめ',
     planned: (n: number) => `予定 ${n} 件`,
     due: (items: string) => `締切: ${items}`,
-    overdue: (n: number) => `期限切れ ${n} 件`,
+    overdue: (n: number) => `締切切れ ${n} 件`,
     emptyDay: '今日の予定はまだありません。やることを決めましょう。',
     sep: ' ・ ',
     listSep: '、',
@@ -64,7 +64,7 @@ const MESSAGES = {
     asPlanned: '予定どおり',
     record: '記録する',
     timerTitle: 'タイマーが動いたままです',
-    timerBody: (title: string) => `「${title}」を 3 時間以上計測しています`,
+    timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
   },
   en: {
     morningTitle: 'Today at a glance',
