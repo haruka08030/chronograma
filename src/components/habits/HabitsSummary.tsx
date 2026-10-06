@@ -8,6 +8,15 @@ import { appToday } from '../../lib/timeZone'
 import { toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
 
+/** ヒートマップの濃さ: 0 は灰、あとは藍（日付と同じ date）の 3 段（半分未満・半分以上・全部）。濃さで連続値を描くより段の方が読める */
+const HEAT_LEVEL = [
+  'bg-zinc-100 dark:bg-zinc-800',
+  'bg-date-100 dark:bg-date-500/25',
+  'bg-date-300 dark:bg-date-500/55',
+  'bg-date-500 dark:bg-date-400',
+] as const
+const heatLevel = (ratio: number) => (ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 1 ? 2 : 3)
+
 /** 習慣の要約: 数字 2 つ（直近 7 日の達成率・続いている日数）と直近 28 日の小さなヒートマップを 1 枚に */
 export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habitRecords: HabitRecordIndex }) {
   const { t } = useTranslation()
@@ -45,8 +54,7 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
           {heatmapDays.map((d) => (
             <div
               key={d.key}
-              className={`h-4 rounded-sm ${d.ratio === 0 ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
-              style={d.ratio === 0 ? undefined : { backgroundColor: `rgba(99, 102, 241, ${0.3 + d.ratio * 0.7})` }}
+              className={`h-4 rounded-sm ${HEAT_LEVEL[heatLevel(d.ratio)]}`}
               title={t('habits.heatmapTooltip', { date: df.shortDateWeekday(d.key), pct: Math.round(d.ratio * 100) })}
             />
           ))}

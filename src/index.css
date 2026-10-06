@@ -240,10 +240,31 @@ body {
   --gc-surface: #18181b;
   --gc-ink: #f4f4f5;
 }
-/* 塗りつぶし＋白文字。押して選ぶチップの選んだ状態（`chipClass` の selected）。予定・記録のブロックは `gc-plan` */
-.gc-solid {
-  background-color: var(--c);
-  color: var(--on-c, #ffffff);
+/*
+ * 線画の印（習慣の丸・選んだチップ）: 塗りで目立たせず、色の線と色の ✓ で見せる。
+ * - gc-mark: まだ（その色の細い輪）
+ * - gc-mark-done: 達成（丸と同じ薄い塗り＋その色の輪。やった印だけは塗る）
+ * - gc-mark-off: 時間外（その色の点線の輪、塗らない）
+ * - gc-chip-on: 選んだチップ（その色の縁と文字）
+ */
+.gc-mark {
+  border: 1.5px solid color-mix(in srgb, var(--c) 75%, var(--gc-surface));
+}
+.gc-mark-done {
+  background-color: color-mix(in srgb, var(--c) 30%, var(--gc-surface));
+  border: 1.5px solid var(--c);
+  color: color-mix(in srgb, var(--c) 50%, var(--gc-ink));
+}
+.dark .gc-mark-done {
+  background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
+}
+.gc-mark-off {
+  border: 1.5px dashed var(--c);
+  color: color-mix(in srgb, var(--c) 80%, var(--gc-ink));
+}
+.gc-chip-on {
+  border-color: var(--c);
+  color: color-mix(in srgb, var(--c) 70%, var(--gc-ink));
 }
 
 /* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */

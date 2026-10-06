@@ -4,7 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
 import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../../lib/habitTiming'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
-import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT, HABIT_PENDING } from '../../lib/habitMark'
 import { isHabitWeekGoalMetOnDate } from '../../lib/habitSchedule'
 import { fromDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
@@ -57,17 +57,15 @@ export function PlannerHabits({
                 aria-label={weekMet ? `${h.title} ${t('habits.weekGoalMet')}` : h.title}
                 {...tip(record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined)}
                 onClick={() => toggleHabitDate(h.id, dateKey)}
-                className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] transition-colors touch-manipulation ${
-                  weekMet ? 'border-[color-mix(in_srgb,var(--c)_35%,transparent)]' : 'border-[var(--c)]'
-                } ${
+                className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors touch-manipulation ${
                   status === 'done'
                     ? HABIT_DONE_FILL
                     : status === 'offTime'
                       ? HABIT_OFF_TIME_FILL
-                      : 'hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]'
+                      : `${HABIT_PENDING} hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)] ${weekMet ? 'opacity-50' : ''}`
                 }`}
               >
-                {status !== 'missed' && <CheckIcon className="h-5 w-5" strokeWidth={3} />}
+                {status !== 'missed' && <CheckIcon className="h-5 w-5" strokeWidth={2.5} />}
               </button>
               {canTime && (
                 <button

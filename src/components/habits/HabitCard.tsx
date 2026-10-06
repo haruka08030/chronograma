@@ -114,13 +114,14 @@ export function HabitCard({
           </div>
           {/* 達成率のリング。期間を下に添える（統計の「今週」と期間が違うので、何の % か分かるように） */}
           <div className="flex shrink-0 flex-col items-center gap-0.5" {...tip(t('habits.score7d'))}>
+            {/* 線画: 薄い下地の輪の上に、習慣の色の細い弧 */}
             <div
-              className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100 dark:bg-zinc-800"
+              className="grid h-10 w-10 place-items-center rounded-full"
               style={{
                 background: `conic-gradient(${offDay ? '#a1a1aa' : h.color} ${weeklyProgress * 3.6}deg, rgba(148,163,184,0.25) 0deg)`,
               }}
             >
-              <div className="grid h-7 w-7 place-items-center rounded-full bg-white text-[10px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              <div className="grid h-[34px] w-[34px] place-items-center rounded-full bg-white text-[10px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
                 {weeklyProgress}%
               </div>
             </div>
@@ -161,7 +162,7 @@ export function HabitCard({
                 aria-pressed={isDone || isOffTime}
                 {...tip(record ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime }) : undefined)}
               >
-                {/* 達成・時間外は今日画面の丸と同じ塗り（時間外は 35%）。時間外は丸の下に小さく「時間外」（カードの高さに入れて、枠に重ねない） */}
+                {/* 達成・時間外は今日画面の丸と同じ（達成は薄い塗り＋輪、時間外は点線の輪）。予定の日は灰の輪、予定の無い日は灰の点線。時間外は丸の下に小さく「時間外」（カードの高さに入れて、枠に重ねない） */}
                 <span
                   className={`grid h-9 w-9 place-items-center rounded-full text-sm transition-colors ${
                     isDone
@@ -169,13 +170,13 @@ export function HabitCard({
                       : isOffTime
                         ? HABIT_OFF_TIME_FILL
                         : isScheduled
-                          ? 'bg-zinc-300/70 text-zinc-500 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-                          : 'bg-zinc-200/55 text-zinc-400 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:text-zinc-500 dark:hover:bg-zinc-700'
+                          ? 'border-[1.5px] border-zinc-300 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                          : 'border border-dashed border-zinc-200 text-zinc-400 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800'
                   } ${ringClass}`}
                   style={colorVars(h.color)}
                 >
                   {isDone || isOffTime ? (
-                    <CheckIcon className="h-4 w-4" strokeWidth={3} />
+                    <CheckIcon className="h-4 w-4" strokeWidth={2.5} />
                   ) : (
                     <span className={`text-[11px] ${isCellToday ? TODAY_TEXT : ''}`}>{weekdayLabels[di]}</span>
                   )}
