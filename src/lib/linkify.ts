@@ -28,21 +28,6 @@ export function linkifySegments(text: string): LinkifySegment[] {
   return segments
 }
 
-/** テキストに含まれる URL を重複なく抽出する。 */
-export function extractUrls(text: string): string[] {
-  if (!text) return []
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const match of text.matchAll(URL_REGEX)) {
-    const url = match[0].replace(/[.,;:!?)]+$/, '')
-    if (!seen.has(url)) {
-      seen.add(url)
-      out.push(url)
-    }
-  }
-  return out
-}
-
 /** 場所文字列から Google Maps の検索 URL を生成する。URL 文字列ならそのまま返す。 */
 export function googleMapsUrl(location: string): string {
   const trimmed = location.trim()
