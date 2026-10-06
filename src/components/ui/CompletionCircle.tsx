@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react'
 import { CheckIcon } from '../icons'
 import { PRIORITY_RING_CLASS } from '../../lib/priorityColor'
+import { colorVars } from '../../lib/logCategoryColors'
 import type { Priority } from '../../types/task'
 
 /** 完了の印の形。To-Do は丸、チェックリスト（買い物）は四角、いつか（Wish）は ☆（かなえたら ★） */
@@ -84,5 +85,16 @@ export function CompletionCircle({
         )}
       </span>
     </button>
+  )
+}
+
+/**
+ * 完了の丸の代わりに置く、予定（完了の無いもの）の印。丸と同じ幅を取り、Google の予定の一覧と同じく色の点だけを出す
+ */
+export function EventMark({ hex, small = false }: { hex: string; small?: boolean }) {
+  return (
+    <span aria-hidden className={`flex flex-shrink-0 items-center justify-center ${small ? 'h-4 w-4' : 'h-5 w-5'}`}>
+      <span className="gc-dot h-2.5 w-2.5 rounded-full" style={colorVars(hex)} />
+    </span>
   )
 }

@@ -1,4 +1,4 @@
-import { isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 
 /**
@@ -22,6 +22,9 @@ export function onboardingSteps(tasks: readonly Task[], timerRunning: boolean): 
     if (!isActiveTask(t)) continue
     if (isTodoTask(t)) {
       added = true
+      if (t.startTime && t.endTime) placed = true
+    } else if (isEventTask(t)) {
+      // カレンダーに予定を入れたら「置いた」
       if (t.startTime && t.endTime) placed = true
     } else if (isLogTask(t) && !isSleepTask(t)) {
       recorded = true

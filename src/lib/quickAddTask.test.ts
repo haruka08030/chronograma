@@ -190,6 +190,16 @@ describe('予定作成カード（ドラッグした日・時間帯が既定）'
       dueDate: '2026-10-02',
     })
   })
+
+  it('「予定」を選んだら予定として作る（日時の読み方は同じ）。いつか・チェックリストのリストでは予定にしない', () => {
+    expect(added(addTaskFromQuickText('バイト', { ...drag, kind: 'event' }))).toMatchObject({
+      kind: 'event',
+      scheduledDate: '2026-10-05',
+      startTime: '09:00',
+      endTime: '10:30',
+    })
+    expect(added(addTaskFromQuickText('@いつか 旅行', { ...drag, kind: 'event' })).kind).toBeUndefined()
+  })
 })
 
 describe('サブタスク（親とリストは固定）', () => {

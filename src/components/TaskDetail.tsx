@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 import { ColorLabelPicker } from './labels/ColorLabelPicker'
 import { useEscapeLayer } from '../hooks/useHotkey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -74,7 +74,8 @@ export function TaskDetail({
       {!isLog && (
         <>
           <TaskListFields task={task} />
-          <SubtasksField task={task} />
+          {/* 予定にはサブタスクを付けない */}
+          {!isEventTask(task) && <SubtasksField task={task} />}
         </>
       )}
 

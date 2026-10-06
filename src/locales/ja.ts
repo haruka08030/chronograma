@@ -392,8 +392,6 @@ export default {
     date: '日付',
     startTime: '開始',
     endTime: '終了',
-    destination: '作成先',
-    destTodo: 'To-Do',
     destGoogle: 'Google カレンダー',
   },
   eventCard: {
@@ -403,6 +401,7 @@ export default {
     scopeSeries: 'すべての繰り返し',
     googleColor: 'Google の色に戻す',
     recordAndComplete: '記録して完了',
+    toRecord: '記録にする',
     markDoneOnly: '完了だけ',
     edit: '詳細を編集',
     log: '記録',
@@ -418,6 +417,9 @@ export default {
     titlePlaceholder: 'タイトルを追加',
     list: 'リスト',
     more: 'その他のオプション',
+    kind: '作るもの',
+    kindEvent: '予定',
+    kindTodo: 'To-Do',
   },
   shortcuts: {
     title: 'キーボードショートカット',
@@ -606,6 +608,9 @@ export default {
       memo: 'メモ（任意）',
       memoPlaceholder: '実行内容のメモを入力',
       saveComplete: '記録して完了',
+      eventTitle: '記録にする',
+      eventBody: 'この予定の時間を記録にします。',
+      saveRecord: '記録する',
     },
   },
   taskDetail: {

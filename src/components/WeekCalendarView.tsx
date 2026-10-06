@@ -19,7 +19,7 @@ import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
@@ -325,7 +325,8 @@ export function WeekCalendarView({
       setUnscheduleHover(false)
     } else {
       setAllDayMoveKey(null)
-      setUnscheduleHover(isOverUnscheduleDrop(e.clientX, e.clientY))
+      // 予定は To-Do の置き場に戻さない（日時の無い予定はどこにも出ない）
+      setUnscheduleHover(!isEventTask(task) && isOverUnscheduleDrop(e.clientX, e.clientY))
     }
   }
   const handleGridPointerUp = () => {
@@ -333,7 +334,7 @@ export function WeekCalendarView({
     const toUnschedule = getCalendarItemDrag().overUnschedule
     if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
-      if (task && !isLogTask(task)) {
+      if (task && !isLogTask(task) && (allDayMoveKey || !isEventTask(task))) {
         updateTask(
           d.taskId,
           allDayMoveKey ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null } : UNSCHEDULE_PATCH,
@@ -376,7 +377,8 @@ export function WeekCalendarView({
         })
         return
       }
-      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind: 'todo' })
+      const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === taskId))
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind })
     },
   })
 

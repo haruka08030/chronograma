@@ -14,7 +14,7 @@ import {
 import { googleEventTiming } from '../../lib/googleCalendar'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { CalendarInlineTaskAdd } from '../CalendarInlineTaskAdd'
-import type { Task } from '../../types/task'
+import { isEventTask, planKindOf, type Task } from '../../types/task'
 import { colorVars } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex, planVisualState } from '../../lib/planVisual'
@@ -108,7 +108,8 @@ export function WeekAllDayRow({
                 asOneUndo(() => {
                   const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind: 'todo' }, label)
+                    const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === id))
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind }, label)
                   }
                 })
               }}
@@ -160,11 +161,14 @@ export function WeekAllDayRow({
                     text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                   style={colorVars(planHex(t))}
                 >
-                  <CalendarCheck
-                    done={t.completed}
-                    label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                    onCheck={() => toggleTask(t.id)}
-                  />
+                  {/* 予定（完了の無いもの）には ✓ を出さない */}
+                  {!isEventTask(t) && (
+                    <CalendarCheck
+                      done={t.completed}
+                      label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                      onCheck={() => toggleTask(t.id)}
+                    />
+                  )}
                   <span className="truncate">{t.title}</span>
                 </div>
               ))}

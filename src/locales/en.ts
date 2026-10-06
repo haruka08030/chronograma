@@ -392,8 +392,6 @@ export default {
     date: 'Date',
     startTime: 'Start',
     endTime: 'End',
-    destination: 'Create in',
-    destTodo: 'To-do',
     destGoogle: 'Google Calendar',
   },
   eventCard: {
@@ -403,6 +401,7 @@ export default {
     scopeSeries: 'All events',
     googleColor: 'Use Google color',
     recordAndComplete: 'Log and complete',
+    toRecord: 'Log it',
     markDoneOnly: 'Complete only',
     edit: 'Edit details',
     log: 'Log',
@@ -418,6 +417,9 @@ export default {
     titlePlaceholder: 'Add title',
     list: 'List',
     more: 'More options',
+    kind: 'Create',
+    kindEvent: 'Event',
+    kindTodo: 'To-do',
   },
   shortcuts: {
     title: 'Keyboard shortcuts',
@@ -606,6 +608,9 @@ export default {
       memo: 'Notes (optional)',
       memoPlaceholder: 'What you did',
       saveComplete: 'Log and complete',
+      eventTitle: 'Log it',
+      eventBody: 'Turn the time of this event into a record.',
+      saveRecord: 'Log',
     },
   },
   taskDetail: {

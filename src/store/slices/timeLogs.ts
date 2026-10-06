@@ -12,7 +12,7 @@ import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { clockOf } from '../../lib/clockTime'
-import { isLogTask } from '../../types/task'
+import { isLogTask, isTodoTask } from '../../types/task'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -158,7 +158,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => ({
         activeTimer: null,
-        completePromptTaskId: linked && !linked.completed ? linked.id : null,
+        // 予定（完了の無いもの）から始めた記録は、止めても完了を聞かない
+        completePromptTaskId: linked && !linked.completed && isTodoTask(linked) ? linked.id : null,
         tasks: [
           ...s.tasks,
           makeTask(

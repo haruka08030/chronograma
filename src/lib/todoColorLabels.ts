@@ -1,4 +1,4 @@
-import { isLogTask, type Task } from '../types/task'
+import { isTodoTask, type Task } from '../types/task'
 import { CALENDAR_COLORS } from './googleColors'
 import { categoryHex, colorKeyForHex, isHexColor, labelForHex } from './logCategoryColors'
 import { isActiveTask } from './taskLifecycle'
@@ -20,7 +20,7 @@ const GOOGLE_ORDER = new Map(CALENDAR_COLORS.map((c, i) => [c.hex.toUpperCase(),
 /**
  * To‑Do のナビに出す色ラベル（タスクに色を付けたものだけ）。
  * Google と同じく、ラベルは色に付けた名前。並びは ラベルの順 → 名前の無い Google の色 → 自分で作った色。
- * 開くと「すべて」をその色で絞るので、範囲も「すべて」と同じ（記録・いつか・チェックリストは入れない）。
+ * 開くと「すべて」をその色で絞るので、範囲も「すべて」と同じ（記録・予定・いつか・チェックリストは入れない）。
  * 未完了が 0 件の色は出さない。ただし開いている色（`keepHex`）は、操作中に消えないよう 0 件で残す。
  * `withNamed` のときは、まだどのタスクにも付けていないラベル（名前を付けた色）も 0 件で後ろに足す（タスクをドラッグ中のドロップ先）。
  * いつも出ているラベルの位置は動かさず、ドラッグ中だけ出るものはその下に並べる。
@@ -35,7 +35,7 @@ export function todoColorLabels(
 ): TodoColorLabel[] {
   const counts = new Map<string, number>()
   for (const t of tasks) {
-    if (!t.color || isLogTask(t) || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+    if (!t.color || !isTodoTask(t) || t.parentId !== null || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
     const hex = t.color.toUpperCase()
     counts.set(hex, (counts.get(hex) ?? 0) + (t.completed ? 0 : 1))
   }
@@ -66,7 +66,7 @@ export function todoColorLabels(
 /** 色を付けていない未完了の To-Do の数（ナビの「ラベルなし」。範囲は `todoColorLabels` と同じ） */
 export function unlabeledTodoCount(tasks: Task[], excludedListIds: ReadonlySet<string>): number {
   return tasks.filter(
-    (t) => !t.color && !t.completed && !isLogTask(t) && t.parentId === null && isActiveTask(t) && !excludedListIds.has(t.listId),
+    (t) => !t.color && !t.completed && isTodoTask(t) && t.parentId === null && isActiveTask(t) && !excludedListIds.has(t.listId),
   ).length
 }
 

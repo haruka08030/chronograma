@@ -32,6 +32,8 @@ export interface QuickAddOptions {
   parentId?: string
   /** 色（ラベル）を開いて追加したとき、その色を付ける（そのラベルの一覧に残るように） */
   color?: string
+  /** 予定（完了の丸の無いもの）として作る（予定作成カードで「予定」を選んだとき）。締切・繰り返しは付けない */
+  kind?: 'event'
 }
 
 type SchedulePatch = Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence'>>
@@ -180,11 +182,13 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
-    const patch: Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence' | 'tags' | 'color'>> = {}
+    const patch: Partial<Pick<Task, 'dueDate' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence' | 'tags' | 'color' | 'kind'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
     if (opts.color) patch.color = opts.color
     // いつか・チェックリストには日付も繰り返しも付けない（付けると期限のビューに戻ってきてしまう）
     if (kind === 'tasks') Object.assign(patch, quickAddSchedule(parsed, opts, appTodayKey()))
+    // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
+    if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
   })
   if (!id) return undefined
