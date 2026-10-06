@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -68,6 +68,8 @@ interface TaskRow {
   habit_id?: string | null
   /** 古い DB には無い */
   is_sleep?: boolean | null
+  /** 古い DB には無い（`014`） */
+  is_event?: boolean | null
   /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
@@ -151,6 +153,18 @@ function isMissingIsSleepColumnError(message: string | undefined): boolean {
 function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ is_sleep, ...rest }) => {
     void is_sleep
+    return rest
+  })
+}
+
+function isMissingIsEventColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'is_event' column")
+}
+
+function stripIsEventFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ is_event, ...rest }) => {
+    void is_event
     return rest
   })
 }
@@ -373,7 +387,7 @@ function rowToTaskFields(row: TaskRow): Task {
     tags,
     category: typeof row.category === 'string' ? row.category : null,
     recurrence,
-    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true),
+    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
@@ -421,10 +435,11 @@ function taskToRow(userId: string, task: Task): TaskRow {
     tags: task.tags,
     category: isLogTask(task) ? task.category : null,
     recurrence: task.recurrence,
-    // 種類はサーバーでは 2 つの列（記録か・睡眠か）。前の版の端末も同じ列を読む
+    // 種類はサーバーでは印の列（記録か・睡眠か・予定か）。前の版の端末も同じ列を読む（予定の印を読まない版では To-Do）
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
     is_sleep: isSleepTask(task),
+    is_event: isEventTask(task),
     time_zone: task.timeZone,
     time_zone_anchor: task.timeZoneAnchor,
     reminders: task.reminders,
@@ -917,6 +932,7 @@ export async function pushListsTasksHabits(
   let stripColor = false
   let stripHabitId = false
   let stripIsSleep = false
+  let stripIsEvent = false
   let stripTimeZone = false
   let stripReminders = false
   let stripDueTime = false
@@ -931,6 +947,7 @@ export async function pushListsTasksHabits(
     if (stripColor) rows = stripColorFromTaskRows(rows)
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
+    if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
     if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
     if (stripReminders) rows = stripRemindersFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
@@ -939,7 +956,7 @@ export async function pushListsTasksHabits(
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 13; attempt++) {
+  for (let attempt = 0; attempt < 14; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -964,6 +981,11 @@ export async function pushListsTasksHabits(
     }
     if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
       stripIsSleep = true
+      continue
+    }
+    // `014` を流す前の DB。予定は To-Do として送る（列を足せば次回から予定のまま）
+    if (isMissingIsEventColumnError(errMsg) && !stripIsEvent) {
+      stripIsEvent = true
       continue
     }
     if (isMissingRemindersColumnError(errMsg) && !stripReminders) {

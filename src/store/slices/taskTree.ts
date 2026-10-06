@@ -1,5 +1,5 @@
 /** タスクの並べ替え・入れ子（ドラッグ）・リスト間の移動 */
-import { isLogTask, type Task } from '../../types/task'
+import { isLogTask, isTodoTask, type Task } from '../../types/task'
 import i18n from '../../i18n/config'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { canNestUnder, getIndentTargetId } from '../../lib/taskDepth'
@@ -56,7 +56,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!moved || moved.parentId == null) return
       if (!parent) return
       if (taskId === newParentId) return
-      if (isLogTask(moved) || isLogTask(parent)) return
+      if (!isTodoTask(moved) || !isTodoTask(parent)) return
       if (isAncestorInChain(s0.tasks, taskId, newParentId)) return
       if (moved.parentId !== newParentId && !canNestUnder(s0.tasks, taskId, newParentId)) return
 
@@ -122,7 +122,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!moved || moved.parentId !== null) return
       if (!parent) return
       if (taskId === parentId) return
-      if (isLogTask(moved) || isLogTask(parent)) return
+      if (!isTodoTask(moved) || !isTodoTask(parent)) return
       if (isAncestorInChain(s0.tasks, taskId, parentId)) return
       if (!canNestUnder(s0.tasks, taskId, parentId)) return
 

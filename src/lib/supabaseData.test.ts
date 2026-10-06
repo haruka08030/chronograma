@@ -304,6 +304,28 @@ describe('task kind (is_time_log / is_sleep columns)', () => {
       ['sleep', true, true, false],
     ])
   })
+
+  it('reads and writes an event (no check) as is_event, which older apps read as a to-do', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [{ ...task('event'), is_event: true }, { ...task('oldRow') }],
+      habits: [],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(Object.fromEntries(res.tasks.map((t) => [t.id, t.kind]))).toEqual({ event: 'event', oldRow: 'todo' })
+
+    const push = fakeSupabase({})
+    const [todo, event] = fetchedTasks(['todo', 'event'])
+    const sent = await pushListsTasksHabits(push.client, 'u1', [], [todo!, { ...event!, kind: 'event' }], [], [], noDeletes)
+    expect(sent.error).toBeUndefined()
+    const rows = push.upserts.find((u) => u.table === 'tasks')!.rows.map((r) => [r.id, r.is_time_log, r.is_event])
+    expect(rows).toEqual([
+      ['todo', false, false],
+      ['event', false, true],
+    ])
+  })
 })
 
 describe('pushListsTasksHabits', () => {

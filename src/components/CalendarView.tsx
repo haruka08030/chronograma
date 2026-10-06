@@ -33,7 +33,7 @@ import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
-import { isLogTask } from '../types/task'
+import { isEventTask, isLogTask, planKindOf } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
@@ -232,7 +232,7 @@ export function CalendarView({
                             scheduledDate: key,
                             startTime: existingTask.startTime,
                             endTime: existingTask.endTime,
-                            kind: 'todo',
+                            kind: planKindOf(existingTask),
                           },
                           label,
                         )
@@ -360,12 +360,17 @@ export function CalendarView({
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
                       {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
-                      <CalendarCheck
-                        done={t.completed}
-                        label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                        onCheck={() => toggleTask(t.id)}
-                        className="text-(--c)"
-                      />
+                      {/* 予定（完了の無いもの）は Google の月表示と同じく ● */}
+                      {isEventTask(t) ? (
+                        <span aria-hidden className="gc-dot mx-0.5 h-2 w-2 shrink-0 rounded-full" />
+                      ) : (
+                        <CalendarCheck
+                          done={t.completed}
+                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                          onCheck={() => toggleTask(t.id)}
+                          className="text-(--c)"
+                        />
+                      )}
                       {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
                       {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
                       <span className="truncate">{t.title}</span>

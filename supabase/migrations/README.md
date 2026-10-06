@@ -17,6 +17,7 @@
 | [`011_client_errors.sql`](011_client_errors.sql) | 端末のエラーの記録 `client_errors`（種類 `render` / `error` / `unhandledrejection` / `sync` / `chunk`・メッセージ・スタック・場所・版・ブラウザ・`extra`）。大きさの上限 `client_errors_size_check`。端末は本人の行の insert だけ（読む・消すのは service_role）。1 人あたり新しい 500 件まで（トリガー `trim_client_errors` が古いものから消す。断らない）。30 日より古い行は pg_cron のジョブ `chronograma-client-errors-purge` が毎日 3:23（UTC）に消す（pg_cron が無ければジョブは作らない。入れたら流し直す） |
 | [`012_reminder_runs.sql`](012_reminder_runs.sql) | 通知の送信（Edge Function `daily-reminders`）の実行の記録 `reminder_runs`（1 行、`id = 1`）。`last_ok_at` は最後に全部うまくいった回の時刻（次の回はここから今まで、上限 60 分の通知を送る）、`running_since` は走っている回の目印（同じ時間を 2 つの回が同時に送らない）。RLS あり・ポリシーなし、`anon` / `authenticated` の権限は外す（service_role だけ） |
 | [`013_hit_rate_limit_search_path.sql`](013_hit_rate_limit_search_path.sql) | 001 の `hit_rate_limit`（SECURITY DEFINER）の `search_path` を空に固定し、名前をすべてスキーマ付きにする（動きと権限は同じ。service_role だけが呼べる） |
+| [`014_task_is_event.sql`](014_task_is_event.sql) | 予定（完了の丸の無い、時刻のある予定）の印 `tasks.is_event`（既定 false = To-Do）。予定は To-Do の一覧・やり残し・完了数に入れない。列を知らない前の版のアプリでは To-Do に見える |
 
 テーブル（最新の形）:
 
@@ -24,7 +25,7 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders` を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |

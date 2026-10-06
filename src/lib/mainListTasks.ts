@@ -1,5 +1,5 @@
 import { parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
@@ -27,7 +27,8 @@ export interface MainListTasksInput {
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
-  let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
+  // 予定（完了の丸の無いもの）は To-Do の一覧に出さない（カレンダーで見る）
+  let result = tasks.filter((t) => t.parentId === null && isActiveTask(t) && !isEventTask(t))
   // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
   if (selectedView && excludedListIds && excludedListIds.size > 0) {
     result = result.filter((t) => !excludedListIds.has(t.listId))

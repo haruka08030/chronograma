@@ -7,7 +7,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
-import type { Priority } from '../types/task'
+import { isEventTask, type Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
@@ -87,6 +87,8 @@ export function TaskContextMenu({
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
   const allWishes = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'someday')
   const allChecklist = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'checklist')
+  // 予定（完了の無いもの）だけなら、締切・優先度・完了は出さない
+  const allEvents = targets.length > 0 && targets.every(isEventTask)
   const openWishes = targets.filter((x) => !x.completed).map((x) => x.id)
   const done = (fn: () => void) => () => {
     fn()
@@ -298,7 +300,7 @@ export function TaskContextMenu({
     : allChecklist
       ? checklistEntries
       : [
-          ...(plannable ? plannedEntries : []),
+          ...(plannable ? (allEvents ? [...todayToggleEntry, scheduleEntry] : plannedEntries) : []),
           { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
           ...(sectionLeaves.length > 0
             ? [
@@ -311,7 +313,7 @@ export function TaskContextMenu({
                 },
               ]
             : []),
-          { ...completeEntry, divider: true },
+          ...(allEvents ? [] : [{ ...completeEntry, divider: true }]),
           ...(taskIds.length === 1
             ? [
                 {
@@ -383,9 +385,11 @@ export function TaskContextMenu({
           ...setTimeEntry,
           ...todayToggleEntry,
           ...timerEntry,
-          { ...completeEntry, keys: undefined } as ActionEntry,
+          ...(allEvents ? [] : [{ ...completeEntry, keys: undefined } as ActionEntry]),
           ...(plannable
-            ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e))
+            ? plannedEntries
+                .filter((e) => e.id === 'scheduled' || (e.id === 'due' && !allEvents))
+                .map((e, i) => (i === 0 ? { ...e, divider: true } : e))
             : []),
           ...openEntry,
         ]

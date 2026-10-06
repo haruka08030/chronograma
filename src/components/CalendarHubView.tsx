@@ -19,7 +19,7 @@ import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { isLogTask } from '../types/task'
+import { isTodoTask } from '../types/task'
 import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 
@@ -120,7 +120,8 @@ export function CalendarHubView() {
       const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
       const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
         const task = tasks.find((x) => x.id === id)
-        return !!task && !isLogTask(task)
+        // 記録と予定は To-Do の置き場に戻さない
+        return !!task && isTodoTask(task)
       })
       asOneUndo(() => {
         for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)

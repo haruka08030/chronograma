@@ -1,5 +1,5 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
-import type { Task } from '../../types/task'
+import { isEventTask, type Task } from '../../types/task'
 import { INBOX_ID } from '../storeConstants'
 import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
@@ -35,10 +35,12 @@ type TasksActions = Pick<
 
 /**
  * 完了の切り替え。チェックリストは親子をまとめて（`toggleChecklistTree`）、
- * それ以外は繰り返しの次回を作る／片付ける（`taskRecurrence.ts`）
+ * それ以外は繰り返しの次回を作る／片付ける（`taskRecurrence.ts`）。予定は完了にしない（null）
  */
 function toggleByListKind(s: Pick<TaskState, 'tasks' | 'lists'>, id: string, now: string): Task[] | null {
-  const listId = s.tasks.find((t) => t.id === id)?.listId
+  const task = s.tasks.find((t) => t.id === id)
+  if (!task || isEventTask(task)) return null
+  const listId = task.listId
   const kind = s.lists.find((l) => l.id === listId)?.kind
   return kind === 'checklist' ? toggleChecklistTree(s.tasks, id, now) : toggleTaskCompletion(s.tasks, id, now)
 }
@@ -119,7 +121,8 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     toggleTask: (id) => {
       const s0 = get()
       const task = s0.tasks.find((t) => t.id === id)
-      if (!task) return
+      // 予定には完了が無い（ショートカット・まとめて完了などから来ても何もしない）
+      if (!task || isEventTask(task)) return
       // 完了は行が一覧から消えるので、何を完了したかと「元に戻す」を出す（スマホには ⌘Z が無い）
       pushUndo(task.completed ? undefined : { key: 'undo.taskCompleted', params: { title: task.title } })
       set((s) => {
@@ -155,7 +158,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     completeTasks: (ids) => {
       const s0 = get()
-      const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
+      const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed && !isEventTask(t)))
       if (targets.length === 0) return
       const first = s0.tasks.find((t) => t.id === targets[0])
       pushUndo(

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import type { Priority, Task } from '../../types/task'
+import { isEventTask, type Priority, type Task } from '../../types/task'
+import { PillToggle } from '../ui/PillToggle'
 import { addClockMinutes } from '../../lib/clockTime'
 import { PRIORITY_TEXT_CLASS } from '../../lib/priorityColor'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -17,76 +18,95 @@ import { useTaskTimes } from './useTaskTimes'
 const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 /**
- * 予定を立てるタスク（いつか・チェックリスト・記録以外）の欄: 優先度・締切（時刻・繰り返し）・やる日（時間帯）・タイムゾーン・通知
+ * 予定を立てるタスク（いつか・チェックリスト・記録以外）の欄: To-Do／予定・優先度・締切（時刻・繰り返し）・やる日（時間帯）・タイムゾーン・通知。
+ * 予定（完了の丸の無いもの）には優先度・締切・繰り返しを出さない
  */
 export function TaskPlanFields({ task }: { task: Task }) {
   const { t } = useTranslation()
   const df = useDateFormat()
   const updateTask = useTaskStore((s) => s.updateTask)
+  // サブタスクのある・サブタスクの行は To-Do のまま（予定は To-Do の一覧に出ないので、親子が見えなくなる）
+  const hasChildren = useTaskStore((s) => s.tasks.some((x) => x.parentId === task.id && !x.deletedAt))
   const { tv, updateTimes, tzOnScheduled, tzOnDeadline, tzLoose } = useTaskTimes(task)
+  const isEvent = isEventTask(task)
   return (
     <>
-      <div>
-        <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.priority')}</label>
-        <div className="flex gap-2">
-          {PRIORITY_OPTIONS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => updateTask(task.id, { priority: p })}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-colors
+      {!task.parentId && !hasChildren && (
+        <PillToggle
+          ariaLabel={t('quickCreate.kind')}
+          options={[
+            { value: 'event', label: t('quickCreate.kindEvent') },
+            { value: 'todo', label: t('quickCreate.kindTodo') },
+          ]}
+          value={isEvent ? 'event' : 'todo'}
+          onChange={(kind) => updateTask(task.id, { kind })}
+        />
+      )}
+      {!isEvent && (
+        <div>
+          <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.priority')}</label>
+          <div className="flex gap-2">
+            {PRIORITY_OPTIONS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => updateTask(task.id, { priority: p })}
+                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors
                 ${
                   task.priority === p
                     ? 'border-accent-400 bg-accent-50 dark:bg-accent-500/10 font-medium'
                     : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                 }
                 ${PRIORITY_TEXT_CLASS[p]}`}
-            >
-              {t(`common.${p}`)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.deadline')}</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <DueDatePopover
-            value={tv.dueDate ?? null}
-            onChange={(v) => updateTimes({ dueDate: v })}
-            align="left"
-            wrapperClassName="relative inline-block"
-            trigger={({ open, toggle }) => (
-              <button
-                type="button"
-                aria-expanded={open}
-                aria-haspopup="dialog"
-                onClick={toggle}
-                className={fieldClass({ active: open }, 'flex items-center gap-2')}
               >
-                <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
-                <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
-                  {tv.dueDate ? df.fullDate(tv.dueDate) : t('dueDatePicker.noDate')}
-                </span>
+                {t(`common.${p}`)}
               </button>
-            )}
-          />
-          {tv.dueDate && (
-            <div className="flex items-center gap-1.5">
-              <span className={sectionLabelClass('field')}>{t('taskDetail.deadlineTime')}</span>
-              <TimeInput
-                value={tv.dueTime ?? ''}
-                onChange={(v) => updateTimes({ dueTime: v || null })}
-                className={fieldClass({}, 'w-[7rem]')}
-              />
-            </div>
-          )}
-          {tzOnDeadline && <TaskTimeZoneButton task={task} view={tv} />}
+            ))}
+          </div>
         </div>
-        {tzOnDeadline && <TaskTimeZoneNote task={task} />}
-        {/* 繰り返しは締切のあるタスクだけ */}
-        {task.dueDate && <TaskRecurrenceField task={task} dueDate={task.dueDate} />}
-      </div>
+      )}
+
+      {!isEvent && (
+        <div>
+          <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.deadline')}</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <DueDatePopover
+              value={tv.dueDate ?? null}
+              onChange={(v) => updateTimes({ dueDate: v })}
+              align="left"
+              wrapperClassName="relative inline-block"
+              trigger={({ open, toggle }) => (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-haspopup="dialog"
+                  onClick={toggle}
+                  className={fieldClass({ active: open }, 'flex items-center gap-2')}
+                >
+                  <CalendarIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
+                  <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
+                    {tv.dueDate ? df.fullDate(tv.dueDate) : t('dueDatePicker.noDate')}
+                  </span>
+                </button>
+              )}
+            />
+            {tv.dueDate && (
+              <div className="flex items-center gap-1.5">
+                <span className={sectionLabelClass('field')}>{t('taskDetail.deadlineTime')}</span>
+                <TimeInput
+                  value={tv.dueTime ?? ''}
+                  onChange={(v) => updateTimes({ dueTime: v || null })}
+                  className={fieldClass({}, 'w-[7rem]')}
+                />
+              </div>
+            )}
+            {tzOnDeadline && <TaskTimeZoneButton task={task} view={tv} />}
+          </div>
+          {tzOnDeadline && <TaskTimeZoneNote task={task} />}
+          {/* 繰り返しは締切のあるタスクだけ */}
+          {task.dueDate && <TaskRecurrenceField task={task} dueDate={task.dueDate} />}
+        </div>
+      )}
 
       <div>
         <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.scheduled')}</label>

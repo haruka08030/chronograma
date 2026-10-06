@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
@@ -11,7 +11,8 @@ import { DueDatePopover } from './DueDatePopover'
 import { appTodayKey, isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { dueToneOf } from '../lib/dueTone'
 import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
-import { CompletionCircle } from './ui/CompletionCircle'
+import { CompletionCircle, EventMark } from './ui/CompletionCircle'
+import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -288,7 +289,7 @@ export const TaskItem = memo(function TaskItem({
             }
           : undefined,
     },
-    isCoarse && !editing && !selection?.reveal && !timeLog && !task.completed,
+    isCoarse && !editing && !selection?.reveal && isTodoTask(task) && !task.completed,
   )
 
   // PC の行の最低の高さ（min-h）は、並べ替えハンドルの有無（手動の並べ替えかどうか）で行の高さが変わらないように
@@ -368,25 +369,30 @@ export const TaskItem = memo(function TaskItem({
           </button>
         ) : null}
 
-        <CompletionCircle
-          completed={shownCompleted}
-          justCompleted={justCompleted}
-          priority={task.priority}
-          small={isSubtask}
-          shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
-          inert={Boolean(selection?.reveal)}
-          onClick={(e) => {
-            e.stopPropagation()
-            deferredComplete.toggle(task.id, task.completed)
-          }}
-          label={
-            listKind === 'someday'
-              ? t('someday.fulfillItem', { title: task.title })
-              : task.completed && timeLog
-                ? t('taskItem.unlogItem', { title: task.title })
-                : t('taskItem.completeItem', { title: task.title })
-          }
-        />
+        {/* 予定（バイト・授業）には完了の丸を出さない */}
+        {isEventTask(task) ? (
+          <EventMark hex={planHex(task)} small={isSubtask} />
+        ) : (
+          <CompletionCircle
+            completed={shownCompleted}
+            justCompleted={justCompleted}
+            priority={task.priority}
+            small={isSubtask}
+            shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
+            inert={Boolean(selection?.reveal)}
+            onClick={(e) => {
+              e.stopPropagation()
+              deferredComplete.toggle(task.id, task.completed)
+            }}
+            label={
+              listKind === 'someday'
+                ? t('someday.fulfillItem', { title: task.title })
+                : task.completed && timeLog
+                  ? t('taskItem.unlogItem', { title: task.title })
+                  : t('taskItem.completeItem', { title: task.title })
+            }
+          />
+        )}
 
         <div className="flex-1 min-w-0">
           {editing ? (

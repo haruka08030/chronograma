@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { OverlaySuspense } from '../components/ui/OverlaySuspense'
 import { useTaskStore } from '../store/taskStore'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 import type { CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { CompleteWithLogModal } from '../components/lazyOverlays'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
@@ -29,6 +29,7 @@ export function useCompleteWithLog() {
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
+      fromEvent: isEventTask(task),
       ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
     })
   }, [])
@@ -39,10 +40,10 @@ export function useCompleteWithLog() {
     if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
-    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す
+    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
       addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
-      toggleTask(draft.taskId)
+      if (!draft.fromEvent) toggleTask(draft.taskId)
     })
     setDraft(null)
   }, [draft, addTimeLog, toggleTask])

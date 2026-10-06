@@ -12,7 +12,7 @@ import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { clockOf } from '../../lib/clockTime'
-import { isLogTask } from '../../types/task'
+import { isLogTask, isTodoTask } from '../../types/task'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -173,7 +173,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         },
         maxOrder + 1,
       )
-      const completePromptTaskId = linked && !linked.completed ? linked.id : null
+      // 予定（完了の無いもの）から始めた記録は、止めても完了を聞かない
+      const completePromptTaskId = linked && !linked.completed && isTodoTask(linked) ? linked.id : null
       // ラベルなしで止めたら、その場でラベルを聞く（統計の 1 位が「ラベルなし」にならないように）。
       // 同じ位置に出る「完了にしますか？」を優先し、睡眠には聞かない
       const unlabeled = !log.category && !log.color && log.kind === 'log'

@@ -259,6 +259,22 @@ describe('task kind', () => {
     const back = parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!
     expect(back.tasks.map((t) => t.kind)).toEqual(['log', 'sleep'])
   })
+
+  it('keeps an event (no check) through the file, as the kind and as the isEvent flag', () => {
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 'e', title: 'バイト', listId: '__inbox__', kind: 'event' },
+          { id: 'f', title: '授業', listId: '__inbox__', isEvent: true },
+          { id: 'r', title: 'ゼミ', list_id: '__inbox__', is_event: true },
+        ],
+      }),
+    )!.tasks
+    expect(tasks.map((t) => t.kind)).toEqual(['event', 'event', 'event'])
+    const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
+    expect((payload.tasks as unknown[])[0]).toMatchObject({ kind: 'event', isTimeLog: false, isSleep: false, isEvent: true })
+  })
 })
 
 describe('readBackupJson', () => {

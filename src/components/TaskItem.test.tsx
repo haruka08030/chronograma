@@ -40,4 +40,13 @@ describe('TaskItem', () => {
 
     expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.completed).toBe(false)
   })
+
+  it('予定（バイト・授業）の行には完了の丸を出さない', () => {
+    const task = addTask('Part-time job')
+    useTaskStore.getState().updateTask(task.id, { kind: 'event', scheduledDate: '2026-10-06', startTime: '17:00', endTime: '22:00' })
+    render(<Row id={task.id} />)
+
+    expect(screen.queryByRole('checkbox', { name: 'Complete “Part-time job”' })).toBeNull()
+    expect(screen.getByText('Part-time job')).toBeInTheDocument()
+  })
 })

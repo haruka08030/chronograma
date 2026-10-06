@@ -75,6 +75,10 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   if (isLogTask(task) && patch.color === undefined && applied.category && applied.category !== task.category) {
     applied.color = null
   }
+  // 予定にしたら、To-Do だけの項目（締切・繰り返し・完了・優先度）を外す（予定は締切・完了を持たない）
+  if (patch.kind === 'event' && task.kind !== 'event') {
+    Object.assign(applied, { dueDate: null, dueTime: null, recurrence: null, completed: false, completedAt: null, priority: 'none' })
+  }
   // 期限（dueDate）を外したら締め切り時刻と繰り返しもクリア（予定の時間幅は予定日側に紐づくので残す）
   if (patch.dueDate === null) {
     applied.dueTime = null

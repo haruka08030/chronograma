@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns'
-import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -95,7 +95,8 @@ export function getDayPlan(
       if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
-    if (task.parentId || excludedListIds.has(task.listId)) continue
+    // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了・予定の時間）。カレンダーで見る
+    if (task.parentId || excludedListIds.has(task.listId) || isEventTask(task)) continue
     const placed = taskPlacementDate(task)
     if (placed === dateKey && task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
     if (task.completed) {
@@ -129,7 +130,7 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
   const undated: Task[] = []
   const placedLater: Task[] = []
   for (const task of tasks) {
-    if (!isActiveTask(task) || task.completed || isLogTask(task)) continue
+    if (!isActiveTask(task) || task.completed || !isTodoTask(task)) continue
     if (task.parentId || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
     if (placed === null) undated.push(task)

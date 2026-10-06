@@ -327,7 +327,8 @@
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加（`dueDate`/`scheduledDate` とも進める）
 - `dueDate`（期限）を `null` にすると `dueTime` / `recurrence` をクリア。`scheduledDate`
   （予定）を `null` にすると `startTime` / `endTime` をクリア（カレンダー操作は予定側を更新）
-- **タスクの種類**: `Task` は `kind`（`'todo'` / `'log'` / `'sleep'`）で分けた型（`TodoTask` / `LogTask` / `SleepTask`。`src/types/task.ts`）。判定は `isTodoTask` / `isLogTask`（睡眠も含む記録）/ `isSleepTask`。`dueDate` は To-Do では期限日、記録・睡眠では開始日。サーバーの列と前の版のバックアップでは `is_time_log` / `isTimeLog` と `is_sleep` / `isSleep` の 2 つで持ち、読み書きの所（`supabaseData.ts`・`backupFormat.ts`）で `kind` と相互に直す（バックアップの書き出しは `kind` と 2 つの印の両方）。保存データは永続化 v38 で `kind` に移行
+- **タスクの種類**: `Task` は `kind`（`'todo'` / `'event'` / `'log'` / `'sleep'`）で分けた型（`TodoTask` / `EventTask` / `LogTask` / `SleepTask`。`src/types/task.ts`）。判定は `isTodoTask` / `isEventTask` / `isLogTask`（睡眠も含む記録）/ `isSleepTask`。`dueDate` は To-Do では期限日、記録・睡眠では開始日、予定では使わない（null）。サーバーの列と前の版のバックアップでは `is_time_log` / `isTimeLog`・`is_sleep` / `isSleep`・`is_event` / `isEvent`（`014`）の印で持ち、読み書きの所（`supabaseData.ts`・`backupFormat.ts`）で `kind` と相互に直す（バックアップの書き出しは `kind` と印の両方）。保存データは永続化 v38 で `kind` に移行
+- **予定（`kind: 'event'`）**: 完了の丸の無い、時刻のある予定（バイト・授業）。カレンダーの作成カードで To-Do／予定を選ぶ。完了にできない（`toggleTask` は何もしない）、時間が過ぎたらグレー（Google の予定と同じ）。To-Do の一覧・カレンダー横ドック・今日の計画の To-Do・やり残し・完了数・統計には入れない。今日の「予定 N 時間」と週の振り返りの予定と記録の突き合わせにも、Google の予定と同じく入れない。カレンダー・空き時間の候補（ふさがっている時間）・予定の前の通知は To-Do の予定と同じ。To-Do の置き場には戻せない（日時の無い予定はどこにも出ないため）。予定カードでは「記録にする」（始まった予定）と「記録を開始」。締切・繰り返し・優先度・サブタスクは持たない（予定にすると外す）
 - **タイムログ**: `kind: 'log'`（睡眠は `'sleep'`）。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
   のまま。**ToDo

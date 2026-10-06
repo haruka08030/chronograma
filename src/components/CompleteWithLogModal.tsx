@@ -24,6 +24,8 @@ export interface CompleteWithLogDraft {
   tags: string[]
   /** 元の To-Do の名前の無い色 */
   color: string | null
+  /** 元が予定（完了の無いもの）。記録を作るだけで、完了にはしない */
+  fromEvent?: boolean
 }
 
 export function CompleteWithLogModal({
@@ -44,8 +46,10 @@ export function CompleteWithLogModal({
   const overnight = draft.endDate === draft.date && draft.endTime < draft.startTime
   return (
     <Modal onClose={onClose} labelledBy="complete-with-log-title" className="p-5">
-      <ModalTitle id="complete-with-log-title">{t('task.completeModal.title')}</ModalTitle>
-      <p className={`mt-1 ${HINT_TEXT}`}>{t('task.completeModal.body')}</p>
+      <ModalTitle id="complete-with-log-title">
+        {t(draft.fromEvent ? 'task.completeModal.eventTitle' : 'task.completeModal.title')}
+      </ModalTitle>
+      <p className={`mt-1 ${HINT_TEXT}`}>{t(draft.fromEvent ? 'task.completeModal.eventBody' : 'task.completeModal.body')}</p>
 
       <div className="mt-4 space-y-3">
         <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 space-y-2 dark:border-zinc-700 dark:bg-zinc-900/40">
@@ -121,7 +125,7 @@ export function CompleteWithLogModal({
           {t('common.cancel')}
         </button>
         <button type="button" onClick={onSubmit} disabled={!valid} className={buttonClass({ variant: 'primary', size: 'md' })}>
-          {t('task.completeModal.saveComplete')}
+          {t(draft.fromEvent ? 'task.completeModal.saveRecord' : 'task.completeModal.saveComplete')}
         </button>
       </div>
     </Modal>
