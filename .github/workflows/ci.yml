@@ -62,9 +62,10 @@ jobs:
         with:
           deno-version: v2.x
 
-      # node_modules は入れない（npm: の依存は Deno のキャッシュに取る）
+      # 設定は supabase/functions/deno.json（node_modules は使わず、npm: の依存は Deno のキャッシュに取る。ルートの package.json は読まない）。
+      # 依存の版は supabase/functions/deno.lock のとおり（--frozen: 合わなければ落とす）
       - name: Type-check Edge Functions
-        run: deno check --node-modules-dir=none supabase/functions/*/index.ts
+        run: deno check --config supabase/functions/deno.json --frozen supabase/functions/*/index.ts
 
   # 本物の Postgres（Supabase のローカルの DB）に migration を流し、RLS とトリガーを pgTAP で確かめる
   database:

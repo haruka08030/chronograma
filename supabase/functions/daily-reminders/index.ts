@@ -4,7 +4,7 @@
 //
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import webpush from 'npm:web-push@3.6.7'
 import {
   CRON_INTERVAL_MINUTES,
