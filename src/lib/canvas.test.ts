@@ -17,12 +17,18 @@ import {
   type CanvasStatus,
 } from './canvas'
 import type { PulledFields } from './externalFields'
+import { INBOX_ID } from '../store/storeConstants'
 
 const NOW = '2026-10-02T00:00:00.000Z'
 const CONN = 'school.instructure.com'
 const WINDOW = { id: CONN, windowStart: '2026-09-02', windowEnd: '2027-01-30' }
 const inbox: TaskList = { id: 'inbox', name: 'Inbox', color: '#000000', order: 0 }
-const opts = { now: NOW, listName: 'Canvas', listColor: '#123456', timeZone: 'Asia/Tokyo', untitled: '（無題）' }
+const opts = {
+  now: NOW,
+  colorFor: (course: string | null) => (course === '統計学' ? '#33B679' : null),
+  timeZone: 'Asia/Tokyo',
+  untitled: '（無題）',
+}
 
 function item(id: string, patch: Partial<CanvasItem> = {}): CanvasItem {
   return {
@@ -44,7 +50,7 @@ function reconcile(
   items: CanvasItem[],
   extra: Partial<typeof opts & { skipIds: Set<string>; pulled: Record<string, PulledFields> }> = {},
 ) {
-  return reconcileCanvasItems({ lists: [inbox], sections: [], tasks }, { ...WINDOW, items }, { ...opts, ...extra })
+  return reconcileCanvasItems({ sections: [], tasks }, { ...WINDOW, items }, { ...opts, ...extra })
 }
 
 function imported(items: CanvasItem[]) {
@@ -80,14 +86,14 @@ describe('canvasExpiryWarning', () => {
 })
 
 describe('reconcileCanvasItems', () => {
-  it('creates the list and open assignments, tagged with their course', () => {
+  it('creates open assignments in To-Do, tagged and labeled with their course', () => {
     const r = reconcile([], [item('1'), item('2', { courseId: '202', courseName: '統計学' }), item('3', { done: true })])
-    expect(r.lists.find((l) => l.id === CANVAS_LIST_ID)?.name).toBe('Canvas')
     expect(r.sections).toEqual([])
     expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(CONN, 'assignment', '2')])
     expect(r.tasks.map((t) => t.tags)).toEqual([['経済学入門'], ['統計学']])
+    expect(r.tasks.map((t) => t.color)).toEqual([null, '#33B679'])
     const first = r.tasks[0]
-    expect(first).toMatchObject({ listId: CANVAS_LIST_ID, sectionId: null, dueDate: '2026-10-05', dueTime: '23:59' })
+    expect(first).toMatchObject({ listId: INBOX_ID, sectionId: null, dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')
   })
 
@@ -144,11 +150,11 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
-  it('puts two schools in one list, and one school never completes the other’s tasks', () => {
+  it('one school never completes the other’s tasks', () => {
     const OTHER = 'other.instructure.com'
     const a = reconcile([], [item('1')])
     const b = reconcileCanvasItems(
-      { lists: a.lists, sections: a.sections, tasks: a.tasks },
+      { sections: a.sections, tasks: a.tasks },
       {
         id: OTHER,
         windowStart: WINDOW.windowStart,
@@ -157,11 +163,10 @@ describe('reconcileCanvasItems', () => {
       },
       opts,
     )
-    expect(b.lists.filter((l) => l.id.startsWith('canvas-list')).map((l) => l.id)).toEqual([CANVAS_LIST_ID])
     expect(b.tasks.map((t) => t.tags)).toEqual([['経済学入門'], ['オンライン講座']])
     expect(b.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(OTHER, 'assignment', '1')])
     // 1 校目が空で返っても、2 校目のタスクは完了にしない
-    const c = reconcileCanvasItems({ lists: b.lists, sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
+    const c = reconcileCanvasItems({ sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
     expect(c.tasks.map((t) => t.completed)).toEqual([true, false])
   })
 })

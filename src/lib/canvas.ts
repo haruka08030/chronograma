@@ -5,6 +5,7 @@ import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
 import { wallInZone } from './timeZone'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
+import { INBOX_ID } from '../store/storeConstants'
 import { externalPatch, type PulledFields } from './externalFields'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -12,8 +13,8 @@ import { TASK_DEFAULTS } from './taskDefaults'
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
- * 学校（ホスト名）ごとに 1 つつなぐ。どの学校の課題も 1 つの「Canvas」リスト（`canvas-list`）に入れ、
- * 科目は入れ物（セクション）ではなく課題の属性なので、科目コードのタグ（`CSE-101` など）で一目で分かるようにする。
+ * 学校（ホスト名）ごとに 1 つつなぐ。課題はほかの To-Do と同じところ（未分類）に入れ、科目名のラベルを付ける。
+ * 科目名はタグにも残す（以前の版は「Canvas」リスト `canvas-list` に入れていた。残っていれば `foldTaskFolders` で畳む）。
  * タスクの id は接続 ID（ホスト名）を入れて決め打ちする: `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
@@ -215,7 +216,6 @@ export function canvasCourseSectionsToTags(
 }
 
 export type CanvasReconcileResult = {
-  lists: TaskList[]
   sections: ListSection[]
   tasks: Task[]
   /** Canvas 側で済んだので自動で完了にしたタスク。Canvas へ書き戻さない */
@@ -226,19 +226,19 @@ export type CanvasReconcileResult = {
 }
 
 /**
- * 1 校ぶんの Canvas の課題を、Canvas のリストのタスクに合わせる。
- * - 未提出で無いものは作る（科目コードのタグを付ける）。未完了のものはタイトル・期限を Canvas に合わせる
+ * 1 校ぶんの Canvas の課題を、To-Do のタスクに合わせる。
+ * - 未提出で無いものは未分類に作る（科目のタグと、`colorFor` の色＝科目のラベルを付ける）。未完了のものはタイトル・期限を Canvas に合わせる
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
  */
 export function reconcileCanvasItems(
-  state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
+  state: { sections: ListSection[]; tasks: Task[] },
   payload: CanvasConnectionItems,
   opts: {
     now: string
-    listName: string
-    listColor: string
+    /** 新しく作る課題の色（科目名のラベルの色。科目の無い課題は null で呼ぶ）。作るときだけ呼ぶ（呼ばれたらラベルを作ってよい） */
+    colorFor: (courseName: string | null) => string | null
     timeZone: string
     untitled: string
     skipIds?: ReadonlySet<string>
@@ -250,14 +250,7 @@ export function reconcileCanvasItems(
   },
 ): CanvasReconcileResult {
   const conn = payload.id
-  const listId = CANVAS_LIST_ID
-  let changed = false
-  let lists = state.lists
-  if (!lists.some((l) => l.id === listId)) {
-    const maxOrder = Math.max(0, ...lists.map((l) => l.order))
-    lists = [...lists, { id: listId, name: opts.listName, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now }]
-    changed = true
-  }
+  const listId = INBOX_ID
 
   const sections = state.sections
 
@@ -312,7 +305,7 @@ export function reconcileCanvasItems(
         startTime: null,
         endTime: null,
         location: null,
-        color: null,
+        color: opts.colorFor(item.courseName ?? null),
         priority: 'none',
         tags: item.courseName ? [item.courseName] : [],
         recurrence: null,
@@ -339,10 +332,9 @@ export function reconcileCanvasItems(
   }
 
   if (updates.size === 0 && additions.length === 0) {
-    return { lists, sections, tasks: state.tasks, autoCompletedIds, pulled, changed }
+    return { sections, tasks: state.tasks, autoCompletedIds, pulled, changed: false }
   }
   return {
-    lists,
     sections,
     tasks: [...state.tasks.map((t) => updates.get(t.id) ?? t), ...additions],
     autoCompletedIds,

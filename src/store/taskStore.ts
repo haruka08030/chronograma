@@ -7,6 +7,7 @@ import { assignColorsInOrder } from '../lib/logCategoryColors'
 import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
+import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
@@ -243,6 +244,24 @@ useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
 
+/**
+ * To-Do のリスト（フォルダ）はラベルに畳む（`foldTaskFolders`）。前の版のデータ・前の版の端末から同期で届いたフォルダ・
+ * 取り込んだバックアップのどれもここで畳む。同期で届いた変更の中でも、畳んだ結果はこの端末の変更として送る（`queueMicrotask` で同期の取り込みの外に出す）。
+ * 他のタブから取り込んだものは、そのタブが畳んで送る
+ */
+function foldFolders() {
+  const s = useTaskStore.getState()
+  const folded = foldTaskFolders(s, new Date().toISOString())
+  if (folded) useTaskStore.setState(folded)
+}
+/** To-Do はリストを開かず「すべて」で見る。未分類・消えたリストを開いていたら「すべて」へ */
+function settleTodoView() {
+  const s = useTaskStore.getState()
+  if (s.selectedView !== null) return
+  if (s.selectedListId && s.selectedListId !== INBOX_ID && s.lists.some((l) => l.id === s.selectedListId)) return
+  useTaskStore.setState({ selectedView: 'all', selectedListId: null, quickAddSectionId: null })
+}
+
 let adoptingFromOtherTab = false
 /** いまの更新が他のタブからの取り込みか（同期はそのタブが送るので、こちらからは送らない） */
 export const isAdoptingFromOtherTab = () => adoptingFromOtherTab
@@ -310,4 +329,14 @@ setPersistWriteHandlers({
   onRecovered: () => {
     queueMicrotask(() => withoutPersisting(() => useTaskStore.setState({ storageFull: false })))
   },
+})
+
+// 他のタブからの取り込み（`isAdoptingFromOtherTab`）を見るので、それより後で
+foldFolders()
+settleTodoView()
+useTaskStore.subscribe((s, prev) => {
+  if (s.selectedListId !== prev.selectedListId || s.selectedView !== prev.selectedView || s.lists !== prev.lists) settleTodoView()
+  if (s.lists === prev.lists && s.sections === prev.sections) return
+  if (isAdoptingFromOtherTab() || !needsFold(s)) return
+  queueMicrotask(foldFolders)
 })

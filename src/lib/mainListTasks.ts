@@ -5,6 +5,7 @@ import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
 import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 import { isAppToday, appToday } from './timeZone'
+import { NO_LABEL } from './todoColorLabels'
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
@@ -62,7 +63,9 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     result = result.filter((t) => t.tags?.includes(filterTag))
   }
 
-  if (filterColor) {
+  if (filterColor === NO_LABEL) {
+    result = result.filter((t) => !t.color)
+  } else if (filterColor) {
     result = result.filter((t) => t.color?.toUpperCase() === filterColor)
   }
 

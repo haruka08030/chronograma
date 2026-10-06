@@ -1,6 +1,5 @@
 /** 画面の選択・絞り込み・トーストなど、表示の状態 */
-import { sortKeyOf } from '../../lib/todoSurfaceView'
-import { INBOX_ID } from '../storeConstants'
+import { isTodoSurfaceView, sortKeyOf } from '../../lib/todoSurfaceView'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 
@@ -109,10 +108,10 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
     },
     requestQuickAdd: () => {
       const s = get()
-      // 色ラベルを開いているときはその場で追加する（追加したタスクにその色が付く）
-      const colorView = s.selectedView === 'all' && s.filterColor !== null
-      if (s.selectedView !== null && !colorView) {
-        set({ selectedListId: s.selectedListId ?? INBOX_ID, selectedView: null, quickAddRequested: true })
+      // To-Do の一覧（すべて・今日など・いつか・買い物）ならその場で追加する（色ラベルを開いていれば、追加したタスクにその色が付く）。
+      // ほかの画面からは「すべて」へ
+      if (!isTodoSurfaceView(s.selectedView)) {
+        set({ selectedListId: null, selectedView: 'all', filterColor: null, quickAddSectionId: null, quickAddRequested: true })
       } else {
         set({ quickAddRequested: true })
       }

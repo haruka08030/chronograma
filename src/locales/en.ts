@@ -45,7 +45,7 @@ export default {
   lists: {
     defaultSomeday: 'Someday',
     defaultShopping: 'Shopping',
-    inbox: 'Inbox',
+    inbox: 'To-Do',
     unnamedList: 'List',
   },
   sections: {
