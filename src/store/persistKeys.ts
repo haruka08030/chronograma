@@ -69,9 +69,6 @@ export const TRANSIENT_KEYS = [
   'googleCanWrite',
 ] as const satisfies readonly (keyof TaskState)[]
 
-export type DataKey = (typeof DATA_KEYS)[number]
-export type ViewKey = (typeof VIEW_KEYS)[number]
-
 export function pickKeys<K extends string>(source: Record<string, unknown>, keys: readonly K[]): Partial<Record<K, unknown>> {
   const out: Partial<Record<K, unknown>> = {}
   for (const k of keys) if (k in source) out[k] = source[k]

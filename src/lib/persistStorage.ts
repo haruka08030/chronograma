@@ -26,8 +26,6 @@ export function setPersistWriteHandlers(h: WriteHandlers) {
   handlers = h
 }
 
-export const persistWriteFailed = () => writeFailed
-
 /** fn の間のストア更新を保存しない */
 export function withoutPersisting(fn: () => void) {
   suppressWrites = true

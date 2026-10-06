@@ -101,9 +101,6 @@ export interface SleepTask extends TaskBase {
 
 export type Task = TodoTask | LogTask | SleepTask
 
-/** 記録（睡眠も含む）。`dueDate` が開始日で、カレンダーには実際の時間で置く */
-export type TimeLogTask = LogTask | SleepTask
-
 type Kinded = { kind?: TaskKind }
 
 /** To-Do か（下書きなど `kind` の無いものは To-Do） */

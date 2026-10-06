@@ -201,39 +201,6 @@ function sectionRankForList(sectionId: string | null, listSections: ListSection[
   return i >= 0 ? i : 9999
 }
 
-/** 空セクション末尾ドロップ後の id 列（`currentOrdered` は表示順の未完了ルート） */
-export function insertActiveRootIdForSectionDrop(
-  currentOrdered: Task[],
-  movedId: string,
-  targetSectionId: string | null,
-  listSections: ListSection[],
-): string[] {
-  const filtered = currentOrdered.filter((t) => t.id !== movedId)
-  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
-  let ins = filtered.length
-
-  if (targetSectionId === null) {
-    const firstNamed = filtered.findIndex((t) => rank(t.sectionId) > -1)
-    ins = firstNamed < 0 ? filtered.length : firstNamed
-  } else {
-    for (let i = filtered.length - 1; i >= 0; i--) {
-      if ((filtered[i].sectionId ?? null) === targetSectionId) {
-        ins = i + 1
-        break
-      }
-    }
-    if (!filtered.some((t) => t.sectionId === targetSectionId)) {
-      const tr0 = rank(targetSectionId)
-      const idx = filtered.findIndex((t) => rank(t.sectionId) > tr0)
-      ins = idx < 0 ? filtered.length : idx
-    }
-  }
-
-  const ids = filtered.map((t) => t.id)
-  ids.splice(ins, 0, movedId)
-  return ids
-}
-
 /** 複数ルートをセクション帯へ一度に挿入 */
 export function insertActiveRootIdsForSectionDrop(
   currentOrdered: Task[],
@@ -266,29 +233,6 @@ export function insertActiveRootIdsForSectionDrop(
 
   const ids = filtered.map((t) => t.id)
   ids.splice(ins, 0, ...blockOrdered)
-  return ids
-}
-
-/** セクション見出しドロップ＝そのセクションの先頭へ（空ならブロック先頭） */
-export function insertActiveRootAtSectionHead(
-  currentOrdered: Task[],
-  movedId: string,
-  targetSectionId: string,
-  listSections: ListSection[],
-): string[] {
-  const filtered = currentOrdered.filter((t) => t.id !== movedId)
-  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
-  const targetR = rank(targetSectionId)
-  const firstInSection = filtered.findIndex((t) => t.sectionId === targetSectionId)
-  let ins: number
-  if (firstInSection >= 0) {
-    ins = firstInSection
-  } else {
-    const idx = filtered.findIndex((t) => rank(t.sectionId) > targetR)
-    ins = idx < 0 ? filtered.length : idx
-  }
-  const ids = filtered.map((t) => t.id)
-  ids.splice(ins, 0, movedId)
   return ids
 }
 
@@ -406,16 +350,4 @@ export function buildReorderedActiveRootIdsForGroup(
       listId: overTask.listId,
     },
   }
-}
-
-export function buildReorderedActiveRootIds(
-  currentOrdered: Task[],
-  activeId: string,
-  overId: string,
-  sections: ListSection[],
-  selectedListId: string | null,
-): { orderedIds: string[]; sectionUpdate?: ManualRootReorderSectionUpdate } | null {
-  if (!activeId.startsWith(TASK_PREFIX)) return null
-  const movedId = activeId.slice(TASK_PREFIX.length)
-  return buildReorderedActiveRootIdsForGroup(currentOrdered, movedId, overId, [movedId], sections, selectedListId)
 }

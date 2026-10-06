@@ -13,8 +13,6 @@ import { INBOX_ID } from '../store/storeConstants'
  * 「ES を出す → 面接を受ける」のようにステータスが進むと別のタスクになるので、済んだ段階は記録として残る。
  */
 
-export const NOTION_LIST_ID = 'notion-list'
-
 export type NotionConfig = {
   statusProperty: string | null
   dateProperty: string | null

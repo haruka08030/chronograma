@@ -87,15 +87,6 @@ export function minutesOfLogOnCalendarDay(task: Task, dateKey: string): number {
   return differenceInMinutes(segEnd, segStart)
 }
 
-export function compareLogsOnDay(a: Task, b: Task, dateKey: string): number {
-  const la = timeLogSegmentLayoutForDay(a, dateKey)
-  const lb = timeLogSegmentLayoutForDay(b, dateKey)
-  if (!la && !lb) return 0
-  if (!la) return 1
-  if (!lb) return -1
-  return la.top - lb.top
-}
-
 export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
   if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime || task.parentId) return false
   const iv = taskTimedInterval(task)

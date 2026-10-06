@@ -4,15 +4,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DND_TYPE } from '../lib/useTimelineDrop'
 import { acceptTaskDrag } from '../lib/taskDrag'
-import {
-  TIMER_DROP_ATTR,
-  TIMER_DROP_ID,
-  canStartTimerFor,
-  setTimerDragActive,
-  setTimerDropHover,
-  startTimerForTask,
-  useTimerDrop,
-} from '../lib/timerDrop'
+import { TIMER_DROP_ID, canStartTimerFor, setTimerDragActive, setTimerDropHover, startTimerForTask, useTimerDrop } from '../lib/timerDrop'
 
 /**
  * どの画面でも、ToDo をつかんでいる間だけ上部に出る「ここに落として計測開始」。
@@ -57,7 +49,6 @@ function TimerDropTarget({ over, label }: { over: boolean; label: string }) {
   return (
     <div
       ref={setNodeRef}
-      {...{ [TIMER_DROP_ATTR]: '' }}
       role="region"
       aria-label={label}
       onDragOver={(e) => {

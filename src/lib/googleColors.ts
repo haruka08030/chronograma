@@ -16,8 +16,6 @@ export const GOOGLE_COLORS = [
   { key: 'graphite', hex: '#616161' },
 ] as const
 
-export type GoogleColorKey = (typeof GOOGLE_COLORS)[number]['key']
-
 export const GOOGLE_COLOR_HEXES: readonly string[] = GOOGLE_COLORS.map((c) => c.hex)
 
 /**
