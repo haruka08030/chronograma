@@ -4,7 +4,7 @@ import { parseISO } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
-import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { TimeInput } from '../TimeInput'
 import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
@@ -84,7 +84,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const editable = canEditGoogleEvent(event, googleCanWrite)
   // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
   const memo = event.description ? htmlToPlainText(event.description) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + (memo ? 52 : 0))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + memoHeightEstimate(memo))
   const smallField = fieldClass({ size: 'sm' })
 
   const commitTitle = () => {
@@ -232,7 +232,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         {memo && (
           <>
             <span />
-            <MemoPreview text={memo} />
+            {/* カードは中の時刻の候補リストが切れるのでスクロールさせない。長いメモはメモの中でスクロール */}
+            <MemoPreview text={memo} className="max-h-[40vh] overflow-y-auto overscroll-contain" />
           </>
         )}
       </div>

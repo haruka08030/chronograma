@@ -34,6 +34,6 @@ describe('GoogleEventPopover', () => {
 
   it('shows nothing extra when the description is empty', () => {
     const { container } = showEvent('  ')
-    expect(container.ownerDocument.querySelector('p.line-clamp-3')).toBeNull()
+    expect(container.ownerDocument.querySelector('p.whitespace-pre-line')).toBeNull()
   })
 })

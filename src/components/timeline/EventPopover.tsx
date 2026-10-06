@@ -5,7 +5,7 @@ import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
 import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -79,7 +79,7 @@ export function EventPopover({
   // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
   const sourceLink = sourceLinkOf(task.description)
   const memo = sourceLink ? '' : task.description.trim()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + memoHeightEstimate(memo))
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
