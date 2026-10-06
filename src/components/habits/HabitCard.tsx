@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
-import { consistencyForLast7Days } from '../../lib/habitStats'
-import { isHabitScheduledOnDate } from '../../lib/habitSchedule'
+import { consistencyForLast7Days, habitStreak } from '../../lib/habitStats'
+import { isHabitDueOnDate } from '../../lib/habitSchedule'
 import { habitDayStatus, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -18,8 +18,8 @@ import type { HabitMenuProps } from './useHabitMenu'
 const ISO_MONDAY = new Date(2024, 0, 1)
 
 /**
- * 習慣のカード: 名前・決めた曜日と時刻・直近 7 日の達成率の輪と、見ている週の 7 つの丸（押すと達成を付ける / 外す）。
- * カードを押すと編集、右クリック（タッチは長押し）でメニュー（`menuProps`）。`offDay` はその日に予定の無い習慣（薄く出す）
+ * 習慣のカード: 名前・頻度と時刻・連続・直近 7 日の達成率の輪と、見ている週の 7 つの丸（押すと達成を付ける / 外す）。
+ * カードを押すと編集、右クリック（タッチは長押し）でメニュー（`menuProps`）。`offDay` はその日に予定の無い（週に◯回ならその週の回数を満たした）習慣（薄く出す）
  */
 export function HabitCard({
   h,
@@ -48,14 +48,20 @@ export function HabitCard({
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   // 上の要約と同じ定義（直近 7 日、今日は達成済みのときだけ）で揃える
   const weeklyProgress = consistencyForLast7Days([h], habitRecords)
-  // 「週に3日」だと回数で数える習慣に読めるので、決めた曜日をそのまま出す（月・水・金）
+  // 曜日を指定した習慣は「週に3日」だと回数で数える習慣に読めるので、決めた曜日をそのまま出す（月・水・金）
   const goalText =
     h.frequency.type === 'daily'
       ? t('habits.goalDaily')
-      : [...h.frequency.weekdays]
-          .sort((a, b) => a - b)
-          .map((d) => format(addDays(ISO_MONDAY, d - 1), 'E', { locale: dateLocale }))
-          .join(t('habits.weekdaySeparator'))
+      : h.frequency.type === 'timesPerWeek'
+        ? t('habits.goalTimesPerWeek', { count: h.frequency.count })
+        : [...h.frequency.weekdays]
+            .sort((a, b) => a - b)
+            .map((d) => format(addDays(ISO_MONDAY, d - 1), 'E', { locale: dateLocale }))
+            .join(t('habits.weekdaySeparator'))
+  // 週に◯回は「◯週連続」、ほかは「◯日連続」（曜日指定は予定のある日だけで数える）。0 のときは出さない
+  const streak = habitStreak(h, habitRecords)
+  const streakText =
+    streak.count > 0 ? t(streak.unit === 'week' ? 'habits.streakValueWeek' : 'habits.streakValueDay', { count: streak.count }) : null
   const timeText =
     h.timeMode === 'range' && h.startTime && h.endTime
       ? t('habits.timeRange', { start: h.startTime, end: h.endTime })
@@ -97,8 +103,7 @@ export function HabitCard({
                 {h.title}
               </p>
               <p className={`text-xs ${offDay ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                {goalText}
-                {timeText ? ` · ${timeText}` : ''}
+                {[goalText, timeText, streakText].filter(Boolean).join(' · ')}
               </p>
             </div>
           </div>
@@ -121,7 +126,8 @@ export function HabitCard({
             const key = toDateKey(d)
             const isCellToday = key === todayKey
             const isCellFocus = key === focusKey
-            const isScheduled = isHabitScheduledOnDate(h, d)
+            // 週に◯回でその週の回数を満たしたら、やっていない日は予定の無い日と同じ薄さにする
+            const isScheduled = isHabitDueOnDate(h, d, habitRecords)
             const status = habitDayStatus(h, key, habitRecords)
             const isDone = status === 'done'
             const isOffTime = status === 'offTime'

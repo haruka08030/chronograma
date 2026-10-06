@@ -3,7 +3,7 @@ import { isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/t
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
@@ -281,16 +281,7 @@ function rowToList(row: ListRow): TaskList {
 }
 
 function rowToHabit(row: HabitRow): Habit {
-  const freqRaw = row.frequency
-  let frequency: Habit['frequency'] = { type: 'daily' }
-  if (freqRaw && typeof freqRaw === 'object' && freqRaw !== null) {
-    const f = freqRaw as Record<string, unknown>
-    if (f.type === 'daily') frequency = { type: 'daily' }
-    else if (f.type === 'weekly' && Array.isArray(f.weekdays)) {
-      const wd = f.weekdays.filter((x): x is number => typeof x === 'number') as HabitWeekday[]
-      frequency = { type: 'weekly', weekdays: wd }
-    }
-  }
+  const frequency = readHabitFrequency(row.frequency)
   const datesRaw = row.completed_dates
   const completedDates = Array.isArray(datesRaw) ? datesRaw.filter((d): d is string => typeof d === 'string') : []
   const inferredMode = inferHabitTimeMode(row.start_time, row.end_time)

@@ -1,7 +1,7 @@
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
@@ -273,17 +273,12 @@ function normalizeHabitRow(raw: unknown): Habit | null {
   const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
     rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range' ? rec.timeMode : inferHabitTimeMode(startTime, endTime)
-  const freq = typeof rec.frequency === 'object' && rec.frequency !== null ? (rec.frequency as Record<string, unknown>) : null
-  const weekdays =
-    freq?.type === 'weekly' && Array.isArray(freq.weekdays)
-      ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
-      : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
     title,
     color: typeof rec.color === 'string' ? rec.color : INBOX_COLOR,
-    frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
+    frequency: readHabitFrequency(rec.frequency),
     createdAt: readStamp(now, rec.createdAt),
     updatedAt: readStamp(now, rec.updatedAt),
     completedDates: readStringArray(rec.completedDates).filter((d) => DATE_RE.test(d)),

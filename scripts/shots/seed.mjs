@@ -323,6 +323,20 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       completedDates: [yesterday],
       archivedAt: null,
     },
+    // 週に◯回の習慣（曜日は決めない。回数を満たした週は「今週は達成」）
+    {
+      id: 'h4',
+      title: 'ジム',
+      color: '#F4511E',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'timesPerWeek', count: 2 },
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      completedDates: [yesterday, dayKey(shift(now, -7)), dayKey(shift(now, -9))],
+      archivedAt: null,
+    },
     // アーカイブした習慣（習慣の画面の下の「アーカイブ」にだけ出る）
     {
       id: 'h3',

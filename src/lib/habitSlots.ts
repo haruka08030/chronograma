@@ -1,16 +1,15 @@
 import type { Habit } from '../types/habit'
-import { isHabitScheduledOnDate } from './habitSchedule'
-import { plannedRecordTimes } from './habitTiming'
+import { isHabitDueOnDate } from './habitSchedule'
+import { plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 
-function habitAppliesOnDate(habit: Habit, dateKey: string): boolean {
-  return isHabitScheduledOnDate(habit, fromDateKey(dateKey))
-}
-
-/** タイムライン用。時間を決めた習慣だけ。枠は ✓ で作る記録と同じ（時刻ひとつは許容幅ぶん） */
-export function habitToPlannedItem(habit: Habit, dateKey: string): PlannedItem | null {
-  if (!habitAppliesOnDate(habit, dateKey)) return null
+/**
+ * タイムライン用。時間を決めた習慣だけ。枠は ✓ で作る記録と同じ（時刻ひとつは許容幅ぶん）。
+ * 週に◯回の習慣は、その週の回数を満たしたら、やっていない日には枠を出さない（`records` を渡したとき）
+ */
+export function habitToPlannedItem(habit: Habit, dateKey: string, records?: HabitRecordIndex): PlannedItem | null {
+  if (!isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return null
   const times = plannedRecordTimes(habit)
   if (!times) return null
   return {

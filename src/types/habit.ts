@@ -1,7 +1,36 @@
 /** 週次: 1=月 … 7=日 (date-fns の getDay ではなく ISO 曜日に合わせ getISODay: 1=月) */
 export type HabitWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
-export type HabitFrequency = { type: 'daily' } | { type: 'weekly'; weekdays: HabitWeekday[] }
+/**
+ * 頻度。
+ * - daily: 毎日
+ * - weekly: 決めた曜日だけ
+ * - timesPerWeek: 週（月曜始まり）に `count` 回。曜日は決めず、どの日にやってもよい
+ */
+export type HabitFrequency = { type: 'daily' } | { type: 'weekly'; weekdays: HabitWeekday[] } | { type: 'timesPerWeek'; count: number }
+
+export type HabitFrequencyType = HabitFrequency['type']
+
+/** 週に◯回で選べる回数（7 回は毎日と同じなので無い） */
+export const HABIT_TIMES_PER_WEEK_MIN = 1
+export const HABIT_TIMES_PER_WEEK_MAX = 6
+
+/**
+ * 保存データ・同期・バックアップの頻度を読む。知らない形は毎日にする。
+ * 曜日は 1〜7 の整数だけ、回数は 1〜6 に収める
+ */
+export function readHabitFrequency(raw: unknown): HabitFrequency {
+  if (typeof raw !== 'object' || raw === null) return { type: 'daily' }
+  const f = raw as Record<string, unknown>
+  if (f.type === 'weekly' && Array.isArray(f.weekdays)) {
+    return { type: 'weekly', weekdays: f.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7) }
+  }
+  if (f.type === 'timesPerWeek' && typeof f.count === 'number' && Number.isFinite(f.count)) {
+    const count = Math.min(HABIT_TIMES_PER_WEEK_MAX, Math.max(HABIT_TIMES_PER_WEEK_MIN, Math.round(f.count)))
+    return { type: 'timesPerWeek', count }
+  }
+  return { type: 'daily' }
+}
 
 export type HabitTimeMode = 'none' | 'fixed' | 'range'
 
