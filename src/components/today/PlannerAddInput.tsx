@@ -1,10 +1,10 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { INBOX_LIST_ID } from '../../store/taskStore'
-import { addTaskFromQuickText } from '../../lib/quickAddTask'
+import { addTaskFromQuickText, type QuickAddPicks } from '../../lib/quickAddTask'
 import { useQuickAddTarget } from '../../lib/quickAddFocus'
 import { InlineAddInput } from '../ui/InlineAddInput'
-import { QuickAddReading } from '../QuickAddReading'
+import { QuickAddDetails } from '../QuickAddDetails'
 
 /**
  * 今日の計画の追加欄（並んだ行の下。見出しのすぐ下に空の欄を置かない）。
@@ -25,11 +25,17 @@ export function PlannerAddInput({
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   useQuickAddTarget(inputRef)
+  // 下のチップで選んだ値（消したら・足したら空に）
+  const [picks, setPicks] = useState<QuickAddPicks>({})
+  const change = (v: string) => {
+    onDraftChange(v)
+    if (!v.trim()) setPicks({})
+  }
 
   const submit = () => {
     if (!draft.trim()) return
-    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey })
-    onDraftChange('')
+    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks })
+    change('')
   }
 
   return (
@@ -39,12 +45,20 @@ export function PlannerAddInput({
         underline
         data-quickadd
         value={draft}
-        onValueChange={onDraftChange}
+        onValueChange={change}
         onSubmit={submit}
         placeholder={showExample ? t('planner.addPlaceholderExample') : t('planner.addPlaceholder')}
       />
-      {/* 入力中だけ、読み取った締切・予定を 1 行で（見ている日を既定のやる日として読む） */}
-      <QuickAddReading text={draft} defaultDate={dateKey} className="mt-1" />
+      {/* 入力中だけ、足したら付く値のチップ（見ている日が既定のやる日）。押して選べる */}
+      <QuickAddDetails
+        text={draft}
+        defaultDate={dateKey}
+        defaultListId={INBOX_LIST_ID}
+        picks={picks}
+        onPicksChange={setPicks}
+        onPicked={() => inputRef.current?.focus()}
+        className="mt-2"
+      />
     </div>
   )
 }

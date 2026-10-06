@@ -60,6 +60,7 @@ export const CalendarDoubleArrowIcon = strokeIcon(ICON_PATHS.calendarDoubleArrow
 export const ChevronLeftIcon = strokeIcon(ICON_PATHS.chevronLeft)
 export const PencilIcon = strokeIcon(ICON_PATHS.pencil)
 export const ClockIcon = strokeIcon(ICON_PATHS.clock)
+export const HourglassIcon = strokeIcon(ICON_PATHS.hourglass)
 export const PlayIcon = filledIcon(ICON_PATHS.play)
 export const StopIcon = filledIcon(ICON_PATHS.stop)
 export const GlobeIcon = strokeIcon(ICON_PATHS.globe)

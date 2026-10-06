@@ -804,6 +804,18 @@ export default {
   },
   quickAdd: {
     placeholder: 'Add a to-do',
+    chip: {
+      date: 'Date',
+      time: 'Time',
+      estimate: 'Est.',
+      due: 'Due',
+      list: 'List',
+      label: 'Label',
+      clear: 'Clear',
+      start: 'Start',
+      end: 'End',
+      done: 'Done',
+    },
     reading: {
       due: 'Due {{date}}',
       dueAt: 'Due {{date}} {{time}}',

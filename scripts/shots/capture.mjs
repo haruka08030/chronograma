@@ -49,6 +49,24 @@ const SCREENS = [
     click: 'button[aria-expanded]:has-text("やり残し")',
     hover: 'button[aria-label$="完了にする"] >> nth=0',
   },
+  // 追加欄に書いている間の詳細のチップ（日付・時間・見積もり・締切・リスト・ラベル）と、見積もりを開いたところ
+  {
+    name: 'planner-add-details',
+    view: 'planner',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '金曜まで ES 1時間' },
+  },
+  {
+    name: 'todo-add-details-estimate',
+    view: 'all',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '明日 レポート' },
+    thenClick: ['button[aria-expanded][aria-label="見積もり"] >> visible=true'],
+  },
+  {
+    name: 'todo-add-details-time',
+    view: 'all',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '明日 レポート' },
+    thenClick: ['button[aria-expanded][aria-label="時間"] >> visible=true'],
+  },
   // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
   { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
@@ -166,6 +184,8 @@ const SCREENS = [
   },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
+  // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
+  { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
@@ -415,6 +435,15 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
+                await page.waitForTimeout(300)
+              }
+            }
+            if (screen.typeInto) {
+              // 欄に書く（`text`）。そのあと `thenClick` を順に押す（書いてから出るチップを開く、など）
+              await page.locator(screen.typeInto.selector).first().fill(screen.typeInto.text)
+              await page.waitForTimeout(300)
+              for (const sel of screen.thenClick ?? []) {
+                await page.click(sel)
                 await page.waitForTimeout(300)
               }
             }

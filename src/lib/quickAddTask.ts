@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns'
 import i18n from '../i18n/config'
-import { useTaskStore } from '../store/taskStore'
+import { INBOX_LIST_ID, useTaskStore } from '../store/taskStore'
 import type { Recurrence, Task } from '../types/task'
 import { parseQuickAddTitle, type ParsedQuickAdd, type QuickAddRepeat } from './parseQuickAdd'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -34,6 +34,54 @@ export interface QuickAddOptions {
   color?: string
   /** 予定（完了の丸の無いもの）として作る（予定作成カードで「予定」を選んだとき）。締切・繰り返しは付けない */
   kind?: 'event'
+  /** 追加欄の下のチップで選んだ値（書いた文より勝つ） */
+  picks?: QuickAddPicks
+}
+
+/**
+ * 追加欄の下のチップで選んだ値。書いた文から読んだ値より勝つ。
+ * `undefined` は選んでいない（書いた文・既定のまま）、`null` は外した
+ */
+export type QuickAddPicks = {
+  /** やる日 */
+  date?: string | null
+  /** 予定の時間帯（やる日が無ければ既定の日、無ければ今日に置く） */
+  time?: { startTime: string; endTime: string } | null
+  estimateMinutes?: number | null
+  /** 締切（日付と、あれば時刻） */
+  due?: { date: string; time: string | null } | null
+  listId?: string
+  /** 色（ラベル） */
+  color?: string | null
+}
+
+/** チップで選んだ値を日時に重ねる。いつか・チェックリストには呼ばない */
+export function applyQuickAddPicks(
+  patch: SchedulePatch & Partial<Pick<Task, 'estimateMinutes'>>,
+  picks: QuickAddPicks,
+  opts: Pick<QuickAddOptions, 'defaultDate'>,
+  todayKey: string,
+): void {
+  if (picks.date !== undefined) {
+    patch.scheduledDate = picks.date
+    // やる日を外したら時間帯も外す（時刻だけの予定は無い）
+    if (picks.date === null) {
+      patch.startTime = null
+      patch.endTime = null
+    }
+  }
+  if (picks.time !== undefined) {
+    patch.startTime = picks.time?.startTime ?? null
+    patch.endTime = picks.time?.endTime ?? null
+    if (picks.time && !patch.scheduledDate) patch.scheduledDate = opts.defaultDate ?? todayKey
+  }
+  if (picks.estimateMinutes !== undefined) patch.estimateMinutes = picks.estimateMinutes
+  if (picks.due !== undefined) {
+    patch.dueDate = picks.due?.date ?? null
+    patch.dueTime = picks.due?.time ?? null
+    // 繰り返しは締切の日で回るので、締切を外したら繰り返しも外す
+    if (!picks.due) patch.recurrence = null
+  }
 }
 
 type SchedulePatch = Partial<Pick<Task, 'dueDate' | 'dueTime' | 'scheduledDate' | 'startTime' | 'endTime' | 'recurrence'>>
@@ -183,6 +231,53 @@ export function readQuickAddText(
   return Object.values(reading).some((v) => v != null) ? reading : null
 }
 
+/** 追加欄の下のチップに出す、足したら付く値（書いた文・チップ・既定をすべて重ねた結果。足すときと同じ決め方） */
+export type QuickAddDraft = {
+  listId: string
+  /** 入るリストが日付を付けるリスト（いつか・チェックリストでない）か */
+  dated: boolean
+  scheduledDate: string | null
+  startTime: string | null
+  endTime: string | null
+  dueDate: string | null
+  dueTime: string | null
+  estimateMinutes: number | null
+  color: string | null
+}
+
+/** 入力中の 1 行とチップから、足したら付く値を出す（`addTaskFromQuickText` と同じ決め方） */
+export function quickAddDraft(
+  raw: string,
+  opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'picks'> = {},
+): QuickAddDraft {
+  const state = useTaskStore.getState()
+  const parsed = parseQuickAddTitle(raw.trim(), Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
+    blockMinutes: state.defaultBlockMinutes,
+  })
+  const picks = opts.picks ?? {}
+  const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
+  const listId = picks.listId ?? target?.id ?? opts.defaultListId ?? state.selectedListId ?? INBOX_LIST_ID
+  const dated = (state.lists.find((l) => l.id === listId)?.kind ?? 'tasks') === 'tasks'
+  const patch: SchedulePatch & Partial<Pick<Task, 'estimateMinutes'>> = {}
+  if (dated) {
+    const today = appTodayKey()
+    Object.assign(patch, quickAddSchedule(parsed, opts, today))
+    if (parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
+    applyQuickAddPicks(patch, picks, opts, today)
+  }
+  return {
+    listId,
+    dated,
+    scheduledDate: patch.scheduledDate ?? null,
+    startTime: patch.startTime ?? null,
+    endTime: patch.endTime ?? null,
+    dueDate: patch.dueDate ?? null,
+    dueTime: patch.dueTime ?? null,
+    estimateMinutes: patch.estimateMinutes ?? null,
+    color: picks.color !== undefined ? picks.color : (opts.color ?? null),
+  }
+}
+
 /** 続けて足したときに、前に足した行のすぐ下へ入れるための記録（足した順に並ぶ。先頭に積むと逆順になる） */
 let lastQuickAdd: { id: string; at: number } | null = null
 const QUICK_ADD_BURST_MS = 2 * 60 * 1000
@@ -221,7 +316,10 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     lists: !isSubtask,
     blockMinutes: state.defaultBlockMinutes,
   })
-  const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
+  const picks = isSubtask ? {} : (opts.picks ?? {})
+  const named = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
+  // チップで選んだリストが書いた @リスト より勝つ
+  const target = (picks.listId ? state.lists.find((l) => l.id === picks.listId) : null) ?? named
   const listId = target?.id ?? opts.defaultListId
   let id: string | undefined
   // 作成と日付付けは 1 回の取り消しで戻す（呼び出し側の asOneUndo の中でもよい）
@@ -244,10 +342,15 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
     if (opts.color) patch.color = opts.color
+    if (picks.color !== undefined) patch.color = picks.color
     // いつか・チェックリストには日付も繰り返しも付けない（付けると期限のビューに戻ってきてしまう）
-    if (kind === 'tasks') Object.assign(patch, quickAddSchedule(parsed, opts, appTodayKey()))
-    // 時刻なしで書いた長さは見積もり（置くときの長さ）
-    if (kind === 'tasks' && parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
+    if (kind === 'tasks') {
+      const today = appTodayKey()
+      Object.assign(patch, quickAddSchedule(parsed, opts, today))
+      // 時刻なしで書いた長さは見積もり（置くときの長さ）
+      if (parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
+      applyQuickAddPicks(patch, picks, opts, today)
+    }
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
