@@ -35,10 +35,28 @@ export interface WeekReview {
    * 今日はまだ終わっていない予定を数えない（これから行う予定で「ずれた」と言わない）
    */
   followRate: number | null
+  /** 「計画どおり実行」の分母（時間を決めた予定の数）と分子 */
   timedPlanned: number
+  followed: number
   habitRate: number | null
-  /** 記録時間の多いタグ（タグ無しは空文字） */
-  topTags: { tag: string; minutes: number }[]
+  /** ラベルごとの記録時間（多い順、全件。タグ無しは空文字） */
+  labelMinutes: { tag: string; minutes: number }[]
+}
+
+/** ラベル別の時間を出す行数。これを超えたら 6 行目以降を「その他」にまとめる */
+export const LABEL_ROWS = 6
+
+/**
+ * ラベル別の時間を `LABEL_ROWS` 行に収める。収まらなければ上位 `LABEL_ROWS - 1` 件と、残りの合計（`others`）。
+ * 1 件だけを「その他」にはしない（それなら名前を出したほうが読める）
+ */
+export function foldLabelMinutes(rows: readonly { tag: string; minutes: number }[]): {
+  shown: { tag: string; minutes: number }[]
+  others: number
+} {
+  if (rows.length <= LABEL_ROWS) return { shown: [...rows], others: 0 }
+  const shown = rows.slice(0, LABEL_ROWS - 1)
+  return { shown, others: rows.slice(LABEL_ROWS - 1).reduce((a, x) => a + x.minutes, 0) }
 }
 
 /** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */
@@ -124,8 +142,9 @@ export function getWeekReview(
     total: sum((d) => d.total),
     followRate: timedPlanned > 0 ? followed / timedPlanned : null,
     timedPlanned,
+    followed,
     habitRate: habitDue > 0 ? habitDone / habitDue : null,
-    topTags: sortedTagMinutes(tagMinutes).slice(0, 5),
+    labelMinutes: sortedTagMinutes(tagMinutes),
   }
 }
 

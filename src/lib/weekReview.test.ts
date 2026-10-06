@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { getWeekReview } from './weekReview'
+import { foldLabelMinutes, getWeekReview } from './weekReview'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
@@ -48,5 +48,20 @@ describe('getWeekReview followRate', () => {
     const review = getWeekReview([...tasks, log], [], at('15:45'), new Set(), at('15:45'))
     expect(review.timedPlanned).toBe(1)
     expect(review.followRate).toBe(1)
+    expect(review.followed).toBe(1)
+  })
+})
+
+describe('foldLabelMinutes', () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ tag: `l${i}`, minutes: 60 - i }))
+
+  it('6 件までは全部出す', () => {
+    expect(foldLabelMinutes(rows(6))).toEqual({ shown: rows(6), others: 0 })
+  })
+
+  it('7 件以上は上位 5 件と「その他」', () => {
+    const { shown, others } = foldLabelMinutes(rows(8))
+    expect(shown.map((x) => x.tag)).toEqual(['l0', 'l1', 'l2', 'l3', 'l4'])
+    expect(others).toBe(55 + 54 + 53)
   })
 })
