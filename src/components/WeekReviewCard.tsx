@@ -10,11 +10,13 @@ import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration, formatDurationShort } from '../lib/timeGrid'
-import { NEUTRAL_HEX } from '../lib/googleColors'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SectionLabel } from './ui/SectionLabel'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
+
+/** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
+const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
@@ -109,7 +111,7 @@ export function WeekReviewCard() {
             {/* 後ろの薄い枠が何かを 1 語で（予定のある週だけ） */}
             {hasPlanned && (
               <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500">
-                <span className="gc-plan h-2.5 w-2.5 rounded-[2px]" style={colorVars(NEUTRAL_HEX)} aria-hidden />
+                <span className={`h-2.5 w-2.5 rounded-[2px] ${PLANNED_FRAME}`} aria-hidden />
                 {t('weekReview.plannedLegend')}
               </span>
             )}
@@ -146,11 +148,12 @@ export function WeekReviewCard() {
                   // 上の余白（pt-4）は合計の数字の分。棒の高さの % はその余白を除いた高さに対して
                   className="group relative flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-end pt-4"
                 >
-                  {/* 予定の時間は棒の後ろに薄い枠で重ねる（記録が枠に届いたか・はみ出したかで予定と比べられる） */}
+                  {/* 予定の時間は棒の後ろに点線の枠で重ねる（記録が枠に届いたか・はみ出したかで予定と比べられる）。
+                      塗ると「ラベルなし」の灰色の積み上げと見分けられないので、枠だけ */}
                   {plannedH > 0 && (
                     <div
-                      className="gc-plan pointer-events-none absolute inset-x-0 bottom-0 rounded-t-[3px]"
-                      style={{ ...colorVars(NEUTRAL_HEX), height: `calc((100% - 1rem) * ${plannedH / 100})` }}
+                      className={`pointer-events-none absolute inset-x-0 bottom-0 rounded-t-[3px] ${PLANNED_FRAME}`}
+                      style={{ height: `calc((100% - 1rem) * ${plannedH / 100})` }}
                       aria-hidden
                     />
                   )}

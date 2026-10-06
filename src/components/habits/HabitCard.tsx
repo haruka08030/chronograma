@@ -3,7 +3,8 @@ import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
 import { consistencyForLast7Days, habitStreak } from '../../lib/habitStats'
-import { isHabitDueOnDate } from '../../lib/habitSchedule'
+import { habitWeekDoneCount, isHabitDueOnDate } from '../../lib/habitSchedule'
+import { appToday } from '../../lib/timeZone'
 import { habitDayStatus, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -53,7 +54,11 @@ export function HabitCard({
     h.frequency.type === 'daily'
       ? t('habits.goalDaily')
       : h.frequency.type === 'timesPerWeek'
-        ? t('habits.goalTimesPerWeek', { count: h.frequency.count })
+        ? // 回数で決めた習慣は、今週あと何回かが分かるように今週の回数も添える
+          t('habits.goalTimesPerWeekProgress', {
+            count: h.frequency.count,
+            done: Math.min(habitWeekDoneCount(h, appToday(), habitRecords), h.frequency.count),
+          })
         : [...h.frequency.weekdays]
             .sort((a, b) => a - b)
             .map((d) => format(addDays(ISO_MONDAY, d - 1), 'E', { locale: dateLocale }))
