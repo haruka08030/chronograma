@@ -33,6 +33,12 @@ export function AccountMenu() {
     const linkError = pendingAuthLinkError()
     return linkError ? t(authLinkErrorKey(linkError)) : null
   })
+  const googleSignIn = isGoogleAvailable()
+  // メールの欄は Google が使えないときと、メールのリンクが使えずに戻ってきたときだけ最初から開く
+  const [emailOpen, setEmailOpen] = useState(() => {
+    const linkError = pendingAuthLinkError()
+    return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
+  })
   useEffect(() => clearAuthLinkError(), [])
   // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
   useEffect(() => {
@@ -294,35 +300,20 @@ export function AccountMenu() {
             className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.intro')}</p>
-            <p className={`mb-2 ${META_TEXT}`}>
-              {t('account.agreePrefix')}
-              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
-                {t('settings.terms')}
-              </a>
-              {t('account.agreeAnd')}
-              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
-                {t('settings.privacyPolicy')}
-              </a>
-              {t('account.agreeSuffix')}
-            </p>
-            {!codeSentTo && isGoogleAvailable() && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleGoogle()}
-                  disabled={pending || redirecting}
-                  className={buttonClass({ variant: 'secondary', size: 'md' }, 'w-full')}
-                >
-                  <GoogleLogo />
-                  {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
-                </button>
-                <div className="my-3 flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500" aria-hidden>
-                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                  {t('account.orEmail')}
-                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                </div>
-              </>
+            <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
+            {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
+            {!codeSentTo && googleSignIn && (
+              <button
+                type="button"
+                onClick={() => void handleGoogle()}
+                disabled={pending || redirecting}
+                className={buttonClass({ variant: 'primary', size: 'lg' }, 'w-full')}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white" aria-hidden>
+                  <GoogleLogo className="h-3.5 w-3.5" />
+                </span>
+                {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
+              </button>
             )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">
@@ -347,23 +338,53 @@ export function AccountMenu() {
                   {t('account.changeEmail')}
                 </button>
               </form>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+            ) : emailOpen ? (
+              <form
+                onSubmit={handleSubmit}
+                className={`flex flex-col gap-2${googleSignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
+              >
                 <input
                   type="email"
                   autoComplete="email"
                   placeholder={t('account.emailPlaceholder')}
+                  aria-label={t('account.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  // 押して開いた欄にはそのまま書ける
+                  autoFocus={googleSignIn}
                   className={fieldClass({}, 'w-full')}
                 />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <button type="submit" disabled={pending} className={buttonClass({ variant: 'primary', size: 'md' })}>
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className={buttonClass({ variant: googleSignIn ? 'secondary' : 'primary', size: 'md' })}
+                >
                   {pending ? t('account.sending') : t('account.sendLink')}
                 </button>
               </form>
+            ) : (
+              <>
+                {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
+                <div className="mt-2 flex justify-center">
+                  <button type="button" onClick={() => setEmailOpen(true)} className={buttonClass({ variant: 'ghost', size: 'xs' })}>
+                    {t('account.useEmail')}
+                  </button>
+                </div>
+              </>
             )}
+            <p className={`mt-3 ${META_TEXT}`}>
+              {t('account.agreePrefix')}
+              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.terms')}
+              </a>
+              {t('account.agreeAnd')}
+              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.privacyPolicy')}
+              </a>
+              {t('account.agreeSuffix')}
+            </p>
           </div>
         </>
       )}
