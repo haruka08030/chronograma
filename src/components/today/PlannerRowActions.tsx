@@ -24,12 +24,17 @@ export function SetTimeButton({ task, dateKey }: { task: Task; dateKey: string }
   )
 }
 
-/** 今日やる行の「明日へ回す」（マウスで乗せたときだけ。スマホは行のスワイプで） */
-export function TomorrowButton({ task, tomorrowKey }: { task: Task; tomorrowKey: string }) {
+/** 今日やる行の「明日へ回す」（マウスで乗せたときだけ。スマホは行のスワイプで）。別の日を見ているときは、その翌日へ */
+export function TomorrowButton({ task, tomorrowKey, viewingToday }: { task: Task; tomorrowKey: string; viewingToday: boolean }) {
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   return (
-    <RowActionButton label={t('taskMenu.toTomorrow')} onClick={() => rescheduleTasks([task.id], tomorrowKey)} collapse mouseOnly>
+    <RowActionButton
+      label={viewingToday ? t('taskMenu.toTomorrow') : t('taskMenu.toNextDay')}
+      onClick={() => rescheduleTasks([task.id], tomorrowKey)}
+      collapse
+      mouseOnly
+    >
       <ArrowRightIcon className="h-3.5 w-3.5" />
     </RowActionButton>
   )

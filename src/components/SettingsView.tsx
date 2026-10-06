@@ -122,7 +122,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
         <SettingsGroup id="settings-account" title={t('settings.account')}>
           {isSupabaseConfigured ? (
             <div className="px-4 py-3">
-              <AccountMenu variant="settings" />
+              <AccountMenu />
             </div>
           ) : (
             <SettingsRow label={t('settings.syncOffTitle')} help={t('settings.supabaseOff')} />

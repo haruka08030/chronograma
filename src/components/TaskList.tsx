@@ -195,12 +195,16 @@ export function TaskList({
     openDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu,
     // いつか・チェックリストは日に置かないので、Shift+T（今日やる ⇄ 明日へ）はタスクのリストだけ
     todayToggleRows: listKind === 'tasks' ? (ids) => todayToggle(ids).run() : undefined,
     resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
   })
+  // 選んだものが全部済みなら「完了」は何もしないので出さない（戻すのは「操作」のメニューから）
+  const selectionAllDone = useTaskStore(
+    (s) => selected.size > 0 && [...selected].every((id) => s.tasks.find((x) => x.id === id)?.completed),
+  )
   useEffect(() => {
     clearSelectionRef.current = clearSelection
   }, [clearSelection])
@@ -343,13 +347,23 @@ export function TaskList({
       {/* 選んでいる間: 件数・完了・「操作」を下に出す（今日の計画と同じバー） */}
       <SelectionBar
         selectedIds={selected}
-        actions={[
-          {
-            label: t('taskList.selectionComplete'),
-            icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
-            onClick: () => bulk.complete([...selected]),
-          },
-        ]}
+        actions={
+          selectionAllDone
+            ? []
+            : [
+                {
+                  label: t(
+                    listKind === 'someday'
+                      ? 'someday.fulfill'
+                      : listKind === 'checklist'
+                        ? 'checklist.check'
+                        : 'taskList.selectionComplete',
+                  ),
+                  icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
+                  onClick: () => bulk.complete([...selected]),
+                },
+              ]
+        }
         onClear={clearSelection}
       />
     </div>

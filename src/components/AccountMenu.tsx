@@ -15,9 +15,8 @@ import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleLogo } from './ui/GoogleLogo'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
 
-export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
+export function AccountMenu() {
   const { t } = useTranslation()
-  const isSettings = variant === 'settings'
   const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
   // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
   const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
@@ -208,83 +207,72 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   if (user) {
     const label = user.email ?? user.id
     return (
-      <div className={`relative flex items-center gap-3 ${isSettings ? 'flex-wrap' : ''}`}>
+      <div className="relative flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
           {t('account.signedIn')}
         </span>
-        <span
-          className={`truncate text-xs text-zinc-600 dark:text-zinc-300 ${
-            isSettings ? 'max-w-full sm:max-w-md' : 'hidden max-w-[140px] sm:inline'
-          }`}
-          title={label}
-        >
+        <span className="max-w-full truncate text-xs text-zinc-600 sm:max-w-md dark:text-zinc-300" title={label}>
           {label}
         </span>
         <button type="button" onClick={handleSignOut} disabled={pending} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           {t('account.signOut')}
         </button>
-        {isSettings && (
-          <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
-            {reauth && user.email ? (
-              <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
-                <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
-                {reauth === 'codeSent' && (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    placeholder={t('account.codePlaceholder')}
-                    aria-label={t('account.codePlaceholder')}
-                    value={reauthCode}
-                    onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
-                    className={fieldClass({}, 'w-full tracking-widest')}
-                  />
-                )}
-                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <div className="flex flex-wrap gap-2">
-                  {reauth === 'codeSent' ? (
-                    <button
-                      type="submit"
-                      disabled={pending || !reauthCode.trim()}
-                      className={buttonClass({ variant: 'danger', size: 'sm' })}
-                    >
-                      {pending ? t('account.deleting') : t('account.reauthConfirm')}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void sendReauthCode()}
-                    disabled={pending}
-                    className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
-                  >
-                    {pending && reauth === 'needed'
-                      ? t('account.sending')
-                      : reauth === 'codeSent'
-                        ? t('account.reauthResend')
-                        : t('account.reauthSend')}
+        <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
+          {reauth && user.email ? (
+            <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+              <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
+              {reauth === 'codeSent' && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  placeholder={t('account.codePlaceholder')}
+                  aria-label={t('account.codePlaceholder')}
+                  value={reauthCode}
+                  onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
+                  className={fieldClass({}, 'w-full tracking-widest')}
+                />
+              )}
+              {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+              <div className="flex flex-wrap gap-2">
+                {reauth === 'codeSent' ? (
+                  <button type="submit" disabled={pending || !reauthCode.trim()} className={buttonClass({ variant: 'danger', size: 'sm' })}>
+                    {pending ? t('account.deleting') : t('account.reauthConfirm')}
                   </button>
-                  <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleDeleteAccount()}
-                disabled={pending}
-                className={buttonClass({ variant: 'danger', size: 'sm' })}
-              >
-                {pending ? t('account.deleting') : t('account.delete')}
-              </button>
-            )}
-            {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
-          </div>
-        )}
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void sendReauthCode()}
+                  disabled={pending}
+                  className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
+                >
+                  {pending && reauth === 'needed'
+                    ? t('account.sending')
+                    : reauth === 'codeSent'
+                      ? t('account.reauthResend')
+                      : t('account.reauthSend')}
+                </button>
+                <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={pending}
+              className={buttonClass({ variant: 'danger', size: 'sm' })}
+            >
+              {pending ? t('account.deleting') : t('account.delete')}
+            </button>
+          )}
+          {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
+        </div>
       </div>
     )
   }
@@ -303,9 +291,7 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
         <>
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
           <div
-            className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
-              isSettings ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
-            }`}
+            className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
             <p className={`mb-2 ${HINT_TEXT}`}>{t('account.intro')}</p>

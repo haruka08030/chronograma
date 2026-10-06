@@ -139,7 +139,7 @@ export function TodayPlannerView() {
     openDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     todayToggleRows: (ids) => todayToggle(ids).run(),
     resetOn: [dateKey],
@@ -164,9 +164,15 @@ export function TodayPlannerView() {
     if (ids.every((id) => openIds.has(id))) {
       return [
         {
-          label: t('taskList.selectionTomorrow'),
+          // 別の日を見ているときは、見ている日の翌日へ（本当の明日ではない）
+          label: viewingToday ? t('taskList.selectionTomorrow') : t('taskList.selectionNextDay'),
           icon: <CalendarArrowIcon className="h-3.5 w-3.5" />,
-          onClick: () => rescheduleTasks(ids, tomorrowKey, many(t('undo.tasksMovedToTomorrow', { count: ids.length }))),
+          onClick: () =>
+            rescheduleTasks(
+              ids,
+              tomorrowKey,
+              many(t(viewingToday ? 'undo.tasksMovedToTomorrow' : 'undo.tasksMovedToNextDay', { count: ids.length })),
+            ),
         },
         complete,
       ]

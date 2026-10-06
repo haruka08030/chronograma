@@ -46,6 +46,7 @@ export function useTaskListSelection({
   /** Space・⌘Enter（枠の行だけのとき）: 丸を押したときと同じ完了の付け外し */
   toggleRow: (id: string) => void
   removeRows: (ids: string[]) => void
+  /** ⌘↵ で選んだ行の完了を切り替える */
   completeRows: (ids: string[]) => void
   /** 右クリック・⌘/ のメニューを開く。`above` は (x, y) の上に出す */
   openMenu: (menu: { x: number; y: number; taskIds: string[]; above?: boolean }) => void

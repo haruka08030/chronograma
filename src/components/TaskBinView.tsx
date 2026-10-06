@@ -102,7 +102,8 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
-          <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count: rows.length })}</p>
+          {/* 空なら下の「ありません」で分かるので件数は出さない */}
+          {rows.length > 0 && <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count: rows.length })}</p>}
         </div>
         {mode === 'deleted' && rows.length > 0 && (
           <button

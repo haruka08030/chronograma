@@ -87,7 +87,7 @@ export function CompletedTasksView() {
     openDetail: openTaskDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu,
     resetOn: [],
   })
@@ -115,7 +115,8 @@ export function CompletedTasksView() {
     <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="px-6 pt-8 pb-2">
         <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.completed')}</h1>
-        <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count })}</p>
+        {/* 空なら下の「ありません」で分かるので件数は出さない */}
+        {days.length > 0 && <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count })}</p>}
       </div>
 
       <div className="flex-1 px-4 pb-6">

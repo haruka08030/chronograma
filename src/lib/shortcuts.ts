@@ -105,8 +105,8 @@ export const SHORTCUTS = {
 
 export type ShortcutId = keyof typeof SHORTCUTS
 
-/** ヘルプに出す一覧（表の順）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
-export const SHORTCUT_LIST: { keys: string[]; label: string }[] = Object.values(SHORTCUTS).map((s) => ({
-  keys: s.display.flat(),
+/** ヘルプに出す一覧（表の順）。`keys` の外側は「どれか」、内側は「同時に」。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
+export const SHORTCUT_LIST: { keys: readonly (readonly string[])[]; label: string }[] = Object.values(SHORTCUTS).map((s) => ({
+  keys: s.display,
   label: s.label,
 }))

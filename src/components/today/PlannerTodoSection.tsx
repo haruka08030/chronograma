@@ -140,7 +140,7 @@ export function PlannerTodoSection({
                 env={env}
                 action={
                   <>
-                    <TomorrowButton task={task} tomorrowKey={tomorrowKey} />
+                    <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
                     <TimerButton task={task} />
                   </>
                 }
@@ -164,7 +164,7 @@ export function PlannerTodoSection({
                 action={
                   <>
                     <SetTimeButton task={task} dateKey={dateKey} />
-                    <TomorrowButton task={task} tomorrowKey={tomorrowKey} />
+                    <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
                     <TimerButton task={task} />
                   </>
                 }
