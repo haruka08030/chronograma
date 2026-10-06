@@ -782,6 +782,18 @@ export default {
   },
   quickAdd: {
     placeholder: 'To-Do を追加',
+    chip: {
+      date: '日付',
+      time: '時間',
+      estimate: '見積もり',
+      due: '締切',
+      list: 'リスト',
+      label: 'ラベル',
+      clear: '外す',
+      start: '開始',
+      end: '終了',
+      done: '決定',
+    },
     reading: {
       due: '締切 {{date}}',
       dueAt: '締切 {{date}} {{time}}',

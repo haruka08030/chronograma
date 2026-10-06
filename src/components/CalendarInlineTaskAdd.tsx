@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { INBOX_LIST_ID, useTaskStore } from '../store/taskStore'
-import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { addTaskFromQuickText, type QuickAddPicks } from '../lib/quickAddTask'
 import { unplannedListIds } from '../lib/listKind'
+import type { TaskList } from '../types/list'
 import { PlusIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { QuickAddReading } from './QuickAddReading'
+import { QuickAddDetails } from './QuickAddDetails'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -34,6 +36,11 @@ export function CalendarAddTaskButton({
   )
 }
 
+/** いつか・チェックリストを選んでいると日付が付かずカレンダーから消えるので、そのときは未分類へ */
+function defaultListFor(selectedListId: string | null, lists: readonly TaskList[]): string {
+  return selectedListId && !unplannedListIds(lists).has(selectedListId) ? selectedListId : INBOX_LIST_ID
+}
+
 /**
  * カレンダー各面（月セル / 週の終日行 / 選択日パネル）で共有するインライン ToDo 追加入力。
  * 書いた 1 行はクイック追加と同じに読む（`addTaskFromQuickText`）。日付を書かなければそのセルの日がやる日、
@@ -55,6 +62,14 @@ export function CalendarInlineTaskAdd({
   const { t } = useTranslation()
   const [value, setValue] = useState('')
   const ref = useRef<HTMLInputElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  // 下のチップで選んだ値（大きい欄だけ。消したら・足したら空に）
+  const [picks, setPicks] = useState<QuickAddPicks>({})
+  const detailed = size === 'md'
+  const change = (v: string) => {
+    setValue(v)
+    if (!v.trim()) setPicks({})
+  }
 
   useEffect(() => {
     if (autoFocus) ref.current?.focus()
@@ -64,35 +79,58 @@ export function CalendarInlineTaskAdd({
     const trimmed = value.trim()
     if (!trimmed) return false
     const { selectedListId, lists } = useTaskStore.getState()
-    // いつか・チェックリストを選んでいると日付が付かずカレンダーから消えるので、そのときは未分類へ
-    const defaultListId = selectedListId && !unplannedListIds(lists).has(selectedListId) ? selectedListId : INBOX_LIST_ID
-    addTaskFromQuickText(trimmed, { defaultListId, currentListId: defaultListId, defaultDate: dateKey })
-    setValue('')
+    const defaultListId = defaultListFor(selectedListId, lists)
+    addTaskFromQuickText(trimmed, { defaultListId, currentListId: defaultListId, defaultDate: dateKey, picks })
+    change('')
     return true
   }
 
   // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる。
-  // 入力中だけ、読み取った締切・予定を下に 1 行で出す（セルの日を既定のやる日として読む）
+  // 入力中だけ、大きい欄は足したら付く値のチップ（押して選べる）、マスの小さい欄は読み取った締切・予定を 1 行で（セルの日を既定のやる日として読む）
+  const blurOut = () => {
+    commit()
+    onDone()
+  }
   return (
-    <div className="min-w-0">
+    <div
+      ref={boxRef}
+      className="min-w-0"
+      // 大きい欄: チップの中（時刻の欄など）へ移ったときは閉じない。外へ出たら足して閉じる
+      onBlur={
+        detailed
+          ? (e) => {
+              if (!boxRef.current?.contains(e.relatedTarget as Node | null)) blurOut()
+            }
+          : undefined
+      }
+    >
       <InlineAddInput
         ref={ref}
-        size={size === 'md' ? 'md' : 'sm'}
+        size={detailed ? 'md' : 'sm'}
         value={value}
-        onValueChange={setValue}
+        onValueChange={change}
         onSubmit={() => {
           if (!commit()) onDone()
         }}
         onCancel={onDone}
-        onBlurSubmit={() => {
-          commit()
-          onDone()
-        }}
+        onBlurSubmit={detailed ? undefined : blurOut}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         placeholder={t('calendar.addTaskPlaceholder')}
       />
-      <QuickAddReading text={value} defaultDate={dateKey} className={size === 'md' ? 'mt-1 px-3' : 'mt-0.5 px-1'} />
+      {detailed ? (
+        <QuickAddDetails
+          text={value}
+          defaultDate={dateKey}
+          defaultListId={defaultListFor(useTaskStore.getState().selectedListId, useTaskStore.getState().lists)}
+          picks={picks}
+          onPicksChange={setPicks}
+          onPicked={() => ref.current?.focus()}
+          className="mt-2 px-1"
+        />
+      ) : (
+        <QuickAddReading text={value} defaultDate={dateKey} className="mt-0.5 px-1" />
+      )}
     </div>
   )
 }

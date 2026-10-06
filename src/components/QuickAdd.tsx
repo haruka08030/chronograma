@@ -1,16 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { addTaskFromQuickText } from '../lib/quickAddTask'
+import { addTaskFromQuickText, type QuickAddPicks } from '../lib/quickAddTask'
 import { InlineAddInput } from './ui/InlineAddInput'
-import { QuickAddReading } from './QuickAddReading'
+import { QuickAddDetails } from './QuickAddDetails'
 import { useQuickAddTarget } from '../lib/quickAddFocus'
 import { NO_LABEL } from '../lib/todoColorLabels'
+
+/** 色ラベルで絞っているときに足すものに付ける色 */
+function viewColor(): string | undefined {
+  const { selectedView, filterColor } = useTaskStore.getState()
+  return selectedView === 'all' && filterColor && filterColor !== NO_LABEL ? filterColor : undefined
+}
 
 /** To-Do 一覧の上の追加欄（今日画面と同じ形）。N キーなど「追加して」の合図でフォーカスする */
 export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
   const { t } = useTranslation()
   const [value, setValue] = useState('')
+  // 下のチップで選んだ値（消したら・足したら空に）
+  const [picks, setPicks] = useState<QuickAddPicks>({})
+  const change = (v: string) => {
+    setValue(v)
+    if (!v.trim()) setPicks({})
+  }
   const inputRef = useRef<HTMLInputElement>(null)
   const quickAddRequested = useTaskStore((s) => s.quickAddRequested)
   const clearQuickAddRequest = useTaskStore((s) => s.clearQuickAddRequest)
@@ -25,12 +37,8 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
 
   const submit = () => {
     if (!value.trim()) return
-    const { selectedListId, selectedView, filterColor } = useTaskStore.getState()
-    addTaskFromQuickText(value, {
-      currentListId: selectedListId,
-      color: selectedView === 'all' && filterColor && filterColor !== NO_LABEL ? filterColor : undefined,
-    })
-    setValue('')
+    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks })
+    change('')
   }
 
   return (
@@ -39,12 +47,19 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
         ref={inputRef}
         data-quickadd
         value={value}
-        onValueChange={setValue}
+        onValueChange={change}
         onSubmit={submit}
         placeholder={placeholder ?? t('quickAdd.placeholder')}
       />
-      {/* 入力中だけ、読み取った締切・予定・リストを 1 行で */}
-      <QuickAddReading text={value} className="mt-1 px-3" />
+      {/* 入力中だけ、足したら付く日付・時間・見積もり・締切・リスト・ラベル。押して選べる */}
+      <QuickAddDetails
+        text={value}
+        color={viewColor()}
+        picks={picks}
+        onPicksChange={setPicks}
+        onPicked={() => inputRef.current?.focus()}
+        className="mt-2 px-1"
+      />
     </div>
   )
 }

@@ -46,6 +46,7 @@ const store = vi.hoisted(() => {
 })
 
 vi.mock('../store/taskStore', () => ({
+  INBOX_LIST_ID: '__inbox__',
   useTaskStore: {
     getState: () => store,
     setState: (fn: (s: typeof store) => Partial<typeof store>) => Object.assign(store, fn(store)),
@@ -64,7 +65,7 @@ vi.mock('./timeZone', async (importOriginal) => ({
   appTodayKey: () => TODAY,
 }))
 
-const { addTaskFromQuickText, firstRepeatDay, quickAddSchedule, readQuickAddText } = await import('./quickAddTask')
+const { addTaskFromQuickText, firstRepeatDay, quickAddDraft, quickAddSchedule, readQuickAddText } = await import('./quickAddTask')
 
 const list = (id: string, name: string, kind: TaskList['kind'] = 'tasks') => ({ id, name, kind }) as TaskList
 const added = (id: string | undefined) => store.tasks.find((t) => t.id === id)!
@@ -497,5 +498,55 @@ describe('続けて足す', () => {
     for (const title of ['A', 'B', 'C']) addTaskFromQuickText(title)
     const order = [...store.tasks].sort((a, b) => a.order - b.order).map((t) => t.title)
     expect(order).toEqual(['A', 'B', 'C'])
+  })
+})
+
+describe('追加欄の下のチップ（picks）', () => {
+  it('選んだ値が書いた文より勝つ', () => {
+    const t = added(
+      addTaskFromQuickText('明日 課題 30m @授業', {
+        picks: { date: '2026-10-07', estimateMinutes: 90, listId: '__inbox__', color: '#7986CB' },
+      }),
+    )
+    expect(t).toMatchObject({ title: '課題', listId: '__inbox__', scheduledDate: '2026-10-07', estimateMinutes: 90, color: '#7986CB' })
+  })
+
+  it('時間だけ選ぶと既定の日（無ければ今日）の予定', () => {
+    expect(added(addTaskFromQuickText('ゼミ', { picks: { time: { startTime: '15:00', endTime: '16:30' } } }))).toMatchObject({
+      scheduledDate: TODAY,
+      startTime: '15:00',
+      endTime: '16:30',
+    })
+    expect(
+      added(addTaskFromQuickText('ゼミ', { defaultDate: '2026-10-05', picks: { time: { startTime: '9:00', endTime: '10:00' } } })),
+    ).toMatchObject({ scheduledDate: '2026-10-05', startTime: '9:00' })
+  })
+
+  it('外す（null）と書いた日付・締切も消える', () => {
+    const t = added(addTaskFromQuickText('15時 金曜まで レポート', { picks: { date: null, due: null } }))
+    expect(t).toMatchObject({ scheduledDate: null, startTime: null, endTime: null, dueDate: null, dueTime: null })
+  })
+
+  it('締切を選べる', () => {
+    expect(added(addTaskFromQuickText('ES', { picks: { due: { date: '2026-10-10', time: '23:59' } } }))).toMatchObject({
+      dueDate: '2026-10-10',
+      dueTime: '23:59',
+    })
+  })
+
+  it('いつか・チェックリストを選ぶと日付は付かない', () => {
+    const t = added(addTaskFromQuickText('明日 牛乳', { picks: { listId: 'shop', date: '2026-10-07' } }))
+    expect(t).toMatchObject({ listId: 'shop', scheduledDate: null })
+  })
+
+  it('quickAddDraft は足したときと同じ値を出す', () => {
+    expect(quickAddDraft('明日まで 課題 1時間', { defaultDate: '2026-10-05' })).toMatchObject({
+      listId: '__inbox__',
+      dated: true,
+      scheduledDate: '2026-10-05',
+      dueDate: '2026-10-01',
+      estimateMinutes: 60,
+    })
+    expect(quickAddDraft('牛乳 @買い物')).toMatchObject({ listId: 'shop', dated: false, scheduledDate: null })
   })
 })
