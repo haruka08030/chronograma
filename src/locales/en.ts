@@ -678,7 +678,6 @@ export default {
     tagPlaceholder: 'Add tag',
     removeTag: 'Remove {{tag}}',
     color: 'Color',
-    list: 'List',
     section: 'Section',
     sectionNone: 'No section',
     subtasks: 'Subtasks ({{count}})',

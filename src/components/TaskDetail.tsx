@@ -13,13 +13,13 @@ import { TaskLocationField } from './detail/TaskLocationField'
 import { TaskPlanFields } from './detail/TaskPlanFields'
 import { LogTimeFields } from './detail/LogTimeFields'
 import { TaskTagsField } from './detail/TaskTagsField'
-import { TaskListFields } from './detail/TaskListFields'
+import { TaskColorSectionFields } from './detail/TaskColorSectionFields'
 import { SubtasksField } from './detail/SubtasksField'
 
 /**
  * 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる）。
  * 上から 題名 → メモ → 場所 → 予定の欄（`TaskPlanFields`、予定を立てるタスクだけ）か記録の時刻（`LogTimeFields`）→
- * タグ（記録は色＝ラベル）→ リスト・色・セクション → サブタスク → 削除
+ * タグ（記録は色＝ラベル）→ 色・セクション → サブタスク → 削除
  */
 export function TaskDetail({
   task,
@@ -73,7 +73,7 @@ export function TaskDetail({
 
       {!isLog && (
         <>
-          <TaskListFields task={task} />
+          <TaskColorSectionFields task={task} />
           {/* 予定にはサブタスクを付けない */}
           {!isEventTask(task) && <SubtasksField task={task} />}
         </>

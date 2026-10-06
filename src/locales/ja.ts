@@ -660,7 +660,6 @@ export default {
     tagPlaceholder: 'タグを追加',
     removeTag: '{{tag}} を外す',
     color: '色',
-    list: 'リスト',
     section: 'セクション',
     sectionNone: 'セクションなし',
     subtasks: 'サブタスク（{{count}}）',
