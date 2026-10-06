@@ -1,4 +1,4 @@
-import { addDays, startOfWeek } from 'date-fns'
+import { addDays, startOfWeek, subWeeks } from 'date-fns'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
@@ -158,6 +158,24 @@ export function getWeekReview(
     habitRate: habitDue > 0 ? habitDone / habitDue : null,
     labelMinutes: sortedTagMinutes(tagMinutes),
   }
+}
+
+/**
+ * 記録した時間の、前の週との差（分。今週 − 前の週）。前の週に記録が無ければ null（比べる相手が無いので出さない）。
+ * 今週は今日までしか数えないので、前の週も同じ曜日までで比べる（週の頭に「先週より −10時間」と出さない）
+ */
+export function loggedMinutesVsPrevWeek(
+  loggedMinutes: number,
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  anchor: Date,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = zonedNow(),
+): number | null {
+  // 「今」を 1 週前にずらすと、前の週は同じ曜日で打ち切られる（過ぎた週どうしなら丸ごと比べる）
+  const prev = getWeekReview(tasks, habits, subWeeks(anchor, 1), excludedListIds, subWeeks(now, 1))
+  if (prev.loggedMinutes === 0) return null
+  return loggedMinutes - prev.loggedMinutes
 }
 
 function sortedTagMinutes(m: ReadonlyMap<string, number>): { tag: string; minutes: number }[] {

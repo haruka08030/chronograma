@@ -97,3 +97,18 @@ describe('予定（完了の丸の無いもの）', () => {
     expect(useTaskStore.getState().completePromptTaskId).toBeNull()
   })
 })
+
+describe('まとめて締切を変える（右クリックの「締切 ›」）', () => {
+  it('「日時を指定…」は日付と時刻を一度に入れる', () => {
+    useTaskStore.getState().bulkUpdateTasks(['report'], { dueDate: '2026-10-10', dueTime: '18:00' })
+    expect(get('report')).toMatchObject({ dueDate: '2026-10-10', dueTime: '18:00' })
+  })
+
+  it('日付だけ変えると時刻は残し、締切なしにすると時刻も外す', () => {
+    useTaskStore.getState().bulkUpdateTasks(['report'], { dueDate: '2026-10-10', dueTime: '18:00' })
+    useTaskStore.getState().bulkUpdateTasks(['report'], { dueDate: '2026-10-11' })
+    expect(get('report')).toMatchObject({ dueDate: '2026-10-11', dueTime: '18:00' })
+    useTaskStore.getState().bulkUpdateTasks(['report'], { dueDate: null })
+    expect(get('report')).toMatchObject({ dueDate: null, dueTime: null })
+  })
+})

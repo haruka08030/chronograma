@@ -33,6 +33,7 @@ import { useTodayToggle } from '../hooks/useTodayToggle'
 import { colorVars } from '../lib/logCategoryColors'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { MemoPreview } from './ui/MemoPreview'
+import { menuDateHint } from '../lib/menuDateHint'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -111,12 +112,20 @@ export function TaskContextMenu({
       checked: sharedDue === o.key,
       run: done(() => bulk.setDue(taskIds, o.key, o.label)),
     }))
-    .concat({
-      id: 'due-none',
-      label: t('dueDatePicker.clear'),
-      checked: sharedDue === null,
-      run: done(() => bulk.setDue(taskIds, null, '')),
-    })
+    .concat(
+      {
+        id: 'due-none',
+        label: t('dueDatePicker.clear'),
+        checked: sharedDue === null,
+        run: done(() => bulk.setDue(taskIds, null, '')),
+      },
+      // 日付と時刻を一度に選ぶ（メニューは選ぶと閉じるので、閉じたあとに開く）
+      {
+        id: 'due-datetime',
+        label: t('taskMenu.dueDateTime'),
+        run: () => queueMicrotask(() => openTaskMenu({ kind: 'dueDateTime', x, y, taskIds, onDone })),
+      },
+    )
   const scheduleLeaves: ActionLeaf[] = [
     { label: t('dueDatePicker.today'), key: toDateKey(today) },
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
@@ -194,6 +203,8 @@ export function TaskContextMenu({
       id: 'due',
       label: t('common.due'),
       icon: <CalendarIcon className={ICON} />,
+      // 今の締切（時刻があれば時刻も）。選んだタスクで違えば出さない
+      hint: menuDateHint(targets.map((x) => ({ date: x.dueDate, time: x.dueDate ? x.dueTime : null }))),
       leaves: dueLeaves,
       width: 'lg',
       extra: (close) => (

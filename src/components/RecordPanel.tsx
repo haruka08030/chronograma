@@ -12,7 +12,7 @@ import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
 import { TimeInput } from './TimeInput'
 import { zonedNow } from '../lib/timeZone'
-import { PlayIcon, PlusIcon } from './icons'
+import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -31,6 +31,9 @@ export const OPEN_TIMER_ACTION = 'open-timer'
 
 /** 後から記録の「長さで入れる」チップ（終了＝今、開始＝今−長さ） */
 const LATER_LENGTHS_MIN = [30, 60, 120] as const
+
+/** スマホで帯を閉じている間に出す分類の数（残りは「ほか」） */
+const MOBILE_BREAKDOWN_ROWS = 2
 
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
@@ -66,7 +69,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => recentLogs(tasks, 2), [tasks])
-  /** スマホで分類ごとの時間（帯の下の一覧）を開いているか */
+  /** スマホで分類ごとの時間（帯の下の一覧）をすべて開いているか */
   const [showBreakdown, setShowBreakdown] = useState(false)
 
   const dayLogs = useMemo(
@@ -152,15 +155,16 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
 
   const summary = totalMinutes > 0 && (
     <div>
-      {/* 帯。スマホでは押すと分類ごとの時間を開く（最初は畳んで To-Do を上に出す）。PC は常に出す */}
+      {/* 帯。スマホでは押すと分類ごとの時間をすべて開く（閉じている間は上位 2 件だけ 1 行で出す）。PC は常にすべて出す。
+          押せることは右の › で伝える（開くと下向き） */}
       <button
         type="button"
         aria-expanded={showBreakdown}
         aria-label={t('records.breakdownToggle')}
         onClick={() => setShowBreakdown((v) => !v)}
-        className="-my-2 block w-full py-2 md:pointer-events-none"
+        className="-my-2 flex w-full items-center gap-2 py-2 md:pointer-events-none"
       >
-        <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
+        <div className="flex h-2 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
           {byCategory.map(([cat, min]) => (
             <span
               key={cat}
@@ -170,21 +174,30 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             />
           ))}
         </div>
+        <ChevronRightIcon
+          className={`h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform md:hidden dark:text-zinc-500 ${showBreakdown ? 'rotate-90' : ''}`}
+        />
       </button>
       <ul
-        className={`mt-2 flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 ${showBreakdown ? 'flex' : 'hidden md:flex'}`}
+        className={`mt-2 flex gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 ${showBreakdown ? 'flex-wrap' : 'overflow-hidden md:flex-wrap'}`}
       >
-        {byCategory.map(([cat, min]) => (
-          <li key={cat} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        {byCategory.map(([cat, min], i) => (
+          <li
+            key={cat}
+            className={`min-w-0 items-center gap-1.5 whitespace-nowrap ${!showBreakdown && i >= MOBILE_BREAKDOWN_ROWS ? 'hidden md:inline-flex' : 'inline-flex'}`}
+          >
             <span
               className="gc-dot h-2 w-2 shrink-0 rounded-full"
               style={colorVars(recordLabelKeyHex(cat, logCategoryColors))}
               aria-hidden
             />
-            <span className="max-w-[8rem] truncate">{labelOf(cat)}</span>
-            <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
+            <span className="min-w-0 max-w-[8rem] truncate">{labelOf(cat)}</span>
+            <span className="shrink-0 tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
           </li>
         ))}
+        {!showBreakdown && byCategory.length > MOBILE_BREAKDOWN_ROWS && (
+          <li className="shrink-0 whitespace-nowrap md:hidden">{t('records.breakdownMore')}</li>
+        )}
       </ul>
     </div>
   )

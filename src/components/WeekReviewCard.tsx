@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { addWeeks, format, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { foldLabelMinutes, getWeekReview } from '../lib/weekReview'
+import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from '../lib/weekReview'
 import { unplannedListIds } from '../lib/listKind'
 import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
@@ -18,6 +19,13 @@ import { META_TEXT } from './ui/textClass'
 /** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
+
+/** 記録した時間の前の週との差の文（「先週より +1時間20分」「先週と同じ」）。今週以外は「前の週」 */
+function loggedDiffText(diff: number, thisWeek: boolean, t: TFunction): string {
+  const prefix = thisWeek ? 'weekReview.loggedVsLastWeek' : 'weekReview.loggedVsPrevWeek'
+  if (diff === 0) return t(`${prefix}Same`)
+  return t(prefix, { diff: `${diff > 0 ? '+' : '−'}${formatDuration(Math.abs(diff))}` })
+}
 
 /** 統計の先頭に置く「週のふりかえり」。数字は責めない言い方で、次週への一言を添える */
 export function WeekReviewCard() {
@@ -38,6 +46,10 @@ export function WeekReviewCard() {
   const review = useMemo(
     () => getWeekReview(tasks, habits, anchor, excluded, undefined, (log) => recordLabelKey(log, labelPresets, logCategoryColors)),
     [tasks, habits, anchor, excluded, labelPresets, logCategoryColors],
+  )
+  const loggedDiff = useMemo(
+    () => loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, habits, anchor, excluded),
+    [review.loggedMinutes, tasks, habits, anchor, excluded],
   )
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
@@ -67,7 +79,12 @@ export function WeekReviewCard() {
       // 割合だけだと 1 件中 1 件か 10 件中 10 件か分からないので、分母を添える
       sub: review.timedPlanned > 0 ? t('weekReview.followCount', { followed: review.followed, total: review.timedPlanned }) : null,
     },
-    { label: t('weekReview.logged'), value: formatDuration(review.loggedMinutes), sub: null },
+    {
+      label: t('weekReview.logged'),
+      value: formatDuration(review.loggedMinutes),
+      // 前の週との差は事実だけ（減っても色を付けない）。前の週に記録が無ければ出さない
+      sub: loggedDiff == null ? null : loggedDiffText(loggedDiff, weekOffset === 0, t),
+    },
     { label: t(weekOffset === 0 ? 'weekReview.habitsThisWeek' : 'weekReview.habits'), value: pct(review.habitRate), sub: null },
   ]
 

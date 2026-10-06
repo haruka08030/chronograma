@@ -313,7 +313,7 @@ export interface TaskState {
   /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],
-    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
+    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'dueTime' | 'sectionId' | 'color'>>,
     label?: ToastText,
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */

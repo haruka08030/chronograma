@@ -56,6 +56,17 @@ const SCREENS = [
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
   // 指で行を押したときの短いシート（題名の下にメモ）
   { name: 'planner-row-sheet', view: 'planner', mobileOnly: true, click: 'button:has-text("ES 書く（第一志望）") >> visible=true' },
+  // シートの「締切 › 日時を指定…」（日付と時刻を一度に選ぶ）
+  {
+    name: 'planner-due-datetime',
+    view: 'planner',
+    mobileOnly: true,
+    click: [
+      'button:has-text("ES 書く（第一志望）") >> visible=true',
+      '[role=menuitem]:has-text("締切")',
+      '[role=menuitem]:has-text("日時を指定")',
+    ],
+  },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
