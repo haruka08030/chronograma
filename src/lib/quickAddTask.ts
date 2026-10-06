@@ -161,6 +161,7 @@ export function readQuickAddText(
   const state = useTaskStore.getState()
   const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     lists: opts.parentId == null,
+    blockMinutes: state.defaultBlockMinutes,
   })
   const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
   // いつか・チェックリストに入れるなら日付は付かないので、日付は出さない
@@ -215,6 +216,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   const isSubtask = opts.parentId != null
   const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     lists: !isSubtask,
+    blockMinutes: state.defaultBlockMinutes,
   })
   const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
   const listId = target?.id ?? opts.defaultListId

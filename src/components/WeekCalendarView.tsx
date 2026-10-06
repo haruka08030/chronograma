@@ -68,6 +68,7 @@ export function WeekCalendarView({
 }) {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
   const googleDragRef = useRef<CalendarEvent | null>(null)
@@ -263,7 +264,7 @@ export function WeekCalendarView({
       },
       [openCard, openGoogleCard],
     ),
-    clickCreateMinutes: 60,
+    clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress: (id, x, y) => {
       openBlockMenu(id, x, y)
     },

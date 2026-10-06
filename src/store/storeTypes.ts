@@ -127,6 +127,8 @@ export interface TaskState {
   installNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
+  /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
+  defaultBlockMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
   eventReminderMinutes: number | null
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
@@ -269,6 +271,7 @@ export interface TaskState {
   completeOnboarding: () => void
   dismissInstallNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
+  setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
   setExtraTimeZones: (zones: ExtraTimeZone[]) => void

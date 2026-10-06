@@ -3,6 +3,8 @@ import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
 import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
+import { formatDuration } from '../lib/timeGrid'
+import { DEFAULT_BLOCK_OPTIONS } from '../lib/defaultBlock'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
@@ -12,7 +14,7 @@ const selectClass = fieldClass({ size: 'sm' })
 /**
  * 設定「通知」: 放っておくと逃すことを、手を打てるときだけ知らせる。
  * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認（タイマーの止め忘れは常に）。
- * 1 日に計画する時間の目安は通知ではないので別のまとまり。
+ * 1 日に計画する時間の目安・既定の予定の長さは通知ではないので別のまとまり（計画）。
  */
 export function DailyRhythmSettings() {
   const { t } = useTranslation()
@@ -20,6 +22,8 @@ export function DailyRhythmSettings() {
   const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const setDailyCapacityMinutes = useTaskStore((s) => s.setDailyCapacityMinutes)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
+  const setDefaultBlockMinutes = useTaskStore((s) => s.setDefaultBlockMinutes)
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
   const toggleNotifications = useTaskStore((s) => s.toggleNotifications)
   const eventReminderMinutes = useTaskStore((s) => s.eventReminderMinutes)
@@ -108,6 +112,20 @@ export function DailyRhythmSettings() {
             {CAPACITY_HOURS.map((h) => (
               <option key={h} value={h}>
                 {t('settings.capacityHours', { count: h })}
+              </option>
+            ))}
+          </select>
+        </SettingsRow>
+        <SettingsRow label={t('settings.defaultBlock')} htmlFor="default-block">
+          <select
+            id="default-block"
+            value={defaultBlockMinutes}
+            onChange={(e) => setDefaultBlockMinutes(Number(e.target.value))}
+            className={selectClass}
+          >
+            {DEFAULT_BLOCK_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {formatDuration(m)}
               </option>
             ))}
           </select>
