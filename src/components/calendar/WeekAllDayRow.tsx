@@ -91,6 +91,8 @@ export function WeekAllDayRow({
                 if (gev) {
                   // 終日の Google の予定は日数を保ったまま動かす
                   const cur = googleEventTiming(gev)
+                  // 同じ日の終日の予定に戻しただけなら Google へ書き込まない
+                  if (gev.isAllDay && cur.date === key) return
                   const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
                   void moveGoogleEvent(gev, {
                     date: key,

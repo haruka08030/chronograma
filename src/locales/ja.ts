@@ -239,6 +239,7 @@ export default {
     insightFollowHigh: '時間を決めた予定の多くを実行できています。今のリズムを来週も続けましょう。',
     insightFollowLow: '予定と実際がずれがちでした。来週は 1 日の計画を少し減らして、余白を残しましょう。',
     insightNoBlocks: 'タスクは進んでいます。来週は大事なものに時間を割り当てると、予定と記録を比べられます。',
+    insightNoBlocksNoDone: '来週は大事なものに時間を割り当ててみましょう。予定と記録を比べられるようになります。',
     insightSteady: '着実に進んでいます。うまくいった日の計画の立て方を来週も真似してみましょう。',
   },
   install: {
@@ -910,7 +911,6 @@ export default {
       'このビルドに VITE_GOOGLE_CLIENT_ID が含まれていません。ホスティングの環境変数に設定して再デプロイしてください（環境変数はビルド時に埋め込まれます）。',
     googleConnected: 'Google Calendar 接続中',
     googleNeedsLogin: 'Google カレンダーと連携するには、まずログインが必要です。',
-    disconnect: '切断',
     connect: 'Google Calendar に接続',
     connecting: '接続中…',
     connectTimeout: '接続がタイムアウトしました。ページを再読み込みしてもう一度お試しください。',
@@ -999,6 +999,8 @@ export default {
   googleSettings: {
     title: 'Google カレンダー',
     notConnected: '未接続',
+    disconnectConfirm:
+      'Google カレンダーとの接続を解除しますか？ Google カレンダーの予定はそのまま残ります（このアプリには出なくなります）。',
   },
   notion: {
     title: 'Notion',

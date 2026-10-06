@@ -5,6 +5,7 @@ import { buildHabitRecordIndex, habitDayStatus } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
+import { patchChanges } from '../../lib/sameValue'
 import type { SliceContext } from './sliceTypes'
 
 type HabitsActions = Pick<
@@ -34,6 +35,9 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       set((s) => ({ habits: [...s.habits, habit] }))
     },
     updateHabit: (id, patch) => {
+      // 同じ値なら何もしない（取り消しの履歴を積まない）
+      const habit = get().habits.find((h) => h.id === id)
+      if (habit && !patchChanges(habit, patch)) return
       pushUndo()
       return set((s) => ({
         habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h)),

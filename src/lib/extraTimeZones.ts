@@ -28,11 +28,6 @@ export function normalizeExtraTimeZones(raw: unknown): ExtraTimeZone[] {
   return out
 }
 
-/** タイムゾーンを並べる所での名前。付けた名前があればそれ、無ければ `(GMT+9) 日本標準時 - Tokyo` */
-export function extraZoneLabel(zone: ExtraTimeZone, locale?: string, at: number = Date.now()): string {
-  return zone.label || zoneOptionLabel(zone.tz, locale, at)
-}
-
 /** ヒントに出す全体（名前を付けていれば、名前とタイムゾーンの両方） */
 export function extraZoneFullLabel(zone: ExtraTimeZone, locale?: string, at: number = Date.now()): string {
   const option = zoneOptionLabel(zone.tz, locale, at)

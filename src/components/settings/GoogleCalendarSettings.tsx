@@ -19,7 +19,7 @@ export function GoogleCalendarSettings() {
       ) : connected ? (
         <SettingsRow label={t('planVsActual.googleConnected')}>
           <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void disconnect()}>
-            {t('planVsActual.disconnect')}
+            {t('integrations.disconnect')}
           </button>
         </SettingsRow>
       ) : (

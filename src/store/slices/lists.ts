@@ -16,6 +16,7 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
     setListKind: (id, kind) => {
       // To-Do のリスト（フォルダ）は作らない。未分類の種類も変えない
       if (id === INBOX_ID || kind === 'tasks') return
+      if (get().lists.find((l) => l.id === id)?.kind === kind) return
       pushUndo()
       set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind, updatedAt: new Date().toISOString() } : l)) }))
     },
@@ -38,12 +39,15 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
       }))
     },
     renameList: (id, name) => {
+      // 同じ値なら何もしない（取り消しの履歴を積まない）
+      if (get().lists.find((l) => l.id === id)?.name === name) return
       pushUndo()
       return set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? { ...l, name, updatedAt: new Date().toISOString() } : l)),
       }))
     },
     updateListColor: (id, color) => {
+      if (get().lists.find((l) => l.id === id)?.color === color) return
       pushUndo()
       return set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? { ...l, color, updatedAt: new Date().toISOString() } : l)),

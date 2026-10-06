@@ -216,7 +216,9 @@ export function WeekCalendarView({
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        if (ev) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
+        // 元の枠に戻しただけなら Google へ書き込まない
+        const same = ev && ev.date === dateKey && ev.startTime === startTime && ev.endTime === endTime
+        if (ev && !same) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -236,7 +238,7 @@ export function WeekCalendarView({
     onResizeDone: (taskId, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        if (ev) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
+        if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
