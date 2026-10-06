@@ -69,7 +69,7 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  /** 並び順。リスト・ビューごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動 */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
   /**

@@ -140,7 +140,7 @@ export function applyDragEnd(event: DragEndEvent) {
       tasks: state.tasks,
       selectedView: state.selectedView,
       selectedListId: state.selectedListId,
-      sortMode: sortModeOf(state.sortByKey, sortKeyOf(state.selectedListId, state.selectedView)),
+      sortMode: sortModeOf(state.sortByKey, sortKeyOf(state.selectedListId, state.selectedView, state.filterColor)),
       filterTag: state.filterTag,
       filterColor: state.filterColor,
       sections: state.sections,

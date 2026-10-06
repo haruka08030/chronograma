@@ -49,8 +49,8 @@ export function TaskList({
   const lists = useTaskStore((s) => s.lists)
   /** 開いているリストの種類。いつか・チェックリストも操作は To-Do と同じで、印・日付・下の「済み」の出し方だけ変える */
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === s.selectedListId)?.kind ?? 'tasks')
-  // 並び順はリスト・ビューごと
-  const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView)))
+  // 並び順はリスト・ビュー・色ラベルごと
+  const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView, s.filterColor)))
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const filterTag = useTaskStore((s) => s.filterTag)
   const filterColor = useTaskStore((s) => s.filterColor)

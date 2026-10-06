@@ -27,6 +27,10 @@ describe('sort order per list and view', () => {
     expect(sortKeyOf('canvas-list', null)).toBe('canvas-list')
     expect(sortKeyOf(null, 'upcoming')).toBe('view:upcoming')
     expect(sortKeyOf(null, null)).toBe('view:all')
+    // 色ラベルは「すべて」と別に覚える
+    expect(sortKeyOf(null, 'all', '#D50000')).toBe('label:#D50000')
+    expect(sortKeyOf(null, 'all', 'NONE')).toBe('label:NONE')
+    expect(sortKeyOf('canvas-list', null, '#D50000')).toBe('canvas-list')
   })
 
   it('keeps each list’s own order and defaults to manual', () => {
