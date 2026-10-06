@@ -202,6 +202,20 @@ const DEADLINE_MARK = /^(?:までに?|締め?切り?|〆切り?|期限|提出):?
 /** 締切の印だけの語（「A社 ES 10/10 締切」の「締切」）。日時を書いたときだけ印として読み、無ければ題名に残す */
 const DEADLINE_WORD = /^(?:までに?|締め?切り?|〆切り?|期限|提出):?$/
 
+/** 語の後ろにくっついた締切の印「提出期限」「レポート締切」の「期限」「締切」 */
+const DEADLINE_SUFFIX = /^(.+?)(?:期限|締め?切り?|〆切り?)$/
+
+/** その日（1〜31）の、今日以降で一番近い日。今月に無い日（31日など）や過ぎた日なら次の月以降 */
+function nextMonthDay(today: Date, day: number): Date | null {
+  if (day < 1 || day > 31) return null
+  for (let k = 0; k < 12; k++) {
+    const month = today.getMonth() + k
+    const d = new Date(today.getFullYear(), month, day)
+    if (d.getMonth() === ((month % 12) + 12) % 12 && d >= today) return d
+  }
+  return null
+}
+
 /** 日付の直後の曜日の書き添え「10/8(木)」の「(木)」は読み飛ばす */
 const skipWeekdayNote = (rest: string) => rest.replace(/^\((?:[日月火水木金土](?:曜日?)?|sun|mon|tue|wed|thu|fri|sat)\)/i, '')
 
@@ -251,6 +265,18 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     if (d < today) d = new Date(today.getFullYear() + 1, month, day)
     return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
   }
+  // 3日後 / 1週間後（今日から数える）
+  if (localeJa && (m = s.match(/^(\d{1,3})(日|週間?)後/))) {
+    const n = Number(m[1]) * (m[2] === '日' ? 1 : 7)
+    return { piece: { kind: 'date', date: addDays(today, n) }, rest: s.slice(m[0].length) }
+  }
+  // 10日まで / 10日締切（日だけ。今日以降で一番近いその日）。
+  // 「1日1時間」「10日 旅行」のような量や番号と取り違えないよう、直後に締切の印があるときだけ読む
+  if (localeJa && (m = s.match(/^(\d{1,2})日(?![間目後前])/))) {
+    const rest = skipWeekdayNote(s.slice(m[0].length))
+    const d = DEADLINE_MARK.test(rest) ? nextMonthDay(today, Number(m[1])) : null
+    if (d) return { piece: { kind: 'date', date: d }, rest }
+  }
 
   // 時刻、または範囲（15:00-16:30 / 15時〜16時半 / 17時から22時 / 3pm-4pm）
   const clock = readClock(s, localeJa)
@@ -289,20 +315,38 @@ type ReadToken = { pieces: Piece[]; tailAt: number | null }
 
 /**
  * トークン全体が日時表現だけでできていればその片を返す（1 文字でも余れば null＝タイトルの一部）。
- * ただし時刻の直後の括弧書き「14:00–15:00(オンライン)」は題名に戻す（`tailAt` から後ろが題名）
+ * ただし時刻の直後の括弧書き「14:00–15:00(オンライン)」と、日時の「まで」の後ろ「10/10 23:59までにES提出」の
+ * 「ES提出」は題名に戻す（`tailAt` から後ろが題名）
  */
 function readToken(token: string, today: Date, localeJa: boolean): ReadToken | null {
   const pieces: Piece[] = []
   let rest = token
   let tailAt: number | null = null
+  /** 日時の後の「まで」「までに」で語が切れる位置と、そこまでの片の数 */
+  let until: { at: number; count: number } | null = null
   while (rest.length > 0) {
     if (rest.startsWith('(') && pieces.some((p) => p.kind === 'time' || p.kind === 'range')) {
       tailAt = token.length - rest.length
       break
     }
     const r = readPiece(rest, today, localeJa)
-    if (!r || r.rest.length === rest.length) return null
+    if (!r || r.rest.length === rest.length) {
+      if (!until) return null
+      tailAt = until.at
+      pieces.length = until.count
+      break
+    }
+    const hasDateTime = pieces.some((p) => p.kind === 'date' || p.kind === 'due' || p.kind === 'time' || p.kind === 'range')
     pieces.push(r.piece)
+    // 日時の後ろの「提出」（「10日までに提出」）は締切の印として読みつつ、題名にも残す
+    if (localeJa && hasDateTime && r.piece.kind === 'deadline' && rest.startsWith('提出')) {
+      tailAt = token.length - rest.length
+      break
+    }
+    if (localeJa && hasDateTime && r.piece.kind === 'deadline' && /^までに?/.test(rest)) {
+      // 「10/10までの課題」の「の」は題名に入れない
+      until = { at: token.length - r.rest.replace(/^の/, '').length, count: pieces.length }
+    }
     rest = r.rest
   }
   return pieces.every((p) => p.kind === 'filler' || p.kind === 'deadline') ? null : { pieces, tailAt }
@@ -371,6 +415,8 @@ function splitAttachedRange(text: string, today: Date, localeJa: boolean): { at:
  * 日時表現は空白で区切られた語として書く（例: 「明日15時 企画会議 1時間 #仕事」「mtg fri 3pm-4pm」）。
  * 時刻の範囲だけは題名にくっつけてもよい（「バイト17時〜22時」）。全角の数字・コロンも読む。
  * 日付は「やる日」。締切にしたいときは「明日まで 課題」「A社 ES 10/10 23:59 締切」「今週中 レポート」「essay by fri」と書く。
+ * 「10/10 23:59までにES提出」のように「まで」の後ろに題名を続けてもよい。「ES 提出期限 10/10」の「期限」も締切の印。
+ * 日だけの「10日まで」（今日以降で一番近いその日。締切の印が付いたときだけ）、「3日後」「1週間後」も読む。
  * 締切の印と時刻を書いたら、時刻は締切の時刻（`dueTime`）で予定にはしない。
  * 繰り返しは「毎日」「毎週金」「毎週月水」「平日」「毎月15日」「every fri」「every mon wed」「every weekday」「every 2 weeks」
  * （最初の回の決め方は `quickAddTask.ts`）
@@ -399,9 +445,10 @@ export function parseQuickAddTitle(
    * 題名の語。日時の読み取りの結果で題名に戻すかが決まる語には印を付けておく
    * - duration: 長さだけの語。時刻が無ければ戻す
    * - deadlineWord: 「締切」「提出」だけの語。日時が無ければ戻す
+   * - deadlineSuffix: 「提出期限」のように締切の印が後ろにくっついた語。日時があれば印を除いた `stem` を題名にする
    * - timeOnly: 時刻だけの語。予定にできなかった（23:59 で頭打ちになり長さが 0）なら戻す
    */
-  const titleParts: { text: string; kind: 'title' | 'duration' | 'deadlineWord' | 'timeOnly' }[] = []
+  const titleParts: { text: string; kind: 'title' | 'duration' | 'deadlineWord' | 'deadlineSuffix' | 'timeOnly'; stem?: string }[] = []
 
   const tokens = raw.trim().split(/\s+/).filter(Boolean)
   for (let i = 0; i < tokens.length; i++) {
@@ -453,7 +500,9 @@ export function parseQuickAddTitle(
       }
     }
     if (!found) {
-      titleParts.push({ text: token, kind: 'title' })
+      const suffix = localeJa ? norm.text.match(DEADLINE_SUFFIX) : null
+      if (suffix) titleParts.push({ text: token, kind: 'deadlineSuffix', stem: token.slice(0, norm.at[suffix[1]!.length]) })
+      else titleParts.push({ text: token, kind: 'title' })
       continue
     }
     const { pieces, tailAt } = found
@@ -482,8 +531,9 @@ export function parseQuickAddTitle(
   }
   if (pendingDeadlineWord !== null) titleParts.push({ text: pendingDeadlineWord, kind: 'title' })
 
-  // 「締切」「提出」だけの語は、日時も書いたときだけ締切の印
-  const deadlineWordUsed = titleParts.some((p) => p.kind === 'deadlineWord') && (date != null || repeat != null || start != null)
+  // 「締切」「提出」だけの語・「提出期限」のように印がくっついた語は、日時も書いたときだけ締切の印
+  const deadlineWordUsed =
+    titleParts.some((p) => p.kind === 'deadlineWord' || p.kind === 'deadlineSuffix') && (date != null || repeat != null || start != null)
   if (deadlineWordUsed) deadline = true
 
   // 締切の印と時刻 → 締切の時刻（予定にはしない）。範囲なら終わりの時刻
@@ -510,12 +560,14 @@ export function parseQuickAddTitle(
       .filter(
         (p) =>
           p.kind === 'title' ||
+          p.kind === 'deadlineSuffix' ||
           (p.kind === 'duration' && start == null) ||
           // 「提出」は締切の印でもあるが、やることの名前（ES 提出）でもあるので題名に残す
           (p.kind === 'deadlineWord' && (!deadlineWordUsed || p.text.startsWith('提出'))) ||
           (p.kind === 'timeOnly' && timeDropped),
       )
-      .map((p) => p.text)
+      // 締切として読んだ「提出期限」は「期限」を除く（「提出」は残す）
+      .map((p) => (p.kind === 'deadlineSuffix' && deadlineWordUsed ? p.stem! : p.text))
       .join(' ')
       .trim() || raw.trim()
   return {
