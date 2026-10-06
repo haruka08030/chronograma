@@ -53,6 +53,7 @@ export function WeekReviewCard() {
     if (review.followRate != null && review.followRate < 0.4) return t('weekReview.insightFollowLow')
     // 1 件も終えていない週に「進んでいます」とは言わない
     if (review.plannedMinutes === 0) return t(review.done > 0 ? 'weekReview.insightNoBlocks' : 'weekReview.insightNoBlocksNoDone')
+    if (review.done === 0 && review.total > 0) return t('weekReview.insightNoDone', { time: formatDuration(review.loggedMinutes) })
     return t('weekReview.insightSteady')
   })()
 
