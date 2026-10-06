@@ -12,9 +12,14 @@ export function isTodoNavView(selectedView: string | null | undefined): boolean 
   return isTodoSurfaceView(selectedView) || selectedView === 'completed' || selectedView === 'archived' || selectedView === 'deleted'
 }
 
-/** 並び順を覚える鍵。リストを開いているならそのリスト、ビューなら `view:<ビュー>` */
-export function sortKeyOf(selectedListId: string | null, selectedView: string | null): string {
-  return selectedListId ?? `view:${selectedView ?? 'all'}`
+/**
+ * 並び順を覚える鍵。リストを開いているならそのリスト、色ラベル（「すべて」を色で絞る）なら `label:<色>`、
+ * ビューなら `view:<ビュー>`
+ */
+export function sortKeyOf(selectedListId: string | null, selectedView: string | null, filterColor: string | null = null): string {
+  if (selectedListId) return selectedListId
+  if (filterColor && (selectedView ?? 'all') === 'all') return `label:${filterColor}`
+  return `view:${selectedView ?? 'all'}`
 }
 
 /** そのリスト・ビューの並び順。選んだことが無ければ手動 */

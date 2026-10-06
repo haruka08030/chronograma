@@ -93,7 +93,7 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
     setSearchQuery: (q) => set({ searchQuery: q }),
     setSortMode: (mode) => {
       pushUndo()
-      set((s) => ({ sortByKey: { ...s.sortByKey, [sortKeyOf(s.selectedListId, s.selectedView)]: mode } }))
+      set((s) => ({ sortByKey: { ...s.sortByKey, [sortKeyOf(s.selectedListId, s.selectedView, s.filterColor)]: mode } }))
     },
     setSectionGrouping: (scope, on) =>
       set((s) => ({
