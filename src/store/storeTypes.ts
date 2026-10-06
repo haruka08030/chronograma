@@ -294,6 +294,7 @@ export interface TaskState {
         | 'startTime'
         | 'endTime'
         | 'location'
+        | 'estimateMinutes'
         | 'timeZone'
         | 'reminders'
         | 'color'

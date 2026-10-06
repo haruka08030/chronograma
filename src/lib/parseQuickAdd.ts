@@ -27,6 +27,8 @@ export type ParsedQuickAdd = {
   /** 時刻指定（`HH:mm`）。あれば予定としてタイムラインに置く（締切の時刻は `dueTime`） */
   startTime: string | null
   endTime: string | null
+  /** 見積もり（分）。時刻なしで長さだけ書いたとき（「レポート 2時間」「ES 30m」）。時刻があれば長さは終わりの時刻になる */
+  estimateMinutes: number | null
   /** `@買い物` のようなリスト指定（名前そのまま。解決は呼び出し側で） */
   listName: string | null
   /** 繰り返し（「毎日」「毎週金」「毎週月水」「平日」「every fri」など） */
@@ -443,7 +445,7 @@ export function parseQuickAddTitle(
   let repeat: QuickAddRepeat | null = null
   /**
    * 題名の語。日時の読み取りの結果で題名に戻すかが決まる語には印を付けておく
-   * - duration: 長さだけの語。時刻が無ければ戻す
+   * - duration: 長さだけの語。時刻があれば終わりの時刻、無ければ見積もり（どちらでも題名には戻さない）
    * - deadlineWord: 「締切」「提出」だけの語。日時が無ければ戻す
    * - deadlineSuffix: 「提出期限」のように締切の印が後ろにくっついた語。日時があれば印を除いた `stem` を題名にする
    * - timeOnly: 時刻だけの語。予定にできなかった（23:59 で頭打ちになり長さが 0）なら戻す
@@ -570,7 +572,6 @@ export function parseQuickAddTitle(
         (p) =>
           p.kind === 'title' ||
           p.kind === 'deadlineSuffix' ||
-          (p.kind === 'duration' && start == null) ||
           // 「提出」は締切の印でもあるが、やることの名前（ES 提出）でもあるので題名に残す
           (p.kind === 'deadlineWord' && (!deadlineWordUsed || p.text.startsWith('提出'))) ||
           (p.kind === 'timeOnly' && timeDropped),
@@ -588,6 +589,7 @@ export function parseQuickAddTitle(
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
+    estimateMinutes: start == null && duration != null && duration > 0 ? duration : null,
     listName,
     repeat,
   }

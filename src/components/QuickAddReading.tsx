@@ -4,6 +4,7 @@ import { readQuickAddText, type QuickAddOptions } from '../lib/quickAddTask'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { HINT_TEXT } from './ui/textClass'
+import { formatDuration } from '../lib/timeGrid'
 
 /**
  * 追加欄の下の「こう読みました」の 1 行（「締切 10/10 (土) 23:59 ・ @就活」「10/8 (木) 14:00–15:00」）。
@@ -34,6 +35,7 @@ export function QuickAddReading({
       const date = df.shortDateWeekday(r.due.date)
       parts.push(r.due.time ? t('quickAdd.reading.dueAt', { date, time: r.due.time }) : t('quickAdd.reading.due', { date }))
     }
+    if (r.estimateMinutes != null) parts.push(t('quickAdd.reading.estimate', { time: formatDuration(r.estimateMinutes) }))
     if (r.recurrence) parts.push(recurrenceLabel(t, r.recurrence.rule, r.recurrence.firstDate))
     if (r.listName) parts.push(`@${r.listName}`)
     return parts.length > 0 ? parts.join(t('quickAdd.reading.separator')) : null

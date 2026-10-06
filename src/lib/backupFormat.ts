@@ -6,6 +6,7 @@ import type { TaskReminder } from '../../supabase/functions/daily-reminders/sche
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
+import { readEstimateMinutes } from './estimate'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -221,6 +222,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
     reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
+    estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,

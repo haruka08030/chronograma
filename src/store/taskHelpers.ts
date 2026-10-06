@@ -134,6 +134,7 @@ export function makeTask(
     tags?: string[]
     color?: string | null
     habitId?: string | null
+    estimateMinutes?: number | null
   },
   order: number,
   now: string = new Date().toISOString(),
@@ -157,6 +158,7 @@ export function makeTask(
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
     location: null,
+    estimateMinutes: fields.estimateMinutes ?? null,
     color: fields.color ?? null,
     priority: 'none',
     tags: fields.tags ?? [],

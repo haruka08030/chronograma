@@ -147,6 +147,8 @@ export type QuickAddReading = {
   doDate: string | null
   /** 繰り返しと最初の回の日（「毎週金」の曜日は最初の回の日から出す） */
   recurrence: { rule: Recurrence; firstDate: string | null } | null
+  /** 見積もり（分）。時刻なしで長さだけ書いたとき */
+  estimateMinutes: number | null
   /** `@リスト` で見つかったリストの名前 */
   listName: string | null
 }
@@ -175,6 +177,7 @@ export function readQuickAddText(
         : null,
     doDate: dated && parsed.date && !parsed.dateIsDeadline && !parsed.startTime ? (patch.scheduledDate ?? parsed.date) : null,
     recurrence: dated && patch.recurrence ? { rule: patch.recurrence, firstDate: patch.dueDate ?? null } : null,
+    estimateMinutes: dated ? parsed.estimateMinutes : null,
     listName: target ? displayListName(target.id, target.name) : null,
   }
   return Object.values(reading).some((v) => v != null) ? reading : null
@@ -238,11 +241,13 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
-    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind'>> = {}
+    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
     if (opts.color) patch.color = opts.color
     // いつか・チェックリストには日付も繰り返しも付けない（付けると期限のビューに戻ってきてしまう）
     if (kind === 'tasks') Object.assign(patch, quickAddSchedule(parsed, opts, appTodayKey()))
+    // 時刻なしで書いた長さは見積もり（置くときの長さ）
+    if (kind === 'tasks' && parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)

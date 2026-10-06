@@ -14,11 +14,12 @@ import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { TaskRecurrenceField } from './TaskRecurrenceField'
 import { useTaskTimes } from './useTaskTimes'
+import { TaskEstimateField } from './TaskEstimateField'
 
 const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 /**
- * 予定を立てるタスク（いつか・チェックリスト・記録以外）の欄: To-Do／予定・優先度・締切（時刻・繰り返し）・やる日（時間帯）・タイムゾーン・通知。
+ * 予定を立てるタスク（いつか・チェックリスト・記録以外）の欄: To-Do／予定・優先度・締切（時刻・繰り返し）・やる日（時間帯）・見積もり・タイムゾーン・通知。
  * 予定（完了の丸の無いもの）には優先度・締切・繰り返しを出さない
  */
 export function TaskPlanFields({ task }: { task: Task }) {
@@ -143,7 +144,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
             <TimeInput
               value={tv.endTime ?? ''}
               onChange={(v) => updateTimes({ endTime: v || null })}
-              pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, defaultBlockMinutes) : undefined}
+              pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, task.estimateMinutes ?? defaultBlockMinutes) : undefined}
               className={fieldClass({}, 'w-[7rem]')}
             />
             {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
@@ -151,6 +152,8 @@ export function TaskPlanFields({ task }: { task: Task }) {
         )}
         {tzOnScheduled && <TaskTimeZoneNote task={task} />}
       </div>
+      {/* 予定は時刻で長さが決まっているので、見積もりは To-Do だけ */}
+      {!isEvent && <TaskEstimateField task={task} />}
       {tzLoose && (
         <div>
           <TaskTimeZoneButton task={task} view={tv} />

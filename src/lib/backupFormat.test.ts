@@ -155,6 +155,7 @@ describe('unknown fields', () => {
         'dueTime',
         'endDate',
         'endTime',
+        'estimateMinutes',
         'habitId',
         'id',
         'kind',
