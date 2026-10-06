@@ -54,6 +54,15 @@ export function calendarDayKey(task: CalendarPlacedTask): string | null {
   return task.completed ? completionDayKey(task) : placement
 }
 
+/**
+ * 締切の日にも印を出すか。カレンダーは置いた日（実行日 → 締切日）の 1 日にしか出さないので、
+ * 実行日が締切と別の日なら、締切の日は空に見えてしまう。未完了で、出している日が締切日と違うものだけ
+ */
+export function dueMarkDayKey(task: CalendarPlacedTask & { dueDate: string | null }): string | null {
+  if (!task.dueDate || task.completed) return null
+  return calendarDayKey(task) === task.dueDate ? null : task.dueDate
+}
+
 /** 開始時刻つきを時刻順で先に、残りは元の並び順 */
 function compareDayTasks(a: Task, b: Task): number {
   if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime)

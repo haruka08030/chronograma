@@ -138,7 +138,7 @@ export function WeekCalendarView({
   logLimitRef.current = logLimitMin
 
   const bucketDays = useMemo(() => (nightDay ? [...days, nightDay] : days), [days, nightDay])
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
 
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
@@ -384,11 +384,11 @@ export function WeekCalendarView({
     return gridDays.some((d) => {
       const key = toDateKey(d)
       // 1 日表示では終日タスクは左のリストに出るので、外部の終日予定だけを数える
-      const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0)
+      const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0) + (dueByDate.get(key)?.length ?? 0)
       const eventCount = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay).length
       return taskCount + eventCount > 0
     })
-  }, [gridDays, singleDay, allDayByDate, eventsByDate])
+  }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate])
 
   /** 日の列（1 日表示の夜の続きも）に渡すもの */
   const columnProps = {
@@ -453,6 +453,7 @@ export function WeekCalendarView({
               gutterWidth={gutterWidth}
               gridColsClass={gridColsClass}
               allDayByDate={allDayByDate}
+              dueByDate={dueByDate}
               eventsByDate={eventsByDate}
               allDayDragOver={allDayDragOver}
               setAllDayDragOver={setAllDayDragOver}

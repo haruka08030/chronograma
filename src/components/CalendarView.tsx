@@ -19,7 +19,10 @@ import {
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { calendarDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { FlagIcon } from './icons'
+import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { dueToneOf } from '../lib/dueTone'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
@@ -124,6 +127,17 @@ export function CalendarView({
       const arr = map.get(key) ?? []
       arr.push(t)
       map.set(key, arr)
+    }
+    return map
+  }, [tasks, excludedListIds])
+
+  /** 締切の日の印（実行日が別の日のもの）。マスは行数が限られるので、日ごとに件数と題名だけ */
+  const dueByDate = useMemo(() => {
+    const map = new Map<string, typeof tasks>()
+    for (const t of tasks) {
+      if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+      const key = dueMarkDayKey(t)
+      if (key) map.set(key, [...(map.get(key) ?? []), t])
     }
     return map
   }, [tasks, excludedListIds])
@@ -357,6 +371,20 @@ export function CalendarView({
                       <span className="truncate">{t.title}</span>
                     </div>
                   ))}
+                  {(() => {
+                    const due = dueByDate.get(key)
+                    if (!due) return null
+                    // いちばん急ぐものの色（締切切れ > 今日 > 明日 > それ以外）
+                    const order: DateTone[] = ['overdue', 'today', 'tomorrow', 'future', 'past']
+                    const tone = order.find((x) => due.some((d) => dueToneOf(d.dueDate!, d.dueTime, key) === x)) ?? 'future'
+                    const titles = due.map((d) => (d.dueTime ? `${d.dueTime} ${d.title}` : d.title)).join('\n')
+                    return (
+                      <div {...tip(titles)} className={`flex items-center gap-1 px-1 text-[10px] leading-tight ${DUE_TONE_CLASS[tone]}`}>
+                        <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">{due.length === 1 ? due[0]!.title : t('calendar.dueCount', { count: due.length })}</span>
+                      </div>
+                    )
+                  })()}
                   {hiddenCount > 0 && (
                     // 件数だけ。押すとマス全体と同じくその日が開く
                     <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">

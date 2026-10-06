@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
+import { calendarDayKey, dueMarkDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -174,5 +174,22 @@ describe('calendarDayKey for timed tasks', () => {
     setAppTimeZoneSetting('UTC')
     const night = timed({ startTime: '01:00', endTime: '02:00', completed: true, completedAt: '2026-10-02T01:30:00Z' })
     expect(calendarDayKey(night)).toBe('2026-10-02')
+  })
+})
+
+describe('dueMarkDayKey（カレンダーの締切の日の印）', () => {
+  it('実行日が締切と別の日なら、締切の日にも印を出す', () => {
+    expect(dueMarkDayKey(task('a', { scheduledDate: '2026-10-08', dueDate: '2026-10-10' }))).toBe('2026-10-10')
+  })
+
+  it('締切の日に置いているもの・締切のないもの・終えたものには出さない', () => {
+    expect(dueMarkDayKey(task('a', { dueDate: '2026-10-10' }))).toBeNull()
+    expect(dueMarkDayKey(task('b', { scheduledDate: '2026-10-10', dueDate: '2026-10-10' }))).toBeNull()
+    expect(dueMarkDayKey(task('c', { scheduledDate: '2026-10-08' }))).toBeNull()
+    expect(
+      dueMarkDayKey(
+        task('d', { scheduledDate: '2026-10-08', dueDate: '2026-10-10', completed: true, completedAt: '2026-10-08T10:00:00Z' }),
+      ),
+    ).toBeNull()
   })
 })

@@ -1,8 +1,9 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
-import { parseISO } from 'date-fns'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
@@ -41,15 +42,22 @@ function rowDateText(d: Date, language: string | undefined): string {
   return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
 }
 
-function dueDateLabel(
-  iso: string,
-  time: string | null,
-  todayLabel: string,
-  language: string | undefined,
-): { text: string; tone: DateTone } {
+/** 締切が近いと言う日数（この日数以内は「あと ◯ 日」で明日と同じ色） */
+const DUE_SOON_DAYS = 3
+
+/**
+ * 締切の日付を、色が見分けにくくても分かる言葉で: 「10/8 (木)まで・あと 2 日」「10/5 (月)まで・1日遅れ」。
+ * 「まで」が付くので、時計の実行日とも文字で分かれる
+ */
+function dueDateLabel(iso: string, time: string | null, t: TFunction, language: string | undefined): { text: string; tone: DateTone } {
   const d = parseISO(iso)
   const tone = dueToneOf(iso, time, appTodayKey())
-  return { text: isAppToday(d) ? todayLabel : rowDateText(d, language), tone }
+  const days = differenceInCalendarDays(d, fromDateKey(appTodayKey()))
+  const date = isAppToday(d) ? t('common.today') : isAppTomorrow(d) ? t('common.tomorrow') : rowDateText(d, language)
+  const by = time ? t('taskItem.dueByTime', { date, time }) : t('taskItem.dueBy', { date })
+  if (days < 0) return { text: t('taskItem.dueLate', { by, count: -days }), tone }
+  if (days >= 2 && days <= DUE_SOON_DAYS) return { text: t('taskItem.dueSoon', { by, count: days }), tone: 'tomorrow' }
+  return { text: by, tone }
 }
 
 export type TaskItemSelection = {
@@ -193,9 +201,9 @@ export const TaskItem = memo(function TaskItem({
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const language = i18n.resolvedLanguage
-  const due = task.dueDate ? dueDateLabel(task.dueDate, task.dueTime, t('common.today'), language) : null
+  const due = task.dueDate ? dueDateLabel(task.dueDate, task.dueTime, t, language) : null
   const dueOnRowDay = !!dayKey && task.dueDate === dayKey
-  const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
+  const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {

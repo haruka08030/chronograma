@@ -101,7 +101,7 @@ export function PlannerTodoSection({
           <div className={`${overdue.length > 0 ? 'mt-3' : 'mt-2'} px-3`}>
             {/* 見出しの右に「すべて今日へ」（» の二重矢印）、開くと行ごとに「今日やる」（→）。どちらも行のアイコンと同じ列 */}
             <div className="flex items-center gap-3 pr-3">
-              <DisclosureButton tone="alert" open={showLeftOver} onToggle={onToggleLeftOver} className="flex-1">
+              <DisclosureButton open={showLeftOver} onToggle={onToggleLeftOver} className="flex-1">
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </DisclosureButton>
               {leftOver.length > 1 ? (

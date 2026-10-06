@@ -69,7 +69,8 @@ export function TodayPlannerView() {
     prev: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), -1))),
     next: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), 1))),
   })
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  /** 開け閉めを選んだらそれに従う。選ぶまでは、明日までの締切があるときだけ開いておく */
+  const [suggestionsChoice, setSuggestionsChoice] = useState<boolean | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [showLeftOver, setShowLeftOver] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
@@ -109,6 +110,9 @@ export function TodayPlannerView() {
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
   const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
+  // 明日までが締切の To-Do は、畳んだ見出しの中に隠さない（今日やるかを決めるのに要る）
+  const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
+  const showSuggestions = suggestionsChoice ?? dueByTomorrow
   const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef } = usePlannerSuggestions({
     tasks,
     dateKey,
@@ -261,7 +265,7 @@ export function TodayPlannerView() {
             suggestions={suggestions}
             candidateGroups={candidateGroups}
             open={showSuggestions}
-            onToggle={() => setShowSuggestions((v) => !v)}
+            onToggle={() => setSuggestionsChoice(!showSuggestions)}
             hasMoreToShow={hasMoreToShow}
             moreSentinelRef={moreSentinelRef}
             groupId={suggestionGroupId}
