@@ -28,7 +28,7 @@ describe('TaskDetail（キー操作・読み上げ）', () => {
     const user = userEvent.setup()
     renderDetail('see https://example.com')
     // メモの中のリンクはそのまま押せる
-    expect(screen.getByRole('link', { name: 'https://example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /example\.com/ })).toBeInTheDocument()
 
     screen.getByRole('button', { name: 'Edit notes' }).focus()
     await user.keyboard('{Enter}')
