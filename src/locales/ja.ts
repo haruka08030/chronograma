@@ -879,9 +879,6 @@ export default {
     invalidCode: 'コードが正しくないか、有効期限が切れています。もう一度送信してください。',
     changeEmail: '別のメールアドレスを使う',
   },
-  theme: {
-    toggleAria: 'ライトとダークを切り替え',
-  },
   calendar: {
     recordedTotal: '記録 {{time}}',
     moreItems: '他 {{count}} 件',

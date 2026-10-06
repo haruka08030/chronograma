@@ -106,3 +106,19 @@ describe('はじめの案内（版 39）', () => {
     expect(migrateTaskState({ tasks: [], lists: [], sections: [], habits: [] }, 38).onboardingDone).toBe(false)
   })
 })
+
+describe('予定のあとに記録を確認（版 40）', () => {
+  const base = { tasks: [], lists: [], sections: [], habits: [], recordPrompts: true }
+
+  it('通知の許可が無い端末では OFF に揃える', () => {
+    vi.stubGlobal('Notification', { permission: 'default' })
+    expect(migrateTaskState({ ...base }, 39).recordPrompts).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
+  it('許可があれば ON のまま', () => {
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    expect(migrateTaskState({ ...base }, 39).recordPrompts).toBe(true)
+    vi.unstubAllGlobals()
+  })
+})

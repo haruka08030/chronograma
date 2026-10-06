@@ -60,14 +60,13 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
     },
 
     backupJson: () => {
-      const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
+      const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors } = get()
       return JSON.stringify(
         buildBackupPayload({
           tasks,
           lists,
           habits,
           sections,
-          listColorPaletteId,
           timeLogTagPresets,
           logCategoryColors,
         }),
@@ -113,7 +112,6 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
             lists: before.lists,
             habits: before.habits,
             sections: before.sections,
-            listColorPaletteId: before.listColorPaletteId,
             timeLogTagPresets: before.timeLogTagPresets,
             logCategoryColors: before.logCategoryColors,
           }),
@@ -127,7 +125,6 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
-        listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
         sections: parsed.sections,
         timeLogTagPresets: parsed.timeLogTagPresets ?? [],
         logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
@@ -152,7 +149,6 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
-        listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
         sections: parsed.sections,
         timeLogTagPresets: parsed.timeLogTagPresets ?? [],
         logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),

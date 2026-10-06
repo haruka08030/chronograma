@@ -31,7 +31,7 @@ export function PlannerWrapUp({
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
   const anyNotification = useTaskStore(
-    (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled,
+    (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled || s.recordPrompts,
   )
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const showReminderPrompt =

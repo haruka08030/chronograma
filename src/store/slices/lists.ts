@@ -1,6 +1,6 @@
 /** リスト */
 import { newId } from '../../lib/id'
-import { paletteColors } from '../../lib/listColorPalettes'
+import { GOOGLE_COLOR_HEXES } from '../../lib/googleColors'
 import { INBOX_ID } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
@@ -20,12 +20,18 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
     addList: (name, kind) => {
       pushUndo()
       const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
-      const cols = paletteColors(get().listColorPaletteId)
-      const colorIdx = get().lists.length % cols.length
+      const colorIdx = get().lists.length % GOOGLE_COLOR_HEXES.length
       set((s) => ({
         lists: [
           ...s.lists,
-          { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks', updatedAt: new Date().toISOString() },
+          {
+            id: newId(),
+            name,
+            color: GOOGLE_COLOR_HEXES[colorIdx],
+            order: maxOrder + 1,
+            kind: kind ?? 'tasks',
+            updatedAt: new Date().toISOString(),
+          },
         ],
       }))
     },

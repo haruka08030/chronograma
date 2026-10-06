@@ -249,7 +249,6 @@ describe('task kind', () => {
       lists: [],
       habits: [],
       sections: [],
-      listColorPaletteId: 'pastel-rainbow',
       timeLogTagPresets: [],
       logCategoryColors: {},
     })

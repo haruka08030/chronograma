@@ -2,7 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { paletteColors } from '../lib/listColorPalettes'
+import { GOOGLE_COLOR_HEXES } from '../lib/googleColors'
 import {
   advanceNotionPage,
   advanceNotionPageOnLeave,
@@ -108,10 +108,9 @@ export function useNotionSync() {
           }
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
-          const cols = paletteColors(s.listColorPaletteId)
           const result = reconcileNotionPages({ lists: s.lists, tasks: s.tasks }, res, {
             now: new Date().toISOString(),
-            listColor: cols[s.lists.length % cols.length],
+            listColor: GOOGLE_COLOR_HEXES[s.lists.length % GOOGLE_COLOR_HEXES.length],
             titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
             pulled: loadPulled(notionPulledKey(userId)),
           })

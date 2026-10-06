@@ -84,7 +84,7 @@ export function TaskList({
 
   const selectedList = selectedListId ? (lists.find((l) => l.id === selectedListId) ?? null) : null
 
-  const { filtered, groupingScope, groupBySection, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
+  const { filtered, groupingScope, groupBySection, hasSections, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
     tasks,
     lists,
     sections,
@@ -267,6 +267,7 @@ export function TaskList({
           sortMode={sortMode}
           groupingScope={groupingScope}
           groupBySection={groupBySection}
+          hasSections={hasSections}
           onAddSection={beginDraftSection}
           onOpenNav={onOpenNav}
         />

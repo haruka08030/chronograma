@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { DEFAULT_LIST_COLOR_PALETTE_ID } from '../lib/listColorPalettes'
 import { assignColorsInOrder } from '../lib/logCategoryColors'
 import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
@@ -35,8 +34,6 @@ import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeConstants'
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
-export type { ListColorPaletteId } from '../lib/listColorPalettes'
-export { DEFAULT_LIST_COLOR_PALETTE_ID, paletteColors, LIST_COLOR_PALETTES, normalizeListColorPaletteId } from '../lib/listColorPalettes'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import { isIncomingChange } from '../lib/changeOrigin'
 
@@ -101,9 +98,8 @@ export const useTaskStore = create<TaskState>()(
         filterTag: null,
         filterColor: null,
         notificationsEnabled: false,
-        recordPrompts: true,
+        recordPrompts: false,
         recordPromptTaskId: null as string | null,
-        listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
         // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
         timeLogTagPresets: defaultLogCategories(),
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),

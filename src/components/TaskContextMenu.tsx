@@ -119,12 +119,15 @@ export function TaskContextMenu({
     { label: t('dueDatePicker.today'), key: toDateKey(today) },
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
     { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
-  ].map((o): ActionLeaf => ({
-    id: `schedule-${o.key}`,
-    label: o.label,
-    hint: dayHint(o.key),
-    run: done(() => scheduleWish(openWishes, o.key)),
-  }))
+  ]
+    // 締切と同じく、日曜に同じ月曜が 2 つ並ばないようにする
+    .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
+    .map((o): ActionLeaf => ({
+      id: `schedule-${o.key}`,
+      label: o.label,
+      hint: dayHint(o.key),
+      run: done(() => scheduleWish(openWishes, o.key)),
+    }))
   const priorityLeaves: ActionLeaf[] = PRIORITIES.map((p) => ({
     id: `priority-${p}`,
     label: t(`common.${p}`),

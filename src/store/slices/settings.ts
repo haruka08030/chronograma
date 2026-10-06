@@ -12,9 +12,7 @@ import { isLogTask } from '../../types/task'
 
 type SettingsActions = Pick<
   TaskState,
-  | 'toggleTheme'
   | 'setTheme'
-  | 'setListColorPalette'
   | 'setTimeLogTagPresets'
   | 'addLogCategory'
   | 'moveLogCategory'
@@ -36,13 +34,7 @@ type SettingsActions = Pick<
 export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsActions {
   const { pushUndo } = undo
   return {
-    toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
     setTheme: (theme) => set({ theme }),
-
-    setListColorPalette: (id) => {
-      pushUndo()
-      set({ listColorPaletteId: id })
-    },
 
     setTimeLogTagPresets: (presets) => {
       pushUndo()
