@@ -1,11 +1,12 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import type { Habit } from '../types/habit'
+import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { habitToPlannedItem } from './habitSlots'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
+import { timesPerWeekTally } from './habitStats'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
@@ -84,10 +85,14 @@ export function getWeekReview(
       if (p) planned.push(p)
     }
     for (const h of habits) {
-      if (isHabitScheduledOnDate(h, date)) {
+      const timesPerWeek = h.frequency.type === 'timesPerWeek'
+      // 週に◯回の習慣は日ごとではなく週でまとめて数える（下）
+      if (!timesPerWeek && isHabitScheduledOnDate(h, date)) {
         habitDue++
         if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }
+      // 週に◯回の習慣は、やった日の枠だけ予定どおりかを見る（やらない日の枠を「できなかった予定」にしない）
+      if (timesPerWeek && habitDayStatus(h, key, habitRecords) === 'missed') continue
       const p = habitToPlannedItem(h, key)
       if (p) planned.push(p)
     }
@@ -113,6 +118,13 @@ export function getWeekReview(
       timedPlanned++
       if (followedPair) followed++
     }
+  }
+
+  for (const h of habits) {
+    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
+    const tally = timesPerWeekTally(h, start, todayKey, habitRecords)
+    habitDue += tally.expected
+    habitDone += tally.completed
   }
 
   const sum = (f: (d: WeekReviewDay) => number) => days.reduce((a, d) => a + f(d), 0)

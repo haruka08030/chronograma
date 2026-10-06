@@ -101,7 +101,7 @@ export function WeekDayColumn({
   const isNight = hourCount < 24
   // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
   const dayHabitSlots = habits.flatMap((h) => {
-    const slot = habitToPlannedItem(h, key)
+    const slot = habitToPlannedItem(h, key, habitIndex)
     return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
   })
   const limitMin = logLimitMin(key)

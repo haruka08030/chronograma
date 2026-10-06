@@ -4,7 +4,7 @@ import { addDays, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive, type Habit } from '../types/habit'
-import { isHabitScheduledOnDate } from '../lib/habitSchedule'
+import { isHabitDueOnDate } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -77,8 +77,15 @@ export function HabitsView() {
   const todayKey = toDateKey(appToday())
   const habitWeekdayLabels = useMemo(() => t('habits.weekdays', { returnObjects: true }) as string[], [t])
 
-  const habitsScheduledForFocus = useMemo(() => habits.filter((h) => isHabitScheduledOnDate(h, focusDate)), [habits, focusDate])
-  const habitsOffFocus = useMemo(() => habits.filter((h) => !isHabitScheduledOnDate(h, focusDate)), [habits, focusDate])
+  // 週に◯回でその週の回数を満たした習慣は、やっていない日には「予定に含まれない」側に回す
+  const habitsScheduledForFocus = useMemo(
+    () => habits.filter((h) => isHabitDueOnDate(h, focusDate, habitRecords)),
+    [habits, focusDate, habitRecords],
+  )
+  const habitsOffFocus = useMemo(
+    () => habits.filter((h) => !isHabitDueOnDate(h, focusDate, habitRecords)),
+    [habits, focusDate, habitRecords],
+  )
 
   const shiftFocusDay = useCallback(
     (delta: number) => {

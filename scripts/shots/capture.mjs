@@ -40,6 +40,8 @@ const SCREENS = [
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
+  // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
+  { name: 'planner-habits', view: 'planner', scrollToBottom: true },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
   {
     name: 'planner-tip',
@@ -126,11 +128,18 @@ const SCREENS = [
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
-  // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
+  // 習慣を追加するフォームで「曜日を指定」を選んだ状態（曜日のピル）
   {
     name: 'habits-new-weekly',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'],
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")'],
+    scrollToBottom: true,
+  },
+  // 「回数を指定」（週に◯回）を選んだ状態（回数のピル）
+  {
+    name: 'habits-new-times',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("回数を指定")'],
     scrollToBottom: true,
   },
   // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { subDays } from 'date-fns'
 import type { Habit } from '../../types/habit'
-import { completionRatioOnDate, consistencyForLast7Days, currentStreakDays } from '../../lib/habitStats'
+import { completionRatioOnDate, consistencyForLast7Days, habitsStreak } from '../../lib/habitStats'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { appToday } from '../../lib/timeZone'
 import { toDateKey } from '../../lib/dateKey'
@@ -21,7 +21,9 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
     [habits, habitRecords],
   )
   const consistency = useMemo(() => consistencyForLast7Days(habits, habitRecords), [habits, habitRecords])
-  const streak = useMemo(() => currentStreakDays(habits, habitRecords), [habits, habitRecords])
+  // 週に◯回の習慣だけなら週で数える（`habitsStreak`）
+  const streak = useMemo(() => habitsStreak(habits, habitRecords), [habits, habitRecords])
+  const inWeeks = streak.unit === 'week'
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:gap-6">
       <dl className="flex shrink-0 gap-6">
@@ -30,10 +32,10 @@ export function HabitsSummary({ habits, habitRecords }: { habits: Habit[]; habit
           <dd className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{consistency}%</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('habits.streakDays')}</dt>
+          <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{t(inWeeks ? 'habits.streakWeeks' : 'habits.streakDays')}</dt>
           <dd className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {streak}
-            <span className="ml-0.5 text-sm font-normal text-zinc-500">{t('habits.daySuffix')}</span>
+            {streak.count}
+            <span className="ml-0.5 text-sm font-normal text-zinc-500">{t(inWeeks ? 'habits.weekSuffix' : 'habits.daySuffix')}</span>
           </dd>
         </div>
       </dl>
