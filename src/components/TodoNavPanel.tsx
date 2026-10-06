@@ -3,7 +3,7 @@ import { useDismiss } from '../hooks/useDismiss'
 import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
+import { useTaskStore, type SmartView } from '../store/taskStore'
 import { LABEL_DROP_PREFIX, LIST_PREFIX } from '../lib/listDnD'
 import { TASK_PREFIX } from './SortableTaskItem'
 import { SmartViewRow } from './SmartViewRow'
@@ -66,32 +66,24 @@ function SortableListItem({
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
-  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない）。スマホは行の ≡ から開く */
+  /** 右クリックのメニュー。スマホは行の ≡ から開く */
   onContextMenu: (at: { clientX: number; clientY: number }) => void
 }) {
   const { t } = useTranslation()
-  const isInbox = list.id === INBOX_LIST_ID
   const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
   const sortableId = `${LIST_PREFIX}${list.id}`
-  const {
-    attributes,
-    listeners,
-    setNodeRef: setSortableRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: sortableId, disabled: isInbox })
+  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
   // 並べ替え中の行はネイティブ D&D でつかむので、dnd-kit とは別に受ける
   const [isOverNative, setIsOverNative] = useState(false)
   const dropHighlight = isOver || isOverNative || taskDragHoverListId === list.id
-  // いつか・買い物は色の丸の代わりに ☆ / カート（リストの色）。押すと丸と同じく色を変える
+  // ここに並ぶのはいつか・買い物のリストだけ。色の丸の代わりに ☆ / カート（リストの色）。押すと色を変える
   const kindIcon =
     list.kind === 'someday' ? (
       <StarIcon className="h-full w-full" strokeWidth={2} label={t('listKind.someday')} />
-    ) : list.kind === 'checklist' ? (
+    ) : (
       <CartIcon className="h-full w-full" strokeWidth={2} label={t('listKind.checklist')} />
-    ) : null
+    )
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -117,11 +109,8 @@ function SortableListItem({
               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
         }`}
       onClick={onSelect}
-      onDoubleClick={() => {
-        if (!isInbox) onStartEdit()
-      }}
+      onDoubleClick={onStartEdit}
       onContextMenu={(e) => {
-        if (isInbox) return
         e.preventDefault()
         onContextMenu(e)
       }}
@@ -138,21 +127,15 @@ function SortableListItem({
     >
       <button
         type="button"
-        disabled={isInbox}
         // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
         data-popover-keep
         onClick={(e) => {
           e.stopPropagation()
           onColorPick()
         }}
-        className={
-          kindIcon
-            ? 'flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]'
-            : `gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
-          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]`
-        }
-        style={kindIcon ? { color: list.color } : colorVars(list.color)}
-        aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
+        className="flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
+        style={{ color: list.color }}
+        aria-label={t('sidebar.changeListColor')}
         tabIndex={-1}
       >
         {kindIcon}
@@ -167,66 +150,64 @@ function SortableListItem({
         {list.name}
       </button>
 
-      {!isInbox ? (
-        // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
-        // スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう
-        <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
-          <button
-            {...attributes}
-            {...listeners}
-            type="button"
-            className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
-            tabIndex={-1}
-            {...tip(t('sidebar.reorderList'), { name: true })}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <circle cx="7" cy="4" r="1.5" />
-              <circle cx="13" cy="4" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" />
-              <circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="16" r="1.5" />
-              <circle cx="13" cy="16" r="1.5" />
-            </svg>
-          </button>
-          {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              const r = e.currentTarget.getBoundingClientRect()
-              onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
-            }}
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
-            aria-haspopup="menu"
-            aria-label={t('sidebar.listMenuAria')}
-          >
-            <ListBulletIcon className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onStartEdit()
-            }}
-            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
-            aria-label={t('sidebar.renameList')}
-          >
-            <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
-            aria-label={t('sidebar.deleteList')}
-          >
-            <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
-          </button>
-        </div>
-      ) : null}
+      {/* PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
+          スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう */}
+      <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
+          tabIndex={-1}
+          {...tip(t('sidebar.reorderList'), { name: true })}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+            <circle cx="7" cy="4" r="1.5" />
+            <circle cx="13" cy="4" r="1.5" />
+            <circle cx="7" cy="10" r="1.5" />
+            <circle cx="13" cy="10" r="1.5" />
+            <circle cx="7" cy="16" r="1.5" />
+            <circle cx="13" cy="16" r="1.5" />
+          </svg>
+        </button>
+        {/* スマホ: ≡ でメニュー（名前の変更もここから）。PC はダブルクリックか、ホバーで出る鉛筆で名前を変える */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            const r = e.currentTarget.getBoundingClientRect()
+            onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
+          }}
+          className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
+          aria-haspopup="menu"
+          aria-label={t('sidebar.listMenuAria')}
+        >
+          <ListBulletIcon className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onStartEdit()
+          }}
+          className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
+          aria-label={t('sidebar.renameList')}
+        >
+          <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
+          aria-label={t('sidebar.deleteList')}
+        >
+          <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
+        </button>
+      </div>
     </div>
   )
 }

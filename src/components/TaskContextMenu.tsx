@@ -61,8 +61,8 @@ export function TaskContextMenu({
   onClose: () => void
   /** 何か実行したあと（選択の解除など） */
   onDone?: () => void
-  /** 詳細を開く（無い所では「詳細を開く」を出さない） */
-  onOpenDetail?: (taskId: string) => void
+  /** 詳細を開く */
+  onOpenDetail: (taskId: string) => void
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -275,6 +275,24 @@ export function TaskContextMenu({
         },
     { ...deleteEntry, divider: true },
   ]
+  // 全部済みなら「未完了に戻す」（済んだものに「完了にする」を出しても何も起きない）
+  const allDone = targets.length > 0 && targets.every((x) => x.completed)
+  const completeEntry: ActionEntry = allDone
+    ? {
+        kind: 'leaf',
+        id: 'uncomplete',
+        label: t('taskList.markIncomplete'),
+        icon: <CheckIcon className={ICON} />,
+        run: done(() => bulk.uncomplete(taskIds)),
+      }
+    : {
+        kind: 'leaf',
+        id: 'complete',
+        label: t('taskList.markComplete'),
+        icon: <CheckIcon className={ICON} />,
+        keys: shortcutLabel(['mod', '↵']),
+        run: done(() => bulk.complete(taskIds)),
+      }
   const entries: ActionEntry[] = allWishes
     ? somedayEntries
     : allChecklist
@@ -293,16 +311,8 @@ export function TaskContextMenu({
                 },
               ]
             : []),
-          {
-            kind: 'leaf',
-            id: 'complete',
-            divider: true,
-            label: t('taskList.markComplete'),
-            icon: <CheckIcon className={ICON} />,
-            keys: shortcutLabel(['mod', '↵']),
-            run: done(() => bulk.complete(taskIds)),
-          },
-          ...(taskIds.length === 1 && onOpenDetail
+          { ...completeEntry, divider: true },
+          ...(taskIds.length === 1
             ? [
                 {
                   kind: 'leaf' as const,
@@ -325,7 +335,7 @@ export function TaskContextMenu({
         ]
   // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
   const openEntry: ActionEntry[] =
-    taskIds.length === 1 && onOpenDetail
+    taskIds.length === 1
       ? [
           {
             kind: 'leaf',
@@ -373,13 +383,7 @@ export function TaskContextMenu({
           ...setTimeEntry,
           ...todayToggleEntry,
           ...timerEntry,
-          {
-            kind: 'leaf',
-            id: 'complete',
-            label: t('taskList.markComplete'),
-            icon: <CheckIcon className={ICON} />,
-            run: done(() => bulk.complete(taskIds)),
-          },
+          { ...completeEntry, keys: undefined } as ActionEntry,
           ...(plannable
             ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e))
             : []),

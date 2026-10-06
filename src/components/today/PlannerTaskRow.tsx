@@ -62,7 +62,7 @@ export function PlannerTaskRow({
   const committed = dueMode === 'urgent'
   const swipeLeft: RowSwipeAction = committed
     ? {
-        label: t('taskMenu.toTomorrow'),
+        label: viewingToday ? t('taskMenu.toTomorrow') : t('taskMenu.toNextDay'),
         icon: <ArrowRightIcon className="h-4 w-4" />,
         tone: 'date',
         run: () => rescheduleTasks([task.id], day.tomorrowKey),

@@ -30,7 +30,7 @@ export function SearchResults() {
     openDetail: openTaskDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     resetOn: [query],
   })
