@@ -80,13 +80,14 @@ export function useTaskListRows({
       ? 'lists'
       : 'dueViews'
   const groupBySection = groupsBySection(sortMode, sectionGrouping, groupingScope)
-  const showSectionBlocks = useMemo(() => {
-    if (!groupBySection) return false
+  /** この画面に分けられるセクションがあるか（無ければ「セクションで分ける」を出しても何も変わらない） */
+  const hasSections = useMemo(() => {
     if (selectedListId) return listSectionsOrdered.length > 0
     if (!multiListSectionMode || sections.length === 0) return false
     const listIds = new Set(filtered.filter((t) => !t.completed && !isLogTask(t)).map((t) => t.listId))
     return sections.some((s) => listIds.has(s.listId))
-  }, [groupBySection, selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
+  }, [selectedListId, listSectionsOrdered.length, multiListSectionMode, sections, filtered])
+  const showSectionBlocks = groupBySection && hasSections
 
   const active = useMemo(() => {
     const incomplete = filtered.filter((t) => !t.completed && !isLogTask(t))
@@ -213,5 +214,5 @@ export function useTaskListRows({
     return rows.length > 0 ? rows : null
   }, [showSectionBlocks, selectedListId, listSectionsOrdered, active, t, lists, sections])
 
-  return { filtered, groupingScope, groupBySection, showSectionBlocks, active, sectionBlocks }
+  return { filtered, groupingScope, groupBySection, hasSections, showSectionBlocks, active, sectionBlocks }
 }

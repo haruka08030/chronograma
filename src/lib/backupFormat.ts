@@ -3,7 +3,6 @@ import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
-import { normalizeListColorPaletteId, type ListColorPaletteId } from './listColorPalettes'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
@@ -27,7 +26,6 @@ export interface BackupExportInput {
   lists: TaskList[]
   habits: Habit[]
   sections: ListSection[]
-  listColorPaletteId: ListColorPaletteId
   timeLogTagPresets: string[]
   logCategoryColors: Record<string, string>
 }
@@ -37,7 +35,6 @@ export interface BackupImportResult {
   lists: TaskList[]
   habits: Habit[]
   sections: ListSection[]
-  listColorPaletteId: ListColorPaletteId | null
   timeLogTagPresets: string[] | null
   /** 旧バックアップには無い */
   logCategoryColors: Record<string, string> | null
@@ -312,7 +309,6 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     lists: input.lists,
     habits: input.habits,
     listSections: input.sections,
-    listColorPaletteId: input.listColorPaletteId,
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
   }
@@ -349,9 +345,6 @@ export function readBackupJson(json: string): BackupReadResult {
     .filter((s): s is ListSection => s !== null)
 
   const habits = Array.isArray(data.habits) ? (data.habits as unknown[]).map(normalizeHabitRow).filter((h): h is Habit => h !== null) : []
-
-  const paletteRaw = data.listColorPaletteId
-  const listColorPaletteId = paletteRaw !== undefined && paletteRaw !== null ? normalizeListColorPaletteId(paletteRaw) : null
 
   const rawPresets = data.timeLogTagPresets
   const timeLogTagPresets = Array.isArray(rawPresets)
@@ -410,7 +403,6 @@ export function readBackupJson(json: string): BackupReadResult {
       lists,
       habits,
       sections,
-      listColorPaletteId,
       timeLogTagPresets,
       logCategoryColors,
     },

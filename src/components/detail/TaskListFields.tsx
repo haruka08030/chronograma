@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, paletteColors } from '../../store/taskStore'
+import { useTaskStore } from '../../store/taskStore'
+import { GOOGLE_COLOR_HEXES } from '../../lib/googleColors'
 import type { Task } from '../../types/task'
 import { displayListName } from '../../lib/displayListName'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -15,7 +16,6 @@ export function TaskListFields({ task }: { task: Task }) {
   const lists = useTaskStore((s) => s.lists)
   const moveTaskToList = useTaskStore((s) => s.moveTaskToList)
   const showMoveBanner = useTaskStore((s) => s.showMoveBanner)
-  const listColorPaletteId = useTaskStore((s) => s.listColorPaletteId)
   const sections = useTaskStore((s) => s.sections)
   const sectionsForTaskList = useMemo(
     () => sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
@@ -27,7 +27,7 @@ export function TaskListFields({ task }: { task: Task }) {
       <div className="flex items-center gap-2">
         <span
           className="gc-dot w-3 h-3 rounded-full flex-shrink-0"
-          style={colorVars(lists.find((l) => l.id === task.listId)?.color ?? paletteColors(listColorPaletteId)[0])}
+          style={colorVars(lists.find((l) => l.id === task.listId)?.color ?? GOOGLE_COLOR_HEXES[0])}
         />
         <select
           value={task.listId}

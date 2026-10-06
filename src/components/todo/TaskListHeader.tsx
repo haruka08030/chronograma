@@ -31,6 +31,7 @@ export function TaskListHeader({
   sortMode,
   groupingScope,
   groupBySection,
+  hasSections,
   onAddSection,
   onOpenNav,
 }: {
@@ -45,6 +46,8 @@ export function TaskListHeader({
   sortMode: SortMode
   groupingScope: SectionGroupingScope
   groupBySection: boolean
+  /** 分けられるセクションがあるか */
+  hasSections: boolean
   onAddSection: (listId: string) => void
   /** スマホで ≡ を押したとき（左のパネルが無いので、リストのドロワーを出す） */
   onOpenNav?: () => void
@@ -131,8 +134,8 @@ export function TaskListHeader({
                     {opt.label}
                   </MenuItem>
                 ))}
-                {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ */}
-                {sortMode !== 'manual' && (
+                {/* 手動はセクションの中で並べ替えるものなので、分けるかどうかを選ぶのは手動以外のときだけ。セクションが無ければ出さない */}
+                {sortMode !== 'manual' && hasSections && (
                   <>
                     <MenuDivider />
                     {/* 並び順（どれか 1 つ）とは別の、オン/オフの設定なのでスイッチにする。切り替えてもメニューは閉じない */}

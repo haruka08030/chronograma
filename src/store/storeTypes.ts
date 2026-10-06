@@ -4,7 +4,6 @@ import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Habit } from '../types/habit'
-import type { ListColorPaletteId } from '../lib/listColorPalettes'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
@@ -88,7 +87,6 @@ export interface TaskState {
   recordPrompts: boolean
   /** 通知の「記録する」から開く、記録を入れる予定（永続化しない） */
   recordPromptTaskId: string | null
-  listColorPaletteId: ListColorPaletteId
   /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
@@ -159,9 +157,7 @@ export interface TaskState {
   /** 右ドラッグで 1 段下げる: 直前の表示兄弟の子にする。兄弟が無ければ何もしない（戻り値 false） */
   indentTaskUnderPrevSibling: (taskId: string) => boolean
 
-  toggleTheme: () => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
-  setListColorPalette: (id: ListColorPaletteId) => void
   setTimeLogTagPresets: (presets: string[]) => void
   /** 分類を追加（色は空いているものを自動で）。既にあれば何もしない */
   /** 分類を候補に足す。色（24 色のキーか `#RRGGBB`）を省くとまだ使っていない色 */

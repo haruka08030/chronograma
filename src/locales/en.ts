@@ -880,9 +880,6 @@ export default {
     invalidCode: 'The code is invalid or expired. Request a new one.',
     changeEmail: 'Use a different email',
   },
-  theme: {
-    toggleAria: 'Toggle light and dark theme',
-  },
   calendar: {
     recordedTotal: 'Logged {{time}}',
     moreItems: '+{{count}} more',

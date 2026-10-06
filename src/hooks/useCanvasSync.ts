@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { paletteColors } from '../lib/listColorPalettes'
+import { GOOGLE_COLOR_HEXES } from '../lib/googleColors'
 import { appTimeZone } from '../lib/timeZone'
 import {
   CANVAS_LIST_ID,
@@ -115,7 +115,6 @@ export function useCanvasSync() {
           if (cancelled) return
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
-          const cols = paletteColors(s.listColorPaletteId)
           let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
           let changed = false
           // 学校ごとに分かれていた版のリストを 1 つにまとめる（開いていたらまとめた先を開く）
@@ -144,7 +143,7 @@ export function useCanvasSync() {
             const result = reconcileCanvasItems(next, conn, {
               now: new Date().toISOString(),
               listName: 'Canvas',
-              listColor: cols[next.lists.length % cols.length],
+              listColor: GOOGLE_COLOR_HEXES[next.lists.length % GOOGLE_COLOR_HEXES.length],
               timeZone: appTimeZone(),
               untitled: i18n.t('canvas.untitled'),
               // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
