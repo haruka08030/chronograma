@@ -1001,6 +1001,7 @@ export default {
     manage: 'Add or set up integrations',
     services: 'Google Calendar, Notion, Canvas',
     disconnect: 'Disconnect',
+    more: 'More integrations',
   },
   googleSettings: {
     title: 'Google Calendar',

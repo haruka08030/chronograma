@@ -11,8 +11,7 @@ import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
-import { NotionSettings } from './settings/NotionSettings'
-import { CanvasSettings } from './settings/CanvasSettings'
+import { MoreIntegrations } from './settings/MoreIntegrations'
 import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
@@ -80,8 +79,7 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
           <h1 className={`mt-2 ${PAGE_TITLE_CLASS}`}>{t('integrations.title')}</h1>
         </div>
         <GoogleCalendarSettings />
-        <NotionSettings />
-        <CanvasSettings />
+        <MoreIntegrations />
       </div>
     </div>
   )

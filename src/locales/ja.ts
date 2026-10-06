@@ -1002,6 +1002,7 @@ export default {
     manage: '連携を追加・設定',
     services: 'Google カレンダー・Notion・Canvas',
     disconnect: '接続を解除',
+    more: 'その他の連携',
   },
   googleSettings: {
     title: 'Google カレンダー',
