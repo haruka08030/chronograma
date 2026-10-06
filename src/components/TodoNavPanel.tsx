@@ -11,7 +11,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
-import { CartIcon, CloseIcon, ListBulletIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
+import { CartIcon, CloseIcon, EllipsisIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
 import { colorLabelText, NO_LABEL, todoColorLabels, unlabeledTodoCount, type TodoColorLabel } from '../lib/todoColorLabels'
@@ -183,7 +183,7 @@ function SortableListItem({
           aria-haspopup="menu"
           aria-label={t('sidebar.listMenuAria')}
         >
-          <ListBulletIcon className="h-5 w-5" />
+          <EllipsisIcon className="h-5 w-5" />
         </button>
         <button
           type="button"

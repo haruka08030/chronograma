@@ -48,7 +48,7 @@ export const InlineAddInput = forwardRef<
         entry.onBlur()
         onBlur?.(e)
       }}
-      className={`min-w-0 flex-1 bg-transparent text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500 ${
+      className={`min-w-0 flex-1 bg-transparent text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-400 ${
         size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'py-2.5 text-[15px]'
       }`}
       {...inputProps}

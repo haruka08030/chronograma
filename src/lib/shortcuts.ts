@@ -48,6 +48,26 @@ export function useSelectAllShortcut(handler: () => boolean) {
   }, [])
 }
 
+const SHORTCUTS_HELP_EVENT = 'chronograma:shortcuts-help'
+
+/** 「?」と同じくショートカット一覧を開く（設定の入口から。キーを押さないと一覧があることに気づけない） */
+export function openShortcutsHelp() {
+  window.dispatchEvent(new Event(SHORTCUTS_HELP_EVENT))
+}
+
+/** `openShortcutsHelp` を受け取る（一覧を出している App で） */
+export function useShortcutsHelpRequest(handler: () => void) {
+  const ref = useRef(handler)
+  useEffect(() => {
+    ref.current = handler
+  })
+  useEffect(() => {
+    const on = () => ref.current()
+    window.addEventListener(SHORTCUTS_HELP_EVENT, on)
+    return () => window.removeEventListener(SHORTCUTS_HELP_EVENT, on)
+  }, [])
+}
+
 const LIST_CURSOR_EVENT = 'chronograma:list-cursor'
 
 /** 一覧の外（検索欄の ↓）から、表示中の一覧に「↓ と同じく枠を次の行（無ければ最初の行）へ」と頼む */

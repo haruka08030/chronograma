@@ -10,7 +10,7 @@ import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { appTodayKey, isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
 import { dueToneOf } from '../lib/dueTone'
-import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle } from './ui/CompletionCircle'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
@@ -529,7 +529,7 @@ export const TaskItem = memo(function TaskItem({
             openMenuAt({ clientX: r.left, clientY: r.bottom + 4 })
           }}
         >
-          <ListBulletIcon className="h-5 w-5" />
+          <EllipsisIcon className="h-5 w-5" />
         </button>
 
         {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}

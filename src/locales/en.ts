@@ -562,6 +562,8 @@ export default {
     themeLight: 'Light',
     themeDark: 'Dark',
     language: 'Language',
+    shortcuts: 'Keyboard shortcuts',
+    shortcutsOpen: 'Show list (?)',
     dueNotifications: 'Before deadlines',
     appTitle: 'App',
     privacyPolicy: 'Privacy Policy',

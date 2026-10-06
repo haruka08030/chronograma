@@ -42,7 +42,7 @@ export function TimeGutter({ dateKey, nightHours = 0 }: { dateKey: string; night
       {columns.map((labels, i) => (
         <div key={extra[i].tz} style={{ width: EXTRA_WIDTH }} className="relative">
           {labels.map((label, h) => (
-            <div key={h} className={`${labelClass} right-1.5 text-zinc-400/80 dark:text-zinc-500/80`} style={{ top: h * HOUR_HEIGHT - 6 }}>
+            <div key={h} className={`${labelClass} right-1.5 text-zinc-400/80 dark:text-zinc-400/90`} style={{ top: h * HOUR_HEIGHT - 6 }}>
               {h > 0 ? label : ''}
             </div>
           ))}
@@ -50,7 +50,7 @@ export function TimeGutter({ dateKey, nightHours = 0 }: { dateKey: string; night
       ))}
       <div style={{ width: PRIMARY_WIDTH }} className="relative">
         {hours.map((h) => (
-          <div key={h} className={`${labelClass} right-2 text-zinc-400 dark:text-zinc-500`} style={{ top: h * HOUR_HEIGHT - 6 }}>
+          <div key={h} className={`${labelClass} right-2 text-zinc-400`} style={{ top: h * HOUR_HEIGHT - 6 }}>
             {h > 0 ? formatTimeLabel(h) : ''}
           </div>
         ))}
@@ -69,7 +69,7 @@ export function TimeGutterHeader({ dateKey }: { dateKey: string }) {
   if (extra.length === 0) return <div style={{ width }} className="flex-shrink-0" />
   const at = instantFromWall(dateKey, '12:00', appTimeZone())
   return (
-    <div style={{ width }} className="flex flex-shrink-0 items-end pb-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500">
+    <div style={{ width }} className="flex flex-shrink-0 items-end pb-1 text-[10px] leading-tight text-zinc-400">
       {extra.map((z) => (
         // 付けた名前は列が細いので 2 行まで折り返し、それでも長ければ切る（全体はヒント）
         <span
