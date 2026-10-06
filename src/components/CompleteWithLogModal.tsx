@@ -11,8 +11,6 @@ import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
 
-export type CompletionMode = 'as-planned' | 'shifted'
-
 export interface CompleteWithLogDraft {
   taskId: string
   title: string
@@ -23,7 +21,6 @@ export interface CompleteWithLogDraft {
   startTime: string
   endTime: string
   memo: string
-  mode: CompletionMode
   tags: string[]
   /** 元の To-Do の名前の無い色 */
   color: string | null
@@ -31,14 +28,11 @@ export interface CompleteWithLogDraft {
 
 export function CompleteWithLogModal({
   draft,
-  radioGroupName,
   onClose,
   onChange,
   onSubmit,
 }: {
   draft: CompleteWithLogDraft
-  /** 同一ページに複数インスタンスがないよう、呼び出し側で一意の name を渡す */
-  radioGroupName: string
   onClose: () => void
   onChange: (patch: Partial<CompleteWithLogDraft>) => void
   onSubmit: () => void
@@ -53,22 +47,6 @@ export function CompleteWithLogModal({
       <ModalTitle id="complete-with-log-title">{t('task.completeModal.title')}</ModalTitle>
       <p className={`mt-1 ${HINT_TEXT}`}>{t('task.completeModal.body')}</p>
 
-      <div className="mt-4 space-y-2 text-sm">
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name={radioGroupName}
-            checked={draft.mode === 'as-planned'}
-            onChange={() => onChange({ mode: 'as-planned' })}
-          />
-          <span className="text-zinc-700 dark:text-zinc-300">{t('task.completeModal.asPlanned')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name={radioGroupName} checked={draft.mode === 'shifted'} onChange={() => onChange({ mode: 'shifted' })} />
-          <span className="text-zinc-700 dark:text-zinc-300">{t('task.completeModal.shifted')}</span>
-        </label>
-      </div>
-
       <div className="mt-4 space-y-3">
         <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 space-y-2 dark:border-zinc-700 dark:bg-zinc-900/40">
           <SectionLabel as="p" level="field">
@@ -79,18 +57,14 @@ export function CompleteWithLogModal({
               <label className={sectionLabelClass('field')}>{t('task.completeModal.startDate')}</label>
               <DateField
                 value={draft.date}
-                onChange={(v) => onChange({ date: v, endDate: draft.endDate < v ? v : draft.endDate, mode: 'shifted' })}
+                onChange={(v) => onChange({ date: v, endDate: draft.endDate < v ? v : draft.endDate })}
                 ariaLabel={t('task.completeModal.startDate')}
                 className={fieldClass({}, 'w-full')}
               />
             </div>
             <div className="flex w-[7.5rem] shrink-0 flex-col gap-1">
               <label className={sectionLabelClass('field')}>{t('taskDetail.time')}</label>
-              <TimeInput
-                value={draft.startTime}
-                onChange={(v) => onChange({ startTime: v, mode: 'shifted' })}
-                className={fieldClass({}, 'w-full')}
-              />
+              <TimeInput value={draft.startTime} onChange={(v) => onChange({ startTime: v })} className={fieldClass({}, 'w-full')} />
             </div>
           </div>
         </div>
@@ -105,7 +79,7 @@ export function CompleteWithLogModal({
               <DateField
                 value={draft.endDate}
                 min={draft.date}
-                onChange={(v) => onChange({ endDate: v, mode: 'shifted' })}
+                onChange={(v) => onChange({ endDate: v })}
                 ariaLabel={t('task.completeModal.endDate')}
                 className={fieldClass({}, 'w-full')}
               />
@@ -114,7 +88,7 @@ export function CompleteWithLogModal({
               <label className={sectionLabelClass('field')}>{t('taskDetail.time')}</label>
               <TimeInput
                 value={draft.endTime}
-                onChange={(v) => onChange({ endTime: v, mode: 'shifted' })}
+                onChange={(v) => onChange({ endTime: v })}
                 pickerDefault={draft.startTime ? addClockMinutes(draft.startTime, 60) : undefined}
                 className={fieldClass({}, 'w-full')}
               />

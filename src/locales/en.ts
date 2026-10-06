@@ -634,8 +634,6 @@ export default {
     completeModal: {
       title: 'Log completion',
       body: 'Create a time log, then mark the planned task complete.',
-      asPlanned: 'Completed as planned',
-      shifted: 'Completed at different times',
       startDate: 'Start date',
       endDate: 'End date',
       memo: 'Notes (optional)',

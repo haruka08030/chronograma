@@ -634,8 +634,6 @@ export default {
     completeModal: {
       title: '完了を記録',
       body: '記録を作ってから、予定タスクを完了にします。',
-      asPlanned: '予定どおり完了',
-      shifted: '時間をずらして実行',
       startDate: '開始日',
       endDate: '終了日',
       memo: 'メモ（任意）',
