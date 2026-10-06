@@ -522,6 +522,7 @@ export default {
     timesPerWeekAria: 'Times per week',
     timesPerWeekOption: '{{count}}×',
     goalTimesPerWeek: '{{count}}× a week',
+    goalTimesPerWeekProgress: '{{count}}× a week ({{done}}/{{count}} this week)',
     weekGoalMet: 'Done this week',
     streakValueDay: '{{count}}-day streak',
     streakValueWeek: '{{count}}-week streak',

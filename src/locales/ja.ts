@@ -510,6 +510,7 @@ export default {
     timesPerWeekAria: '週に何回',
     timesPerWeekOption: '{{count}}回',
     goalTimesPerWeek: '週に{{count}}回',
+    goalTimesPerWeekProgress: '週に{{count}}回（今週 {{done}}/{{count}}）',
     weekGoalMet: '今週は達成',
     streakValueDay: '{{count}}日連続',
     streakValueWeek: '{{count}}週連続',
