@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { addTaskFromQuickText } from '../lib/quickAddTask'
 import { InlineAddInput } from './ui/InlineAddInput'
+import { QuickAddReading } from './QuickAddReading'
 import { useQuickAddTarget } from '../lib/quickAddFocus'
 import { NO_LABEL } from '../lib/todoColorLabels'
 
@@ -33,13 +34,17 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
   }
 
   return (
-    <InlineAddInput
-      ref={inputRef}
-      data-quickadd
-      value={value}
-      onValueChange={setValue}
-      onSubmit={submit}
-      placeholder={placeholder ?? t('quickAdd.placeholder')}
-    />
+    <div>
+      <InlineAddInput
+        ref={inputRef}
+        data-quickadd
+        value={value}
+        onValueChange={setValue}
+        onSubmit={submit}
+        placeholder={placeholder ?? t('quickAdd.placeholder')}
+      />
+      {/* 入力中だけ、読み取った締切・予定・リストを 1 行で */}
+      <QuickAddReading text={value} className="mt-1 px-3" />
+    </div>
   )
 }

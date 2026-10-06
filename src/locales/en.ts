@@ -743,6 +743,12 @@ export default {
   },
   quickAdd: {
     placeholder: 'Add a to-do',
+    reading: {
+      due: 'Due {{date}}',
+      dueAt: 'Due {{date}} {{time}}',
+      doDate: 'Do {{date}}',
+      separator: ' · ',
+    },
   },
   autoBackup: {
     title: 'Automatic backups',

@@ -40,6 +40,22 @@ describe('QuickAdd', () => {
     expect(task.endTime).toBe('09:30')
   })
 
+  it('入力中だけ、読み取った締切・予定を欄の下に 1 行で出す', async () => {
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+
+    await user.type(input, 'Essay')
+    // 何も読み取れないうちは出さない
+    expect(screen.queryByText(/^Due /)).toBeNull()
+
+    await user.type(input, ' due 10/10')
+    expect(screen.getByText(/^Due \w{3} 10\/10$/)).toBeInTheDocument()
+
+    await user.type(input, '{Enter}')
+    expect(screen.queryByText(/^Due /)).toBeNull()
+  })
+
   it('@リスト で買い物などのリストへ入れる', async () => {
     useTaskStore.getState().addList('Shop', 'checklist')
     const shop = useTaskStore.getState().lists.find((l) => l.name === 'Shop')!.id

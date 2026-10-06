@@ -742,6 +742,12 @@ export default {
   },
   quickAdd: {
     placeholder: 'To-Do を追加',
+    reading: {
+      due: '締切 {{date}}',
+      dueAt: '締切 {{date}} {{time}}',
+      doDate: '実行日 {{date}}',
+      separator: ' ・ ',
+    },
   },
   autoBackup: {
     title: '自動バックアップ',
