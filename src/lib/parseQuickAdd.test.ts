@@ -362,17 +362,14 @@ describe('初見の学生が打つ書き方（2026-10-06 火曜）', () => {
     })
 
     it('印は前後どちらに書いても、語にくっつけても読む', () => {
-      for (const raw of [
-        '〆切 10/10 ES',
-        'ES 10/10 締め切り',
-        '期限 10/10 ES',
-        '提出 10/10 ES',
-        'ES 10/10締切',
-        '締切:10/10 ES',
-        'ES 締切り 10/10',
-      ]) {
+      for (const raw of ['〆切 10/10 ES', 'ES 10/10 締め切り', '期限 10/10 ES', 'ES 10/10締切', '締切:10/10 ES', 'ES 締切り 10/10']) {
         expect(ja6(raw), raw).toMatchObject({ title: 'ES', date: '2026-10-10', dateIsDeadline: true, dueTime: null })
       }
+    })
+
+    it('「提出」は締切として読んでも題名に残す（やることの名前でもある）', () => {
+      expect(ja6('ES 提出 10/10 23:59')).toMatchObject({ title: 'ES 提出', date: '2026-10-10', dateIsDeadline: true, dueTime: '23:59' })
+      expect(ja6('提出 10/10 ES')).toMatchObject({ title: '提出 ES', date: '2026-10-10', dateIsDeadline: true })
     })
 
     it('日付が無く時刻だけでも締切の時刻（日は呼び出し側が決める）', () => {
@@ -380,7 +377,7 @@ describe('初見の学生が打つ書き方（2026-10-06 火曜）', () => {
     })
 
     it('範囲と締切の印なら終わりの時刻が締切', () => {
-      expect(ja6('提出 10/10 13:00-15:00 窓口')).toMatchObject({ title: '窓口', dueTime: '15:00', startTime: null })
+      expect(ja6('提出 10/10 13:00-15:00 窓口')).toMatchObject({ title: '提出 窓口', dueTime: '15:00', startTime: null })
     })
 
     it('日時の無い「提出」「締切」は題名のまま', () => {

@@ -511,7 +511,8 @@ export function parseQuickAddTitle(
         (p) =>
           p.kind === 'title' ||
           (p.kind === 'duration' && start == null) ||
-          (p.kind === 'deadlineWord' && !deadlineWordUsed) ||
+          // 「提出」は締切の印でもあるが、やることの名前（ES 提出）でもあるので題名に残す
+          (p.kind === 'deadlineWord' && (!deadlineWordUsed || p.text.startsWith('提出'))) ||
           (p.kind === 'timeOnly' && timeDropped),
       )
       .map((p) => p.text)
