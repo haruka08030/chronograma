@@ -359,7 +359,7 @@ describe('backupProblemText', () => {
     const before = i18n.language
     await i18n.changeLanguage('ja')
     expect(backupProblemText({ kind: 'missingParent', count: 3, example: '課題' })).toBe(
-      '親タスクがファイルに無いサブタスクが 3 件あります（例:「課題」）',
+      '親タスクがファイルにないサブタスクが 3 件あります（例:「課題」）',
     )
     await i18n.changeLanguage('en')
     expect(backupProblemText({ kind: 'duplicateIds', item: 'list', count: 1, example: 'a'.repeat(30) })).toBe(

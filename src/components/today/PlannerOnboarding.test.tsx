@@ -34,6 +34,16 @@ function openToday() {
 }
 
 describe('はじめの 3 ステップ', () => {
+  it('案内が出ている間は睡眠の行を出さず、締切の例も選べる', () => {
+    // 睡眠の行は朝から出る。昼に固定して、案内のない人なら出る時刻で確かめる
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    openToday()
+    expect(screen.queryByText('Log your sleep?')).not.toBeInTheDocument()
+    expect(within(guide()!).getByRole('button', { name: 'Put “essay by tomorrow” in the add field' })).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
   it('新しい人には今日の画面に 3 ステップを出し、やると順にチェックが付く', async () => {
     const user = userEvent.setup()
     openToday()
@@ -86,7 +96,7 @@ describe('はじめの 3 ステップ', () => {
     useTaskStore.setState({ onboardingDone: migrated.onboardingDone })
     openToday()
     expect(guide()).toBeNull()
-    expect(screen.getByPlaceholderText('Add (e.g. 3pm essay 1h)')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Add (e.g. essay by tomorrow)')).toBeInTheDocument()
   })
 
   it('今日以外の日には出さない', () => {
