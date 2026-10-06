@@ -29,6 +29,9 @@ import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
 export const OPEN_TIMER_ACTION = 'open-timer'
 
+/** 後から記録の「長さで入れる」チップ（終了＝今、開始＝今−長さ） */
+const LATER_LENGTHS_MIN = [30, 60, 120] as const
+
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
   const d = zonedNow()
@@ -215,6 +218,25 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}
+            </div>
+          )}
+          {/* 今日は「今まで◯分」で入れられる。日付をまたぐ長さ（0 時台の 2 時間など）は出さない */}
+          {mode === 'manual' && viewingToday && (
+            <div className="flex flex-wrap gap-1.5">
+              {LATER_LENGTHS_MIN.filter((len) => len <= timeToMinutes(nowRounded())).map((len) => (
+                <button
+                  key={len}
+                  type="button"
+                  onClick={() => {
+                    const e = nowRounded()
+                    setStart(addClockMinutes(e, -len))
+                    setEnd(e)
+                  }}
+                  className={chipClass({ variant: 'outline', size: 'sm' }, 'tabular-nums')}
+                >
+                  {formatDuration(len)}
+                </button>
+              ))}
             </div>
           )}
           <TimeLogTagField value={category} onChange={setCategory} compact />

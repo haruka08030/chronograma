@@ -993,6 +993,7 @@ export default {
     completePrompt: 'Mark “{{title}}” as done?',
     notYet: 'Not yet',
     markDone: 'Mark done',
+    labelPrompt: 'Label for “{{title}}”?',
     stopTitle: 'Stop recording',
   },
   integrations: {

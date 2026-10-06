@@ -64,6 +64,7 @@ export const TRANSIENT_KEYS = [
   'quickAddRequested',
   'recordPromptTaskId',
   'completePromptTaskId',
+  'labelPromptLogId',
   'calendarEvents',
   'googleConnected',
   'googleAccessToken',

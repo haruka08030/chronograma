@@ -994,6 +994,7 @@ export default {
     completePrompt: '「{{title}}」を完了にしますか？',
     notYet: 'まだ',
     markDone: '完了にする',
+    labelPrompt: '「{{title}}」のラベルは？',
     stopTitle: '記録を停止',
   },
   integrations: {
