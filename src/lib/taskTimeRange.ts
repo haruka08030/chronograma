@@ -68,9 +68,10 @@ export function durationMinutesForTaskSlot(task: {
   return diff
 }
 
+/** タイムラインに置くときの長さ: 時間があればその長さ、無ければ見積もり（どちらも無ければ null＝既定の予定の長さ） */
 export function durationMinutesForTaskId(tasks: Task[], taskId: string): number | null {
   const t = tasks.find((x) => x.id === taskId)
-  return t ? durationMinutesForTaskSlot(t) : null
+  return t ? (durationMinutesForTaskSlot(t) ?? t.estimateMinutes ?? null) : null
 }
 
 /** その暦日にかかるログの分数（サマリー用） */

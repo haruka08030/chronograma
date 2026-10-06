@@ -188,6 +188,7 @@ describe('readQuickAddText（入力中に欄の下へ出す読み取り）', () 
       plan: null,
       doDate: null,
       recurrence: null,
+      estimateMinutes: null,
       listName: '授業',
     })
   })
@@ -214,7 +215,14 @@ describe('readQuickAddText（入力中に欄の下へ出す読み取り）', () 
   })
 
   it('いつか・買い物に入れるなら日付は出さない（付かないので）', () => {
-    expect(readQuickAddText('15時 牛乳 @買い物')).toEqual({ due: null, plan: null, doDate: null, recurrence: null, listName: '買い物' })
+    expect(readQuickAddText('15時 牛乳 @買い物')).toEqual({
+      due: null,
+      plan: null,
+      doDate: null,
+      recurrence: null,
+      estimateMinutes: null,
+      listName: '買い物',
+    })
   })
 })
 
@@ -224,6 +232,11 @@ describe('カレンダーのセル（defaultDate＝そのセルの日）', () =>
   it('書かなければそのセルの日がやる日', () => {
     const t = added(addTaskFromQuickText('課題', cell))
     expect(t).toMatchObject({ title: '課題', scheduledDate: '2026-10-05', startTime: null })
+  })
+
+  it('時刻なしの長さは見積もり', () => {
+    const t = added(addTaskFromQuickText('ES 1時間半', cell))
+    expect(t).toMatchObject({ title: 'ES', scheduledDate: '2026-10-05', startTime: null, estimateMinutes: 90 })
   })
 
   it('時刻を書けばそのセルの日の予定', () => {

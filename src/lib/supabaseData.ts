@@ -12,6 +12,7 @@ import type { RemoteLabels } from './labelSync'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { buildRecurrence } from './recurrence'
+import { readEstimateMinutes } from './estimate'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -62,6 +63,8 @@ interface TaskRow {
   start_time: string | null
   end_time: string | null
   location?: string | null
+  /** 古い DB には無い（`015`） */
+  estimate_minutes?: number | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -153,6 +156,18 @@ function isMissingIsSleepColumnError(message: string | undefined): boolean {
 function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ is_sleep, ...rest }) => {
     void is_sleep
+    return rest
+  })
+}
+
+function isMissingEstimateColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'estimate_minutes' column")
+}
+
+function stripEstimateFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ estimate_minutes, ...rest }) => {
+    void estimate_minutes
     return rest
   })
 }
@@ -382,6 +397,7 @@ function rowToTaskFields(row: TaskRow): Task {
     startTime: row.start_time,
     endTime: row.end_time,
     location: typeof row.location === 'string' ? row.location : null,
+    estimateMinutes: readEstimateMinutes(row.estimate_minutes),
     color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
@@ -430,6 +446,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     start_time: task.startTime,
     end_time: task.endTime,
     location: task.location == null ? null : clip(task.location, MAX_TITLE),
+    estimate_minutes: task.estimateMinutes,
     color: task.color,
     priority: task.priority,
     tags: task.tags,
@@ -933,6 +950,7 @@ export async function pushListsTasksHabits(
   let stripHabitId = false
   let stripIsSleep = false
   let stripIsEvent = false
+  let stripEstimate = false
   let stripTimeZone = false
   let stripReminders = false
   let stripDueTime = false
@@ -948,6 +966,7 @@ export async function pushListsTasksHabits(
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
     if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
+    if (stripEstimate) rows = stripEstimateFromTaskRows(rows)
     if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
     if (stripReminders) rows = stripRemindersFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
@@ -956,7 +975,7 @@ export async function pushListsTasksHabits(
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 14; attempt++) {
+  for (let attempt = 0; attempt < 15; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -986,6 +1005,11 @@ export async function pushListsTasksHabits(
     // `014` を流す前の DB。予定は To-Do として送る（列を足せば次回から予定のまま）
     if (isMissingIsEventColumnError(errMsg) && !stripIsEvent) {
       stripIsEvent = true
+      continue
+    }
+    // `015` を流す前の DB。見積もりは端末にだけ残る
+    if (isMissingEstimateColumnError(errMsg) && !stripEstimate) {
+      stripEstimate = true
       continue
     }
     if (isMissingRemindersColumnError(errMsg) && !stripReminders) {

@@ -134,8 +134,9 @@ describe('時刻と長さ', () => {
   it('「時間」は長さ、「時」は時刻', () => {
     const r = ja('レポート 2時間')
     expect(r.startTime).toBeNull()
-    // 時刻が無ければ長さだけの語はタイトルに戻す
-    expect(r.title).toBe('レポート 2時間')
+    // 時刻が無ければ長さは見積もり
+    expect(r.title).toBe('レポート')
+    expect(r.estimateMinutes).toBe(120)
   })
 
   it('素の数字だけの範囲は時刻と断定しない', () => {

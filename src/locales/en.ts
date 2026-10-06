@@ -681,6 +681,8 @@ export default {
     color: 'Color',
     section: 'Section',
     sectionNone: 'No section',
+    estimate: 'Estimate',
+    estimateNone: 'None',
     subtasks: 'Subtasks ({{count}})',
     subtaskPlaceholder: 'Add subtask',
     deleteLog: 'Delete this entry',
@@ -805,6 +807,7 @@ export default {
     reading: {
       due: 'Due {{date}}',
       dueAt: 'Due {{date}} {{time}}',
+      estimate: 'Est. {{time}}',
       doDate: 'Do {{date}}',
       separator: ' · ',
     },

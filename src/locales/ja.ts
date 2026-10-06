@@ -663,6 +663,8 @@ export default {
     color: '色',
     section: 'セクション',
     sectionNone: 'セクションなし',
+    estimate: '見積もり',
+    estimateNone: 'なし',
     subtasks: 'サブタスク（{{count}}）',
     subtaskPlaceholder: 'サブタスクを追加',
     deleteLog: 'この記録を削除',
@@ -783,6 +785,7 @@ export default {
     reading: {
       due: '締切 {{date}}',
       dueAt: '締切 {{date}} {{time}}',
+      estimate: '見積もり {{time}}',
       doDate: '実行日 {{date}}',
       separator: ' ・ ',
     },

@@ -12,6 +12,7 @@ export const TASK_DEFAULTS = {
   timeZoneAnchor: null,
   reminders: null,
   location: null,
+  estimateMinutes: null,
   color: null,
   kind: 'todo',
   habitId: null,

@@ -16,7 +16,7 @@ import { buttonClass } from './ui/buttonClass'
 import { MenuLabel } from './ui/Menu'
 import { formatDuration } from '../lib/timeGrid'
 
-/** 長さの選択肢。設定の既定の長さが無ければ足す */
+/** 長さの選択肢。見積もり・設定の既定の長さが無ければ足す */
 const DURATIONS = [30, 60, 120]
 /** 先の日を見ているときは朝から探す */
 const FUTURE_DAY_FROM = 9 * 60
@@ -50,10 +50,12 @@ export function TimeSlotMenu({
   const events = useTaskStore((s) => s.calendarEvents)
   const updateTask = useTaskStore((s) => s.updateTask)
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
-  const [duration, setDuration] = useState<number>(defaultBlockMinutes)
+  // 見積もりがあればその長さから（無ければ設定の既定の予定の長さ）
+  const initialDuration = task?.estimateMinutes ?? defaultBlockMinutes
+  const [duration, setDuration] = useState<number>(initialDuration)
   const durations = useMemo(
-    () => (DURATIONS.includes(defaultBlockMinutes) ? DURATIONS : [...DURATIONS, defaultBlockMinutes].sort((a, b) => a - b)),
-    [defaultBlockMinutes],
+    () => (DURATIONS.includes(initialDuration) ? DURATIONS : [...DURATIONS, initialDuration].sort((a, b) => a - b)),
+    [initialDuration],
   )
   const [custom, setCustom] = useState(false)
   const [start, setStart] = useState('')
