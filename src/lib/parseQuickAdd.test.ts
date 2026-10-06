@@ -90,6 +90,11 @@ describe('時刻と長さ', () => {
     expect(r.title).toBe('ゼミ')
   })
 
+  it('設定の既定の長さを渡すとその長さになる', () => {
+    const r = parseQuickAddTitle('15時 ゼミ', true, NOW, { blockMinutes: 30 })
+    expect(r.endTime).toBe('15:30')
+  })
+
   it('15時半 / 午後3時 / 15:00 / 3pm', () => {
     expect(ja('15時半 ゼミ').startTime).toBe('15:30')
     expect(ja('午後3時 ゼミ').startTime).toBe('15:00')

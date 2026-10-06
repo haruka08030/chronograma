@@ -94,6 +94,7 @@ function HabitTimeFields({
   onEndTimeChange: (time: string) => void
 }) {
   const { t } = useTranslation()
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-5 text-sm">
@@ -148,7 +149,7 @@ function HabitTimeFields({
           <TimeInput
             value={endTime}
             onChange={onEndTimeChange}
-            pickerDefault={startTime ? addClockMinutes(startTime, 60) : undefined}
+            pickerDefault={startTime ? addClockMinutes(startTime, defaultBlockMinutes) : undefined}
             className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
           />
         </div>

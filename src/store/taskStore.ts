@@ -122,6 +122,7 @@ export const useTaskStore = create<TaskState>()(
         onboardingCompleted: false,
         installNudgeDismissed: false,
         dailyCapacityMinutes: 480,
+        defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,
         extraTimeZones: [] as ExtraTimeZone[],

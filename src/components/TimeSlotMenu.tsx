@@ -14,8 +14,10 @@ import { Segmented } from './ui/Segmented'
 import { TimeInput } from './TimeInput'
 import { buttonClass } from './ui/buttonClass'
 import { MenuLabel } from './ui/Menu'
+import { formatDuration } from '../lib/timeGrid'
 
-const DURATIONS = [30, 60, 120] as const
+/** 長さの選択肢。設定の既定の長さが無ければ足す */
+const DURATIONS = [30, 60, 120]
 /** 先の日を見ているときは朝から探す */
 const FUTURE_DAY_FROM = 9 * 60
 const EDGE = 8
@@ -47,7 +49,12 @@ export function TimeSlotMenu({
   const tasks = useTaskStore((s) => s.tasks)
   const events = useTaskStore((s) => s.calendarEvents)
   const updateTask = useTaskStore((s) => s.updateTask)
-  const [duration, setDuration] = useState<number>(60)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
+  const [duration, setDuration] = useState<number>(defaultBlockMinutes)
+  const durations = useMemo(
+    () => (DURATIONS.includes(defaultBlockMinutes) ? DURATIONS : [...DURATIONS, defaultBlockMinutes].sort((a, b) => a - b)),
+    [defaultBlockMinutes],
+  )
   const [custom, setCustom] = useState(false)
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
@@ -109,9 +116,12 @@ export function TimeSlotMenu({
             ariaLabel={t('timeSlot.duration')}
             value={String(duration)}
             onChange={(v) => setDuration(Number(v))}
-            options={DURATIONS.map((d) => ({
+            options={durations.map((d) => ({
               value: String(d),
-              label: t(d < 60 ? 'timeSlot.minutes' : 'timeSlot.hours', { count: d < 60 ? d : d / 60 }),
+              label:
+                d % 60 !== 0 && d > 60
+                  ? formatDuration(d)
+                  : t(d < 60 ? 'timeSlot.minutes' : 'timeSlot.hours', { count: d < 60 ? d : d / 60 }),
             }))}
           />
         </div>

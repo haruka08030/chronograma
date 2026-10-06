@@ -594,6 +594,7 @@ export default {
     notificationsDenied: 'ブラウザで通知がブロックされています。サイトの設定から許可してください。',
     dailyCapacity: '1 日に計画する時間の目安',
     capacityHours: '{{count}} 時間',
+    defaultBlock: '既定の予定の長さ',
     title: '設定',
     appearance: '外観',
     data: 'データ',

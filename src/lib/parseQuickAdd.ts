@@ -33,7 +33,7 @@ export type ParsedQuickAdd = {
   repeat: QuickAddRepeat | null
 }
 
-/** 時刻だけで長さの指定がないときの予定の長さ */
+/** 時刻だけで長さの指定がないときの予定の長さ（設定の「既定の予定の長さ」を渡さないとき） */
 export const DEFAULT_BLOCK_MINUTES = 60
 
 const JA_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -427,7 +427,7 @@ export function parseQuickAddTitle(
   /** 「今日」「明日」の基準の日（`appToday`） */
   now: Date = appToday(),
   /** リストを選べない欄（サブタスク）なら `@…` も題名のまま残す */
-  opts: { lists?: boolean } = {},
+  opts: { lists?: boolean; blockMinutes?: number } = {},
 ): ParsedQuickAdd {
   const today = startOfDay(now)
   const tags: string[] = []
@@ -556,7 +556,7 @@ export function parseQuickAddTitle(
   // 終わりが 23:59 で頭打ちになり長さが 0 なら予定にしない（時刻は題名に戻す）
   let timeDropped = false
   if (start != null && end == null) {
-    end = Math.min(start + (duration ?? DEFAULT_BLOCK_MINUTES), 24 * 60 - 1)
+    end = Math.min(start + (duration ?? opts.blockMinutes ?? DEFAULT_BLOCK_MINUTES), 24 * 60 - 1)
     if (end <= start) {
       start = null
       end = null

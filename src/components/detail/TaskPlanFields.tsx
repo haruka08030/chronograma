@@ -25,6 +25,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
   const { t } = useTranslation()
   const df = useDateFormat()
   const updateTask = useTaskStore((s) => s.updateTask)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   // サブタスクのある・サブタスクの行は To-Do のまま（予定は To-Do の一覧に出ないので、親子が見えなくなる）
   const hasChildren = useTaskStore((s) => s.tasks.some((x) => x.parentId === task.id && !x.deletedAt))
   const { tv, updateTimes, tzOnScheduled, tzOnDeadline, tzLoose } = useTaskTimes(task)
@@ -142,7 +143,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
             <TimeInput
               value={tv.endTime ?? ''}
               onChange={(v) => updateTimes({ endTime: v || null })}
-              pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
+              pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, defaultBlockMinutes) : undefined}
               className={fieldClass({}, 'w-[7rem]')}
             />
             {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}

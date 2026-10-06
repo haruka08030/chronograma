@@ -606,6 +606,7 @@ export default {
     notificationsDenied: 'Notifications are blocked. Allow them in your browser site settings.',
     dailyCapacity: 'Hours to plan per day',
     capacityHours: '{{count}}h',
+    defaultBlock: 'Default plan length',
     title: 'Settings',
     appearance: 'Appearance',
     data: 'Data',
