@@ -18,7 +18,7 @@
 | 落とし先の光り方 | 藍の薄い塗り＋内側の枠 | `lib/taskDrag.ts` `DROP_HIGHLIGHT_CLASS` |
 | Google の予定の色 | 予定ごとの色、無ければピーコック。カレンダー本体・日パネルで共通 | `lib/googleColors.ts`（`DEFAULT_GOOGLE_EVENT_HEX`）・`colorVars` |
 | 優先度の色 | 高＝赤・中＝オレンジ・低＝青、なし＝グレー。完了の丸・詳細・右クリックメニューで共通 | `lib/priorityColor.ts`（`PRIORITY_RING_CLASS`・`PRIORITY_TEXT_CLASS`） |
-| 睡眠の色 | 夜の色 1 つ（ライト #5c6bc0、ダーク #7986cb）。`text-sleep`・`bg-sleep`・`.gc-sleep`。習慣画面の直近 28 日のマス目はデータの色なので藍のまま | `index.css`（`--color-sleep`） |
+| 睡眠の色 | 夜の色 1 つ（ライト #5c6bc0、ダーク #7986cb）。`text-sleep`・`bg-sleep`・`.gc-sleep` | `index.css`（`--color-sleep`） |
 | 習慣の達成・時間外 | 達成＝習慣の色の塗り＋✓、時間外＝35% の塗り＋✓。丸の下にグレーで「時間外」（習慣画面の週のマスは小さく）。時刻はツールチップ。押せる丸は `aria-pressed`、週のマスの読み上げ名は「10月3日 (土) 達成」「10月3日 (土) 達成（時間外 21:00〜21:30）」 | `lib/habitMark.ts` |
 | メニュー・候補の行のハイライト | ↑↓ で選んでいる行とホバーは同じ薄いグレー（ダーク zinc-700）。メニューと時刻の候補で共通。今の値は ✓ | `components/ui/surface.ts`（`MENU_ROW_ACTIVE`・`MENU_ROW_HOVER`） |
 | ブラウザが描く部品 | ラジオ・チェックボックスは墨（`accent-color`）。ダークのときは `color-scheme: dark` で、ラジオ・選択欄の一覧・スクロールバーも暗い見た目。部品ごとに色を付けない | `src/index.css`（`@layer base`） |

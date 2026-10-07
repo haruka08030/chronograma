@@ -184,8 +184,15 @@ const SCREENS = [
     click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("回数を指定")'],
     scrollToBottom: true,
   },
-  // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
-  { name: 'habits-menu', view: 'habits', rightClick: 'div[role="button"]:has-text("朝に 10 分ストレッチ")' },
+  // 習慣の名前を押した詳細（連続・最長・達成率・月のカレンダー）と、そこから編集
+  { name: 'habits-detail', view: 'habits', click: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0' },
+  {
+    name: 'habits-detail-edit',
+    view: 'habits',
+    click: ['li[data-habit-row]:has-text("ジム") button >> nth=0', 'div[role="dialog"] button:has-text("編集")'],
+  },
+  // 習慣の行を右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
+  { name: 'habits-menu', view: 'habits', rightClick: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ")' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {

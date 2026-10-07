@@ -1,68 +1,62 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, startOfWeek } from 'date-fns'
+import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
-import { isHabitActive, type Habit } from '../types/habit'
-import { isHabitDueOnDate } from '../lib/habitSchedule'
+import { isHabitActive } from '../types/habit'
+import { habitWeekDates } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
-import { SectionLabel } from './ui/SectionLabel'
 import { EmptyState } from './ui/EmptyState'
+import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
-import { SUBTLE_TEXT } from './ui/textClass'
-import { HabitsSummary } from './habits/HabitsSummary'
 import { HabitComposer } from './habits/HabitComposer'
-import { HabitWeekHeader } from './habits/HabitWeekHeader'
-import { HabitCard } from './habits/HabitCard'
-import { HabitEditCard } from './habits/HabitEditCard'
+import { HabitWeekTable } from './habits/HabitWeekTable'
+import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
 import { EMPTY_HABIT_FORM, useHabitForm } from './habits/habitFormState'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { useDateFormat } from '../hooks/useDateFormat'
+import { usePresence } from '../hooks/usePresence'
 
 /**
- * 習慣の画面: 要約（`HabitsSummary`）→ 追加（`HabitComposer`）→ この日の習慣（週の見出し・カード）→ アーカイブ。
- * カードを押すとその場で編集カード（`HabitEditCard`）に入れ替わる
+ * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ アーカイブ。
+ * 表の名前を押すと右から詳細（`HabitDetailSheet`: 連続・達成率・月のカレンダー・編集）
  */
 export function HabitsView() {
   const { t } = useTranslation()
+  const df = useDateFormat()
   const allHabits = useTaskStore((s) => s.habits)
-  // アーカイブした習慣は一覧・要約に入れず、下の「アーカイブ」にだけ出す
+  // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す
   const habits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
   const tasks = useTaskStore((s) => s.tasks)
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const todayKey = useAppTodayKey()
 
   // 追加フォームの中身は閉じても残す（閉じたときは名前だけ消す）
   const [newForm, patchNewForm] = useHabitForm(EMPTY_HABIT_FORM)
   const [showComposer, setShowComposer] = useState(false)
-  /** 編集中の習慣。`seq` は編集を始め直すたびに増やし、編集カードを開いたときの値から作り直す */
-  const [editing, setEditing] = useState<{ habitId: string; seq: number } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const { habitMenu, closeHabitMenu, menuProps } = useHabitMenu()
 
-  const cancelEdit = useCallback(() => {
-    setEditing(null)
+  /** 詳細を開いている習慣。`edit` は編集から開く。`seq` は開き直すたびに増やし、中身を作り直す */
+  const [detail, setDetail] = useState<{ habitId: string; edit: boolean; seq: number } | null>(null)
+  const openDetail = useCallback((habitId: string, edit = false) => {
+    setDetail((prev) => ({ habitId, edit, seq: (prev?.seq ?? 0) + 1 }))
   }, [])
-
-  const beginEdit = useCallback((h: Habit) => {
-    setEditing((prev) => ({ habitId: h.id, seq: (prev?.seq ?? 0) + 1 }))
-  }, [])
-
-  const editingHabitId = editing?.habitId ?? null
-  useEffect(() => {
-    if (!editingHabitId || habits.some((h) => h.id === editingHabitId)) return
-    queueMicrotask(() => {
-      cancelEdit()
-    })
-  }, [habits, editingHabitId, cancelEdit])
+  const closeDetail = useCallback(() => setDetail(null), [])
+  // 消した・アーカイブした習慣の詳細は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
+  const detailHabit = detail ? (habits.find((h) => h.id === detail.habitId) ?? null) : null
+  const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
+  const sheet = usePresence(sheetValue)
 
   const closeComposer = useCallback(() => {
     patchNewForm({ title: '' })
@@ -70,51 +64,19 @@ export function HabitsView() {
   }, [patchNewForm])
 
   const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
-  const weekDates = useMemo(() => {
-    const start = startOfWeek(focusDate, { weekStartsOn: 1 })
-    return Array.from({ length: 7 }, (_, i) => addDays(start, i))
-  }, [focusDate])
-  const todayKey = useAppTodayKey()
-  const habitWeekdayLabels = useMemo(() => t('habits.weekdays', { returnObjects: true }) as string[], [t])
+  const weekDates = useMemo(() => habitWeekDates(focusDate), [focusDate])
+  const atThisWeek = weekDates.some((d) => toDateKey(d) === todayKey)
 
-  // 週に◯回でその週の回数を満たした習慣は、やっていない日には「予定に含まれない」側に回す
-  const habitsScheduledForFocus = useMemo(
-    () => habits.filter((h) => isHabitDueOnDate(h, focusDate, habitRecords)),
-    [habits, focusDate, habitRecords],
-  )
-  const habitsOffFocus = useMemo(
-    () => habits.filter((h) => !isHabitDueOnDate(h, focusDate, habitRecords)),
-    [habits, focusDate, habitRecords],
-  )
-
-  const shiftFocusDay = useCallback(
+  const shiftWeek = useCallback(
     (delta: number) => {
-      setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta)))
+      setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta * 7)))
     },
     [focusDate, setSelectedCalendarDateKey],
   )
-
-  const goFocusToday = useCallback(() => {
+  const goToday = useCallback(() => {
     setSelectedCalendarDateKey(todayKey)
   }, [setSelectedCalendarDateKey, todayKey])
-  useNavShortcut({ today: goFocusToday, prev: () => shiftFocusDay(-1), next: () => shiftFocusDay(1) })
-
-  const renderHabitRow = (h: Habit, offDay: boolean) =>
-    editing?.habitId === h.id ? (
-      <HabitEditCard key={`${h.id}:${editing.seq}`} habit={h} offDay={offDay} onClose={cancelEdit} />
-    ) : (
-      <HabitCard
-        key={h.id}
-        h={h}
-        offDay={offDay}
-        weekDates={weekDates}
-        habitRecords={habitRecords}
-        todayKey={todayKey}
-        weekdayLabels={habitWeekdayLabels}
-        menuProps={menuProps(h.id)}
-        onEdit={() => beginEdit(h)}
-      />
-    )
+  useNavShortcut({ today: goToday, prev: () => shiftWeek(-1), next: () => shiftWeek(1) })
 
   return (
     <div className={PAGE_SCROLL_CLASS}>
@@ -135,41 +97,34 @@ export function HabitsView() {
       </div>
 
       <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
-        {habits.length > 0 && <HabitsSummary habits={habits} habitRecords={habitRecords} />}
-
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} /> : null}
 
-        {habits.length > 0 ? (
-          <HabitWeekHeader
-            focusDate={focusDate}
-            focusKey={selectedCalendarDateKey}
-            todayKey={todayKey}
-            weekDates={weekDates}
-            weekdayLabels={habitWeekdayLabels}
-            onToday={goFocusToday}
-            onShift={shiftFocusDay}
-          />
-        ) : null}
-
-        <ul className="space-y-3">
-          {habits.length === 0 && (
-            <li>
-              <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
-            </li>
-          )}
-          {habits.length > 0 && habitsScheduledForFocus.length === 0 && habitsOffFocus.length > 0 && (
-            <p className={`py-2 ${SUBTLE_TEXT}`}>{t('habits.noneScheduledForDay')}</p>
-          )}
-          {habitsScheduledForFocus.map((h) => renderHabitRow(h, false))}
-          {habitsOffFocus.length > 0 && habitsScheduledForFocus.length > 0 ? (
-            <li className="list-none">
-              <div className="pt-4 pb-1">
-                <SectionLabel as="h3">{t('habits.offDaySectionTitle')}</SectionLabel>
-              </div>
-            </li>
-          ) : null}
-          {habitsOffFocus.map((h) => renderHabitRow(h, true))}
-        </ul>
+        {habits.length === 0 ? (
+          <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+        ) : (
+          <section className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{df.weekRange(focusDate)}</h2>
+              <DayNav
+                onToday={goToday}
+                onPrev={() => shiftWeek(-1)}
+                onNext={() => shiftWeek(1)}
+                prevLabel={t('habits.prevWeekAria')}
+                nextLabel={t('habits.nextWeekAria')}
+                atToday={atThisWeek}
+                shortcuts
+              />
+            </div>
+            <HabitWeekTable
+              habits={habits}
+              weekDates={weekDates}
+              todayKey={todayKey}
+              habitRecords={habitRecords}
+              menuProps={menuProps}
+              onOpen={(h) => openDetail(h.id)}
+            />
+          </section>
+        )}
 
         {archivedHabits.length > 0 && (
           <ArchivedHabits habits={archivedHabits} open={showArchived} onToggle={() => setShowArchived((v) => !v)} menuProps={menuProps} />
@@ -181,10 +136,18 @@ export function HabitsView() {
           y={habitMenu.y}
           habitId={habitMenu.habitId}
           onClose={closeHabitMenu}
-          onEdit={() => {
-            const h = habits.find((x) => x.id === habitMenu.habitId)
-            if (h) beginEdit(h)
-          }}
+          onEdit={() => openDetail(habitMenu.habitId, true)}
+        />
+      )}
+      {sheet.shown && (
+        <HabitDetailSheet
+          key={sheet.shown.seq}
+          habit={sheet.shown.habit}
+          habitRecords={habitRecords}
+          todayKey={todayKey}
+          closing={sheet.closing}
+          startEditing={sheet.shown.edit}
+          onClose={closeDetail}
         />
       )}
     </div>
