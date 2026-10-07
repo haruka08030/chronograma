@@ -68,6 +68,15 @@ function normalizeTime(raw: string): string | null {
   return `${pad2(h)}:${pad2(m)}`
 }
 
+/** いちばん近い、縦にスクロールする祖先（ページ全体は含めない） */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el; node && node !== document.body; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if (overflowY === 'auto' || overflowY === 'scroll') return node
+  }
+  return null
+}
+
 function buildTimeOptions(stepMinutes: number): string[] {
   const out: string[] = []
   for (let hour = 0; hour < 24; hour += 1) {
@@ -116,6 +125,16 @@ export function TimeInput({
     return idx >= 0 ? idx : 0
   }, [options, pickerDefault])
 
+  // 開いたときの位置: 今の値（15 分刻みに無い 14:07 などは近い行）、空なら既定
+  const initialHighlightIndex = useCallback(
+    (raw: string) => {
+      const normalized = normalizeTime(raw)
+      const idx = normalized ? nearestOptionIndex(options, normalized) : -1
+      return idx >= 0 ? idx : defaultHighlightIndex()
+    },
+    [options, defaultHighlightIndex],
+  )
+
   useEffect(() => {
     if (!open) return
     const node = optionRefs.current[highlightIndex]
@@ -148,7 +167,9 @@ export function TimeInput({
 
   const openList = () => {
     const rect = rootRef.current?.getBoundingClientRect()
-    setDropUp(rect ? window.innerHeight - rect.bottom < 272 && rect.top > window.innerHeight - rect.bottom : false)
+    // スクロールする枠（スマホで下から出るカードなど）の中では下に開く。上に開くと枠の上で切れ、下なら枠ごとスクロールして見える
+    const inScroller = !!rootRef.current && scrollParent(rootRef.current.parentElement) !== null
+    setDropUp(rect && !inScroller ? window.innerHeight - rect.bottom < 272 && rect.top > window.innerHeight - rect.bottom : false)
     setOpen(true)
   }
 
@@ -164,8 +185,7 @@ export function TimeInput({
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (!open) {
-        const idx = options.indexOf(normalizeTime(draft) ?? '')
-        setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
+        setHighlightIndex(initialHighlightIndex(draft))
         openList()
       } else {
         setHighlightIndex((prev) => Math.min(prev + 1, options.length - 1))
@@ -175,8 +195,7 @@ export function TimeInput({
     if (e.key === 'ArrowUp') {
       e.preventDefault()
       if (!open) {
-        const idx = options.indexOf(normalizeTime(draft) ?? '')
-        setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
+        setHighlightIndex(initialHighlightIndex(draft))
         openList()
       } else {
         setHighlightIndex((prev) => Math.max(prev - 1, 0))
@@ -220,8 +239,7 @@ export function TimeInput({
     if (disabled) return
     const nextDraft = value ?? ''
     setDraft(nextDraft)
-    const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
-    setHighlightIndex(idx >= 0 ? idx : defaultHighlightIndex())
+    setHighlightIndex(initialHighlightIndex(nextDraft))
     openList()
   }
 

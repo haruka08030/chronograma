@@ -103,6 +103,12 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // 時刻を押したところ（カードのままで分単位に直せる。候補は 15 分刻み）
+  {
+    name: 'calendar-event-card-time',
+    view: 'calendar',
+    click: ['[data-block-id="s6"] >> visible=true', '[role="dialog"] input[role="combobox"] >> nth=0'],
+  },
   { name: 'todo', view: 'all' },
   // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
   { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
