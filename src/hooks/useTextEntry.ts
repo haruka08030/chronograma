@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react'
-import { isSubmitEnter, textAreaKeyAction } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter, textAreaKeyAction } from '../lib/keyboard'
 
 /**
  * 1 行の入力欄の Enter / Esc / フォーカス外しを、どの欄でも同じ意味にする。
@@ -42,7 +42,7 @@ export function useTextEntry({
         onSubmit()
         return
       }
-      if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
+      if (isCancelEscape(e)) {
         e.preventDefault()
         e.stopPropagation()
         mark()

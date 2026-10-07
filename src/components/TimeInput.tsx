@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { pad2, toMinutes } from '../lib/clockTime'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { zonedNow } from '../lib/timeZone'
 import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER, MENU_ROW_PRESS } from './ui/surface'
 
@@ -208,7 +208,7 @@ export function TimeInput({
       setOpen(false)
       return
     }
-    if (e.key === 'Escape') {
+    if (isCancelEscape(e)) {
       e.preventDefault()
       setDraft(value ?? '')
       setOpen(false)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isImeKeyEvent, isTypingTarget, matchesHotkey, textAreaKeyAction } from './keyboard'
+import { isCancelEscape, isImeKeyEvent, isTypingTarget, matchesHotkey, textAreaKeyAction } from './keyboard'
 
 const taKey = (k: string, opts: { meta?: boolean; ctrl?: boolean; composing?: boolean; keyCode?: number } = {}) => ({
   key: k,
@@ -103,6 +103,15 @@ describe('isTypingTarget', () => {
     expect(isTypingTarget({ tagName: 'DIV', isContentEditable: false } as unknown as EventTarget)).toBe(false)
     expect(isTypingTarget({} as EventTarget)).toBe(false)
     expect(isTypingTarget(null)).toBe(false)
+  })
+})
+
+describe('isCancelEscape', () => {
+  it('変換を取り消す Esc（変換中・Safari の keyCode 229）は取り消しの Esc ではない', () => {
+    expect(isCancelEscape({ key: 'Escape', nativeEvent: { isComposing: false, keyCode: 27 } })).toBe(true)
+    expect(isCancelEscape({ key: 'Escape', nativeEvent: { isComposing: true, keyCode: 27 } })).toBe(false)
+    expect(isCancelEscape({ key: 'Escape', nativeEvent: { isComposing: false, keyCode: 229 } })).toBe(false)
+    expect(isCancelEscape({ key: 'Enter', nativeEvent: { isComposing: false, keyCode: 13 } })).toBe(false)
   })
 })
 

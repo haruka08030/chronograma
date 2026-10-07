@@ -16,7 +16,7 @@ import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { PillToggle } from '../ui/PillToggle'
-import { isSubmitEnter } from '../../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -153,7 +153,7 @@ export function QuickCreatePopover({
       className={`${anchoredCardClass(sheet)} p-4`}
       style={style}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose()
+        if (isCancelEscape(e)) onClose()
       }}
     >
       {!asLog && (
