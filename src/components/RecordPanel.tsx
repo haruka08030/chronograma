@@ -14,7 +14,7 @@ import { TimeInput } from './TimeInput'
 import { zonedNow } from '../lib/timeZone'
 import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
@@ -150,7 +150,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
       e.preventDefault()
       submit()
     }
-    if (e.key === 'Escape') close()
+    if (isCancelEscape(e)) close()
   }
 
   const summary = totalMinutes > 0 && (

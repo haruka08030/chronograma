@@ -2,7 +2,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useIsLargeScreen } from '../hooks/useMediaQuery'
-import { shortcutLabel } from '../lib/keyboard'
+import { isImeKeyEvent, isSubmitEnter, shortcutLabel } from '../lib/keyboard'
 import { requestListCursor } from '../lib/shortcuts'
 import { searchTasks } from '../lib/searchTasks'
 import { openTaskDetail } from '../lib/overlays'
@@ -17,7 +17,7 @@ export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement |
 
   // Esc 1 回で文字を消し、2 回目で欄から出る。↓ で結果の一覧へ（最初の行に枠）、Enter で最初の結果を開く
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return
+    if (isImeKeyEvent(e.nativeEvent)) return
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -28,7 +28,7 @@ export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement |
       e.currentTarget.blur()
       // 一覧のキー操作（useTaskListSelection）に ↓ と同じ動きを頼み、最初の行に枠を出す
       requestListCursor()
-    } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    } else if (isSubmitEnter(e) && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       const first = searchTasks(useTaskStore.getState().tasks, searchQuery)[0]
       if (!first) return
       e.preventDefault()

@@ -4,7 +4,7 @@ import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { fieldClass } from './ui/fieldClass'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 
 const LIST_HEIGHT = 280
 const WIDTH = 320
@@ -148,7 +148,7 @@ export function TimeZonePicker({
             aria-controls={listId}
             aria-activedescendant={filtered[highlight] ? `${listId}-${highlight}` : undefined}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') {
+              if (isCancelEscape(e)) {
                 e.stopPropagation()
                 close()
               } else if (e.key === 'ArrowDown') {

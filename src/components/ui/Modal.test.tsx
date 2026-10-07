@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -89,6 +89,21 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('dialog').parentElement!)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Safari の変換を取り消す Esc（keyCode 229）では閉じない', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<Harness onClose={onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    const input = screen.getByRole('textbox', { name: 'Name' })
+
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 })
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Rename' })).toBeInTheDocument()
+
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 27 })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

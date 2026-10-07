@@ -12,7 +12,7 @@ import { toggleHabitWeekdaySelection } from '../../lib/habitDraft'
 import { HABIT_ON_TIME_TOLERANCE_MIN } from '../../lib/habitTiming'
 import { labelForHex } from '../../lib/logCategoryColors'
 import { addClockMinutes } from '../../lib/clockTime'
-import { isSubmitEnter } from '../../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { TimeInput } from '../TimeInput'
 import { ColorPalette } from '../labels/ColorPalette'
 import { PillToggle } from '../ui/PillToggle'
@@ -193,7 +193,7 @@ export function HabitFormFields({
             e.preventDefault()
             onSubmit()
           }
-          if (e.key === 'Escape') onEscape()
+          if (isCancelEscape(e)) onEscape()
         }}
         placeholder={placeholder}
         className={fieldClass({}, 'w-full')}
