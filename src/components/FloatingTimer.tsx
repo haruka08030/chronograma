@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { fromAppWall, toAppWall } from '../lib/timeZone'
+import { appTimeZone, instantFromWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
 import { clockOf, toMinutes } from '../lib/clockTime'
-import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { DateField } from './DateField'
 import { TimeInput } from './TimeInput'
@@ -264,7 +264,8 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
   const [endDate, setEndDate] = useState(() => toDateKey(started))
   const [endTime, setEndTime] = useState(() => clockOf(started))
   const [editing, setEditing] = useState(false)
-  const end = wallDateTime(endDate, endTime)
+  // 止めた時刻の本当の瞬間（壁時計の文字列から直接。端末の夏時間で存在しない時刻でずれないように）
+  const endAt = toMinutes(endTime) === null ? null : instantFromWall(endDate, endTime, appTimeZone())
 
   return (
     <div
@@ -300,8 +301,8 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
           </div>
           <button
             type="button"
-            onClick={() => end && resolveStaleTimer(fromAppWall(end).toISOString())}
-            disabled={!end || end <= started}
+            onClick={() => endAt !== null && resolveStaleTimer(new Date(endAt).toISOString())}
+            disabled={endAt === null || endAt <= Date.parse(startedAt)}
             className={buttonClass({ variant: 'primary', size: 'sm' }, 'ml-auto shrink-0')}
           >
             {t('staleTimer.saveAt')}
@@ -322,13 +323,4 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
       )}
     </div>
   )
-}
-
-/** 日付キーと `HH:MM` を壁時計の Date にする（時刻が不正なら null） */
-function wallDateTime(dateKey: string, time: string): Date | null {
-  const minutes = toMinutes(time)
-  if (minutes === null) return null
-  const d = fromDateKey(dateKey)
-  d.setHours(0, minutes, 0, 0)
-  return d
 }
