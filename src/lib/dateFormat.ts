@@ -1,6 +1,7 @@
 import { endOfWeek, format, startOfWeek } from 'date-fns'
 import i18n from '../i18n/config'
-import { dateFnsLocale, fromDateKey } from './dateKey'
+import { dateFnsLocale, fromDateKey, toDateKey } from './dateKey'
+import { appTodayKey } from './timeZone'
 
 /**
  * 日付の表示形式の名前。形式そのものは i18n の `dateFormat.*`（ja / en）にある。
@@ -33,6 +34,16 @@ export function formatDate(date: Date | string, name: DateFormatName, language: 
   const d = typeof date === 'string' ? fromDateKey(date) : date
   const pattern = i18n.getFixedT(language ?? i18n.language)(`dateFormat.${name}`)
   return format(d, pattern, { locale: dateFnsLocale(language) })
+}
+
+/** 「10/3 (土)」。今年（アプリの今日の年）でない日は年も付ける「2027/10/3 (日)」（行・メニュー・クイック追加の読み取りで共有） */
+export function formatShortDateWeekday(
+  date: Date | string,
+  language: string | undefined = i18n.resolvedLanguage,
+  todayKey: string = appTodayKey(),
+): string {
+  const key = typeof date === 'string' ? date : toDateKey(date)
+  return formatDate(date, key.slice(0, 4) === todayKey.slice(0, 4) ? 'shortDateWeekday' : 'shortDateWeekdayYear', language)
 }
 
 /**

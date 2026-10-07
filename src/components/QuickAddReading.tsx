@@ -29,10 +29,10 @@ export function QuickAddReading({
     const parts: string[] = []
     if (r.plan) {
       const time = r.plan.endTime ? `${r.plan.startTime}–${r.plan.endTime}` : r.plan.startTime
-      parts.push(`${df.shortDateWeekday(r.plan.date)} ${time}`)
-    } else if (r.doDate) parts.push(t('quickAdd.reading.doDate', { date: df.shortDateWeekday(r.doDate) }))
+      parts.push(`${df.shortDateWeekdayAnyYear(r.plan.date)} ${time}`)
+    } else if (r.doDate) parts.push(t('quickAdd.reading.doDate', { date: df.shortDateWeekdayAnyYear(r.doDate) }))
     if (r.due) {
-      const date = df.shortDateWeekday(r.due.date)
+      const date = df.shortDateWeekdayAnyYear(r.due.date)
       parts.push(r.due.time ? t('quickAdd.reading.dueAt', { date, time: r.due.time }) : t('quickAdd.reading.due', { date }))
     }
     if (r.estimateMinutes != null) parts.push(t('quickAdd.reading.estimate', { time: formatDuration(r.estimateMinutes) }))
