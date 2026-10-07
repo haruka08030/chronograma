@@ -19,7 +19,10 @@ import {
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
 import { isActiveTask } from '../lib/taskLifecycle'
-import { calendarDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { FlagIcon } from './icons'
+import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { dueToneOf } from '../lib/dueTone'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { isAppToday } from '../lib/timeZone'
@@ -30,7 +33,7 @@ import { formatDurationShort } from '../lib/timeGrid'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
-import { isLogTask } from '../types/task'
+import { isEventTask, isLogTask, planKindOf } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
@@ -128,6 +131,17 @@ export function CalendarView({
     return map
   }, [tasks, excludedListIds])
 
+  /** 締切の日の印（実行日が別の日のもの）。マスは行数が限られるので、日ごとに件数と題名だけ */
+  const dueByDate = useMemo(() => {
+    const map = new Map<string, typeof tasks>()
+    for (const t of tasks) {
+      if (t.parentId || isLogTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+      const key = dueMarkDayKey(t)
+      if (key) map.set(key, [...(map.get(key) ?? []), t])
+    }
+    return map
+  }, [tasks, excludedListIds])
+
   const fetchRange = useMemo(() => {
     const ws = startOfWeek(startOfMonth(displayMonth), { weekStartsOn: 1 })
     const we = endOfWeek(endOfMonth(displayMonth), { weekStartsOn: 1 })
@@ -173,6 +187,7 @@ export function CalendarView({
             const selected = selectedDateKey ? key === selectedDateKey : false
 
             return (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 月のマスを押す・ダブルクリックはマウス・指の近道（キーではマスの ＋ ボタンで追加できる）
               <div
                 key={key}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
@@ -217,7 +232,7 @@ export function CalendarView({
                             scheduledDate: key,
                             startTime: existingTask.startTime,
                             endTime: existingTask.endTime,
-                            kind: 'todo',
+                            kind: planKindOf(existingTask),
                           },
                           label,
                         )
@@ -310,6 +325,7 @@ export function CalendarView({
                     </div>
                   ))}
                   {shownTasks.map((t) => (
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
                     <div
                       key={t.id}
                       draggable
@@ -344,17 +360,36 @@ export function CalendarView({
                       style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
                     >
                       {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
-                      <CalendarCheck
-                        done={t.completed}
-                        label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                        onCheck={() => toggleTask(t.id)}
-                        className="text-(--c)"
-                      />
+                      {/* 予定（完了の無いもの）は Google の月表示と同じく ● */}
+                      {isEventTask(t) ? (
+                        <span aria-hidden className="gc-dot mx-0.5 h-2 w-2 shrink-0 rounded-full" />
+                      ) : (
+                        <CalendarCheck
+                          done={t.completed}
+                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                          onCheck={() => toggleTask(t.id)}
+                          className="text-(--c)"
+                        />
+                      )}
                       {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
                       {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
                       <span className="truncate">{t.title}</span>
                     </div>
                   ))}
+                  {(() => {
+                    const due = dueByDate.get(key)
+                    if (!due) return null
+                    // いちばん急ぐものの色（締切切れ > 今日 > 明日 > それ以外）
+                    const order: DateTone[] = ['overdue', 'today', 'tomorrow', 'future', 'past']
+                    const tone = order.find((x) => due.some((d) => dueToneOf(d.dueDate!, d.dueTime, key) === x)) ?? 'future'
+                    const titles = due.map((d) => (d.dueTime ? `${d.dueTime} ${d.title}` : d.title)).join('\n')
+                    return (
+                      <div {...tip(titles)} className={`flex items-center gap-1 px-1 text-[10px] leading-tight ${DUE_TONE_CLASS[tone]}`}>
+                        <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">{due.length === 1 ? due[0]!.title : t('calendar.dueCount', { count: due.length })}</span>
+                      </div>
+                    )
+                  })()}
                   {hiddenCount > 0 && (
                     // 件数だけ。押すとマス全体と同じくその日が開く
                     <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">

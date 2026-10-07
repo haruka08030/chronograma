@@ -2,7 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { paletteColors } from '../lib/listColorPalettes'
+import { ensureLabel, type LabelTable } from '../lib/foldTaskFolders'
 import {
   advanceNotionPage,
   advanceNotionPageOnLeave,
@@ -108,16 +108,26 @@ export function useNotionSync() {
           }
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
-          const cols = paletteColors(s.listColorPaletteId)
-          const result = reconcileNotionPages({ lists: s.lists, tasks: s.tasks }, res, {
+          // 新しいタスクにはデータベース名のラベルを付ける（無ければ作る）
+          const labels0: LabelTable = { timeLogTagPresets: s.timeLogTagPresets, logCategoryColors: s.logCategoryColors }
+          let labels = labels0
+          const result = reconcileNotionPages({ tasks: s.tasks }, res, {
             now: new Date().toISOString(),
-            listColor: cols[s.lists.length % cols.length],
+            colorFor: () => {
+              const name = res.databaseTitle.trim()
+              if (!name) return null
+              const r = ensureLabel(labels, name)
+              labels = r.table
+              return r.hex
+            },
             titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
             pulled: loadPulled(notionPulledKey(userId)),
           })
           savePulled(notionPulledKey(userId), result.pulled)
           result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
-          if (result.changed) asIncomingChange(() => useTaskStore.setState({ lists: result.lists, tasks: result.tasks }))
+          // ラベルを作ったら、ほかの端末へ送るよう時刻を付ける（届いた変更の扱いなので自動では付かない）
+          const labelPatch = labels === labels0 ? {} : { ...labels, logLabelsUpdatedAt: new Date().toISOString() }
+          if (result.changed) asIncomingChange(() => useTaskStore.setState({ tasks: result.tasks, ...labelPatch }))
           setSyncState({ connected: true, configured: true, lastSyncedAt: new Date().toISOString(), error: null })
         } while (rerun && !cancelled)
       } catch (e) {

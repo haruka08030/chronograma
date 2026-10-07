@@ -45,7 +45,7 @@ export function GoogleConnectLine({
           onClick={() => void disconnect()}
           className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
         >
-          {t('planVsActual.disconnect')}
+          {t('integrations.disconnect')}
         </button>
       </div>
     )

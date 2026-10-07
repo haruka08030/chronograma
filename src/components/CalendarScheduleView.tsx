@@ -1,4 +1,5 @@
-import { Suspense, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -18,7 +19,8 @@ import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
-import type { Task } from '../types/task'
+import { isEventTask, type Task } from '../types/task'
+import { planHex, planVisualState } from '../lib/planVisual'
 import type { CalendarEvent } from '../types/calendarEvent'
 
 /** 最初に並べる日数と「さらに表示」で足す日数 */
@@ -121,9 +123,29 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                         </div>
                       </button>
                     ))}
-                    {dayTasks.map((task) => (
-                      <TaskItem key={task.id} task={task} dayKey={key} hideDueDatePicker onRowClick={() => openTaskDetail(task.id)} />
-                    ))}
+                    {dayTasks.map((task) =>
+                      isEventTask(task) ? (
+                        // 予定（完了の無いもの）は Google の予定と同じカード。時間が過ぎたらグレー
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => openTaskDetail(task.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            openTaskMenu({ kind: 'event', x: e.clientX, y: e.clientY, taskId: task.id })
+                          }}
+                          className={`${planVisualState(task, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} block w-full rounded-lg px-3 py-2 text-left`}
+                          style={colorVars(planHex(task))}
+                        >
+                          <div className="truncate text-sm font-medium">{task.title}</div>
+                          <div className="mt-0.5 text-xs opacity-70">
+                            {task.startTime && task.endTime ? `${task.startTime} – ${task.endTime}` : t('weekCalendar.allDay')}
+                          </div>
+                        </button>
+                      ) : (
+                        <TaskItem key={task.id} task={task} dayKey={key} hideDueDatePicker onRowClick={() => openTaskDetail(task.id)} />
+                      ),
+                    )}
                   </div>
                 </div>
               </section>
@@ -140,9 +162,9 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
           </button>
         </div>
       </div>
-      <Suspense fallback={null}>
+      <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
-      </Suspense>
+      </OverlaySuspense>
     </div>
   )
 }

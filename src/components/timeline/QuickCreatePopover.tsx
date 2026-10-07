@@ -9,26 +9,50 @@ import { colorVars } from '../../lib/logCategoryColors'
 import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
+import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { PillToggle } from '../ui/PillToggle'
-import { isSubmitEnter } from '../../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
-/** 作成先（Google カレンダーのクイック作成の「予定 / タスク」と同じ切り替え）。前回の選択を覚える */
-let lastDestination: 'todo' | 'google' = 'todo'
+/** リストの欄で「Google カレンダー」を選んだとき（予定だけ。Google の予定として作る） */
+const GOOGLE_TARGET = '__google__'
+
+/** 作るもの（Google カレンダーのクイック作成の「予定 / タスク」と同じ切り替え）と、予定を Google に作るか。端末に覚える */
+type QuickCreateChoice = { kind: 'todo' | 'event'; eventToGoogle: boolean }
+const CHOICE_KEY = 'chronograma-quick-create-v1'
+
+function readChoice(): QuickCreateChoice {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(CHOICE_KEY) ?? 'null') as Partial<QuickCreateChoice> | null
+    return { kind: raw?.kind === 'event' ? 'event' : 'todo', eventToGoogle: raw?.eventToGoogle === true }
+  } catch {
+    return { kind: 'todo', eventToGoogle: false }
+  }
+}
+
+function saveChoice(choice: QuickCreateChoice) {
+  try {
+    globalThis.localStorage?.setItem(CHOICE_KEY, JSON.stringify(choice))
+  } catch {
+    /* 覚えられなくても今回の作成はできる */
+  }
+}
 
 /**
  * 空き時間をクリック / ドラッグしたときの作成カード（Google カレンダーのクイック作成相当）。
- * タイトルとリストだけ決めて保存。細かい設定は「その他のオプション」で作ってから詳細を開く。
- * 外側クリック・Esc は破棄（Google と同じ）。
+ * 上で To-Do（完了の丸つき）か予定（バイト・授業など。完了の丸なし）かを選び、タイトルとリストだけ決めて保存。
+ * Google とつないで書き込めるときは、予定のリストの欄に「Google カレンダー」も並ぶ（Google の予定として作る）。
+ * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ。
+ * 細かい設定は「その他のオプション」で作ってから詳細を開く。外側クリック・Esc は破棄（Google と同じ）。
  * `asLog`（「今日」の記録の列）では、リストの代わりに分類を選んで記録として保存する。
  */
 export function QuickCreatePopover({
@@ -55,8 +79,9 @@ export function QuickCreatePopover({
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const [title, setTitle] = useState('')
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
-  const [destination, setDestination] = useState<'todo' | 'google'>(lastDestination)
-  const toGoogle = !asLog && googleWritable && destination === 'google'
+  const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
+  const asEvent = !asLog && choice.kind === 'event'
+  const toGoogle = asEvent && googleWritable && choice.eventToGoogle
   const [category, setCategory] = useState('')
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
@@ -82,13 +107,12 @@ export function QuickCreatePopover({
       return
     }
     const name = title.trim() || t('quickCreate.untitled')
+    saveChoice(choice)
     if (toGoogle) {
-      lastDestination = 'google'
       void addGoogleEvent(name, { date: dateKey, startTime, endTime, timeZone: zone })
       onClose()
       return
     }
-    if (googleWritable) lastDestination = 'todo'
     // 題名はクイック追加と同じに読む。ドラッグした日・時間帯は「書かなかったときの既定値」で、
     // 「明日」「16時」のように書いたらそちらが勝つ（書いたのはドラッグのあとなので、より新しい意図）。
     // 「金曜まで」は締切だけ付き、予定はドラッグした枠のまま。`@リスト` は選んだリストより優先
@@ -100,13 +124,14 @@ export function QuickCreatePopover({
         currentListId: listId,
         defaultDate: dateKey,
         defaultTime: { startTime, endTime },
+        kind: asEvent ? 'event' : undefined,
       })
       const created = useTaskStore.getState().tasks.find((x) => x.id === id)
       if (!id || !zone || !created?.scheduledDate || !created.startTime || !created.endTime) return
       // 別のタイムゾーンで作るときは、書いた（またはドラッグした）時刻をそのタイムゾーンの時刻として読む
       const times = { scheduledDate: created.scheduledDate, startTime: created.startTime, endTime: created.endTime }
       updateTask(id, {
-        ...timesPatchFromZone({ ...times, kind: 'todo', dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
+        ...timesPatchFromZone({ ...times, kind: created.kind, dueDate: created.dueDate, dueTime: null, endDate: null }, {}, zone),
         timeZone: zone,
       })
     })
@@ -116,10 +141,11 @@ export function QuickCreatePopover({
   }
 
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, googleWritable && !asLog ? 270 : 230)
-  const listColor = plannable.find((l) => l.id === listId)?.color ?? '#7986CB'
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, !asLog ? 270 : 230)
+  const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- ダイアログの中のキー（Esc で閉じる）をまとめて受ける
     <div
       ref={ref}
       role="dialog"
@@ -127,19 +153,20 @@ export function QuickCreatePopover({
       className={`${anchoredCardClass(sheet)} p-4`}
       style={style}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose()
+        if (isCancelEscape(e)) onClose()
       }}
     >
-      {googleWritable && !asLog && (
+      {!asLog && (
+        // Google と同じく「予定 / To-Do」。予定には完了の丸が付かない
         <PillToggle
-          ariaLabel={t('googleEdit.destination')}
+          ariaLabel={t('quickCreate.kind')}
           options={[
-            { value: 'todo', label: t('googleEdit.destTodo') },
-            { value: 'google', label: t('googleEdit.destGoogle') },
+            { value: 'event', label: t('quickCreate.kindEvent') },
+            { value: 'todo', label: t('quickCreate.kindTodo') },
           ]}
-          value={destination}
-          onChange={(d) => {
-            setDestination(d)
+          value={choice.kind}
+          onChange={(kind) => {
+            setChoice((c) => ({ ...c, kind }))
             inputRef.current?.focus()
           }}
           className="mb-3"
@@ -191,13 +218,18 @@ export function QuickCreatePopover({
         <div className="mt-3">
           <TimeLogTagField value={category} onChange={setCategory} compact />
         </div>
-      ) : toGoogle ? null : (
+      ) : (
         <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
           <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(listColor)} aria-hidden />
           <span className="sr-only">{t('quickCreate.list')}</span>
           <select
-            value={listId}
-            onChange={(e) => setListId(e.target.value)}
+            value={toGoogle ? GOOGLE_TARGET : listId}
+            onChange={(e) => {
+              const v = e.target.value
+              // Google の予定のカレンダー選びと同じく、予定の作成先はリストの欄で選ぶ（To-Do のリスト選びでは変えない）
+              if (asEvent) setChoice((c) => ({ ...c, eventToGoogle: v === GOOGLE_TARGET }))
+              if (v !== GOOGLE_TARGET) setListId(v)
+            }}
             className="min-w-0 flex-1 rounded-md bg-transparent py-1 outline-none hover:bg-zinc-50 dark:hover:bg-zinc-700"
           >
             {plannable.map((l) => (
@@ -205,6 +237,7 @@ export function QuickCreatePopover({
                 {displayListName(l.id, l.name)}
               </option>
             ))}
+            {asEvent && googleWritable && <option value={GOOGLE_TARGET}>{t('googleEdit.destGoogle')}</option>}
           </select>
         </label>
       )}

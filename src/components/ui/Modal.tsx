@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { dispatchHotkey, useEscapeLayer, useHotkey } from '../../hooks/useHotkey'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { FLOATING_SURFACE } from './surface'
+import { isCancelEscape } from '../../lib/keyboard'
 
 /**
  * 画面の中央に出すダイアログ（ラベル・色選択・完了＋記録・ショートカット一覧）。どれも同じ見た目にする。
@@ -43,6 +44,7 @@ export function Modal({
   const trapTab = useFocusTrap(ref, { initialFocus })
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため・ダイアログのキーをまとめて受けるため
     <div
       data-popover-keep
       className="fixed inset-0 z-[80] flex animate-fade-in items-center justify-center bg-black/30 p-4 dark:bg-black/50"
@@ -50,7 +52,7 @@ export function Modal({
         dispatchHotkey(e.nativeEvent, { layerOnly: true })
         e.stopPropagation()
         // 入力欄の Esc は層の仕組みでは拾わない（欄の取り消しを優先）。欄が使わなかった Esc でダイアログを閉じる
-        if (e.key === 'Escape' && !e.defaultPrevented && !e.nativeEvent.isComposing && layer.isTop()) {
+        if (isCancelEscape(e) && !e.defaultPrevented && layer.isTop()) {
           e.preventDefault()
           onClose()
         }

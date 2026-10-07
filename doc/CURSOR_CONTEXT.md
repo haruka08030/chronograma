@@ -21,7 +21,7 @@
   SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
   旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
 - **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマ **version 28**）。旧キー `tickdo-storage`
+  `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`）。旧キー `tickdo-storage`
   は初回のみ `migrateLegacyPersistKey` で移行
 - **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
   / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ
@@ -31,7 +31,7 @@
 | 領域       | 内容                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ランタイム | React 19, TypeScript                                                                                                                                                                 |
-| ビルド     | Vite 8（`vite.config.ts` で react / i18n / supabase / dnd-kit / date-fns を別ファイルに分ける。開いたときだけ要る詳細・メニュー・ポップオーバーは `src/components/lazyOverlays.ts` で遅延読み込みし、手すきのときに先読み） |
+| ビルド     | Vite 8（`vite.config.ts` で react / i18n / supabase / dnd-kit / date-fns を別ファイルに分ける。開いたときだけ要る詳細・メニュー・ポップオーバーは `src/components/lazyOverlays.ts` で遅延読み込みし、手すきのときに先読み。「今日の計画」以外の画面も `App.tsx` で遅延読み込み。どれも `lib/lazyComponent.ts` の `lazyNamed` で、読めなかったら境界が戻るとき（`retryFailedLazyLoads`）に取り直す。詳細・メニューは `ui/OverlaySuspense` の中で描き、読めなければ何も出さずに知らせて、次に押したとき・回線が戻ったとき・開き直したときに読み直す。画面は `ErrorBoundary` の「もう一度」か画面の切り替えで読み直す。デプロイ直後の古いファイル名（`lib/chunkLoad.ts` の `isChunkLoadError`）でオンラインなら 1 回だけ再読み込み（1 分は空ける。`vite:preloadError` と共通の `reloadForStaleChunk`） |
 | スタイル   | Tailwind CSS 4（`@tailwindcss/vite`）, `src/index.css`                                                                                                                               |
 | 状態       | Zustand 5 + `persist`                                                                                                                                                                |
 | DnD        | `@dnd-kit/core`, `sortable`, `utilities`                                                                                                                                             |
@@ -64,7 +64,7 @@
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo
   面**（リスト選択 `selectedView === null` または `all` / `today` / `upcoming` /
   `overdue`）かつ検索が空のときだけ グローバルヘッダーは ToDo
-  面かつ検索が空のとき**検索欄のみ**（`AccountMenu` / `ThemeToggle` は
+  面かつ検索が空のとき**検索欄のみ**（`AccountMenu` は
   `SettingsView` へ）。それ以外の画面ではヘッダー非表示（カレンダーは
   ハブ内のメニュー）。**lg(≥1024px) 以上**で To‑Do 系ビュー（`isTodoNavView`＝ToDo
   面＋`completed` / `archived` / `deleted`）のときだけ、サイドバーの**右**に細い
@@ -104,9 +104,11 @@
   （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
   マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
-- **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks`（既定）/ `someday`（いつか・Wish）/ `checklist`（買い物など）。
+- **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
+  To‑Do はラベルで分ける。ほかの `tasks` のリストと未分類のセクションは `foldTaskFolders`（`src/lib/foldTaskFolders.ts`）がラベルに畳む
+  （`taskStore` の購読で、読み込み・同期・取り込みのどこから来ても）。未分類を開いていたら「すべて」へ（`settleTodoView`）。
   `unplannedListIds`（`src/lib/listKind.ts`）の ID は スマートビュー（今日・近日中・期限切れ・すべて）、`getDayPlan`、`getWeekReview`、
-  統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。切り替えはリスト見出しの
+  統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。いつか・チェックリストの切り替えはリスト見出しの
   `ListKindPicker`、サイドバーのリスト行に種類アイコン。新規ユーザーの初期リストは 未分類 / いつか / 買い物（`initialLists`）。
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
   DB は `lists.kind`。未適用の DB では push 時に kind なしで送り直す
@@ -253,7 +255,6 @@
 - `deletedTasks`（削除トースト用）、`undoLastOperation()`（⌘Z
   用の直前スナップショット復元・永続化しない）／`redoLastOperation()`（⌘⇧Z
   用・redo スタックも永続化しない）、`notificationsEnabled`
-- `listColorPaletteId`（`src/lib/listColorPalettes.ts`）
 - `calendarEvents`, `googleConnected`, `googleAccessToken`
 - `activeTimer`, `habits`（`addHabit` / `updateHabit` / `deleteHabit` /
   `archiveHabit` / `restoreHabit` / `toggleHabitDate`）
@@ -305,9 +306,7 @@
   と永続化 v21 で旧データは `completed && !completedAt` を `updatedAt`
   で埋める。`StatsView` の日別完了・ストリークは `completedAt ?? updatedAt`
 - 一覧の**予定タスク**（配置日 + `startTime` + `endTime`
-  あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。`予定どおり完了`
-  / `時間をずらして実行`
-  を選び、開始・終了時刻をピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`kind: 'log'`）を作成してから元タスクを完了にする
+  あり）を未完了→完了にすると、即時トグルではなく「完了を記録」モーダルを開く。開始・終了時刻は予定の時刻で埋まっており、ずれたらピッカーで調整し、メモ（任意）付きで保存すると、タイムログ（`kind: 'log'`）を作成してから元タスクを完了にする
 - `PlanVsActualView`
   の左列（自分の予定タスク）もクリックで同じ「完了を記録」モーダルを開く。ドラッグ/リサイズ時は従来どおり時間調整を優先し、クリック時のみ完了フローへ入る
 - `PlanVsActualView` の左列の**習慣（range スロット）**は、行末チェックで
@@ -328,7 +327,8 @@
 - 繰り返し付きタスクを完了すると **次回分を新 ID** で追加（`dueDate`/`scheduledDate` とも進める）
 - `dueDate`（期限）を `null` にすると `dueTime` / `recurrence` をクリア。`scheduledDate`
   （予定）を `null` にすると `startTime` / `endTime` をクリア（カレンダー操作は予定側を更新）
-- **タスクの種類**: `Task` は `kind`（`'todo'` / `'log'` / `'sleep'`）で分けた型（`TodoTask` / `LogTask` / `SleepTask`。`src/types/task.ts`）。判定は `isTodoTask` / `isLogTask`（睡眠も含む記録）/ `isSleepTask`。`dueDate` は To-Do では期限日、記録・睡眠では開始日。サーバーの列と前の版のバックアップでは `is_time_log` / `isTimeLog` と `is_sleep` / `isSleep` の 2 つで持ち、読み書きの所（`supabaseData.ts`・`backupFormat.ts`）で `kind` と相互に直す（バックアップの書き出しは `kind` と 2 つの印の両方）。保存データは永続化 v38 で `kind` に移行
+- **タスクの種類**: `Task` は `kind`（`'todo'` / `'event'` / `'log'` / `'sleep'`）で分けた型（`TodoTask` / `EventTask` / `LogTask` / `SleepTask`。`src/types/task.ts`）。判定は `isTodoTask` / `isEventTask` / `isLogTask`（睡眠も含む記録）/ `isSleepTask`。`dueDate` は To-Do では期限日、記録・睡眠では開始日、予定では使わない（null）。サーバーの列と前の版のバックアップでは `is_time_log` / `isTimeLog`・`is_sleep` / `isSleep`・`is_event` / `isEvent`（`014`）の印で持ち、読み書きの所（`supabaseData.ts`・`backupFormat.ts`）で `kind` と相互に直す（バックアップの書き出しは `kind` と印の両方）。保存データは永続化 v38 で `kind` に移行
+- **予定（`kind: 'event'`）**: 完了の丸の無い、時刻のある予定（バイト・授業）。カレンダーの作成カードで To-Do／予定を選ぶ。完了にできない（`toggleTask` は何もしない）、時間が過ぎたらグレー（Google の予定と同じ）。To-Do の一覧・カレンダー横ドック・今日の計画の To-Do・やり残し・完了数・統計には入れない。今日の「予定 N 時間」と週の振り返りの予定と記録の突き合わせにも、Google の予定と同じく入れない。カレンダー・空き時間の候補（ふさがっている時間）・予定の前の通知は To-Do の予定と同じ。To-Do の置き場には戻せない（日時の無い予定はどこにも出ないため）。予定カードでは「記録にする」（始まった予定）と「記録を開始」。締切・繰り返し・優先度・サブタスクは持たない（予定にすると外す）
 - **タイムログ**: `kind: 'log'`（睡眠は `'sleep'`）。`startTimer` / `stopTimer`,
   `addTimeLog`, `addCompletedTaskWithTime`。ストア上は `completed: true`
   のまま。**ToDo
@@ -354,7 +354,7 @@
   v3**（`src/lib/backupFormat.ts`）。 `schemaVersion` / `exportedAt` /
   `listSections`（import は `sections`・`list_sections`
   も可）。`order`・`sortOrder`
-  エイリアス。`timeLogTagPresets`・`listColorPaletteId` 含む。**import
+  エイリアス。`timeLogTagPresets` 含む。**import
   バリデーション**: 重複 ID（tasks/lists/sections）、 孤児参照（`task.listId` /
   `task.sectionId` / `task.parentId` / `section.listId`）を 検出した JSON
   は適用しない。ダウンロード名 `chronograma-backup-YYYY-MM-DD.json`
@@ -375,7 +375,7 @@
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
-- **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`、メモリだけ・ログインごと）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。全部を取る（`fetchListsTasksHabits`）のは: タブを開いた・ログインした最初の同期、この端末でこの人として初めて、目印が無い、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、`008` の前の DB（そのログインの間ずっと）。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
+- **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`、メモリだけ・ログインごと）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。全部を取る（`fetchListsTasksHabits`）のは: タブを開いた・ログインした最初の同期、この端末でこの人として初めて、目印が無い、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、`008` の前の DB（そのログインの間ずっと）、前回の取得から 30 日（印を残す期間、`TOMBSTONE_RETENTION_MS`）、差分で取る範囲の印がサーバーの上限で消えていた（`sync_tombstone_purges.last_deleted_at` が目印より後、`010`。`tombstonesTrimmed`）。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
 - **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除も取得した版のままの行だけ（`id` と `updated_at` の組で消す）。`base_updated_at` 列が無い DB では付けずに送り直す。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
@@ -426,10 +426,9 @@
 | `StatsView.tsx`                                                                                            | 統計（ルートの通常タスクのみ集計、タイムログは除外）。完了日別指標は **`completedAt` を優先**（無い場合は `updatedAt`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `HabitsView.tsx`                                                                                           | ダッシュボード型 UI（28日ヒートマップ / 週次スコア / 連続日数）＋**フォーカス日**（`selectedCalendarDateKey`）のカード一覧。**その日にスケジュールあり**の習慣を先に表示し、**曜日などでその日が対象外**の習慣は下部にグレー（破線枠・低彩度）で並べ、クリックで編集。カード内の**週7丸は予定外曜日でも達成トグル可能**（週次%は予定日の達成のみ）。予定ありと予定外の両方があるときだけ小見出し（`habits.offDaySectionTitle`）。一覧の上にその週の曜日一行（クリックでフォーカス日をその列に合わせる。フォーカス列はヘッダーに背景トーン＋強調、カード内はリングで列同期）。日付は前日/翌日/今日で変更可能（カレンダーハブと同期）。新規追加は「習慣を追加」で展開。名前欄の **Enter は IME 未変換時のみ送信**（`!isComposing`、送信後フォーカス維持）、**Esc で閉じる**（QuickAdd と同型）。時間指定は `none` / `fixed` / `range`。`fixed` は `PlanVsActual` に出さない（`range` のみ）。集計は `habitStats.ts`、フォームは `habitDraft.ts` |
 | `TaskBinView.tsx`                                                                                          | アーカイブ済み / ゴミ箱（`mode="archived" \| "deleted"`）。該当タスクを一覧（親も同じ箱なら親のみ代表表示）し、復元 / 戻す / 完全削除、ゴミ箱は「空にする」。`App.tsx` の `archived` / `deleted` ビューで描画 |
-| `SettingsView.tsx`                                                                                         | 外観（`ThemeToggle`）、アカウント（`AccountMenu`）、**活動ログのタグ候補**（`#settings-time-log-tags`・1行1タグのテキストエリア、`parseTimeLogTagPresetLines` で blur 時に保存）、リスト色パレット、**データ**（`#settings-data`・エクスポート／JSON インポート（全置換・`confirm.importOverwrite`）／CSV タスク追加（マージ））。`#settings-appearance` / `#settings-account` でメニューからのスクロール先                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `SettingsView.tsx`                                                                                         | 外観（テーマ）、アカウント（`AccountMenu`）、**活動ログのタグ候補**（`#settings-time-log-tags`・1行1タグのテキストエリア、`parseTimeLogTagPresetLines` で blur 時に保存）、**データ**（`#settings-data`・エクスポート／JSON インポート（全置換・`confirm.importOverwrite`）／CSV タスク追加（マージ））。`#settings-appearance` / `#settings-account` でメニューからのスクロール先                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `SearchResults.tsx`                                                                                        | 検索                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `AccountMenu.tsx`                                                                                          | ログイン / ログアウト（設定では `variant="settings"`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `ThemeToggle.tsx`                                                                                          | ライト・ダーク切替（主に設定画面）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `AccountMenu.tsx`                                                                                          | ログイン / ログアウト・アカウント削除（設定画面）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `FloatingTimer.tsx`, `UndoToast.tsx`, `MoveToast.tsx`, `MobileBottomNav.tsx`                               | 周辺 UI。md 未満はボトムナビ＋ safe-area 上にフロート。`MobileBottomNav` で主要画面切替（統計は「今日」から開き、そのあいだは「今日」が選ばれる。完了済み・アーカイブ・ゴミ箱は「To‑Do」。タブでビューを切り替えると `onNavigate` でドロワーを閉じる） |
 
 補助: `src/lib/timeGrid.ts`（`timeToMinutes` / `formatDuration` / `timeToY` /
@@ -456,10 +455,31 @@
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、インデックス、トリガー、関数、RLS）。
 SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は番号順の新しいファイルで足し、コミット済みのファイルの SQL は書き換えない。本番への適用は `supabase db push --linked`（先に `--dry-run` で確かめる）。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` / `user_extra_time_zones` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。`base_updated_at` 列が無い DB では付けずに送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` / `user_extra_time_zones` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。印は 1 人 50,000 件まで（`010` のトリガー `trim_sync_tombstones`。超えたら古い印から消し、消した印の一番新しい時刻を `sync_tombstone_purges.last_deleted_at` に残す）、30 日より古い印は pg_cron のジョブ `purge-sync-tombstones` が毎日消す（`010`）。アカウントの削除では Edge Function `account` が `deleteUser` の前に本人の印を消す。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。`base_updated_at` 列が無い DB では付けずに送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
 service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
-付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。送る時間は前の成功の回から今まで（上限 60 分。`reminder_runs`（`012`、1 行、service_role だけ）の `last_ok_at`。失敗が 1 つでもあった回は進めない。送った通知は購読ごとの `reminder_sent` で外す）。前の回が走っている間（`running_since`、10 分より古ければ取り直す）は次の回は何もしない。幅と記録の決め方は `daily-reminders/batch.ts` の `runWindowStart` / `runFinishPatch`。cron の `net.http_post` は `timeout_milliseconds := 60000`、`x-cron-secret` の値は Vault（`vault.decrypted_secrets` の `chronograma_cron_secret`）から読む（手順はルート `README.md` の「通知」）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、`search_path` は空（`013`）、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
+DB のテストは pgTAP の `supabase/tests/*.sql`（RLS: 他人の行・anon、`004` / `007` の書き込みの確かめ、`008` / `010` の印と上限、`006` の行数の上限、サーバー専用の表と関数（`006_server_only.test.sql`: トークンの表・`edge_rate_limits`・`reminder_runs` はブラウザから読めず書けない、public の全表で RLS が有効、`hit_rate_limit` はブラウザから呼べず `search_path` が空、`client_errors` は本人の insert だけで `created_at` は決められず新しい 500 件だけ残る））。手元では `supabase start` → `supabase test db`（Docker が要る。本番には向けない）。CI（`.github/workflows/ci.yml`）の `database` は DB だけ起こして migration を流し、pg_cron を有効にしてもう一度全部を流し（何度流しても同じ形・`010` のジョブ）、`supabase test db`。`functions` は全 Edge Function を `deno check --config supabase/functions/deno.json --frozen`（手元でも同じコマンド）。Edge Function の Deno の設定は `supabase/functions/deno.json`（`nodeModulesDir: none`、ルートの `package.json` は読まない）と依存の版の `supabase/functions/deno.lock`。supabase-js は `npm:@supabase/supabase-js@<版>`（ルートの `package.json` と同じ版）、web-push は `npm:web-push@3.6.7`。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
+
+### 端末のエラー（`client_errors`、`011`）
+
+ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で 1 件ずつ insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`main.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 回の起動で 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。SQL Editor で見る:
+
+```sql
+select created_at, kind, message, url, app_version, extra, left(stack, 400) as stack
+from public.client_errors
+where created_at > now() - interval '7 days'
+order by created_at desc
+limit 100;
+
+-- 多いものから
+select kind, message, count(*) as n, count(distinct user_id) as users, max(created_at) as last
+from public.client_errors
+where created_at > now() - interval '7 days'
+group by kind, message
+order by n desc
+limit 50;
+```
 
 ## 環境変数（`.env.example`）
 

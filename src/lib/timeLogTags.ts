@@ -47,3 +47,17 @@ export function buildTimeLogTagUniverse(presets: string[], tasks: Task[]): strin
   }
   return out
 }
+
+/**
+ * よく使うラベル（記録に付いた回数の多い順。同数・未使用は設定の並び順）。
+ * 止めた直後に「ラベルは？」と聞くときの候補
+ */
+export function frequentLogLabels(presets: string[], tasks: Task[], limit: number): string[] {
+  const count = new Map<string, number>()
+  for (const t of tasks) {
+    if (isLogTask(t) && t.category) count.set(t.category, (count.get(t.category) ?? 0) + 1)
+  }
+  const universe = buildTimeLogTagUniverse(presets, tasks)
+  const order = new Map(universe.map((name, i) => [name, i]))
+  return [...universe].sort((a, b) => (count.get(b) ?? 0) - (count.get(a) ?? 0) || order.get(a)! - order.get(b)!).slice(0, limit)
+}

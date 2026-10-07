@@ -1,6 +1,7 @@
-import { Suspense, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { OverlaySuspense } from '../components/ui/OverlaySuspense'
 import { useTaskStore } from '../store/taskStore'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 import type { CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { CompleteWithLogModal } from '../components/lazyOverlays'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
@@ -8,7 +9,7 @@ import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 
 /**
- * 時間を決めた予定を「完了＋記録」にする（予定どおり / ずれた時刻で）。
+ * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻で埋めておき、ずれたらそこを直す）。
  * 通知の「記録する」から開く（完了の丸は記録を足さず完了だけ）。`modal` を描画しておくこと。
  */
 export function useCompleteWithLog() {
@@ -28,7 +29,7 @@ export function useCompleteWithLog() {
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
-      mode: 'as-planned',
+      fromEvent: isEventTask(task),
       ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
     })
   }, [])
@@ -39,24 +40,23 @@ export function useCompleteWithLog() {
     if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
-    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す
+    // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
       addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
-      toggleTask(draft.taskId)
+      if (!draft.fromEvent) toggleTask(draft.taskId)
     })
     setDraft(null)
   }, [draft, addTimeLog, toggleTask])
 
   const modal = draft ? (
-    <Suspense fallback={null}>
+    <OverlaySuspense>
       <CompleteWithLogModal
         draft={draft}
-        radioGroupName="completion-mode"
         onClose={() => setDraft(null)}
         onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
         onSubmit={submit}
       />
-    </Suspense>
+    </OverlaySuspense>
   ) : null
 
   return { open, modal }

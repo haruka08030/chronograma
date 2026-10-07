@@ -5,7 +5,7 @@ import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
 import { colorVars, recordHex } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -20,14 +20,14 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
-import { LinkifiedText } from '../ui/LinkifiedText'
-import { isLogTask } from '../../types/task'
+import { MemoPreview } from '../ui/MemoPreview'
+import { isEventTask, isLogTask } from '../../types/task'
 
 const WIDTH = 320
 
 /**
  * タイムラインの予定・記録を押したときの小さなカード（Google カレンダーのイベントカード相当）。
- * よく使う操作（完了・記録開始・削除）はここで済ませ、細かい編集だけ「詳細」へ。
+ * よく使う操作（完了・記録開始・削除）はここで済ませ、細かい編集だけ「詳細」へ。予定（完了の無いもの）には完了を出さない。
  * キー: Esc 閉じる / e 詳細 / Delete・Backspace 削除
  */
 export function EventPopover({
@@ -71,6 +71,7 @@ export function EventPopover({
   if (!task) return null
 
   const isLog = isLogTask(task)
+  const isEvent = isEventTask(task)
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
@@ -79,8 +80,8 @@ export function EventPopover({
   // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
   const sourceLink = sourceLinkOf(task.description)
   const memo = sourceLink ? '' : task.description.trim()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, isLog ? 270 : 280)
-  // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + memoHeightEstimate(memo))
+  // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
     onClose()
@@ -150,9 +151,7 @@ export function EventPopover({
         {memo && (
           <>
             <span />
-            <p className="select-text line-clamp-3 whitespace-pre-line break-words text-xs text-zinc-500 dark:text-zinc-400">
-              <LinkifiedText text={memo} />
-            </p>
+            <MemoPreview text={memo} />
           </>
         )}
       </div>
@@ -166,19 +165,22 @@ export function EventPopover({
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
           {canLogAsPlanned && (
             <button type="button" onClick={recordAndComplete} className={buttonClass({ variant: 'primary', size: 'sm' })}>
-              {t('eventCard.recordAndComplete')}
+              {isEvent ? t('eventCard.toRecord') : t('eventCard.recordAndComplete')}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              toggleTask(task.id)
-              onClose()
-            }}
-            className={buttonClass({ variant: canLogAsPlanned ? 'secondary' : 'primary', size: 'sm' })}
-          >
-            {task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone')}
-          </button>
+          {/* 予定（バイト・授業）には「完了にする」を出さない（Google の予定と同じく、時間が過ぎたらグレー） */}
+          {!isEvent && (
+            <button
+              type="button"
+              onClick={() => {
+                toggleTask(task.id)
+                onClose()
+              }}
+              className={buttonClass({ variant: canLogAsPlanned ? 'secondary' : 'primary', size: 'sm' })}
+            >
+              {task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone')}
+            </button>
+          )}
           {!task.completed && !planEnded && (
             <button
               type="button"

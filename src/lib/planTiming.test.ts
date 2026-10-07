@@ -24,6 +24,11 @@ describe('planTiming().ended', () => {
     expect(planTiming(plan({}), at('2026-10-03', '11:00')).ended).toBe(true)
     expect(planTiming(plan({}), at('2026-10-04', '09:00')).ended).toBe(true)
   })
+  it('0:00 に終わる予定はその日のうちは終わっていない', () => {
+    const late = plan({ startTime: '23:00', endTime: '00:00' })
+    expect(planTiming(late, at('2026-10-03', '23:30')).ended).toBe(false)
+    expect(planTiming(late, at('2026-10-04', '00:00')).ended).toBe(true)
+  })
   it('日をまたぐ予定は終わりの日の時刻で終わる', () => {
     const overnight = plan({ startTime: '23:00', endTime: '01:00', endDate: '2026-10-04' })
     expect(planTiming(overnight, at('2026-10-03', '23:30')).ended).toBe(false)

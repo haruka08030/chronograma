@@ -143,7 +143,16 @@ export function signOut(): void {
   // no-op; server token cleared via disconnectGoogleCalendar
 }
 
+/**
+ * Google の利用上限・送りすぎか（関数の `google_rate_limited` / 429 の文言）。
+ * 待てば直るので、連携は外さない
+ */
+export function isGoogleRateLimitMessage(message: string): boolean {
+  return /too many requests|rate.?limit|quota/i.test(message)
+}
+
 export function shouldDisconnectAfterFetchError(message: string): boolean {
+  if (isGoogleRateLimitMessage(message)) return false
   const lower = message.toLowerCase()
   return (
     lower.includes('not connected') ||
@@ -178,7 +187,7 @@ export function localizeGoogleError(message: string, t: (key: string, options?: 
   if (isNetworkErrorMessage(message)) return t('planVsActual.networkError')
   if (lower.includes('supabase is not configured')) return t('planVsActual.supabaseNotConfigured')
   if (lower.includes('not connected')) return t('planVsActual.notConnected')
-  if (lower.includes('too many requests')) return t('planVsActual.rateLimited')
+  if (isGoogleRateLimitMessage(message)) return t('planVsActual.rateLimited')
   if (lower.includes('authorization expired') || lower.includes('invalid_grant')) {
     return t('planVsActual.tokenExpired')
   }

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { addDays, addMonths, startOfMonth, subMonths } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { HINT_TEXT } from './ui/textClass'
 import { useTaskStore } from '../store/taskStore'
 import { CalendarView } from './CalendarView'
 import { WeekCalendarView } from './WeekCalendarView'
@@ -18,13 +19,14 @@ import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { isLogTask } from '../types/task'
+import { isTodoTask } from '../types/task'
 import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
   const storedMode = useTaskStore((s) => s.calendarMode)
+  const nothingYet = useTaskStore((s) => s.tasks.length === 0 && s.calendarEvents.length === 0)
   const setCalendarMode = useTaskStore((s) => s.setCalendarMode)
   const selectedDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
@@ -118,7 +120,8 @@ export function CalendarHubView() {
       const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
       const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
         const task = tasks.find((x) => x.id === id)
-        return !!task && !isLogTask(task)
+        // 記録と予定は To-Do の置き場に戻さない
+        return !!task && isTodoTask(task)
       })
       asOneUndo(() => {
         for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)
@@ -188,6 +191,10 @@ export function CalendarHubView() {
       )}
       {/* スマホ幅で時間未定のタスクを開いている間は、未接続の案内を畳んで月の格子に場所を譲る */}
       <GoogleConnectLine hideInvite={dockOpen && !isDesktop} />
+      {/* まだ何も置いていない人には、どこを押せば入るかを 1 行だけ（＋ボタンの代わり。月とスケジュールは日を押して開く） */}
+      {nothingYet && (calendarMode === 'week' || calendarMode === 'threeDay') && (
+        <p className={`shrink-0 py-1 pl-4 pr-2 md:pl-6 ${HINT_TEXT}`}>{t('calendarHub.emptyHint')}</p>
+      )}
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

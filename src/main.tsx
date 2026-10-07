@@ -8,6 +8,8 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { consumeLaunch, setupPwa, type LaunchHandlers } from './lib/pwa'
 import { useTaskStore } from './store/taskStore'
 import { setupUrlHistory } from './lib/urlHistory'
+import { installGlobalErrorReporting } from './lib/errorReport'
+import { reloadForStaleChunk } from './lib/chunkLoad'
 
 const launch: LaunchHandlers = {
   openView: (view) => useTaskStore.getState().selectView(view),
@@ -18,20 +20,13 @@ const launch: LaunchHandlers = {
     if (asPlanned) s.logPlanAsPlanned(taskId)
     else s.openRecordPrompt(taskId)
   },
+  add: () => useTaskStore.getState().requestQuickAdd(),
 }
 // デプロイ後に古いタブで別画面を開くと、古いファイル名がもう無くて読み込みに失敗する。
-// 1 回だけ読み込み直して新しい版にする（失敗し続けるときに再読み込みを繰り返さないよう、1 分は空ける）
-const PRELOAD_RELOAD_KEY = 'chronograma_preload_reload_at'
+// 1 回だけ読み込み直して新しい版にする（失敗し続けるときに再読み込みを繰り返さないよう、1 分は空ける。
+// オフラインでは読み込み直さない）。読み込み直さないときは `lazyNamed` が次に開くときに取り直す
 window.addEventListener('vite:preloadError', (event) => {
-  try {
-    const last = Number(sessionStorage.getItem(PRELOAD_RELOAD_KEY) ?? 0)
-    if (Date.now() - last < 60_000) return
-    sessionStorage.setItem(PRELOAD_RELOAD_KEY, String(Date.now()))
-  } catch {
-    return
-  }
-  event.preventDefault()
-  window.location.reload()
+  if (reloadForStaleChunk()) event.preventDefault()
 })
 
 // iOS Safari は user-scalable=no を無視してピンチで拡大するので、ジェスチャーごと止める
@@ -39,6 +34,8 @@ for (const type of ['gesturestart', 'gesturechange'] as const) {
   document.addEventListener(type, (event) => event.preventDefault(), { passive: false })
 }
 
+// 拾われなかったエラーを記録する（ログイン中だけ送る。`client_errors`）
+installGlobalErrorReporting()
 setupPwa(launch)
 consumeLaunch(launch)
 // 開いている画面を URL と履歴に載せる（起動 URL の `?view=` / `?list=` もここで開く）

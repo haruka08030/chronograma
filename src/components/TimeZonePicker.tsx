@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { fieldClass } from './ui/fieldClass'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 
 const LIST_HEIGHT = 280
 const WIDTH = 320
@@ -40,6 +40,7 @@ export function TimeZonePicker({
   const wrapRef = useRef<HTMLSpanElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listId = useId()
   const listRef = useRef<HTMLUListElement>(null)
 
   const options = useMemo(() => {
@@ -134,22 +135,6 @@ export function TimeZonePicker({
           aria-label={ariaLabel}
           className={`fixed z-[80] overflow-hidden ${POPOVER_PANEL}`}
           style={{ left: pos.left, top: pos.top, width: Math.min(WIDTH, window.innerWidth - 16) }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation()
-              close()
-            } else if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setHighlight((h) => Math.min(filtered.length - 1, h + 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setHighlight((h) => Math.max(0, h - 1))
-            } else if (isSubmitEnter(e)) {
-              e.preventDefault()
-              const row = filtered[highlight]
-              if (row) pick(row.tz)
-            }
-          }}
         >
           <input
             ref={inputRef}
@@ -157,13 +142,43 @@ export function TimeZonePicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('timeZone.search')}
             aria-label={t('timeZone.search')}
+            // キーは検索欄で受ける（↑↓ で候補、Enter で決める、Esc で閉じる）。今の候補は aria-activedescendant で伝える
+            role="combobox"
+            aria-expanded
+            aria-controls={listId}
+            aria-activedescendant={filtered[highlight] ? `${listId}-${highlight}` : undefined}
+            onKeyDown={(e) => {
+              if (isCancelEscape(e)) {
+                e.stopPropagation()
+                close()
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setHighlight((h) => Math.min(filtered.length - 1, h + 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHighlight((h) => Math.max(0, h - 1))
+              } else if (isSubmitEnter(e)) {
+                e.preventDefault()
+                const row = filtered[highlight]
+                if (row) pick(row.tz)
+              }
+            }}
             className="w-full border-b border-zinc-100 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-100"
           />
-          <ul ref={listRef} role="listbox" aria-label={ariaLabel} className="overflow-y-auto py-1" style={{ maxHeight: pos.maxHeight }}>
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-label={ariaLabel}
+            className="overflow-y-auto py-1"
+            style={{ maxHeight: pos.maxHeight }}
+          >
             {filtered.length === 0 && <li className="px-3 py-2 text-sm text-zinc-400">{t('timeZone.noMatch')}</li>}
             {filtered.map((row, i) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- キーは検索欄の ↑↓・Enter で選ぶ（aria-activedescendant）
               <li
                 key={row.tz ?? '__null__'}
+                id={`${listId}-${i}`}
                 data-index={i}
                 role="option"
                 aria-selected={row.tz === value}

@@ -45,3 +45,24 @@ describe('getFilteredRootTasks dueDate sort', () => {
     expect(ids).toEqual(['cse-tomorrow', 'cse-noon', 'econ-late', 'econ-dayonly', 'none'])
   })
 })
+
+describe('getFilteredRootTasks priority sort', () => {
+  it('keeps higher priority first, then the nearer deadline, then the manual order', () => {
+    const tasks = [
+      task('high-none-2', { priority: 'high', order: 2 }),
+      task('low-soon', { priority: 'low', dueDate: '2026-10-01', order: 0 }),
+      task('high-late', { priority: 'high', dueDate: '2026-10-09', order: 1 }),
+      task('high-none-1', { priority: 'high', order: 3 }),
+      task('high-soon', { priority: 'high', dueDate: '2026-10-07', order: 4 }),
+    ]
+    const ids = getFilteredRootTasks({
+      tasks,
+      selectedView: null,
+      selectedListId: 'canvas',
+      sortMode: 'priority',
+      filterTag: null,
+      sections: [],
+    }).map((t) => t.id)
+    expect(ids).toEqual(['high-soon', 'high-late', 'high-none-2', 'high-none-1', 'low-soon'])
+  })
+})

@@ -30,9 +30,25 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
+/** スマホで題名の左の ≡（リストのドロワーを開く） */
+const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
+/** ナビの色ラベル「就活」（種データの #F6BF26） */
+const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
+/** 見出しの並び順のボタン（種データはどこも手動） */
+const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
+
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
+  // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
+  { name: 'first-run', fresh: true },
+  { name: 'first-run-todo', fresh: true, view: 'all' },
+  { name: 'first-run-calendar', fresh: true, view: 'calendar' },
+  { name: 'first-run-habits', fresh: true, view: 'habits' },
+  { name: 'first-run-stats', fresh: true, view: 'stats' },
+  { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
+  // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
+  { name: 'planner-habits', view: 'planner', scrollToBottom: true },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
   {
     name: 'planner-tip',
@@ -40,11 +56,42 @@ const SCREENS = [
     click: 'button[aria-expanded]:has-text("やり残し")',
     hover: 'button[aria-label$="完了にする"] >> nth=0',
   },
+  // 追加欄に書いている間の詳細のチップ（日付・時間・見積もり・締切・リスト・ラベル）と、見積もりを開いたところ
+  {
+    name: 'planner-add-details',
+    view: 'planner',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '金曜まで ES 1時間' },
+  },
+  {
+    name: 'todo-add-details-estimate',
+    view: 'all',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '明日 レポート' },
+    thenClick: ['button[aria-expanded][aria-label="見積もり"] >> visible=true'],
+  },
+  {
+    name: 'todo-add-details-time',
+    view: 'all',
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: '明日 レポート' },
+    thenClick: ['button[aria-expanded][aria-label="時間"] >> visible=true'],
+  },
   // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
   { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
   { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="タスクを完了にする"] >> visible=true >> nth=-1' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
+  // 指で行を押したときの短いシート（題名の下にメモ）
+  { name: 'planner-row-sheet', view: 'planner', mobileOnly: true, click: 'button:has-text("ES 書く（第一志望）") >> visible=true' },
+  // シートの「締切 › 日時を指定…」（日付と時刻を一度に選ぶ）
+  {
+    name: 'planner-due-datetime',
+    view: 'planner',
+    mobileOnly: true,
+    click: [
+      'button:has-text("ES 書く（第一志望）") >> visible=true',
+      '[role=menuitem]:has-text("締切")',
+      '[role=menuitem]:has-text("日時を指定")',
+    ],
+  },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
@@ -60,8 +107,14 @@ const SCREENS = [
   // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
   { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
   { name: 'todo-mobile-swipe', view: 'all', mobileOnly: true, swipeRight: true },
-  // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
-  { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
+  // ナビから色ラベルを開いた状態（「すべて」を色で絞る）。開いている色ラベルは保存しない値なので、種データではなくナビのラベルを押して開く
+  { name: 'todo-label', view: 'all', mobileClick: OPEN_LISTS, click: LABEL_JOBHUNT },
+  // 見出しの並び順のメニュー（スマホは下から出すシート）。色ラベル・いつかでも同じメニュー
+  { name: 'todo-sort-menu', view: 'all', click: SORT_BUTTON },
+  { name: 'todo-label-sort-menu', view: 'all', mobileClick: OPEN_LISTS, click: [LABEL_JOBHUNT, SORT_BUTTON] },
+  { name: 'someday-sort-menu', list: 'seed-someday', click: SORT_BUTTON },
+  // 手動以外に変えたあと（つまみの幅を空けたまま、行の文字の位置が手動と同じ）
+  { name: 'todo-sorted-due', view: 'all', click: [SORT_BUTTON, '[role=menu] >> text=締切日 >> visible=true'] },
   // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す
   {
     name: 'todo-label-card',
@@ -98,6 +151,15 @@ const SCREENS = [
   // タイトルを押すと編集になるので、行の左の余白を押して開く
   { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
   // 曜日つきの毎週（繰り返しの下に曜日のピル）
+  // メモを押して編集に入った状態（中身に合わせて欄が伸びる）
+  {
+    name: 'task-detail-memo-edit',
+    view: 'all',
+    // スマホは行を押すと短いシートが開く（詳細はそこから）
+    desktopOnly: true,
+    click: ['div.group.cursor-pointer:has-text("ES 書く（第一志望）")', 'div.cursor-text:has-text("志望動機")'],
+    clickAt: { x: 4, y: 12 },
+  },
   { name: 'task-detail-repeat', view: 'all', click: 'div.group.cursor-pointer:has-text("バイトのシフト提出")', clickAt: { x: 4, y: 12 } },
   {
     name: 'task-detail-scheduled',
@@ -108,11 +170,18 @@ const SCREENS = [
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
-  // 習慣を追加するフォームで「週指定」を選んだ状態（曜日のピル）
+  // 習慣を追加するフォームで「曜日を指定」を選んだ状態（曜日のピル）
   {
     name: 'habits-new-weekly',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("週指定")'],
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")'],
+    scrollToBottom: true,
+  },
+  // 「回数を指定」（週に◯回）を選んだ状態（回数のピル）
+  {
+    name: 'habits-new-times',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("回数を指定")'],
     scrollToBottom: true,
   },
   // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
@@ -128,6 +197,8 @@ const SCREENS = [
   },
   { name: 'stats', view: 'stats' },
   { name: 'settings', view: 'settings' },
+  // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
+  { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
@@ -305,7 +376,7 @@ async function main() {
 
           const at = screen.at ?? args.at
           const instant = at ? instantAt(at, TIMEZONE) : new Date()
-          // アプリと同じく、朝 4 時までは前の日を「今日」として種を置く（timeZone.ts の DAY_START_HOUR）
+          // 朝 4 時までは前の日の種を置く（夜中の画面で、前の日の続きをしている様子を撮るため。アプリの「今日」は 0:00 で変わる）
           const seedNow = nowInTimeZone(TIMEZONE, instant)
           if (seedNow.getHours() < 4) seedNow.setDate(seedNow.getDate() - 1)
           const seed = buildSeedState({ theme, now: seedNow })
@@ -323,7 +394,6 @@ async function main() {
               { tz: 'America/New_York', label: '' },
             ]
           }
-          if (screen.filterColor) seed.state.filterColor = screen.filterColor
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
@@ -338,13 +408,21 @@ async function main() {
           await context.addInitScript(
             ([key, value]) => {
               try {
-                window.localStorage.setItem(key, value)
+                if (value) window.localStorage.setItem(key, value)
                 window.localStorage.setItem('chronograma-lang', 'ja')
               } catch {
                 /* 読めない環境ではそのまま進む */
               }
             },
-            [PERSIST_KEY, JSON.stringify(seed)],
+            // fresh: データは入れず、開く画面だけ決める（はじめの案内などは新しい人と同じに出る）
+            [
+              PERSIST_KEY,
+              screen.fresh
+                ? screen.view
+                  ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
+                  : null
+                : JSON.stringify(seed),
+            ],
           )
 
           const page = await context.newPage()
@@ -369,6 +447,15 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
+                await page.waitForTimeout(300)
+              }
+            }
+            if (screen.typeInto) {
+              // 欄に書く（`text`）。そのあと `thenClick` を順に押す（書いてから出るチップを開く、など）
+              await page.locator(screen.typeInto.selector).first().fill(screen.typeInto.text)
+              await page.waitForTimeout(300)
+              for (const sel of screen.thenClick ?? []) {
+                await page.click(sel)
                 await page.waitForTimeout(300)
               }
             }

@@ -6,7 +6,7 @@ import type { CreateIntent, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
-import { isSleepTask, type Task } from '../../types/task'
+import { isEventTask, isSleepTask, type Task } from '../../types/task'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
@@ -101,7 +101,7 @@ export function WeekDayColumn({
   const isNight = hourCount < 24
   // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
   const dayHabitSlots = habits.flatMap((h) => {
-    const slot = habitToPlannedItem(h, key)
+    const slot = habitToPlannedItem(h, key, habitIndex)
     return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
   })
   const limitMin = logLimitMin(key)
@@ -201,15 +201,18 @@ export function WeekDayColumn({
             onOpenDetail={() => openCard(t.id)}
             hStyle={planStyle(t.id)}
             colorHex={planHex(t)}
-            withCheck
+            withCheck={!isEventTask(t)}
           />
-          <SlotCheck
-            {...blockGeometry(t as TimeBlockTask, key, false)}
-            hStyle={planStyle(t.id)}
-            done={t.completed}
-            label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-            onCheck={() => toggleTask(t.id)}
-          />
+          {/* 予定（バイト・授業）には完了の ✓ を出さない。時間が過ぎたらグレー（Google の予定と同じ） */}
+          {!isEventTask(t) && (
+            <SlotCheck
+              {...blockGeometry(t as TimeBlockTask, key, false)}
+              hStyle={planStyle(t.id)}
+              done={t.completed}
+              label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+              onCheck={() => toggleTask(t.id)}
+            />
+          )}
         </div>
       ))}
       {dayLogs.map((t) => (

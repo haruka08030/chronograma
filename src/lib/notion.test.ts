@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
-import { NOTION_LIST_ID, notionTaskId, parseNotionTaskId, reconcileNotionPages, splitNotionDate, type NotionPage } from './notion'
+import { INBOX_ID } from '../store/storeConstants'
+import { notionTaskId, parseNotionTaskId, reconcileNotionPages, splitNotionDate, type NotionPage } from './notion'
 
 const NOW = '2026-09-30T00:00:00.000Z'
 const PAGE_A = '0123456789abcdef0123456789abcdef'
 const PAGE_B = 'fedcba9876543210fedcba9876543210'
 
-const inbox: TaskList = { id: 'inbox', name: 'Inbox', color: '#000000', order: 0 }
-const opts = { now: NOW, listColor: '#123456', titleFor: (p: NotionPage) => `${p.title}：${p.status}` }
+const opts = { now: NOW, colorFor: () => '#33B679', titleFor: (p: NotionPage) => `${p.title}：${p.status}` }
 
 function page(pageId: string, status: string, patch: Partial<NotionPage> = {}): NotionPage {
   return { pageId, url: `https://www.notion.so/${pageId}`, title: 'A社', status, date: null, ...patch }
 }
 
 function reconcileOnce(pages: NotionPage[], datesEnabled = true) {
-  return reconcileNotionPages({ lists: [inbox], tasks: [] }, { databaseTitle: '就活', datesEnabled, pages }, opts)
+  return reconcileNotionPages({ tasks: [] }, { databaseTitle: '就活', datesEnabled, pages }, opts)
 }
 
 describe('notionTaskId', () => {
@@ -38,13 +37,13 @@ describe('splitNotionDate', () => {
 })
 
 describe('reconcileNotionPages', () => {
-  it('creates the Notion list and one task per action row', () => {
+  it('creates one To-Do per action row, labeled with the database', () => {
     const r = reconcileOnce([page(PAGE_A, 'ES を出す', { date: '2026-10-03' })])
-    expect(r.lists.find((l) => l.id === NOTION_LIST_ID)?.name).toBe('就活')
     expect(r.tasks).toHaveLength(1)
     expect(r.tasks[0]).toMatchObject({
       title: 'A社：ES を出す',
-      listId: NOTION_LIST_ID,
+      listId: INBOX_ID,
+      color: '#33B679',
       dueDate: '2026-10-03',
       description: `https://www.notion.so/${PAGE_A}`,
     })
@@ -71,7 +70,7 @@ describe('reconcileNotionPages', () => {
       { ...first.tasks[1], deletedAt: NOW },
     ]
     const r = reconcileNotionPages(
-      { lists: first.lists, tasks },
+      { tasks },
       { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す'), page(PAGE_B, 'ES を出す')] },
       opts,
     )

@@ -90,6 +90,11 @@ describe('時刻と長さ', () => {
     expect(r.title).toBe('ゼミ')
   })
 
+  it('設定の既定の長さを渡すとその長さになる', () => {
+    const r = parseQuickAddTitle('15時 ゼミ', true, NOW, { blockMinutes: 30 })
+    expect(r.endTime).toBe('15:30')
+  })
+
   it('15時半 / 午後3時 / 15:00 / 3pm', () => {
     expect(ja('15時半 ゼミ').startTime).toBe('15:30')
     expect(ja('午後3時 ゼミ').startTime).toBe('15:00')
@@ -129,8 +134,9 @@ describe('時刻と長さ', () => {
   it('「時間」は長さ、「時」は時刻', () => {
     const r = ja('レポート 2時間')
     expect(r.startTime).toBeNull()
-    // 時刻が無ければ長さだけの語はタイトルに戻す
-    expect(r.title).toBe('レポート 2時間')
+    // 時刻が無ければ長さは見積もり
+    expect(r.title).toBe('レポート')
+    expect(r.estimateMinutes).toBe(120)
   })
 
   it('素の数字だけの範囲は時刻と断定しない', () => {
@@ -323,5 +329,273 @@ describe('繰り返し', () => {
 
   it('日本語表示でも every を読む', () => {
     expect(ja('日記 every day')).toMatchObject({ title: '日記', repeat: rep('daily') })
+  })
+})
+
+describe('初見の学生が打つ書き方（2026-10-06 火曜）', () => {
+  /** 2026-10-06 は火曜（今週の日曜は 10/11、来週の日曜は 10/18） */
+  const OCT6 = new Date(2026, 9, 6, 10, 0, 0)
+  const ja6 = (raw: string) => parseQuickAddTitle(raw, true, OCT6)
+  const en6 = (raw: string) => parseQuickAddTitle(raw, false, OCT6)
+
+  describe('締切の印（締切・〆切・締め切り・期限・提出）', () => {
+    it('「A社 ES 10/10 23:59 締切」は 10/10 23:59 の締切で、予定にしない', () => {
+      expect(ja6('A社 ES 10/10 23:59 締切')).toMatchObject({
+        title: 'A社 ES',
+        date: '2026-10-10',
+        dateIsDeadline: true,
+        dueTime: '23:59',
+        startTime: null,
+        endTime: null,
+      })
+    })
+
+    it('「まで」でも時刻は締切の時刻になる', () => {
+      expect(ja6('A社 ES 10/10 23:59まで')).toMatchObject({
+        title: 'A社 ES',
+        date: '2026-10-10',
+        dateIsDeadline: true,
+        dueTime: '23:59',
+        startTime: null,
+      })
+      expect(ja6('レポート 明日23:59まで')).toMatchObject({
+        title: 'レポート',
+        date: '2026-10-07',
+        dateIsDeadline: true,
+        dueTime: '23:59',
+        startTime: null,
+      })
+    })
+
+    it('印は前後どちらに書いても、語にくっつけても読む', () => {
+      for (const raw of ['〆切 10/10 ES', 'ES 10/10 締め切り', '期限 10/10 ES', 'ES 10/10締切', '締切:10/10 ES', 'ES 締切り 10/10']) {
+        expect(ja6(raw), raw).toMatchObject({ title: 'ES', date: '2026-10-10', dateIsDeadline: true, dueTime: null })
+      }
+    })
+
+    it('日だけの指定と締切の印を空白で離しても読む', () => {
+      expect(ja6('レポート 10日 締切')).toMatchObject({ title: 'レポート', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('レポート 10日 まで')).toMatchObject({ title: 'レポート', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('10日 旅行')).toMatchObject({ title: '10日 旅行', date: null })
+    })
+
+    it('「有効期限」は締切として読んでも語を題名に残す', () => {
+      expect(ja6('パスポート有効期限 10/10')).toMatchObject({ title: 'パスポート有効期限', date: '2026-10-10', dateIsDeadline: true })
+    })
+
+    it('「提出」は締切として読んでも題名に残す（やることの名前でもある）', () => {
+      expect(ja6('ES 提出 10/10 23:59')).toMatchObject({ title: 'ES 提出', date: '2026-10-10', dateIsDeadline: true, dueTime: '23:59' })
+      expect(ja6('提出 10/10 ES')).toMatchObject({ title: '提出 ES', date: '2026-10-10', dateIsDeadline: true })
+    })
+
+    it('日付が無く時刻だけでも締切の時刻（日は呼び出し側が決める）', () => {
+      expect(ja6('課題 23:59まで')).toMatchObject({ title: '課題', date: null, dateIsDeadline: true, dueTime: '23:59', startTime: null })
+    })
+
+    it('範囲と締切の印なら終わりの時刻が締切', () => {
+      expect(ja6('提出 10/10 13:00-15:00 窓口')).toMatchObject({ title: '提出 窓口', dueTime: '15:00', startTime: null })
+    })
+
+    it('日時の無い「提出」「締切」は題名のまま', () => {
+      expect(ja6('ES 提出')).toMatchObject({ title: 'ES 提出', date: null, dateIsDeadline: false, dueTime: null })
+      expect(ja6('締切 確認')).toMatchObject({ title: '締切 確認', dateIsDeadline: false })
+    })
+
+    it('語の一部の「提出物」「期限切れ」は印ではない', () => {
+      expect(ja6('提出物 明日')).toMatchObject({ title: '提出物', date: '2026-10-07', dateIsDeadline: false })
+      expect(ja6('期限切れ 確認')).toMatchObject({ title: '期限切れ 確認', date: null })
+    })
+
+    it('英語表示では日本語の印を読まない', () => {
+      expect(en6('ES 10/10 締切')).toMatchObject({ title: 'ES 締切', date: '2026-10-10', dateIsDeadline: false })
+    })
+  })
+
+  describe('2 回目に読めなかった締切の書き方', () => {
+    it('「10/10 23:59までにES提出」は「までに」で語が切れ、後ろが題名', () => {
+      expect(ja6('10/10 23:59までにES提出')).toMatchObject({
+        title: 'ES提出',
+        date: '2026-10-10',
+        dateIsDeadline: true,
+        dueTime: '23:59',
+        startTime: null,
+      })
+      expect(ja6('10/10 23:59までES提出')).toMatchObject({ title: 'ES提出', date: '2026-10-10', dueTime: '23:59' })
+      expect(ja6('明日までにレポート')).toMatchObject({ title: 'レポート', date: '2026-10-07', dateIsDeadline: true })
+      expect(ja6('10/10までの課題')).toMatchObject({ title: '課題', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('１０/１０ ２３：５９までにＥＳ提出')).toMatchObject({ title: 'ＥＳ提出', date: '2026-10-10', dueTime: '23:59' })
+    })
+
+    it('語の後ろの「期限」「締切」は除いて締切に読む（「提出」は残す）', () => {
+      expect(ja6('ES 提出期限 10/10')).toMatchObject({ title: 'ES 提出', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('レポート提出期限 10/10')).toMatchObject({ title: 'レポート提出', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('レポート締切 10/10 23:59')).toMatchObject({ title: 'レポート', dateIsDeadline: true, dueTime: '23:59', startTime: null })
+      expect(ja6('ES〆切 明日')).toMatchObject({ title: 'ES', date: '2026-10-07', dateIsDeadline: true })
+    })
+
+    it('日時が無ければ「提出期限」は題名のまま', () => {
+      expect(ja6('提出期限 確認')).toMatchObject({ title: '提出期限 確認', date: null, dateIsDeadline: false })
+      expect(ja6('レポート締切')).toMatchObject({ title: 'レポート締切', dateIsDeadline: false })
+    })
+
+    it('「10日まで」「10日締切」は今日以降で一番近いその日', () => {
+      expect(ja6('レポート 10日まで')).toMatchObject({ title: 'レポート', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('10日締切 ES')).toMatchObject({ title: 'ES', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('ES 10日までに提出')).toMatchObject({ title: 'ES 提出', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('ES 10/10提出')).toMatchObject({ title: 'ES 提出', date: '2026-10-10', dateIsDeadline: true })
+      expect(ja6('レポート 6日まで')).toMatchObject({ date: '2026-10-06', dateIsDeadline: true })
+      // 過ぎていれば来月
+      expect(ja6('レポート 5日まで')).toMatchObject({ date: '2026-11-05', dateIsDeadline: true })
+      expect(ja6('課題 10日 23:59まで')).toMatchObject({ title: '課題 10日', dueTime: '23:59' })
+    })
+
+    it('その日が無い月は飛ばす（31日）', () => {
+      // 10/31 はある
+      expect(ja6('課題 31日まで')).toMatchObject({ date: '2026-10-31' })
+      // 11/30 から見た 31日 → 11 月に 31 日は無いので 12/31
+      expect(parseQuickAddTitle('課題 31日まで', true, new Date(2026, 10, 30, 10))).toMatchObject({ date: '2026-12-31' })
+      expect(parseQuickAddTitle('課題 30日まで', true, new Date(2027, 0, 31, 10))).toMatchObject({ date: '2027-03-30' })
+    })
+
+    it('「3日後」「1週間後」「2週間後」は今日から数える（「まで」が付けば締切）', () => {
+      expect(ja6('3日後 歯医者')).toMatchObject({ title: '歯医者', date: '2026-10-09', dateIsDeadline: false })
+      expect(ja6('1週間後 面談')).toMatchObject({ title: '面談', date: '2026-10-13', dateIsDeadline: false })
+      expect(ja6('レポート 2週間後まで')).toMatchObject({ title: 'レポート', date: '2026-10-20', dateIsDeadline: true })
+      expect(ja6('ES 3日後までに')).toMatchObject({ title: 'ES', date: '2026-10-09', dateIsDeadline: true })
+    })
+
+    it('日の数・番号は日付にしない', () => {
+      for (const raw of ['旅行 10日間', '筋トレ 3日目', '第10日 振り返り', '1週間ぶり 運動', '10日 旅行', '1日1時間 勉強', '3日坊主']) {
+        const r = ja6(raw)
+        expect(r.date, raw).toBeNull()
+        expect(r.title, raw).toBe(raw)
+      }
+      expect(ja6('毎月15日 家賃')).toMatchObject({ title: '家賃', date: null, repeat: { type: 'monthly', monthDay: 15 } })
+    })
+  })
+
+  describe('今週中・来週中', () => {
+    it('「今週中」「今週まで」は今週の日曜締切', () => {
+      expect(ja6('今週中 レポート')).toMatchObject({ title: 'レポート', date: '2026-10-11', dateIsDeadline: true })
+      expect(ja6('レポート 今週まで')).toMatchObject({ title: 'レポート', date: '2026-10-11', dateIsDeadline: true })
+      expect(ja6('レポート 今週までに')).toMatchObject({ date: '2026-10-11', dateIsDeadline: true })
+    })
+
+    it('「来週中」「来週まで」は来週の日曜締切', () => {
+      expect(ja6('来週中 ES')).toMatchObject({ title: 'ES', date: '2026-10-18', dateIsDeadline: true })
+      expect(ja6('ES 来週まで')).toMatchObject({ date: '2026-10-18', dateIsDeadline: true })
+    })
+
+    it('日曜に書いた「今週中」はその日', () => {
+      expect(parseQuickAddTitle('今週中 掃除', true, new Date(2026, 9, 11, 10))).toMatchObject({
+        date: '2026-10-11',
+        dateIsDeadline: true,
+      })
+    })
+
+    it('「今週」だけは読まない（来週金曜は今まで通り）', () => {
+      expect(ja6('今週 掃除')).toMatchObject({ title: '今週 掃除', date: null })
+      expect(ja6('来週金曜 面談')).toMatchObject({ date: '2026-10-16', dateIsDeadline: false })
+    })
+  })
+
+  describe('時刻の範囲', () => {
+    it('範囲の直後の括弧書きは題名に戻す', () => {
+      expect(ja6('C社 一次面接 10/8 14:00–15:00（オンライン）')).toMatchObject({
+        title: 'C社 一次面接 （オンライン）',
+        date: '2026-10-08',
+        dateIsDeadline: false,
+        startTime: '14:00',
+        endTime: '15:00',
+      })
+    })
+
+    it('全角の数字・コロンも読む（題名は元の文字のまま）', () => {
+      expect(ja6('面接 １０/８ １４：００〜１５：００')).toMatchObject({
+        title: '面接',
+        date: '2026-10-08',
+        startTime: '14:00',
+        endTime: '15:00',
+      })
+      expect(ja6('ゼミ １４：００（Ｂ棟）')).toMatchObject({ title: 'ゼミ （Ｂ棟）', startTime: '14:00' })
+    })
+
+    it('日付の後の曜日の書き添え「10/8(木)」は読み飛ばす', () => {
+      expect(ja6('面接 10/8(木) 14:00')).toMatchObject({ title: '面接', date: '2026-10-08', startTime: '14:00' })
+      expect(ja6('面接 １０/８（木）')).toMatchObject({ title: '面接', date: '2026-10-08' })
+    })
+
+    it('「バイト 17-22」の素の数字の範囲', () => {
+      expect(ja6('バイト 17-22')).toMatchObject({ title: 'バイト', startTime: '17:00', endTime: '22:00' })
+      expect(ja6('バイト 9〜17')).toMatchObject({ startTime: '09:00', endTime: '17:00' })
+      expect(en6('shift 17-22')).toMatchObject({ title: 'shift', startTime: '17:00', endTime: '22:00' })
+      // 24 時はその日の終わり
+      expect(ja6('夜勤 18-24')).toMatchObject({ startTime: '18:00', endTime: '23:59' })
+    })
+
+    it('題名にくっついた範囲「バイト17時〜22時」「バイト17:00-22:00」', () => {
+      expect(ja6('バイト17時〜22時')).toMatchObject({ title: 'バイト', startTime: '17:00', endTime: '22:00' })
+      expect(ja6('バイト17:00-22:00')).toMatchObject({ title: 'バイト', startTime: '17:00', endTime: '22:00' })
+      expect(ja6('バイト午後5時〜午後10時')).toMatchObject({ title: 'バイト', startTime: '17:00', endTime: '22:00' })
+      expect(ja6('C社面接14:00-15:00(オンライン)')).toMatchObject({ title: 'C社面接(オンライン)', startTime: '14:00', endTime: '15:00' })
+      expect(en6('shift17:00-22:00')).toMatchObject({ title: 'shift', startTime: '17:00' })
+    })
+
+    it('「17時から22時」も範囲', () => {
+      expect(ja6('バイト 17時から22時')).toMatchObject({ title: 'バイト', startTime: '17:00', endTime: '22:00' })
+    })
+  })
+
+  describe('時刻と取り違えない', () => {
+    it('ページ・章・問の範囲', () => {
+      for (const raw of [
+        '教科書 2-3 ページ',
+        '教科書 10-12 ページ',
+        '問題集 10-12',
+        '教科書 10-12',
+        '範囲 7-9',
+        'read p. 17-20',
+        'read pp 17-20',
+        'exercises 10-12',
+        '10-12 問 解く',
+        'ドリル 8-9 回',
+      ]) {
+        const r = ja6(raw)
+        expect(r.startTime, raw).toBeNull()
+        expect(r.title, raw).toBe(raw)
+      }
+    })
+
+    it('くっついた番号「第3-4章」「第3-4」「p17-20」', () => {
+      for (const raw of ['第3-4章 読む', '第3-4 読む', 'p17-20 読む', '3-4章 読む']) {
+        const r = ja6(raw)
+        expect(r.startTime, raw).toBeNull()
+        expect(r.title, raw).toBe(raw)
+      }
+    })
+
+    it('ありそうにない範囲（早すぎる・長すぎる・逆順）', () => {
+      for (const raw of ['課 2-3', '読む 1-5', '作業 6-20', '作業 22-5', '作業 17-17']) {
+        const r = ja6(raw)
+        expect(r.startTime, raw).toBeNull()
+        expect(r.title, raw).toBe(raw)
+      }
+    })
+
+    it('題名にくっついた素の数字・時刻 1 つは分けない', () => {
+      expect(ja6('バイト17-22')).toMatchObject({ title: 'バイト17-22', startTime: null })
+      expect(ja6('バイト17時')).toMatchObject({ title: 'バイト17時', startTime: null })
+      expect(ja6('A1017:00-18:00')).toMatchObject({ title: 'A1017:00-18:00', startTime: null })
+    })
+  })
+
+  describe('23:59 で頭打ち', () => {
+    it('長さが 0 になる時刻は予定にせず、題名に戻す', () => {
+      expect(ja6('宿題 23:59')).toMatchObject({ title: '宿題 23:59', startTime: null, endTime: null })
+    })
+
+    it('少しでも長さがあれば予定（23:59 まで）', () => {
+      expect(ja6('宿題 23:30')).toMatchObject({ title: '宿題', startTime: '23:30', endTime: '23:59' })
+    })
   })
 })

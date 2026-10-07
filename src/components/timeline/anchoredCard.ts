@@ -36,3 +36,9 @@ export function anchoredCardStyle(anchor: AnchorRect, width: number, estHeight: 
   const top = Math.max(MARGIN, Math.min(anchor.top, vh - estHeight - MARGIN))
   return { style: { left, top, width, transformOrigin: origin }, sheet: false }
 }
+
+/** カードの置き場所を決めるときの、メモの高さの見積もり（1 行 16px、長いメモは 12 行分まで） */
+export function memoHeightEstimate(text: string): number {
+  const memo = text.trim()
+  return memo ? Math.min(memo.split('\n').length, 12) * 16 + 4 : 0
+}

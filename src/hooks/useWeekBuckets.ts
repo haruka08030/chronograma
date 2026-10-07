@@ -6,14 +6,16 @@ import { logOverlapsDateKey } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { unplannedListIds } from '../lib/listKind'
 import { toDateKey } from '../lib/dateKey'
-import { calendarDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
 
 /** 週タイムラインに出すものを日ごとに分ける（終日の ToDo・時刻つきの予定・記録・Google の予定） */
 export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents: CalendarEvent[], days: Date[]) {
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
 
-  const { allDayByDate, timedByDate, timeLogsByDate } = useMemo(() => {
+  const { allDayByDate, timedByDate, timeLogsByDate, dueByDate } = useMemo(() => {
     const allDay = new Map<string, typeof tasks>()
+    /** 締切の日の印（実行日が別の日のもの） */
+    const due = new Map<string, typeof tasks>()
     const timed = new Map<string, typeof tasks>()
     const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
@@ -29,6 +31,8 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
         }
         continue
       }
+      const dueKey = dueMarkDayKey(t)
+      if (dueKey) due.set(dueKey, [...(due.get(dueKey) ?? []), t])
       // 完了したものは終わらせた日へ。時刻つきも予定の日以外に終えたなら、終えた日の終日の行に出す
       const key = calendarDayKey(t)
       if (!key) continue
@@ -37,7 +41,7 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
       arr.push(t)
       bucket.set(key, arr)
     }
-    return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs }
+    return { allDayByDate: allDay, timedByDate: timed, timeLogsByDate: logs, dueByDate: due }
   }, [tasks, days, excludedListIds])
 
   const eventsByDate = useMemo(() => {
@@ -50,5 +54,5 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
     return map
   }, [calendarEvents])
 
-  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate }
+  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate }
 }

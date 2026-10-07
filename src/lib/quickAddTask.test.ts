@@ -46,6 +46,7 @@ const store = vi.hoisted(() => {
 })
 
 vi.mock('../store/taskStore', () => ({
+  INBOX_LIST_ID: '__inbox__',
   useTaskStore: {
     getState: () => store,
     setState: (fn: (s: typeof store) => Partial<typeof store>) => Object.assign(store, fn(store)),
@@ -64,7 +65,7 @@ vi.mock('./timeZone', async (importOriginal) => ({
   appTodayKey: () => TODAY,
 }))
 
-const { addTaskFromQuickText, firstRepeatDay, quickAddSchedule } = await import('./quickAddTask')
+const { addTaskFromQuickText, firstRepeatDay, quickAddDraft, quickAddSchedule, readQuickAddText } = await import('./quickAddTask')
 
 const list = (id: string, name: string, kind: TaskList['kind'] = 'tasks') => ({ id, name, kind }) as TaskList
 const added = (id: string | undefined) => store.tasks.find((t) => t.id === id)!
@@ -119,6 +120,111 @@ describe('quickAddSchedule（日時の決め方）', () => {
       endTime: '16:00',
     })
   })
+
+  it('締切の時刻は締切に付け、予定は作らない', () => {
+    const due = { ...none, date: '2026-10-10', dateIsDeadline: true, dueTime: '23:59' }
+    expect(quickAddSchedule(due, {}, TODAY)).toEqual({ dueDate: '2026-10-10', dueTime: '23:59' })
+    expect(quickAddSchedule(due, { defaultDate: '2026-10-05' }, TODAY)).toEqual({
+      scheduledDate: '2026-10-05',
+      dueDate: '2026-10-10',
+      dueTime: '23:59',
+    })
+  })
+
+  it('日付の無い締切の時刻（「23:59まで」）は既定の日、無ければ今日が締切', () => {
+    const due = { ...none, dateIsDeadline: true, dueTime: '23:59' }
+    expect(quickAddSchedule(due, {}, TODAY)).toEqual({ dueDate: TODAY, dueTime: '23:59' })
+    expect(quickAddSchedule(due, { defaultDate: '2026-10-05' }, TODAY)).toEqual({
+      scheduledDate: '2026-10-05',
+      dueDate: '2026-10-05',
+      dueTime: '23:59',
+    })
+  })
+})
+
+describe('締切の書き方（締切・〆切・提出・今週中）', () => {
+  it('「A社 ES 10/10 23:59 締切」は締切 10/10 23:59 だけで、今日の予定を作らない', () => {
+    expect(added(addTaskFromQuickText('A社 ES 10/10 23:59 締切'))).toMatchObject({
+      title: 'A社 ES',
+      dueDate: '2026-10-10',
+      dueTime: '23:59',
+      scheduledDate: null,
+      startTime: null,
+      endTime: null,
+    })
+  })
+
+  it('「レポート 明日23:59まで」も締切の時刻', () => {
+    expect(added(addTaskFromQuickText('レポート 明日23:59まで'))).toMatchObject({
+      title: 'レポート',
+      dueDate: '2026-10-01',
+      dueTime: '23:59',
+      scheduledDate: null,
+      startTime: null,
+    })
+  })
+
+  it('今日の計画で書いた締切は、やる日は見ている日のまま', () => {
+    const planner = { defaultListId: '__inbox__', defaultDate: TODAY }
+    expect(added(addTaskFromQuickText('ES 10/10 締切', planner))).toMatchObject({
+      title: 'ES',
+      scheduledDate: TODAY,
+      dueDate: '2026-10-10',
+    })
+  })
+})
+
+describe('readQuickAddText（入力中に欄の下へ出す読み取り）', () => {
+  it('何も読み取れなければ null', () => {
+    expect(readQuickAddText('')).toBeNull()
+    expect(readQuickAddText('TOEIC の申し込み')).toBeNull()
+    expect(readQuickAddText('ES 提出')).toBeNull()
+    // 見つからないリストは出さない
+    expect(readQuickAddText('牛乳 @無いリスト')).toBeNull()
+  })
+
+  it('締切と時刻・リスト', () => {
+    expect(readQuickAddText('A社 ES 10/10 23:59 締切 @授業')).toEqual({
+      due: { date: '2026-10-10', time: '23:59' },
+      plan: null,
+      doDate: null,
+      recurrence: null,
+      estimateMinutes: null,
+      listName: '授業',
+    })
+  })
+
+  it('予定は日付と時間帯。日付を書かなければ既定の日（今日の計画・セルの日）', () => {
+    expect(readQuickAddText('C社 一次面接 10/8 14:00–15:00（オンライン）')).toMatchObject({
+      plan: { date: '2026-10-08', startTime: '14:00', endTime: '15:00' },
+      due: null,
+    })
+    expect(readQuickAddText('バイト 17-22', { defaultDate: '2026-10-05' })).toMatchObject({
+      plan: { date: '2026-10-05', startTime: '17:00', endTime: '22:00' },
+    })
+  })
+
+  it('書いた日付だけなら実行日。書かなかった既定の日だけなら出さない', () => {
+    expect(readQuickAddText('課題 明日', { defaultDate: TODAY })).toMatchObject({ doDate: '2026-10-01', plan: null, due: null })
+    expect(readQuickAddText('課題', { defaultDate: TODAY })).toBeNull()
+  })
+
+  it('繰り返しは最初の回の日と', () => {
+    expect(readQuickAddText('ゴミ出し 毎週金')).toMatchObject({
+      recurrence: { rule: { type: 'weekly', interval: 1 }, firstDate: '2026-10-02' },
+    })
+  })
+
+  it('いつか・買い物に入れるなら日付は出さない（付かないので）', () => {
+    expect(readQuickAddText('15時 牛乳 @買い物')).toEqual({
+      due: null,
+      plan: null,
+      doDate: null,
+      recurrence: null,
+      estimateMinutes: null,
+      listName: '買い物',
+    })
+  })
 })
 
 describe('カレンダーのセル（defaultDate＝そのセルの日）', () => {
@@ -127,6 +233,11 @@ describe('カレンダーのセル（defaultDate＝そのセルの日）', () =>
   it('書かなければそのセルの日がやる日', () => {
     const t = added(addTaskFromQuickText('課題', cell))
     expect(t).toMatchObject({ title: '課題', scheduledDate: '2026-10-05', startTime: null })
+  })
+
+  it('時刻なしの長さは見積もり', () => {
+    const t = added(addTaskFromQuickText('ES 1時間半', cell))
+    expect(t).toMatchObject({ title: 'ES', scheduledDate: '2026-10-05', startTime: null, estimateMinutes: 90 })
   })
 
   it('時刻を書けばそのセルの日の予定', () => {
@@ -189,6 +300,16 @@ describe('予定作成カード（ドラッグした日・時間帯が既定）'
       startTime: '09:00',
       dueDate: '2026-10-02',
     })
+  })
+
+  it('「予定」を選んだら予定として作る（日時の読み方は同じ）。いつか・チェックリストのリストでは予定にしない', () => {
+    expect(added(addTaskFromQuickText('バイト', { ...drag, kind: 'event' }))).toMatchObject({
+      kind: 'event',
+      scheduledDate: '2026-10-05',
+      startTime: '09:00',
+      endTime: '10:30',
+    })
+    expect(added(addTaskFromQuickText('@いつか 旅行', { ...drag, kind: 'event' })).kind).toBeUndefined()
   })
 })
 
@@ -377,5 +498,55 @@ describe('続けて足す', () => {
     for (const title of ['A', 'B', 'C']) addTaskFromQuickText(title)
     const order = [...store.tasks].sort((a, b) => a.order - b.order).map((t) => t.title)
     expect(order).toEqual(['A', 'B', 'C'])
+  })
+})
+
+describe('追加欄の下のチップ（picks）', () => {
+  it('選んだ値が書いた文より勝つ', () => {
+    const t = added(
+      addTaskFromQuickText('明日 課題 30m @授業', {
+        picks: { date: '2026-10-07', estimateMinutes: 90, listId: '__inbox__', color: '#7986CB' },
+      }),
+    )
+    expect(t).toMatchObject({ title: '課題', listId: '__inbox__', scheduledDate: '2026-10-07', estimateMinutes: 90, color: '#7986CB' })
+  })
+
+  it('時間だけ選ぶと既定の日（無ければ今日）の予定', () => {
+    expect(added(addTaskFromQuickText('ゼミ', { picks: { time: { startTime: '15:00', endTime: '16:30' } } }))).toMatchObject({
+      scheduledDate: TODAY,
+      startTime: '15:00',
+      endTime: '16:30',
+    })
+    expect(
+      added(addTaskFromQuickText('ゼミ', { defaultDate: '2026-10-05', picks: { time: { startTime: '9:00', endTime: '10:00' } } })),
+    ).toMatchObject({ scheduledDate: '2026-10-05', startTime: '9:00' })
+  })
+
+  it('外す（null）と書いた日付・締切も消える', () => {
+    const t = added(addTaskFromQuickText('15時 金曜まで レポート', { picks: { date: null, due: null } }))
+    expect(t).toMatchObject({ scheduledDate: null, startTime: null, endTime: null, dueDate: null, dueTime: null })
+  })
+
+  it('締切を選べる', () => {
+    expect(added(addTaskFromQuickText('ES', { picks: { due: { date: '2026-10-10', time: '23:59' } } }))).toMatchObject({
+      dueDate: '2026-10-10',
+      dueTime: '23:59',
+    })
+  })
+
+  it('いつか・チェックリストを選ぶと日付は付かない', () => {
+    const t = added(addTaskFromQuickText('明日 牛乳', { picks: { listId: 'shop', date: '2026-10-07' } }))
+    expect(t).toMatchObject({ listId: 'shop', scheduledDate: null })
+  })
+
+  it('quickAddDraft は足したときと同じ値を出す', () => {
+    expect(quickAddDraft('明日まで 課題 1時間', { defaultDate: '2026-10-05' })).toMatchObject({
+      listId: '__inbox__',
+      dated: true,
+      scheduledDate: '2026-10-05',
+      dueDate: '2026-10-01',
+      estimateMinutes: 60,
+    })
+    expect(quickAddDraft('牛乳 @買い物')).toMatchObject({ listId: 'shop', dated: false, scheduledDate: null })
   })
 })

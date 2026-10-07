@@ -77,6 +77,7 @@ export function StaticSubtreeRows({
         onEnterCreateSibling={onEnterCreateSibling}
         selection={makeSelection(st.id)}
         autoEdit={pendingAutoEditTaskId === st.id}
+        keepHandleSpace
       />
       {StaticSubtreeRows({
         parentId: st.id,

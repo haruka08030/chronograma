@@ -15,6 +15,12 @@
     { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "今日の計画", "short_name": "今日", "url": "/?view=planner", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "今日の計画",
+      "short_name": "今日",
+      "url": "/?view=planner",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    { "name": "To-Do を追加", "short_name": "追加", "url": "/?add=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

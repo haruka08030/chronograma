@@ -1,11 +1,11 @@
 import { useCallback, useRef } from 'react'
 
-const LONG_PRESS_MS = 450
+export const LONG_PRESS_MS = 450
 /** これより指が動いたらスクロールとみなして長押しをやめる */
 const LONG_PRESS_SLOP_PX = 8
 
 /**
- * タッチの長押し（To-Do の行は一括選択、習慣のカードは右クリックと同じメニュー）。マウスでは何もしない。
+ * タッチの長押し（行は浮かせて選択に入れる `useRowLift`、習慣のカードは右クリックと同じメニュー）。マウスでは何もしない。
  * - `pointerHandlers` を行に付ける
  * - `onClickCapture` を行に付けると、長押しの直後の click（詳細・編集を開く）を止める
  * - `isPressing()` が true の間に来る contextmenu は OS の長押しメニューなので抑える

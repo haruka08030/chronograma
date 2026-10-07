@@ -17,7 +17,6 @@ export const DATA_KEYS = [
   'theme',
   'notificationsEnabled',
   'recordPrompts',
-  'listColorPaletteId',
   'timeLogTagPresets',
   'logCategoryColors',
   'logLabelsUpdatedAt',
@@ -26,7 +25,11 @@ export const DATA_KEYS = [
   'dailyReminders',
   'reminderPromptDismissed',
   'googleConnectLineDismissed',
+  'onboardingDone',
+  'onboardingCompleted',
+  'installNudgeDismissed',
   'dailyCapacityMinutes',
+  'defaultBlockMinutes',
   'eventReminderMinutes',
   'appTimeZone',
   'extraTimeZones',
@@ -62,15 +65,13 @@ export const TRANSIENT_KEYS = [
   'quickAddRequested',
   'recordPromptTaskId',
   'completePromptTaskId',
+  'labelPromptLogId',
   'calendarEvents',
   'googleConnected',
   'googleAccessToken',
   'googleConnectionError',
   'googleCanWrite',
 ] as const satisfies readonly (keyof TaskState)[]
-
-export type DataKey = (typeof DATA_KEYS)[number]
-export type ViewKey = (typeof VIEW_KEYS)[number]
 
 export function pickKeys<K extends string>(source: Record<string, unknown>, keys: readonly K[]): Partial<Record<K, unknown>> {
   const out: Partial<Record<K, unknown>> = {}

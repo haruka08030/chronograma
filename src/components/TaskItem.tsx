@@ -1,15 +1,19 @@
-import { memo, useState, useRef, useEffect, useCallback, useMemo, type MouseEvent } from 'react'
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
-import { isLogTask, type Task } from '../types/task'
-import { parseISO } from 'date-fns'
+import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
-import { isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
-import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, ListBulletIcon, RepeatIcon, TrashIcon } from './icons'
-import { CompletionCircle } from './ui/CompletionCircle'
+import { appTodayKey, isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
+import { dueToneOf } from '../lib/dueTone'
+import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
+import { CompletionCircle, EventMark } from './ui/CompletionCircle'
+import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -22,12 +26,13 @@ import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { openTaskMenu } from '../lib/overlays'
-import { useLongPress } from '../hooks/useLongPress'
+import { useRowLift } from '../hooks/useTouchLift'
+import { isLiftActive, TOUCH_LIFT_ATTR } from '../lib/touchLift'
 import { useRowSwipe } from '../hooks/useRowSwipe'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { colorVars } from '../lib/logCategoryColors'
-import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS } from './ui/rowStateClass'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -40,10 +45,22 @@ function rowDateText(d: Date, language: string | undefined): string {
   return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
 }
 
-function dueDateLabel(iso: string, todayLabel: string, language: string | undefined): { text: string; tone: DateTone } {
+/** 締切が近いと言う日数（この日数以内は「あと ◯ 日」で明日と同じ色） */
+const DUE_SOON_DAYS = 3
+
+/**
+ * 締切の日付を、色が見分けにくくても分かる言葉で: 「10/8 (木)まで・あと 2 日」「10/5 (月)まで・1日遅れ」。
+ * 「まで」が付くので、時計の実行日とも文字で分かれる
+ */
+function dueDateLabel(iso: string, time: string | null, t: TFunction, language: string | undefined): { text: string; tone: DateTone } {
   const d = parseISO(iso)
-  if (isAppToday(d)) return { text: todayLabel, tone: 'today' }
-  return { text: rowDateText(d, language), tone: dateTone(d) }
+  const tone = dueToneOf(iso, time, appTodayKey())
+  const days = differenceInCalendarDays(d, fromDateKey(appTodayKey()))
+  const date = isAppToday(d) ? t('common.today') : isAppTomorrow(d) ? t('common.tomorrow') : rowDateText(d, language)
+  const by = time ? t('taskItem.dueByTime', { date, time }) : t('taskItem.dueBy', { date })
+  if (days < 0) return { text: t('taskItem.dueLate', { by, count: -days }), tone }
+  if (days >= 2 && days <= DUE_SOON_DAYS) return { text: t('taskItem.dueSoon', { by, count: days }), tone: 'tomorrow' }
+  return { text: by, tone }
 }
 
 export type TaskItemSelection = {
@@ -53,7 +70,9 @@ export type TaskItemSelection = {
   reveal: boolean
   /** ↑↓ で選んでいる行（キー操作中だけ枠を出す） */
   cursor?: boolean
-  /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは選択に使う） */
+  /** 一覧（listbox）の中の option としての id。aria-activedescendant が指す */
+  optionId?: string
+  /** 右クリックでメニューを開く（PC のマウスだけ。スマホの長押しは行を浮かせて選択に入れる） */
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
@@ -67,6 +86,7 @@ export const TaskItem = memo(function TaskItem({
   onRowClick,
   onEnterCreateSibling,
   dragHandle,
+  liftListeners,
   isSubtask,
   selection,
   rowClassName,
@@ -76,6 +96,7 @@ export const TaskItem = memo(function TaskItem({
   onNativeDragEnd,
   sectionLabel,
   dayKey,
+  keepHandleSpace = false,
 }: {
   task: Task
   onClick?: () => void
@@ -85,6 +106,8 @@ export const TaskItem = memo(function TaskItem({
   /** タイトル編集中 Enter で、同階層の次タスクを作成する */
   onEnterCreateSibling?: (task: Task) => void
   dragHandle?: React.ReactNode
+  /** スマホの手動の並びの行: つまみの代わりに行そのものに付ける dnd-kit の listeners（長押しで浮かせて運ぶ。`useRowGrip`） */
+  liftListeners?: DraggableSyntheticListeners
   /** ネイティブドラッグでまとめて動かす選択 ID（表示順・単体なら未指定/[task.id]） */
   dragGroupIds?: string[]
   /** ネイティブドラッグ終了時（成否問わず）。複数選択のクリアなどに使う */
@@ -102,9 +125,11 @@ export const TaskItem = memo(function TaskItem({
   dayKey?: string
   /** セクションの塊で分けずに並べるとき、行に出すセクション名（Canvas なら科目） */
   sectionLabel?: string | null
+  /** つまみを出さない並びでも、つまみの幅を空けておく（並び順を変えても行の文字が横に動かないように。PC だけ） */
+  keepHandleSpace?: boolean
 }) {
   const { t, i18n } = useTranslation()
-  const hasSortableHandle = !!dragHandle
+  const hasSortableHandle = !!dragHandle || !!liftListeners
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -185,9 +210,9 @@ export const TaskItem = memo(function TaskItem({
   // タスクに付けた色（ラベル）は行の左の細い線だけで見せる。完了・記録には出さない
   const rowHex = !timeLog && task.color && !task.completed ? task.color : null
   const language = i18n.resolvedLanguage
-  const due = task.dueDate ? dueDateLabel(task.dueDate, t('common.today'), language) : null
+  const due = task.dueDate ? dueDateLabel(task.dueDate, task.dueTime, t, language) : null
   const dueOnRowDay = !!dayKey && task.dueDate === dayKey
-  const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : task.dueTime ? `${due.text} ${task.dueTime}` : due.text) : null
+  const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
   const scheduled = useMemo(() => {
@@ -217,18 +242,20 @@ export const TaskItem = memo(function TaskItem({
 
   const rowNativeDraggable = !hasSortableHandle
 
-  // スマホ: 行を長押しで一括選択を始める（ドラッグは左の ⋮⋮ だけなので競合しない）
-  const longPress = useLongPress((e) => selection?.onToggle(e as unknown as React.MouseEvent), !!selection && !editing)
+  // スマホ: 行を長押しすると浮いて選択に入る（押さえたまま別の指でタップした行も足す）。
+  // 手動の並びの行（liftListeners）は dnd-kit のセンサーが同じことをして、そのまま運べる
+  const lift = !!liftListeners && !editing
+  const longPress = useRowLift(task.id, !!selection && !editing && !liftListeners)
 
   const beginTitleInteraction = useCallback(
-    (e: React.MouseEvent | React.KeyboardEvent) => {
+    (e: React.MouseEvent) => {
       e.stopPropagation()
       if (e.shiftKey || isModKey(e)) {
-        onRowClick?.(e as unknown as MouseEvent)
+        onRowClick?.(e)
         return
       }
       if (selection?.reveal && onRowClick) {
-        onRowClick(e as unknown as MouseEvent)
+        onRowClick(e)
         return
       }
       setEditValue(task.title)
@@ -244,6 +271,7 @@ export const TaskItem = memo(function TaskItem({
   }
 
   const rowRef = useRef<HTMLDivElement>(null)
+  const optionId = selection?.optionId
   useEffect(() => {
     if (selection?.cursor) rowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selection?.cursor])
@@ -271,16 +299,21 @@ export const TaskItem = memo(function TaskItem({
             }
           : undefined,
     },
-    isCoarse && !editing && !selection?.reveal && !timeLog && !task.completed,
+    isCoarse && !editing && !selection?.reveal && isTodoTask(task) && !task.completed,
   )
 
   // PC の行の最低の高さ（min-h）は、並べ替えハンドルの有無（手動の並べ替えかどうか）で行の高さが変わらないように
   return (
     <div className="relative rounded-xl">
       {swipe.backdrop}
+      {/* 行のクリックはマウスの近道。キーでは一覧（listbox）の ↑↓・Enter・Space と、行の中のボタン（タイトル・完了・メニュー）で同じことができる */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         ref={rowRef}
         data-task-row={task.id}
+        {...(optionId
+          ? { id: optionId, role: 'option', 'aria-selected': Boolean(selection?.selected), 'aria-labelledby': `${optionId}-title` }
+          : {})}
         draggable={rowNativeDraggable}
         onDragStart={rowNativeDraggable ? handleDragStart : undefined}
         onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
@@ -290,12 +323,14 @@ export const TaskItem = memo(function TaskItem({
                   ${selection?.selected ? ROW_SELECTED_CLASS : ''}
                   ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
+                  ${longPress.lifted ? ROW_LIFTED_CLASS : ''}
                   ${rowClassName ?? ''} ${swipe.swipingClass}`}
         style={{ WebkitTouchCallout: 'none' }}
         {...longPress.pointerHandlers}
+        {...(lift ? { ...liftListeners, [TOUCH_LIFT_ATTR]: '' } : {})}
         onContextMenu={(e) => {
-          // 長押しで出る OS のメニューを抑える（選択に使う）
-          if (longPress.isPressing()) {
+          // 長押しで出る OS のメニューを抑える（行を浮かせるのに使う）
+          if (longPress.isPressing() || isLiftActive() || (e.nativeEvent as PointerEvent).pointerType === 'touch') {
             e.preventDefault()
             return
           }
@@ -303,7 +338,7 @@ export const TaskItem = memo(function TaskItem({
           e.preventDefault()
           openMenuAt(e)
         }}
-        // 長押しで選択した直後の click で詳細・編集が開かないように
+        // 長押しで浮かせた直後の click で詳細・編集が開かないように
         onClickCapture={(e) => {
           swipe.onClickCapture(e)
           longPress.onClickCapture(e)
@@ -318,7 +353,12 @@ export const TaskItem = memo(function TaskItem({
           // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
           <span aria-hidden className="gc-line absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={colorVars(rowHex)} />
         )}
-        {hasSortableHandle ? <span className="touch-none flex-shrink-0">{dragHandle}</span> : null}
+        {dragHandle ? (
+          <span className="touch-none flex-shrink-0">{dragHandle}</span>
+        ) : keepHandleSpace && !isCoarse ? (
+          // つまみ（`useRowGrip`）と同じ幅
+          <span aria-hidden className="w-7 flex-shrink-0 md:w-5" />
+        ) : null}
 
         {selection ? (
           <button
@@ -346,32 +386,36 @@ export const TaskItem = memo(function TaskItem({
           </button>
         ) : null}
 
-        <CompletionCircle
-          completed={shownCompleted}
-          justCompleted={justCompleted}
-          priority={task.priority}
-          small={isSubtask}
-          shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
-          inert={Boolean(selection?.reveal)}
-          onClick={(e) => {
-            e.stopPropagation()
-            deferredComplete.toggle(task.id, task.completed)
-          }}
-          label={
-            listKind === 'someday'
-              ? t(task.completed ? 'someday.unfulfillItem' : 'someday.fulfillItem', { title: task.title })
-              : task.completed
-                ? timeLog
-                  ? t('taskItem.unlogIncomplete')
-                  : t('taskItem.markIncomplete')
-                : t('taskItem.markComplete')
-          }
-        />
+        {/* 予定（バイト・授業）には完了の丸を出さない */}
+        {isEventTask(task) ? (
+          <EventMark hex={planHex(task)} small={isSubtask} />
+        ) : (
+          <CompletionCircle
+            completed={shownCompleted}
+            justCompleted={justCompleted}
+            priority={task.priority}
+            small={isSubtask}
+            shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
+            inert={Boolean(selection?.reveal)}
+            onClick={(e) => {
+              e.stopPropagation()
+              deferredComplete.toggle(task.id, task.completed)
+            }}
+            label={
+              listKind === 'someday'
+                ? t('someday.fulfillItem', { title: task.title })
+                : task.completed && timeLog
+                  ? t('taskItem.unlogItem', { title: task.title })
+                  : t('taskItem.completeItem', { title: task.title })
+            }
+          />
+        )}
 
         <div className="flex-1 min-w-0">
           {editing ? (
             <input
               ref={inputRef}
+              aria-label={t('taskDetail.titleEditAria')}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               {...titleEntryWithSibling}
@@ -381,22 +425,17 @@ export const TaskItem = memo(function TaskItem({
                        border-b border-accent-400 pb-0.5 -mb-[3px] ${isSubtask ? 'text-[13px]' : 'text-sm'}`}
             />
           ) : (
-            <span
+            <button
+              type="button"
+              id={optionId ? `${optionId}-title` : undefined}
               data-task-title
-              role="button"
-              tabIndex={0}
               onClick={beginTitleInteraction}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return
-                e.preventDefault()
-                beginTitleInteraction(e)
-              }}
-              className={`block truncate cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
+              className={`block w-full truncate text-left cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
             >
               {task.title || '\u00A0'}
-            </span>
+            </button>
           )}
 
           {notePreview && (
@@ -513,7 +552,7 @@ export const TaskItem = memo(function TaskItem({
             openMenuAt({ clientX: r.left, clientY: r.bottom + 4 })
           }}
         >
-          <ListBulletIcon className="h-5 w-5" />
+          <EllipsisIcon className="h-5 w-5" />
         </button>
 
         {/* カーソルを乗せたときだけ出るボタンは、負のマージンで行の高さを変えない（上下に動かすと行がガタつく） */}

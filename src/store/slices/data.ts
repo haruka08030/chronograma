@@ -12,6 +12,7 @@ import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
+import { hasExistingData } from '../../lib/onboarding'
 
 type DataActions = Pick<
   TaskState,
@@ -50,6 +51,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         selectedListId: INBOX_ID,
         quickAddSectionId: null,
         completePromptTaskId: null,
+        labelPromptLogId: null,
         undoBanner: null,
         moveBannerText: null,
         syncState: 'idle',
@@ -59,14 +61,13 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
     },
 
     backupJson: () => {
-      const { tasks, lists, habits, listColorPaletteId, sections, timeLogTagPresets, logCategoryColors } = get()
+      const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors } = get()
       return JSON.stringify(
         buildBackupPayload({
           tasks,
           lists,
           habits,
           sections,
-          listColorPaletteId,
           timeLogTagPresets,
           logCategoryColors,
         }),
@@ -112,7 +113,6 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
             lists: before.lists,
             habits: before.habits,
             sections: before.sections,
-            listColorPaletteId: before.listColorPaletteId,
             timeLogTagPresets: before.timeLogTagPresets,
             logCategoryColors: before.logCategoryColors,
           }),
@@ -126,11 +126,12 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
-        listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
         sections: parsed.sections,
         timeLogTagPresets: parsed.timeLogTagPresets ?? [],
         logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
         quickAddSectionId: null,
+        // バックアップを持っている人には、はじめの案内を出さない
+        onboardingDone: before.onboardingDone || hasExistingData(parsed),
       })
       return true
     },
@@ -149,7 +150,6 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         tasks: parsed.tasks.map(withTaskDefaults),
         lists: parsed.lists,
         habits: parsed.habits,
-        listColorPaletteId: parsed.listColorPaletteId ?? get().listColorPaletteId,
         sections: parsed.sections,
         timeLogTagPresets: parsed.timeLogTagPresets ?? [],
         logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),

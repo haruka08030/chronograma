@@ -1,4 +1,3 @@
-import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 
 /**
@@ -7,11 +6,6 @@ import type { TaskList } from '../types/list'
  */
 export function unplannedListIds(lists: readonly TaskList[]): Set<string> {
   return new Set(lists.filter((l) => l.kind === 'someday' || l.kind === 'checklist').map((l) => l.id))
-}
-
-/** 予定・締切として扱うタスクか（いつか・チェックリストのリストに入っていない） */
-export function isPlannableTask(task: Pick<Task, 'listId'>, excluded: ReadonlySet<string>): boolean {
-  return !excluded.has(task.listId)
 }
 
 /** クイック追加の `@名前` からリストを探す（大文字小文字・全角半角の空白は無視。未分類は表示名でも一致） */

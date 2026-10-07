@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fromAppWall, toAppWall } from '../lib/timeZone'
@@ -9,7 +9,9 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { DateField } from './DateField'
 import { TimeInput } from './TimeInput'
-import { StopIcon } from './icons'
+import { CloseIcon, StopIcon } from './icons'
+import { categoryHex, colorVars } from '../lib/logCategoryColors'
+import { frequentLogLabels } from '../lib/timeLogTags'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { HINT_TEXT } from './ui/textClass'
@@ -40,6 +42,15 @@ const STALE_TIMER_MS = 8 * 60 * 60 * 1000
  */
 const COMPLETE_PROMPT_ARM_MS = 700
 
+/** 止めた直後の「ラベルは？」に並べるラベルの数（1〜2 行に収まる数） */
+const LABEL_PROMPT_CHIPS = 5
+
+/** タブの題名に出す経過（`0:42`）。分単位 */
+function elapsedForTitle(ms: number): string {
+  const totalMin = Math.floor(ms / 60_000)
+  return `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, '0')}`
+}
+
 export function FloatingTimer() {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -64,7 +75,26 @@ export function FloatingTimer() {
     return () => document.documentElement.removeAttribute('data-timer-open')
   }, [timerShown])
 
-  if (!activeTimer) return <CompletePrompt />
+  // 記録中はタブの題名に経過を出す（PWA ではライブアクティビティを作れない代わり）。止めたら元の題名に戻す
+  const elapsedMinutes = Math.floor(elapsed / 60_000)
+  const timerTitle = activeTimer?.taskTitle
+  useEffect(() => {
+    if (!timerTitle) return
+    const base = document.title
+    document.title = `▶ ${elapsedForTitle(elapsedMinutes * 60_000)} ${timerTitle}`
+    return () => {
+      document.title = base
+    }
+  }, [timerTitle, elapsedMinutes])
+
+  if (!activeTimer) {
+    return (
+      <>
+        <CompletePrompt />
+        <LabelPrompt />
+      </>
+    )
+  }
 
   // 止め忘れ（タブを閉じたまま日付が変わった等）。走り続けた時間を記録に混ぜない
   if (elapsed > STALE_TIMER_MS) {
@@ -146,6 +176,74 @@ function CompletePrompt() {
       >
         {t('floatingTimer.markDone')}
       </button>
+    </div>
+  )
+}
+
+/**
+ * ラベルなしで止めた記録に、その場でラベルを付ける（放置すると数秒で消え、ラベルなしのまま残る）。
+ * 「完了にしますか？」と同じ位置。止めるの 2 度押しでラベルが付かないよう、出てすぐの押下は受けない
+ */
+function LabelPrompt() {
+  const { t } = useTranslation()
+  const logId = useTaskStore((s) => s.labelPromptLogId)
+  const log = useTaskStore((s) => (logId ? (s.tasks.find((x) => x.id === logId) ?? null) : null))
+  const tasks = useTaskStore((s) => s.tasks)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  const updateTask = useTaskStore((s) => s.updateTask)
+  const dismiss = useTaskStore((s) => s.dismissLabelPrompt)
+  const shownAt = useRef(0)
+  const labels = useMemo(() => (logId ? frequentLogLabels(presets, tasks, LABEL_PROMPT_CHIPS) : []), [logId, presets, tasks])
+
+  useEffect(() => {
+    if (!logId) return
+    shownAt.current = Date.now()
+    const id = setTimeout(dismiss, 8_000)
+    return () => clearTimeout(id)
+  }, [logId, dismiss])
+
+  if (!log || log.category || log.color || labels.length === 0) return null
+
+  return (
+    <div
+      role="status"
+      className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
+                  rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
+                  dark:border-zinc-700 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
+    >
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-200">
+          {t('floatingTimer.labelPrompt', { title: log.title })}
+        </p>
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label={t('common.close')}
+          className="-m-1 shrink-0 rounded-md p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {labels.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => {
+              if (Date.now() - shownAt.current < COMPLETE_PROMPT_ARM_MS) return
+              updateTask(log.id, { category: name })
+              dismiss()
+            }}
+            className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 md:min-h-7')}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <span className="gc-dot h-1.5 w-1.5 rounded-full" style={colorVars(categoryHex(name, colors))} aria-hidden />
+              {name}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

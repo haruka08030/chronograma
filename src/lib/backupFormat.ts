@@ -1,12 +1,12 @@
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
-import { normalizeListColorPaletteId, type ListColorPaletteId } from './listColorPalettes'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
+import { readEstimateMinutes } from './estimate'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -27,7 +27,6 @@ export interface BackupExportInput {
   lists: TaskList[]
   habits: Habit[]
   sections: ListSection[]
-  listColorPaletteId: ListColorPaletteId
   timeLogTagPresets: string[]
   logCategoryColors: Record<string, string>
 }
@@ -37,7 +36,6 @@ export interface BackupImportResult {
   lists: TaskList[]
   habits: Habit[]
   sections: ListSection[]
-  listColorPaletteId: ListColorPaletteId | null
   timeLogTagPresets: string[] | null
   /** 旧バックアップには無い */
   logCategoryColors: Record<string, string> | null
@@ -191,10 +189,15 @@ function normalizeTaskRow(raw: unknown): Task | null {
   const deletedAtRaw = row.deletedAt ?? row.deleted_at
   const habitIdRaw = row.habitId ?? row.habit_id
   const isSleepRaw = row.isSleep ?? row.is_sleep
+  const isEventRaw = row.isEvent ?? row.is_event
   const kind: TaskKind =
-    row.kind === 'todo' || row.kind === 'log' || row.kind === 'sleep'
+    row.kind === 'todo' || row.kind === 'event' || row.kind === 'log' || row.kind === 'sleep'
       ? row.kind
-      : taskKindFromFlags(row.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true', isSleepRaw === true)
+      : taskKindFromFlags(
+          row.isTimeLog === true || row.is_time_log === true || row.is_time_log === 'true',
+          isSleepRaw === true,
+          isEventRaw === true,
+        )
 
   // 手で直したファイルや古い形でも、画面が前提にしている形にそろえる。
   // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）。
@@ -219,6 +222,7 @@ function normalizeTaskRow(raw: unknown): Task | null {
     reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
+    estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
@@ -276,17 +280,12 @@ function normalizeHabitRow(raw: unknown): Habit | null {
   const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
     rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range' ? rec.timeMode : inferHabitTimeMode(startTime, endTime)
-  const freq = typeof rec.frequency === 'object' && rec.frequency !== null ? (rec.frequency as Record<string, unknown>) : null
-  const weekdays =
-    freq?.type === 'weekly' && Array.isArray(freq.weekdays)
-      ? freq.weekdays.filter((d): d is HabitWeekday => Number.isInteger(d) && d >= 1 && d <= 7)
-      : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
     title,
     color: typeof rec.color === 'string' ? rec.color : INBOX_COLOR,
-    frequency: weekdays ? { type: 'weekly', weekdays } : { type: 'daily' },
+    frequency: readHabitFrequency(rec.frequency),
     createdAt: readStamp(now, rec.createdAt),
     updatedAt: readStamp(now, rec.updatedAt),
     completedDates: readStringArray(rec.completedDates).filter((d) => DATE_RE.test(d)),
@@ -307,12 +306,11 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    // 前の版のアプリは種類を 2 つの印（記録か・睡眠か）で読む。そのアプリでも取り込めるように両方書く
+    // 前の版のアプリは種類を印（記録か・睡眠か・予定か）で読む。そのアプリでも取り込めるように両方書く
     tasks: input.tasks.map((t) => ({ ...t, ...taskKindFlags(t.kind) })),
     lists: input.lists,
     habits: input.habits,
     listSections: input.sections,
-    listColorPaletteId: input.listColorPaletteId,
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
   }
@@ -349,9 +347,6 @@ export function readBackupJson(json: string): BackupReadResult {
     .filter((s): s is ListSection => s !== null)
 
   const habits = Array.isArray(data.habits) ? (data.habits as unknown[]).map(normalizeHabitRow).filter((h): h is Habit => h !== null) : []
-
-  const paletteRaw = data.listColorPaletteId
-  const listColorPaletteId = paletteRaw !== undefined && paletteRaw !== null ? normalizeListColorPaletteId(paletteRaw) : null
 
   const rawPresets = data.timeLogTagPresets
   const timeLogTagPresets = Array.isArray(rawPresets)
@@ -410,7 +405,6 @@ export function readBackupJson(json: string): BackupReadResult {
       lists,
       habits,
       sections,
-      listColorPaletteId,
       timeLogTagPresets,
       logCategoryColors,
     },

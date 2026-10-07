@@ -1,11 +1,12 @@
-import { addDays, startOfWeek } from 'date-fns'
+import { addDays, startOfWeek, subWeeks } from 'date-fns'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import type { Habit } from '../types/habit'
+import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { habitToPlannedItem } from './habitSlots'
 import { isHabitScheduledOnDate } from './habitSchedule'
 import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
+import { timesPerWeekTally } from './habitStats'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
@@ -35,10 +36,28 @@ export interface WeekReview {
    * 今日はまだ終わっていない予定を数えない（これから行う予定で「ずれた」と言わない）
    */
   followRate: number | null
+  /** 「計画どおり実行」の分母（時間を決めた予定の数）と分子 */
   timedPlanned: number
+  followed: number
   habitRate: number | null
-  /** 記録時間の多いタグ（タグ無しは空文字） */
-  topTags: { tag: string; minutes: number }[]
+  /** ラベルごとの記録時間（多い順、全件。タグ無しは空文字） */
+  labelMinutes: { tag: string; minutes: number }[]
+}
+
+/** ラベル別の時間を出す行数。これを超えたら 6 行目以降を「その他」にまとめる */
+export const LABEL_ROWS = 6
+
+/**
+ * ラベル別の時間を `LABEL_ROWS` 行に収める。収まらなければ上位 `LABEL_ROWS - 1` 件と、残りの合計（`others`）。
+ * 1 件だけを「その他」にはしない（それなら名前を出したほうが読める）
+ */
+export function foldLabelMinutes(rows: readonly { tag: string; minutes: number }[]): {
+  shown: { tag: string; minutes: number }[]
+  others: number
+} {
+  if (rows.length <= LABEL_ROWS) return { shown: [...rows], others: 0 }
+  const shown = rows.slice(0, LABEL_ROWS - 1)
+  return { shown, others: rows.slice(LABEL_ROWS - 1).reduce((a, x) => a + x.minutes, 0) }
 }
 
 /** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */
@@ -84,10 +103,14 @@ export function getWeekReview(
       if (p) planned.push(p)
     }
     for (const h of habits) {
-      if (isHabitScheduledOnDate(h, date)) {
+      const timesPerWeek = h.frequency.type === 'timesPerWeek'
+      // 週に◯回の習慣は日ごとではなく週でまとめて数える（下）
+      if (!timesPerWeek && isHabitScheduledOnDate(h, date)) {
         habitDue++
         if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }
+      // 週に◯回の習慣は、やった日の枠だけ予定どおりかを見る（やらない日の枠を「できなかった予定」にしない）
+      if (timesPerWeek && habitDayStatus(h, key, habitRecords) === 'missed') continue
       const p = habitToPlannedItem(h, key)
       if (p) planned.push(p)
     }
@@ -115,6 +138,13 @@ export function getWeekReview(
     }
   }
 
+  for (const h of habits) {
+    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
+    const tally = timesPerWeekTally(h, start, todayKey, habitRecords)
+    habitDue += tally.expected
+    habitDone += tally.completed
+  }
+
   const sum = (f: (d: WeekReviewDay) => number) => days.reduce((a, d) => a + f(d), 0)
   return {
     days,
@@ -124,9 +154,28 @@ export function getWeekReview(
     total: sum((d) => d.total),
     followRate: timedPlanned > 0 ? followed / timedPlanned : null,
     timedPlanned,
+    followed,
     habitRate: habitDue > 0 ? habitDone / habitDue : null,
-    topTags: sortedTagMinutes(tagMinutes).slice(0, 5),
+    labelMinutes: sortedTagMinutes(tagMinutes),
   }
+}
+
+/**
+ * 記録した時間の、前の週との差（分。今週 − 前の週）。前の週に記録が無ければ null（比べる相手が無いので出さない）。
+ * 今週は今日までしか数えないので、前の週も同じ曜日までで比べる（週の頭に「先週より −10時間」と出さない）
+ */
+export function loggedMinutesVsPrevWeek(
+  loggedMinutes: number,
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  anchor: Date,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = zonedNow(),
+): number | null {
+  // 「今」を 1 週前にずらすと、前の週は同じ曜日で打ち切られる（過ぎた週どうしなら丸ごと比べる）
+  const prev = getWeekReview(tasks, habits, subWeeks(anchor, 1), excludedListIds, subWeeks(now, 1))
+  if (prev.loggedMinutes === 0) return null
+  return loggedMinutes - prev.loggedMinutes
 }
 
 function sortedTagMinutes(m: ReadonlyMap<string, number>): { tag: string; minutes: number }[] {

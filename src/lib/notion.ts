@@ -1,9 +1,9 @@
 import { readFunctionErrorBody } from './functionError'
 import type { Task } from '../types/task'
-import type { TaskList } from '../types/list'
 import { getSupabase, sendFunctionOnLeave } from './supabase'
 import { externalPatch, type PulledFields } from './externalFields'
 import { TASK_DEFAULTS } from './taskDefaults'
+import { INBOX_ID } from '../store/storeConstants'
 
 /**
  * Notion 連携のクライアント側。Notion API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -12,8 +12,6 @@ import { TASK_DEFAULTS } from './taskDefaults'
  * タスクの id は `notion-<ページID>-<ステータス>` に決め打ちする。列を足さずに Notion の行と結び付けられ、
  * 「ES を出す → 面接を受ける」のようにステータスが進むと別のタスクになるので、済んだ段階は記録として残る。
  */
-
-export const NOTION_LIST_ID = 'notion-list'
 
 export type NotionConfig = {
   statusProperty: string | null
@@ -126,7 +124,6 @@ export function splitNotionDate(date: string | null): { dueDate: string | null; 
 }
 
 export type NotionReconcileResult = {
-  lists: TaskList[]
   tasks: Task[]
   /** Notion 側でステータスが動いたので自動で完了にしたタスク。Notion へ書き戻さない */
   autoCompletedIds: string[]
@@ -136,39 +133,29 @@ export type NotionReconcileResult = {
 }
 
 /**
- * Notion の「要アクション」の行を、Notion 用リストのタスクに合わせる。
- * - 無いものは作る。未完了のものはタイトル・期限を Notion に合わせる
+ * Notion の「要アクション」の行を、To-Do のタスクに合わせる。
+ * - 無いものは未分類に作る（データベース名のラベルを付ける）。未完了のものはタイトル・期限を Notion に合わせる
  * - 未完了なのに Notion で要アクションでなくなったものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクには触らない（自分で片付けたものを生き返らせない）
  */
 export function reconcileNotionPages(
-  state: { lists: TaskList[]; tasks: Task[] },
+  state: { tasks: Task[] },
   payload: { databaseTitle: string; datesEnabled?: boolean; pages: NotionPage[] },
   opts: {
     now: string
-    listColor: string
+    /** 新しく作るタスクの色（データベース名のラベルの色）。作るときだけ呼ぶ（呼ばれたらラベルを作ってよい） */
+    colorFor: () => string | null
     titleFor: (page: NotionPage) => string
     /** 前回取り込んだ値。渡すと、ユーザーが変えたタイトル・期限は上書きしない（`externalPatch`） */
     pulled?: Readonly<Record<string, PulledFields>>
   },
 ): NotionReconcileResult {
-  let changed = false
-  let lists = state.lists
-  if (!lists.some((l) => l.id === NOTION_LIST_ID)) {
-    const maxOrder = Math.max(0, ...lists.map((l) => l.order))
-    lists = [
-      ...lists,
-      { id: NOTION_LIST_ID, name: payload.databaseTitle, color: opts.listColor, order: maxOrder + 1, kind: 'tasks', updatedAt: opts.now },
-    ]
-    changed = true
-  }
-
   const byId = new Map(state.tasks.map((t) => [t.id, t]))
   const wanted = new Set<string>()
   const updates = new Map<string, Task>()
   const additions: Task[] = []
   const pulled: Record<string, PulledFields> = { ...(opts.pulled ?? {}) }
-  let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === NOTION_LIST_ID).map((t) => t.order)) + 1
+  let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === INBOX_ID).map((t) => t.order)) + 1
 
   for (const page of payload.pages) {
     const id = notionTaskId(page.pageId, page.status)
@@ -190,7 +177,7 @@ export function reconcileNotionPages(
         createdAt: opts.now,
         updatedAt: opts.now,
         order: nextOrder++,
-        listId: NOTION_LIST_ID,
+        listId: INBOX_ID,
         sectionId: null,
         parentId: null,
         dueDate: payload.datesEnabled ? dueDate : null,
@@ -200,7 +187,7 @@ export function reconcileNotionPages(
         startTime: null,
         endTime: null,
         location: null,
-        color: null,
+        color: opts.colorFor(),
         priority: 'none',
         tags: [],
         recurrence: null,
@@ -231,10 +218,9 @@ export function reconcileNotionPages(
   }
 
   if (updates.size === 0 && additions.length === 0) {
-    return { lists, tasks: state.tasks, autoCompletedIds, pulled, changed }
+    return { tasks: state.tasks, autoCompletedIds, pulled, changed: false }
   }
   return {
-    lists,
     tasks: [...state.tasks.map((t) => updates.get(t.id) ?? t), ...additions],
     autoCompletedIds,
     pulled,

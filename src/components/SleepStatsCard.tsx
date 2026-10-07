@@ -155,9 +155,9 @@ export function SleepStatsCard() {
           <thead>
             <tr>
               <th>{t('sleepStats.colDate')}</th>
-              <th>{t('sleepStats.avgBed')}</th>
-              <th>{t('sleepStats.avgWake')}</th>
-              <th>{t('sleepStats.avgSleep')}</th>
+              <th>{t('sleepStats.colBed')}</th>
+              <th>{t('sleepStats.colWake')}</th>
+              <th>{t('sleepStats.colSleep')}</th>
             </tr>
           </thead>
           <tbody>

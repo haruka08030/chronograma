@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { HOUR_HEIGHT, yToTime, timeToMinutes } from './timeGrid'
 import { markTimelineDragOver } from './nativeTaskDragGhost'
-import { acceptTaskDrag, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from './taskDrag'
+import { acceptTaskDrag, carriedTaskIds, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from './taskDrag'
 import { minutesToTime } from './clockTime'
+import { useTaskStore } from '../store/taskStore'
 
 export { TASK_DND_TYPE, GOOGLE_EVENT_DND_TYPE, TASK_MULTI_DND_TYPE }
-const DEFAULT_DURATION_MIN = 60
 
 /** ドラッグ中の DataTransfer から対象 taskId を取り出す（複数選択対応） */
 export function readDraggedTaskIds(dataTransfer: DataTransfer): string[] {
@@ -71,6 +71,16 @@ interface UseTimelineDropOptions {
 export function useTimelineDrop(options: UseTimelineDropOptions) {
   const { getRelativeY, getTaskDuration, onDrop } = options
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null)
+  /** 長さの分からないタスクを置くときの長さ（設定の既定の予定の長さ） */
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
+  /** 置くときの長さ: タスクの時間・見積もり（`getTaskDuration`）、無ければ既定の予定の長さ */
+  const lengthOf = useCallback(
+    (taskId: string) => {
+      const raw = getTaskDuration?.(taskId)
+      return raw != null && raw > 0 ? raw : defaultBlockMinutes
+    },
+    [getTaskDuration, defaultBlockMinutes],
+  )
   const enterCountRef = useRef(0)
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -85,13 +95,14 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
       const y = getRelativeY(e.clientY, dateKey)
       const startTime = yToTime(y)
       const startMin = timeToMinutes(startTime)
-      const duration = DEFAULT_DURATION_MIN
+      // 落としたときと同じ長さ（時間・見積もり、無ければ既定。複数なら積み上げた合計）
+      const duration = carriedTaskIds().reduce((sum, id) => sum + lengthOf(id), 0) || defaultBlockMinutes
       const endMin = Math.min(startMin + duration, 24 * 60)
       const actualDuration = endMin - startMin
       const height = (actualDuration / 60) * HOUR_HEIGHT
       setDropPreview({ dateKey, top: y, height, label: `${startTime} – ${minutesToTime(endMin)}` })
     },
-    [getRelativeY],
+    [getRelativeY, defaultBlockMinutes, lengthOf],
   )
 
   const handleDragLeave = useCallback(() => {
@@ -115,8 +126,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
       // 複数選択時はドロップ位置から順に重ならないよう積み上げて配置する
       let cursorMin = timeToMinutes(yToTime(y))
       for (const taskId of taskIds) {
-        const raw = getTaskDuration?.(taskId) ?? DEFAULT_DURATION_MIN
-        const duration = raw > 0 ? raw : DEFAULT_DURATION_MIN
+        const duration = lengthOf(taskId)
         const startMin = Math.min(cursorMin, 24 * 60 - duration)
         const clampedStart = Math.max(0, startMin)
         const endMin = Math.min(clampedStart + duration, 24 * 60)
@@ -125,7 +135,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
       }
       setDropPreview(null)
     },
-    [getRelativeY, getTaskDuration, onDrop],
+    [getRelativeY, onDrop, lengthOf],
   )
 
   return {

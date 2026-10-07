@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
+import { calendarDayKey, dueMarkDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -121,7 +121,7 @@ describe('getDayPlan done', () => {
       doneAt('2026-09-30T05:00:00Z'),
       // 今日に置いたが前の日に先にやった
       doneAt('2026-09-29T05:00:00Z', { scheduledDate: DAY }),
-      // 東京の 10/1 2:00 は夜中なので 9/30
+      // 東京の 10/1 2:00 は 0 時を過ぎているので 10/1
       doneAt('2026-09-30T17:00:00Z'),
       // 東京の 9/30 7:00（UTC ではまだ 9/29）
       doneAt('2026-09-29T22:00:00Z'),
@@ -130,7 +130,7 @@ describe('getDayPlan done', () => {
       getDayPlan(tasks, DAY)
         .done.map((t) => t.id)
         .sort(),
-    ).toEqual(['2026-09-29T22:00:00Z', '2026-09-30T03:00:00Z', '2026-09-30T05:00:00Z', '2026-09-30T17:00:00Z'])
+    ).toEqual(['2026-09-29T22:00:00Z', '2026-09-30T03:00:00Z', '2026-09-30T05:00:00Z'])
     expect(getDayPlan(tasks, '2026-09-29').done.map((t) => t.id)).toEqual(['2026-09-29T05:00:00Z'])
   })
 })
@@ -174,5 +174,22 @@ describe('calendarDayKey for timed tasks', () => {
     setAppTimeZoneSetting('UTC')
     const night = timed({ startTime: '01:00', endTime: '02:00', completed: true, completedAt: '2026-10-02T01:30:00Z' })
     expect(calendarDayKey(night)).toBe('2026-10-02')
+  })
+})
+
+describe('dueMarkDayKey（カレンダーの締切の日の印）', () => {
+  it('実行日が締切と別の日なら、締切の日にも印を出す', () => {
+    expect(dueMarkDayKey(task('a', { scheduledDate: '2026-10-08', dueDate: '2026-10-10' }))).toBe('2026-10-10')
+  })
+
+  it('締切の日に置いているもの・締切のないもの・終えたものには出さない', () => {
+    expect(dueMarkDayKey(task('a', { dueDate: '2026-10-10' }))).toBeNull()
+    expect(dueMarkDayKey(task('b', { scheduledDate: '2026-10-10', dueDate: '2026-10-10' }))).toBeNull()
+    expect(dueMarkDayKey(task('c', { scheduledDate: '2026-10-08' }))).toBeNull()
+    expect(
+      dueMarkDayKey(
+        task('d', { scheduledDate: '2026-10-08', dueDate: '2026-10-10', completed: true, completedAt: '2026-10-08T10:00:00Z' }),
+      ),
+    ).toBeNull()
   })
 })

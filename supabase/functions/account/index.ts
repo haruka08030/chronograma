@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
@@ -88,6 +88,13 @@ Deno.serve(
           }
         }),
       )
+
+      // 消えた行の印（`008`）は auth.users に外部キーが無い。cascade の中で消えるのは 4 つの表に行があった人の分だけなので、先に消す
+      const { error: tombstoneError } = await admin.from('sync_tombstones').delete().eq('user_id', user.id)
+      if (tombstoneError) {
+        console.error('[account] sync_tombstones delete failed', tombstoneError)
+        return jsonResponse({ ok: false, error: 'Failed to delete account' }, 500)
+      }
 
       const { error } = await admin.auth.admin.deleteUser(user.id)
       if (error) {

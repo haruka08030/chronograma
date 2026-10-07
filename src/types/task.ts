@@ -15,12 +15,16 @@ export interface Recurrence {
 /**
  * タスクの種類。
  * - `todo`: To-Do（やること）
+ * - `event`: 予定（バイト・授業など、時刻のある予定）。完了の丸が無く、時間が過ぎたらグレー（Google の予定と同じ）。
+ *   To-Do の一覧・今日の計画（To-Do・やり残し・予定の時間）・完了数・予定と記録の突き合わせには入れない。
+ *   カレンダー・ふさがっている時間・通知（予定の前）は To-Do の予定と同じ
  * - `log`: 記録（実際にやった時間）
  * - `sleep`: 睡眠の記録（朝に「何時に寝て何時に起きたか」で入れる）。記録の時間・分類の集計に入れない
  *
- * サーバー・前の版のバックアップでは `is_time_log` / `isTimeLog`（記録か）と `is_sleep` / `isSleep`（睡眠か）の 2 つで持つ
+ * サーバー・前の版のバックアップでは `is_time_log` / `isTimeLog`（記録か）・`is_sleep` / `isSleep`（睡眠か）・
+ * `is_event` / `isEvent`（予定か）の印で持つ。予定の印を読まない前の版では To-Do に見える
  */
-export type TaskKind = 'todo' | 'log' | 'sleep'
+export type TaskKind = 'todo' | 'event' | 'log' | 'sleep'
 
 /** どの種類にもある項目 */
 interface TaskBase {
@@ -60,6 +64,8 @@ interface TaskBase {
    * 判定は `supabase/functions/daily-reminders/schedule.ts`
    */
   reminders: TaskReminder[] | null
+  /** 見積もり（かかりそうな時間、分）。タイムラインに置く・時間を決めるときの長さ。`null`/未設定は設定の既定の予定の長さ */
+  estimateMinutes: number | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
   location: string | null
   /** 記録の色（`#RRGGBB`）。Google カレンダーの予定から記録にしたとき元の色を引き継ぐ。null は分類の色 */
@@ -85,6 +91,13 @@ export interface TodoTask extends TaskBase {
   dueDate: string | null
 }
 
+/** 予定（完了の丸の無い、時刻のある予定） */
+export interface EventTask extends TaskBase {
+  kind: 'event'
+  /** 予定には締切を付けない（いつも null） */
+  dueDate: string | null
+}
+
 /** 記録（実際にやった時間） */
 export interface LogTask extends TaskBase {
   kind: 'log'
@@ -99,16 +112,23 @@ export interface SleepTask extends TaskBase {
   dueDate: string | null
 }
 
-export type Task = TodoTask | LogTask | SleepTask
-
-/** 記録（睡眠も含む）。`dueDate` が開始日で、カレンダーには実際の時間で置く */
-export type TimeLogTask = LogTask | SleepTask
+export type Task = TodoTask | EventTask | LogTask | SleepTask
 
 type Kinded = { kind?: TaskKind }
 
 /** To-Do か（下書きなど `kind` の無いものは To-Do） */
 export function isTodoTask<T extends Kinded>(t: T): t is T & { kind: 'todo' } {
   return t.kind === undefined || t.kind === 'todo'
+}
+
+/** 予定（完了の丸の無いもの）か */
+export function isEventTask<T extends Kinded>(t: T): t is T & { kind: 'event' } {
+  return t.kind === 'event'
+}
+
+/** 予定の欄（タイムラインの予定の列・終日の行・日付のマス）へ置いたときの種類。記録は To-Do に、予定は予定のまま */
+export function planKindOf(t: Kinded | undefined): 'todo' | 'event' {
+  return t?.kind === 'event' ? 'event' : 'todo'
 }
 
 /** 記録か（睡眠も含む） */
@@ -121,13 +141,13 @@ export function isSleepTask<T extends Kinded>(t: T): t is T & { kind: 'sleep' } 
   return t.kind === 'sleep'
 }
 
-/** サーバー・前の版のバックアップの 2 つの印（記録か・睡眠か）から種類を出す。睡眠の印だけでは記録にしない */
-export function taskKindFromFlags(isTimeLog: boolean, isSleep: boolean): TaskKind {
-  if (!isTimeLog) return 'todo'
+/** サーバー・前の版のバックアップの印（記録か・睡眠か・予定か）から種類を出す。睡眠の印だけでは記録にしない */
+export function taskKindFromFlags(isTimeLog: boolean, isSleep: boolean, isEvent = false): TaskKind {
+  if (!isTimeLog) return isEvent ? 'event' : 'todo'
   return isSleep ? 'sleep' : 'log'
 }
 
-/** 種類をサーバー・前の版のバックアップの 2 つの印に */
-export function taskKindFlags(kind: TaskKind): { isTimeLog: boolean; isSleep: boolean } {
-  return { isTimeLog: kind !== 'todo', isSleep: kind === 'sleep' }
+/** 種類をサーバー・前の版のバックアップの印に */
+export function taskKindFlags(kind: TaskKind): { isTimeLog: boolean; isSleep: boolean; isEvent: boolean } {
+  return { isTimeLog: kind === 'log' || kind === 'sleep', isSleep: kind === 'sleep', isEvent: kind === 'event' }
 }

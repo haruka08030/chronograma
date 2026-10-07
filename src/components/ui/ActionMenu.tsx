@@ -35,6 +35,8 @@ export type ActionSub = {
   id: string
   label: string
   icon?: ReactNode
+  /** 右の › の前に出す今の値（「締切 ›」の「今日 18:00」など） */
+  hint?: string
   divider?: boolean
   leaves: ActionLeaf[]
   /** 項目の下に足すもの（カレンダー・色の一覧など）。`close` で閉じる */
@@ -88,6 +90,7 @@ export function ActionMenu({
   y,
   above = false,
   header,
+  note,
   entries,
   onClose,
   searchable = true,
@@ -97,6 +100,8 @@ export function ActionMenu({
   above?: boolean
   /** 何についてのメニューか（タスク名・「3 件のタスク」など） */
   header?: string
+  /** 見出しの下に添えるもの（指で行を押したときのシートのメモ） */
+  note?: ReactNode
   entries: ActionEntry[]
   onClose: () => void
   /** 項目が少ないメニューは検索欄を出さない */
@@ -245,6 +250,7 @@ export function ActionMenu({
           ) : (
             <>
               {header && <MenuLabel>{header}</MenuLabel>}
+              {note}
               {entries.map((item) => (
                 <div key={item.id}>
                   {(item.divider || (item.kind === 'leaf' && item.danger)) && <MenuDivider />}
@@ -252,6 +258,7 @@ export function ActionMenu({
                     <MenuItem
                       aria-haspopup="menu"
                       icon={item.icon}
+                      hint={item.hint}
                       trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
                       onClick={() => openSub(item.id, false)}
                     >
@@ -302,6 +309,7 @@ export function ActionMenu({
           </div>
         )}
         {header && <MenuLabel>{header}</MenuLabel>}
+        {note}
         {q ? (
           results.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
@@ -329,6 +337,7 @@ export function ActionMenu({
                   aria-haspopup="menu"
                   aria-expanded={sub === item.id}
                   icon={item.icon}
+                  hint={item.hint}
                   active={i === activeIndex || sub === item.id}
                   trailing={<ChevronRightIcon className="h-3.5 w-3.5 text-zinc-400" />}
                   onMouseEnter={() => hoverSub(i, item.id)}
@@ -347,6 +356,7 @@ export function ActionMenu({
         <div
           ref={subRef}
           role="menu"
+          tabIndex={-1}
           data-popover-keep
           className={`fixed z-[71] p-1 ${openedSub.width === 'lg' ? 'w-[272px]' : 'w-56'} ${POPOVER_PANEL}`}
           style={{ left: -9999, top: 0 }}

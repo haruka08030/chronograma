@@ -19,6 +19,8 @@ import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskMenu } from '../lib/overlays'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
+import { useLiftedRowId } from '../hooks/useTouchLift'
+import { setLiftGroupCount } from '../lib/touchLift'
 import { useTaskListRows } from '../hooks/useTaskListRows'
 import { useSectionEditing } from '../hooks/useSectionEditing'
 import { TaskListHeader } from './todo/TaskListHeader'
@@ -49,8 +51,8 @@ export function TaskList({
   const lists = useTaskStore((s) => s.lists)
   /** 開いているリストの種類。いつか・チェックリストも操作は To-Do と同じで、印・日付・下の「済み」の出し方だけ変える */
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === s.selectedListId)?.kind ?? 'tasks')
-  // 並び順はリスト・ビューごと
-  const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView)))
+  // 並び順はリスト・ビュー・色ラベルごと
+  const sortMode = useTaskStore((s) => sortModeOf(s.sortByKey, sortKeyOf(s.selectedListId, s.selectedView, s.filterColor)))
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const filterTag = useTaskStore((s) => s.filterTag)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -84,7 +86,7 @@ export function TaskList({
 
   const selectedList = selectedListId ? (lists.find((l) => l.id === selectedListId) ?? null) : null
 
-  const { filtered, groupingScope, groupBySection, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
+  const { filtered, groupingScope, groupBySection, hasSections, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
     tasks,
     lists,
     sections,
@@ -189,18 +191,22 @@ export function TaskList({
       openTaskMenu({ kind: 'task', ...menu, onDone: () => clearSelectionRef.current() }),
     [],
   )
-  const { selected, clearSelection, makeRowClick, makeSelection, soloIds } = useTaskListSelection({
+  const { selected, clearSelection, makeRowClick, makeSelection, soloIds, listboxProps } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
     openDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu,
     // いつか・チェックリストは日に置かないので、Shift+T（今日やる ⇄ 明日へ）はタスクのリストだけ
     todayToggleRows: listKind === 'tasks' ? (ids) => todayToggle(ids).run() : undefined,
     resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
   })
+  // 選んだものが全部済みなら「完了」は何もしないので出さない（戻すのは「操作」のメニューから）
+  const selectionAllDone = useTaskStore(
+    (s) => selected.size > 0 && [...selected].every((id) => s.tasks.find((x) => x.id === id)?.completed),
+  )
   useEffect(() => {
     clearSelectionRef.current = clearSelection
   }, [clearSelection])
@@ -215,6 +221,12 @@ export function TaskList({
     },
     [active, selected, soloIds],
   )
+
+  // タッチの長押しで浮かせている間、束の件数をドラッグの見た目（バッジ）へ渡す。押さえたまま別の指で足すと増える
+  const liftedRowId = useLiftedRowId()
+  useEffect(() => {
+    if (liftedRowId) setLiftGroupCount(getDragGroupRootIds(liftedRowId).length)
+  }, [liftedRowId, getDragGroupRootIds])
 
   /** 縦線付き。サブの完了サークルが親タスク名の先頭付近に来るよう ml+pl を調整（親と同じ行内順: ハンドル→選択→丸） */
   const subtaskNestRow = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
@@ -267,6 +279,7 @@ export function TaskList({
           sortMode={sortMode}
           groupingScope={groupingScope}
           groupBySection={groupBySection}
+          hasSections={hasSections}
           onAddSection={beginDraftSection}
           onOpenNav={onOpenNav}
         />
@@ -294,27 +307,30 @@ export function TaskList({
             />
           )}
 
-          <TaskListActiveContent
-            canDrag={canDrag}
-            flatManualSortableIds={flatManualSortableIds}
-            showSectionBlocks={showSectionBlocks}
-            sectionBlocks={sectionBlocks}
-            active={active}
-            selectedListId={selectedListId}
-            taskDragging={taskDragging}
-            previewParentId={previewParentId}
-            pendingAutoEditTaskId={pendingAutoEditTaskId}
-            sectionTitle={sectionTitle}
-            sectionActions={sectionActions}
-            sectionLabelFor={sectionLabelFor}
-            getDragGroupRootIds={getDragGroupRootIds}
-            makeRowClick={makeRowClick}
-            makeSelection={makeSelection}
-            handleEnterCreateSibling={handleEnterCreateSibling}
-            incompleteSubtasks={incompleteSubtasks}
-            subtaskNestWithDrag={subtaskNestWithDrag}
-            subtaskNestNoDrag={subtaskNestNoDrag}
-          />
+          {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
+          <div {...listboxProps} aria-label={title} className="space-y-0.5 outline-none">
+            <TaskListActiveContent
+              canDrag={canDrag}
+              flatManualSortableIds={flatManualSortableIds}
+              showSectionBlocks={showSectionBlocks}
+              sectionBlocks={sectionBlocks}
+              active={active}
+              selectedListId={selectedListId}
+              taskDragging={taskDragging}
+              previewParentId={previewParentId}
+              pendingAutoEditTaskId={pendingAutoEditTaskId}
+              sectionTitle={sectionTitle}
+              sectionActions={sectionActions}
+              sectionLabelFor={sectionLabelFor}
+              getDragGroupRootIds={getDragGroupRootIds}
+              makeRowClick={makeRowClick}
+              makeSelection={makeSelection}
+              handleEnterCreateSibling={handleEnterCreateSibling}
+              incompleteSubtasks={incompleteSubtasks}
+              subtaskNestWithDrag={subtaskNestWithDrag}
+              subtaskNestNoDrag={subtaskNestNoDrag}
+            />
+          </div>
 
           {draftSection}
 
@@ -339,13 +355,23 @@ export function TaskList({
       {/* 選んでいる間: 件数・完了・「操作」を下に出す（今日の計画と同じバー） */}
       <SelectionBar
         selectedIds={selected}
-        actions={[
-          {
-            label: t('taskList.selectionComplete'),
-            icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
-            onClick: () => bulk.complete([...selected]),
-          },
-        ]}
+        actions={
+          selectionAllDone
+            ? []
+            : [
+                {
+                  label: t(
+                    listKind === 'someday'
+                      ? 'someday.fulfill'
+                      : listKind === 'checklist'
+                        ? 'checklist.check'
+                        : 'taskList.selectionComplete',
+                  ),
+                  icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
+                  onClick: () => bulk.complete([...selected]),
+                },
+              ]
+        }
         onClear={clearSelection}
       />
     </div>

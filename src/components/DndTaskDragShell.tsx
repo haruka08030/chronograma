@@ -7,6 +7,7 @@ import { SUBTASK_PREFIX, parseSubtaskDragId } from '../lib/subtaskDnD'
 import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
 import type { TaskList } from '../types/list'
 import { colorVars } from '../lib/logCategoryColors'
+import { useLiftHeld } from '../hooks/useTouchLift'
 
 export const MOBILE_DROP_PREFIX = 'mobile-drop::'
 
@@ -98,10 +99,12 @@ export function DndTaskDragShell() {
   )
 
   useDndMonitor(monitor)
+  // 長押しで浮かせて押さえているだけ（選ぶだけかもしれない）の間は出さない。指を動かしたら出す
+  const liftHeld = useLiftHeld()
 
   return (
     <>
-      {draggingTaskId && (
+      {draggingTaskId && !liftHeld && (
         <div
           className="md:hidden fixed inset-x-0 z-[52]
                  bottom-[calc(3.5rem+env(safe-area-inset-bottom))]

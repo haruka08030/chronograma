@@ -27,8 +27,10 @@ import {
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
+import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
+import { hasExistingData } from '../lib/onboarding'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -194,6 +196,7 @@ export function useSupabaseSync() {
       if (cancelled) return true
       if ('error' in pulled) {
         console.error('[sync]', pulled.error)
+        reportSyncError('pull', pulled.error)
         return false
       }
       let remote = pulled.snapshot
@@ -206,6 +209,7 @@ export function useSupabaseSync() {
           if (cancelled) return true
           if ('error' in again) {
             console.error('[sync]', again.error)
+            reportSyncError('pull', again.error, { full: true })
             return false
           }
           remote = again.snapshot
@@ -235,6 +239,8 @@ export function useSupabaseSync() {
 
       if (!baseline) {
         // この端末で初めての同期
+        // アカウントにもうデータがある人（別の端末で使っていた人）には、はじめの案内を出さない
+        if (hasExistingData(remote) && !useTaskStore.getState().onboardingDone) useTaskStore.getState().finishOnboarding()
         const local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
           remote.lists,
@@ -291,12 +297,21 @@ export function useSupabaseSync() {
       if (res.error) {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
+        reportSyncError('push', res.error)
         // 途中まで届いた行・消えた行がある。次は全部を取り直す
         pull.forceFull = true
         return false
       }
       // 拒否された行があっても、ほかの行は届いている。拒否された行は控えに入れず、利用者に見せる
-      if (res.rejected.length > 0) console.warn('[sync] rejected rows', res.rejected)
+      if (res.rejected.length > 0) {
+        console.warn('[sync] rejected rows', res.rejected)
+        // 行の中身（id）は送らない。どの表で何と断られたかだけ
+        const first = res.rejected[0]
+        reportSyncError('rejected', `${first.table} ${first.op}: ${first.message}`, {
+          count: res.rejected.length,
+          rows: res.rejected.slice(0, 5).map((r) => ({ table: r.table, op: r.op, message: r.message })),
+        })
+      }
       // 届いた行はサーバーが付けた時刻にそろえる（手元も、送っている間に編集していない行だけ）
       const stamped = withServerStamps(toPush, res.written)
       if (stamped !== toPush) apply(adoptServerStamps(localSnapshot(), toPush, stamped))
@@ -307,6 +322,12 @@ export function useSupabaseSync() {
       if (res.stale.length > 0 && staleRetries < MAX_STALE_RETRIES) {
         staleRetries++
         rerun = true
+      } else if (res.stale.length > 0) {
+        // 取り直しても毎回断られる（合わせ方の食い違いで回り続けている）
+        reportSyncError('stale', `still stale after ${MAX_STALE_RETRIES} retries`, {
+          count: res.stale.length,
+          tables: [...new Set(res.stale.map((r) => r.table))],
+        })
       }
       await syncSettings()
       const prevRejected = useTaskStore.getState().syncRejected
@@ -340,6 +361,7 @@ export function useSupabaseSync() {
       } catch (err) {
         // 想定外の例外でも「失敗」として表示し、再送の予約に進む（以前は黙って止まっていた）
         console.error('[sync]', err)
+        reportSyncError('unexpected', err)
         ok = false
       } finally {
         running = false

@@ -7,7 +7,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
-import type { Priority } from '../types/task'
+import { isEventTask, type Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
@@ -31,6 +31,9 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { useScheduleEntry } from '../hooks/useScheduleEntry'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { colorVars } from '../lib/logCategoryColors'
+import { sourceLinkOf } from '../lib/sourceLink'
+import { MemoPreview } from './ui/MemoPreview'
+import { menuDateHint } from '../lib/menuDateHint'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -59,8 +62,8 @@ export function TaskContextMenu({
   onClose: () => void
   /** 何か実行したあと（選択の解除など） */
   onDone?: () => void
-  /** 詳細を開く（無い所では「詳細を開く」を出さない） */
-  onOpenDetail?: (taskId: string) => void
+  /** 詳細を開く */
+  onOpenDetail: (taskId: string) => void
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -85,6 +88,8 @@ export function TaskContextMenu({
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
   const allWishes = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'someday')
   const allChecklist = targets.length > 0 && targets.every((x) => kindOf(x.listId) === 'checklist')
+  // 予定（完了の無いもの）だけなら、締切・優先度・完了は出さない
+  const allEvents = targets.length > 0 && targets.every(isEventTask)
   const openWishes = targets.filter((x) => !x.completed).map((x) => x.id)
   const done = (fn: () => void) => () => {
     fn()
@@ -107,22 +112,33 @@ export function TaskContextMenu({
       checked: sharedDue === o.key,
       run: done(() => bulk.setDue(taskIds, o.key, o.label)),
     }))
-    .concat({
-      id: 'due-none',
-      label: t('dueDatePicker.clear'),
-      checked: sharedDue === null,
-      run: done(() => bulk.setDue(taskIds, null, '')),
-    })
+    .concat(
+      {
+        id: 'due-none',
+        label: t('dueDatePicker.clear'),
+        checked: sharedDue === null,
+        run: done(() => bulk.setDue(taskIds, null, '')),
+      },
+      // 日付と時刻を一度に選ぶ（メニューは選ぶと閉じるので、閉じたあとに開く）
+      {
+        id: 'due-datetime',
+        label: t('taskMenu.dueDateTime'),
+        run: () => queueMicrotask(() => openTaskMenu({ kind: 'dueDateTime', x, y, taskIds, onDone })),
+      },
+    )
   const scheduleLeaves: ActionLeaf[] = [
     { label: t('dueDatePicker.today'), key: toDateKey(today) },
     { label: t('dueDatePicker.tomorrow'), key: toDateKey(addDays(today, 1)) },
     { label: t('taskMenu.nextWeek'), key: toDateKey(nextMonday(today)) },
-  ].map((o): ActionLeaf => ({
-    id: `schedule-${o.key}`,
-    label: o.label,
-    hint: dayHint(o.key),
-    run: done(() => scheduleWish(openWishes, o.key)),
-  }))
+  ]
+    // 締切と同じく、日曜に同じ月曜が 2 つ並ばないようにする
+    .filter((o, i, arr) => arr.findIndex((x) => x.key === o.key) === i)
+    .map((o): ActionLeaf => ({
+      id: `schedule-${o.key}`,
+      label: o.label,
+      hint: dayHint(o.key),
+      run: done(() => scheduleWish(openWishes, o.key)),
+    }))
   const priorityLeaves: ActionLeaf[] = PRIORITIES.map((p) => ({
     id: `priority-${p}`,
     label: t(`common.${p}`),
@@ -187,6 +203,8 @@ export function TaskContextMenu({
       id: 'due',
       label: t('common.due'),
       icon: <CalendarIcon className={ICON} />,
+      // 今の締切（時刻があれば時刻も）。選んだタスクで違えば出さない
+      hint: menuDateHint(targets.map((x) => ({ date: x.dueDate, time: x.dueDate ? x.dueTime : null }))),
       leaves: dueLeaves,
       width: 'lg',
       extra: (close) => (
@@ -270,12 +288,30 @@ export function TaskContextMenu({
         },
     { ...deleteEntry, divider: true },
   ]
+  // 全部済みなら「未完了に戻す」（済んだものに「完了にする」を出しても何も起きない）
+  const allDone = targets.length > 0 && targets.every((x) => x.completed)
+  const completeEntry: ActionEntry = allDone
+    ? {
+        kind: 'leaf',
+        id: 'uncomplete',
+        label: t('taskList.markIncomplete'),
+        icon: <CheckIcon className={ICON} />,
+        run: done(() => bulk.uncomplete(taskIds)),
+      }
+    : {
+        kind: 'leaf',
+        id: 'complete',
+        label: t('taskList.markComplete'),
+        icon: <CheckIcon className={ICON} />,
+        keys: shortcutLabel(['mod', '↵']),
+        run: done(() => bulk.complete(taskIds)),
+      }
   const entries: ActionEntry[] = allWishes
     ? somedayEntries
     : allChecklist
       ? checklistEntries
       : [
-          ...(plannable ? plannedEntries : []),
+          ...(plannable ? (allEvents ? [...todayToggleEntry, scheduleEntry] : plannedEntries) : []),
           { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
           ...(sectionLeaves.length > 0
             ? [
@@ -288,16 +324,8 @@ export function TaskContextMenu({
                 },
               ]
             : []),
-          {
-            kind: 'leaf',
-            id: 'complete',
-            divider: true,
-            label: t('taskList.markComplete'),
-            icon: <CheckIcon className={ICON} />,
-            keys: shortcutLabel(['mod', '↵']),
-            run: done(() => bulk.complete(taskIds)),
-          },
-          ...(taskIds.length === 1 && onOpenDetail
+          ...(allEvents ? [] : [{ ...completeEntry, divider: true }]),
+          ...(taskIds.length === 1
             ? [
                 {
                   kind: 'leaf' as const,
@@ -320,7 +348,7 @@ export function TaskContextMenu({
         ]
   // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
   const openEntry: ActionEntry[] =
-    taskIds.length === 1 && onOpenDetail
+    taskIds.length === 1
       ? [
           {
             kind: 'leaf',
@@ -368,18 +396,17 @@ export function TaskContextMenu({
           ...setTimeEntry,
           ...todayToggleEntry,
           ...timerEntry,
-          {
-            kind: 'leaf',
-            id: 'complete',
-            label: t('taskList.markComplete'),
-            icon: <CheckIcon className={ICON} />,
-            run: done(() => bulk.complete(taskIds)),
-          },
+          ...(allEvents ? [] : [{ ...completeEntry, keys: undefined } as ActionEntry]),
           ...(plannable
-            ? plannedEntries.filter((e) => e.id === 'scheduled' || e.id === 'due').map((e, i) => (i === 0 ? { ...e, divider: true } : e))
+            ? plannedEntries
+                .filter((e) => e.id === 'scheduled' || (e.id === 'due' && !allEvents))
+                .map((e, i) => (i === 0 ? { ...e, divider: true } : e))
             : []),
           ...openEntry,
         ]
+
+  // 指で行を押したときのシートには、メモがあれば題名の下に出す（リンクだけのメモは行の「開く」アイコンと同じなので出さない）
+  const quickMemo = quick && targets.length === 1 && !sourceLinkOf(targets[0]!.description) ? targets[0]!.description : ''
 
   return (
     <ActionMenu
@@ -387,6 +414,14 @@ export function TaskContextMenu({
       y={y}
       above={above}
       header={taskIds.length > 1 ? t('taskMenu.count', { count: taskIds.length }) : targets[0]?.title || t('taskMenu.one')}
+      note={
+        quickMemo && (
+          // 余白は外の箱に付ける（3 行で切る p に付けると、4 行目が余白の中に覗く）
+          <div className="px-2 pb-1.5">
+            <MemoPreview text={quickMemo} />
+          </div>
+        )
+      }
       entries={quick ? quickEntries : entries}
       onClose={onClose}
       // いつか・チェックリスト・短いシートは項目が少ないので検索欄を出さない

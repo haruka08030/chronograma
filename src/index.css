@@ -46,6 +46,8 @@
   --animate-slide-in-left: slide-in-left 200ms var(--ease-standard);
   /* 完了にした瞬間の ✓ */
   --animate-check-in: check-in 160ms var(--ease-standard);
+  /* 行を持ち上げる（タッチの長押し・ドラッグ）。大きさは要素側の scale-[1.02] へ */
+  --animate-lift-in: lift-in 140ms var(--ease-standard);
   /* 面がふわっと出る（背景の幕など） */
   --animate-fade-in: fade-in 120ms ease-out;
   /* 閉じる動き（150ms。`usePresence` が見せ終わるまで残す） */
@@ -110,6 +112,12 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+  @keyframes lift-in {
+    from {
+      scale: 1;
+      box-shadow: none;
     }
   }
   @keyframes fade-in {
@@ -178,8 +186,9 @@
   --color-accent-200: #3c4043;
   --color-accent-300: #e8eaed;
   --color-accent-400: #dadce0;
-  --color-accent-500: #e8eaed;
-  --color-accent-600: #f1f3f4;
+  /* 塗りのボタン（記録する・＋習慣を追加）が暗い画面で一番まぶしくならないよう、白から一段落とす */
+  --color-accent-500: #bdc1c6;
+  --color-accent-600: #dadce0;
   --color-accent-700: #dadce0;
   --color-accent-800: #e8eaed;
   --color-accent-900: #f1f3f4;
@@ -231,10 +240,35 @@ body {
   --gc-surface: #18181b;
   --gc-ink: #f4f4f5;
 }
-/* 塗りつぶし＋白文字。押して選ぶチップの選んだ状態（`chipClass` の selected）。予定・記録のブロックは `gc-plan` */
-.gc-solid {
-  background-color: var(--c);
-  color: var(--on-c, #ffffff);
+/*
+ * 線画の印（習慣の丸・選んだチップ）: 塗りで目立たせず、色の線と色の ✓ で見せる。
+ * - gc-mark: まだ（その色の細い輪）
+ * - gc-mark-done: 達成（丸と同じ薄い塗り＋その色の輪。やった印だけは塗る）
+ * - gc-mark-off: 時間外（その色の点線の輪、塗らない）
+ * - gc-chip-on: 選んだチップ（その色の縁と文字）
+ */
+.gc-mark {
+  border: 1.5px solid color-mix(in srgb, var(--c) 75%, var(--gc-surface));
+}
+.gc-mark-done {
+  background-color: color-mix(in srgb, var(--c) 30%, var(--gc-surface));
+  border: 1.5px solid var(--c);
+  color: color-mix(in srgb, var(--c) 50%, var(--gc-ink));
+}
+.dark .gc-mark-done {
+  background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
+}
+.gc-mark-off {
+  border: 1.5px dashed var(--c);
+  color: color-mix(in srgb, var(--c) 80%, var(--gc-ink));
+}
+/* 習慣のヒートマップの 1 日のマス: やった習慣の色。小さいので縁は付けず、縦線（gc-line）と同じ濃さの塗り */
+.gc-heat {
+  background-color: color-mix(in srgb, var(--c) 60%, var(--gc-surface));
+}
+.gc-chip-on {
+  border-color: var(--c);
+  color: color-mix(in srgb, var(--c) 70%, var(--gc-ink));
 }
 
 /* 色を選択: 色相のスライダー（Google の色選択と同じ虹色の帯） */

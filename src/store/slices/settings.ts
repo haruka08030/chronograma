@@ -12,9 +12,7 @@ import { isLogTask } from '../../types/task'
 
 type SettingsActions = Pick<
   TaskState,
-  | 'toggleTheme'
   | 'setTheme'
-  | 'setListColorPalette'
   | 'setTimeLogTagPresets'
   | 'addLogCategory'
   | 'moveLogCategory'
@@ -22,7 +20,11 @@ type SettingsActions = Pick<
   | 'setDailyReminders'
   | 'dismissReminderPrompt'
   | 'dismissGoogleConnectLine'
+  | 'finishOnboarding'
+  | 'completeOnboarding'
+  | 'dismissInstallNudge'
   | 'setDailyCapacityMinutes'
+  | 'setDefaultBlockMinutes'
   | 'setAppTimeZone'
   | 'setExtraTimeZones'
   | 'setExtraTimeZoneLabel'
@@ -35,13 +37,7 @@ type SettingsActions = Pick<
 export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsActions {
   const { pushUndo } = undo
   return {
-    toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
     setTheme: (theme) => set({ theme }),
-
-    setListColorPalette: (id) => {
-      pushUndo()
-      set({ listColorPaletteId: id })
-    },
 
     setTimeLogTagPresets: (presets) => {
       pushUndo()
@@ -142,7 +138,11 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
     dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
+    finishOnboarding: () => set({ onboardingDone: true }),
+    completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true }),
+    dismissInstallNudge: () => set({ installNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
+    setDefaultBlockMinutes: (minutes) => set({ defaultBlockMinutes: Math.min(24 * 60, Math.max(15, Math.round(minutes))) }),
     setAppTimeZone: (tz) => {
       const next = tz && isValidTimeZone(tz) ? tz : null
       setAppTimeZoneSetting(next)

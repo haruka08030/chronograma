@@ -4,7 +4,6 @@ import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Habit } from '../types/habit'
-import type { ListColorPaletteId } from '../lib/listColorPalettes'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
@@ -70,7 +69,7 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  /** 並び順。リスト・ビューごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動 */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
   /**
@@ -88,7 +87,6 @@ export interface TaskState {
   recordPrompts: boolean
   /** 通知の「記録する」から開く、記録を入れる予定（永続化しない） */
   recordPromptTaskId: string | null
-  listColorPaletteId: ListColorPaletteId
   /** 活動ログのタグ候補（設定で編集、順序はタイムライン色の優先度に使う） */
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
@@ -108,13 +106,29 @@ export interface TaskState {
   activeTimer: ActiveTimer | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
   completePromptTaskId: string | null
+  /** タイマー停止後に「ラベルは？」を出す記録（ラベルなしで止めたとき。永続化しない） */
+  labelPromptLogId: string | null
   dailyReminders: DailyReminders
   /** 「今日の計画」で通知の案内を閉じたか */
   reminderPromptDismissed: boolean
   /** カレンダーの「Google カレンダーも並べられます · 接続する」の 1 行を閉じたか（接続は設定から） */
   googleConnectLineDismissed: boolean
+  /**
+   * 今日の画面の「はじめの 3 ステップ」を終えた・閉じたか（端末に保存）。
+   * 前の版から使っている人・バックアップを取り込んだ人・初めての同期でアカウントのデータが届いた人は true
+   */
+  onboardingDone: boolean
+  /**
+   * はじめの 3 ステップをやり終えた（× で閉じたのではない）。終えた直後の 1 回だけの誘い
+   * （iPhone の Safari ならホーム画面への追加）を出してよい（端末に保存）
+   */
+  onboardingCompleted: boolean
+  /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
+  installNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
+  /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
+  defaultBlockMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
   eventReminderMinutes: number | null
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
@@ -154,9 +168,7 @@ export interface TaskState {
   /** 右ドラッグで 1 段下げる: 直前の表示兄弟の子にする。兄弟が無ければ何もしない（戻り値 false） */
   indentTaskUnderPrevSibling: (taskId: string) => boolean
 
-  toggleTheme: () => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
-  setListColorPalette: (id: ListColorPaletteId) => void
   setTimeLogTagPresets: (presets: string[]) => void
   /** 分類を追加（色は空いているものを自動で）。既にあれば何もしない */
   /** 分類を候補に足す。色（24 色のキーか `#RRGGBB`）を省くとまだ使っていない色 */
@@ -215,7 +227,7 @@ export interface TaskState {
   /** 未達成なら達成にして、記録が無ければ予定どおりの時刻で作る（タイムラインの習慣の枠のチェック） */
   completeHabitAsPlanned: (habitId: string, dateKey: string) => void
 
-  addList: (name: string, kind?: ListKind) => void
+  addList: (name: string, kind?: Exclude<ListKind, 'tasks'>) => void
   setListKind: (id: string, kind: ListKind) => void
   renameList: (id: string, name: string) => void
   updateListColor: (id: string, color: string) => void
@@ -250,10 +262,16 @@ export interface TaskState {
   /** 止め忘れたタイマーを記録にせず捨てる */
   discardActiveTimer: () => void
   dismissCompletePrompt: () => void
+  dismissLabelPrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
   dismissReminderPrompt: () => void
   dismissGoogleConnectLine: () => void
+  finishOnboarding: () => void
+  /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
+  completeOnboarding: () => void
+  dismissInstallNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
+  setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
   setExtraTimeZones: (zones: ExtraTimeZone[]) => void
@@ -276,6 +294,7 @@ export interface TaskState {
         | 'startTime'
         | 'endTime'
         | 'location'
+        | 'estimateMinutes'
         | 'timeZone'
         | 'reminders'
         | 'color'
@@ -298,7 +317,7 @@ export interface TaskState {
   /** まとめて書き換える。`label` を渡すと「元に戻す」トーストに出す（何件に何をしたか） */
   bulkUpdateTasks: (
     ids: string[],
-    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>>,
+    patch: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'dueTime' | 'sectionId' | 'color'>>,
     label?: ToastText,
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */

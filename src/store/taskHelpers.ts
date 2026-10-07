@@ -11,6 +11,7 @@ import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
 import { withLogCategory } from '../lib/taskDefaults'
+import { sameValue } from '../lib/sameValue'
 
 /** `updateTask` で書き換えられる列 */
 
@@ -74,6 +75,10 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   if (isLogTask(task) && patch.color === undefined && applied.category && applied.category !== task.category) {
     applied.color = null
   }
+  // 予定にしたら、To-Do だけの項目（締切・繰り返し・完了・優先度）を外す（予定は締切・完了を持たない）
+  if (patch.kind === 'event' && task.kind !== 'event') {
+    Object.assign(applied, { dueDate: null, dueTime: null, recurrence: null, completed: false, completedAt: null, priority: 'none' })
+  }
   // 期限（dueDate）を外したら締め切り時刻と繰り返しもクリア（予定の時間幅は予定日側に紐づくので残す）
   if (patch.dueDate === null) {
     applied.dueTime = null
@@ -85,6 +90,21 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.endTime = null
   }
   return withLogCategory(applied)
+}
+
+/**
+ * パッチを当てると何か変わるか（`updatedAt` は除く）。同じ値を選び直しただけなら false。
+ * 取り消しの履歴・トースト・同期の書き込みを、何も変えない操作で積まないために使う
+ */
+export function patchChangesTask(task: Task, patch: TaskPatch): boolean {
+  const applied = applyTaskPatch(task, patch, task.updatedAt) as unknown as Record<string, unknown>
+  const before = task as unknown as Record<string, unknown>
+  const keys = new Set([...Object.keys(before), ...Object.keys(applied)])
+  for (const k of keys) {
+    if (k === 'updatedAt') continue
+    if (!sameValue(before[k], applied[k])) return true
+  }
+  return false
 }
 
 export function orderForNewSiblingAtFront(tasks: Task[], listId: string, parentId: string | null, sectionId: string | null = null): number {
@@ -114,6 +134,7 @@ export function makeTask(
     tags?: string[]
     color?: string | null
     habitId?: string | null
+    estimateMinutes?: number | null
   },
   order: number,
   now: string = new Date().toISOString(),
@@ -137,6 +158,7 @@ export function makeTask(
     startTime: fields.startTime ?? null,
     endTime: fields.endTime ?? null,
     location: null,
+    estimateMinutes: fields.estimateMinutes ?? null,
     color: fields.color ?? null,
     priority: 'none',
     tags: fields.tags ?? [],

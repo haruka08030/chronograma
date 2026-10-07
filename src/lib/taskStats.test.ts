@@ -31,21 +31,20 @@ const done = (id: string, completedAt: string) => task(id, { completed: true, co
 describe('computeTaskStats', () => {
   afterEach(() => setAppTimeZoneSetting(null))
 
-  it('夜中（朝 4 時まで）の完了は前の日として連続日数に入る', () => {
+  it('夜中の完了はその日（0 時区切り）として連続日数に入る', () => {
     setAppTimeZoneSetting('Asia/Tokyo')
     const tasks = [
-      // 10/3 の 2:00（JST）に完了 → アプリでは 10/2
-      done('a', '2026-10-02T17:00:00Z'),
-      done('b', '2026-10-03T03:00:00Z'), // 10/3 12:00 JST
+      done('a', '2026-10-01T17:00:00Z'), // 10/2 2:00 JST
+      done('b', '2026-10-02T17:00:00Z'), // 10/3 2:00 JST
     ]
     expect(computeTaskStats(tasks, [], '2026-10-03').streak).toBe(2)
   })
 
-  it('今月の完了は月初の朝 4 時から数える', () => {
+  it('今月の完了は月初の 0 時から数える（アプリのタイムゾーン）', () => {
     setAppTimeZoneSetting('Asia/Tokyo')
     const tasks = [
-      done('a', '2026-09-30T18:00:00Z'), // 10/1 3:00 JST → 9/30
-      done('b', '2026-09-30T20:00:00Z'), // 10/1 5:00 JST → 10/1
+      done('a', '2026-09-30T14:30:00Z'), // 9/30 23:30 JST
+      done('b', '2026-09-30T15:30:00Z'), // 10/1 0:30 JST
     ]
     expect(computeTaskStats(tasks, [], '2026-10-03').completedThisMonth).toBe(1)
   })

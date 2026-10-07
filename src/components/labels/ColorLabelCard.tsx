@@ -58,6 +58,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, current ? 230 : 190)
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div
       ref={ref}
       role="dialog"

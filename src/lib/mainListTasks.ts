@@ -1,10 +1,11 @@
 import { parseISO, addDays, isBefore, isSameDay, startOfDay } from 'date-fns'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import type { ListSection } from '../types/section'
 import type { SmartView, SortMode } from '../store/taskStore'
 import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 import { isAppToday, appToday } from './timeZone'
+import { NO_LABEL } from './todoColorLabels'
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
@@ -23,10 +24,20 @@ export interface MainListTasksInput {
   excludedListIds?: ReadonlySet<string>
 }
 
+/** 締切の近い順。締切なしは後ろ、同じなら手動の順 */
+function byDue(a: Task, b: Task): number {
+  if (!a.dueDate && !b.dueDate) return a.order - b.order
+  if (!a.dueDate) return 1
+  if (!b.dueDate) return -1
+  // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
+  return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
+}
+
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
-  let result = tasks.filter((t) => t.parentId === null && isActiveTask(t))
+  // 予定（完了の丸の無いもの）は To-Do の一覧に出さない（カレンダーで見る）
+  let result = tasks.filter((t) => t.parentId === null && isActiveTask(t) && !isEventTask(t))
   // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
   if (selectedView && excludedListIds && excludedListIds.size > 0) {
     result = result.filter((t) => !excludedListIds.has(t.listId))
@@ -62,21 +73,18 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     result = result.filter((t) => t.tags?.includes(filterTag))
   }
 
-  if (filterColor) {
+  if (filterColor === NO_LABEL) {
+    result = result.filter((t) => !t.color)
+  } else if (filterColor) {
     result = result.filter((t) => t.color?.toUpperCase() === filterColor)
   }
 
   switch (sortMode) {
     case 'dueDate':
-      return [...result].sort((a, b) => {
-        if (!a.dueDate && !b.dueDate) return a.order - b.order
-        if (!a.dueDate) return 1
-        if (!b.dueDate) return -1
-        // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
-        return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
-      })
+      return [...result].sort(byDue)
     case 'priority':
-      return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3))
+      // 同じ優先度なら締切の近い順（同じ「高」でも先に出すものを上に）
+      return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3) || byDue(a, b))
     case 'title':
       return [...result].sort((a, b) => a.title.localeCompare(b.title, 'ja'))
     case 'createdAt':
@@ -198,39 +206,6 @@ function sectionRankForList(sectionId: string | null, listSections: ListSection[
   return i >= 0 ? i : 9999
 }
 
-/** 空セクション末尾ドロップ後の id 列（`currentOrdered` は表示順の未完了ルート） */
-export function insertActiveRootIdForSectionDrop(
-  currentOrdered: Task[],
-  movedId: string,
-  targetSectionId: string | null,
-  listSections: ListSection[],
-): string[] {
-  const filtered = currentOrdered.filter((t) => t.id !== movedId)
-  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
-  let ins = filtered.length
-
-  if (targetSectionId === null) {
-    const firstNamed = filtered.findIndex((t) => rank(t.sectionId) > -1)
-    ins = firstNamed < 0 ? filtered.length : firstNamed
-  } else {
-    for (let i = filtered.length - 1; i >= 0; i--) {
-      if ((filtered[i].sectionId ?? null) === targetSectionId) {
-        ins = i + 1
-        break
-      }
-    }
-    if (!filtered.some((t) => t.sectionId === targetSectionId)) {
-      const tr0 = rank(targetSectionId)
-      const idx = filtered.findIndex((t) => rank(t.sectionId) > tr0)
-      ins = idx < 0 ? filtered.length : idx
-    }
-  }
-
-  const ids = filtered.map((t) => t.id)
-  ids.splice(ins, 0, movedId)
-  return ids
-}
-
 /** 複数ルートをセクション帯へ一度に挿入 */
 export function insertActiveRootIdsForSectionDrop(
   currentOrdered: Task[],
@@ -263,29 +238,6 @@ export function insertActiveRootIdsForSectionDrop(
 
   const ids = filtered.map((t) => t.id)
   ids.splice(ins, 0, ...blockOrdered)
-  return ids
-}
-
-/** セクション見出しドロップ＝そのセクションの先頭へ（空ならブロック先頭） */
-export function insertActiveRootAtSectionHead(
-  currentOrdered: Task[],
-  movedId: string,
-  targetSectionId: string,
-  listSections: ListSection[],
-): string[] {
-  const filtered = currentOrdered.filter((t) => t.id !== movedId)
-  const rank = (sid: string | null) => sectionRankForList(sid, listSections)
-  const targetR = rank(targetSectionId)
-  const firstInSection = filtered.findIndex((t) => t.sectionId === targetSectionId)
-  let ins: number
-  if (firstInSection >= 0) {
-    ins = firstInSection
-  } else {
-    const idx = filtered.findIndex((t) => rank(t.sectionId) > targetR)
-    ins = idx < 0 ? filtered.length : idx
-  }
-  const ids = filtered.map((t) => t.id)
-  ids.splice(ins, 0, movedId)
   return ids
 }
 
@@ -403,16 +355,4 @@ export function buildReorderedActiveRootIdsForGroup(
       listId: overTask.listId,
     },
   }
-}
-
-export function buildReorderedActiveRootIds(
-  currentOrdered: Task[],
-  activeId: string,
-  overId: string,
-  sections: ListSection[],
-  selectedListId: string | null,
-): { orderedIds: string[]; sectionUpdate?: ManualRootReorderSectionUpdate } | null {
-  if (!activeId.startsWith(TASK_PREFIX)) return null
-  const movedId = activeId.slice(TASK_PREFIX.length)
-  return buildReorderedActiveRootIdsForGroup(currentOrdered, movedId, overId, [movedId], sections, selectedListId)
 }

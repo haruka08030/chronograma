@@ -104,3 +104,23 @@ describe('記録の分類（category）', () => {
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: '読書' })
   })
 })
+
+describe('止めた直後の「ラベルは？」', () => {
+  const stopAfter = (title: string, tags: string[]) => {
+    useTaskStore.setState({ tasks: [], activeTimer: null, labelPromptLogId: null, completePromptTaskId: null })
+    useTaskStore.getState().startTimer(title, tags)
+    const timer = useTaskStore.getState().activeTimer!
+    useTaskStore.setState({ activeTimer: { ...timer, startedAt: new Date(Date.now() - 30 * 60_000).toISOString() } })
+    useTaskStore.getState().stopTimer()
+    return useTaskStore.getState()
+  }
+
+  it('ラベルなしで止めたら、その記録に聞く', () => {
+    const s = stopAfter('ES 下書き', [])
+    expect(s.labelPromptLogId).toBe(s.tasks.at(-1)!.id)
+  })
+
+  it('ラベルが付いていれば聞かない', () => {
+    expect(stopAfter('ES 下書き', ['就活']).labelPromptLogId).toBeNull()
+  })
+})

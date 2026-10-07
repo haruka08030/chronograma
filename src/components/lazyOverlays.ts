@@ -1,6 +1,6 @@
 /**
  * 開いたときにだけ要る詳細・メニュー・ポップオーバー。最初の読み込みから外し、手すきのときに先読みする
- * （`preloadOverlays`。App に 1 つの `OverlayHost` が呼ぶ）。描画は `<Suspense fallback={null}>` の中で
+ * （`preloadOverlays`。App に 1 つの `OverlayHost` が呼ぶ）。描画は `OverlaySuspense` の中で（読めなかったら何も出さずに知らせ、次に押したときに読み直す）
  */
 import { lazyNamed, preloadWhenIdle } from '../lib/lazyComponent'
 
@@ -12,6 +12,7 @@ export const EventPopover = lazyNamed(() => import('./timeline/EventPopover'), '
 export const GoogleEventPopover = lazyNamed(() => import('./timeline/GoogleEventPopover'), 'GoogleEventPopover')
 export const QuickCreatePopover = lazyNamed(() => import('./timeline/QuickCreatePopover'), 'QuickCreatePopover')
 export const TimeSlotMenu = lazyNamed(() => import('./TimeSlotMenu'), 'TimeSlotMenu')
+export const DueDateTimeMenu = lazyNamed(() => import('./DueDateTimeMenu'), 'DueDateTimeMenu')
 export const CompleteWithLogModal = lazyNamed(() => import('./CompleteWithLogModal'), 'CompleteWithLogModal')
 
 export const preloadOverlays = () =>
@@ -24,4 +25,5 @@ export const preloadOverlays = () =>
     QuickCreatePopover.preload,
     CompleteWithLogModal.preload,
     TimeSlotMenu.preload,
+    DueDateTimeMenu.preload,
   )

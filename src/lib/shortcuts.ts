@@ -48,6 +48,46 @@ export function useSelectAllShortcut(handler: () => boolean) {
   }, [])
 }
 
+const SHORTCUTS_HELP_EVENT = 'chronograma:shortcuts-help'
+
+/** 「?」と同じくショートカット一覧を開く（設定の入口から。キーを押さないと一覧があることに気づけない） */
+export function openShortcutsHelp() {
+  window.dispatchEvent(new Event(SHORTCUTS_HELP_EVENT))
+}
+
+/** `openShortcutsHelp` を受け取る（一覧を出している App で） */
+export function useShortcutsHelpRequest(handler: () => void) {
+  const ref = useRef(handler)
+  useEffect(() => {
+    ref.current = handler
+  })
+  useEffect(() => {
+    const on = () => ref.current()
+    window.addEventListener(SHORTCUTS_HELP_EVENT, on)
+    return () => window.removeEventListener(SHORTCUTS_HELP_EVENT, on)
+  }, [])
+}
+
+const LIST_CURSOR_EVENT = 'chronograma:list-cursor'
+
+/** 一覧の外（検索欄の ↓）から、表示中の一覧に「↓ と同じく枠を次の行（無ければ最初の行）へ」と頼む */
+export function requestListCursor() {
+  window.dispatchEvent(new Event(LIST_CURSOR_EVENT))
+}
+
+/** `requestListCursor` を表示中の一覧で受け取る */
+export function useListCursorRequest(handler: () => void) {
+  const ref = useRef(handler)
+  useEffect(() => {
+    ref.current = handler
+  })
+  useEffect(() => {
+    const on = () => ref.current()
+    window.addEventListener(LIST_CURSOR_EVENT, on)
+    return () => window.removeEventListener(LIST_CURSOR_EVENT, on)
+  }, [])
+}
+
 /**
  * ショートカットの表（1 つだけ）。処理の登録（`useHotkey(SHORTCUTS.x.hotkeys, …)`）・「?」の一覧・ボタンのヒント（`shortcutTip`）を
  * ここから作る。別々に書くと、一覧に載っているのに効かない・ヒントのキーが違う、がおきる。
@@ -85,8 +125,8 @@ export const SHORTCUTS = {
 
 export type ShortcutId = keyof typeof SHORTCUTS
 
-/** ヘルプに出す一覧（表の順）。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
-export const SHORTCUT_LIST: { keys: string[]; label: string }[] = Object.values(SHORTCUTS).map((s) => ({
-  keys: s.display.flat(),
+/** ヘルプに出す一覧（表の順）。`keys` の外側は「どれか」、内側は「同時に」。'mod' は ⌘ / Ctrl（`modKeyLabel`） */
+export const SHORTCUT_LIST: { keys: readonly (readonly string[])[]; label: string }[] = Object.values(SHORTCUTS).map((s) => ({
+  keys: s.display,
   label: s.label,
 }))

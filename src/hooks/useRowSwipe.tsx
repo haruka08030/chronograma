@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { isLiftActive } from '../lib/touchLift'
 
 /** 横に動いたと決めるまでの距離（これより前に縦へ動いたらスクロールとして任せる。useSwipeNav と同じ） */
 const LOCK_PX = 10
@@ -29,6 +30,7 @@ const TONE: Record<RowSwipeAction['tone'], { idle: string; armed: string }> = {
  * タッチで行を横に払う操作（今日の計画・To-Do の行で共通）。右へ払うと `right`（完了）、左へ払うと `left`（今日やる・明日へ）。
  * 指に合わせて行がずれ、下から何をするかが見える。COMMIT_PX を越えて離すと実行する。
  * 行の上では、その向きに操作があれば画面の横スワイプ（To-Do のドロワー）より先に取る。操作がない向きはそのまま画面へ渡す。
+ * 長押しで行を浮かせている間（`isLiftActive`）は払わない（指を動かすのは束を運ぶ操作）。
  * 呼ぶ側は行を `relative` な箱で包み、`backdrop` を行の前に置く。払っている間は行に `swipingClass`（下が透けない地の色）を付ける
  */
 export function useRowSwipe(
@@ -78,6 +80,10 @@ export function useRowSwipe(
       const my = t.clientY - start.y
       if (!axis) {
         if (Math.abs(mx) < LOCK_PX && Math.abs(my) < LOCK_PX) return
+        if (isLiftActive()) {
+          axis = 'y'
+          return
+        }
         const horizontal = Math.abs(mx) > Math.abs(my) * 1.5
         // その向きに操作がなければ行では取らない（画面の横スワイプに任せる）
         const action = mx > 0 ? actionsRef.current.right : actionsRef.current.left

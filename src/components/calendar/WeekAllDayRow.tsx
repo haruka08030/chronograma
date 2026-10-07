@@ -14,7 +14,7 @@ import {
 import { googleEventTiming } from '../../lib/googleCalendar'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { CalendarInlineTaskAdd } from '../CalendarInlineTaskAdd'
-import type { Task } from '../../types/task'
+import { isEventTask, planKindOf, type Task } from '../../types/task'
 import { colorVars } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex, planVisualState } from '../../lib/planVisual'
@@ -24,6 +24,9 @@ import { toDateKey } from '../../lib/dateKey'
 import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
 import { tip } from '../../lib/tooltip'
+import { FlagIcon } from '../icons'
+import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { dueToneOf } from '../../lib/dueTone'
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
 export function WeekAllDayRow({
@@ -32,6 +35,7 @@ export function WeekAllDayRow({
   gutterWidth,
   gridColsClass,
   allDayByDate,
+  dueByDate,
   eventsByDate,
   allDayDragOver,
   setAllDayDragOver,
@@ -45,6 +49,8 @@ export function WeekAllDayRow({
   gutterWidth: number
   gridColsClass: string
   allDayByDate: Map<string, Task[]>
+  /** 締切の日の印（実行日が別の日のもの） */
+  dueByDate: Map<string, Task[]>
   eventsByDate: Map<string, CalendarEvent[]>
   allDayDragOver: string | null
   setAllDayDragOver: Dispatch<SetStateAction<string | null>>
@@ -70,6 +76,7 @@ export function WeekAllDayRow({
         {gridDays.map((day) => {
           const key = toDateKey(day)
           const dayAllDay = singleDay ? [] : (allDayByDate.get(key) ?? [])
+          const dayDue = singleDay ? [] : (dueByDate.get(key) ?? [])
           const dayAllDayEvents = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay)
           return (
             <div
@@ -91,6 +98,8 @@ export function WeekAllDayRow({
                 if (gev) {
                   // 終日の Google の予定は日数を保ったまま動かす
                   const cur = googleEventTiming(gev)
+                  // 同じ日の終日の予定に戻しただけなら Google へ書き込まない
+                  if (gev.isAllDay && cur.date === key) return
                   const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
                   void moveGoogleEvent(gev, {
                     date: key,
@@ -106,12 +115,14 @@ export function WeekAllDayRow({
                 asOneUndo(() => {
                   const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {
-                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind: 'todo' }, label)
+                    const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === id))
+                    updateTask(id, { scheduledDate: key, startTime: null, endTime: null, kind }, label)
                   }
                 })
               }}
             >
               {dayAllDayEvents.map((e) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道
                 <div
                   key={`event-all-day-${e.id}`}
                   {...tip(e.summary)}
@@ -136,6 +147,7 @@ export function WeekAllDayRow({
                 </div>
               ))}
               {dayAllDay.map((t) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
                 <div
                   key={t.id}
                   draggable
@@ -156,14 +168,35 @@ export function WeekAllDayRow({
                     text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                   style={colorVars(planHex(t))}
                 >
-                  <CalendarCheck
-                    done={t.completed}
-                    label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                    onCheck={() => toggleTask(t.id)}
-                  />
+                  {/* 予定（完了の無いもの）には ✓ を出さない */}
+                  {!isEventTask(t) && (
+                    <CalendarCheck
+                      done={t.completed}
+                      label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                      onCheck={() => toggleTask(t.id)}
+                    />
+                  )}
                   <span className="truncate">{t.title}</span>
                 </div>
               ))}
+              {/* 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すと詳細 */}
+              {dayDue.map((t) => {
+                const label = t.dueTime
+                  ? tr('weekCalendar.dueMarkTime', { title: t.title, time: t.dueTime })
+                  : tr('weekCalendar.dueMark', { title: t.title })
+                return (
+                  <button
+                    key={`due-${t.id}`}
+                    type="button"
+                    onClick={() => openDetail(t.id)}
+                    {...tip(label)}
+                    className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
+                  >
+                    <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{t.dueTime ? `${t.dueTime} ${t.title}` : t.title}</span>
+                  </button>
+                )
+              })}
               {allDayAddDate === key && <CalendarInlineTaskAdd dateKey={key} onDone={() => setAllDayAddDate(null)} />}
             </div>
           )

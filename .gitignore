@@ -40,3 +40,6 @@ supabase/.temp/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Edge Function の Deno の lock は supabase/functions/deno.lock。ルートで deno を動かしてできたものは入れない
+/deno.lock

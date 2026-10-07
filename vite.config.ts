@@ -9,8 +9,14 @@ const vendor = (name: string, pkgs: string) => ({
   priority: 20,
 })
 
+// 端末のエラーの報告（`src/lib/errorReport.ts`）に付ける版。package.json の版と、Vercel ならコミットの先頭 7 文字
+const appVersion = [process.env.npm_package_version ?? '0', process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7)].filter(Boolean).join('+')
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+  },
   build: {
     rolldownOptions: {
       output: {

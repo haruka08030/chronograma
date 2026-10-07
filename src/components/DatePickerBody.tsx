@@ -135,6 +135,7 @@ export function DatePickerBody({
         ))}
       </div>
 
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 中の日付ボタンの矢印キーをまとめて受ける（ロービング tabindex） */}
       <div ref={gridRef} role="group" aria-label={df.yearMonth(viewMonth)} className="grid grid-cols-7 gap-y-0.5" onKeyDown={onGridKeyDown}>
         {days.map((day) => {
           const key = toDateKey(day)

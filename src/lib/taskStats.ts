@@ -1,5 +1,5 @@
 import { startOfMonth, subDays } from 'date-fns'
-import { isLogTask, type Task } from '../types/task'
+import { isTodoTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import { completionDayKey } from './dayPlan'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -16,13 +16,13 @@ export interface TaskStats {
 }
 
 /**
- * 統計画面のタスクの数字。日付はすべてアプリの日（朝 4 時区切り・アプリのタイムゾーン）で数え、
+ * 統計画面のタスクの数字。日付はすべてアプリの日（0 時区切り・アプリのタイムゾーン）で数え、
  * 今日の計画の「完了」と同じ日に入るようにする
  */
 export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskList[], todayKey: string): TaskStats {
-  // 買い物のチェックや Wish で数字が膨らまないよう、やることリストのタスクだけを数える
+  // 買い物のチェックや Wish で数字が膨らまないよう、やることリストの To-Do だけを数える（予定は完了が無いので数えない）
   const excluded = unplannedListIds(lists)
-  const countedTasks = tasks.filter((t) => t.parentId === null && !isLogTask(t) && isActiveTask(t) && !excluded.has(t.listId))
+  const countedTasks = tasks.filter((t) => t.parentId === null && isTodoTask(t) && isActiveTask(t) && !excluded.has(t.listId))
   const completed = countedTasks.filter((t) => t.completed)
   const active = countedTasks.filter((t) => !t.completed)
   const completedDays = new Set(completed.map(completionDayKey))

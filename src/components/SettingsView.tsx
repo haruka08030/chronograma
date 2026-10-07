@@ -11,8 +11,7 @@ import { AccountMenu } from './AccountMenu'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { InstallAppSection } from './InstallAppSection'
 import { CategoryManager } from './settings/CategoryManager'
-import { NotionSettings } from './settings/NotionSettings'
-import { CanvasSettings } from './settings/CanvasSettings'
+import { MoreIntegrations } from './settings/MoreIntegrations'
 import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
@@ -21,6 +20,7 @@ import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
+import { openShortcutsHelp } from '../lib/shortcuts'
 import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
@@ -80,8 +80,7 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
           <h1 className={`mt-2 ${PAGE_TITLE_CLASS}`}>{t('integrations.title')}</h1>
         </div>
         <GoogleCalendarSettings />
-        <NotionSettings />
-        <CanvasSettings />
+        <MoreIntegrations />
       </div>
     </div>
   )
@@ -122,7 +121,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
         <SettingsGroup id="settings-account" title={t('settings.account')}>
           {isSupabaseConfigured ? (
             <div className="px-4 py-3">
-              <AccountMenu variant="settings" />
+              <AccountMenu />
             </div>
           ) : (
             <SettingsRow label={t('settings.syncOffTitle')} help={t('settings.supabaseOff')} />
@@ -161,6 +160,14 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               ]}
             />
           </SettingsRow>
+          {/* キーボードのある環境だけ（タッチだけの端末では使えない） */}
+          <div className="hidden [@media(hover:hover)]:block">
+            <SettingsRow label={t('settings.shortcuts')}>
+              <button type="button" onClick={openShortcutsHelp} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+                {t('settings.shortcutsOpen')}
+              </button>
+            </SettingsRow>
+          </div>
         </SettingsGroup>
 
         <IntegrationsSummary onOpen={onOpenIntegrations} />

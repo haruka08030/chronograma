@@ -155,6 +155,7 @@ describe('unknown fields', () => {
         'dueTime',
         'endDate',
         'endTime',
+        'estimateMinutes',
         'habitId',
         'id',
         'kind',
@@ -249,7 +250,6 @@ describe('task kind', () => {
       lists: [],
       habits: [],
       sections: [],
-      listColorPaletteId: 'pastel-rainbow',
       timeLogTagPresets: [],
       logCategoryColors: {},
     })
@@ -259,6 +259,22 @@ describe('task kind', () => {
     ])
     const back = parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!
     expect(back.tasks.map((t) => t.kind)).toEqual(['log', 'sleep'])
+  })
+
+  it('keeps an event (no check) through the file, as the kind and as the isEvent flag', () => {
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 'e', title: 'バイト', listId: '__inbox__', kind: 'event' },
+          { id: 'f', title: '授業', listId: '__inbox__', isEvent: true },
+          { id: 'r', title: 'ゼミ', list_id: '__inbox__', is_event: true },
+        ],
+      }),
+    )!.tasks
+    expect(tasks.map((t) => t.kind)).toEqual(['event', 'event', 'event'])
+    const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
+    expect((payload.tasks as unknown[])[0]).toMatchObject({ kind: 'event', isTimeLog: false, isSleep: false, isEvent: true })
   })
 })
 
@@ -360,11 +376,11 @@ describe('backupProblemText', () => {
     const before = i18n.language
     await i18n.changeLanguage('ja')
     expect(backupProblemText({ kind: 'missingParent', count: 3, example: '課題' })).toBe(
-      '親タスクがファイルに無いサブタスクが 3 件あります（例:「課題」）',
+      '親タスクがファイルにないサブタスクが 3 件あります（例:「課題」）',
     )
     await i18n.changeLanguage('en')
     expect(backupProblemText({ kind: 'duplicateIds', item: 'list', count: 1, example: 'a'.repeat(30) })).toBe(
-      `1 list(s) have a duplicate ID (e.g. "${'a'.repeat(20)}…").`,
+      `1 list has a duplicate ID (e.g. "${'a'.repeat(20)}…").`,
     )
     await i18n.changeLanguage(before)
   })

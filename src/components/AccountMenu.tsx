@@ -15,9 +15,8 @@ import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleLogo } from './ui/GoogleLogo'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
 
-export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'settings' }) {
+export function AccountMenu() {
   const { t } = useTranslation()
-  const isSettings = variant === 'settings'
   const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
   // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
   const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
@@ -33,6 +32,12 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   const [error, setError] = useState<string | null>(() => {
     const linkError = pendingAuthLinkError()
     return linkError ? t(authLinkErrorKey(linkError)) : null
+  })
+  const googleSignIn = isGoogleAvailable()
+  // メールの欄は Google が使えないときと、メールのリンクが使えずに戻ってきたときだけ最初から開く
+  const [emailOpen, setEmailOpen] = useState(() => {
+    const linkError = pendingAuthLinkError()
+    return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
   // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
@@ -208,83 +213,72 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
   if (user) {
     const label = user.email ?? user.id
     return (
-      <div className={`relative flex items-center gap-3 ${isSettings ? 'flex-wrap' : ''}`}>
+      <div className="relative flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
           {t('account.signedIn')}
         </span>
-        <span
-          className={`truncate text-xs text-zinc-600 dark:text-zinc-300 ${
-            isSettings ? 'max-w-full sm:max-w-md' : 'hidden max-w-[140px] sm:inline'
-          }`}
-          title={label}
-        >
+        <span className="max-w-full truncate text-xs text-zinc-600 sm:max-w-md dark:text-zinc-300" title={label}>
           {label}
         </span>
         <button type="button" onClick={handleSignOut} disabled={pending} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           {t('account.signOut')}
         </button>
-        {isSettings && (
-          <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
-            {reauth && user.email ? (
-              <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
-                <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
-                {reauth === 'codeSent' && (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    placeholder={t('account.codePlaceholder')}
-                    aria-label={t('account.codePlaceholder')}
-                    value={reauthCode}
-                    onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
-                    className={fieldClass({}, 'w-full tracking-widest')}
-                  />
-                )}
-                {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <div className="flex flex-wrap gap-2">
-                  {reauth === 'codeSent' ? (
-                    <button
-                      type="submit"
-                      disabled={pending || !reauthCode.trim()}
-                      className={buttonClass({ variant: 'danger', size: 'sm' })}
-                    >
-                      {pending ? t('account.deleting') : t('account.reauthConfirm')}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void sendReauthCode()}
-                    disabled={pending}
-                    className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
-                  >
-                    {pending && reauth === 'needed'
-                      ? t('account.sending')
-                      : reauth === 'codeSent'
-                        ? t('account.reauthResend')
-                        : t('account.reauthSend')}
+        <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
+          {reauth && user.email ? (
+            <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+              <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
+              {reauth === 'codeSent' && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  placeholder={t('account.codePlaceholder')}
+                  aria-label={t('account.codePlaceholder')}
+                  value={reauthCode}
+                  onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
+                  className={fieldClass({}, 'w-full tracking-widest')}
+                />
+              )}
+              {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
+              <div className="flex flex-wrap gap-2">
+                {reauth === 'codeSent' ? (
+                  <button type="submit" disabled={pending || !reauthCode.trim()} className={buttonClass({ variant: 'danger', size: 'sm' })}>
+                    {pending ? t('account.deleting') : t('account.reauthConfirm')}
                   </button>
-                  <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleDeleteAccount()}
-                disabled={pending}
-                className={buttonClass({ variant: 'danger', size: 'sm' })}
-              >
-                {pending ? t('account.deleting') : t('account.delete')}
-              </button>
-            )}
-            {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
-          </div>
-        )}
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void sendReauthCode()}
+                  disabled={pending}
+                  className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
+                >
+                  {pending && reauth === 'needed'
+                    ? t('account.sending')
+                    : reauth === 'codeSent'
+                      ? t('account.reauthResend')
+                      : t('account.reauthSend')}
+                </button>
+                <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={pending}
+              className={buttonClass({ variant: 'danger', size: 'sm' })}
+            >
+              {pending ? t('account.deleting') : t('account.delete')}
+            </button>
+          )}
+          {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
+        </div>
       </div>
     )
   }
@@ -301,41 +295,25 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
       </button>
       {open && (
         <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
           <div
-            className={`absolute top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL} ${
-              isSettings ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
-            }`}
+            className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className={`mb-2 ${HINT_TEXT}`}>{t('account.intro')}</p>
-            <p className={`mb-2 ${META_TEXT}`}>
-              {t('account.agreePrefix')}
-              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
-                {t('settings.terms')}
-              </a>
-              {t('account.agreeAnd')}
-              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
-                {t('settings.privacyPolicy')}
-              </a>
-              {t('account.agreeSuffix')}
-            </p>
-            {!codeSentTo && isGoogleAvailable() && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleGoogle()}
-                  disabled={pending || redirecting}
-                  className={buttonClass({ variant: 'secondary', size: 'md' }, 'w-full')}
-                >
-                  <GoogleLogo />
-                  {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
-                </button>
-                <div className="my-3 flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500" aria-hidden>
-                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                  {t('account.orEmail')}
-                  <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                </div>
-              </>
+            <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
+            {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
+            {!codeSentTo && googleSignIn && (
+              <button
+                type="button"
+                onClick={() => void handleGoogle()}
+                disabled={pending || redirecting}
+                className={buttonClass({ variant: 'primary', size: 'lg' }, 'w-full')}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white" aria-hidden>
+                  <GoogleLogo className="h-3.5 w-3.5" />
+                </span>
+                {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
+              </button>
             )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">
@@ -360,23 +338,53 @@ export function AccountMenu({ variant = 'compact' }: { variant?: 'compact' | 'se
                   {t('account.changeEmail')}
                 </button>
               </form>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+            ) : emailOpen ? (
+              <form
+                onSubmit={handleSubmit}
+                className={`flex flex-col gap-2${googleSignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
+              >
                 <input
                   type="email"
                   autoComplete="email"
                   placeholder={t('account.emailPlaceholder')}
+                  aria-label={t('account.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  // 押して開いた欄にはそのまま書ける
+                  autoFocus={googleSignIn}
                   className={fieldClass({}, 'w-full')}
                 />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
-                <button type="submit" disabled={pending} className={buttonClass({ variant: 'primary', size: 'md' })}>
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className={buttonClass({ variant: googleSignIn ? 'secondary' : 'primary', size: 'md' })}
+                >
                   {pending ? t('account.sending') : t('account.sendLink')}
                 </button>
               </form>
+            ) : (
+              <>
+                {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
+                <div className="mt-2 flex justify-center">
+                  <button type="button" onClick={() => setEmailOpen(true)} className={buttonClass({ variant: 'ghost', size: 'xs' })}>
+                    {t('account.useEmail')}
+                  </button>
+                </div>
+              </>
             )}
+            <p className={`mt-3 ${META_TEXT}`}>
+              {t('account.agreePrefix')}
+              <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.terms')}
+              </a>
+              {t('account.agreeAnd')}
+              <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-zinc-600 dark:hover:text-zinc-300">
+                {t('settings.privacyPolicy')}
+              </a>
+              {t('account.agreeSuffix')}
+            </p>
           </div>
         </>
       )}

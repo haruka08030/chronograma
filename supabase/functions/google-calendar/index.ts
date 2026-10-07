@@ -1,7 +1,8 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
@@ -127,7 +128,7 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
 
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Google token refresh failed: ${res.status} ${body}`)
+    throw new GoogleApiError('token', res.status, parseGoogleErrorReasons(body), body)
   }
 
   const data = (await res.json()) as { access_token?: string }
@@ -146,11 +147,23 @@ async function fetchGoogleEvents(accessToken: string, timeMin: string, timeMax: 
     maxResults: '250',
   })
 
-  const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+  const load = async () => {
+    const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new GoogleApiError('calendar', res.status, parseGoogleErrorReasons(body), body)
+    }
+    return res
+  }
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Calendar API error ${res.status}: ${body}`)
+  let res: Response
+  try {
+    res = await load()
+  } catch (e) {
+    // 利用上限は一瞬のことが多いので、読み取りだけ一度だけ待ってやり直す
+    if (!isRetryableGoogleError(e)) throw e
+    await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 500))
+    res = await load()
   }
 
   const data = (await res.json()) as { items?: GoogleEventItem[] }
@@ -194,10 +207,23 @@ async function writeGoogleEvent(
   if (method === 'DELETE' && (res.status === 404 || res.status === 410)) return null
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Calendar API error ${res.status}: ${body}`)
+    throw new GoogleApiError('calendar', res.status, parseGoogleErrorReasons(body), body)
   }
   if (method === 'DELETE') return null
   return (await res.json()) as GoogleEventItem
+}
+
+/**
+ * 利用上限の文言。"too many requests" を含めておくと、古いクライアントも「少し待って」と出し、連携も外さない
+ * （古いクライアントは文言に reconnect / authorization expired / invalid_grant があると連携を外す）
+ */
+const RATE_LIMITED_CODE = 'google_rate_limited'
+const RATE_LIMITED_MESSAGE = 'Google Calendar: too many requests. Wait a moment, then try again.'
+const AUTH_EXPIRED_MESSAGE = 'Google Calendar authorization expired. Disconnect and reconnect.'
+
+/** 予定の取得の失敗。前と同じ形（events: [] と connected）に code を足して返す */
+function eventsError(status: number, connected: boolean, code: string, error: string): Response {
+  return jsonResponse({ ok: false, events: [], connected, code, error }, status)
 }
 
 function hasWriteScope(scope: string | null | undefined): boolean {
@@ -369,7 +395,7 @@ Deno.serve(
           // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
           // サーバーの設定ミスで全員の連携を外さない
           const message = e instanceof Error ? e.message : String(e)
-          if (message.includes('invalid_grant')) {
+          if (classifyGoogleError(e) === 'auth_expired') {
             await admin.from('google_oauth').delete().eq('user_id', user.id)
             return jsonResponse({ connected: false, stale: true })
           }
@@ -420,27 +446,20 @@ Deno.serve(
           }
           return jsonResponse({ events, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
         } catch (e) {
-          const message = e instanceof Error ? e.message : String(e)
-          const needsReconnect =
-            message.includes('invalid_grant') ||
-            message.includes('token refresh failed') ||
-            message.includes('Calendar API error 401') ||
-            message.includes('Calendar API error 403')
-          const scopeMissing = message.includes('Calendar API error 403')
-          if (!needsReconnect) console.error('[google] events failed', message)
-          return jsonResponse(
-            {
-              ok: false,
-              events: [],
-              connected: false,
-              error: scopeMissing
-                ? 'Google Calendar scope not granted. Reconnect and approve calendar access.'
-                : needsReconnect
-                  ? 'Google Calendar authorization expired. Disconnect and reconnect.'
-                  : 'Google Calendar request failed',
-            },
-            502,
-          )
+          const kind = classifyGoogleError(e)
+          if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)
+          if (kind === 'auth_expired') return eventsError(409, false, 'google_auth_expired', AUTH_EXPIRED_MESSAGE)
+          // 自分の primary を読めない 403 は許可（スコープ）の不足として扱う
+          if (kind === 'scope' || kind === 'forbidden') {
+            return eventsError(
+              409,
+              false,
+              'google_scope_missing',
+              'Google Calendar scope not granted. Reconnect and approve calendar access.',
+            )
+          }
+          console.error('[google] events failed', e instanceof Error ? e.message : String(e))
+          return eventsError(502, true, 'google_failed', 'Google Calendar request failed')
         }
       }
 
@@ -470,22 +489,20 @@ Deno.serve(
           )
           return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
         } catch (e) {
-          const message = e instanceof Error ? e.message : String(e)
-          if (message.includes('Calendar API error 403')) {
-            // 権限（scope）不足と、他人の予定で変更できないのを分ける
-            const scopeIssue = /insufficient|scope/i.test(message)
+          const kind = classifyGoogleError(e)
+          if (kind === 'rate_limited') return errorResponse(429, RATE_LIMITED_MESSAGE, RATE_LIMITED_CODE)
+          if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')
+          // 権限（scope）不足と、他人の予定で変更できないのを分ける
+          if (kind === 'scope') {
             return errorResponse(
-              502,
-              scopeIssue
-                ? 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
-                : 'Google Calendar event is read-only for you.',
+              409,
+              'Google Calendar write scope not granted. Reconnect and approve calendar access.',
+              'google_scope_missing',
             )
           }
-          if (message.includes('invalid_grant') || message.includes('Calendar API error 401')) {
-            return errorResponse(502, 'Google Calendar authorization expired. Disconnect and reconnect.')
-          }
-          console.error('[google] write failed', message)
-          return errorResponse(502, 'Google Calendar write failed')
+          if (kind === 'forbidden') return errorResponse(409, 'Google Calendar event is read-only for you.', 'google_read_only')
+          console.error('[google] write failed', e instanceof Error ? e.message : String(e))
+          return errorResponse(502, 'Google Calendar write failed', 'google_failed')
         }
       }
 

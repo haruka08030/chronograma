@@ -58,8 +58,12 @@ describe('todoColorLabels', () => {
     ])
   })
 
-  it('keeps a color whose tasks are all done, with 0', () => {
-    expect(todoColorLabels([task({ color: SAGE, completed: true })], new Set(), presets, colors)).toEqual([
+  it('leaves out a color whose tasks are all done', () => {
+    expect(todoColorLabels([task({ color: SAGE, completed: true })], new Set(), presets, colors)).toEqual([])
+  })
+
+  it('keeps the open color with 0 so it does not vanish while open', () => {
+    expect(todoColorLabels([task({ color: SAGE, completed: true })], new Set(), presets, colors, false, SAGE)).toEqual([
       { hex: SAGE, name: '授業', count: 0 },
     ])
   })

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
+import { INBOX_ID } from '../store/storeConstants'
 import { QuickAdd } from './QuickAdd'
 
 const tasks = () => useTaskStore.getState().tasks
@@ -26,18 +27,45 @@ describe('QuickAdd', () => {
     expect(tasks()).toHaveLength(0)
   })
 
-  it('時刻と @リスト を読み取って題名から外す', async () => {
-    useTaskStore.getState().addList('Work')
-    const work = useTaskStore.getState().lists.find((l) => l.name === 'Work')!.id
+  it('時刻を読み取って題名から外す（To-Do に入る）', async () => {
     const user = userEvent.setup()
     render(<QuickAdd />)
 
-    await user.type(screen.getByPlaceholderText('Add a to-do'), 'Standup 9:00-9:30 @Work{Enter}')
+    await user.type(screen.getByPlaceholderText('Add a to-do'), 'Standup 9:00-9:30{Enter}')
 
     const [task] = tasks()
     expect(task.title).toBe('Standup')
-    expect(task.listId).toBe(work)
+    expect(task.listId).toBe(INBOX_ID)
     expect(task.startTime).toBe('09:00')
     expect(task.endTime).toBe('09:30')
+  })
+
+  it('入力中だけ、読み取った締切・予定を欄の下に 1 行で出す', async () => {
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+
+    await user.type(input, 'Essay')
+    // 何も読み取れないうちは出さない
+    expect(screen.queryByText(/^Due /)).toBeNull()
+
+    await user.type(input, ' due 10/10')
+    expect(screen.getByText(/^Due \w{3} 10\/10$/)).toBeInTheDocument()
+
+    await user.type(input, '{Enter}')
+    expect(screen.queryByText(/^Due /)).toBeNull()
+  })
+
+  it('@リスト で買い物などのリストへ入れる', async () => {
+    useTaskStore.getState().addList('Shop', 'checklist')
+    const shop = useTaskStore.getState().lists.find((l) => l.name === 'Shop')!.id
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+
+    await user.type(screen.getByPlaceholderText('Add a to-do'), 'Milk @Shop{Enter}')
+
+    const [task] = tasks()
+    expect(task.title).toBe('Milk')
+    expect(task.listId).toBe(shop)
   })
 })

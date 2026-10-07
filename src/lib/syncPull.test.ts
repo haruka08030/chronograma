@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { pushListsTasksHabits, type SyncChanges } from './supabaseData'
 import {
   applyChanges,
@@ -10,6 +9,7 @@ import {
   missingWithoutTombstone,
   needsFullFetch,
   pullRemote,
+  TOMBSTONE_RETENTION_MS,
   type PullState,
 } from './syncPull'
 import {
@@ -22,239 +22,7 @@ import {
   type SyncSnapshot,
 } from './syncMerge'
 import type { Task } from '../types/task'
-
-type Row = Record<string, unknown> & { user_id: string }
-
-/** ISO 文字列（マイクロ秒まで）→ エポックからのマイクロ秒 */
-function micros(v: unknown): number {
-  const m = /^(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/.exec(String(v))
-  if (!m) return Number.NaN
-  return Date.parse(m[1] + m[3]) * 1000 + Number((m[2] ?? '').padEnd(6, '0').slice(0, 6))
-}
-const fromMicros = (us: number) => {
-  const ms = Math.floor(us / 1000)
-  return new Date(ms).toISOString().replace(/\.(\d{3})Z$/, (_, s: string) => `.${s}${String(us % 1000).padStart(3, '0')}+00:00`)
-}
-const isStamp = (col: string) => col.endsWith('_at')
-const cmp = (col: string, a: unknown, b: unknown) => {
-  if (isStamp(col)) return micros(a) - micros(b)
-  const x = String(a)
-  const y = String(b)
-  return x < y ? -1 : x > y ? 1 : 0
-}
-
-/** PostgREST の or の中身（`a.gt."x",and(a.eq."x",b.gt."y")`）を、行を受け取る条件に */
-function parseOr(text: string): (r: Row) => boolean {
-  const split = (s: string) => {
-    const out: string[] = []
-    let depth = 0
-    let quoted = false
-    let cur = ''
-    for (let i = 0; i < s.length; i++) {
-      const c = s[i]!
-      if (quoted && c === '\\') {
-        cur += c + s[++i]
-        continue
-      }
-      if (c === '"') quoted = !quoted
-      else if (!quoted && c === '(') depth++
-      else if (!quoted && c === ')') depth--
-      if (!quoted && depth === 0 && c === ',') {
-        out.push(cur)
-        cur = ''
-        continue
-      }
-      cur += c
-    }
-    if (cur) out.push(cur)
-    return out
-  }
-  const term = (t: string): ((r: Row) => boolean) => {
-    if (t.startsWith('and(')) {
-      const parts = split(t.slice(4, -1)).map(term)
-      return (r) => parts.every((p) => p(r))
-    }
-    const [col, op] = t.split('.', 2) as [string, string]
-    let value = t.slice(col.length + op.length + 2)
-    if (value.startsWith('"')) value = value.slice(1, -1).replace(/\\(.)/g, '$1')
-    if (op === 'eq') return (r) => cmp(col, r[col], value) === 0
-    if (op === 'gt') return (r) => cmp(col, r[col], value) > 0
-    throw new Error(`op ${op}`)
-  }
-  const terms = split(text).map(term)
-  return (r) => terms.some((p) => p(r))
-}
-
-/**
- * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）、
- * 消すと `008` の印、同じ id が入り直すと印を消す。`noTombstones` は `008` を流す前の DB
- */
-function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
-  const maxRows = opts.maxRows ?? 1000
-  const tables: Record<string, Row[]> = { lists: [], list_sections: [], tasks: [], habits: [], sync_tombstones: [] }
-  let clock = micros('2026-10-03T00:00:00.000000+00:00')
-  /** サーバーの now()（呼ぶたびに 1 マイクロ秒進む。文の中では同じ） */
-  const now = () => fromMicros(++clock)
-  /** 取得で返した行の数（表ごと） */
-  const downloaded: Record<string, number> = {}
-  const tombstone = (userId: string, table: string, id: string, at: string) => {
-    const ts = tables.sync_tombstones!
-    const i = ts.findIndex((t) => t.user_id === userId && t.table_name === table && t.row_id === id)
-    const row = { user_id: userId, table_name: table, row_id: id, deleted_at: at }
-    if (i >= 0) ts[i] = row
-    else ts.push(row)
-  }
-  const untombstone = (userId: string, table: string, id: string) => {
-    tables.sync_tombstones = tables.sync_tombstones!.filter((t) => !(t.user_id === userId && t.table_name === table && t.row_id === id))
-  }
-  const write = (table: string, rows: Row[]): Row[] => {
-    const all = (tables[table] ??= [])
-    const stamp = now()
-    const out: Row[] = []
-    for (const { base_updated_at: base, ...row } of rows) {
-      const i = all.findIndex((r) => r.user_id === row.user_id && r.id === row.id)
-      const old = i >= 0 ? all[i] : undefined
-      let next: Row
-      if (base === undefined) {
-        if (old && micros(row.updated_at) < micros(old.updated_at)) continue
-        next = { ...old, ...row } as Row
-      } else {
-        if (old && base !== old.updated_at) continue
-        const at = old && micros(old.updated_at) >= micros(stamp) ? fromMicros(micros(old.updated_at) + 1) : stamp
-        next = { ...old, ...row, updated_at: at } as Row
-      }
-      if (old) all[i] = next
-      else {
-        all.push(next)
-        untombstone(next.user_id, table, String(next.id))
-      }
-      out.push(next)
-    }
-    return out
-  }
-  const remove = (table: string, match: (r: Row) => boolean) => {
-    const at = now()
-    const gone = (tables[table] ?? []).filter(match)
-    tables[table] = (tables[table] ?? []).filter((r) => !gone.includes(r))
-    for (const r of gone) tombstone(r.user_id, table, String(r.id), at)
-    return gone
-  }
-  const client = {
-    /** `008` の sync_server_now()（前の DB には無い） */
-    rpc: async (name: string) => {
-      if (name !== 'sync_server_now' || opts.noTombstones) {
-        return {
-          data: null,
-          error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` },
-        }
-      }
-      return { data: fromMicros(clock), error: null }
-    },
-    from(table: string) {
-      return {
-        select: (_cols: string, o?: { count?: string }) => {
-          const filters: ((r: Row) => boolean)[] = []
-          const orders: string[] = []
-          const run = async (from: number, to: number) => {
-            if (table === 'sync_tombstones' && opts.noTombstones) {
-              return {
-                data: null,
-                count: null,
-                error: { code: 'PGRST205', message: "Could not find the table 'public.sync_tombstones' in the schema cache" },
-              }
-            }
-            const rows = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
-            rows.sort((a, b) => {
-              for (const c of orders) {
-                const d = cmp(c, a[c], b[c])
-                if (d !== 0) return d
-              }
-              return 0
-            })
-            const data = rows.slice(from, Math.min(to + 1, from + maxRows))
-            downloaded[table] = (downloaded[table] ?? 0) + data.length
-            return { data, count: o?.count === 'exact' ? rows.length : null, error: null }
-          }
-          const q = {
-            eq: (c: string, v: unknown) => (filters.push((r) => String(r[c]) === String(v)), q),
-            gt: (c: string, v: unknown) => (filters.push((r) => cmp(c, r[c], v) > 0), q),
-            or: (text: string) => (filters.push(parseOr(text)), q),
-            order: (c: string) => (orders.push(c), q),
-            limit: (n: number) => run(0, n - 1),
-            range: (from: number, to: number) => run(from, to),
-          }
-          return q
-        },
-        upsert: (rows: Row[]) => ({
-          select: async () => ({ data: write(table, rows).map((r) => ({ id: r.id, updated_at: r.updated_at })), error: null }),
-        }),
-        delete: () => {
-          let userId = ''
-          const q = {
-            eq: (_c: string, v: string) => ((userId = v), q),
-            in: async (_c: string, ids: string[]) => {
-              remove(table, (r) => r.user_id === userId && ids.includes(String(r.id)))
-              return { error: null }
-            },
-            or: (text: string) => ({
-              select: async () => {
-                const f = parseOr(text)
-                const gone = remove(table, (r) => r.user_id === userId && f(r))
-                return { data: gone.map((r) => ({ id: r.id })), error: null }
-              },
-            }),
-          }
-          return q
-        },
-      }
-    },
-  }
-  return {
-    client: client as unknown as SupabaseClient,
-    tables,
-    downloaded,
-    /** サーバーの時計を進める */
-    advance: (ms: number) => {
-      clock += ms * 1000
-    },
-    serverNowMs: () => Math.floor(clock / 1000),
-    /** 前の版のアプリの書き込み（base_updated_at なし、updated_at は端末の時計） */
-    oldClientWrite: (table: string, row: Row) => write(table, [row]),
-    resetDownloaded: () => {
-      for (const k of Object.keys(downloaded)) delete downloaded[k]
-    },
-  }
-}
-
-const taskRow = (id: string, patch: Record<string, unknown> = {}): Row => ({
-  id,
-  user_id: 'u1',
-  list_id: '__inbox__',
-  parent_id: null,
-  title: id,
-  description: '',
-  completed: false,
-  created_at: '2026-01-01T00:00:00.000Z',
-  updated_at: '2026-01-01T00:00:00.000000+00:00',
-  sort_order: 0,
-  due_date: null,
-  start_time: null,
-  end_time: null,
-  priority: 'none',
-  tags: [],
-  recurrence: null,
-  is_time_log: false,
-  ...patch,
-})
-const inboxRow: Row = {
-  id: '__inbox__',
-  user_id: 'u1',
-  name: 'Inbox',
-  color: '#000',
-  sort_order: 0,
-  kind: 'tasks',
-  updated_at: '2026-01-01T00:00:00.000000+00:00',
-}
+import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
 
 const noDeletes = { lists: [], tasks: [], habits: [], sections: [] }
 const emptySnap = (): SyncSnapshot => ({ lists: [], tasks: [], habits: [], sections: [] })
@@ -605,6 +373,42 @@ describe('needsFullFetch', () => {
     expect(needsFullFetch({ ...ready(), deltaUnsupported: true }, 1_000_001)).toBe(true)
     expect(needsFullFetch(ready(), 1_000_000 + FULL_FETCH_INTERVAL_MS)).toBe(true)
   })
+  it('前回の取得が印を残す 30 日（からさかのぼる 5 分を引いた分）より前なら全部', () => {
+    // 6 時間ごとの取り直しより先に来ることは無いが、全部の取得の時刻とは別に見る
+    const state = { ...ready(), lastFullAt: Number.MAX_SAFE_INTEGER - 1 }
+    const at = 1_000_000 + TOMBSTONE_RETENTION_MS - DELTA_OVERLAP_MS
+    expect(needsFullFetch(state, at - 1)).toBe(false)
+    expect(needsFullFetch(state, at)).toBe(true)
+  })
+})
+
+describe('上限で消された印 (#208)', () => {
+  it('目印より後の印がサーバーの上限で消えていたら、差分を当てずに全部を取る', async () => {
+    const { db, phone, pc } = await setup()
+    tick(db, [phone, pc], 60_000)
+    removeTask(pc, 'b')
+    await syncDevice(db, pc)
+    // `010` の trim_sync_tombstones: b の印を消し、消した印の時刻を残す
+    const gone = db.tables.sync_tombstones!.find((t) => t.row_id === 'b')!
+    db.tables.sync_tombstones = db.tables.sync_tombstones!.filter((t) => t !== gone)
+    db.tables.sync_tombstone_purges = [{ user_id: 'u1', last_deleted_at: gone.deleted_at }]
+    tick(db, [phone, pc], 60_000)
+    await syncDevice(db, phone)
+    expect([phone.fullPulls, phone.deltaPulls]).toEqual([1, 0])
+    expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+  })
+
+  it('消えた印が目印より前なら差分のまま', async () => {
+    const { db, phone, pc } = await setup()
+    db.tables.sync_tombstone_purges = [{ user_id: 'u1', last_deleted_at: '2026-01-01T00:00:00.000000+00:00' }]
+    tick(db, [phone, pc], 60_000)
+    removeTask(pc, 'b')
+    await syncDevice(db, pc)
+    tick(db, [phone, pc], 60_000)
+    await syncDevice(db, phone)
+    expect([phone.fullPulls, phone.deltaPulls]).toEqual([0, 1])
+    expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+  })
 })
 
 describe('目印', () => {
@@ -628,6 +432,7 @@ describe('applyChanges', () => {
     tasks: [],
     habits: [],
     tombstones: [],
+    tombstonesTrimmed: false,
     ...patch,
   })
   it('変わった行は置き換え、新しい行は足し、印のある行は外す。何度当てても同じ', () => {

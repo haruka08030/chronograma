@@ -63,6 +63,8 @@ export interface RecordLaunch {
 export interface LaunchHandlers {
   openView: (view: SmartView) => void
   record: (launch: RecordLaunch) => void
+  /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
+  add: () => void
 }
 
 /**
@@ -74,10 +76,12 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const record = url.searchParams.get('record')
   const asPlanned = url.searchParams.get('as') === 'planned'
   const nonce = url.searchParams.get('launch')
-  const keys = ['source', 'record', 'as', 'launch']
+  const add = url.searchParams.get('add') === '1'
+  const keys = ['source', 'record', 'as', 'launch', 'add']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+  if (add) handlers.add()
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })

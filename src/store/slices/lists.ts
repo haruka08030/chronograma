@@ -1,6 +1,6 @@
 /** リスト */
 import { newId } from '../../lib/id'
-import { paletteColors } from '../../lib/listColorPalettes'
+import { GOOGLE_COLOR_HEXES } from '../../lib/googleColors'
 import { INBOX_ID } from '../storeConstants'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
@@ -14,28 +14,40 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
   const { pushUndo } = undo
   return {
     setListKind: (id, kind) => {
+      // To-Do のリスト（フォルダ）は作らない。未分類の種類も変えない
+      if (id === INBOX_ID || kind === 'tasks') return
+      if (get().lists.find((l) => l.id === id)?.kind === kind) return
       pushUndo()
       set((s) => ({ lists: s.lists.map((l) => (l.id === id ? { ...l, kind, updatedAt: new Date().toISOString() } : l)) }))
     },
     addList: (name, kind) => {
       pushUndo()
       const maxOrder = Math.max(0, ...get().lists.map((l) => l.order))
-      const cols = paletteColors(get().listColorPaletteId)
-      const colorIdx = get().lists.length % cols.length
+      const colorIdx = get().lists.length % GOOGLE_COLOR_HEXES.length
       set((s) => ({
         lists: [
           ...s.lists,
-          { id: newId(), name, color: cols[colorIdx], order: maxOrder + 1, kind: kind ?? 'tasks', updatedAt: new Date().toISOString() },
+          {
+            id: newId(),
+            name,
+            color: GOOGLE_COLOR_HEXES[colorIdx],
+            order: maxOrder + 1,
+            kind: kind ?? 'checklist',
+            updatedAt: new Date().toISOString(),
+          },
         ],
       }))
     },
     renameList: (id, name) => {
+      // 同じ値なら何もしない（取り消しの履歴を積まない）
+      if (get().lists.find((l) => l.id === id)?.name === name) return
       pushUndo()
       return set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? { ...l, name, updatedAt: new Date().toISOString() } : l)),
       }))
     },
     updateListColor: (id, color) => {
+      if (get().lists.find((l) => l.id === id)?.color === color) return
       pushUndo()
       return set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? { ...l, color, updatedAt: new Date().toISOString() } : l)),

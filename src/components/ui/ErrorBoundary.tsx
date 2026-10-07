@@ -5,6 +5,8 @@ import { downloadRawData, latestAutoBackup } from '../../lib/crashRecovery'
 import { askConfirm } from '../../lib/confirmDialog'
 import { formatDate } from '../../lib/dateFormat'
 import { SUBTLE_TEXT } from './textClass'
+import { reportError } from '../../lib/errorReport'
+import { isLazyLoadError, retryFailedLazyLoads } from '../../lib/lazyComponent'
 
 /**
  * 描画中のエラーで画面全体が真っ白にならないようにする。
@@ -50,10 +52,19 @@ export class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[error-boundary:${this.props.scope}]`, error, info.componentStack)
+    // 部品のファイルが読めなかったときは、読み込みの側（`lazyNamed`）が記録している
+    if (!isLazyLoadError(error))
+      reportError('render', error, { scope: this.props.scope, componentStack: info.componentStack?.slice(0, 1500) })
   }
 
   componentDidUpdate(prev: { resetKey?: string }) {
-    if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null })
+    if (this.state.error && prev.resetKey !== this.props.resetKey) this.retry()
+  }
+
+  /** エラーを消して描き直す。読めなかった部品は取り直す */
+  private retry() {
+    retryFailedLazyLoads()
+    this.setState({ error: null })
   }
 
   render() {
@@ -61,6 +72,8 @@ export class ErrorBoundary extends Component<
     if (!error) return this.props.children
     const { scope, onLeave } = this.props
     const t = i18n.t.bind(i18n)
+    // 部品のファイルが読めなかった（オフライン・デプロイ直後）: もう一度読みに行けば開ける
+    const loadFailed = isLazyLoadError(error)
     return (
       <div
         role="alert"
@@ -69,9 +82,20 @@ export class ErrorBoundary extends Component<
         }`}
       >
         <h1 className="text-base font-semibold">{t('crash.title')}</h1>
-        <p className={`max-w-sm ${SUBTLE_TEXT}`}>{t(scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}</p>
+        <p className={`max-w-sm ${SUBTLE_TEXT}`}>
+          {t(loadFailed ? 'crash.loadFailed' : scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}
+        </p>
         <div className="mt-1 flex flex-wrap justify-center gap-2">
-          <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => window.location.reload()}>
+          {loadFailed && (
+            <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => this.retry()}>
+              {t('crash.retry')}
+            </button>
+          )}
+          <button
+            type="button"
+            className={buttonClass({ variant: loadFailed ? 'secondary' : 'primary', size: 'md' })}
+            onClick={() => window.location.reload()}
+          >
             {t('crash.reload')}
           </button>
           {scope === 'app' && (

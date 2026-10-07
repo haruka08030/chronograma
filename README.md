@@ -18,7 +18,23 @@
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
-実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。作業は GitHub の Issue、アイデアと方向性は [`doc/IDEAS.md`](doc/IDEAS.md)、実装で守る決まりは [`doc/RULES.md`](doc/RULES.md) です。
+実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。人に公開するときの手順は [`doc/PUBLISHING.md`](doc/PUBLISHING.md)。作業は GitHub の Issue、アイデアと方向性は [`doc/IDEAS.md`](doc/IDEAS.md)、実装で守る決まりは [`doc/RULES.md`](doc/RULES.md) です。
+
+## 設計の全体像（Architecture）
+
+**手元が先（local-first）**。画面はいつも端末のストアを読み書きし、サーバーへの同期は後ろで行います。オフラインでも全部の操作ができます。
+
+| 層 | しくみ | 主なファイル |
+| --- | --- | --- |
+| 状態 | Zustand のストア 1 つを役割ごとの slice（tasks・lists・sections・habits・timeLogs・settings・ui など）に分ける。行は購読する値だけを選ぶ（`memo` とセレクタ） | `src/store/taskStore.ts`、`src/store/slices/` |
+| 端末への保存 | `persist` で localStorage へ。保存する値を DATA / VIEW / TRANSIENT に分け、版番号（`STORE_VERSION`）ごとに段階的に移行する。読めない保存データは上書き前に退避する。端末の中の自動バックアップ（毎日 14 日分など） | `persistKeys.ts`、`migrate.ts`、`src/lib/autoBackup.ts` |
+| 同期 | 端末ごとの前回同期の控えとの**三方向マージ**。書き込みは「もとにしたサーバーの版」を付けて送り、サーバーのトリガーが版を確かめてサーバーの時刻を付ける（端末の時計に頼らない）。ふだんの取り込みは**差分**（`updated_at` が前回より新しい行と、削除の記録 `sync_tombstones`）。起動時・6 時間ごと・断られた後は全件 | `src/lib/syncMerge.ts`、`syncPull.ts`、`supabaseData.ts`、`src/hooks/useSupabaseSync.ts` |
+| サーバー | Supabase（Postgres + RLS で本人の行だけ）。外部サービスのトークンは Edge Function が暗号化して持ち、ブラウザには出さない。通知は pg_cron が 5 分ごとに Edge Function `daily-reminders` を呼ぶ | `supabase/migrations/`、`supabase/functions/` |
+| 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |
+| 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
+| エラー | 画面・同期のエラーは、ログイン中なら Supabase の `client_errors` に送る（同じエラーはまとめ、トークンやメールは伏せる。30 日で消える） | `src/lib/errorReport.ts` |
+
+**テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
 
 ## ローカルで動かす（Web）
 
@@ -29,7 +45,17 @@ npm install
 npm run dev
 ```
 
-ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。
+ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。`npm install` で入るコミット前のフック（`.githooks/pre-commit`）が、ステージしたファイルの書式を確かめ、崩れていればコミットを止めます。
+
+DB のテスト（RLS とトリガー、pgTAP の `supabase/tests/*.sql`）は Docker と Supabase CLI で、手元の DB に対して流します（本番には向けない）:
+
+```bash
+supabase start    # 手元の DB を起こし、supabase/migrations を 001 から流す
+supabase test db  # supabase/tests を流す
+supabase db reset # migration を足した・変えたときに流し直す
+```
+
+CI は migration を 2 回流し（何度流しても同じ形になること）、Edge Function を `deno check` し、DB のテストを流します。
 
 ## スマホで使う（PWA）
 
@@ -42,7 +68,7 @@ npm run dev
 
 1. [Supabase](https://supabase.com) でプロジェクトを作成します。
 2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](supabase/migrations/001_chronograma_schema.sql) から最後の番号まで。一覧は [`supabase/migrations/README.md`](supabase/migrations/README.md)）。
-   どのファイルも何度流しても同じ形になります。
+   どのファイルも何度流しても同じ形になります。先に **Database → Extensions** で `pg_cron` を有効にしておくと、`010`（古い同期の印）と `011`（端末のエラーの記録）を 30 日で消す毎日のジョブができます（後から有効にしたら `010`・`011` を流し直す）。
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
@@ -52,6 +78,11 @@ npm run dev
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
 
 ヘッダーの「ログイン」からメールアドレスを送信し、届いたリンクでサインインすると、約 1.8 秒のデバウンス後に変更がサーバーへ同期されます。同期は端末ごとの前回同期状態との**三方向マージ**なので、複数端末で編集しても他端末の追加を消しません（アプリに戻ったときと表示中 1 分ごとにも取り込みます）。
+
+### バックアップ
+
+- **Supabase 側**: DB の自動バックアップがあるかはプランによります。Pro 以上は毎日のバックアップがあり（保てる日数はプランごと）、任意の時点に戻せる PITR は有料の追加機能です。Free プランには自動バックアップが無く、しばらく使われないプロジェクトは一時停止されます。細かい条件は Supabase の料金表と **Database → Backups** の画面で確かめてください。自分で控えを取るなら `supabase db dump --linked -f backup.sql`（スキーマ）と `supabase db dump --linked --data-only -f data.sql`（データ）。
+- **アプリ側**: 各端末が IndexedDB に自動で控えを残します（`src/lib/autoBackup.ts`）。毎日の控え（その日はじめて開いたときの状態、14 日分）・同期で手元のタスクが減る直前（5 件分）・ログアウトの直前（5 件分）。戻すのは **設定** の自動バックアップか、エラーの画面の「自動バックアップから戻す」から。控えはその端末の中だけにあり、ほかの端末やサーバーには送りません。JSON の書き出し・取り込みは別にあります。
 
 ### 通知（Web Push、任意）
 
@@ -69,22 +100,40 @@ supabase secrets set \
 supabase functions deploy daily-reminders
 ```
 
-4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で 5 分ごとの呼び出しを登録（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）:
+4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で `CRON_SECRET` を Vault に入れてから、5 分ごとの呼び出しを登録します（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）。cron の文には秘密を書かず、呼ぶたびに Vault から読みます（`cron.job` の表に平文で残らない）:
 
 ```sql
+select vault.create_secret('YOUR_CRON_SECRET', 'chronograma_cron_secret');
+
 select cron.schedule(
   'chronograma-daily-reminders',
   '*/5 * * * *',
   $$
   select net.http_post(
     url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/daily-reminders',
-    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET')
+    headers := jsonb_build_object(
+      'x-cron-secret',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'chronograma_cron_secret')
+    ),
+    timeout_milliseconds := 60000
   );
   $$
 );
 ```
 
-通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。
+`timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5 秒で、利用者が多いと送り終える前に切れる）。
+
+秘密を平文で書いたジョブがすでにある場合は、上の `vault.create_secret` を流したあと、古いジョブを外して上の `cron.schedule` で登録し直します:
+
+```sql
+select cron.unschedule('chronograma-daily-reminders');
+-- ここで上の cron.schedule(...) を流す
+select jobname, schedule, command from cron.job where jobname = 'chronograma-daily-reminders';  -- 秘密が文に無いこと
+```
+
+秘密を変えるときは、Edge Function の secret と Vault の両方を変えます: `supabase secrets set CRON_SECRET=NEW_SECRET` と `select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
+
+通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
 
 ### Google でログイン（任意）
 

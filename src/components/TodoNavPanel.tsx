@@ -3,7 +3,7 @@ import { useDismiss } from '../hooks/useDismiss'
 import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, INBOX_LIST_ID, type SmartView } from '../store/taskStore'
+import { useTaskStore, type SmartView } from '../store/taskStore'
 import { LABEL_DROP_PREFIX, LIST_PREFIX } from '../lib/listDnD'
 import { TASK_PREFIX } from './SortableTaskItem'
 import { SmartViewRow } from './SmartViewRow'
@@ -11,15 +11,13 @@ import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TaskList } from '../types/list'
-import { CartIcon, CloseIcon, ListBulletIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
+import { CartIcon, CloseIcon, EllipsisIcon, PencilIcon, PlusIcon, StarIcon } from './icons'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { unplannedListIds } from '../lib/listKind'
-import { colorLabelText, todoColorLabels, type TodoColorLabel } from '../lib/todoColorLabels'
+import { colorLabelText, NO_LABEL, todoColorLabels, unlabeledTodoCount, type TodoColorLabel } from '../lib/todoColorLabels'
 import { labelDroppedTasks, moveDroppedTasks } from '../lib/navDrop'
 import { readDraggedTaskIds, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import { groupsBySection, sortModeOf } from '../lib/todoSurfaceView'
-import { CANVAS_LIST_ID } from '../lib/canvasIds'
-import { isActiveTask } from '../lib/taskLifecycle'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -68,32 +66,24 @@ function SortableListItem({
   onStartEdit: () => void
   onDelete: () => void
   onColorPick: () => void
-  /** 右クリックのメニュー（未分類は名前・色・種類を変えられないので出さない）。スマホは行の ≡ から開く */
+  /** 右クリックのメニュー。スマホは行の ≡ から開く */
   onContextMenu: (at: { clientX: number; clientY: number }) => void
 }) {
   const { t } = useTranslation()
-  const isInbox = list.id === INBOX_LIST_ID
   const taskDragHoverListId = useTaskStore((s) => s.taskDragHoverListId)
   const sortableId = `${LIST_PREFIX}${list.id}`
-  const {
-    attributes,
-    listeners,
-    setNodeRef: setSortableRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: sortableId, disabled: isInbox })
+  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: sortableId })
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `drop::${list.id}` })
   // 並べ替え中の行はネイティブ D&D でつかむので、dnd-kit とは別に受ける
   const [isOverNative, setIsOverNative] = useState(false)
   const dropHighlight = isOver || isOverNative || taskDragHoverListId === list.id
-  // いつか・買い物は色の丸の代わりに ☆ / カート（リストの色）。押すと丸と同じく色を変える
+  // ここに並ぶのはいつか・買い物のリストだけ。色の丸の代わりに ☆ / カート（リストの色）。押すと色を変える
   const kindIcon =
     list.kind === 'someday' ? (
       <StarIcon className="h-full w-full" strokeWidth={2} label={t('listKind.someday')} />
-    ) : list.kind === 'checklist' ? (
+    ) : (
       <CartIcon className="h-full w-full" strokeWidth={2} label={t('listKind.checklist')} />
-    ) : null
+    )
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -103,6 +93,7 @@ function SortableListItem({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 行全体を押せる範囲にするマウス・指の近道。キーでは中の名前のボタンで開く
     <div
       ref={(node) => {
         setSortableRef(node)
@@ -118,11 +109,8 @@ function SortableListItem({
               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
         }`}
       onClick={onSelect}
-      onDoubleClick={() => {
-        if (!isInbox) onStartEdit()
-      }}
+      onDoubleClick={onStartEdit}
       onContextMenu={(e) => {
-        if (isInbox) return
         e.preventDefault()
         onContextMenu(e)
       }}
@@ -139,88 +127,87 @@ function SortableListItem({
     >
       <button
         type="button"
-        disabled={isInbox}
         // 開いている色の一覧の「内側」扱い（押すと閉じて開き直さず、そのまま閉じる）
         data-popover-keep
         onClick={(e) => {
           e.stopPropagation()
           onColorPick()
         }}
-        className={
-          kindIcon
-            ? 'flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]'
-            : `gc-dot h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full
-          touch-manipulation disabled:cursor-default md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]`
-        }
-        style={kindIcon ? { color: list.color } : colorVars(list.color)}
-        aria-label={isInbox ? t('sidebar.inboxColorFixed') : t('sidebar.changeListColor')}
+        className="flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
+        style={{ color: list.color }}
+        aria-label={t('sidebar.changeListColor')}
         tabIndex={-1}
       >
         {kindIcon}
       </button>
 
-      <span className="min-w-0 flex-1 truncate">{list.name}</span>
+      {/* キーではこのボタンで開く（押すと行の onClick まで届く）。行全体はマウス・指で押しやすくするための広い範囲 */}
+      <button
+        type="button"
+        aria-current={isSelected ? 'page' : undefined}
+        className="min-w-0 flex-1 truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent-400/50"
+      >
+        {list.name}
+      </button>
 
-      {!isInbox ? (
-        // PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
-        // スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう
-        <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
-          <button
-            {...attributes}
-            {...listeners}
-            type="button"
-            className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
-            tabIndex={-1}
-            {...tip(t('sidebar.reorderList'), { name: true })}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <circle cx="7" cy="4" r="1.5" />
-              <circle cx="13" cy="4" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" />
-              <circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="16" r="1.5" />
-              <circle cx="13" cy="16" r="1.5" />
-            </svg>
-          </button>
-          {/* 名前の変更: PC はダブルクリックか、ホバーで出る鉛筆。スマホは鉛筆（セクションと同じ） */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              const r = e.currentTarget.getBoundingClientRect()
-              onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
-            }}
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
-            aria-haspopup="menu"
-            aria-label={t('sidebar.listMenuAria')}
-          >
-            <ListBulletIcon className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onStartEdit()
-            }}
-            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
-            aria-label={t('sidebar.renameList')}
-          >
-            <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
-            aria-label={t('sidebar.deleteList')}
-          >
-            <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
-          </button>
-        </div>
-      ) : null}
+      {/* PC: カーソルがあるとき（キーボードで中にいるとき）だけ出す。ふだんは場所を取らず、名前を詰めない。
+          スマホはつまみと ≡（To-Do の行と同じメニュー）。✎・× を並べると、名前を押すつもりで消してしまう */}
+      <div className="flex shrink-0 items-center md:hidden md:group-hover:flex md:group-focus-within:flex">
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
+          tabIndex={-1}
+          {...tip(t('sidebar.reorderList'), { name: true })}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <svg className="h-4 w-4 text-zinc-400 md:h-3 md:w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+            <circle cx="7" cy="4" r="1.5" />
+            <circle cx="13" cy="4" r="1.5" />
+            <circle cx="7" cy="10" r="1.5" />
+            <circle cx="13" cy="10" r="1.5" />
+            <circle cx="7" cy="16" r="1.5" />
+            <circle cx="13" cy="16" r="1.5" />
+          </svg>
+        </button>
+        {/* スマホ: ≡ でメニュー（名前の変更もここから）。PC はダブルクリックか、ホバーで出る鉛筆で名前を変える */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            const r = e.currentTarget.getBoundingClientRect()
+            onContextMenu({ clientX: r.left, clientY: r.bottom + 4 })
+          }}
+          className="shrink-0 rounded-md p-1.5 text-zinc-400 touch-manipulation hover:bg-zinc-200 md:hidden dark:hover:bg-zinc-700"
+          aria-haspopup="menu"
+          aria-label={t('sidebar.listMenuAria')}
+        >
+          <EllipsisIcon className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onStartEdit()
+          }}
+          className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
+          aria-label={t('sidebar.renameList')}
+        >
+          <PencilIcon className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="hidden shrink-0 rounded p-0.5 hover:bg-zinc-200 md:block dark:hover:bg-zinc-700"
+          aria-label={t('sidebar.deleteList')}
+        >
+          <CloseIcon className="h-4 w-4 text-zinc-400 md:h-3.5 md:w-3.5" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -297,7 +284,29 @@ function ColorLabelRow({
   )
 }
 
-/** リストの下に字下げして並べる行（セクション・科目タグ） */
+/** 「ラベルなし」の行。ラベルの行と同じ形で、丸は点線の空の丸（色が無い） */
+function NoLabelRow({ count, isSelected, onSelect }: { count: number; isSelected: boolean; onSelect: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={isSelected ? 'page' : undefined}
+      className={`flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-3 text-left text-sm transition-colors
+        ${
+          isSelected
+            ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+            : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+        }`}
+    >
+      <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border border-dashed border-zinc-400 md:h-3 md:w-3 dark:border-zinc-500" />
+      <span className="min-w-0 flex-1 truncate">{t('labels.none')}</span>
+      <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{count}</span>
+    </button>
+  )
+}
+
+/** リストの下に字下げして並べる行（セクション） */
 function SubNavRow({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
@@ -321,6 +330,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
   const ref = useRef<HTMLDivElement>(null)
   useDismiss({ open: true, onClose, inside: [ref] })
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div
       ref={ref}
       className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
@@ -343,7 +353,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
 }
 
 /**
- * To‑Do のサブナビ本体（期限別ビュー / リスト / 色ラベル / アーカイブ・ゴミ箱）。
+ * To‑Do のサブナビ本体（期限別ビュー / 色ラベル / いつか・チェックリストのリスト / 完了済み・アーカイブ・ゴミ箱）。
  * md 以上は `TodoNavPanel` として独立パネルに、md 未満はサイドバードロワー内に描画する。
  * リスト行は DnD id を持つため、同時に二箇所へマウントしないこと。
  */
@@ -359,22 +369,11 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const selectList = useTaskStore((s) => s.selectList)
   const selectView = useTaskStore((s) => s.selectView)
   const selectListSection = useTaskStore((s) => s.selectListSection)
-  const selectListTag = useTaskStore((s) => s.selectListTag)
-  const filterTag = useTaskStore((s) => s.filterTag)
   const addList = useTaskStore((s) => s.addList)
   const renameList = useTaskStore((s) => s.renameList)
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const deleteList = useTaskStore((s) => s.deleteList)
   const tasks = useTaskStore((s) => s.tasks)
-  /** Canvas の未完了の課題に付いている科目タグ（課題が無くなった科目は出さない） */
-  const courseTags = useMemo(() => {
-    const tags = new Set<string>()
-    for (const t of tasks) {
-      if (t.listId !== CANVAS_LIST_ID || t.completed || t.parentId || !isActiveTask(t)) continue
-      for (const tag of t.tags) tags.add(tag)
-    }
-    return [...tags].sort((a, b) => a.localeCompare(b, 'ja'))
-  }, [tasks])
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const filterColor = useTaskStore((s) => s.filterColor)
@@ -383,20 +382,24 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const { active } = useDndContext()
   const nativeDragActive = useTaskNativeDragActive()
   const draggingTask = (active != null && String(active.id).startsWith(TASK_PREFIX)) || nativeDragActive
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const colorLabels = useMemo(
-    () => todoColorLabels(tasks, unplannedListIds(lists), presets, categoryColors, draggingTask),
-    [tasks, lists, presets, categoryColors, draggingTask],
+    () => todoColorLabels(tasks, excludedListIds, presets, categoryColors, draggingTask, filterColor),
+    [tasks, excludedListIds, presets, categoryColors, draggingTask, filterColor],
   )
+  const unlabeledCount = useMemo(() => unlabeledTodoCount(tasks, excludedListIds), [tasks, excludedListIds])
 
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newKind, setNewKind] = useState<'someday' | 'checklist'>('checklist')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickId, setColorPickId] = useState<string | null>(null)
   const [listMenu, setListMenu] = useState<{ x: number; y: number; listId: string } | null>(null)
   const [labelCard, setLabelCard] = useState<{ hex: string; anchor: AnchorRect } | null>(null)
 
-  const sorted = [...lists].sort((a, b) => a.order - b.order)
+  // To-Do はリストで分けない（ラベルで分ける）。リストはいつか・チェックリストだけ
+  const sorted = lists.filter((l) => l.kind === 'someday' || l.kind === 'checklist').sort((a, b) => a.order - b.order)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
   const sectionsByList = new Map<string, typeof sections>()
   for (const s of sections) {
@@ -413,7 +416,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const submitNew = () => {
     const trimmed = newName.trim()
-    if (trimmed) addList(trimmed)
+    if (trimmed) addList(trimmed, newKind)
     setNewName('')
     setAdding(false)
   }
@@ -447,6 +450,38 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
 
+      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」か、タスクをここへドラッグ */}
+      {colorLabels.length > 0 && (
+        <>
+          <SectionLabel as="div" className="px-3 pb-1 pt-1">
+            {t('labels.title')}
+          </SectionLabel>
+          {colorLabels.map((label) => (
+            <ColorLabelRow
+              key={label.hex}
+              label={label}
+              name={colorLabelText(label.hex, presets, categoryColors, t)}
+              isSelected={selectedView === 'all' && filterColor === label.hex}
+              isEditing={labelCard?.hex === label.hex}
+              onSelect={() => handleNav(() => selectColor(label.hex))}
+              onEdit={(row) => {
+                const anchor = rectOf(row)
+                if (anchor) setLabelCard({ hex: label.hex, anchor })
+              }}
+            />
+          ))}
+          {/* まだラベルを付けていない To-Do（振り分けの残り）。全部がラベルなしのうちは「すべて」と同じなので出さない */}
+          {unlabeledCount > 0 && (
+            <NoLabelRow
+              count={unlabeledCount}
+              isSelected={selectedView === 'all' && filterColor === NO_LABEL}
+              onSelect={() => handleNav(() => selectColor(NO_LABEL))}
+            />
+          )}
+          <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+        </>
+      )}
+
       <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
         {sorted.map((list) => {
           const isSelected = selectedListId === list.id && selectedView === null
@@ -473,7 +508,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
             <div key={list.id} className="relative">
               <SortableListItem
                 list={list}
-                isSelected={isSelected && !quickAddSectionId && !filterTag}
+                isSelected={isSelected && !quickAddSectionId}
                 onSelect={() => handleNav(() => selectList(list.id))}
                 onStartEdit={() => {
                   setEditingId(list.id)
@@ -491,16 +526,6 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                   onClick={() => handleNav(() => selectListSection(list.id, sec.id))}
                 />
               ))}
-              {/* Canvas の課題の科目タグ。押すと Canvas のリストをその科目で絞る */}
-              {list.id === CANVAS_LIST_ID &&
-                courseTags.map((tag) => (
-                  <SubNavRow
-                    key={`tag:${tag}`}
-                    label={tag}
-                    selected={isSelected && filterTag === tag}
-                    onClick={() => handleNav(() => selectListTag(list.id, tag))}
-                  />
-                ))}
               {colorPickId === list.id && (
                 <ColorPicker current={list.color} onChange={(c) => updateListColor(list.id, c)} onClose={() => setColorPickId(null)} />
               )}
@@ -511,16 +536,44 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="px-2 pb-2 pt-2">
         {adding ? (
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            {...newListEntry}
-            placeholder={t('sidebar.listPlaceholder')}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
-                       ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
-                       placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-          />
+          <div className="space-y-1.5">
+            {/* 作れるのはいつか・チェックリストだけ（To-Do はラベルで分ける） */}
+            <div role="radiogroup" aria-label={t('listKind.label')} className="flex gap-1">
+              {(['checklist', 'someday'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={newKind === k}
+                  // 押しても名前の欄から外れない（外れると追加をやめたことになる）
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setNewKind(k)}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                    newKind === k
+                      ? 'bg-accent-50 font-medium text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+                      : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {k === 'someday' ? (
+                    <StarIcon className="h-3.5 w-3.5" strokeWidth={2} />
+                  ) : (
+                    <CartIcon className="h-3.5 w-3.5" strokeWidth={2} />
+                  )}
+                  {t(`listKind.${k}`)}
+                </button>
+              ))}
+            </div>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              {...newListEntry}
+              placeholder={t('sidebar.listPlaceholder')}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
+                         ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100
+                         placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+            />
+          </div>
         ) : (
           <button
             type="button"
@@ -534,30 +587,6 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         )}
       </div>
-
-      {/* タスクに色（ラベル）を付けたときだけ出す。付け方は詳細の「ラベル」か、タスクをここへドラッグ */}
-      {colorLabels.length > 0 && (
-        <>
-          <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
-          <SectionLabel as="div" className="px-3 pb-1 pt-1">
-            {t('labels.title')}
-          </SectionLabel>
-          {colorLabels.map((label) => (
-            <ColorLabelRow
-              key={label.hex}
-              label={label}
-              name={colorLabelText(label.hex, presets, categoryColors, t)}
-              isSelected={selectedView === 'all' && filterColor === label.hex}
-              isEditing={labelCard?.hex === label.hex}
-              onSelect={() => handleNav(() => selectColor(label.hex))}
-              onEdit={(row) => {
-                const anchor = rectOf(row)
-                if (anchor) setLabelCard({ hex: label.hex, anchor })
-              }}
-            />
-          ))}
-        </>
-      )}
 
       <div className="mx-2 my-2 border-t border-zinc-200 dark:border-zinc-800" />
 

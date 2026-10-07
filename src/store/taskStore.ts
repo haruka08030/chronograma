@@ -2,11 +2,11 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { DEFAULT_LIST_COLOR_PALETTE_ID } from '../lib/listColorPalettes'
 import { assignColorsInOrder } from '../lib/logCategoryColors'
 import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
+import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
@@ -35,8 +35,6 @@ import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeConstants'
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
-export type { ListColorPaletteId } from '../lib/listColorPalettes'
-export { DEFAULT_LIST_COLOR_PALETTE_ID, paletteColors, LIST_COLOR_PALETTES, normalizeListColorPaletteId } from '../lib/listColorPalettes'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import { isIncomingChange } from '../lib/changeOrigin'
 
@@ -101,9 +99,8 @@ export const useTaskStore = create<TaskState>()(
         filterTag: null,
         filterColor: null,
         notificationsEnabled: false,
-        recordPrompts: true,
+        recordPrompts: false,
         recordPromptTaskId: null as string | null,
-        listColorPaletteId: DEFAULT_LIST_COLOR_PALETTE_ID,
         // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
         timeLogTagPresets: defaultLogCategories(),
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),
@@ -117,10 +114,15 @@ export const useTaskStore = create<TaskState>()(
         googleCanWrite: false,
         activeTimer: null,
         completePromptTaskId: null as string | null,
+        labelPromptLogId: null as string | null,
         dailyReminders: { planTime: null } as DailyReminders,
         reminderPromptDismissed: false,
         googleConnectLineDismissed: false,
+        onboardingDone: false,
+        onboardingCompleted: false,
+        installNudgeDismissed: false,
         dailyCapacityMinutes: 480,
+        defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,
         extraTimeZones: [] as ExtraTimeZone[],
@@ -242,6 +244,24 @@ useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
 
+/**
+ * To-Do のリスト（フォルダ）はラベルに畳む（`foldTaskFolders`）。前の版のデータ・前の版の端末から同期で届いたフォルダ・
+ * 取り込んだバックアップのどれもここで畳む。同期で届いた変更の中でも、畳んだ結果はこの端末の変更として送る（`queueMicrotask` で同期の取り込みの外に出す）。
+ * 他のタブから取り込んだものは、そのタブが畳んで送る
+ */
+function foldFolders() {
+  const s = useTaskStore.getState()
+  const folded = foldTaskFolders(s, new Date().toISOString())
+  if (folded) useTaskStore.setState(folded)
+}
+/** To-Do はリストを開かず「すべて」で見る。未分類・消えたリストを開いていたら「すべて」へ */
+function settleTodoView() {
+  const s = useTaskStore.getState()
+  if (s.selectedView !== null) return
+  if (s.selectedListId && s.selectedListId !== INBOX_ID && s.lists.some((l) => l.id === s.selectedListId)) return
+  useTaskStore.setState({ selectedView: 'all', selectedListId: null, quickAddSectionId: null })
+}
+
 let adoptingFromOtherTab = false
 /** いまの更新が他のタブからの取り込みか（同期はそのタブが送るので、こちらからは送らない） */
 export const isAdoptingFromOtherTab = () => adoptingFromOtherTab
@@ -309,4 +329,14 @@ setPersistWriteHandlers({
   onRecovered: () => {
     queueMicrotask(() => withoutPersisting(() => useTaskStore.setState({ storageFull: false })))
   },
+})
+
+// 他のタブからの取り込み（`isAdoptingFromOtherTab`）を見るので、それより後で
+foldFolders()
+settleTodoView()
+useTaskStore.subscribe((s, prev) => {
+  if (s.selectedListId !== prev.selectedListId || s.selectedView !== prev.selectedView || s.lists !== prev.lists) settleTodoView()
+  if (s.lists === prev.lists && s.sections === prev.sections) return
+  if (isAdoptingFromOtherTab() || !needsFold(s)) return
+  queueMicrotask(foldFolders)
 })

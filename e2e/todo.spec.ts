@@ -20,22 +20,23 @@ test('To-Do でタスクを足して完了にし、読み込み直しても残�
   await input.fill('Buy milk')
   await input.press('Enter')
 
-  const row = page.locator('[data-task-row]').filter({ hasText: 'Buy milk' })
+  // 一覧は listbox、行は option（名前はタスク名）。完了の印はタスク名つきのチェックボックス
+  const row = page.getByRole('listbox').getByRole('option', { name: 'Buy milk' })
   await expect(row).toBeVisible()
-  await row.getByRole('button', { name: 'Mark complete' }).click()
+  await row.getByRole('checkbox', { name: 'Complete “Buy milk”', checked: false }).click()
 
   // 完了の欄へ移り、未完了の行には残らない
-  await expect(row.getByRole('button', { name: 'Mark complete' })).toHaveCount(0)
+  await expect(page.getByRole('checkbox', { name: 'Complete “Buy milk”', checked: false })).toHaveCount(0)
   await expect.poll(() => savedTasks(page)).toEqual([{ title: 'Buy milk', completed: true }])
 
   await page.reload()
 
   await expect.poll(() => savedTasks(page)).toEqual([{ title: 'Buy milk', completed: true }])
   await expect(page.getByPlaceholder('Add a to-do')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Mark complete' })).toHaveCount(0)
+  await expect(page.getByRole('checkbox', { name: 'Complete “Buy milk”', checked: false })).toHaveCount(0)
 
   // 完了の一覧に、完了のまま出る
   await page.getByRole('button', { name: 'Completed', exact: true }).click()
-  const done = page.locator('[data-task-row]').filter({ hasText: 'Buy milk' })
-  await expect(done.getByRole('button', { name: 'Mark incomplete' })).toBeVisible()
+  const done = page.getByRole('listbox').getByRole('option', { name: 'Buy milk' })
+  await expect(done.getByRole('checkbox', { name: 'Complete “Buy milk”' })).toBeChecked()
 })

@@ -26,7 +26,11 @@ export const DELTA_OVERLAP_MS = 5 * 60_000
  * 印（sync_tombstones）はこれより長く残す必要がある（消すなら 30 日より古いもの）
  */
 export const FULL_FETCH_INTERVAL_MS = 6 * 60 * 60_000
-/** 印を残しておく期間（サーバー側で消すならこれより古いもの）。前回の取得がこれより前なら全部を取り直す */
+/**
+ * 印を残しておく期間（`010` の pg_cron が毎日これより古い印を消す）。前回の取得がこれより前なら全部を取り直す
+ * （差分はさらに `DELTA_OVERLAP_MS` さかのぼるので、その分も含めて残っている間だけ差分）。
+ * 1 人の印が上限（`010`、50,000 件）を超えてサーバーが古い印を消したときも、目印より後の分が消えていれば全部を取る（`tombstonesTrimmed`）
+ */
 export const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60_000
 export interface PullState {
   /** 前回取得したサーバーの内容（と、その後この端末が送れた行）。まだ無ければ null */
@@ -51,7 +55,7 @@ export function createPullState(): PullState {
 export function needsFullFetch(state: PullState, serverNowMs: number): boolean {
   if (!state.mirror || state.cursor === null || state.forceFull || state.deltaUnsupported) return true
   if (serverNowMs - state.lastFullAt >= FULL_FETCH_INTERVAL_MS) return true
-  return serverNowMs - state.lastPullAt >= TOMBSTONE_RETENTION_MS
+  return serverNowMs - state.lastPullAt + DELTA_OVERLAP_MS >= TOMBSTONE_RETENTION_MS
 }
 
 const KIND_OF: Record<SyncTable, keyof SyncSnapshot> = { lists: 'lists', list_sections: 'sections', tasks: 'tasks', habits: 'habits' }
@@ -120,7 +124,7 @@ export async function pullRemote(
     if ('error' in changes && !changes.unsupported) return { error: changes.error }
     if ('error' in changes) {
       state.deltaUnsupported = true
-    } else {
+    } else if (!changes.tombstonesTrimmed) {
       state.mirror = applyChanges(state.mirror!, changes)
       state.cursor = startedAt
       state.lastPullAt = startedMs

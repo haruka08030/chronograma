@@ -8,7 +8,7 @@
 
 const PERSIST_KEY = 'chronograma-storage'
 /** `taskStore.ts` の persist version と合わせる。古いと migrate が走って構図が変わる */
-const PERSIST_VERSION = 38
+const PERSIST_VERSION = 40
 
 const INBOX_ID = '__inbox__'
 const SOMEDAY_ID = 'seed-someday'
@@ -27,7 +27,7 @@ function task(fields, now) {
   return {
     id: fields.id,
     title: fields.title,
-    description: '',
+    description: fields.description ?? '',
     completed: fields.completed ?? false,
     completedAt: fields.completed ? iso : null,
     createdAt: iso,
@@ -66,7 +66,21 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
   const tasks = [
     // 期限切れ（赤）と今日（オレンジ）が並ぶように置く
     task({ id: 's1', title: '統計学レポート 提出', dueDate: yesterday, priority: 'high', order: 0, color: '#33B679' }, now),
-    task({ id: 's2', title: 'ES 書く（第一志望）', dueDate: today, dueTime: '18:00', priority: 'high', order: 1, color: '#F6BF26' }, now),
+    // メモ（長い URL を短く出すか、編集で欄が伸びるか）
+    task(
+      {
+        id: 's2',
+        title: 'ES 書く（第一志望）',
+        dueDate: today,
+        dueTime: '18:00',
+        priority: 'high',
+        order: 1,
+        color: '#F6BF26',
+        description:
+          '志望動機 400 字・ガクチカ 600 字\n下書き: https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit?usp=sharing\n先輩の ES を参考にする\n提出はマイページから（18:00 締切）\n出す前に誤字を見直す',
+      },
+      now,
+    ),
     // 曜日つきの毎週（月・木）。詳細の曜日のピルを撮る
     task(
       {
@@ -82,7 +96,18 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
     task({ id: 's4', title: 'TOEIC 申し込み', dueDate: inTwoDays, order: 3, color: '#F6BF26' }, now),
     task({ id: 's5', title: '研究室のゼミ資料を読む', order: 4 }, now),
     // 予定（タイムラインに出る薄い枠）
-    task({ id: 's6', title: 'ゼミ', scheduledDate: today, startTime: '15:00', endTime: '16:30', order: 5 }, now),
+    task(
+      {
+        id: 's6',
+        title: 'ゼミ',
+        scheduledDate: today,
+        startTime: '15:00',
+        endTime: '16:30',
+        order: 5,
+        description: '3 章の発表（15 分）\nスライド: https://www.canva.com/design/DAGabcdefgh/view',
+      },
+      now,
+    ),
     task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6 }, now),
     // 記録（色が付く主役）。完了済みのタイムログ
     task(
@@ -298,6 +323,20 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       completedDates: [yesterday],
       archivedAt: null,
     },
+    // 週に◯回の習慣（曜日は決めない。回数を満たした週は「今週は達成」）
+    {
+      id: 'h4',
+      title: 'ジム',
+      color: '#F4511E',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'timesPerWeek', count: 2 },
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      completedDates: [yesterday, dayKey(shift(now, -7)), dayKey(shift(now, -9))],
+      archivedAt: null,
+    },
     // アーカイブした習慣（習慣の画面の下の「アーカイブ」にだけ出る）
     {
       id: 'h3',
@@ -331,6 +370,8 @@ export function buildSeedState({ theme = 'light', now = new Date() } = {}) {
       selectedCalendarDateKey: today,
       sortMode: 'manual',
       notificationsEnabled: false,
+      // 使っている人の画面を撮る（はじめの案内は出さない）
+      onboardingDone: true,
       timeLogTagPresets: ['睡眠', '授業', '課題', 'バイト', '就活'],
       // 新規ユーザーと同じ割り当て順（assignColorsInOrder）。To‑Do の色ラベル（color）もこの色で名前が付く
       logCategoryColors: { 睡眠: 'peacock', 授業: 'sage', 課題: 'tangerine', バイト: 'lavender', 就活: 'banana' },

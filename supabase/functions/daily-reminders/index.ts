@@ -1,9 +1,10 @@
 // Sends Web Push reminders: morning summary, before plans, before deadlines, record prompts after plans,
 // and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
+// 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import webpush from 'npm:web-push@3.6.7'
 import {
   CRON_INTERVAL_MINUTES,
@@ -16,7 +17,7 @@ import {
   type ReminderTask,
 } from './schedule.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
-import { fetchAllPages, groupBy, runPool, sendJobs } from './batch.ts'
+import { fetchAllPages, groupBy, runFinishPatch, runPool, runStatus, runWindowStart, RUN_CLAIM_STALE_MINUTES, sendJobs } from './batch.ts'
 
 type Sub = {
   endpoint: string
@@ -48,7 +49,7 @@ const MESSAGES = {
     morningTitle: '今日のまとめ',
     planned: (n: number) => `予定 ${n} 件`,
     due: (items: string) => `締切: ${items}`,
-    overdue: (n: number) => `期限切れ ${n} 件`,
+    overdue: (n: number) => `締切切れ ${n} 件`,
     emptyDay: '今日の予定はまだありません。やることを決めましょう。',
     sep: ' ・ ',
     listSep: '、',
@@ -63,7 +64,7 @@ const MESSAGES = {
     asPlanned: '予定どおり',
     record: '記録する',
     timerTitle: 'タイマーが動いたままです',
-    timerBody: (title: string) => `「${title}」を 3 時間以上計測しています`,
+    timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
   },
   en: {
     morningTitle: 'Today at a glance',
@@ -192,6 +193,37 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   })
 
+  const now = new Date()
+  const nowIso = now.toISOString()
+
+  // この回を始めてよいかを `reminder_runs` の 1 行で確かめる（前の回が 5 分を超えて走っていたら、同じ時間を同時に送らない）。
+  // 「走っていない（running_since が null）か、目印が古すぎる」ときだけ running_since を自分の時刻にする 1 回の update。
+  // 同時に 2 回来ても、行のロックで後の update は先の書き込みを見て 0 行になる。
+  // pg_try_advisory_lock は使わない（PostgREST は呼び出しごとに接続を使い回すので、セッションのロックを次の呼び出しまで持てない）
+  const staleBefore = new Date(now.getTime() - RUN_CLAIM_STALE_MINUTES * 60_000).toISOString()
+  const claim = await admin
+    .from('reminder_runs')
+    .update({ running_since: nowIso })
+    .eq('id', 1)
+    .or(`running_since.is.null,running_since.lt."${staleBefore}"`)
+    .select('last_ok_at')
+  if (claim.error) {
+    console.error('[daily-reminders] claim run failed', claim.error)
+    return new Response(claim.error.message, { status: 500 })
+  }
+  if (!claim.data || claim.data.length === 0) {
+    // 前の回がまだ走っている。この回の分は、前の回か次の回が送る
+    return new Response(JSON.stringify({ skipped: 'running' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  const windowStartMs = runWindowStart((claim.data[0] as { last_ok_at: string | null }).last_ok_at, now.getTime(), CRON_INTERVAL_MINUTES)
+
+  /** 回の終わり。目印を外し、全部うまくいったときだけ last_ok_at を進める（自分の目印のときだけ。取り直されていたら触らない） */
+  const finishRun = async (failedCount: number) => {
+    const { error } = await admin.from('reminder_runs').update(runFinishPatch(failedCount, nowIso)).eq('id', 1).eq('running_since', nowIso)
+    // 書けなくても、目印は RUN_CLAIM_STALE_MINUTES 分で取り直され、last_ok_at が進まない分は次の回が送る
+    if (error) console.error('[daily-reminders] finish run failed', error)
+  }
+
   // 1 回に返るのは 1000 行まで。主キーの順にページを読み切る（読み終えてから送るので、途中で消しても行はずれない）
   let subs: Sub[]
   try {
@@ -209,34 +241,47 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('[daily-reminders] load subscriptions failed', err)
+    await finishRun(1)
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
-  /** 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く */
+  /**
+   * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
+   * 1 回に返るのは 1000 行まで。主キー（id）の順にページを読み切る
+   */
   const openTasks = async (userId: string): Promise<ReminderTask[]> => {
-    const { data: unplanned, error: listError } = await admin
-      .from('lists')
-      .select('id')
-      .eq('user_id', userId)
-      .in('kind', ['someday', 'checklist'])
-    if (listError) throw new Error(listError.message)
-    const excluded = new Set((unplanned ?? []).map((l: { id: string }) => l.id))
-    const { data: rows, error: taskError } = await admin
-      .from('tasks')
-      .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
-      .eq('user_id', userId)
-      .eq('completed', false)
-      .eq('is_time_log', false)
-      .is('parent_id', null)
-      .is('deleted_at', null)
-      .is('archived_at', null)
-      .or('scheduled_date.not.is.null,due_date.not.is.null')
+    const unplanned = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('lists')
+        .select('id')
+        .eq('user_id', userId)
+        .in('kind', ['someday', 'checklist'])
+        .order('id')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as { id: string }[]
+    })
+    const excluded = new Set(unplanned.map((l) => l.id))
     // 読めなかったら送らない（空のまとめを送って last_plan_sent を進めない。次の回にやり直す）
-    if (taskError) throw new Error(taskError.message)
-    return ((rows ?? []) as ReminderTask[]).filter((t) => !excluded.has(t.list_id))
+    const rows = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('tasks')
+        .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
+        .eq('user_id', userId)
+        .eq('completed', false)
+        .eq('is_time_log', false)
+        .is('parent_id', null)
+        .is('deleted_at', null)
+        .is('archived_at', null)
+        .or('scheduled_date.not.is.null,due_date.not.is.null')
+        .order('id')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as ReminderTask[]
+    })
+    return rows.filter((t) => !excluded.has(t.list_id))
   }
 
-  const now = new Date()
   let sent = 0
   let removed = 0
   let failed = 0
@@ -283,7 +328,8 @@ Deno.serve(async (req) => {
         dueReminders: sub.due_reminders === true,
         recordPrompts: sub.record_prompts === true,
       },
-      nowWall - CRON_INTERVAL_MINUTES * 60_000,
+      // 壁時計でも同じ長さだけさかのぼる（前の成功の回から今まで）
+      nowWall - (now.getTime() - windowStartMs),
       nowWall,
     ).filter((r) => !sentSet.has(r.key))
     // 同じ時刻に重なった締切は 1 通にまとめる（1 件ずつ出すと通知が洪水になる）
@@ -319,6 +365,7 @@ Deno.serve(async (req) => {
       }),
     )
     sent += outcome.delivered.length
+    failed += outcome.failed.length
     for (const f of outcome.failed) {
       console.error('[daily-reminders] send failed', (f.error as { statusCode?: number }).statusCode, f.error)
     }
@@ -371,7 +418,11 @@ Deno.serve(async (req) => {
     }
   }
 
+  await finishRun(failed)
+
+  // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
   return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {
+    status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })
 })

@@ -13,8 +13,17 @@ export const TASK_MULTI_DND_TYPE = 'application/x-task-ids'
 /** 落とし先がドラッグを受けられるときの見た目 */
 export const DROP_HIGHLIGHT_CLASS = 'bg-accent-50 ring-2 ring-inset ring-accent-400 dark:bg-accent-500/10'
 
+/** いま運んでいる ToDo（dragover では DataTransfer の中身を読めないので、落とす前の見た目の長さに使う） */
+let carried: readonly string[] = []
+
+/** いま運んでいる ToDo の id（最後に `startTaskDrag` したもの） */
+export function carriedTaskIds(): readonly string[] {
+  return carried
+}
+
 /** ToDo をつかむ。どの落とし先（予定に入れる＝copy / 動かす＝move）でも受けられるよう copyMove で渡す */
 export function startTaskDrag(e: React.DragEvent, taskId: string, group?: string[]) {
+  carried = group && group.length > 1 ? group : [taskId]
   e.dataTransfer.setData(TASK_DND_TYPE, taskId)
   e.dataTransfer.setData('text/plain', taskId)
   if (group && group.length > 1) e.dataTransfer.setData(TASK_MULTI_DND_TYPE, JSON.stringify(group))

@@ -1,4 +1,5 @@
-import { Suspense, useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { NIGHT_HOURS, timeToMinutes } from '../lib/timeGrid'
@@ -18,7 +19,7 @@ import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import { isLogTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
@@ -67,6 +68,7 @@ export function WeekCalendarView({
 }) {
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
   const googleDragRef = useRef<CalendarEvent | null>(null)
@@ -112,8 +114,7 @@ export function WeekCalendarView({
   const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : gridDays.length === 3 ? 'grid-cols-3' : 'grid-cols-1'
   /**
-   * 1 日表示では、24 時の下に次の日の 0〜4 時（1 日の区切りまで）を続けて出す。
-   * 夜中に「今日」（前の日）を見ていても、その夜の続きと今の線までスクロールで見られる
+   * 1 日表示では、24 時の下に次の日の 0〜4 時を続けて出す（日をまたぐ予定・記録の続きが見えるように）
    */
   const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
   const hourHeight = useHourHeight()
@@ -138,7 +139,7 @@ export function WeekCalendarView({
   logLimitRef.current = logLimitMin
 
   const bucketDays = useMemo(() => (nightDay ? [...days, nightDay] : days), [days, nightDay])
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
 
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
@@ -216,7 +217,9 @@ export function WeekCalendarView({
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        if (ev) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
+        // 元の枠に戻しただけなら Google へ書き込まない
+        const same = ev && ev.date === dateKey && ev.startTime === startTime && ev.endTime === endTime
+        if (ev && !same) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -236,7 +239,7 @@ export function WeekCalendarView({
     onResizeDone: (taskId, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        if (ev) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
+        if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -261,7 +264,7 @@ export function WeekCalendarView({
       },
       [openCard, openGoogleCard],
     ),
-    clickCreateMinutes: 60,
+    clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress: (id, x, y) => {
       openBlockMenu(id, x, y)
     },
@@ -323,7 +326,8 @@ export function WeekCalendarView({
       setUnscheduleHover(false)
     } else {
       setAllDayMoveKey(null)
-      setUnscheduleHover(isOverUnscheduleDrop(e.clientX, e.clientY))
+      // 予定は To-Do の置き場に戻さない（日時の無い予定はどこにも出ない）
+      setUnscheduleHover(!isEventTask(task) && isOverUnscheduleDrop(e.clientX, e.clientY))
     }
   }
   const handleGridPointerUp = () => {
@@ -331,7 +335,7 @@ export function WeekCalendarView({
     const toUnschedule = getCalendarItemDrag().overUnschedule
     if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
-      if (task && !isLogTask(task)) {
+      if (task && !isLogTask(task) && (allDayMoveKey || !isEventTask(task))) {
         updateTask(
           d.taskId,
           allDayMoveKey ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null } : UNSCHEDULE_PATCH,
@@ -374,7 +378,8 @@ export function WeekCalendarView({
         })
         return
       }
-      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind: 'todo' })
+      const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === taskId))
+      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind })
     },
   })
 
@@ -382,11 +387,11 @@ export function WeekCalendarView({
     return gridDays.some((d) => {
       const key = toDateKey(d)
       // 1 日表示では終日タスクは左のリストに出るので、外部の終日予定だけを数える
-      const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0)
+      const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0) + (dueByDate.get(key)?.length ?? 0)
       const eventCount = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay).length
       return taskCount + eventCount > 0
     })
-  }, [gridDays, singleDay, allDayByDate, eventsByDate])
+  }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate])
 
   /** 日の列（1 日表示の夜の続きも）に渡すもの */
   const columnProps = {
@@ -451,6 +456,7 @@ export function WeekCalendarView({
               gutterWidth={gutterWidth}
               gridColsClass={gridColsClass}
               allDayByDate={allDayByDate}
+              dueByDate={dueByDate}
               eventsByDate={eventsByDate}
               allDayDragOver={allDayDragOver}
               setAllDayDragOver={setAllDayDragOver}
@@ -509,7 +515,7 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      <Suspense fallback={null}>
+      <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
         {eventCard && (
           <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
@@ -528,7 +534,7 @@ export function WeekCalendarView({
             }}
           />
         )}
-      </Suspense>
+      </OverlaySuspense>
     </div>
   )
 }

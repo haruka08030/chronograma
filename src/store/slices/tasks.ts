@@ -1,7 +1,7 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
-import type { Task } from '../../types/task'
+import { isEventTask, type Task } from '../../types/task'
 import { INBOX_ID } from '../storeConstants'
-import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront } from '../taskHelpers'
+import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
@@ -35,10 +35,12 @@ type TasksActions = Pick<
 
 /**
  * 完了の切り替え。チェックリストは親子をまとめて（`toggleChecklistTree`）、
- * それ以外は繰り返しの次回を作る／片付ける（`taskRecurrence.ts`）
+ * それ以外は繰り返しの次回を作る／片付ける（`taskRecurrence.ts`）。予定は完了にしない（null）
  */
 function toggleByListKind(s: Pick<TaskState, 'tasks' | 'lists'>, id: string, now: string): Task[] | null {
-  const listId = s.tasks.find((t) => t.id === id)?.listId
+  const task = s.tasks.find((t) => t.id === id)
+  if (!task || isEventTask(task)) return null
+  const listId = task.listId
   const kind = s.lists.find((l) => l.id === listId)?.kind
   return kind === 'checklist' ? toggleChecklistTree(s.tasks, id, now) : toggleTaskCompletion(s.tasks, id, now)
 }
@@ -119,7 +121,8 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     toggleTask: (id) => {
       const s0 = get()
       const task = s0.tasks.find((t) => t.id === id)
-      if (!task) return
+      // 予定には完了が無い（ショートカット・まとめて完了などから来ても何もしない）
+      if (!task || isEventTask(task)) return
       // 完了は行が一覧から消えるので、何を完了したかと「元に戻す」を出す（スマホには ⌘Z が無い）
       pushUndo(task.completed ? undefined : { key: 'undo.taskCompleted', params: { title: task.title } })
       set((s) => {
@@ -128,23 +131,34 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       })
     },
     updateTask: (id, patch, label) => {
+      const task = get().tasks.find((t) => t.id === id)
+      // 同じ値を選び直しただけなら何もしない（取り消しの履歴・トースト・同期の書き込みを積まない）
+      if (task && !patchChangesTask(task, patch)) return
       // 作った直後の空の行に名前を付けるだけなら、作成と同じ 1 手にまとめる
-      if (!isUnnamedJustCreated(id)) pushUndo(label)
+      // メモ・場所を打っている間は 1 回分にまとめる
+      const keys = Object.keys(patch)
+      const typingKey = keys.length === 1 && (keys[0] === 'description' || keys[0] === 'location') ? `${id}:${keys[0]}` : undefined
+      if (!isUnnamedJustCreated(id)) pushUndo(label, typingKey)
       return set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))
     },
-    rescheduleTasks: (ids, dateKey, label) => {
+    rescheduleTasks: (all, dateKey, label) => {
+      const patch = { scheduledDate: dateKey, startTime: null, endTime: null }
+      const ids = all.filter((id) => {
+        const task = get().tasks.find((t) => t.id === id)
+        return task ? patchChangesTask(task, patch) : false
+      })
       if (ids.length === 0) return
       pushUndo(label)
       const selected = new Set(ids)
       set((s) => ({
-        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, { scheduledDate: dateKey, startTime: null, endTime: null }) : t)),
+        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, patch) : t)),
       }))
     },
     completeTasks: (ids) => {
       const s0 = get()
-      const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed))
+      const targets = ids.filter((id) => s0.tasks.some((t) => t.id === id && !t.completed && !isEventTask(t)))
       if (targets.length === 0) return
       const first = s0.tasks.find((t) => t.id === targets[0])
       pushUndo(
@@ -171,14 +185,15 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
           tasks: s.tasks.map((t) => {
             const listHit = listTargets?.has(t.id)
             const prioHit = patch.priority !== undefined && selected.has(t.id)
-            const dueHit = patch.dueDate !== undefined && selected.has(t.id)
+            const dueHit = (patch.dueDate !== undefined || patch.dueTime !== undefined) && selected.has(t.id)
             const secHit = patch.sectionId !== undefined && selected.has(t.id)
             const colorHit = patch.color !== undefined && selected.has(t.id)
             if (!listHit && !prioHit && !dueHit && !secHit && !colorHit) return t
-            const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'sectionId' | 'color'>> = {}
+            const piece: Partial<Pick<Task, 'listId' | 'priority' | 'dueDate' | 'dueTime' | 'sectionId' | 'color'>> = {}
             if (listHit && patch.listId !== undefined) piece.listId = patch.listId
             if (prioHit) piece.priority = patch.priority
-            if (dueHit) piece.dueDate = patch.dueDate
+            if (dueHit && patch.dueDate !== undefined) piece.dueDate = patch.dueDate
+            if (dueHit && patch.dueTime !== undefined) piece.dueTime = patch.dueTime
             if (secHit) piece.sectionId = patch.sectionId
             if (colorHit) piece.color = patch.color
             return applyTaskPatch(t, piece)

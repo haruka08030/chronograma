@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, type Habit, type HabitWeekday } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
@@ -12,6 +12,7 @@ import type { RemoteLabels } from './labelSync'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { buildRecurrence } from './recurrence'
+import { readEstimateMinutes } from './estimate'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -62,12 +63,16 @@ interface TaskRow {
   start_time: string | null
   end_time: string | null
   location?: string | null
+  /** 古い DB には無い（`015`） */
+  estimate_minutes?: number | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
   habit_id?: string | null
   /** 古い DB には無い */
   is_sleep?: boolean | null
+  /** 古い DB には無い（`014`） */
+  is_event?: boolean | null
   /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
@@ -151,6 +156,30 @@ function isMissingIsSleepColumnError(message: string | undefined): boolean {
 function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ is_sleep, ...rest }) => {
     void is_sleep
+    return rest
+  })
+}
+
+function isMissingEstimateColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'estimate_minutes' column")
+}
+
+function stripEstimateFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ estimate_minutes, ...rest }) => {
+    void estimate_minutes
+    return rest
+  })
+}
+
+function isMissingIsEventColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'is_event' column")
+}
+
+function stripIsEventFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ is_event, ...rest }) => {
+    void is_event
     return rest
   })
 }
@@ -281,16 +310,7 @@ function rowToList(row: ListRow): TaskList {
 }
 
 function rowToHabit(row: HabitRow): Habit {
-  const freqRaw = row.frequency
-  let frequency: Habit['frequency'] = { type: 'daily' }
-  if (freqRaw && typeof freqRaw === 'object' && freqRaw !== null) {
-    const f = freqRaw as Record<string, unknown>
-    if (f.type === 'daily') frequency = { type: 'daily' }
-    else if (f.type === 'weekly' && Array.isArray(f.weekdays)) {
-      const wd = f.weekdays.filter((x): x is number => typeof x === 'number') as HabitWeekday[]
-      frequency = { type: 'weekly', weekdays: wd }
-    }
-  }
+  const frequency = readHabitFrequency(row.frequency)
   const datesRaw = row.completed_dates
   const completedDates = Array.isArray(datesRaw) ? datesRaw.filter((d): d is string => typeof d === 'string') : []
   const inferredMode = inferHabitTimeMode(row.start_time, row.end_time)
@@ -377,12 +397,13 @@ function rowToTaskFields(row: TaskRow): Task {
     startTime: row.start_time,
     endTime: row.end_time,
     location: typeof row.location === 'string' ? row.location : null,
+    estimateMinutes: readEstimateMinutes(row.estimate_minutes),
     color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
     category: typeof row.category === 'string' ? row.category : null,
     recurrence,
-    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true),
+    kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
@@ -425,15 +446,17 @@ function taskToRow(userId: string, task: Task): TaskRow {
     start_time: task.startTime,
     end_time: task.endTime,
     location: task.location == null ? null : clip(task.location, MAX_TITLE),
+    estimate_minutes: task.estimateMinutes,
     color: task.color,
     priority: task.priority,
     tags: task.tags,
     category: isLogTask(task) ? task.category : null,
     recurrence: task.recurrence,
-    // 種類はサーバーでは 2 つの列（記録か・睡眠か）。前の版の端末も同じ列を読む
+    // 種類はサーバーでは印の列（記録か・睡眠か・予定か）。前の版の端末も同じ列を読む（予定の印を読まない版では To-Do）
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
     is_sleep: isSleepTask(task),
+    is_event: isEventTask(task),
     time_zone: task.timeZone,
     time_zone_anchor: task.timeZoneAnchor,
     reminders: task.reminders,
@@ -448,29 +471,28 @@ const PAGE_SIZE = 1000
 /**
  * 利用者の行を全部取る。1 回で取ると上限（既定 1,000 行）で切れ、返ってこなかった行が
  * 三方向マージで「他端末で消された」扱いになって手元から消えていた。
- * 件数も一緒に受け取り、全部そろうまでページを送る。毎回の push で行の並びが変わるので id 順に固定する
+ * id 順に、続きは最後に受け取った id より後（keyset）から、空のページが返るまで取る。
+ * 取っている間に他端末が行を消しても後ろの行はずれず、行が変わっても id は変わらないので、飛ばしも重複も無い
+ * （offset で送ると、前の方の行が消えた分だけ後ろの行を取り飛ばしていた）。
+ * サーバーの上限がページの大きさより小さくても、空になるまで送るので取りこぼさない
  */
-async function fetchAllRows<T>(supabase: SupabaseClient, table: string, userId: string): Promise<{ rows: T[] } | { error: string }> {
+async function fetchAllRows<T extends { id: string }>(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
-  let total: number | null = null
-  do {
-    const { data, count, error } = await supabase
-      .from(table)
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .order('id')
-      .range(rows.length, rows.length + PAGE_SIZE - 1)
-    if (error) return { error: error.message }
+  for (;;) {
+    let q = supabase.from(table).select('*').eq('user_id', userId)
+    const last = rows[rows.length - 1]
+    if (last) q = q.gt('id', last.id)
+    const { data, error } = await q.order('id').limit(PAGE_SIZE)
+    // 途中で失敗したら、途中までの結果ではマージしない（足りない行が「消された」扱いになる）
+    if (error) return { error: `${table}: ${error.message}` }
     const page = (data ?? []) as T[]
-    total = count
-    // 取得中に行が減ると最後のページが空になる。途中までの結果でマージすると足りない行が
-    // 「消された」扱いになるので、次の同期でやり直す
-    if (page.length === 0) {
-      if (total !== null && rows.length < total) return { error: `${table}: fetched ${rows.length} of ${total} rows` }
-      break
-    }
+    if (page.length === 0) break
     rows.push(...page)
-  } while (total !== null && rows.length < total)
+  }
   return { rows }
 }
 
@@ -505,6 +527,8 @@ export interface SyncChanges {
   tasks: Task[]
   habits: Habit[]
   tombstones: SyncTombstone[]
+  /** `since` より後の印のうち、サーバーが上限で消したものがある（`010` の sync_tombstone_purges）。差分では消えた行が分からないので、全部を取り直す */
+  tombstonesTrimmed: boolean
 }
 
 const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'habits']
@@ -556,6 +580,14 @@ function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
   return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
 }
 
+/** `010` を流す前の DB（上限で消した印の表が無い）。印は消えていないので、差分のままでよい */
+function isMissingPurgeTable(e: { message: string; code?: string }): boolean {
+  return (
+    /sync_tombstone_purges/.test(e.message) &&
+    (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.message))
+  )
+}
+
 /**
  * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
  * `unsupported` は関数が無い DB（`008` を流す前）
@@ -595,6 +627,14 @@ export async function fetchChangesSince(
     'row_id',
   ])
   if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  // 上限で消した印の一番新しい時刻（`010`）。印を取った後に読むので、取った印より前に消えた分は必ず見える
+  const trimmed = await supabase
+    .from('sync_tombstone_purges')
+    .select('last_deleted_at')
+    .eq('user_id', userId)
+    .gt('last_deleted_at', since)
+    .limit(1)
+  if (trimmed.error && !isMissingPurgeTable(trimmed.error)) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
   return {
     lists: (got.lists as unknown as ListRow[]).map(rowToList),
     sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
@@ -603,6 +643,7 @@ export async function fetchChangesSince(
     tombstones: ts.rows
       .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
       .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
+    tombstonesTrimmed: (trimmed.data ?? []).length > 0,
   }
 }
 
@@ -908,6 +949,8 @@ export async function pushListsTasksHabits(
   let stripColor = false
   let stripHabitId = false
   let stripIsSleep = false
+  let stripIsEvent = false
+  let stripEstimate = false
   let stripTimeZone = false
   let stripReminders = false
   let stripDueTime = false
@@ -922,6 +965,8 @@ export async function pushListsTasksHabits(
     if (stripColor) rows = stripColorFromTaskRows(rows)
     if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
+    if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
+    if (stripEstimate) rows = stripEstimateFromTaskRows(rows)
     if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
     if (stripReminders) rows = stripRemindersFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
@@ -930,7 +975,7 @@ export async function pushListsTasksHabits(
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 13; attempt++) {
+  for (let attempt = 0; attempt < 15; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -955,6 +1000,16 @@ export async function pushListsTasksHabits(
     }
     if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
       stripIsSleep = true
+      continue
+    }
+    // `014` を流す前の DB。予定は To-Do として送る（列を足せば次回から予定のまま）
+    if (isMissingIsEventColumnError(errMsg) && !stripIsEvent) {
+      stripIsEvent = true
+      continue
+    }
+    // `015` を流す前の DB。見積もりは端末にだけ残る
+    if (isMissingEstimateColumnError(errMsg) && !stripEstimate) {
+      stripEstimate = true
       continue
     }
     if (isMissingRemindersColumnError(errMsg) && !stripReminders) {

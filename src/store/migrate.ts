@@ -6,18 +6,16 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { inferHabitTimeMode } from '../types/habit'
 import { migrateLegacyCanvasIds } from '../lib/canvasLegacyMigration'
-import { DEFAULT_LIST_COLOR_PALETTE_ID, normalizeListColorPaletteId, paletteColors } from '../lib/listColorPalettes'
 import { normalizeTimeLogTagPresetList } from '../lib/timeLogTags'
 import { assignColorsInOrder, labelForHex } from '../lib/logCategoryColors'
-import { nearestGoogleHex } from '../lib/googleColors'
+import { GOOGLE_COLOR_HEXES, nearestGoogleHex } from '../lib/googleColors'
 import { looksLikeSleep } from '../lib/sleep'
 import { normalizeExtraTimeZones } from '../lib/extraTimeZones'
+import { hasExistingData } from '../lib/onboarding'
 import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
 import { toDateKey } from '../lib/dateKey'
-
-const defaultPaletteColors = paletteColors(DEFAULT_LIST_COLOR_PALETTE_ID)
 
 /** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
 type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
@@ -63,7 +61,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   }
   if (version < 5) {
     const lists = (state.lists as Record<string, unknown>[]) ?? []
-    const cols = defaultPaletteColors
+    const cols = GOOGLE_COLOR_HEXES
     state.lists = lists.map((l, i) => ({
       ...l,
       color: (l as Record<string, unknown>).color ?? cols[i % cols.length],
@@ -85,9 +83,6 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   }
   if (version < 9) {
     state.habits = state.habits ?? []
-  }
-  if (version < 10) {
-    state.listColorPaletteId = normalizeListColorPaletteId(state.listColorPaletteId)
   }
   if (version < 11) {
     state.sections = Array.isArray(state.sections) ? state.sections : []
@@ -309,6 +304,16 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // タスクの種類は kind 1 つで持つ（それまでは「記録か」「睡眠か」の 2 つの印）。updatedAt は変えない（v30 と同じ理由）
     const tasks = (state.tasks as LegacyTask[] | undefined) ?? []
     state.tasks = tasks.map(withKindFromFlags)
+  }
+  if (version < 39) {
+    // はじめの 3 ステップの案内はこの版から。すでにタスク・記録・習慣のある人には出さない
+    state.onboardingDone = hasExistingData(state as { tasks?: unknown[]; habits?: unknown[] })
+  }
+  if (version < 40) {
+    // 「予定のあとに記録を確認」はそれまで最初から ON だったが、通知の許可を聞かないので届いていなかった。
+    // 許可のない端末では OFF に揃える（ON にし直すと許可を聞く）
+    const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted'
+    if (!granted) state.recordPrompts = false
   }
   return state as unknown as TaskState
 }

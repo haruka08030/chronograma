@@ -18,7 +18,8 @@ import {
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
 /**
- * PostgREST の最小限の偽物。select は range と count、upsert は onConflict を見る。
+ * PostgREST の最小限の偽物。select は id の keyset（gt・order・limit）、upsert は onConflict を見る。
+ * `onPage` は select が 1 ページ返すたびに呼ばれる（取得の途中で他端末が書き換える場面を作る）。エラーを返すとそのページは失敗する。
  * `maxRows` はサーバーの 1 回あたりの上限、`uniqueOn` は DB にある一意制約。
  * 書き込みは `004` のトリガー（sync_write_guard）と同じに振る舞う: base_updated_at を送った行は
  * サーバーの行の updated_at と同じときだけ通し、updated_at をサーバーの時計（`serverNow`）にする。
@@ -32,6 +33,7 @@ function fakeSupabase(
     rejectRow?: (table: string, row: Row) => { code: string; message: string } | null
     noBaseColumn?: boolean
     serverNow?: () => string
+    onPage?: (table: string, page: Row[]) => { message: string } | void
   } = {},
 ) {
   const { maxRows = 1000, uniqueOn = 'user_id,id', rejectRow, noBaseColumn = false } = opts
@@ -68,15 +70,24 @@ function fakeSupabase(
       return {
         select: () => {
           let userId = ''
+          let after: string | null = null
           const q = {
             eq: (_col: string, v: string) => ((userId = v), q),
-            order: () => q,
-            range: async (from: number, to: number) => {
-              const mine = all()
-                .filter((r) => r.user_id === userId)
-                .sort((a, b) => a.id.localeCompare(b.id))
-              const data = mine.slice(from, Math.min(to + 1, from + maxRows))
-              return { data, count: mine.length, error: null }
+            gt: (col: string, v: string) => {
+              if (col !== 'id') throw new Error(`fake select: gt on ${col}`)
+              return ((after = v), q)
+            },
+            order: (col: string) => {
+              if (col !== 'id') throw new Error(`fake select: order by ${col}`)
+              return q
+            },
+            limit: async (n: number) => {
+              const data = all()
+                .filter((r) => r.user_id === userId && (after === null || r.id > after))
+                .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+                .slice(0, Math.min(n, maxRows))
+              const error = opts.onPage?.(table, data)
+              return error ? { data: null, error } : { data, error: null }
             },
           }
           return q
@@ -175,6 +186,60 @@ describe('fetchListsTasksHabits', () => {
     expect(res.tasks).toHaveLength(450)
   })
 
+  it('keeps every remaining row when another device deletes an earlier row mid-fetch (#206)', async () => {
+    const tasks = Array.from({ length: 250 }, (_, i) => task(`t${String(i).padStart(4, '0')}`))
+    const db = { lists: [], list_sections: [], tasks, habits: [] } as Record<string, Row[]>
+    let pages = 0
+    const { client } = fakeSupabase(db, {
+      maxRows: 100,
+      // 1 ページ目を返した直後に、そのページの中の行を消す（offset だと後ろの 1 行が飛ぶ）
+      onPage: (table) => {
+        if (table === 'tasks' && ++pages === 1) db.tasks = db.tasks!.filter((r) => r.id !== 't0010')
+      },
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const ids = res.tasks.map((t) => t.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // 消えた行は 1 ページ目で受け取り済み。残りの 249 行はすべて届く
+    expect(ids).toHaveLength(250)
+    expect(ids).toContain('t0100')
+    expect(ids).toContain('t0249')
+  })
+
+  it('gets every row exactly once when another device updates rows mid-fetch (#206)', async () => {
+    const tasks = Array.from({ length: 250 }, (_, i) => task(`t${String(i).padStart(4, '0')}`))
+    const db = { lists: [], list_sections: [], tasks, habits: [] } as Record<string, Row[]>
+    let pages = 0
+    const { client } = fakeSupabase(db, {
+      maxRows: 100,
+      // 受け取り済みの行と、まだの行を書き換える（updated_at が進む）
+      onPage: (table) => {
+        if (table !== 'tasks' || ++pages !== 1) return
+        db.tasks = db.tasks!.map((r) =>
+          r.id === 't0005' || r.id === 't0200' ? { ...r, title: `${r.id} edited`, updated_at: '2026-10-05T00:00:00.000Z' } : r,
+        )
+      },
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const ids = res.tasks.map((t) => t.id)
+    expect(ids).toHaveLength(250)
+    expect(new Set(ids).size).toBe(250)
+    expect(res.tasks.find((t) => t.id === 't0200')?.title).toBe('t0200 edited')
+  })
+
+  it('fails instead of returning a partial result when a later page errors', async () => {
+    const tasks = Array.from({ length: 250 }, (_, i) => task(`t${String(i).padStart(4, '0')}`))
+    let pages = 0
+    const { client } = fakeSupabase(
+      { lists: [], list_sections: [], tasks, habits: [] },
+      { maxRows: 100, onPage: (table) => (table === 'tasks' && ++pages === 2 ? { message: 'boom' } : undefined) },
+    )
+    const res = await fetchListsTasksHabits(client, 'u1')
+    expect(res).toEqual({ error: 'tasks: boom' })
+  })
+
   it("returns only the signed-in user's rows", async () => {
     const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [task('a'), task('b', 'u2')], habits: [] })
     const res = await fetchListsTasksHabits(client, 'u1')
@@ -237,6 +302,28 @@ describe('task kind (is_time_log / is_sleep columns)', () => {
       ['todo', false, false, false],
       ['log', true, false, false],
       ['sleep', true, true, false],
+    ])
+  })
+
+  it('reads and writes an event (no check) as is_event, which older apps read as a to-do', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [{ ...task('event'), is_event: true }, { ...task('oldRow') }],
+      habits: [],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(Object.fromEntries(res.tasks.map((t) => [t.id, t.kind]))).toEqual({ event: 'event', oldRow: 'todo' })
+
+    const push = fakeSupabase({})
+    const [todo, event] = fetchedTasks(['todo', 'event'])
+    const sent = await pushListsTasksHabits(push.client, 'u1', [], [todo!, { ...event!, kind: 'event' }], [], [], noDeletes)
+    expect(sent.error).toBeUndefined()
+    const rows = push.upserts.find((u) => u.table === 'tasks')!.rows.map((r) => [r.id, r.is_time_log, r.is_event])
+    expect(rows).toEqual([
+      ['todo', false, false],
+      ['event', false, true],
     ])
   })
 })

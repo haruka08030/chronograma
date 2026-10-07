@@ -68,12 +68,13 @@ export function CalendarTaskDock() {
     makeRowClick,
     makeSelection,
     soloIds,
+    listboxProps,
   } = useTaskListSelection({
     rowIds: activeIds,
     openDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
-    completeRows: bulk.complete,
+    completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     resetOn: [dockListId],
   })
@@ -124,17 +125,19 @@ export function CalendarTaskDock() {
               </button>
             </div>
           )}
-          {active.map((t) => (
-            <TaskItem
-              key={t.id}
-              task={t}
-              hideDueDatePicker
-              onRowClick={makeRowClick(t.id)}
-              selection={makeSelection(t.id)}
-              dragGroupIds={getDragGroupIds(t.id)}
-              onNativeDragEnd={clearSelected}
-            />
-          ))}
+          <div {...listboxProps} aria-label={t('calendarDock.listHeading')} className="space-y-0.5 outline-none">
+            {active.map((t) => (
+              <TaskItem
+                key={t.id}
+                task={t}
+                hideDueDatePicker
+                onRowClick={makeRowClick(t.id)}
+                selection={makeSelection(t.id)}
+                dragGroupIds={getDragGroupIds(t.id)}
+                onNativeDragEnd={clearSelected}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

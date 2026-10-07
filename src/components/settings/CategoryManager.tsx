@@ -57,6 +57,8 @@ export function CategoryManager() {
   }, [tasks, presets])
 
   const uncategorized = usage.get('') ?? 0
+  // まだ 1 件も記録していない人に、全部のラベルへ「未使用」と並べない（責められているように見える）
+  const anyUsage = usage.size > 0
 
   return (
     <>
@@ -71,7 +73,9 @@ export function CategoryManager() {
             >
               <span className="gc-dot h-4 w-4 shrink-0 rounded-full" style={vars} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{name}</span>
-              <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{minutes > 0 ? formatDuration(minutes) : t('categories.unused')}</span>
+              <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
+                {minutes > 0 ? formatDuration(minutes) : anyUsage ? t('categories.unused') : ''}
+              </span>
               <div className={`flex shrink-0 items-center ${REVEAL_ON_HOVER}`}>
                 <button
                   type="button"

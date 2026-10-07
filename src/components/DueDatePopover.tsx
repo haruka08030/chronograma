@@ -104,11 +104,13 @@ export function DueDatePopover({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div ref={setWrapperEl} className={wrapperClassName} onClick={(e) => e.stopPropagation()}>
       {trigger({ open, toggle, value })}
 
       {open &&
         createPortal(
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
           <div
             ref={panelRef}
             id={dialogId}

@@ -10,6 +10,7 @@ import {
   getClientId,
   getGoogleRedirectUri,
 } from '../lib/googleCalendar'
+import { askConfirm } from '../lib/confirmDialog'
 
 const CONNECT_TIMEOUT_MS = 15_000
 
@@ -73,7 +74,14 @@ export function useGoogleConnect() {
     }
   }
 
+  /** 解除する前に確認する（Notion・Canvas と同じ）。どこから押しても同じ確認が出る */
   const disconnect = async () => {
+    const ok = await askConfirm({
+      message: t('googleSettings.disconnectConfirm'),
+      confirmLabel: t('integrations.disconnect'),
+      danger: true,
+    })
+    if (!ok) return
     try {
       await disconnectGoogleCalendar()
     } catch {

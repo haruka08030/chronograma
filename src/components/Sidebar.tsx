@@ -150,8 +150,10 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     }
     if (!drawer.shown) return null
     return (
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため
       <div className="fixed inset-0 z-40 flex" onClick={onClose} onKeyDown={trapDrawerTab} inert={drawer.closing}>
         <div className={`absolute inset-0 bg-black/30 ${drawer.closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
         <div
           ref={drawerRef}
           role="dialog"

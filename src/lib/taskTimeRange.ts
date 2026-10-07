@@ -1,4 +1,4 @@
-import { addMinutes, differenceInCalendarDays, differenceInMinutes, endOfDay, max, min, startOfDay } from 'date-fns'
+import { addDays, addMinutes, differenceInCalendarDays, differenceInMinutes, max, min, startOfDay } from 'date-fns'
 import { isLogTask, type Task, type TaskKind } from '../types/task'
 import { HOUR_HEIGHT, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { clockOf } from './clockTime'
@@ -31,7 +31,7 @@ export function taskPlacementDate(task: { dueDate?: string | null; scheduledDate
 /**
  * 開始 `placementDate`+`startTime` 〜 終了 `endDate ?? placementDate`+`endTime`。
  * 置く日はタイムログ=`dueDate`、通常タスク=`scheduledDate ?? dueDate`。
- * 記録で `endDate` がなく終了時刻が開始以前のときは従来どおり翌日まで（+24h）。
+ * `endDate` がなく終了時刻が開始以前のとき、記録と 0:00 終わりの予定は翌日まで（+24h）。
  */
 export function taskTimedInterval(task: Task): { start: Date; end: Date } | null {
   if (!task.startTime || !task.endTime) return null
@@ -40,7 +40,8 @@ export function taskTimedInterval(task: Task): { start: Date; end: Date } | null
   const endYmd = task.endDate ?? startYmd
   const start = ymdHmToLocalDate(startYmd, task.startTime)
   let end = ymdHmToLocalDate(endYmd, task.endTime)
-  if (end <= start && isLogTask(task) && !task.endDate) {
+  // 記録は終了が開始以前なら翌日まで。予定は 0:00 終わりだけ翌日の 0:00（23:00–0:00 など）
+  if (end <= start && !task.endDate && (isLogTask(task) || task.endTime === '00:00')) {
     end = addMinutes(end, DAY_MINUTES)
   }
   if (end <= start) return null
@@ -67,9 +68,10 @@ export function durationMinutesForTaskSlot(task: {
   return diff
 }
 
+/** タイムラインに置くときの長さ: 時間があればその長さ、無ければ見積もり（どちらも無ければ null＝既定の予定の長さ） */
 export function durationMinutesForTaskId(tasks: Task[], taskId: string): number | null {
   const t = tasks.find((x) => x.id === taskId)
-  return t ? durationMinutesForTaskSlot(t) : null
+  return t ? (durationMinutesForTaskSlot(t) ?? t.estimateMinutes ?? null) : null
 }
 
 /** その暦日にかかるログの分数（サマリー用） */
@@ -79,20 +81,11 @@ export function minutesOfLogOnCalendarDay(task: Task, dateKey: string): number {
   if (!iv) return 0
   const day = dateKeyToNoon(dateKey)
   const d0 = startOfDay(day)
-  const d1 = endOfDay(day)
+  const d1 = startOfDay(addDays(day, 1))
   const segStart = max([iv.start, d0])
   const segEnd = min([iv.end, d1])
   if (segEnd <= segStart) return 0
   return differenceInMinutes(segEnd, segStart)
-}
-
-export function compareLogsOnDay(a: Task, b: Task, dateKey: string): number {
-  const la = timeLogSegmentLayoutForDay(a, dateKey)
-  const lb = timeLogSegmentLayoutForDay(b, dateKey)
-  if (!la && !lb) return 0
-  if (!la) return 1
-  if (!lb) return -1
-  return la.top - lb.top
 }
 
 export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
@@ -101,7 +94,7 @@ export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
   if (!iv) return false
   const day = dateKeyToNoon(dateKey)
   const d0 = startOfDay(day)
-  const d1 = endOfDay(day)
+  const d1 = startOfDay(addDays(day, 1))
   return iv.start < d1 && iv.end > d0
 }
 
@@ -112,7 +105,7 @@ export function timeLogSegmentLayoutForDay(task: Task, dateKey: string): { top: 
   if (!iv) return null
   const day = dateKeyToNoon(dateKey)
   const d0 = startOfDay(day)
-  const d1 = endOfDay(day)
+  const d1 = startOfDay(addDays(day, 1))
   const segStart = max([iv.start, d0])
   const segEnd = min([iv.end, d1])
   if (segEnd <= segStart) return null
