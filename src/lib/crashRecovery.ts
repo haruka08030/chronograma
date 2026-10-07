@@ -4,14 +4,14 @@
  */
 import { listAutoBackups, loadAutoBackup } from './autoBackup'
 import { appTodayKey } from './timeZone'
-
-const PERSIST_KEY = 'chronograma-storage'
+import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
+import { BACKUP_SCHEMA_VERSION } from './backupFormat'
 
 /** 保存しているデータを、そのままファイルにして保存させる（取り込みで読める形） */
 export function downloadRawData(): void {
   let raw: string | null = null
   try {
-    raw = localStorage.getItem(PERSIST_KEY)
+    raw = localStorage.getItem(PERSIST_STORAGE_KEY)
   } catch {
     /* 読めなければ空で出す */
   }
@@ -20,7 +20,7 @@ export function downloadRawData(): void {
     // 取り込みはバックアップの形（tasks / lists / habits / listSections）を読むので、その形に寄せる
     const state = (JSON.parse(body) as { state?: Record<string, unknown> }).state ?? {}
     body = JSON.stringify({
-      schemaVersion: 3,
+      schemaVersion: BACKUP_SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       tasks: state.tasks ?? [],
       lists: state.lists ?? [],
@@ -52,7 +52,8 @@ function currentViewer(): string | null {
       const id = (JSON.parse(localStorage.getItem(key) ?? 'null') as { user?: { id?: unknown } } | null)?.user?.id
       if (typeof id === 'string') return id
     }
-    const owner = (JSON.parse(localStorage.getItem(PERSIST_KEY) ?? 'null') as { state?: { dataOwner?: unknown } } | null)?.state?.dataOwner
+    const owner = (JSON.parse(localStorage.getItem(PERSIST_STORAGE_KEY) ?? 'null') as { state?: { dataOwner?: unknown } } | null)?.state
+      ?.dataOwner
     return typeof owner === 'string' ? owner : null
   } catch {
     return null
