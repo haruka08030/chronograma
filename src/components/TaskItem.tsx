@@ -9,7 +9,7 @@ import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
-import { appTodayKey, isAppPast, isAppToday, isAppTomorrow, zonedNow } from '../lib/timeZone'
+import { appTodayKey, isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { dueToneOf } from '../lib/dueTone'
 import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
@@ -21,7 +21,7 @@ import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
-import { formatDate } from '../lib/dateFormat'
+import { formatShortDateWeekday } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
 import { TaskSourceLink } from './ui/TaskSourceLink'
 import { useScheduleWish } from '../hooks/useScheduleWish'
@@ -40,11 +40,6 @@ function dateTone(d: Date): DateTone {
   return isAppPast(d) ? 'overdue' : 'future'
 }
 
-/** 行の日付: 今年なら「10/3 (土)」、ほかの年は年も付ける */
-function rowDateText(d: Date, language: string | undefined): string {
-  return formatDate(d, d.getFullYear() !== zonedNow().getFullYear() ? 'shortDateWeekdayYear' : 'shortDateWeekday', language)
-}
-
 /** 締切が近いと言う日数（この日数以内は「あと ◯ 日」で明日と同じ色） */
 const DUE_SOON_DAYS = 3
 
@@ -56,7 +51,7 @@ function dueDateLabel(iso: string, time: string | null, t: TFunction, language: 
   const d = parseISO(iso)
   const tone = dueToneOf(iso, time, appTodayKey())
   const days = differenceInCalendarDays(d, fromDateKey(appTodayKey()))
-  const date = isAppToday(d) ? t('common.today') : isAppTomorrow(d) ? t('common.tomorrow') : rowDateText(d, language)
+  const date = isAppToday(d) ? t('common.today') : isAppTomorrow(d) ? t('common.tomorrow') : formatShortDateWeekday(d, language)
   const by = time ? t('taskItem.dueByTime', { date, time }) : t('taskItem.dueBy', { date })
   if (days < 0) return { text: t('taskItem.dueLate', { by, count: -days }), tone }
   if (days >= 2 && days <= DUE_SOON_DAYS) return { text: t('taskItem.dueSoon', { by, count: days }), tone: 'tomorrow' }
@@ -217,7 +212,7 @@ export const TaskItem = memo(function TaskItem({
     const d = fromDateKey(task.scheduledDate)
     const timePart = task.startTime ? `${task.startTime}${task.endTime ? `–${task.endTime}` : ''}` : ''
     if (task.scheduledDate === dayKey) return timePart ? { text: timePart, tone: dateTone(d) } : null
-    const datePart = isAppToday(d) ? t('common.today') : rowDateText(d, language)
+    const datePart = isAppToday(d) ? t('common.today') : formatShortDateWeekday(d, language)
     return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
   }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
   const [isDragging, setIsDragging] = useState(false)
