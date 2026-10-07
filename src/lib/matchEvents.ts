@@ -46,7 +46,20 @@ const TITLE_THRESHOLD = 0.3
 const TIME_OVERLAP_THRESHOLD = 0.15
 const DRIFT_THRESHOLD_MINUTES = 10
 
-/** 予定（Google・習慣・自分で配置したタスク）とタイムログを突き合わせる */
+/** 予定と記録の組。時刻のずれで「予定どおり」か「ずれた」か */
+function pairOf(p: PlannedItem, a: Task): MatchedPair {
+  const startDrift = Math.abs(timeToMinutes(p.startTime) - timeToMinutes(a.startTime!))
+  const endDrift = Math.abs(timeToMinutes(p.endTime) - timeToMinutes(a.endTime!))
+  const maxDrift = Math.max(startDrift, endDrift)
+  return maxDrift <= DRIFT_THRESHOLD_MINUTES
+    ? { status: 'matched', planned: p, actual: a }
+    : { status: 'time-drift', planned: p, actual: a, driftMinutes: maxDrift }
+}
+
+/**
+ * 予定（Google・習慣・自分で配置した To-Do・予定）とタイムログを突き合わせる。
+ * ▶ で始めた記録は元の To-Do（`sourceTaskId`）と先に組にし（題名を直しても組のまま）、残りを題名の似かたと時間の重なりで組にする
+ */
 export function matchPlanAndActualForDate(planned: PlannedItem[], actualLogs: Task[]): MatchedPair[] {
   const timedPlanned = planned.filter((e) => e.startTime && e.endTime)
   const timedActual = actualLogs.filter((t) => t.startTime && t.endTime)
@@ -54,6 +67,15 @@ export function matchPlanAndActualForDate(planned: PlannedItem[], actualLogs: Ta
   const usedPlanned = new Set<string>()
   const usedActual = new Set<string>()
   const pairs: MatchedPair[] = []
+
+  for (const a of timedActual) {
+    if (!a.sourceTaskId) continue
+    const p = timedPlanned.find((x) => x.taskId === a.sourceTaskId && !usedPlanned.has(x.id))
+    if (!p) continue
+    usedPlanned.add(p.id)
+    usedActual.add(a.id)
+    pairs.push(pairOf(p, a))
+  }
 
   interface Candidate {
     pIdx: number
@@ -64,8 +86,10 @@ export function matchPlanAndActualForDate(planned: PlannedItem[], actualLogs: Ta
 
   for (let pi = 0; pi < timedPlanned.length; pi++) {
     const p = timedPlanned[pi]
+    if (usedPlanned.has(p.id)) continue
     for (let ai = 0; ai < timedActual.length; ai++) {
       const a = timedActual[ai]
+      if (usedActual.has(a.id)) continue
       const tSim = titleSimilarity(p.summary, a.title)
       if (tSim < TITLE_THRESHOLD) continue
 
@@ -86,16 +110,7 @@ export function matchPlanAndActualForDate(planned: PlannedItem[], actualLogs: Ta
     if (usedPlanned.has(pKey) || usedActual.has(aKey)) continue
     usedPlanned.add(pKey)
     usedActual.add(aKey)
-
-    const startDrift = Math.abs(timeToMinutes(p.startTime) - timeToMinutes(a.startTime!))
-    const endDrift = Math.abs(timeToMinutes(p.endTime) - timeToMinutes(a.endTime!))
-    const maxDrift = Math.max(startDrift, endDrift)
-
-    if (maxDrift <= DRIFT_THRESHOLD_MINUTES) {
-      pairs.push({ status: 'matched', planned: p, actual: a })
-    } else {
-      pairs.push({ status: 'time-drift', planned: p, actual: a, driftMinutes: maxDrift })
-    }
+    pairs.push(pairOf(p, a))
   }
 
   for (const p of timedPlanned) {

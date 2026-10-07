@@ -96,6 +96,15 @@ describe('予定（完了の丸の無いもの）', () => {
     useTaskStore.getState().stopTimer()
     expect(useTaskStore.getState().completePromptTaskId).toBeNull()
   })
+
+  it('▶ で始めた記録は元の予定・To-Do の id を覚える（計画どおりかの突き合わせで組にする）', () => {
+    useTaskStore.setState({
+      activeTimer: { taskId: 'shift', taskTitle: 'shift', startedAt: new Date(Date.now() - 30 * 60_000).toISOString(), tags: [] },
+    })
+    useTaskStore.getState().stopTimer()
+    const log = useTaskStore.getState().tasks.find((t) => t.kind === 'log')
+    expect(log?.sourceTaskId).toBe('shift')
+  })
 })
 
 describe('まとめて締切を変える（右クリックの「締切 ›」）', () => {

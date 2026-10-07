@@ -13,6 +13,14 @@ import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from
 import { zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
+import { timeToMinutes } from './timeGrid'
+
+/** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
+function plannedItemMinutes(p: PlannedItem): number {
+  const start = timeToMinutes(p.startTime)
+  const end = p.endTime === '00:00' ? 24 * 60 : timeToMinutes(p.endTime)
+  return Math.max(0, end - start)
+}
 
 export interface WeekReviewDay {
   dateKey: string
@@ -126,9 +134,15 @@ export function getWeekReview(
       dayTagMinutes.set(label, (dayTagMinutes.get(label) ?? 0) + min)
     }
     day.tagMinutes = sortedTagMinutes(dayTagMinutes)
+    // 日ごとの棒の予定の枠は、計画どおりと同じ予定の集まり（To-Do・習慣の枠）から。予定（授業・バイト）は入れない
+    day.plannedMinutes = planned.filter((p) => p.source !== 'scheduled-event').reduce((sum, p) => sum + plannedItemMinutes(p), 0)
     for (const pair of matchPlanAndActualForDate(planned, logs)) {
       if (!pair.planned) continue
-      const followedPair = pair.status === 'matched' || pair.status === 'time-drift'
+      // 予定（授業・バイト）は完了できないので分母に入れない（突き合わせには入れて、その時間の記録を「予定に無かった記録」にしない）
+      if (pair.planned.source === 'scheduled-event') continue
+      // ✓ で終えた時刻つきの To-Do は、記録が無くても予定どおり（RULES: ✓ は完了だけで記録は足さない。予定ブロックが時間を表す）
+      const followedPair =
+        pair.status === 'matched' || pair.status === 'time-drift' || (pair.status === 'planned-only' && pair.planned.completed === true)
       // 今日の、まだ終わっていない予定（日をまたぐものも含む）は、先に記録できていなければ数えない
       const ended = key < todayKey || (pair.planned.endTime > pair.planned.startTime && pair.planned.endTime <= nowHm)
       if (!ended && !followedPair) continue

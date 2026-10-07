@@ -168,6 +168,7 @@ describe('unknown fields', () => {
         'reminders',
         'scheduledDate',
         'sectionId',
+        'sourceTaskId',
         'startTime',
         'tags',
         'timeZone',

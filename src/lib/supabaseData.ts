@@ -65,6 +65,8 @@ interface TaskRow {
   location?: string | null
   /** 古い DB には無い（`015`） */
   estimate_minutes?: number | null
+  /** 古い DB には無い（`016`） */
+  source_task_id?: string | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -168,6 +170,18 @@ function isMissingEstimateColumnError(message: string | undefined): boolean {
 function stripEstimateFromTaskRows(rows: TaskRow[]): TaskRow[] {
   return rows.map(({ estimate_minutes, ...rest }) => {
     void estimate_minutes
+    return rest
+  })
+}
+
+function isMissingSourceTaskColumnError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes("Could not find the 'source_task_id' column")
+}
+
+function stripSourceTaskFromTaskRows(rows: TaskRow[]): TaskRow[] {
+  return rows.map(({ source_task_id, ...rest }) => {
+    void source_task_id
     return rest
   })
 }
@@ -405,6 +419,7 @@ function rowToTaskFields(row: TaskRow): Task {
     recurrence,
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
+    sourceTaskId: typeof row.source_task_id === 'string' ? row.source_task_id : null,
     timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
     timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
     reminders: parseReminders(row.reminders),
@@ -455,6 +470,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     // 種類はサーバーでは印の列（記録か・睡眠か・予定か）。前の版の端末も同じ列を読む（予定の印を読まない版では To-Do）
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
+    source_task_id: task.sourceTaskId,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
@@ -951,6 +967,7 @@ export async function pushListsTasksHabits(
   let stripIsSleep = false
   let stripIsEvent = false
   let stripEstimate = false
+  let stripSourceTask = false
   let stripTimeZone = false
   let stripReminders = false
   let stripDueTime = false
@@ -967,6 +984,7 @@ export async function pushListsTasksHabits(
     if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
     if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
     if (stripEstimate) rows = stripEstimateFromTaskRows(rows)
+    if (stripSourceTask) rows = stripSourceTaskFromTaskRows(rows)
     if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
     if (stripReminders) rows = stripRemindersFromTaskRows(rows)
     if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
@@ -975,7 +993,7 @@ export async function pushListsTasksHabits(
     if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
     return upsert('tasks', rows)
   }
-  for (let attempt = 0; attempt < 15; attempt++) {
+  for (let attempt = 0; attempt < 16; attempt++) {
     const errMsg = await upsertTasksRows()
     if (!errMsg) break
     if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
@@ -1010,6 +1028,11 @@ export async function pushListsTasksHabits(
     // `015` を流す前の DB。見積もりは端末にだけ残る
     if (isMissingEstimateColumnError(errMsg) && !stripEstimate) {
       stripEstimate = true
+      continue
+    }
+    // `016` を流す前の DB。記録の元の To-Do は端末にだけ残る
+    if (isMissingSourceTaskColumnError(errMsg) && !stripSourceTask) {
+      stripSourceTask = true
       continue
     }
     if (isMissingRemindersColumnError(errMsg) && !stripReminders) {

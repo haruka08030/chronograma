@@ -88,9 +88,9 @@ describe('予定は To-Do として数えない', () => {
     expect(unlabeledTodoCount(tasks, new Set())).toBe(1)
   })
 
-  it('記録との突き合わせに入れない（Google の予定と同じ）', () => {
-    expect(scheduledTaskToPlannedItem(shift)).toBeNull()
-    expect(scheduledTaskToPlannedItem(report)).not.toBeNull()
+  it('記録との突き合わせには入れるが、予定（scheduled-event）として分かる（完了・計画どおりの分母に入れない）', () => {
+    expect(scheduledTaskToPlannedItem(shift)?.source).toBe('scheduled-event')
+    expect(scheduledTaskToPlannedItem(report)?.source).toBe('scheduled-task')
   })
 })
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from './weekReview'
 import { TASK_DEFAULTS } from './taskDefaults'
+import { matchPlanAndActualForDate } from './matchEvents'
+import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   ...TASK_DEFAULTS,
@@ -49,6 +51,54 @@ describe('getWeekReview followRate', () => {
     expect(review.timedPlanned).toBe(1)
     expect(review.followRate).toBe(1)
     expect(review.followed).toBe(1)
+  })
+})
+
+describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業などの予定（#284）', () => {
+  const day = '2026-10-03'
+  const tasks = [
+    // ✓ で終えた時刻つきの To-Do（記録なし）
+    task('baito', {
+      title: 'バイト',
+      scheduledDate: day,
+      startTime: '09:00',
+      endTime: '12:00',
+      completed: true,
+      completedAt: `${day}T12:00:00Z`,
+    }),
+    // 予定（授業）と同じ時間の記録
+    task('class', { title: '授業', kind: 'event', scheduledDate: day, startTime: '13:00', endTime: '14:30' }),
+    task('classLog', { title: '授業', kind: 'log', dueDate: day, startTime: '13:00', endTime: '14:30', completed: true }),
+    // ▶ で始めて、止めたあとに題名を直した記録
+    task('seminar', { title: 'ゼミ', scheduledDate: day, startTime: '15:00', endTime: '16:00' }),
+    task('seminarLog', {
+      title: '発表スライド',
+      kind: 'log',
+      dueDate: day,
+      startTime: '15:00',
+      endTime: '16:00',
+      completed: true,
+      sourceTaskId: 'seminar',
+    }),
+  ]
+
+  it('✓ だけの To-Do と、題名を直した ▶ の記録は計画どおり。予定（授業）は分母に入れない', () => {
+    const review = getWeekReview(tasks, [], at('20:00'), new Set(), at('20:00'))
+    expect(review.timedPlanned).toBe(2)
+    expect(review.followed).toBe(2)
+  })
+
+  it('予定と同じ時間の記録は「予定に無かった記録」にならない', () => {
+    const planned = tasks.map(scheduledTaskToPlannedItem).filter((p) => p != null)
+    const logs = tasks.filter((t) => t.kind === 'log')
+    const pairs = matchPlanAndActualForDate(planned, logs)
+    expect(pairs.filter((p) => p.status === 'actual-only')).toEqual([])
+    expect(pairs.find((p) => p.actual?.id === 'seminarLog')?.planned?.taskId).toBe('seminar')
+  })
+
+  it('日ごとの棒の予定の枠は、計画どおりと同じ To-Do（と習慣の枠）から。予定（授業）は入れない', () => {
+    const review = getWeekReview(tasks, [], at('20:00'), new Set(), at('20:00'))
+    expect(review.days.find((d) => d.dateKey === day)?.plannedMinutes).toBe(180 + 60)
   })
 })
 

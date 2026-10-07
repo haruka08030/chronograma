@@ -136,6 +136,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
               completed: true,
               tags: timer.tags,
               color: timer.color ?? null,
+              sourceTaskId: timer.taskId ?? null,
             },
             maxOrder + 1,
           ),
@@ -170,6 +171,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           completed: true,
           tags: timer.tags,
           color: timer.color ?? null,
+          // 元の To-Do・予定を覚える（止めたあとに題名を直しても、計画どおりかの突き合わせで元の予定と組にする）
+          sourceTaskId: timer.taskId ?? null,
         },
         maxOrder + 1,
       )
