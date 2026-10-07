@@ -824,6 +824,7 @@ export default {
     tasksCompleted: '{{count}} 件を完了にしました',
     taskCompleted: '「{{title}}」を完了にしました',
     blockMoved: '「{{title}}」を {{date}} {{time}} に移動しました',
+    blockPlaced: '「{{title}}」を {{date}} {{time}} に入れました',
     blockResized: '「{{title}}」を {{time}} にしました',
     blockToAllDay: '「{{title}}」を {{date}} の終日に移しました',
     taskMovedToDate: '「{{title}}」を {{date}} に移動しました',
