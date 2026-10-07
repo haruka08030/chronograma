@@ -113,13 +113,13 @@ describe('foldTaskFolders', () => {
     expect(out.timeLogTagPresets).toEqual(['ゼミ'])
   })
 
-  it('Canvas の課題は科目ごとのラベル', () => {
+  it('Canvas の課題は科目のタグだけで、ラベルは付けない', () => {
     const a = task({ listId: 'canvas-list', tags: ['統計学'] })
     const b = task({ listId: 'canvas-list', tags: [] })
     const out = foldTaskFolders(state({ lists: [list(INBOX_ID, '', '#7986CB'), list('canvas-list', 'Canvas', SAGE)], tasks: [a, b] }), NOW)!
-    expect(out.timeLogTagPresets).toEqual(['統計学', 'Canvas'])
-    expect(out.tasks[0]!.color).toBe(categoryHex('統計学', out.logCategoryColors))
-    expect(out.tasks[1]!.color).toBe(SAGE)
+    expect(out.timeLogTagPresets).toEqual([])
+    expect(out.tasks.map((t) => t.color)).toEqual([null, null])
+    expect(out.tasks[0]!.tags).toEqual(['統計学'])
   })
 
   it('未分類のセクションも外す（ほかのリストのタスクは触らない）', () => {

@@ -25,7 +25,6 @@ const WINDOW = { id: CONN, windowStart: '2026-09-02', windowEnd: '2027-01-30' }
 const inbox: TaskList = { id: 'inbox', name: 'Inbox', color: '#000000', order: 0 }
 const opts = {
   now: NOW,
-  colorFor: (course: string | null) => (course === '統計学' ? '#33B679' : null),
   timeZone: 'Asia/Tokyo',
   untitled: '（無題）',
 }
@@ -86,12 +85,12 @@ describe('canvasExpiryWarning', () => {
 })
 
 describe('reconcileCanvasItems', () => {
-  it('creates open assignments in To-Do, tagged and labeled with their course', () => {
+  it('creates open assignments in To-Do, tagged with their course but not labeled', () => {
     const r = reconcile([], [item('1'), item('2', { courseId: '202', courseName: '統計学' }), item('3', { done: true })])
     expect(r.sections).toEqual([])
     expect(r.tasks.map((t) => t.id)).toEqual([canvasTaskId(CONN, 'assignment', '1'), canvasTaskId(CONN, 'assignment', '2')])
     expect(r.tasks.map((t) => t.tags)).toEqual([['経済学入門'], ['統計学']])
-    expect(r.tasks.map((t) => t.color)).toEqual([null, '#33B679'])
+    expect(r.tasks.map((t) => t.color)).toEqual([null, null])
     const first = r.tasks[0]
     expect(first).toMatchObject({ listId: INBOX_ID, sectionId: null, dueDate: '2026-10-05', dueTime: '23:59' })
     expect(first.description).toContain('/assignments/1')

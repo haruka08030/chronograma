@@ -45,11 +45,8 @@ export function ensureLabel(table: LabelTable, rawName: string, hex?: string | n
  * - フォルダ名と同じラベルがあれば、そのラベルの色
  * - フォルダの色にラベル名が付いていれば、その色のまま（フォルダ名は残らない）
  * - どちらも無ければ、フォルダの色にフォルダ名のラベルを付ける
- * Canvas は科目（タスクの最初のタグ）ごとのラベル。科目の無い課題はフォルダ名
  */
-function labelHexFor(table: LabelTable, list: TaskList, task: Task): { table: LabelTable; hex: string } {
-  const course = isCanvasListId(list.id) ? task.tags[0]?.trim() : undefined
-  if (course) return ensureLabel(table, course)
+function labelHexFor(table: LabelTable, list: TaskList): { table: LabelTable; hex: string } {
   const name = list.name.trim()
   if (name && table.timeLogTagPresets.includes(name)) return ensureLabel(table, name)
   if (!name || labelForHex(list.color, table.timeLogTagPresets, table.logCategoryColors)) {
@@ -76,8 +73,9 @@ export function foldTaskFolders(s: FoldState, now: string): FoldState | null {
     const folder = folders.get(t.listId)
     if (!folder) return t.sectionId && droppedSections.has(t.sectionId) ? { ...t, sectionId: null, updatedAt: now } : t
     let color = t.color
-    if (!color && t.parentId === null && !isLogTask(t)) {
-      const r = labelHexFor(table, folder, t)
+    // Canvas の課題は科目のタグだけで、ラベルは付けない
+    if (!color && t.parentId === null && !isLogTask(t) && !isCanvasListId(folder.id)) {
+      const r = labelHexFor(table, folder)
       table = r.table
       color = r.hex
     }

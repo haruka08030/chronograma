@@ -13,8 +13,8 @@ import { TASK_DEFAULTS } from './taskDefaults'
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
- * 学校（ホスト名）ごとに 1 つつなぐ。課題はほかの To-Do と同じところ（未分類）に入れ、科目名のラベルを付ける。
- * 科目名はタグにも残す（以前の版は「Canvas」リスト `canvas-list` に入れていた。残っていれば `foldTaskFolders` で畳む）。
+ * 学校（ホスト名）ごとに 1 つつなぐ。課題はほかの To-Do と同じところ（未分類）に入れ、科目名のタグを付ける（ラベルは付けない）。
+ * （以前の版は「Canvas」リスト `canvas-list` に入れていた。残っていれば `foldTaskFolders` で畳む）。
  * タスクの id は接続 ID（ホスト名）を入れて決め打ちする: `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
@@ -227,7 +227,7 @@ export type CanvasReconcileResult = {
 
 /**
  * 1 校ぶんの Canvas の課題を、To-Do のタスクに合わせる。
- * - 未提出で無いものは未分類に作る（科目のタグと、`colorFor` の色＝科目のラベルを付ける）。未完了のものはタイトル・期限を Canvas に合わせる
+ * - 未提出で無いものは未分類に作る（科目のタグを付ける。ラベルは付けない）。未完了のものはタイトル・期限を Canvas に合わせる
  * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
@@ -237,8 +237,6 @@ export function reconcileCanvasItems(
   payload: CanvasConnectionItems,
   opts: {
     now: string
-    /** 新しく作る課題の色（科目名のラベルの色。科目の無い課題は null で呼ぶ）。作るときだけ呼ぶ（呼ばれたらラベルを作ってよい） */
-    colorFor: (courseName: string | null) => string | null
     timeZone: string
     untitled: string
     skipIds?: ReadonlySet<string>
@@ -305,7 +303,7 @@ export function reconcileCanvasItems(
         startTime: null,
         endTime: null,
         location: null,
-        color: opts.colorFor(item.courseName ?? null),
+        color: null,
         priority: 'none',
         tags: item.courseName ? [item.courseName] : [],
         recurrence: null,
