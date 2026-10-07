@@ -94,8 +94,7 @@ export function EventPopover({
       aria-label={task.title}
       tabIndex={-1}
       className={anchoredCardClass(sheet)}
-      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール
-      // （時刻の候補リストのような中の絶対配置が無いのでここだけ。新規作成・Google の予定のカードには付けない）
+      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール（Google の予定のカードも同じ）
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
