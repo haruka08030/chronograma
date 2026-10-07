@@ -1,5 +1,8 @@
 import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { subDays } from 'date-fns'
+import { fromDateKey, toDateKey } from './dateKey'
 import { isActiveTask } from './taskLifecycle'
+import { appTodayKey } from './timeZone'
 
 const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 
@@ -100,19 +103,30 @@ export interface RecentLog {
   category: string | null
 }
 
-/** 最近の記録（タイトルの重複を除いて新しい順）。「今日」画面のワンタップ再開用 */
-export function recentLogs(tasks: readonly Task[], limit = 4): RecentLog[] {
+/** よく使う記録を数える期間（日） */
+const FREQUENT_LOG_DAYS = 30
+
+/**
+ * よく使う記録（タイトルの重複を除く）。「今日」画面のワンタップ再開用。
+ * 直近 30 日に記録した回数が多い順、同数なら新しい順。30 日より前にしか無いものはその後ろに新しい順
+ */
+export function frequentLogs(tasks: readonly Task[], limit = 4, todayKey: string = appTodayKey()): RecentLog[] {
+  const since = toDateKey(subDays(fromDateKey(todayKey), FREQUENT_LOG_DAYS - 1))
   const logs = tasks
     .filter((t) => isLogTask(t) && isActiveTask(t) && !isSleepTask(t) && t.title.trim())
     .sort((a, b) => logStamp(b).localeCompare(logStamp(a)))
-  const seen = new Set<string>()
-  const out: RecentLog[] = []
+  const byTitle = new Map<string, RecentLog & { count: number; order: number }>()
   for (const t of logs) {
     const key = norm(t.title)
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ title: t.title, category: t.category })
-    if (out.length >= limit) break
+    let e = byTitle.get(key)
+    if (!e) {
+      e = { title: t.title, category: t.category, count: 0, order: byTitle.size }
+      byTitle.set(key, e)
+    }
+    if ((t.dueDate ?? '') >= since) e.count++
   }
-  return out
+  return [...byTitle.values()]
+    .sort((a, b) => b.count - a.count || a.order - b.order)
+    .slice(0, limit)
+    .map(({ title, category }) => ({ title, category }))
 }

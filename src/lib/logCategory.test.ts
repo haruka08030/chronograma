@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { inferLogCategory } from './logCategory'
+import { frequentLogs, inferLogCategory } from './logCategory'
 import { logLabelFromTask } from './logCategoryColors'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -51,5 +51,32 @@ describe('To-Do から記録を作るときの分類', () => {
     const labeled = task({ tags: ['メモ'], color: SAGE })
     expect(inferLogCategory([tagged], 'ES', { sourceTaskId: tagged.id, categoryHexes })).toBeNull()
     expect(inferLogCategory([labeled], 'ES', { sourceTaskId: labeled.id, categoryHexes })).toBe('就活')
+  })
+})
+
+describe('よく使う記録（ワンタップ再開）', () => {
+  const log = (title: string, dueDate: string) => task({ kind: 'log', title, dueDate, startTime: '10:00', endTime: '11:00' })
+
+  it('直近 30 日の回数が多い順。直前の 1 回だけの記録に押し出されない', () => {
+    const tasks = [
+      log('dev', '2026-10-01'),
+      log('dev', '2026-10-03'),
+      log('dev', '2026-10-05'),
+      log('勉強', '2026-10-02'),
+      log('勉強', '2026-10-04'),
+      log('買い物', '2026-10-07'),
+    ]
+    expect(frequentLogs(tasks, 2, '2026-10-07').map((r) => r.title)).toEqual(['dev', '勉強'])
+  })
+
+  it('同じ回数なら新しい順。30 日より前の回数は数えない', () => {
+    const tasks = [
+      log('読書', '2026-08-01'),
+      log('読書', '2026-08-02'),
+      log('読書', '2026-08-03'),
+      log('dev', '2026-10-01'),
+      log('勉強', '2026-10-05'),
+    ]
+    expect(frequentLogs(tasks, 3, '2026-10-07').map((r) => r.title)).toEqual(['勉強', 'dev', '読書'])
   })
 })

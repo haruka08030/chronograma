@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { shortcutTip, tip } from '../lib/tooltip'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { recentLogs } from '../lib/logCategory'
+import { frequentLogs } from '../lib/logCategory'
 import { categoryHex, colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
@@ -45,7 +45,7 @@ function nowRounded(): string {
 /**
  * 今日画面の「記録」ブロック（旧・記録画面を統合）。
  * 1. 分類ごとの記録時間（色の帯＋凡例）— 記録がある日だけ
- * 2. タイマー開始（最近の記録はワンタップで再開）と「後から記録」
+ * 2. タイマー開始（よく使う記録はワンタップで再開）と「後から記録」
  * 入力欄は押したときだけ開く。記録中は FloatingTimer に任せ、開始ボタンは隠す。
  */
 export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewingToday: boolean }) {
@@ -68,7 +68,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const [category, setCategory] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
-  const recent = useMemo(() => recentLogs(tasks, 2), [tasks])
+  const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
   /** スマホで分類ごとの時間（帯の下の一覧）をすべて開いているか */
   const [showBreakdown, setShowBreakdown] = useState(false)
 
@@ -276,7 +276,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   return (
     <div className="space-y-3">
       {summary}
-      {/* 始める操作（記録する・後から）は大きく横並び。最近の記録はその下に小さく */}
+      {/* 始める操作（記録する・後から）は大きく横並び。よく使う記録はその下に小さく */}
       <div className="flex gap-2">
         {canStartTimer && (
           <button
