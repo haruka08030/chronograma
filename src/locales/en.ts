@@ -968,6 +968,8 @@ export default {
     lanePlan: 'Plan',
     laneLog: 'Record',
     allDay: 'All day',
+    allDayExpand: 'Show all',
+    allDayCollapse: 'Collapse',
   },
   calendarDayPanel: {
     plannedTab: 'Planned / To-do',

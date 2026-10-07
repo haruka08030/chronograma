@@ -131,6 +131,14 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // 時刻の無い To-Do が多い日（終日の欄は 3 行までにたたみ「他 N 件」。▾ で全件）
+  { name: 'calendar-allday-many', view: 'calendar', manyAllDay: true },
+  {
+    name: 'calendar-allday-many-open',
+    view: 'calendar',
+    manyAllDay: true,
+    click: 'button[aria-expanded][aria-label="すべて表示"] >> visible=true',
+  },
   // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
@@ -408,6 +416,13 @@ async function main() {
             ]
           }
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
+          if (screen.manyAllDay) {
+            const base = seed.state.tasks.find((x) => x.id === 's7')
+            const titles = ['ES を出す', '履歴書の写真', 'Week 2 課題', '出席フォーム', 'OB 訪問のお礼', '教科書を買う', 'シフト提出']
+            titles.forEach((title, i) =>
+              seed.state.tasks.push({ ...base, id: `many-${i}`, title, startTime: null, endTime: null, completed: i < 2, order: 100 + i }),
+            )
+          }
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()

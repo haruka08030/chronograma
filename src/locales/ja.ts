@@ -936,6 +936,8 @@ export default {
     lanePlan: '予定',
     laneLog: '記録',
     allDay: '終日',
+    allDayExpand: 'すべて表示',
+    allDayCollapse: 'たたむ',
   },
   calendarDayPanel: {
     plannedTab: '予定 / To-Do',
