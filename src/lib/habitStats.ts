@@ -2,7 +2,7 @@ import { addDays, subDays, subWeeks } from 'date-fns'
 import { isHabitActive, type Habit } from '../types/habit'
 import { habitWeekDates, habitWeekDoneCount, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
-import { appToday } from './timeZone'
+import { appDayKeyOf, appToday } from './timeZone'
 import { toDateKey } from './dateKey'
 
 /** 連続を数えにさかのぼる上限（日・週） */
@@ -15,6 +15,16 @@ function achieved(h: Habit, key: string, records?: HabitRecordIndex): boolean {
 }
 
 const isTimesPerWeek = (h: Habit) => h.frequency.type === 'timesPerWeek'
+
+/**
+ * 達成率・ヒートマップ・週のふりかえりの分母に入れる日か: 予定の日で、習慣を作った日（アプリの日付）以降。
+ * 作る前の日でも達成を付けていれば（取り込みなど）数える
+ */
+export function isHabitCountedOnDate(h: Habit, d: Date, records?: HabitRecordIndex): boolean {
+  if (!isHabitScheduledOnDate(h, d)) return false
+  const key = toDateKey(d)
+  return key >= appDayKeyOf(h.createdAt) || achieved(h, key, records)
+}
 
 /**
  * その日の達成率（ヒートマップ）。週に◯回の習慣は日ごとの予定が無いので、やった日だけ数える
@@ -31,7 +41,7 @@ export function habitsExpectedOnDate(habits: Habit[], d: Date, records?: HabitRe
   const key = toDateKey(d)
   const out: { habit: Habit; done: boolean }[] = []
   for (const h of habits) {
-    if (!isHabitScheduledOnDate(h, d)) continue
+    if (!isHabitCountedOnDate(h, d, records)) continue
     const done = achieved(h, key, records)
     if (isTimesPerWeek(h) && !done) continue
     out.push({ habit: h, done })
@@ -58,7 +68,7 @@ export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIn
     const d = subDays(appToday(), i)
     const key = toDateKey(d)
     for (const h of habits) {
-      if (isTimesPerWeek(h) || !isHabitScheduledOnDate(h, d)) continue
+      if (isTimesPerWeek(h) || !isHabitCountedOnDate(h, d, records)) continue
       const status = habitDayStatus(h, key, records)
       // 今日は未記録なら数えない。時間外はもう結果が出ているので数える
       if (i === 0 && status === 'missed') continue

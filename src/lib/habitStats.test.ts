@@ -5,6 +5,7 @@ import {
   consistencyForLast7Days,
   currentStreakDays,
   habitStreak,
+  habitsExpectedOnDate,
   habitsStreak,
   timesPerWeekTally,
 } from './habitStats'
@@ -130,5 +131,23 @@ describe('達成率', () => {
     // 土曜の時点で 0 回なら、残り 2 日では 6 回に届かない分（4 回）を分母に入れる
     const six = habit('g', { type: 'timesPerWeek', count: 6 })
     expect(timesPerWeekTally(six, fromDateKey('2026-10-17'), '2026-10-17')).toEqual({ expected: 4, completed: 0 })
+  })
+})
+
+describe('作る前の日は数えない', () => {
+  const TODAY_MORNING = new Date(2026, 9, 14, 8, 0).toISOString()
+  const created = (h: Habit): Habit => ({ ...h, createdAt: TODAY_MORNING })
+
+  it('毎日の習慣を今日作って今日だけ達成 → 直近 7 日は 100%、昨日は数えない日', () => {
+    const h = created(habit('d', { type: 'daily' }, ['2026-10-14']))
+    expect(consistencyForLast7Days([h])).toBe(100)
+    expect(completionRatioOnDate([h], fromDateKey('2026-10-13'))).toBe(0)
+    expect(habitsExpectedOnDate([h], fromDateKey('2026-10-13'))).toEqual([])
+  })
+
+  it('作る前の日でも達成を付けていれば（取り込みなど）その日は数える', () => {
+    const h = created(habit('d', { type: 'daily' }, ['2026-10-14', '2026-10-12']))
+    expect(habitsExpectedOnDate([h], fromDateKey('2026-10-12'))).toEqual([{ habit: h, done: true }])
+    expect(consistencyForLast7Days([h])).toBe(100)
   })
 })
