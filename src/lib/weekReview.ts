@@ -4,9 +4,8 @@ import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { habitToPlannedItem } from './habitSlots'
-import { isHabitScheduledOnDate } from './habitSchedule'
 import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
-import { timesPerWeekTally } from './habitStats'
+import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { isActiveTask } from './taskLifecycle'
@@ -105,7 +104,7 @@ export function getWeekReview(
     for (const h of habits) {
       const timesPerWeek = h.frequency.type === 'timesPerWeek'
       // 週に◯回の習慣は日ごとではなく週でまとめて数える（下）
-      if (!timesPerWeek && isHabitScheduledOnDate(h, date)) {
+      if (!timesPerWeek && isHabitCountedOnDate(h, date, habitRecords)) {
         habitDue++
         if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }
