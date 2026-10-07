@@ -435,6 +435,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     setPopup(null)
   }, [])
 
+  /** 作成カードで時刻を直したとき（仮の枠も一緒に動く） */
+  const setPopupTimes = useCallback((startTime: string, endTime: string) => {
+    setPopup((p) => (p ? { ...p, startTime, endTime } : p))
+  }, [])
+
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
   const shiftMoveDragDate = useCallback((days: number) => {
     setDrag((prev) => (prev && prev.kind === 'move' ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) } : prev))
@@ -526,6 +531,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handlePointerUp,
     handlePointerCancel,
     dismissPopup,
+    setPopupTimes,
     shiftMoveDragDate,
     /** タッチで長押しして持ち上げている間 true（縦スクロール・スワイプを止める、端で送る） */
     touchLifted,
