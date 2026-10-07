@@ -70,11 +70,9 @@ export function zoneOffsetMinutes(tz: string, at: number = Date.now()): number {
   return Math.round((wallAsUtcMs(tz, t) - t) / 60_000)
 }
 
-/** 端末のローカル時刻で見たときにアプリのタイムゾーンの壁時計になるよう、瞬間に足す量（ミリ秒） */
-function appShiftMs(at: number): number {
-  const tz = appTimeZone()
-  if (!appZoneSetting || tz === deviceTimeZone() || !Number.isFinite(at)) return 0
-  return (zoneOffsetMinutes(tz, at) + new Date(at).getTimezoneOffset()) * 60_000
+/** アプリのタイムゾーンが端末と違うか（同じなら瞬間をそのまま使う） */
+function needsShift(): boolean {
+  return appZoneSetting !== null && appZoneSetting !== deviceTimeZone()
 }
 
 /** 今（getHours などがアプリのタイムゾーンの壁時計を返す Date） */
@@ -82,16 +80,35 @@ export function zonedNow(): Date {
   return toAppWall(Date.now())
 }
 
-/** 瞬間（ISO 文字列など）→ アプリのタイムゾーンの壁時計を表す Date */
+/**
+ * 瞬間（ISO 文字列など）→ アプリのタイムゾーンの壁時計を表す Date。
+ * 壁時計の数字（年月日時分秒）をそのまま端末のローカルの Date に組む。瞬間に一定の量を足す形だと、
+ * 足した先で端末の夏時間が切り替わると 1 時間ずれていた（端末で存在しない時刻だけは前後に寄る）
+ */
 export function toAppWall(instant: Date | string | number): Date {
   const ms = typeof instant === 'number' ? instant : new Date(instant).getTime()
-  return new Date(ms + appShiftMs(ms))
+  if (!needsShift() || !Number.isFinite(ms)) return new Date(ms)
+  const u = new Date(wallAsUtcMs(appTimeZone(), ms))
+  const millis = ((ms % 1000) + 1000) % 1000
+  return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(), u.getUTCHours(), u.getUTCMinutes(), u.getUTCSeconds(), millis)
 }
 
 /** `toAppWall` の逆。壁時計を表す Date → 本当の瞬間 */
 export function fromAppWall(wall: Date): Date {
-  const guess = wall.getTime() - appShiftMs(wall.getTime())
-  return new Date(wall.getTime() - appShiftMs(guess))
+  if (!needsShift() || !Number.isFinite(wall.getTime())) return new Date(wall.getTime())
+  const tz = appTimeZone()
+  const asUtc = Date.UTC(
+    wall.getFullYear(),
+    wall.getMonth(),
+    wall.getDate(),
+    wall.getHours(),
+    wall.getMinutes(),
+    wall.getSeconds(),
+    wall.getMilliseconds(),
+  )
+  let at = asUtc - zoneOffsetMinutes(tz, asUtc) * 60_000
+  at = asUtc - zoneOffsetMinutes(tz, at) * 60_000
+  return new Date(at)
 }
 
 function sameDay(a: Date, b: Date): boolean {
