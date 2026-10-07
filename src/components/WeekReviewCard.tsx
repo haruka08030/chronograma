@@ -7,7 +7,6 @@ import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from '../lib
 import { unplannedListIds } from '../lib/listKind'
 import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
-import { appToday } from '../lib/timeZone'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration, formatDurationShort } from '../lib/timeGrid'
@@ -19,6 +18,7 @@ import { META_TEXT } from './ui/textClass'
 /** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 /** 記録した時間の前の週との差の文（「先週より +1時間20分」「先週と同じ」）。今週以外は「前の週」 */
 function loggedDiffText(diff: number, thisWeek: boolean, t: TFunction): string {
@@ -38,7 +38,9 @@ export function WeekReviewCard() {
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
 
-  const anchor = useMemo(() => addWeeks(appToday(), weekOffset), [weekOffset])
+  // 週をまたいだら基準の週も進める（今日の日付を依存に入れる）
+  const todayKey = useAppTodayKey()
+  const anchor = useMemo(() => addWeeks(fromDateKey(todayKey), weekOffset), [todayKey, weekOffset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)

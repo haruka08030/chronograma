@@ -4,7 +4,6 @@ import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { completionDayKey } from '../lib/dayPlan'
-import { appTodayKey } from '../lib/timeZone'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { displayListName } from '../lib/displayListName'
 import { isLogTask, type Task } from '../types/task'
@@ -20,6 +19,7 @@ import { SectionLabel } from './ui/SectionLabel'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 const SUBTASK_NEST = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
 
@@ -95,7 +95,7 @@ export function CompletedTasksView() {
     clearSelectionRef.current = clearSelection
   }, [clearSelection])
 
-  const todayKey = appTodayKey()
+  const todayKey = useAppTodayKey()
   const yesterdayKey = toDateKey(addDays(fromDateKey(todayKey), -1))
   const dayLabel = (key: string) =>
     key === todayKey

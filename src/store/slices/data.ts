@@ -10,7 +10,7 @@ import { INBOX_ID } from '../storeConstants'
 import { initialLists } from '../storeDefaults'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
-import { toDateKey } from '../../lib/dateKey'
+import { appTodayKey } from '../../lib/timeZone'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
 
@@ -95,7 +95,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `chronograma-backup-${toDateKey(new Date())}.json`
+      a.download = `chronograma-backup-${appTodayKey()}.json`
       a.click()
       URL.revokeObjectURL(url)
     },

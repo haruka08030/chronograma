@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
-import { appTodayKey } from '../lib/timeZone'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -23,7 +23,7 @@ export function SleepStatsCard() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const df = useDateFormat()
-  const todayKey = appTodayKey()
+  const todayKey = useAppTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
 

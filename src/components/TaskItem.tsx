@@ -33,6 +33,7 @@ import { useTodayToggle } from '../hooks/useTodayToggle'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { colorVars } from '../lib/logCategoryColors'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -124,6 +125,8 @@ export const TaskItem = memo(function TaskItem({
   keepHandleSpace?: boolean
 }) {
   const { t, i18n } = useTranslation()
+  // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
+  useAppTodayKey()
   const hasSortableHandle = !!dragHandle || !!liftListeners
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)

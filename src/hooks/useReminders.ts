@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { checkLocalReminders } from '../lib/localReminders'
 import { isWebPushActive, syncWebPush } from '../lib/webPush'
 import { unplannedListIds } from '../lib/listKind'
+import { subscribeAppClock } from '../lib/appClock'
 
 /**
  * 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
@@ -52,6 +53,11 @@ export function useReminders() {
     }
     tick()
     const id = setInterval(tick, 30_000)
-    return () => clearInterval(id)
+    // 表に戻ったとき・分の境目にも見る（日をまたいだ朝のまとめを次の 30 秒まで待たせない）
+    const unsubscribe = subscribeAppClock(tick)
+    return () => {
+      clearInterval(id)
+      unsubscribe()
+    }
   }, [])
 }
