@@ -12,7 +12,7 @@ import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { backupNow } from '../hooks/useAutoBackup'
+import { clearLocalAccountState } from '../lib/accountBoundary'
 import { clearAutoBackups } from '../lib/autoBackup'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { clearBaseline } from '../lib/syncMerge'
@@ -96,27 +96,6 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
   } catch {
     useTaskStore.getState().setGoogleConnected(false)
   }
-}
-
-/**
- * ログアウト後の端末から、そのアカウントのデータを消す。消さないと次にログインした人に見え、
- * その人のアカウントにも送られていた。送れていなかった変更が消えないよう、先に端末内に控えを取る。
- * Google の連携はサーバー側のアカウントに付いているので切らない（以前はここで切っていて、
- * 1 台でログアウトすると全端末の連携が外れた）
- * 控えの持ち主はログアウトした人（一度も同期できていないデータもその人のもの）。ログアウト後に開いた人には見せない
- */
-function clearLocalAccountState(userId: string | null) {
-  const store = useTaskStore.getState()
-  store.setGoogleConnected(false)
-  store.setGoogleAccessToken(null)
-  store.setCalendarEvents([])
-  store.setGoogleConnectionError(null)
-  // 他のタブでのログアウトなど、ここに来た時点で行を消せなくても購読は解除する
-  void detachWebPush()
-  // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
-  if (store.dataOwner === null && store.tasks.length === 0 && store.habits.length === 0) return
-  backupNow('beforeSignOut', store.dataOwner ?? userId)
-  store.resetLocalData()
 }
 
 /** 最後にログインしていた人。SIGNED_OUT のときはもうセッションが無いので、控えの持ち主はここから取る */
