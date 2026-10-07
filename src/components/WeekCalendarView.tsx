@@ -538,6 +538,7 @@ export function WeekCalendarView({
             startTime={timelineDrag.popup.startTime}
             endTime={timelineDrag.popup.endTime}
             asLog={timelineDrag.popup.intent === 'log'}
+            onTimesChange={timelineDrag.setPopupTimes}
             onClose={timelineDrag.dismissPopup}
             onCreated={(id, more) => {
               timelineDrag.dismissPopup()

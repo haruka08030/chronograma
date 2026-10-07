@@ -20,6 +20,8 @@ import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
+import { endKeepingLength, toMinutes } from '../../lib/clockTime'
+import { CardTimeRange } from './CardTimeRange'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -52,6 +54,7 @@ function saveChoice(choice: QuickCreateChoice) {
  * 上で To-Do（完了の丸つき）か予定（バイト・授業など。完了の丸なし）かを選び、タイトルとリストだけ決めて保存。
  * Google とつないで書き込めるときは、予定のリストの欄に「Google カレンダー」も並ぶ（Google の予定として作る）。
  * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ。
+ * 日時を押すと開始・終了の時刻欄になり、その場で分単位に直せる（Google と同じ。仮の枠も動く）。
  * 細かい設定は「その他のオプション」で作ってから詳細を開く。外側クリック・Esc は破棄（Google と同じ）。
  * `asLog`（「今日」の記録の列）では、リストの代わりに分類を選んで記録として保存する。
  */
@@ -61,6 +64,7 @@ export function QuickCreatePopover({
   startTime,
   endTime,
   asLog = false,
+  onTimesChange,
   onClose,
   onCreated,
 }: {
@@ -69,6 +73,8 @@ export function QuickCreatePopover({
   startTime: string
   endTime: string
   asLog?: boolean
+  /** 時刻欄で直したとき（開始・終了の両方） */
+  onTimesChange: (startTime: string, endTime: string) => void
   onClose: () => void
   /** 作成後。`openDetail` が true なら詳細を開く */
   onCreated: (taskId: string, openDetail: boolean) => void
@@ -83,6 +89,7 @@ export function QuickCreatePopover({
   const asEvent = !asLog && choice.kind === 'event'
   const toGoogle = asEvent && googleWritable && choice.eventToGoogle
   const [category, setCategory] = useState('')
+  const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
   const plannable = useMemo(() => {
@@ -141,7 +148,7 @@ export function QuickCreatePopover({
   }
 
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, !asLog ? 270 : 230)
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (!asLog ? 270 : 230) + (editingTime ? 30 : 0))
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
@@ -153,7 +160,8 @@ export function QuickCreatePopover({
       className={`${anchoredCardClass(sheet)} p-4`}
       style={style}
       onKeyDown={(e) => {
-        if (isCancelEscape(e)) onClose()
+        // 時刻欄が自分で使った Esc（打ちかけの取り消し）ではカードを閉じない
+        if (isCancelEscape(e) && !e.defaultPrevented) onClose()
       }}
     >
       {!asLog && (
@@ -185,11 +193,33 @@ export function QuickCreatePopover({
         placeholder={asLog ? t('quickCreate.logPlaceholder') : t('quickCreate.titlePlaceholder')}
         className="w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
       />
-      <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-        <ClockIcon className="h-4 w-4 shrink-0 text-zinc-400" strokeWidth={1.75} />
-        <span className="min-w-0">
-          {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
-        </span>
+      <div className={`mt-3 flex gap-2 text-sm text-zinc-600 dark:text-zinc-300 ${editingTime ? 'items-start' : 'items-center'}`}>
+        <ClockIcon className={`h-4 w-4 shrink-0 text-zinc-400 ${editingTime ? 'mt-0.5' : ''}`} strokeWidth={1.75} />
+        {editingTime ? (
+          <div className="min-w-0">
+            <p>{df.monthDayWeekdayLong(dateKey)}</p>
+            <div className="mt-1.5">
+              <CardTimeRange
+                startTime={startTime}
+                endTime={endTime}
+                onStart={(v) => v !== startTime && onTimesChange(v, endKeepingLength(startTime, endTime, v))}
+                // 終わりは開始より後だけ（この日の中の枠）
+                onEnd={(v) => toMinutes(v)! > toMinutes(startTime)! && onTimesChange(startTime, v)}
+                startLabel={t('common.start')}
+                endLabel={t('common.end')}
+              />
+            </div>
+          </div>
+        ) : (
+          // Google のクイック作成と同じく、日時を押すと時刻を直せる
+          <button
+            type="button"
+            onClick={() => setEditingTime(true)}
+            className="-mx-1.5 min-w-0 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          >
+            {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
+          </button>
+        )}
         {!asLog && (
           <TimeZonePicker
             ariaLabel={t('timeZone.field')}

@@ -22,7 +22,7 @@ import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { minutesToTime, toMinutes } from '../../lib/clockTime'
+import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
 import { CardTimeRange } from './CardTimeRange'
@@ -105,17 +105,14 @@ function EventPopoverBody({
   const memo = sourceLink ? '' : task.description.trim()
   // 時刻はカードでそのまま分単位に直せる（詳細まで行かずに）。日をまたぐ記録は終わりの日付もあるので詳細で
   const editableTimes = !!tv.startTime && !!tv.endTime && !isOvernightTimeLog(task)
-  /** To-Do・予定は開始を動かすと長さを保って終わりもずらす（Google と同じ）。記録は実際の時刻なので開始だけ直す */
+  /** To-Do・予定は開始を動かすと長さを保って終わりもずらす（Google と同じ。23:59 まで）。記録は実際の時刻なので開始だけ直す */
   const commitStart = (v: string) => {
     if (v === tv.startTime) return
     if (isLog) {
       updateTimes({ startTime: v })
       return
     }
-    const dur = (toMinutes(tv.endTime!)! - toMinutes(tv.startTime!)! + 1440) % 1440 || 60
-    // 日の終わりを越える分はその日の 23:59 で止める（翌朝の時刻にするとタイムラインから消える）
-    const end = Math.min(toMinutes(v)! + dur, 1439)
-    updateTimes({ startTime: v, endTime: minutesToTime(end) })
+    updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + memoHeightEstimate(memo))
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」

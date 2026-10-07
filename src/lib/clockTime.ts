@@ -27,6 +27,18 @@ export function toMinutes(hhmm: string): number | null {
   return Number(m[1]) * 60 + Number(m[2])
 }
 
+/**
+ * 開始を動かしたときの終わり（Google と同じく長さを保つ）。日の終わりを越える分は 23:59 で止める
+ * （翌朝の時刻にするとタイムラインから消える）。長さが分からなければ 60 分
+ */
+export function endKeepingLength(startTime: string, endTime: string, nextStart: string): string {
+  const s = toMinutes(startTime)
+  const e = toMinutes(endTime)
+  const n = toMinutes(nextStart) ?? 0
+  const dur = s !== null && e !== null ? (e - s + 1440) % 1440 || 60 : 60
+  return minutesToTime(Math.min(n + dur, 1439))
+}
+
 /** `HH:MM` に分を足した `HH:MM`（24h で折り返し）。不正なら空文字。 */
 export function addClockMinutes(hhmm: string, deltaMinutes: number): string {
   const base = toMinutes(hhmm)
