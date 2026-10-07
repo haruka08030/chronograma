@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../../hooks/useDismiss'
@@ -169,6 +169,19 @@ export function ActionMenu({
     const top = above ? y - el.offsetHeight - EDGE : y
     el.style.top = `${Math.max(EDGE, Math.min(top, window.innerHeight - el.offsetHeight - EDGE))}px`
   }, [x, y, q, above, sheet])
+
+  // 閉じたら開いた元（行・… のボタン）へフォーカスを戻す。Esc で閉じても次の Tab がサイドバーからやり直しにならない。
+  // 閉じる間に別の所（開いたダイアログなど）へ移っていたら奪わない（useFocusTrap と同じ戻し方）
+  // 開く前のフォーカスは描画の時点で取る（効果の時点ではもうメニュー・検索欄に移っている）
+  const [prev] = useState(() => (typeof document === 'undefined' ? null : (document.activeElement as HTMLElement | null)))
+  useEffect(() => {
+    const menu = menuRef.current
+    return () => {
+      const now = document.activeElement
+      if (now && now !== document.body && !menu?.contains(now)) return
+      if (prev && prev !== document.body && prev.isConnected && !menu?.contains(prev)) prev.focus()
+    }
+  }, [prev])
 
   // 検索欄の無いメニューは、メニュー自体にフォーカスしてキーで操作できるようにする
   useLayoutEffect(() => {

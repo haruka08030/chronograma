@@ -484,6 +484,7 @@ export default {
     restore: 'Restore auto-backup',
     restoreConfirm: 'Replace your data with the auto-backup from {{date}} and reopen?',
     noBackup: 'There is no auto-backup to restore.',
+    partFailed: 'Something went wrong here, so it was closed. Your data is safe.',
     reload: 'Reload',
     goToday: 'Go to Today',
     details: 'Error details',
