@@ -22,6 +22,7 @@ type TimeLogsActions = Pick<
   | 'startTimer'
   | 'resolveStaleTimer'
   | 'discardActiveTimer'
+  | 'askComplete'
   | 'dismissCompletePrompt'
   | 'dismissLabelPrompt'
   | 'stopTimer'
@@ -144,6 +145,10 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       }))
     },
     discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),
+    askComplete: (taskId) => {
+      const task = get().tasks.find((t) => t.id === taskId)
+      if (task && !task.completed && isTodoTask(task)) set({ completePromptTaskId: taskId, labelPromptLogId: null })
+    },
     dismissCompletePrompt: () => set({ completePromptTaskId: null }),
     dismissLabelPrompt: () => set({ labelPromptLogId: null }),
 

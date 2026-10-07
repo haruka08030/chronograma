@@ -80,9 +80,7 @@ export function WeekCalendarView({
   const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
-  const toggleTask = useTaskStore((s) => s.toggleTask)
   const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
-  const asOneUndo = useTaskStore((s) => s.asOneUndo)
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const dropLaneRef = useRef<CreateIntent>('schedule')
   const openDetail = openTaskDetail
@@ -373,7 +371,7 @@ export function WeekCalendarView({
     getTaskDuration,
     onDrop: (taskId, dateKey, startTime, endTime) => {
       if (dropLaneRef.current === 'log') {
-        // 記録の列に落とした = その時間にやった。記録を残してタスクは完了に（今より先は不可）
+        // 記録の列に落とした = その時間にやった（今より先は不可）。記録だけ作り、To-Do は途中までのこともあるので完了にするか聞く
         const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)
         if (!task) return
         const limit = logLimitRef.current(dateKey)
@@ -383,12 +381,10 @@ export function WeekCalendarView({
             endTime = minutesToTime(limit)
           }
         }
-        asOneUndo(() => {
-          const { timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
-          const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
-          addTimeLog(task.title, dateKey, startTime, endTime, label.tags, undefined, null, label.color)
-          if (!task.completed) toggleTask(taskId)
-        })
+        const { timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
+        const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
+        addTimeLog(task.title, dateKey, startTime, endTime, label.tags, undefined, null, label.color)
+        useTaskStore.getState().askComplete(taskId)
         return
       }
       const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === taskId))

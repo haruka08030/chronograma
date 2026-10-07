@@ -97,6 +97,14 @@ describe('予定（完了の丸の無いもの）', () => {
     expect(useTaskStore.getState().completePromptTaskId).toBeNull()
   })
 
+  it('記録の列に落としたあと、To-Do には完了にするか聞き、予定には聞かない', () => {
+    useTaskStore.getState().askComplete('shift')
+    expect(useTaskStore.getState().completePromptTaskId).toBeNull()
+    useTaskStore.getState().askComplete('report')
+    expect(useTaskStore.getState().completePromptTaskId).toBe('report')
+    expect(get('report').completed).toBe(false)
+  })
+
   it('▶ で始めた記録は元の予定・To-Do の id を覚える（計画どおりかの突き合わせで組にする）', () => {
     useTaskStore.setState({
       activeTimer: { taskId: 'shift', taskTitle: 'shift', startedAt: new Date(Date.now() - 30 * 60_000).toISOString(), tags: [] },
