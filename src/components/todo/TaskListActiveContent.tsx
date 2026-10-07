@@ -218,6 +218,7 @@ export function TaskListActiveContent({
                 selection={makeSelection(t.id)}
                 autoEdit={pendingAutoEditTaskId === t.id}
                 dragGroupIds={getDragGroupRootIds(t.id)}
+                keepHandleSpace
               />
               {StaticSubtreeRows({
                 parentId: t.id,
@@ -244,6 +245,7 @@ export function TaskListActiveContent({
           autoEdit={pendingAutoEditTaskId === t.id}
           dragGroupIds={getDragGroupRootIds(t.id)}
           sectionLabel={sectionLabelFor(t)}
+          keepHandleSpace
         />
         {StaticSubtreeRows({
           parentId: t.id,

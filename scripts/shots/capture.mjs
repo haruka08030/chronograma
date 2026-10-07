@@ -30,6 +30,13 @@ const TIMEZONE = 'Asia/Tokyo'
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
+/** スマホで題名の左の ≡（リストのドロワーを開く） */
+const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
+/** ナビの色ラベル「就活」（種データの #F6BF26） */
+const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
+/** 見出しの並び順のボタン（種データはどこも手動） */
+const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
+
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
@@ -100,8 +107,14 @@ const SCREENS = [
   // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
   { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
   { name: 'todo-mobile-swipe', view: 'all', mobileOnly: true, swipeRight: true },
-  // ナビから色ラベルを開いた状態（「すべて」を色で絞る）
-  { name: 'todo-label', view: 'all', filterColor: '#F6BF26' },
+  // ナビから色ラベルを開いた状態（「すべて」を色で絞る）。開いている色ラベルは保存しない値なので、種データではなくナビのラベルを押して開く
+  { name: 'todo-label', view: 'all', mobileClick: OPEN_LISTS, click: LABEL_JOBHUNT },
+  // 見出しの並び順のメニュー（スマホは下から出すシート）。色ラベル・いつかでも同じメニュー
+  { name: 'todo-sort-menu', view: 'all', click: SORT_BUTTON },
+  { name: 'todo-label-sort-menu', view: 'all', mobileClick: OPEN_LISTS, click: [LABEL_JOBHUNT, SORT_BUTTON] },
+  { name: 'someday-sort-menu', list: 'seed-someday', click: SORT_BUTTON },
+  // 手動以外に変えたあと（つまみの幅を空けたまま、行の文字の位置が手動と同じ）
+  { name: 'todo-sorted-due', view: 'all', click: [SORT_BUTTON, '[role=menu] >> text=締切日 >> visible=true'] },
   // ナビの色ラベルの丸を押したカード（名前・24 色・削除）。スマホはドロワーを開いてから押す
   {
     name: 'todo-label-card',
@@ -381,7 +394,6 @@ async function main() {
               { tz: 'America/New_York', label: '' },
             ]
           }
-          if (screen.filterColor) seed.state.filterColor = screen.filterColor
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
