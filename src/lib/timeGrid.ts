@@ -42,8 +42,6 @@ export function subscribeHourHeight(listener: () => void): () => void {
   return () => hourHeightListeners.delete(listener)
 }
 export const HOURS = Array.from({ length: 24 }, (_, i) => i)
-/** 1 日表示で 24 時の下に続けて出す次の日の夜中の時間（日をまたぐ予定・記録のため） */
-export const NIGHT_HOURS = 4
 export const SNAP_MINUTES = 15
 
 export function timeToY(time: string): number {

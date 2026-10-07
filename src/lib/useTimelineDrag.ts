@@ -94,7 +94,7 @@ function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: numbe
 
 interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
-  getDateKeyFromX?: (clientX: number, clientY?: number) => string | null
+  getDateKeyFromX?: (clientX: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
   /** `dateKey` は引いた列の日（日をまたぐ記録は、その日の区間の時刻で返す） */
   onResizeDone: (taskId: string, startTime: string, endTime: string, dateKey: string) => void
@@ -305,7 +305,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   /** 指・カーソルの位置からドラッグ中の位置を出し直す（スクロールで格子が動いたときも使う） */
   const applyPoint = useCallback(
     (clientX: number, clientY: number, current: DragState) => {
-      const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
+      const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX) : null) ?? current.dateKey
       const y = getRelativeY(clientY, dateKey)
       if (current.kind === 'create') {
         // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
