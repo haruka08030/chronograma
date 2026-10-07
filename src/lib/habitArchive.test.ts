@@ -16,7 +16,7 @@ vi.mock('../i18n/config', () => ({
 const { useTaskStore } = await import('../store/taskStore')
 const { isHabitScheduledOnDate } = await import('./habitSchedule')
 const { habitToPlannedItem } = await import('./habitSlots')
-const { completionRatioOnDate } = await import('./habitStats')
+const { habitRecentRate } = await import('./habitStats')
 const { getWeekReview } = await import('./weekReview')
 const { fromDateKey } = await import('./dateKey')
 
@@ -62,7 +62,7 @@ describe('アーカイブした習慣', () => {
 
   it('達成率・週のふりかえりに数えない', () => {
     const habits = [habit('h', { completedDates: [] }), habit('a', { timeMode: 'none', startTime: null, endTime: null, archivedAt: OLD })]
-    expect(completionRatioOnDate(habits, fromDateKey(DAY))).toBe(0)
+    expect(habitRecentRate(habits[1])).toBeNull()
     const review = getWeekReview([], habits, fromDateKey(DAY), new Set(), new Date(`${DAY}T23:00:00`))
     expect(review.habitRate).toBe(0)
   })

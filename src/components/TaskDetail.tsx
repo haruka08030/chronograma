@@ -1,11 +1,8 @@
-import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, type Task } from '../types/task'
 import { ColorLabelPicker } from './labels/ColorLabelPicker'
-import { useEscapeLayer } from '../hooks/useHotkey'
-import { useFocusTrap } from '../hooks/useFocusTrap'
-import { ChevronLeftIcon } from './icons'
+import { SideSheet } from './ui/SideSheet'
 import { buttonClass } from './ui/buttonClass'
 import { TaskTitleField } from './detail/TaskTitleField'
 import { TaskMemoField } from './detail/TaskMemoField'
@@ -32,17 +29,6 @@ export function TaskDetail({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
-  useEscapeLayer(onClose)
-  // Tab は詳細の中だけを巡回し、閉じたら開いた行（の題名）へフォーカスを戻す
-  const panelRef = useRef<HTMLDivElement>(null)
-  const trapTab = useFocusTrap(panelRef, {
-    active: !closing,
-    returnFocus: () =>
-      Array.from(document.querySelectorAll<HTMLElement>(`[data-task-row="${CSS.escape(task.id)}"] [data-task-title]`)).find(
-        (el) => el.getClientRects().length > 0,
-      ),
-  })
   const isLog = isLogTask(task)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const lists = useTaskStore((s) => s.lists)
@@ -88,33 +74,17 @@ export function TaskDetail({
   )
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} onKeyDown={trapTab} inert={closing}>
-      <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={task.title}
-        tabIndex={-1}
-        className={`relative w-full outline-none max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700 dark:shadow-[-8px_0_24px_rgba(0,0,0,0.5)]
-                   h-full overflow-y-auto overscroll-contain shadow-xl ${closing ? 'animate-slide-out' : 'animate-slide-in'}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* スマホだけ: 上に固定した戻る（Google Tasks と同じ）。下までスクロールしても閉じられる */}
-        <div className="sticky top-0 z-10 flex items-center border-b border-zinc-100 bg-white/95 px-1 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 md:hidden">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t('common.close')}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 touch-manipulation active:bg-zinc-100 dark:text-zinc-300 dark:active:bg-zinc-800"
-          >
-            <ChevronLeftIcon className="h-6 w-6" />
-          </button>
-        </div>
-        {detailBody}
-      </div>
-    </div>
+    <SideSheet
+      label={task.title}
+      closing={closing}
+      onClose={onClose}
+      returnFocus={() =>
+        Array.from(document.querySelectorAll<HTMLElement>(`[data-task-row="${CSS.escape(task.id)}"] [data-task-title]`)).find(
+          (el) => el.getClientRects().length > 0,
+        )
+      }
+    >
+      {detailBody}
+    </SideSheet>
   )
 }
