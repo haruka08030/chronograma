@@ -387,8 +387,13 @@ export function WeekCalendarView({
         useTaskStore.getState().askComplete(taskId)
         return
       }
-      const kind = planKindOf(useTaskStore.getState().tasks.find((x) => x.id === taskId))
-      updateTask(taskId, { scheduledDate: dateKey, startTime, endTime, kind })
+      const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)
+      if (!task) return
+      updateTask(
+        taskId,
+        { scheduledDate: dateKey, startTime, endTime, kind: planKindOf(task) },
+        { key: 'undo.blockPlaced', params: { title: task.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` } },
+      )
     },
   })
 

@@ -855,6 +855,7 @@ export default {
     tasksCompleted_one: 'Completed {{count}} task',
     taskCompleted: 'Completed “{{title}}”',
     blockMoved: 'Moved “{{title}}” to {{date}} {{time}}',
+    blockPlaced: 'Put “{{title}}” on {{date}} {{time}}',
     blockResized: 'Changed “{{title}}” to {{time}}',
     blockToAllDay: 'Moved “{{title}}” to all day on {{date}}',
     taskMovedToDate: 'Moved “{{title}}” to {{date}}',
