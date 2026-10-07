@@ -261,6 +261,8 @@ export interface TaskState {
   resolveStaleTimer: (endedAt: string) => void
   /** 止め忘れたタイマーを記録にせず捨てる */
   discardActiveTimer: () => void
+  /** 記録を作ったあと、元の To-Do を完了にするか聞く（タイマーを止めたときと同じ確認） */
+  askComplete: (taskId: string) => void
   dismissCompletePrompt: () => void
   dismissLabelPrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void
