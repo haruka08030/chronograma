@@ -17,7 +17,7 @@ import {
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { moveGoogleEvent } from '../lib/googleEventEdit'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useNow } from '../hooks/useAppClock'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
@@ -131,7 +131,7 @@ export function WeekCalendarView({
   const [dropLane, setDropLane] = useState<CreateIntent>('schedule')
   const [dropBlocked, setDropBlocked] = useState(false)
   /** 記録は今より先には作れない。その日の記録に使える最後の分（null は制限なし＝過去の日） */
-  const now = useNowMinuteTick()
+  const now = useNow()
   const todayKey = toDateKey(now)
   const logLimitMin = (key: string): number | null => (key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes())
   const logLimitRef = useRef(logLimitMin)

@@ -3,6 +3,7 @@
  * ストアや画面に頼らずに、データの書き出しと自動バックアップからの復元を出せるようにする
  */
 import { listAutoBackups, loadAutoBackup } from './autoBackup'
+import { appTodayKey } from './timeZone'
 
 const PERSIST_KEY = 'chronograma-storage'
 
@@ -34,7 +35,7 @@ export function downloadRawData(): void {
   const url = URL.createObjectURL(new Blob([body], { type: 'application/json' }))
   const a = document.createElement('a')
   a.href = url
-  a.download = `chronograma-rescue-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `chronograma-rescue-${appTodayKey()}.json`
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

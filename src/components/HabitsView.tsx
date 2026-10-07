@@ -6,7 +6,6 @@ import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive, type Habit } from '../types/habit'
 import { isHabitDueOnDate } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
-import { appToday } from '../lib/timeZone'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
 import { SectionLabel } from './ui/SectionLabel'
@@ -24,6 +23,7 @@ import { HabitEditCard } from './habits/HabitEditCard'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
 import { EMPTY_HABIT_FORM, useHabitForm } from './habits/habitFormState'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 /**
  * 習慣の画面: 要約（`HabitsSummary`）→ 追加（`HabitComposer`）→ この日の習慣（週の見出し・カード）→ アーカイブ。
@@ -74,7 +74,7 @@ export function HabitsView() {
     const start = startOfWeek(focusDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [focusDate])
-  const todayKey = toDateKey(appToday())
+  const todayKey = useAppTodayKey()
   const habitWeekdayLabels = useMemo(() => t('habits.weekdays', { returnObjects: true }) as string[], [t])
 
   // 週に◯回でその週の回数を満たした習慣は、やっていない日には「予定に含まれない」側に回す

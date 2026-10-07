@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import { TimeInput } from './TimeInput'
-import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useNow } from '../hooks/useAppClock'
 import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { FIELD_FOCUS_RING } from './ui/fieldClass'
@@ -40,7 +40,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const [bed, setBed] = useState('')
   const [wake, setWake] = useState('')
   const [draftFor, setDraftFor] = useState<string | null>(null)
-  const now = useNowMinuteTick()
+  const now = useNow()
 
   const todayKey = toDateKey(now)
   const nowMin = now.getHours() * 60 + now.getMinutes()

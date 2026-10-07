@@ -22,6 +22,7 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { isTodoTask } from '../types/task'
 import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -35,6 +36,17 @@ export function CalendarHubView() {
   // 開いたときは見ている日（今日の計画・習慣と共有）を含む月・週から
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(fromDateKey(selectedDateKey)))
   const [weekAnchor, setWeekAnchor] = useState(() => fromDateKey(selectedDateKey))
+  // 開いたまま日をまたいだとき: 今日を見ていたなら（見ている日は useFollowToday が進める）週・月も新しい今日へ
+  const todayKey = useAppTodayKey()
+  const [seenTodayKey, setSeenTodayKey] = useState(todayKey)
+  if (seenTodayKey !== todayKey) {
+    setSeenTodayKey(todayKey)
+    if (selectedDateKey === seenTodayKey || selectedDateKey === todayKey) {
+      const today = fromDateKey(todayKey)
+      setMonthCursor(startOfMonth(today))
+      setWeekAnchor(today)
+    }
+  }
   const isDesktop = useIsDesktop()
   // 3 日表示はスマホ幅だけ。PC 幅では週にする
   const calendarMode: CalendarMode = isDesktop && storedMode === 'threeDay' ? 'week' : storedMode

@@ -31,6 +31,7 @@ import { useShortcutsHelpRequest } from './lib/shortcuts'
 import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useReminders } from './hooks/useReminders'
+import { useFollowToday } from './hooks/useFollowToday'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
@@ -70,6 +71,7 @@ export default function App() {
   useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true) })
   useShortcutsHelpRequest(() => setShowShortcuts(true))
   useReminders()
+  useFollowToday()
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()

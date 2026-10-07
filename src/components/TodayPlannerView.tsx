@@ -8,7 +8,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { unplannedListIds } from '../lib/listKind'
-import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
+import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
 import { isLogTask, isSleepTask } from '../types/task'
 import { isAppToday, appToday } from '../lib/timeZone'
@@ -56,7 +56,7 @@ export function TodayPlannerView() {
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const todayToggle = useTodayToggle()
   const bulk = useBulkTaskActions()
-  const now = useNowMinuteTick()
+  const now = useNow()
   // 行を押したとき: PC は詳細、スマホは短いシート（To-Do 一覧と同じ）
   const openDetail = useOpenTaskRow()
   const isCoarse = useIsCoarsePointer()

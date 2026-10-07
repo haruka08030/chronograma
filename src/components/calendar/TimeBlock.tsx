@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { HOUR_HEIGHT, timeToY } from '../../lib/timeGrid'
 import { getResizeCursor, type CreatePopup } from '../../lib/useTimelineDrag'
-import { useNowMinuteTick } from '../../hooks/useNowMinuteTick'
+import { useNow } from '../../hooks/useAppClock'
 import { colorVars } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { planVisualState } from '../../lib/planVisual'
@@ -206,7 +206,7 @@ export function CreateGhost({
 }
 
 export function NowIndicator() {
-  const now = useNowMinuteTick()
+  const now = useNow()
 
   const minutes = now.getHours() * 60 + now.getMinutes()
   const top = (minutes / 60) * HOUR_HEIGHT
