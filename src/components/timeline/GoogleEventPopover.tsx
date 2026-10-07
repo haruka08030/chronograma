@@ -118,8 +118,16 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }
 
   return (
-    <div ref={ref} role="dialog" aria-label={event.summary} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
-      <div className="flex justify-end gap-0.5 px-2 pt-2">
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={event.summary}
+      tabIndex={-1}
+      className={`${anchoredCardClass(sheet)} flex flex-col`}
+      // カードは中の時刻の候補リストが切れるのでスクロールさせない。画面に収まる高さにして、縮むのはメモだけ（下の色はいつも見える）
+      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)` }}
+    >
+      <div className="flex shrink-0 justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
           <a
             href={event.htmlLink}
@@ -156,7 +164,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3">
+      <div className={`grid min-h-0 grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3 ${memo ? 'grid-rows-[auto_minmax(0,1fr)]' : ''}`}>
         <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           {editable ? (
@@ -232,12 +240,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         {memo && (
           <>
             <span />
-            {/* カードは中の時刻の候補リストが切れるのでスクロールさせない。長いメモはメモの中でスクロール */}
-            <MemoPreview text={memo} className="max-h-[40vh] overflow-y-auto overscroll-contain" />
+            {/* 長いメモはメモの中でスクロール */}
+            <MemoPreview text={memo} className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain" />
           </>
         )}
       </div>
-      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+      <div className="shrink-0 space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
         {recurring && (
           <PillToggle
             ariaLabel={t('eventCard.colorScope')}
