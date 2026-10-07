@@ -13,6 +13,7 @@ export const TASK_DEFAULTS = {
   reminders: null,
   location: null,
   estimateMinutes: null,
+  sourceTaskId: null,
   color: null,
   kind: 'todo',
   habitId: null,

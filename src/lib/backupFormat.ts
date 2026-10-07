@@ -232,6 +232,8 @@ function normalizeTaskRow(raw: unknown): Task | null {
     priority: normalizePriority(row.priority),
     kind,
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
+    sourceTaskId:
+      typeof (row.sourceTaskId ?? row.source_task_id) === 'string' ? ((row.sourceTaskId ?? row.source_task_id) as string) : null,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
