@@ -8,6 +8,7 @@ import { CloseIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { EXTRA_TIME_ZONE_LABEL_MAX } from '../../lib/extraTimeZones'
+import { isCancelEscape, isImeKeyEvent, isSubmitEnter } from '../../lib/keyboard'
 
 /** 設定「日付と時刻」: アプリのタイムゾーンと、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
 export function TimeZoneSettings() {
@@ -96,10 +97,10 @@ function ZoneLabelInput({
         else setDraft(value)
       }}
       onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return
-        if (e.key === 'Enter') e.currentTarget.blur()
+        if (isImeKeyEvent(e.nativeEvent)) return
+        if (isSubmitEnter(e)) e.currentTarget.blur()
         // 書きかけがあれば Esc はそれを戻すだけ（設定の画面は閉じない）
-        if (e.key === 'Escape' && draft !== value) {
+        if (isCancelEscape(e) && draft !== value) {
           setDraft(value)
           e.stopPropagation()
         }

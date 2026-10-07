@@ -8,7 +8,7 @@ import { useNowMinuteTick } from '../hooks/useNowMinuteTick'
 import { CloseIcon, MoonSolidIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { FIELD_FOCUS_RING } from './ui/fieldClass'
-import { isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { minutesToTime, timeToMinutes } from '../lib/clockTime'
@@ -95,7 +95,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400"
       onKeyDown={(e) => {
         if (isSubmitEnter(e)) save()
-        if (e.key === 'Escape' && record) setEditing(false)
+        if (isCancelEscape(e) && record) setEditing(false)
       }}
     >
       <span className="inline-flex items-center gap-1.5">

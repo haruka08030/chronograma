@@ -96,6 +96,7 @@ export const TaskItem = memo(function TaskItem({
   onNativeDragEnd,
   sectionLabel,
   dayKey,
+  keepHandleSpace = false,
 }: {
   task: Task
   onClick?: () => void
@@ -124,6 +125,8 @@ export const TaskItem = memo(function TaskItem({
   dayKey?: string
   /** セクションの塊で分けずに並べるとき、行に出すセクション名（Canvas なら科目） */
   sectionLabel?: string | null
+  /** つまみを出さない並びでも、つまみの幅を空けておく（並び順を変えても行の文字が横に動かないように。PC だけ） */
+  keepHandleSpace?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const hasSortableHandle = !!dragHandle || !!liftListeners
@@ -350,7 +353,12 @@ export const TaskItem = memo(function TaskItem({
           // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
           <span aria-hidden className="gc-line absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={colorVars(rowHex)} />
         )}
-        {dragHandle ? <span className="touch-none flex-shrink-0">{dragHandle}</span> : null}
+        {dragHandle ? (
+          <span className="touch-none flex-shrink-0">{dragHandle}</span>
+        ) : keepHandleSpace && !isCoarse ? (
+          // つまみ（`useRowGrip`）と同じ幅
+          <span aria-hidden className="w-7 flex-shrink-0 md:w-5" />
+        ) : null}
 
         {selection ? (
           <button

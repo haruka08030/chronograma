@@ -75,6 +75,14 @@ export function isSubmitEnter(e: { key: string; nativeEvent: Pick<KeyboardEvent,
 }
 
 /**
+ * 取り消しの Esc か。日本語の変換を取り消す Esc は除く
+ * （Safari は変換を取り消す Esc を isComposing=false・keyCode 229 で送ることがある）
+ */
+export function isCancelEscape(e: { key: string; nativeEvent: Pick<KeyboardEvent, 'isComposing' | 'keyCode'> }): boolean {
+  return e.key === 'Escape' && !isImeKeyEvent(e.nativeEvent)
+}
+
+/**
  * 複数行の欄（メモ）でのキーの意味。Enter はふつうに改行（null）
  * - ⌘/Ctrl+Enter: 'commit'（確定して欄を離れる）
  * - Esc: 'leave'（欄を離れる。書いた分は捨てない）
@@ -87,6 +95,6 @@ export function textAreaKeyAction(e: {
   nativeEvent: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>
 }): 'commit' | 'leave' | null {
   if (isModKey(e) && isSubmitEnter(e)) return 'commit'
-  if (e.key === 'Escape' && !e.nativeEvent.isComposing) return 'leave'
+  if (isCancelEscape(e)) return 'leave'
   return null
 }

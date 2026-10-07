@@ -24,6 +24,15 @@ export interface MainListTasksInput {
   excludedListIds?: ReadonlySet<string>
 }
 
+/** 締切の近い順。締切なしは後ろ、同じなら手動の順 */
+function byDue(a: Task, b: Task): number {
+  if (!a.dueDate && !b.dueDate) return a.order - b.order
+  if (!a.dueDate) return 1
+  if (!b.dueDate) return -1
+  // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
+  return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
+}
+
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
   const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
@@ -72,15 +81,10 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
 
   switch (sortMode) {
     case 'dueDate':
-      return [...result].sort((a, b) => {
-        if (!a.dueDate && !b.dueDate) return a.order - b.order
-        if (!a.dueDate) return 1
-        if (!b.dueDate) return -1
-        // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
-        return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
-      })
+      return [...result].sort(byDue)
     case 'priority':
-      return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3))
+      // 同じ優先度なら締切の近い順（同じ「高」でも先に出すものを上に）
+      return [...result].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3) || byDue(a, b))
     case 'title':
       return [...result].sort((a, b) => a.title.localeCompare(b.title, 'ja'))
     case 'createdAt':
