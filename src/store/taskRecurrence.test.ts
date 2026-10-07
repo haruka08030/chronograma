@@ -138,3 +138,38 @@ describe('toggleTaskCompletion', () => {
     expect(before[0]!.completed).toBe(false)
   })
 })
+
+describe('毎月・毎年の元の日（31 日・2/29）', () => {
+  /** 完了して次の回を作るのを続け、締切の並びを返す */
+  function chain(due: string, recurrence: NonNullable<Task['recurrence']>, times: number): string[] {
+    let tasks: Task[] = [task({ dueDate: due, recurrence })]
+    const out: string[] = []
+    let id = 'gym'
+    for (let i = 0; i < times; i++) {
+      tasks = toggleTaskCompletion(tasks, id, T1)!
+      const next = tasks.find((t) => !t.completed)!
+      out.push(next.dueDate!)
+      id = next.id
+    }
+    return out
+  }
+
+  it('毎月 31 日: 無い月だけ月末に寄せ、ある月では 31 日に戻る', () => {
+    expect(chain('2026-01-31', { type: 'monthly', interval: 1 }, 5)).toEqual([
+      '2026-02-28',
+      '2026-03-31',
+      '2026-04-30',
+      '2026-05-31',
+      '2026-06-30',
+    ])
+  })
+
+  it('毎年 2/29: うるう年でない年は 2/28、うるう年に 2/29 へ戻る', () => {
+    expect(chain('2028-02-29', { type: 'yearly', interval: 1 }, 4)).toEqual(['2029-02-28', '2030-02-28', '2031-02-28', '2032-02-29'])
+  })
+
+  it('締切を手で 15 日に動かしたら、覚えていた 31 日ではなく 15 日で回る', () => {
+    expect(nextDueDate('2026-03-15', { type: 'monthly', interval: 1, monthDay: 31 })).toBe('2026-04-15')
+    expect(nextDueDate('2026-02-28', { type: 'monthly', interval: 1, monthDay: 31 })).toBe('2026-03-31')
+  })
+})

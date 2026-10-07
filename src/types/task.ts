@@ -10,6 +10,11 @@ export interface Recurrence {
    * 未設定は締切の曜日で回る。次の回は選んだ曜日のうち次に来る日（`taskRecurrence.ts`）
    */
   weekdays?: number[]
+  /**
+   * 毎月・毎年の元の日（1〜31）。31 日・2/29 のように無い月は月末に寄せ、ある月では元の日に戻す。
+   * 未設定は締切の日。完了で次の回を作るときに覚える（`taskRecurrence.ts`）
+   */
+  monthDay?: number
 }
 
 /**
