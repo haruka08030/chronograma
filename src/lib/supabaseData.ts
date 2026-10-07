@@ -372,7 +372,7 @@ function rowToTaskFields(row: TaskRow): Task {
     const type = r.type
     const interval = r.interval
     if ((type === 'daily' || type === 'weekly' || type === 'monthly' || type === 'yearly') && typeof interval === 'number') {
-      recurrence = buildRecurrence(type, interval, r.weekdays)
+      recurrence = buildRecurrence(type, interval, r.weekdays, r.monthDay)
     }
   }
   const priority =

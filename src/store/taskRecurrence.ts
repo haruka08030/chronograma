@@ -2,7 +2,7 @@
  * 繰り返しタスクの次回（純粋な関数。localStorage・i18n を読まない）。
  * 完了したら次の期限の回を作り、完了を取り消したらまだ手を付けていない次回を片付ける
  */
-import { addDays, addMonths, addWeeks, addYears, differenceInCalendarDays } from 'date-fns'
+import { addDays, addWeeks, differenceInCalendarDays, getDaysInMonth } from 'date-fns'
 import type { Task } from '../types/task'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { isoWeekday, readRecurrenceWeekdays } from '../lib/recurrence'
@@ -28,18 +28,40 @@ export function nextDueDate(current: string, recurrence: NonNullable<Task['recur
       return toDateKey(addDays(addWeeks(monday, recurrence.interval), days[0]! - 1))
     }
     case 'monthly':
-      return toDateKey(addMonths(d, recurrence.interval))
+      return toDateKey(onMonthDay(d, recurrence.interval, recurrenceMonthDay(d, recurrence)))
     case 'yearly':
-      return toDateKey(addYears(d, recurrence.interval))
+      return toDateKey(onMonthDay(d, recurrence.interval * 12, recurrenceMonthDay(d, recurrence)))
   }
 }
 
 /**
- * 次の回のやる日。曜日つきの毎週は回の間隔がそろわないので、締切と同じ日数だけずらす（締切の前日にやる、を保つ）。
+ * 毎月・毎年の元の日。覚えている日（`monthDay`）が今の回と合うときだけ使う（今の回がその日か、その日が無い月の月末）。
+ * 締切を手で別の日に動かしていたら、動かした日を元の日とする
+ */
+export function recurrenceMonthDay(current: Date, recurrence: NonNullable<Task['recurrence']>): number {
+  const day = current.getDate()
+  const remembered = recurrence.monthDay
+  if (remembered == null || remembered === day) return day
+  return day === getDaysInMonth(current) && remembered > day ? remembered : day
+}
+
+/** `months` か月先の、その月の `day` 日（無い月は月末） */
+function onMonthDay(d: Date, months: number, day: number): Date {
+  const first = new Date(d.getFullYear(), d.getMonth() + months, 1)
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(day, getDaysInMonth(first)))
+}
+
+/**
+ * 次の回のやる日。曜日つきの毎週・毎月・毎年は回の間隔がそろわないので、締切と同じ日数だけずらす（締切の前日にやる、を保つ）。
  * それ以外はやる日にも同じ繰り返しを当てる
  */
 function nextScheduledDate(scheduled: string, due: string, nextDue: string, recurrence: NonNullable<Task['recurrence']>): string {
-  if (recurrence.type === 'weekly' && readRecurrenceWeekdays(recurrence.weekdays)) {
+  // 毎月・毎年も締切からの日数でずらす（締切の元の日（31 日など）をやる日に当てない）
+  if (
+    (recurrence.type === 'weekly' && readRecurrenceWeekdays(recurrence.weekdays)) ||
+    recurrence.type === 'monthly' ||
+    recurrence.type === 'yearly'
+  ) {
     return toDateKey(addDays(fromDateKey(scheduled), differenceInCalendarDays(fromDateKey(nextDue), fromDateKey(due))))
   }
   return nextDueDate(scheduled, recurrence)
@@ -75,6 +97,11 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
           completed: false,
           completedAt: null,
           dueDate: nextDue,
+          // 元の日（31 日・2/29）を覚えて、短い月を通っても戻れるようにする
+          recurrence:
+            tsk.recurrence.type === 'monthly' || tsk.recurrence.type === 'yearly'
+              ? { ...tsk.recurrence, monthDay: recurrenceMonthDay(fromDateKey(tsk.dueDate), tsk.recurrence) }
+              : tsk.recurrence,
           scheduledDate: tsk.scheduledDate
             ? nextScheduledDate(tsk.scheduledDate, tsk.dueDate, nextDue, tsk.recurrence)
             : (tsk.scheduledDate ?? null),
