@@ -124,8 +124,8 @@
   （`logCategories.defaults`、勉強・課題・就活…）を新規ユーザーに入れ、persist v26 で空の既存ユーザーにも入れる。分類なしで記録したら
   `inferLogCategory`（`src/lib/logCategory.ts`: 元タスクの先頭タグ → 同じタイトルの前回の分類）を `startTimer` / `addTimeLog` /
   `addCompletedTaskWithTime` で補う。タイトル空でも分類だけで開始可（タイトル＝分類名）
-- **今日画面から記録**: `QuickLogStarter`（「今日の計画」の見出し下）。「記録する」でタイトル（任意）＋分類、最近の記録 3 件
-  （`recentLogs`）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
+- **今日画面から記録**: `QuickLogStarter`（「今日の計画」の見出し下）。「記録する」でタイトル（任意）＋分類、よく使う記録 2 件
+  （`frequentLogs`: 直近 30 日の回数順、同数は新しい順）はワンタップで再開。記録中は `FloatingTimer` に任せて隠れる
 
 - **色**（`src/lib/googleColors.ts`）: リスト・習慣・記録の分類はすべて Google カレンダーの 11 色（パレット切り替えは廃止、
   persist v28 で既存のリスト・習慣の色を色相の最も近い色へ、未分類はラベンダー）。タイムラインは、予定・記録・外部予定とも
