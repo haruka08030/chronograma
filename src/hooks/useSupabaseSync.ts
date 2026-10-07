@@ -9,7 +9,8 @@ import {
   pushListsTasksHabits,
   pushLogLabels,
 } from '../lib/supabaseData'
-import { runSettingSync, type SettingSyncDeps } from '../lib/settingSync'
+import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
+import { clearPreviousAccount } from '../lib/accountBoundary'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
@@ -56,6 +57,19 @@ let flushSync: (() => Promise<boolean>) | null = null
  */
 export function flushPendingSync(): Promise<boolean> {
   return flushSync ? flushSync() : Promise.resolve(true)
+}
+
+/**
+ * ラベル表・他のタイムゾーンの手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
+ * （送れなかったときは記録するだけでタスクの同期は止めないので、ログアウトの前にここで確かめる）
+ */
+function settingsSent(userId: string): boolean {
+  const s = useTaskStore.getState()
+  const local: [SettingKey, string | null][] = [
+    ['labels', s.logLabelsUpdatedAt],
+    ['zones', s.extraTimeZonesUpdatedAt],
+  ]
+  return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
 }
 
 function localSnapshot(): SyncSnapshot {
@@ -223,8 +237,8 @@ export function useSupabaseSync() {
       if ((owner !== null && owner !== userId && owner !== LEGACY_DATA_OWNER) || legacyOfOther) {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
-        backupNow('beforeSignOut')
-        useTaskStore.getState().resetLocalData()
+        // 前の人の通知の購読もここで外す（ログアウトの道しか外していなかった）
+        clearPreviousAccount()
       }
       // ログインせずに作ったデータは、前回同期の控え（baseline）と比べると、この人のクラウドの行が
       // 全部「この端末で消された」に見える。初回同期と同じく、両方を残して取り込む
@@ -391,7 +405,7 @@ export function useSupabaseSync() {
       while (running && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
       // 拒否された行は手元にしか無いので、送れていない扱いにする（ログアウトの前に確かめる）
       const s = useTaskStore.getState()
-      return !running && s.syncState === 'idle' && s.syncRejected.length === 0
+      return !running && s.syncState === 'idle' && s.syncRejected.length === 0 && settingsSent(userId)
     }
 
     const unsub = useTaskStore.subscribe((state, prev) => {

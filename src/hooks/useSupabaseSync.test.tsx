@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { loadBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
-import { useSupabaseSync } from './useSupabaseSync'
+import { clearLocalAccountState } from '../lib/accountBoundary'
+import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
 
 /**
  * 同期のフックを、本物のストアと PostgREST・DB の偽物（`fakeSupabaseDb`、サーバーのトリガーと印を真似る）で回す。
@@ -31,6 +32,14 @@ vi.mock('./useAutoBackup', async (importOriginal) => ({
   backupNow: vi.fn(),
 }))
 
+// 通知の購読（Service Worker）は jsdom に無いので、外したか・購読し直したかだけ見る
+const push = vi.hoisted(() => ({ detach: vi.fn(async () => {}), resync: vi.fn(async () => {}) }))
+vi.mock('../lib/webPush', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/webPush')>()),
+  detachWebPush: push.detach,
+  resyncWebPush: push.resync,
+}))
+
 let db: ReturnType<typeof fakeDb>
 
 beforeEach(() => {
@@ -39,6 +48,8 @@ beforeEach(() => {
   db = fakeDb()
   env.client = db.client
   env.user = null
+  push.detach.mockClear()
+  push.resync.mockClear()
 })
 
 afterEach(() => {
@@ -213,5 +224,87 @@ describe('useSupabaseSync', () => {
     const s = useTaskStore.getState()
     expect(s.tasks.find((t) => t.id === 'a')).toMatchObject({ title: 'a edited here', priority: 'high' })
     expect(s.syncRejected).toEqual([])
+  })
+
+  describe('アカウントの境目のラベル表と購読（#286）', () => {
+    const serverLabels = (userId: string) =>
+      (db.tables.user_settings ?? [])
+        .filter((r) => r.user_id === userId)
+        .flatMap((r) => (r.log_labels as { name: string }[]).map((l) => l.name))
+
+    it('ログアウト → 別の人でログインしても、前の人のラベル表は手元に残らず次の人のアカウントにも送られない', async () => {
+      db.tables.lists!.push({ ...inboxRow }, { ...inboxRow, user_id: 'u2' })
+      const hook = signIn('u1')
+      await untilSynced()
+      useTaskStore.setState({ timeLogTagPresets: ['A社 面接'], logCategoryColors: { 'A社 面接': '#ef4444' } })
+      await act(async () => {
+        expect(await flushPendingSync()).toBe(true)
+      })
+      expect(serverLabels('u1')).toEqual(['A社 面接'])
+
+      env.user = null
+      hook.rerender()
+      clearLocalAccountState('u1')
+      expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
+      expect(useTaskStore.getState().logLabelsUpdatedAt).toBeNull()
+      expect(push.detach).toHaveBeenCalled()
+
+      env.user = { id: 'u2' }
+      hook.rerender()
+      await untilSynced()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(serverLabels('u2')).not.toContain('A社 面接')
+      expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
+    })
+
+    it('ログアウトせずにアカウントが替わったら、前の人のラベル表を空にし、購読を外して今の人で購読し直す', async () => {
+      db.tables.lists!.push({ ...inboxRow }, { ...inboxRow, user_id: 'u2' })
+      const hook = signIn('u1')
+      await untilSynced()
+      useTaskStore.setState({ timeLogTagPresets: ['A社 面接'], logCategoryColors: { 'A社 面接': '#ef4444' } })
+      await act(async () => {
+        await flushPendingSync()
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      const before = useTaskStore.getState().lastSyncedAt
+
+      env.user = null
+      hook.rerender()
+      env.user = { id: 'u2' }
+      hook.rerender()
+      await untilSynced(before)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+
+      expect(push.detach).toHaveBeenCalled()
+      expect(push.resync).toHaveBeenCalled()
+      expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
+      expect(serverLabels('u2')).not.toContain('A社 面接')
+    })
+
+    it('ラベル表を送れていなければ、ログアウトの前の「送れたか」は false', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      // ラベル表の行だけ取れない・送れない
+      const failing: Record<string, unknown> = new Proxy(
+        {},
+        {
+          get: (_t, key) =>
+            key === 'then' ? (resolve: (v: unknown) => void) => resolve({ data: null, error: { message: 'boom' } }) : () => failing,
+        },
+      )
+      const real = db.client as { from: (t: string) => unknown }
+      env.client = { ...real, from: (t: string) => (t === 'user_settings' ? failing : real.from(t)) }
+      signIn('u1')
+      await untilSynced()
+      useTaskStore.setState({ timeLogTagPresets: ['ゼミ'], logCategoryColors: { ゼミ: '#ef4444' } })
+      let synced = true
+      await act(async () => {
+        synced = await flushPendingSync()
+      })
+      expect(synced).toBe(false)
+    })
   })
 })
