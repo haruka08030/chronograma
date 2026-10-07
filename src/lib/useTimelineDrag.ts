@@ -96,7 +96,8 @@ interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
   getDateKeyFromX?: (clientX: number, clientY?: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
-  onResizeDone: (taskId: string, startTime: string, endTime: string) => void
+  /** `dateKey` は引いた列の日（日をまたぐ記録は、その日の区間の時刻で返す） */
+  onResizeDone: (taskId: string, startTime: string, endTime: string, dateKey: string) => void
   /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
   defaultCreateIntent?: CreateIntent
   /** グリッドが pointer capture するため click が届かない環境向け: 移動・リサイズなしの指離し時 */
@@ -416,11 +417,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         if (drag.edge === 'top') {
           const endMin = timeToMinutes(drag.origEndTime)
           const clampedStart = Math.min(newMin, endMin - MIN_BLOCK_MINUTES)
-          onResizeDone(drag.taskId, minutesToTime(Math.max(0, clampedStart)), drag.origEndTime)
+          onResizeDone(drag.taskId, minutesToTime(Math.max(0, clampedStart)), drag.origEndTime, drag.dateKey)
         } else {
           const startMin = timeToMinutes(drag.origStartTime)
           const clampedEnd = Math.max(newMin, startMin + MIN_BLOCK_MINUTES)
-          onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)))
+          onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)), drag.dateKey)
         }
       } else {
         onBlockTap?.(drag.taskId)

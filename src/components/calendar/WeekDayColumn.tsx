@@ -19,6 +19,7 @@ import { toDateKey } from '../../lib/dateKey'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
+import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 
 /** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
 export function WeekDayColumn({
@@ -224,15 +225,17 @@ export function WeekDayColumn({
             sleep={isSleepTask(t)}
             hStyle={logStyle(t.id)}
             colorHex={recordHex(t, logCategoryColors)}
-            onPointerDown={(e) =>
-              timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+            onPointerDown={(e) => {
+              // 日をまたぐ記録は、この列に描いている区間を端の元の値にする（記録全体の時刻だと 1 日ぶん長くなる）
+              const seg = logSegmentClockOnDay(t, key) ?? { startTime: t.startTime!, endTime: t.endTime! }
+              timelineDrag.handleBlockPointerDown(e, t.id, key, seg.startTime, seg.endTime, gridRef.current, {
                 startTime: t.startTime!,
                 endTime: t.endTime!,
                 kind: 'log',
                 dueDate: t.dueDate,
                 endDate: t.endDate,
               })
-            }
+            }}
             onOpenDetail={() => openCard(t.id)}
           />
         </div>
