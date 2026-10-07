@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { planKindOf, taskKindFlags, taskKindFromFlags, type Task } from '../types/task'
 import { getDayPlan, getMoreSuggestions } from './dayPlan'
 import { getFilteredRootTasks } from './mainListTasks'
@@ -69,7 +69,13 @@ describe('予定は To-Do として数えない', () => {
     expect(getMoreSuggestions([task('later', { kind: 'event', scheduledDate: '2026-10-09' })], DAY)).toEqual([])
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('To-Do の一覧（リスト・今日・すべて）に出さない', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(`${DAY}T12:00:00`))
     const input = { tasks, selectedListId: null, sortMode: 'manual' as const, filterTag: null, sections: [] }
     expect(getFilteredRootTasks({ ...input, selectedView: 'all' }).map((t) => t.id)).toEqual(['report'])
     expect(getFilteredRootTasks({ ...input, selectedView: 'today' }).map((t) => t.id)).toEqual(['report'])
