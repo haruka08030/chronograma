@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { NIGHT_HOURS, timeToMinutes } from '../lib/timeGrid'
+import { timeToMinutes } from '../lib/timeGrid'
 import {
   durationMinutesForTaskId,
   isOvernightTimeLog,
@@ -119,12 +119,8 @@ export function WeekCalendarView({
   const gridKey0 = toDateKey(gridDays[0]!)
   const gutterWidth = useTimeGutterWidth()
   const gridColsClass = gridDays.length === 7 ? 'grid-cols-7' : gridDays.length === 3 ? 'grid-cols-3' : 'grid-cols-1'
-  /**
-   * 1 日表示では、24 時の下に次の日の 0〜4 時を続けて出す（日をまたぐ予定・記録の続きが見えるように）
-   */
-  const nightDay = useMemo(() => (gridDays.length === 1 ? addDays(gridDays[0]!, 1) : null), [gridDays])
   const hourHeight = useHourHeight()
-  const gridHeight = hourHeight * (24 + (nightDay ? NIGHT_HOURS : 0))
+  const gridHeight = hourHeight * 24
   /** 予定（左）と 記録（右）の 2 列（今日・週とも。3 日表示は狭いので予定だけ）。押した・落とした列で作るものが決まる */
   const splitLanes = !threeDay
   const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
@@ -144,8 +140,7 @@ export function WeekCalendarView({
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const bucketDays = useMemo(() => (nightDay ? [...days, nightDay] : days), [days, nightDay])
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, bucketDays)
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
 
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
@@ -169,13 +164,12 @@ export function WeekCalendarView({
     return 0
   }, [])
 
-  /** `clientY` を渡すと縦も見る（1 日表示の 24 時の下は次の日の列） */
-  const getDateKeyFromX = useCallback((clientX: number, clientY?: number): string | null => {
+  const getDateKeyFromX = useCallback((clientX: number): string | null => {
     if (!gridRef.current) return null
     const cols = gridRef.current.querySelectorAll<HTMLElement>('[data-datekey]')
     for (const col of cols) {
       const rect = col.getBoundingClientRect()
-      if (clientX >= rect.left && clientX <= rect.right && (clientY === undefined || (clientY >= rect.top && clientY <= rect.bottom))) {
+      if (clientX >= rect.left && clientX <= rect.right) {
         return col.dataset.datekey ?? null
       }
     }
@@ -512,7 +506,7 @@ export function WeekCalendarView({
               onDropCapture={() => setEdgeDir(null)}
             >
               <div className="flex" style={{ height: gridHeight }}>
-                <TimeGutter dateKey={gridKey0} nightHours={nightDay ? NIGHT_HOURS : 0} />
+                <TimeGutter dateKey={gridKey0} />
 
                 <div
                   ref={gridRef}
@@ -524,9 +518,6 @@ export function WeekCalendarView({
                   {gridDays.map((day) => (
                     <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
                   ))}
-                  {nightDay && (
-                    <WeekDayColumn key={`night-${toDateKey(nightDay)}`} day={nightDay} hourCount={NIGHT_HOURS} {...columnProps} />
-                  )}
                 </div>
               </div>
             </div>
