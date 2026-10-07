@@ -123,11 +123,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       role="dialog"
       aria-label={event.summary}
       tabIndex={-1}
-      className={`${anchoredCardClass(sheet)} flex flex-col`}
-      // カードは中の時刻の候補リストが切れるのでスクロールさせない。画面に収まる高さにして、縮むのはメモだけ（下の色はいつも見える）
-      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)` }}
+      className={anchoredCardClass(sheet)}
+      // メモが長いと背が伸びる。画面からはみ出す分はカードの中でスクロール（To-Do・記録のカードと同じ）。
+      // 時刻の候補リストは開くと今の時刻の行が見えるところまでカードごとスクロールされる
+      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
-      <div className="flex shrink-0 justify-end gap-0.5 px-2 pt-2">
+      <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
           <a
             href={event.htmlLink}
@@ -164,7 +165,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
-      <div className={`grid min-h-0 grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3 ${memo ? 'grid-rows-[auto_minmax(0,1fr)]' : ''}`}>
+      <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3">
         <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           {editable ? (
@@ -240,12 +241,11 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         {memo && (
           <>
             <span />
-            {/* 長いメモはメモの中でスクロール */}
-            <MemoPreview text={memo} className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain" />
+            <MemoPreview text={memo} />
           </>
         )}
       </div>
-      <div className="shrink-0 space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
         {recurring && (
           <PillToggle
             ariaLabel={t('eventCard.colorScope')}
