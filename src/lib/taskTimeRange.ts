@@ -129,6 +129,52 @@ export function isOvernightTimeLog(task: Task): boolean {
   return differenceInCalendarDays(iv.end, iv.start) >= 1
 }
 
+/**
+ * 日をまたぐ記録の、その日の列に描いている区間の時刻（`HH:mm`。日の終わりまでなら終わりは '24:00'）。
+ * 端を引いて長さを変えるときは、記録全体ではなくこの区間を元の値にする
+ */
+export function logSegmentClockOnDay(task: Task, dateKey: string): { startTime: string; endTime: string } | null {
+  const iv = taskTimedInterval(task)
+  if (!iv) return null
+  const d0 = startOfDay(dateKeyToNoon(dateKey))
+  const d1 = startOfDay(addDays(d0, 1))
+  const segStart = max([iv.start, d0])
+  const segEnd = min([iv.end, d1])
+  if (segEnd <= segStart) return null
+  const minutesOf = (d: Date) => differenceInMinutes(d, d0)
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return { startTime: hm(minutesOf(segStart)), endTime: hm(minutesOf(segEnd)) }
+}
+
+/**
+ * 日をまたぐ記録の端を、ある日の列で引いたあとの日付と時刻。`startTime` / `endTime` はその日の列での区間（'24:00' は日の終わり）。
+ * 引いた側の端だけをその日のその時刻にし、もう一方の端は元のまま。日をまたがなくなったら `endDate` を外す
+ */
+export function patchAfterLogResize(
+  task: Task,
+  dateKey: string,
+  startTime: string,
+  endTime: string,
+): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> | null {
+  const iv = taskTimedInterval(task)
+  const seg = logSegmentClockOnDay(task, dateKey)
+  if (!iv || !seg) return null
+  const at = (hm: string) => addMinutes(startOfDay(dateKeyToNoon(dateKey)), timeToMinutes(hm))
+  const start = startTime !== seg.startTime ? at(startTime) : iv.start
+  const end = endTime !== seg.endTime ? at(endTime) : iv.end
+  if (end <= start) return null
+  const dueDate = toDateKey(start)
+  // 翌日の 0:00 ちょうどに終わるなら endDate は付けない（終わりが開始以前の記録は翌日まで、で読める）
+  const endsAtNextMidnight = clockOf(end) === '00:00' && differenceInCalendarDays(end, start) === 1
+  const endKey = toDateKey(end)
+  return {
+    dueDate,
+    startTime: clockOf(start),
+    endTime: clockOf(end),
+    endDate: endKey !== dueDate && !endsAtNextMidnight ? endKey : null,
+  }
+}
+
 /** タイムラインでブロックを動かしたあとの日付・時刻（ログは長さを維持） */
 /** ドラッグ移動用のブロック長（分） */
 export function dragBlockDurationMinutes(task: {

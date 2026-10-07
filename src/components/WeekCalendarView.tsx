@@ -3,7 +3,13 @@ import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { NIGHT_HOURS, timeToMinutes } from '../lib/timeGrid'
-import { durationMinutesForTaskId, isOvernightTimeLog, patchAfterTimelineMove } from '../lib/taskTimeRange'
+import {
+  durationMinutesForTaskId,
+  isOvernightTimeLog,
+  patchAfterLogResize,
+  patchAfterTimelineMove,
+  taskTimedInterval,
+} from '../lib/taskTimeRange'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
@@ -23,7 +29,7 @@ import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
-import { appTodayKey } from '../lib/timeZone'
+import { appTodayKey, zonedNow } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -236,13 +242,26 @@ export function WeekCalendarView({
         params: { title: prev.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
       })
     },
-    onResizeDone: (taskId, startTime, endTime) => {
+    onResizeDone: (taskId, startTime, endTime, dateKey) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
         if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
+      // 日をまたぐ記録: 引いた列の日付と時刻で開始・終了を決める（記録全体の時刻だけ書き換えると 1 日ぶん長くなっていた）
+      if (prev && isLogTask(prev) && isOvernightTimeLog(prev)) {
+        const patch = patchAfterLogResize(prev, dateKey, startTime, endTime)
+        if (!patch) return
+        // 今より先の記録にはしない
+        const next = taskTimedInterval({ ...prev, ...patch } as Task)
+        if (!next || next.end > zonedNow()) return
+        updateTask(taskId, patch, {
+          key: 'undo.blockResized',
+          params: { title: prev.title, time: `${patch.startTime}–${patch.endTime}` },
+        })
+        return
+      }
       if (prev && isLogTask(prev) && prev.dueDate && !prev.endDate) {
         const limit = logLimitRef.current(prev.dueDate)
         if (limit !== null && timeToMinutes(endTime) > limit) {
