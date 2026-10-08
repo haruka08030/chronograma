@@ -12,6 +12,7 @@ import {
   reviewInsightText,
   UNPLANNED_ROWS,
   type LabelSource,
+  type ReviewInsight,
 } from '../lib/weekReview'
 import { isLogTask, isSleepTask } from '../types/task'
 import { isActiveTask } from '../lib/taskLifecycle'
@@ -30,6 +31,9 @@ import { Segmented } from './ui/Segmented'
 import { ReviewMonthHeat } from './ReviewMonthHeat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
+import { iconButtonClass } from './ui/iconButtonClass'
+import { ShareIcon } from './icons'
+import { ReviewShareDialog } from './ReviewShareDialog'
 
 /** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
@@ -156,14 +160,20 @@ export function WeekReviewCard() {
   // 一言（#276）: その期間の数字から、いちばん大きいずれ 1 つ（同じ数字なら同じ文。提案はしない）。
   // はじめの案内は、一度も記録したことが無い人にだけ
   const everRecorded = useMemo(() => tasks.some((x) => isLogTask(x) && !isSleepTask(x) && isActiveTask(x)), [tasks])
-  const insight = reviewInsightText(pickReviewInsight(review, { loggedDiff, everRecorded, todayKey }), {
-    t,
-    period,
-    current: atCurrent,
-    duration: formatDuration,
-    label: (tag) => recordLabelKeyText(tag, labelPresets, logCategoryColors, t),
-    day: (key) => df.monthDayWeekday(fromDateKey(key)),
-  })
+  const insightValue = pickReviewInsight(review, { loggedDiff, everRecorded, todayKey })
+  const insightOf = (value: ReviewInsight) =>
+    reviewInsightText(value, {
+      t,
+      period,
+      current: atCurrent,
+      duration: formatDuration,
+      label: (tag) => recordLabelKeyText(tag, labelPresets, logCategoryColors, t),
+      day: (key) => df.monthDayWeekday(fromDateKey(key)),
+    })
+  const insight = insightOf(insightValue)
+  // 画像にして共有（#283）。記録の無い期間は画像にするものが無いので押せない
+  const [sharing, setSharing] = useState(false)
+  const shareTip = review.loggedMinutes > 0 ? t('weekReview.shareImage') : t('weekReview.shareImageEmpty')
 
   const tiles = [
     { label: t('weekReview.done'), value: `${review.done}/${review.total}`, sub: null },
@@ -218,8 +228,29 @@ export function WeekReviewCard() {
             atToday={atCurrent}
             nextDisabled={atCurrent}
           />
+          {/* 見せる相手がいると記録が続く。目立たせず、切り替えの右に枠なしのアイコンだけ */}
+          <button
+            type="button"
+            onClick={() => setSharing(true)}
+            disabled={review.loggedMinutes === 0}
+            className={iconButtonClass('-mr-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent')}
+            {...tip(shareTip, { name: true })}
+          >
+            <ShareIcon className="h-4 w-4" />
+          </button>
         </div>
       </div>
+      {sharing && (
+        <ReviewShareDialog
+          review={review}
+          period={period}
+          periodStart={weekStart}
+          current={atCurrent}
+          insight={insightValue}
+          insightText={insightOf}
+          onClose={() => setSharing(false)}
+        />
+      )}
 
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {tiles.map((tile) => (
