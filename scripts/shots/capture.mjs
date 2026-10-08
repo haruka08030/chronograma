@@ -48,7 +48,7 @@ const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -277,6 +277,34 @@ const SCREENS = [
   // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）
   { name: 'trash-menu', view: 'deleted', deleted: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
   { name: 'archive-menu', view: 'archived', archived: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
+  // アーカイブ・ゴミ箱で行を押して複数選んだところ（下の選択中のバー）と、選んだ行の右クリック（PC）・「操作」のシート（スマホ）
+  {
+    name: 'archive-select',
+    view: 'archived',
+    archived: ['s19', 's20', 's5'],
+    steps: [{ click: '[role=option]:has-text("就活サイトのプロフィール更新")' }, { click: '[role=option]:has-text("参考文献を集める")' }],
+  },
+  {
+    name: 'trash-select-menu',
+    view: 'deleted',
+    deleted: ['s19', 's20', 's5'],
+    steps: [
+      { click: '[role=option]:has-text("就活サイトのプロフィール更新")' },
+      { click: '[role=option]:has-text("参考文献を集める")' },
+      { rightClick: '[role=option]:has-text("参考文献を集める")', mobileClick: 'button:has-text("操作") >> visible=true' },
+    ],
+  },
+  // 選んだ複数の To-Do の右クリック（PC）・「操作」のシート（スマホ）で「ラベル ›」を開いたところ
+  {
+    name: 'todo-menu-label',
+    view: 'all',
+    steps: [
+      { click: '[data-task-row="s4"] button[role=checkbox]', longPress: '[data-task-row="s4"]' },
+      { click: '[data-task-row="s5"] button[role=checkbox]' },
+      { rightClick: '[data-task-row="s5"]', mobileClick: 'button:has-text("操作") >> visible=true' },
+      { click: '[role=menu] [role=menuitem]:has-text("ラベル") >> visible=true' },
+    ],
+  },
   // 完了した To-Do を全リスト分集めた画面（完了した日ごと）
   { name: 'completed', view: 'completed' },
   // 完了済みの絞り込み（リスト・ラベル・期間）と、期間で絞ったところ
@@ -563,6 +591,26 @@ async function main() {
 
             if (screen.rightClick && !vp.hasTouch) {
               await page.click(screen.rightClick, { button: 'right' })
+              await page.waitForTimeout(300)
+            }
+
+            // 順に行う操作（`steps`）。1 つの手に PC 用（click / rightClick）と、スマホで代わりにする操作（longPress / mobileClick）を書ける
+            for (const step of screen.steps ?? []) {
+              if (vp.hasTouch && step.longPress) {
+                // 指で長押し（行を浮かせて選択に入れる）
+                const box = await page.locator(step.longPress).first().boundingBox()
+                const cdp = await page.context().newCDPSession(page)
+                const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] })
+                await page.waitForTimeout(700)
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+              } else if (vp.hasTouch && step.mobileClick) {
+                await page.click(step.mobileClick)
+              } else if (step.rightClick && !vp.hasTouch) {
+                await page.click(step.rightClick, { button: 'right' })
+              } else if (step.click) {
+                await page.click(step.click)
+              }
               await page.waitForTimeout(300)
             }
 

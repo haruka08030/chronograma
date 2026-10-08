@@ -23,12 +23,15 @@ type TasksActions = Pick<
   | 'promoteToPlanned'
   | 'deleteTasks'
   | 'restoreDeletedTask'
+  | 'restoreDeletedTasks'
   | 'permanentlyDeleteTask'
+  | 'permanentlyDeleteTasks'
   | 'discardBlankTask'
   | 'emptyDeleted'
   | 'archiveTask'
   | 'archiveTasks'
   | 'unarchiveTask'
+  | 'unarchiveTasks'
   | 'undoDelete'
   | 'clearDeletedTasks'
 >
@@ -266,10 +269,13 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       }))
     },
     restoreDeletedTask: (id) => {
+      get().restoreDeletedTasks([id])
+    },
+    restoreDeletedTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds([id], s0.tasks)
+      const ids = expandDescendantIds(rootIds, s0.tasks)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.deletedAt)) return
-      pushUndo()
+      pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) => (ids.has(t.id) && t.deletedAt ? { ...t, deletedAt: null, updatedAt: nowIso } : t)),
@@ -277,8 +283,11 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       }))
     },
     permanentlyDeleteTask: (id) => {
+      get().permanentlyDeleteTasks([id])
+    },
+    permanentlyDeleteTasks: (rootIds) => {
       const s0 = get()
-      const del = expandDescendantIds([id], s0.tasks)
+      const del = expandDescendantIds(rootIds, s0.tasks)
       if (![...del].some((tid) => s0.tasks.some((t) => t.id === tid))) return
       pushUndo()
       set((s) => ({
@@ -322,10 +331,13 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       }))
     },
     unarchiveTask: (id) => {
+      get().unarchiveTasks([id])
+    },
+    unarchiveTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds([id], s0.tasks)
+      const ids = expandDescendantIds(rootIds, s0.tasks)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.archivedAt)) return
-      pushUndo()
+      pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) => (ids.has(t.id) && t.archivedAt ? { ...t, archivedAt: null, updatedAt: nowIso } : t)),

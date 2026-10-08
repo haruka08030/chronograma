@@ -352,5 +352,15 @@ export function useTaskListSelection({
     onFocus: onListboxFocus,
   }
 
-  return { selected, clearSelection, makeRowClick, makeSelection, soloIds, completeSelected, removeSelected, listboxProps }
+  return {
+    selected,
+    clearSelection,
+    toggleInSelection,
+    makeRowClick,
+    makeSelection,
+    soloIds,
+    completeSelected,
+    removeSelected,
+    listboxProps,
+  }
 }
