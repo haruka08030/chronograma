@@ -4,6 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { TASK_DEFAULTS } from '../lib/taskDefaults'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { shiftReviewPeriod } from '../lib/reviewPeriod'
+import { periodTargetMinutes } from '../lib/labelTargets'
 import { zonedNow } from '../lib/timeZone'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
@@ -110,5 +111,48 @@ describe('WeekReviewCard: 月のふりかえり（#304）', () => {
     expect(screen.getAllByText('1h').length).toBeGreaterThan(0)
     // その前の月に記録が無いので差は出さない
     expect(screen.queryByText(/vs previous month/)).toBeNull()
+  })
+})
+
+describe('WeekReviewCard: ラベルの週の目安（#291）', () => {
+  const seedTargets = (targets: Record<string, number>) => {
+    const today = toDateKey(zonedNow())
+    const log = (id: string, category: string, startTime: string, endTime: string) =>
+      task(id, { kind: 'log', completed: true, tags: [category], category, dueDate: today, startTime, endTime })
+    useTaskStore.setState({
+      tasks: [log('s', 'Study', '00:00', '02:00'), log('w', 'Work', '02:00', '03:00')],
+      timeLogTagPresets: ['Study', 'ES', 'Work'],
+      logCategoryColors: { Study: 'sage', ES: 'tomato', Work: 'peacock' },
+      logLabelTargets: targets,
+    })
+  }
+
+  it('目安のあるラベルは「記録 / 目安」と細い線。記録の無い目安のラベルも 0 で並べ、目安の無いラベルは今のまま', () => {
+    seedTargets({ Study: 900, ES: 300 })
+    render(<WeekReviewCard />)
+    expect(screen.getByText('2 / 15 h')).toHaveAttribute('aria-label', 'Logged 2h / target 15h')
+    expect(screen.getByText('0 / 5 h')).toBeInTheDocument()
+    // 目安の無い Work は記録した時間だけ
+    const work = screen.getByText('Work').closest('li')!
+    expect(work).toHaveTextContent(/1h$/)
+    expect(work.textContent).not.toContain('/')
+  })
+
+  it('月は週の目安をその月の日数に合わせる', () => {
+    seedTargets({ Study: 900 })
+    render(<WeekReviewCard />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Month' }))
+    const monthly = periodTargetMinutes(900, 'month', zonedNow())
+    expect(screen.getByText(`2 / ${monthly / 60} h`)).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('weekly 15h scaled to the days in this month'),
+    )
+  })
+
+  it('目安を付けていなければ表示は変わらない', () => {
+    seedTargets({})
+    render(<WeekReviewCard />)
+    expect(screen.queryByText(/ \/ .* h$/)).toBeNull()
+    expect(screen.queryByText('ES')).toBeNull()
   })
 })

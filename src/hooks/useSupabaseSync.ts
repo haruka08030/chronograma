@@ -190,7 +190,7 @@ export function useSupabaseSync() {
         maxStaleRetries: MAX_STALE_RETRIES,
       })
 
-    /** ラベル表（名前・並び・色） */
+    /** ラベル表（名前・並び・色・週の目安） */
     const syncLabels = () =>
       syncSetting({
         key: 'labels',
@@ -198,16 +198,27 @@ export function useSupabaseSync() {
         plan: (remote, syncedAt, offset) => {
           const st = useTaskStore.getState()
           return planLabelSync(
-            { presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt },
+            {
+              presets: st.timeLogTagPresets,
+              colors: st.logCategoryColors,
+              targets: st.logLabelTargets,
+              updatedAt: st.logLabelsUpdatedAt,
+              syncedAt,
+            },
             remote,
             undefined,
             offset,
           )
         },
         localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
-        applyLocal: ({ presets, colors, updatedAt }) =>
+        applyLocal: ({ presets, colors, targets, updatedAt }) =>
           asIncomingChange(() =>
-            useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }),
+            useTaskStore.setState({
+              timeLogTagPresets: presets,
+              logCategoryColors: colors,
+              logLabelTargets: targets ?? {},
+              logLabelsUpdatedAt: updatedAt,
+            }),
           ),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
         push: (p) => pushLogLabels(supabase, userId, p, p.base),
@@ -559,6 +570,7 @@ export function useSupabaseSync() {
         state.sections === prev.sections &&
         state.timeLogTagPresets === prev.timeLogTagPresets &&
         state.logCategoryColors === prev.logCategoryColors &&
+        state.logLabelTargets === prev.logLabelTargets &&
         state.extraTimeZones === prev.extraTimeZones &&
         state.activeTimer === prev.activeTimer &&
         state.eventTemplates === prev.eventTemplates

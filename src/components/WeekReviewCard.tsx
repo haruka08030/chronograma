@@ -10,6 +10,7 @@ import { ESTIMATE_ROWS, getEstimateRows } from '../lib/estimateActual'
 import { unplannedListIds } from '../lib/listKind'
 import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
+import { hoursText, periodTargetMinutes, validTargetMinutes } from '../lib/labelTargets'
 import { DayNav } from './ui/DayNav'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration, formatDurationShort } from '../lib/timeGrid'
@@ -87,6 +88,7 @@ export function WeekReviewCard() {
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
+  const labelTargets = useTaskStore((s) => s.logLabelTargets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
   const labelOf = useMemo(() => (log: Task) => recordLabelKey(log, labelPresets, logCategoryColors), [labelPresets, logCategoryColors])
   const review = useMemo(
@@ -117,7 +119,17 @@ export function WeekReviewCard() {
   // 予定の枠も同じ目盛りで重ねるので、高さは記録と予定の大きいほうに合わせる
   const maxMinutes = Math.max(60, ...review.days.map((d) => Math.max(barMinutes(d), d.plannedMinutes)))
   const hasPlanned = review.plannedMinutes > 0
-  const labelRows = foldLabelMinutes(review.labelMinutes)
+  // ラベル別の行に週の目安（#291）を添える。目安のあるラベルは記録が 0 でも並べ、「その他」にまとめない。
+  // 月は週の目安をその月の日数に合わせる（`periodTargetMinutes`）
+  const labelRows = useMemo(() => {
+    const weeklyOf = (tag: string) => (labelPresets.includes(tag) ? validTargetMinutes(labelTargets[tag]) : undefined)
+    const rows: { tag: string; minutes: number; weekly?: number }[] = review.labelMinutes.map((x) => ({ ...x, weekly: weeklyOf(x.tag) }))
+    for (const name of labelPresets) {
+      const weekly = weeklyOf(name)
+      if (weekly && !rows.some((r) => r.tag === name)) rows.push({ tag: name, minutes: 0, weekly })
+    }
+    return foldLabelMinutes(rows, (r) => r.weekly != null)
+  }, [review.labelMinutes, labelPresets, labelTargets])
   // ラベル別の前の月との差は月だけ（週は記録した時間の差だけで足りる）。前の月に記録が無ければ出さない
   const showLabelDiff = period === 'month' && comparison.loggedDiff != null
 
@@ -301,7 +313,9 @@ export function WeekReviewCard() {
 
         <div>
           <div className="mb-2 flex items-baseline justify-between gap-2">
-            <SectionLabel as="h3">{t('weekReview.byLabel')}</SectionLabel>
+            <SectionLabel as="h3" id="review-by-label">
+              {t('weekReview.byLabel')}
+            </SectionLabel>
             {/* 月は前の月との差を右に添える（何と比べた数字かを 1 語で） */}
             {showLabelDiff && (
               <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
@@ -312,25 +326,54 @@ export function WeekReviewCard() {
           {review.labelMinutes.length === 0 ? (
             <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
-            <ul className="space-y-1.5">
-              {labelRows.shown.map((x) => (
-                <li key={x.tag} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span
-                      className="gc-dot h-2 w-2 shrink-0 rounded-full"
-                      style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))}
-                      aria-hidden
-                    />
-                    <span className="truncate text-zinc-700 dark:text-zinc-300">
-                      {recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">
-                    {formatDuration(x.minutes)}
-                    {showLabelDiff && <LabelDiff diff={comparison.labelDiff.get(x.tag) ?? 0} />}
-                  </span>
-                </li>
-              ))}
+            <ul aria-labelledby="review-by-label" className="space-y-1.5">
+              {labelRows.shown.map((x) => {
+                const hex = recordLabelKeyHex(x.tag, logCategoryColors)
+                const target = x.weekly ? periodTargetMinutes(x.weekly, period, weekStart) : null
+                const targetTip =
+                  target && x.weekly
+                    ? t(period === 'month' ? 'weekReview.targetMonthTooltip' : 'weekReview.targetTooltip', {
+                        logged: formatDuration(x.minutes),
+                        target: formatDuration(target),
+                        weekly: formatDuration(x.weekly),
+                      })
+                    : undefined
+                return (
+                  <li key={x.tag} className="text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(hex)} aria-hidden />
+                        <span className="truncate text-zinc-700 dark:text-zinc-300">
+                          {recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">
+                        {/* 目安のある行は「記録 / 目安」（時間、小数 1 桁）。届かなくても色や言葉は足さない（数字だけ） */}
+                        {target ? (
+                          <span aria-label={targetTip} {...tip(targetTip)}>
+                            {t('weekReview.targetRow', { logged: hoursText(x.minutes), target: hoursText(target) })}
+                          </span>
+                        ) : (
+                          formatDuration(x.minutes)
+                        )}
+                        {showLabelDiff && <LabelDiff diff={comparison.labelDiff.get(x.tag) ?? 0} />}
+                      </span>
+                    </div>
+                    {/* 細い進みの線: 点線の枠が目安、塗りが記録（見積もりと記録・日ごとの棒の予定の枠と同じ見方）。超えたら枠いっぱいで止める */}
+                    {target && (
+                      <div className="relative ml-3.5 mt-1 h-2.5" aria-hidden>
+                        {x.minutes > 0 && (
+                          <div
+                            className="gc-dot absolute inset-y-[2px] left-0 rounded-[2px]"
+                            style={{ ...colorVars(hex), width: `${Math.min(100, (x.minutes / target) * 100)}%` }}
+                          />
+                        )}
+                        <div className={`absolute inset-0 rounded-[3px] ${PLANNED_FRAME}`} />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
               {labelRows.others > 0 && (
                 <li className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5">

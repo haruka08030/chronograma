@@ -60,16 +60,24 @@ export interface WeekReview {
 export const LABEL_ROWS = 6
 
 /**
- * ラベル別の時間を `LABEL_ROWS` 行に収める。収まらなければ上位 `LABEL_ROWS - 1` 件と、残りの合計（`others`）。
- * 1 件だけを「その他」にはしない（それなら名前を出したほうが読める）
+ * ラベル別の時間を `LABEL_ROWS` 行に収める。収まらなければ上位の行と、残りの合計（`others`）。
+ * 1 件だけを「その他」にはしない（それなら名前を出したほうが読める）。
+ * `keep` の行（週の目安のあるラベル、#291）は「その他」にまとめない（目安と並べて見たい行なので）
  */
-export function foldLabelMinutes(rows: readonly { tag: string; minutes: number }[]): {
-  shown: { tag: string; minutes: number }[]
+export function foldLabelMinutes<R extends { tag: string; minutes: number }>(
+  rows: readonly R[],
+  keep: (row: R) => boolean = () => false,
+): {
+  shown: R[]
   others: number
 } {
   if (rows.length <= LABEL_ROWS) return { shown: [...rows], others: 0 }
-  const shown = rows.slice(0, LABEL_ROWS - 1)
-  return { shown, others: rows.slice(LABEL_ROWS - 1).reduce((a, x) => a + x.minutes, 0) }
+  const kept = rows.filter(keep).length
+  const rest = rows.filter((r) => !keep(r))
+  const room = Math.max(0, LABEL_ROWS - 1 - kept)
+  const folded = rest.length - room <= 1 ? [] : rest.slice(room)
+  const foldedSet = new Set(folded)
+  return { shown: rows.filter((r) => !foldedSet.has(r)), others: folded.reduce((a, x) => a + x.minutes, 0) }
 }
 
 /** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */

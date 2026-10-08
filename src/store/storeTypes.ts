@@ -104,7 +104,9 @@ export interface TaskState {
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
   logCategoryColors: Record<string, string>
-  /** この端末でラベル表（timeLogTagPresets・logCategoryColors）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  /** 分類名 → 週の目安（分、#291）。目安の無い分類は入れない（`labelTargets.ts`） */
+  logLabelTargets: Record<string, number>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
   logLabelsUpdatedAt: string | null
 
   calendarEvents: CalendarEvent[]
@@ -204,7 +206,13 @@ export interface TaskState {
    * - 分類の無い記録は、同じ色のラベルがあればその分類になる
    * - `fromHex` は名前の無かった色（To‑Do ナビの色ラベル）。色を変えたらその色の予定・タスクも新しい色へ（名前が空なら色だけ変える）
    */
-  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string }>) => void
+  /**
+   * ラベル表をまとめて保存する。`weeklyTargetMinutes` は週の目安（分）: 数なら付ける、null なら外す、
+   * 項目が無ければ元のラベル（`from`）の目安のまま（色ラベルのカードなど目安を扱わない画面）
+   */
+  saveLogLabels: (
+    rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string; weeklyTargetMinutes?: number | null }>,
+  ) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
