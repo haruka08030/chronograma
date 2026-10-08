@@ -37,6 +37,9 @@ export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, Settin
 export { recurrenceNextId } from './taskRecurrence'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import { isIncomingChange } from '../lib/changeOrigin'
+import { normalizeStoredRows } from '../lib/backupFormat'
+import { readViewState } from './viewState'
+import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -86,6 +89,7 @@ export const useTaskStore = create<TaskState>()(
         searchQuery: '',
         sortByKey: {} as Record<string, SortMode>,
         sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
+        plannerCandidateView: DEFAULT_CANDIDATE_VIEW,
         recentDeletes: [],
         moveBannerText: null as string | null,
         undoBanner: null as { text: string; at: number } | null,
@@ -163,13 +167,11 @@ export const useTaskStore = create<TaskState>()(
         // 前の版は画面の状態や選んだ日も本体に保存していた。読むのはデータと画面の好みだけ（選んだ日などは今日から）
         const saved = pickKeys((persisted ?? {}) as Record<string, unknown>, [...DATA_KEYS, ...VIEW_KEYS])
         const merged = { ...current, ...(saved as Partial<TaskState>) } as TaskState
+        // 行の中身もバックアップの取り込みと同じ基準でそろえる（`title` が文字列でない・`tags` が配列でない行で描画が落ちていた）
         let broken = false
         for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
-          const value = merged[key] as unknown
-          const rows = Array.isArray(value)
-            ? value.filter((x) => typeof x === 'object' && x !== null && typeof (x as { id?: unknown }).id === 'string')
-            : null
-          if (!rows || rows.length !== (value as unknown[]).length) broken = true
+          const { rows, broken: bad } = normalizeStoredRows(key, merged[key] as unknown)
+          if (bad || !rows) broken = true
           ;(merged as unknown as Record<string, unknown>)[key] = rows ?? current[key]
         }
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
@@ -194,8 +196,8 @@ function restoreViewState() {
   try {
     const raw = localStorage.getItem(VIEW_STORAGE_KEY)
     if (raw) {
-      const saved = pickKeys(JSON.parse(raw) as Record<string, unknown>, VIEW_KEYS)
-      withoutPersisting(() => useTaskStore.setState(saved as Partial<TaskState>))
+      const saved = readViewState(JSON.parse(raw) as unknown)
+      withoutPersisting(() => useTaskStore.setState(saved))
     }
   } catch {
     /* 読めなければ既定の画面から */
@@ -289,6 +291,16 @@ export function adoptOtherTabChanges(): void {
   const incoming: Record<string, unknown> = { ...parsed.state }
   // 取り込むのはデータだけ（画面の状態はタブごと。前の版の保存に残っていても無視する）
   for (const key of Object.keys(incoming)) if (!(DATA_KEYS as readonly string[]).includes(key)) delete incoming[key]
+  // 行の中身は読み込みと同じ基準でそろえる。読めない行は外し、元の中身は別のキーに写す
+  let broken = false
+  for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
+    if (!(key in incoming)) continue
+    const { rows, broken: bad } = normalizeStoredRows(key, incoming[key])
+    if (bad) broken = true
+    if (rows) incoming[key] = rows
+    else delete incoming[key]
+  }
+  if (broken) preserveUnreadableStorage()
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
@@ -305,6 +317,14 @@ export function adoptOtherTabChanges(): void {
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === PERSIST_STORAGE_KEY) adoptOtherTabChanges()
+  })
+  // 戻る・進むでページごと復元されたとき・裏から戻ったときは、止まっていた間の storage イベントが届かないことがある。
+  // 古いまま次の編集で全データを書き戻さないよう、1 回読み直す（中身が同じなら文字列を比べるだけ）
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) adoptOtherTabChanges()
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') adoptOtherTabChanges()
   })
 }
 

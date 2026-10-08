@@ -7,6 +7,7 @@ import { CompleteWithLogModal } from '../components/lazyOverlays'
 import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
+import { PartBoundary } from '../components/ui/ErrorBoundary'
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻で埋めておき、ずれたらそこを直す）。
@@ -49,14 +50,16 @@ export function useCompleteWithLog() {
   }, [draft, addTimeLog, toggleTask])
 
   const modal = draft ? (
-    <OverlaySuspense>
-      <CompleteWithLogModal
-        draft={draft}
-        onClose={() => setDraft(null)}
-        onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
-        onSubmit={submit}
-      />
-    </OverlaySuspense>
+    <PartBoundary name="completeWithLog" onCrash={() => setDraft(null)}>
+      <OverlaySuspense>
+        <CompleteWithLogModal
+          draft={draft}
+          onClose={() => setDraft(null)}
+          onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
+          onSubmit={submit}
+        />
+      </OverlaySuspense>
+    </PartBoundary>
   ) : null
 
   return { open, modal }

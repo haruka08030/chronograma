@@ -19,11 +19,11 @@ import { toDateKey } from '../../lib/dateKey'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
+import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 
 /** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
 export function WeekDayColumn({
   day,
-  hourCount = 24,
   gridDays,
   singleDay,
   selectedDateKey,
@@ -53,8 +53,6 @@ export function WeekDayColumn({
   setCreateAnchorFromEl,
 }: {
   day: Date
-  /** 上から何時間ぶん出すか。1 日表示の 24 時の下に続ける次の日の夜中は `NIGHT_HOURS` */
-  hourCount?: number
   gridDays: Date[]
   singleDay: boolean
   selectedDateKey?: string
@@ -97,8 +95,6 @@ export function WeekDayColumn({
   const dayLogs = timeLogsByDate.get(key) ?? []
   const dayTimedEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay && e.startTime && e.endTime)
   const today = isAppToday(day)
-  /** 前の日の 24 時の下に続けて出している夜中（この列を押しても見ている日は変えない） */
-  const isNight = hourCount < 24
   // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
   const dayHabitSlots = habits.flatMap((h) => {
     const slot = habitToPlannedItem(h, key, habitIndex)
@@ -138,13 +134,12 @@ export function WeekDayColumn({
       data-datekey={key}
       className={`relative border-l border-zinc-200 dark:border-zinc-700 cursor-crosshair
         ${today && !singleDay ? TODAY_COLUMN : ''}
-        ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}
-        ${isNight ? 'overflow-hidden' : ''}`}
-      style={{ height: hourCount * HOUR_HEIGHT }}
+        ${selectedDateKey === key && !singleDay ? SELECTED_COLUMN : ''}`}
+      style={{ height: 24 * HOUR_HEIGHT }}
       onPointerDown={(e) => {
         // 右クリックで予定を作り始めない
         if (e.button !== 0) return
-        if (!isNight) onSelectDate?.(key)
+        onSelectDate?.(key)
         const lane = laneAt(e.clientX, e.currentTarget)
         const limit = lane === 'log' ? logLimitMin(key) : null
         timelineDrag.handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
@@ -176,10 +171,10 @@ export function WeekDayColumn({
           style={{ top: ((logLimitMin(key) ?? 0) / 60) * HOUR_HEIGHT }}
         />
       )}
-      {HOURS.slice(0, hourCount).map((h) => (
+      {HOURS.map((h) => (
         <div
           key={h}
-          className={`absolute left-0 right-0 border-t ${isNight && h === 0 ? 'border-zinc-300 dark:border-zinc-600' : 'border-zinc-100 dark:border-zinc-800/60'}`}
+          className="absolute left-0 right-0 border-t border-zinc-100 dark:border-zinc-800/60"
           style={{ top: h * HOUR_HEIGHT }}
         />
       ))}
@@ -224,15 +219,17 @@ export function WeekDayColumn({
             sleep={isSleepTask(t)}
             hStyle={logStyle(t.id)}
             colorHex={recordHex(t, logCategoryColors)}
-            onPointerDown={(e) =>
-              timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+            onPointerDown={(e) => {
+              // 日をまたぐ記録は、この列に描いている区間を端の元の値にする（記録全体の時刻だと 1 日ぶん長くなる）
+              const seg = logSegmentClockOnDay(t, key) ?? { startTime: t.startTime!, endTime: t.endTime! }
+              timelineDrag.handleBlockPointerDown(e, t.id, key, seg.startTime, seg.endTime, gridRef.current, {
                 startTime: t.startTime!,
                 endTime: t.endTime!,
                 kind: 'log',
                 dueDate: t.dueDate,
                 endDate: t.endDate,
               })
-            }
+            }}
             onOpenDetail={() => openCard(t.id)}
           />
         </div>

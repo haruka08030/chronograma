@@ -21,7 +21,11 @@ import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
-import { isEventTask, isLogTask } from '../../types/task'
+import { isEventTask, isLogTask, type Task } from '../../types/task'
+import { endKeepingLength } from '../../lib/clockTime'
+import { isOvernightTimeLog } from '../../lib/taskTimeRange'
+import { useTaskTimes } from '../detail/useTaskTimes'
+import { CardTimeRange } from './CardTimeRange'
 
 const WIDTH = 320
 
@@ -41,15 +45,8 @@ export function EventPopover({
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
-  const { t } = useTranslation()
-  const df = useDateFormat()
   const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId) ?? null)
-  const lists = useTaskStore((s) => s.lists)
-  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const activeTimer = useTaskStore((s) => s.activeTimer)
-  const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const ref = useRef<HTMLDivElement>(null)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
@@ -69,6 +66,32 @@ export function EventPopover({
   }, [])
 
   if (!task) return null
+  return <EventPopoverBody task={task} anchor={anchor} onClose={onClose} onOpenDetail={onOpenDetail} cardRef={ref} />
+}
+
+function EventPopoverBody({
+  task,
+  anchor,
+  onClose,
+  onOpenDetail,
+  cardRef: ref,
+}: {
+  task: Task
+  anchor: AnchorRect
+  onClose: () => void
+  onOpenDetail: (taskId: string) => void
+  cardRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const lists = useTaskStore((s) => s.lists)
+  const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const activeTimer = useTaskStore((s) => s.activeTimer)
+  const toggleTask = useTaskStore((s) => s.toggleTask)
+  const deleteTask = useTaskStore((s) => s.deleteTask)
+  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
+  // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
+  const { tv, updateTimes } = useTaskTimes(task)
 
   const isLog = isLogTask(task)
   const isEvent = isEventTask(task)
@@ -80,7 +103,18 @@ export function EventPopover({
   // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
   const sourceLink = sourceLinkOf(task.description)
   const memo = sourceLink ? '' : task.description.trim()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + memoHeightEstimate(memo))
+  // 時刻はカードでそのまま分単位に直せる（詳細まで行かずに）。日をまたぐ記録は終わりの日付もあるので詳細で
+  const editableTimes = !!tv.startTime && !!tv.endTime && !isOvernightTimeLog(task)
+  /** To-Do・予定は開始を動かすと長さを保って終わりもずらす（Google と同じ。23:59 まで）。記録は実際の時刻なので開始だけ直す */
+  const commitStart = (v: string) => {
+    if (v === tv.startTime) return
+    if (isLog) {
+      updateTimes({ startTime: v })
+      return
+    }
+    updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
+  }
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + memoHeightEstimate(memo))
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
@@ -94,8 +128,7 @@ export function EventPopover({
       aria-label={task.title}
       tabIndex={-1}
       className={anchoredCardClass(sheet)}
-      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール
-      // （時刻の候補リストのような中の絶対配置が無いのでここだけ。新規作成・Google の予定のカードには付けない）
+      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール（Google の予定のカードも同じ）
       style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
@@ -141,10 +174,26 @@ export function EventPopover({
           >
             {task.title}
           </p>
-          <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
-            {dateText}
-            {task.startTime && task.endTime && ` · ${task.startTime} – ${task.endTime}`}
-          </p>
+          {editableTimes ? (
+            <>
+              <p className={`mt-0.5 ${SUBTLE_TEXT}`}>{dateText}</p>
+              <div className="mt-1.5">
+                <CardTimeRange
+                  startTime={tv.startTime!}
+                  endTime={tv.endTime!}
+                  onStart={commitStart}
+                  onEnd={(v) => v !== tv.endTime && updateTimes({ endTime: v })}
+                  startLabel={t('common.start')}
+                  endLabel={t('common.end')}
+                />
+              </div>
+            </>
+          ) : (
+            <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
+              {dateText}
+              {tv.startTime && tv.endTime && ` · ${tv.startTime} – ${tv.endTime}`}
+            </p>
+          )}
         </div>
         <span />
         <p className={META_TEXT}>{isLog ? t('eventCard.log') : list ? displayListName(list.id, list.name) : ''}</p>

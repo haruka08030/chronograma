@@ -15,7 +15,7 @@ import { hasExistingData } from '../lib/onboarding'
 import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
-import { toDateKey } from '../lib/dateKey'
+import { appTodayKey } from '../lib/timeZone'
 
 /** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
 type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
@@ -144,7 +144,7 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
   }
   if (version < 17) {
     const raw = state.selectedCalendarDateKey
-    state.selectedCalendarDateKey = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : toDateKey(new Date())
+    state.selectedCalendarDateKey = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : appTodayKey()
   }
   if (version < 18) {
     state.todayIncludeOverdue = state.todayIncludeOverdue === true

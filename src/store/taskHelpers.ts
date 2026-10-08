@@ -135,6 +135,7 @@ export function makeTask(
     color?: string | null
     habitId?: string | null
     estimateMinutes?: number | null
+    sourceTaskId?: string | null
   },
   order: number,
   now: string = new Date().toISOString(),
@@ -165,6 +166,7 @@ export function makeTask(
     recurrence: null,
     kind: fields.kind ?? 'todo',
     habitId: fields.habitId ?? null,
+    sourceTaskId: fields.sourceTaskId ?? null,
     archivedAt: null,
     deletedAt: null,
     timeZone: null,

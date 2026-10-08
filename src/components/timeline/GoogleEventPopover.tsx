@@ -5,7 +5,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
 import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
-import { TimeInput } from '../TimeInput'
+import { CardTimeRange } from './CardTimeRange'
 import { addClockMinutes } from '../../lib/clockTime'
 import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
@@ -118,7 +118,16 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   }
 
   return (
-    <div ref={ref} role="dialog" aria-label={event.summary} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={event.summary}
+      tabIndex={-1}
+      className={anchoredCardClass(sheet)}
+      // メモが長いと背が伸びる。画面からはみ出す分はカードの中でスクロール（To-Do・記録のカードと同じ）。
+      // 時刻の候補リストは開くと今の時刻の行が見えるところまでカードごとスクロールされる
+      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
+    >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (
           <a
@@ -188,19 +197,14 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
                 />
               </div>
               {event.startTime && event.endTime && (
-                <div className="flex w-full items-center gap-1.5">
-                  <TimeInput
-                    value={event.startTime}
-                    onChange={(v) => v && commitTiming({ startTime: v })}
-                    className={`w-[5.5rem] ${smallField}`}
-                  />
-                  <span className="text-zinc-400">–</span>
-                  <TimeInput
-                    value={event.endTime}
-                    onChange={(v) => v && commitTiming({ endTime: v })}
-                    className={`w-[5.5rem] ${smallField}`}
-                  />
-                </div>
+                <CardTimeRange
+                  startTime={event.startTime}
+                  endTime={event.endTime}
+                  onStart={(v) => commitTiming({ startTime: v })}
+                  onEnd={(v) => commitTiming({ endTime: v })}
+                  startLabel={t('common.start')}
+                  endLabel={t('common.end')}
+                />
               )}
             </div>
           ) : (
@@ -232,8 +236,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
         {memo && (
           <>
             <span />
-            {/* カードは中の時刻の候補リストが切れるのでスクロールさせない。長いメモはメモの中でスクロール */}
-            <MemoPreview text={memo} className="max-h-[40vh] overflow-y-auto overscroll-contain" />
+            <MemoPreview text={memo} />
           </>
         )}
       </div>

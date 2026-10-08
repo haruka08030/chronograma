@@ -2,7 +2,6 @@ import { useEffect, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { ensureLabel, type LabelTable } from '../lib/foldTaskFolders'
 import { appTimeZone } from '../lib/timeZone'
 import {
   CANVAS_LIST_ID,
@@ -115,15 +114,6 @@ export function useCanvasSync() {
           if (cancelled) return
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
-          // 新しい課題には科目名のラベルを付ける（無ければ作る）
-          const labels0: LabelTable = { timeLogTagPresets: s.timeLogTagPresets, logCategoryColors: s.logCategoryColors }
-          let labels = labels0
-          const colorFor = (course: string | null) => {
-            if (!course?.trim()) return null
-            const r = ensureLabel(labels, course)
-            labels = r.table
-            return r.hex
-          }
           let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
           let changed = false
           // 学校ごとに分かれていた版のリストを 1 つにまとめる（開いていたらまとめた先を開く）
@@ -151,7 +141,6 @@ export function useCanvasSync() {
             else readOnly.delete(conn.id)
             const result = reconcileCanvasItems(next, conn, {
               now: new Date().toISOString(),
-              colorFor,
               timeZone: appTimeZone(),
               untitled: i18n.t('canvas.untitled'),
               // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
@@ -166,9 +155,7 @@ export function useCanvasSync() {
             }
           }
           savePulled(pulledKey(userId), pulled)
-          // ラベルを作ったら、ほかの端末へ送るよう時刻を付ける（届いた変更の扱いなので自動では付かない）
-          const labelPatch = labels === labels0 ? {} : { ...labels, logLabelsUpdatedAt: new Date().toISOString() }
-          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, ...labelPatch, selectedListId }))
+          if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId }))
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {

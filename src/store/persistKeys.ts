@@ -42,6 +42,7 @@ export const VIEW_KEYS = [
   'calendarMode',
   'sortByKey',
   'sectionGrouping',
+  'plannerCandidateView',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const TRANSIENT_KEYS = [

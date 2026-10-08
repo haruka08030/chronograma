@@ -36,6 +36,10 @@ const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
 const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
 /** 見出しの並び順のボタン（種データはどこも手動） */
 const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
+/** 今日やる候補の並び順・絞り込みのボタン */
+const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順と絞り込み"] >> visible=true'
+/** 今日やる候補を開く見出し */
+const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
@@ -93,6 +97,20 @@ const SCREENS = [
     ],
   },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
+  // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
+  { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
+  {
+    name: 'planner-candidates-sorted',
+    view: 'planner',
+    click: [
+      OPEN_CANDIDATES,
+      CANDIDATE_BUTTON,
+      '[role=menu] >> text=見積もりが短い順 >> visible=true',
+      CANDIDATE_BUTTON,
+      '[role=menu] >> text=優先度で絞る >> visible=true',
+      '[role=menu] >> text=中以上 >> visible=true',
+    ],
+  },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）
@@ -103,6 +121,12 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // 時刻を押したところ（カードのままで分単位に直せる。候補は 15 分刻み）
+  {
+    name: 'calendar-event-card-time',
+    view: 'calendar',
+    click: ['[data-block-id="s6"] >> visible=true', '[role="dialog"] input[role="combobox"] >> nth=0'],
+  },
   { name: 'todo', view: 'all' },
   // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
   { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
@@ -125,6 +149,14 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // 時刻の無い To-Do が多い日（終日の欄は 3 行までにたたみ「他 N 件」。▾ で全件）
+  { name: 'calendar-allday-many', view: 'calendar', manyAllDay: true },
+  {
+    name: 'calendar-allday-many-open',
+    view: 'calendar',
+    manyAllDay: true,
+    click: 'button[aria-expanded][aria-label="すべて表示"] >> visible=true',
+  },
   // スマホ幅の 3 日表示（予定の列だけ。PC 幅では週になる）
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
@@ -184,8 +216,15 @@ const SCREENS = [
     click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("回数を指定")'],
     scrollToBottom: true,
   },
-  // 習慣のカードを右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
-  { name: 'habits-menu', view: 'habits', rightClick: 'div[role="button"]:has-text("朝に 10 分ストレッチ")' },
+  // 習慣の名前を押した詳細（連続・最長・達成率・月のカレンダー）と、そこから編集
+  { name: 'habits-detail', view: 'habits', click: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0' },
+  {
+    name: 'habits-detail-edit',
+    view: 'habits',
+    click: ['li[data-habit-row]:has-text("ジム") button >> nth=0', 'div[role="dialog"] button:has-text("編集")'],
+  },
+  // 習慣の行を右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
+  { name: 'habits-menu', view: 'habits', rightClick: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ")' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {
@@ -395,6 +434,13 @@ async function main() {
             ]
           }
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
+          if (screen.manyAllDay) {
+            const base = seed.state.tasks.find((x) => x.id === 's7')
+            const titles = ['ES を出す', '履歴書の写真', 'Week 2 課題', '出席フォーム', 'OB 訪問のお礼', '教科書を買う', 'シフト提出']
+            titles.forEach((title, i) =>
+              seed.state.tasks.push({ ...base, id: `many-${i}`, title, startTime: null, endTime: null, completed: i < 2, order: 100 + i }),
+            )
+          }
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()

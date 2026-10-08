@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { saveAutoBackup, type AutoBackupKind } from '../lib/autoBackup'
 import { useTaskStore } from '../store/taskStore'
-import { toDateKey } from '../lib/dateKey'
+import { appTodayKey } from '../lib/timeZone'
 
 /** 開きっぱなしで日をまたいだときも、その日の控えを取る */
 const CHECK_MS = 30 * 60_000
@@ -20,7 +20,7 @@ export function onAutoBackupSaved(listener: () => void): () => void {
  */
 export function backupNow(kind: AutoBackupKind, owner?: string | null) {
   const s = useTaskStore.getState()
-  void saveAutoBackup(kind, toDateKey(new Date()), s.tasks, s.backupJson(), owner ?? s.dataOwner).then((saved) => {
+  void saveAutoBackup(kind, appTodayKey(), s.tasks, s.backupJson(), owner ?? s.dataOwner).then((saved) => {
     if (saved) listeners.forEach((l) => l())
   })
 }

@@ -14,9 +14,17 @@ export function readRecurrenceWeekdays(v: unknown): number[] | undefined {
 }
 
 /** 同期・バックアップの JSON から繰り返しを組み立てる。曜日は毎週のときだけ持つ */
-export function buildRecurrence(type: Recurrence['type'], interval: number, rawWeekdays: unknown): Recurrence {
+export function buildRecurrence(type: Recurrence['type'], interval: number, rawWeekdays: unknown, rawMonthDay?: unknown): Recurrence {
   const weekdays = type === 'weekly' ? readRecurrenceWeekdays(rawWeekdays) : undefined
-  return weekdays ? { type, interval, weekdays } : { type, interval }
+  const monthDay =
+    (type === 'monthly' || type === 'yearly') &&
+    typeof rawMonthDay === 'number' &&
+    Number.isInteger(rawMonthDay) &&
+    rawMonthDay >= 1 &&
+    rawMonthDay <= 31
+      ? rawMonthDay
+      : undefined
+  return { type, interval, ...(weekdays ? { weekdays } : {}), ...(monthDay ? { monthDay } : {}) }
 }
 
 /**

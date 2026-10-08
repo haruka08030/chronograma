@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { WeekReviewCard } from './WeekReviewCard'
 import { SleepStatsCard } from './SleepStatsCard'
-import { appTodayKey } from '../lib/timeZone'
 import { computeTaskStats } from '../lib/taskStats'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
 import { DUE_TONE_CLASS } from './ui/dueTone'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 export function StatsView() {
   const { t } = useTranslation()
@@ -16,7 +16,7 @@ export function StatsView() {
   const lists = useTaskStore((s) => s.lists)
 
   // 日をまたいだら数え直す（今日の日付を依存に入れる）
-  const todayKey = appTodayKey()
+  const todayKey = useAppTodayKey()
   const stats = useMemo(() => computeTaskStats(tasks, lists, todayKey), [tasks, lists, todayKey])
 
   return (

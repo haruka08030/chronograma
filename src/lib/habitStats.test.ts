@@ -1,13 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Habit, HabitFrequency } from '../types/habit'
-import {
-  completionRatioOnDate,
-  consistencyForLast7Days,
-  currentStreakDays,
-  habitStreak,
-  habitsStreak,
-  timesPerWeekTally,
-} from './habitStats'
+import { currentStreakDays, habitLongestStreak, habitRecentRate, habitStreak, timesPerWeekTally } from './habitStats'
 import { fromDateKey } from './dateKey'
 
 const OLD = '2026-01-01T00:00:00.000Z'
@@ -80,38 +73,20 @@ describe('連続日数', () => {
     const thisWeekToo = { ...h, completedDates: [...h.completedDates, '2026-10-14'] }
     expect(habitStreak(thisWeekToo).count).toBe(3)
   })
-
-  it('週に◯回の習慣だけなら、要約は週で数える', () => {
-    const h = habit('g', { type: 'timesPerWeek', count: 1 }, ['2026-10-06', '2026-09-30'])
-    expect(habitsStreak([h])).toEqual({ count: 2, unit: 'week' })
-    const d = habit('d', { type: 'daily' }, ['2026-10-13'])
-    expect(habitsStreak([h, d])).toEqual({ count: 1, unit: 'day' })
-  })
 })
 
 describe('達成率', () => {
-  it('直近 7 日: 週に◯回は◯回のうち何回か（多くやっても◯回まで）', () => {
-    const two = habit('g', { type: 'timesPerWeek', count: 3 }, ['2026-10-13', '2026-10-09'])
-    expect(consistencyForLast7Days([two])).toBe(67)
-    const many = habit('g', { type: 'timesPerWeek', count: 2 }, ['2026-10-13', '2026-10-12', '2026-10-11', '2026-10-09'])
-    expect(consistencyForLast7Days([many])).toBe(100)
-    // 7 日より前は数えない
-    expect(consistencyForLast7Days([habit('g', { type: 'timesPerWeek', count: 1 }, ['2026-10-07'])])).toBe(0)
-  })
-
-  it('直近 7 日: 毎日の習慣と合わせて数える', () => {
-    // 毎日: 昨日まで 6 日のうち 3 日（今日は未記録なので数えない）。週に 2 回: 2 回やった
+  it('直近 4 週: 毎日の習慣は 28 日で数え、今日の未記録は数えない', () => {
+    // 今日（10/14）は未記録なので 27 日のうち 3 日
     const d = habit('d', { type: 'daily' }, ['2026-10-13', '2026-10-12', '2026-10-11'])
-    const g = habit('g', { type: 'timesPerWeek', count: 2 }, ['2026-10-13', '2026-10-10'])
-    expect(consistencyForLast7Days([d, g])).toBe(Math.round((5 / 8) * 100))
+    expect(habitRecentRate(d)).toBe(Math.round((3 / 27) * 100))
+    expect(habitRecentRate({ ...d, completedDates: ['2026-10-14', ...d.completedDates] })).toBe(Math.round((4 / 28) * 100))
   })
 
-  it('その日の率: 週に◯回はやった日だけ数え、やらなかった日で下げない', () => {
-    const d = habit('d', { type: 'daily' }, ['2026-10-13'])
-    const g = habit('g', { type: 'timesPerWeek', count: 2 }, ['2026-10-13'])
-    expect(completionRatioOnDate([d, g], fromDateKey('2026-10-13'))).toBe(1)
-    expect(completionRatioOnDate([d, g], fromDateKey('2026-10-12'))).toBe(0)
-    expect(completionRatioOnDate([d, { ...g, completedDates: [] }], fromDateKey('2026-10-13'))).toBe(1)
+  it('直近 4 週: 週に◯回は週ごとに◯回のうち何回か（多くやっても◯回まで）', () => {
+    // 今週は 1 回で、まだ取り返せるので 1/1。先週 3 回（2 まで）、先々週 0、その前 1 → (1+2+0+1)/(1+2+2+2)
+    const g = habit('g', { type: 'timesPerWeek', count: 2 }, ['2026-10-13', '2026-10-05', '2026-10-06', '2026-10-07', '2026-09-22'])
+    expect(habitRecentRate(g)).toBe(Math.round((4 / 7) * 100))
   })
 
   it('今週: 終わった週は◯回が分母、多くやっても◯回まで', () => {
@@ -130,5 +105,46 @@ describe('達成率', () => {
     // 土曜の時点で 0 回なら、残り 2 日では 6 回に届かない分（4 回）を分母に入れる
     const six = habit('g', { type: 'timesPerWeek', count: 6 })
     expect(timesPerWeekTally(six, fromDateKey('2026-10-17'), '2026-10-17')).toEqual({ expected: 4, completed: 0 })
+  })
+})
+
+describe('作る前の日は数えない', () => {
+  const TODAY_MORNING = new Date(2026, 9, 14, 8, 0).toISOString()
+  const created = (h: Habit): Habit => ({ ...h, createdAt: TODAY_MORNING })
+
+  it('毎日の習慣を今日作って今日だけ達成 → 直近 4 週は 100%', () => {
+    const h = created(habit('d', { type: 'daily' }, ['2026-10-14']))
+    expect(habitRecentRate(h)).toBe(100)
+    // 今日まだなら数える日が無い
+    expect(habitRecentRate({ ...h, completedDates: [] })).toBeNull()
+  })
+
+  it('作る前の日でも達成を付けていれば（取り込みなど）その日は数える', () => {
+    const h = created(habit('d', { type: 'daily' }, ['2026-10-14', '2026-10-12']))
+    expect(habitRecentRate(h)).toBe(100)
+  })
+
+  it('週に◯回: 作った週より前の週は数えない', () => {
+    const g = created(habit('g', { type: 'timesPerWeek', count: 2 }, ['2026-10-14']))
+    expect(habitRecentRate(g)).toBe(100)
+  })
+})
+
+describe('最長の連続', () => {
+  it('毎日: 途切れる前のいちばん長い連続（今の連続も含む）', () => {
+    const h = habit('d', { type: 'daily' }, ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-12', '2026-10-13'])
+    expect(habitLongestStreak(h)).toEqual({ count: 4, unit: 'day' })
+    expect(habitStreak(h)).toEqual({ count: 2, unit: 'day' })
+  })
+
+  it('曜日指定: 予定の無い日では途切れない', () => {
+    // 月・水・金。10/5, 7, 9, 12 と続く（10/14 の今日はまだ）
+    const h = habit('w', { type: 'weekly', weekdays: [1, 3, 5] }, ['2026-10-05', '2026-10-07', '2026-10-09', '2026-10-12'])
+    expect(habitLongestStreak(h)).toEqual({ count: 4, unit: 'day' })
+  })
+
+  it('週に◯回: 回数を満たした週の続き。今週の途中では途切れない', () => {
+    const g = habit('g', { type: 'timesPerWeek', count: 1 }, ['2026-09-15', '2026-09-22', '2026-10-06'])
+    expect(habitLongestStreak(g)).toEqual({ count: 2, unit: 'week' })
   })
 })

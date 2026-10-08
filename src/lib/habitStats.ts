@@ -1,9 +1,9 @@
-import { addDays, subDays, subWeeks } from 'date-fns'
+import { addDays, addWeeks, startOfWeek, subDays, subWeeks } from 'date-fns'
 import { isHabitActive, type Habit } from '../types/habit'
 import { habitWeekDates, habitWeekDoneCount, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
-import { appToday } from './timeZone'
-import { toDateKey } from './dateKey'
+import { appDayKeyOf, appToday } from './timeZone'
+import { fromDateKey, toDateKey } from './dateKey'
 
 /** 連続を数えにさかのぼる上限（日・週） */
 const STREAK_MAX_DAYS = 1200
@@ -17,56 +17,51 @@ function achieved(h: Habit, key: string, records?: HabitRecordIndex): boolean {
 const isTimesPerWeek = (h: Habit) => h.frequency.type === 'timesPerWeek'
 
 /**
- * その日の達成率（ヒートマップ）。週に◯回の習慣は日ごとの予定が無いので、やった日だけ数える
- * （やらなかった日で率を下げない）
+ * 達成率・ヒートマップ・週のふりかえりの分母に入れる日か: 予定の日で、習慣を作った日（アプリの日付）以降。
+ * 作る前の日でも達成を付けていれば（取り込みなど）数える
  */
-export function completionRatioOnDate(habits: Habit[], d: Date, records?: HabitRecordIndex): number {
-  const day = habitsExpectedOnDate(habits, d, records)
-  if (day.length === 0) return 0
-  return day.filter((x) => x.done).length / day.length
+export function isHabitCountedOnDate(h: Habit, d: Date, records?: HabitRecordIndex): boolean {
+  if (!isHabitScheduledOnDate(h, d)) return false
+  const key = toDateKey(d)
+  return key >= appDayKeyOf(h.createdAt) || achieved(h, key, records)
 }
 
-/** その日に数える習慣（予定の日の習慣。週に◯回はやった日だけ）と、やったかどうか。ヒートマップの色分けと達成率で同じ数え方にする */
-export function habitsExpectedOnDate(habits: Habit[], d: Date, records?: HabitRecordIndex): { habit: Habit; done: boolean }[] {
-  const key = toDateKey(d)
-  const out: { habit: Habit; done: boolean }[] = []
-  for (const h of habits) {
-    if (!isHabitScheduledOnDate(h, d)) continue
-    const done = achieved(h, key, records)
-    if (isTimesPerWeek(h) && !done) continue
-    out.push({ habit: h, done })
-  }
-  return out
-}
+/** 習慣の画面の詳細で見る達成率の期間（週）。毎日・曜日指定は 28 日、週に◯回は 4 週 */
+export const HABIT_RATE_WEEKS = 4
 
 /**
- * 直近 7 日の達成率（%）。画面上の達成率はすべてこの定義に揃える。
- * 今日はまだ終わっていないので、記録した（達成・時間外）ときだけ数える（昼の時点で下がって見えないように）。
- * 週に◯回の習慣は 7 日で 1 週ぶん: ◯回のうち何回やったか（多くやっても◯回まで）
+ * 習慣ひとつの直近 `weeks` 週の達成率（%）。数える日が無ければ null（作ったばかりで今日まだなど）。
+ * 毎日・曜日指定は日で数え、今日はまだ終わっていないので記録した（達成・時間外）ときだけ数える。
+ * 週に◯回は週ごとに◯回のうち何回か（`timesPerWeekTally`）。作った週より前の週は、やった回が無ければ数えない
  */
-export function consistencyForLast7Days(habits: Habit[], records?: HabitRecordIndex): number {
+export function habitRecentRate(h: Habit, records?: HabitRecordIndex, weeks: number = HABIT_RATE_WEEKS): number | null {
+  if (!isHabitActive(h)) return null
+  const today = appToday()
+  const todayKey = toDateKey(today)
   let expected = 0
   let completed = 0
-  for (const h of habits) {
-    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
-    let done = 0
-    for (let i = 0; i < 7; i++) if (achieved(h, toDateKey(subDays(appToday(), i)), records)) done++
-    expected += h.frequency.count
-    completed += Math.min(done, h.frequency.count)
-  }
-  for (let i = 0; i < 7; i++) {
-    const d = subDays(appToday(), i)
-    const key = toDateKey(d)
-    for (const h of habits) {
-      if (isTimesPerWeek(h) || !isHabitScheduledOnDate(h, d)) continue
-      const status = habitDayStatus(h, key, records)
+  if (h.frequency.type === 'timesPerWeek') {
+    const createdKey = appDayKeyOf(h.createdAt)
+    for (let w = 0; w < weeks; w++) {
+      const anchor = subWeeks(today, w)
+      const tally = timesPerWeekTally(h, anchor, todayKey, records)
+      const weekEnd = toDateKey(habitWeekDates(anchor)[6])
+      if (weekEnd < createdKey && tally.completed === 0) continue
+      expected += tally.expected
+      completed += tally.completed
+    }
+  } else {
+    for (let i = 0; i < weeks * 7; i++) {
+      const d = subDays(today, i)
+      if (!isHabitCountedOnDate(h, d, records)) continue
+      const status = habitDayStatus(h, toDateKey(d), records)
       // 今日は未記録なら数えない。時間外はもう結果が出ているので数える
       if (i === 0 && status === 'missed') continue
       expected++
       if (status === 'done') completed++
     }
   }
-  if (expected === 0) return 0
+  if (expected === 0) return null
   return Math.round((completed / expected) * 100)
 }
 
@@ -127,7 +122,7 @@ export function habitStreak(h: Habit, records?: HabitRecordIndex): HabitStreak {
  */
 export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): number {
   if (habits.length === 0) return 0
-  // 毎日・曜日指定の習慣が無いと途切れる日が無いので、日では数えない（`habitsStreak` が週で数える）
+  // 毎日・曜日指定の習慣が無いと途切れる日が無いので、日では数えない（`habitStreak` が週で数える）
   if (habits.every(isTimesPerWeek)) return 0
   const today = appToday()
   let streak = 0
@@ -145,13 +140,37 @@ export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): 
   return streak
 }
 
+/** 数え始める日: 作った日（アプリの日付）と最初に達成を付けた日（取り込みなど）の早いほう。さかのぼりすぎない */
+function streakStartKey(h: Habit): string {
+  const first = h.completedDates.reduce((min, k) => (k < min ? k : min), appDayKeyOf(h.createdAt))
+  const limit = toDateKey(subDays(appToday(), STREAK_MAX_DAYS))
+  return first < limit ? limit : first
+}
+
 /**
- * 習慣の画面の要約に出す連続。毎日・曜日指定の習慣があれば日（`currentStreakDays`）、
- * 週に◯回の習慣だけなら、いちばん長く続いている週の数
+ * 習慣ひとつのいちばん長かった連続（今の連続も含む）。数え方は `habitStreak` と同じ:
+ * 毎日・曜日指定は予定の日にやらなかったら途切れ（予定の無い日・今日の未記録では途切れない）、週に◯回は回数を満たした週
  */
-export function habitsStreak(habits: Habit[], records?: HabitRecordIndex): HabitStreak {
-  if (habits.length > 0 && habits.every(isTimesPerWeek)) {
-    return { count: Math.max(...habits.map((h) => weekStreak(h, records))), unit: 'week' }
+export function habitLongestStreak(h: Habit, records?: HabitRecordIndex): HabitStreak {
+  const today = appToday()
+  const todayKey = toDateKey(today)
+  const start = fromDateKey(streakStartKey(h))
+  let run = 0
+  let best = 0
+  if (h.frequency.type === 'timesPerWeek') {
+    const count = h.frequency.count
+    const thisWeek = toDateKey(habitWeekDates(today)[0])
+    for (let w = startOfWeek(start, { weekStartsOn: 1 }); toDateKey(w) <= thisWeek; w = addWeeks(w, 1)) {
+      if (habitWeekDoneCount(h, w, records) >= count) best = Math.max(best, ++run)
+      // 今週はまだ途中なので、満たしていなくても途切れさせない
+      else if (toDateKey(w) !== thisWeek) run = 0
+    }
+    return { count: best, unit: 'week' }
   }
-  return { count: currentStreakDays(habits, records), unit: 'day' }
+  for (let d = start; toDateKey(d) <= todayKey; d = addDays(d, 1)) {
+    const key = toDateKey(d)
+    if (achieved(h, key, records)) best = Math.max(best, ++run)
+    else if (key !== todayKey && isHabitScheduledOnDate(h, d)) run = 0
+  }
+  return { count: best, unit: 'day' }
 }

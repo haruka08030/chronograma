@@ -7,10 +7,11 @@ import { parseTasksCsv } from '../../lib/importTasksCsv'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../../lib/importRollback'
 import { restoreMissing } from '../../lib/autoBackup'
 import { INBOX_ID } from '../storeConstants'
-import { initialLists } from '../storeDefaults'
+import { defaultLogCategories, initialLists } from '../storeDefaults'
+import { asIncomingChange } from '../../lib/changeOrigin'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
-import { toDateKey } from '../../lib/dateKey'
+import { appTodayKey } from '../../lib/timeZone'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
 
@@ -41,6 +42,18 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       // 取り消しの履歴や取り込み前の控えにも前の人のデータが残っている
       undo.clear()
       clearImportRollback()
+      // ラベル表・他のタイムゾーン・Google の予定の色もその人のもの（科目名・会社名が次の人に見え、次の人のアカウントに送られていた）。
+      // 時刻は null（次の人とは「まだ合わせていない」から始める）。初期の値に戻すのは利用者の編集ではないので時刻を付けない
+      asIncomingChange(() =>
+        set({
+          timeLogTagPresets: defaultLogCategories(),
+          logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+          logLabelsUpdatedAt: null,
+          extraTimeZones: [],
+          extraTimeZonesUpdatedAt: null,
+          googleEventColors: {},
+        }),
+      )
       set({
         tasks: [],
         lists: initialLists(),
@@ -95,7 +108,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `chronograma-backup-${toDateKey(new Date())}.json`
+      a.download = `chronograma-backup-${appTodayKey()}.json`
       a.click()
       URL.revokeObjectURL(url)
     },

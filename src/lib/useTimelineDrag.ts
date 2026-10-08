@@ -94,9 +94,10 @@ function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: numbe
 
 interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
-  getDateKeyFromX?: (clientX: number, clientY?: number) => string | null
+  getDateKeyFromX?: (clientX: number) => string | null
   onMoveDone: (taskId: string, dateKey: string, startTime: string, endTime: string) => void
-  onResizeDone: (taskId: string, startTime: string, endTime: string) => void
+  /** `dateKey` は引いた列の日（日をまたぐ記録は、その日の区間の時刻で返す） */
+  onResizeDone: (taskId: string, startTime: string, endTime: string, dateKey: string) => void
   /** ドラッグ作成時のデフォルト（週カレンダーは schedule） */
   defaultCreateIntent?: CreateIntent
   /** グリッドが pointer capture するため click が届かない環境向け: 移動・リサイズなしの指離し時 */
@@ -304,7 +305,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   /** 指・カーソルの位置からドラッグ中の位置を出し直す（スクロールで格子が動いたときも使う） */
   const applyPoint = useCallback(
     (clientX: number, clientY: number, current: DragState) => {
-      const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX, clientY) : null) ?? current.dateKey
+      const dateKey = (getDateKeyFromX ? getDateKeyFromX(clientX) : null) ?? current.dateKey
       const y = getRelativeY(clientY, dateKey)
       if (current.kind === 'create') {
         // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
@@ -416,11 +417,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         if (drag.edge === 'top') {
           const endMin = timeToMinutes(drag.origEndTime)
           const clampedStart = Math.min(newMin, endMin - MIN_BLOCK_MINUTES)
-          onResizeDone(drag.taskId, minutesToTime(Math.max(0, clampedStart)), drag.origEndTime)
+          onResizeDone(drag.taskId, minutesToTime(Math.max(0, clampedStart)), drag.origEndTime, drag.dateKey)
         } else {
           const startMin = timeToMinutes(drag.origStartTime)
           const clampedEnd = Math.max(newMin, startMin + MIN_BLOCK_MINUTES)
-          onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)))
+          onResizeDone(drag.taskId, drag.origStartTime, minutesToTime(Math.min(clampedEnd, 24 * 60)), drag.dateKey)
         }
       } else {
         onBlockTap?.(drag.taskId)
@@ -432,6 +433,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
 
   const dismissPopup = useCallback(() => {
     setPopup(null)
+  }, [])
+
+  /** 作成カードで時刻を直したとき（仮の枠も一緒に動く） */
+  const setPopupTimes = useCallback((startTime: string, endTime: string) => {
+    setPopup((p) => (p ? { ...p, startTime, endTime } : p))
   }, [])
 
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
@@ -525,6 +531,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handlePointerUp,
     handlePointerCancel,
     dismissPopup,
+    setPopupTimes,
     shiftMoveDragDate,
     /** タッチで長押しして持ち上げている間 true（縦スクロール・スワイプを止める、端で送る） */
     touchLifted,

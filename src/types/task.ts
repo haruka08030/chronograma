@@ -10,6 +10,11 @@ export interface Recurrence {
    * 未設定は締切の曜日で回る。次の回は選んだ曜日のうち次に来る日（`taskRecurrence.ts`）
    */
   weekdays?: number[]
+  /**
+   * 毎月・毎年の元の日（1〜31）。31 日・2/29 のように無い月は月末に寄せ、ある月では元の日に戻す。
+   * 未設定は締切の日。完了で次の回を作るときに覚える（`taskRecurrence.ts`）
+   */
+  monthDay?: number
 }
 
 /**
@@ -78,6 +83,11 @@ interface TaskBase {
   recurrence: Recurrence | null
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */
   habitId: string | null
+  /**
+   * ▶ で始めた記録なら、元の To-Do・予定の id。予定と記録の突き合わせ（計画どおりか）で、題名を直しても元の予定と組にする。
+   * To-Do・予定では使わない（null）
+   */
+  sourceTaskId: string | null
   /** アーカイブした瞬間の ISO 時刻。`null`/未設定はアーカイブされていない。アーカイブ済みタスクは通常のビューから除外され「アーカイブ済み」箱に入る */
   archivedAt: string | null
   /** 削除（ゴミ箱行き）した瞬間の ISO 時刻。`null`/未設定は削除されていない。ソフト削除で「削除済み」箱から復元・完全削除できる */

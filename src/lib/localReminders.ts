@@ -18,6 +18,7 @@ import { isActiveTask } from './taskLifecycle'
 import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { formatDate } from './dateFormat'
+import { addDays } from 'date-fns'
 
 const STATE_KEY = 'chronograma-local-reminders'
 /** 閉じていた間の通知はまとめて出さない（開いた瞬間に昔の通知が並ばないように） */
@@ -108,7 +109,7 @@ function range(start: string | null, end: string | null): string {
 
 function dayLabel(date: string, today: string): string {
   if (date === today) return i18n.t('common.today')
-  const tomorrow = toDateKey(new Date(fromDateKey(today).getTime() + 86_400_000))
+  const tomorrow = toDateKey(addDays(fromDateKey(today), 1))
   if (date === tomorrow) return i18n.t('reminders.tomorrow')
   return formatDate(date, 'shortDate')
 }

@@ -3,7 +3,7 @@ import { useAutoBackup } from './hooks/useAutoBackup'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
 import { Suspense, useState, useRef } from 'react'
-import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { ErrorBoundary, PartBoundary } from './components/ui/ErrorBoundary'
 import { OverlaySuspense } from './components/ui/OverlaySuspense'
 import { lazyNamed } from './lib/lazyComponent'
 import { useTaskStore } from './store/taskStore'
@@ -31,6 +31,7 @@ import { useShortcutsHelpRequest } from './lib/shortcuts'
 import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useReminders } from './hooks/useReminders'
+import { useFollowToday } from './hooks/useFollowToday'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
@@ -70,6 +71,7 @@ export default function App() {
   useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true) })
   useShortcutsHelpRequest(() => setShowShortcuts(true))
   useReminders()
+  useFollowToday()
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
@@ -114,6 +116,9 @@ export default function App() {
     }
   })()
 
+  /** 画面が替わったら、落ちて消えていた部品を描き直す（空にならないよう | でつなぐ） */
+  const partKey = `${selectedView ?? ''}|${selectedList?.id ?? ''}|${searchQuery.trim()}`
+
   return (
     <DndContext
       sensors={sensors}
@@ -123,20 +128,30 @@ export default function App() {
       onDragCancel={handleDragCancel}
     >
       <div className="h-dvh min-h-0 flex overflow-hidden bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-sans">
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <PartBoundary name="sidebar" resetKey={partKey}>
+          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        </PartBoundary>
 
-        {showTodoNavPanel ? <TodoNavPanel /> : null}
+        {showTodoNavPanel ? (
+          <PartBoundary name="todoNav" resetKey={partKey}>
+            <TodoNavPanel />
+          </PartBoundary>
+        ) : null}
 
         <div
           ref={mainRef}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0"
         >
-          {!hideGlobalHeader && <SearchBox inputRef={searchRef} />}
+          {!hideGlobalHeader && (
+            <PartBoundary name="search" resetKey={partKey}>
+              <SearchBox inputRef={searchRef} />
+            </PartBoundary>
+          )}
 
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <ErrorBoundary
               scope="screen"
-              resetKey={`${selectedView ?? ''}|${selectedList?.id ?? ''}|${searchQuery.trim()}`}
+              resetKey={partKey}
               onLeave={() => {
                 setSearchQuery('')
                 useTaskStore.getState().selectView('planner')
@@ -151,34 +166,57 @@ export default function App() {
         </div>
 
         {showShortcuts && (
-          <OverlaySuspense>
-            <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
-          </OverlaySuspense>
+          <PartBoundary name="shortcuts" onCrash={() => setShowShortcuts(false)}>
+            <OverlaySuspense>
+              <ShortcutsHelp onClose={() => setShowShortcuts(false)} />
+            </OverlaySuspense>
+          </PartBoundary>
         )}
         <OverlayHost />
-        <UndoToast />
-        <TooltipHost />
-        <MoveToast />
-        <StorageFullBanner />
-        <FloatingTimer />
-        <RecordPromptHost />
-        <MobileBottomNav onNavigate={() => setSidebarOpen(false)} />
+        {/* 画面の外の部品は 1 つずつ包む。落ちたらその部品だけ消え、画面を替えると戻る */}
+        <PartBoundary name="undoToast" resetKey={partKey}>
+          <UndoToast />
+        </PartBoundary>
+        <PartBoundary name="tooltip" resetKey={partKey}>
+          <TooltipHost />
+        </PartBoundary>
+        <PartBoundary name="moveToast" resetKey={partKey}>
+          <MoveToast />
+        </PartBoundary>
+        <PartBoundary name="storageFull" resetKey={partKey}>
+          <StorageFullBanner />
+        </PartBoundary>
+        <PartBoundary name="timer" resetKey={partKey}>
+          <FloatingTimer />
+        </PartBoundary>
+        <PartBoundary name="recordPrompt" resetKey={partKey}>
+          <RecordPromptHost />
+        </PartBoundary>
+        <PartBoundary name="bottomNav" resetKey={partKey}>
+          <MobileBottomNav onNavigate={() => setSidebarOpen(false)} />
+        </PartBoundary>
       </div>
 
       {/* 離したら置いた場所へすっと収まる（急に別の場所に現れない） */}
       <DragOverlay dropAnimation={DROP_ANIMATION}>
         {dragOverlayTask ? (
-          <DragOverlayTaskRow
-            taskId={dragOverlayTask.taskId}
-            isSubtask={dragOverlayTask.isSubtask}
-            count={dragOverlayTask.count}
-            lift={dragOverlayTask.lift}
-          />
+          <PartBoundary name="dragOverlay" resetKey={partKey}>
+            <DragOverlayTaskRow
+              taskId={dragOverlayTask.taskId}
+              isSubtask={dragOverlayTask.isSubtask}
+              count={dragOverlayTask.count}
+              lift={dragOverlayTask.lift}
+            />
+          </PartBoundary>
         ) : null}
       </DragOverlay>
 
-      <DndTaskDragShell />
-      <TimerDropZone />
+      <PartBoundary name="dragShell" resetKey={partKey}>
+        <DndTaskDragShell />
+      </PartBoundary>
+      <PartBoundary name="timerDrop" resetKey={partKey}>
+        <TimerDropZone />
+      </PartBoundary>
     </DndContext>
   )
 }

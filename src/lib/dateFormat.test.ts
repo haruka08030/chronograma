@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import '../i18n/config'
-import { formatDate, formatWeekRange } from './dateFormat'
+import { formatDate, formatShortDateWeekday, formatWeekRange } from './dateFormat'
 
 // 2026-10-03 は土曜
 const KEY = '2026-10-03'
@@ -45,5 +45,12 @@ describe('formatWeekRange', () => {
     expect(formatWeekRange(new Date(2026, 9, 7), 'en')).toBe('Oct 5 – 11, 2026')
     expect(formatWeekRange(new Date(2026, 9, 1), 'en')).toBe('Sep 28 – Oct 4, 2026')
     expect(formatWeekRange(new Date(2026, 11, 30), 'en')).toBe('Dec 28, 2026 – Jan 3, 2027')
+  })
+})
+
+describe('formatShortDateWeekday', () => {
+  it('今年の日は年なし、ほかの年は年も付ける', () => {
+    expect(formatShortDateWeekday('2026-10-03', 'ja', '2026-10-06')).toBe('10/3 (土)')
+    expect(formatShortDateWeekday('2027-07-05', 'ja', '2026-10-06')).toBe('2027/7/5 (月)')
   })
 })

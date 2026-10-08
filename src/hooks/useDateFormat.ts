@@ -1,9 +1,13 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DATE_FORMAT_NAMES, formatDate, formatWeekRange, type DateFormatName } from '../lib/dateFormat'
+import { DATE_FORMAT_NAMES, formatDate, formatShortDateWeekday, formatWeekRange, type DateFormatName } from '../lib/dateFormat'
 
 type DateFormatter = (date: Date | string) => string
-export type DateFormatters = Record<DateFormatName, DateFormatter> & { weekRange: (anchor: Date) => string }
+export type DateFormatters = Record<DateFormatName, DateFormatter> & {
+  weekRange: (anchor: Date) => string
+  /** 「10/3 (土)」、今年でない日は年も付ける */
+  shortDateWeekdayAnyYear: DateFormatter
+}
 
 /**
  * 日付の表示を名前で呼ぶ（Date か日付キーを渡す）。言語が変わると作り直すので、useMemo の依存に入れれば表示も追いつく。
@@ -19,6 +23,10 @@ export function useDateFormat(): DateFormatters {
     const named = Object.fromEntries(
       DATE_FORMAT_NAMES.map((name) => [name, (date: Date | string) => formatDate(date, name, language)]),
     ) as Record<DateFormatName, DateFormatter>
-    return { ...named, weekRange: (anchor: Date) => formatWeekRange(anchor, language) }
+    return {
+      ...named,
+      weekRange: (anchor: Date) => formatWeekRange(anchor, language),
+      shortDateWeekdayAnyYear: (date: Date | string) => formatShortDateWeekday(date, language),
+    }
   }, [language])
 }

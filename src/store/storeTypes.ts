@@ -8,6 +8,7 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { CandidateView } from '../lib/plannerCandidates'
 import type { SyncState } from '../types/sync'
 
 /**
@@ -72,6 +73,8 @@ export interface TaskState {
   /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動 */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
+  /** 今日の計画の「今日やる候補」の並び順・絞り込み */
+  plannerCandidateView: CandidateView
   /**
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
@@ -198,6 +201,8 @@ export interface TaskState {
   /** いま開いているリスト・ビューの並び順を変える */
   setSortMode: (mode: SortMode) => void
   setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
+  /** 今日やる候補の並び順・絞り込みを変える（渡した項目だけ） */
+  setPlannerCandidateView: (patch: Partial<CandidateView>) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
@@ -261,6 +266,8 @@ export interface TaskState {
   resolveStaleTimer: (endedAt: string) => void
   /** 止め忘れたタイマーを記録にせず捨てる */
   discardActiveTimer: () => void
+  /** 記録を作ったあと、元の To-Do を完了にするか聞く（タイマーを止めたときと同じ確認） */
+  askComplete: (taskId: string) => void
   dismissCompletePrompt: () => void
   dismissLabelPrompt: () => void
   setDailyReminders: (patch: Partial<DailyReminders>) => void

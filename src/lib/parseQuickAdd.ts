@@ -1,6 +1,6 @@
-import { addDays, isValid, startOfDay, startOfWeek } from 'date-fns'
+import { addDays, differenceInCalendarDays, startOfDay, startOfWeek } from 'date-fns'
 import { appToday } from './timeZone'
-import { fromDateKey, toDateKey } from './dateKey'
+import { toDateKey } from './dateKey'
 import { pad2 } from './clockTime'
 import type { Recurrence } from '../types/task'
 
@@ -173,12 +173,18 @@ type Piece =
   | { kind: 'deadline' }
   | { kind: 'filler' }
 
+/** 1 日の終わり。「24時」「22時-24時」の終わりと、日をまたぐ範囲の終わりはここ（予定は日をまたげないため） */
+const END_OF_DAY = 24 * 60 - 1
+
+/** 時刻（分）。「24時」「24:00」は 24 * 60（その日の終わり）。am / pm・午前 / 午後が付くときは 1〜12 時だけ読む */
 function clockMinutes(h: number, m: number, meridiem?: string): number | null {
   let hour = h
-  if (meridiem === '午後' || meridiem === 'pm') hour = (h % 12) + 12
-  else if (meridiem === '午前' || meridiem === 'am') hour = h % 12
-  if (hour > 24 || m > 59) return null
-  return (hour % 24) * 60 + m
+  if (meridiem) {
+    if (h < 1 || h > 12) return null
+    hour = meridiem === '午後' || meridiem === 'pm' ? (h % 12) + 12 : h % 12
+  }
+  if (m > 59 || hour > 24 || (hour === 24 && m > 0)) return null
+  return hour * 60 + m
 }
 
 /**
@@ -207,15 +213,50 @@ const DEADLINE_WORD = /^(?:までに?|締め?切り?|〆切り?|期限|提出):?
 /** 語の後ろにくっついた締切の印「提出期限」「レポート締切」の「期限」「締切」 */
 const DEADLINE_SUFFIX = /^(.+?)(?:期限|締め?切り?|〆切り?)$/
 
-/** その日（1〜31）の、今日以降で一番近い日。今月に無い日（31日など）や過ぎた日なら次の月以降 */
-function nextMonthDay(today: Date, day: number): Date | null {
-  if (day < 1 || day > 31) return null
-  for (let k = 0; k < 12; k++) {
-    const month = today.getMonth() + k
-    const d = new Date(today.getFullYear(), month, day)
-    if (d.getMonth() === ((month % 12) + 12) % 12 && d >= today) return d
+/**
+ * 月日だけの日付で、過ぎていても今年のままにする日数。数日前の締切切れや記録を書けるように、
+ * これより前に過ぎた日は来年として読む（年を書けば必ずその年）
+ */
+export const QUICK_ADD_PAST_DAYS = 60
+
+/** その年の月日。無い日（2/29 のうるう年以外など）は null */
+function dateOf(year: number, month: number, day: number): Date | null {
+  const d = new Date(year, month, day)
+  return d.getMonth() === ((month % 12) + 12) % 12 && d.getDate() === day ? d : null
+}
+
+/** 月日だけの日付の年: 今年の日が今日以降か、過ぎて `QUICK_ADD_PAST_DAYS` 日以内なら今年。それより前に過ぎていれば来年 */
+function monthDayDate(today: Date, month: number, day: number): Date | null {
+  const d = dateOf(today.getFullYear(), month, day)
+  if (!d) return month === 1 && day === 29 ? nextLeapDay(today) : null
+  if (differenceInCalendarDays(today, d) <= QUICK_ADD_PAST_DAYS) return d
+  return dateOf(today.getFullYear() + 1, month, day) ?? (month === 1 && day === 29 ? nextLeapDay(today) : null)
+}
+
+/** 今日以降で次の 2/29 */
+function nextLeapDay(today: Date): Date | null {
+  for (let y = today.getFullYear(); y <= today.getFullYear() + 8; y++) {
+    const d = dateOf(y, 1, 29)
+    if (d && d >= today) return d
   }
   return null
+}
+
+/**
+ * 日だけ（1〜31）の日付: 今月か来月のその日のうち、今日に近いほう（同じなら先の日）。
+ * 「5日まで」は 10/6 なら 10/5（昨日・締切切れ）、10/31 の「1日まで」は 11/1。今月に無い日（31日など）は次にある月
+ */
+function nearestMonthDay(today: Date, day: number): Date | null {
+  if (day < 1 || day > 31) return null
+  const candidates: Date[] = []
+  for (let k = 0; k < 12 && candidates.length < 2; k++) {
+    const d = dateOf(today.getFullYear(), today.getMonth() + k, day)
+    if (d) candidates.push(d)
+  }
+  const [a, b] = candidates
+  if (!a) return null
+  if (!b || a >= today) return a
+  return differenceInCalendarDays(today, a) < differenceInCalendarDays(b, today) ? a : b
 }
 
 /** 日付の直後の曜日の書き添え「10/8(木)」の「(木)」は読み飛ばす */
@@ -254,17 +295,16 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   if ((m = low.match(/^(sun|mon|tue|wed|thu|fri|sat)[a-z]*/))) {
     return { piece: { kind: 'date', date: nextWeekday(today, EN_WEEKDAYS.indexOf(m[1]!)) }, rest: s.slice(m[0].length) }
   }
-  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) {
-    const d = fromDateKey(m[0])
-    if (isValid(d)) return { piece: { kind: 'date', date: startOfDay(d) }, rest: skipWeekdayNote(s.slice(m[0].length)) }
+  // 年を書いた日付（2026-10-03 / 2027/1/15 / 2026-1-5 / 2027年1月15日）はその年
+  if ((m = s.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{4})(年)(\d{1,2})月(\d{1,2})日/)))) {
+    const d = dateOf(Number(m[1]), Number(m[3]) - 1, Number(m[4]))
+    if (d) return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
+    return null
   }
-  // 9/30, 10月3日（過ぎていれば来年）
+  // 9/30, 10月3日（過ぎて QUICK_ADD_PAST_DAYS 日を超えていれば来年）
   if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{1,2})月(\d{1,2})日/)))) {
-    const month = Number(m[1]) - 1
-    const day = Number(m[2])
-    let d = new Date(today.getFullYear(), month, day)
-    if (d.getMonth() !== month) return null
-    if (d < today) d = new Date(today.getFullYear() + 1, month, day)
+    const d = monthDayDate(today, Number(m[1]) - 1, Number(m[2]))
+    if (!d) return null
     return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
   }
   // 3日後 / 1週間後（今日から数える）
@@ -272,11 +312,11 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     const n = Number(m[1]) * (m[2] === '日' ? 1 : 7)
     return { piece: { kind: 'date', date: addDays(today, n) }, rest: s.slice(m[0].length) }
   }
-  // 10日まで / 10日締切（日だけ。今日以降で一番近いその日）。
+  // 10日まで / 10日締切（日だけ。今月か来月の、今日に近いほうのその日）。
   // 「1日1時間」「10日 旅行」のような量や番号と取り違えないよう、直後に締切の印があるときだけ読む
   if (localeJa && (m = s.match(/^(\d{1,2})日(?![間目後前])/))) {
     const rest = skipWeekdayNote(s.slice(m[0].length))
-    const d = DEADLINE_MARK.test(rest) ? nextMonthDay(today, Number(m[1])) : null
+    const d = DEADLINE_MARK.test(rest) ? nearestMonthDay(today, Number(m[1])) : null
     if (d) return { piece: { kind: 'date', date: d }, rest }
   }
 
@@ -285,11 +325,17 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   if (clock) {
     const sep = clock.rest.match(localeJa ? /^\s*(?:[-〜~–—]|から)\s*/ : /^\s*[-〜~–—]\s*/)
     const endClock = sep ? readClock(clock.rest.slice(sep[0].length), localeJa) : null
-    // 「3-4」のように両辺とも素の数字なら時刻と断定できないので読まない
-    if (endClock && endClock.min > clock.min && (clock.explicit || endClock.explicit)) {
-      return { piece: { kind: 'range', start: clock.min, end: endClock.min }, rest: endClock.rest }
+    // 「3-4」のように両辺とも素の数字なら時刻と断定できないので読まない。
+    // 日をまたぐ範囲（夜から朝まで: 23時-1時）と 24 時の終わりは、その日の終わりまで（予定は日をまたげない）
+    const overnight = endClock != null && endClock.min < clock.min && clock.min >= 18 * 60 && endClock.min <= 6 * 60
+    if (endClock && (endClock.min > clock.min || overnight) && clock.min < 24 * 60 && (clock.explicit || endClock.explicit)) {
+      return {
+        piece: { kind: 'range', start: clock.min, end: overnight ? END_OF_DAY : Math.min(endClock.min, END_OF_DAY) },
+        rest: endClock.rest,
+      }
     }
-    if (clock.explicit) return { piece: { kind: 'time', min: clock.min }, rest: clock.rest }
+    // 時刻だけの「24時」は 0:00
+    if (clock.explicit) return { piece: { kind: 'time', min: clock.min % (24 * 60) }, rest: clock.rest }
   }
 
   // 長さ: 1h / 1.5h / 30m / 30min / 1時間 / 1時間半 / 90分
@@ -391,8 +437,7 @@ function readBareRange(token: string, prev: string | undefined, next: string | u
   if (start < 6 || end <= start || end > 24 || end - start > 12) return null
   if (next && COUNT_AFTER.test(next.normalize('NFKC'))) return null
   if (prev && COUNT_BEFORE.test(prev.normalize('NFKC'))) return null
-  // 24 時はその日の終わり（23:59）
-  return { kind: 'range', start: start * 60, end: Math.min(end * 60, 24 * 60 - 1) }
+  return { kind: 'range', start: start * 60, end: Math.min(end * 60, END_OF_DAY) }
 }
 
 /**
@@ -418,7 +463,7 @@ function splitAttachedRange(text: string, today: Date, localeJa: boolean): { at:
  * 時刻の範囲だけは題名にくっつけてもよい（「バイト17時〜22時」）。全角の数字・コロンも読む。
  * 日付は「やる日」。締切にしたいときは「明日まで 課題」「A社 ES 10/10 23:59 締切」「今週中 レポート」「essay by fri」と書く。
  * 「10/10 23:59までにES提出」のように「まで」の後ろに題名を続けてもよい。「ES 提出期限 10/10」の「期限」も締切の印。
- * 日だけの「10日まで」（今日以降で一番近いその日。締切の印が付いたときだけ）、「3日後」「1週間後」も読む。
+ * 日だけの「10日まで」（今月か来月の、今日に近いほうのその日。締切の印が付いたときだけ）、「3日後」「1週間後」も読む。
  * 締切の印と時刻を書いたら、時刻は締切の時刻（`dueTime`）で予定にはしない。
  * 繰り返しは「毎日」「毎週金」「毎週月水」「平日」「毎月15日」「every fri」「every mon wed」「every weekday」「every 2 weeks」
  * （最初の回の決め方は `quickAddTask.ts`）

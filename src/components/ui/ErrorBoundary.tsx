@@ -18,33 +18,28 @@ import { isLazyLoadError, retryFailedLazyLoads } from '../../lib/lazyComponent'
  * 保存したデータが原因で毎回落ちるときの逃げ道。いちばん新しい自動バックアップで置き換えて開き直す
  * （置き換える前の状態は取り込みの控えに残るので、開けたら設定から戻せる）
  */
-async function restoreLatest() {
+async function restoreLatest(): Promise<string | null> {
   const t = i18n.t.bind(i18n)
   const backup = await latestAutoBackup()
-  if (!backup) {
-    window.alert(t('crash.noBackup'))
-    return
-  }
+  if (!backup) return t('crash.noBackup')
   if (
     !(await askConfirm({
       message: t('crash.restoreConfirm', { date: formatDate(new Date(backup.savedAt), 'monthDayTime') }),
       confirmLabel: t('crash.restore'),
     }))
   )
-    return
+    return null
   const { useTaskStore } = await import('../../store/taskStore')
-  if (!useTaskStore.getState().importData(backup.json)) {
-    window.alert(t('crash.noBackup'))
-    return
-  }
+  if (!useTaskStore.getState().importData(backup.json)) return t('crash.noBackup')
   window.location.reload()
+  return null
 }
 
 export class ErrorBoundary extends Component<
   { scope: 'app' | 'screen'; resetKey?: string; onLeave?: () => void; children: ReactNode },
-  { error: Error | null }
+  { error: Error | null; restoreError: string | null }
 > {
-  state: { error: Error | null } = { error: null }
+  state: { error: Error | null; restoreError: string | null } = { error: null, restoreError: null }
 
   static getDerivedStateFromError(error: Error) {
     return { error }
@@ -103,7 +98,11 @@ export class ErrorBoundary extends Component<
               <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={downloadRawData}>
                 {t('crash.export')}
               </button>
-              <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restoreLatest()}>
+              <button
+                type="button"
+                className={buttonClass({ variant: 'secondary', size: 'md' })}
+                onClick={() => void restoreLatest().then((restoreError) => this.setState({ restoreError }))}
+              >
                 {t('crash.restore')}
               </button>
             </>
@@ -114,11 +113,48 @@ export class ErrorBoundary extends Component<
             </button>
           )}
         </div>
+        {/* アプリ全体が落ちた後は画面下の通知が出せないので、戻せなかった理由はここに赤字で出す（alert は使わない） */}
+        {this.state.restoreError && <p className="max-w-sm text-sm text-red-600 dark:text-red-400">{this.state.restoreError}</p>}
         <details className="mt-2 max-w-md text-xs text-zinc-400 dark:text-zinc-500">
           <summary className="cursor-pointer">{t('crash.details')}</summary>
           <pre className="mt-2 whitespace-pre-wrap break-words text-left">{error.message}</pre>
         </details>
       </div>
     )
+  }
+}
+
+/**
+ * 画面の外にある部品（詳細・メニュー・ナビ・タイマー・通知など）を 1 つずつ包む小さい境界。
+ * 落ちてもアプリ全体の「再読み込み」まで上げず、その部品だけ閉じて通知を出す。
+ * - `onCrash` で部品を閉じる（詳細なら `closeTaskDetail`）
+ * - 落ちた後は、`resetKey` が空でない別の値になるまで出さない（次に開いたとき・画面を替えたとき。描き直すたびに同じ所で落ちないように）
+ * - 部品のファイルの読み込みの失敗は中の `OverlaySuspense` が受ける（境界は `OverlaySuspense` の外に置く）
+ */
+export class PartBoundary extends Component<
+  { name: string; onCrash?: () => void; resetKey?: string; children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[error-boundary:${this.props.name}]`, error, info.componentStack)
+    if (!isLazyLoadError(error))
+      reportError('render', error, { scope: this.props.name, componentStack: info.componentStack?.slice(0, 1500) })
+    void import('../../lib/notify').then(({ notify }) => notify(i18n.t('crash.partFailed')))
+    this.props.onCrash?.()
+  }
+
+  // 空でない別の `resetKey` になったら描き直す（閉じている間の '' では戻さない。閉じる動きのあいだにまた落ちないように）
+  componentDidUpdate(prev: { resetKey?: string }) {
+    if (this.state.error && this.props.resetKey && prev.resetKey !== this.props.resetKey) this.setState({ error: null })
+  }
+
+  render() {
+    return this.state.error ? null : this.props.children
   }
 }

@@ -38,20 +38,7 @@ async function readyRegistration(): Promise<ServiceWorkerRegistration | null> {
   return reg ? navigator.serviceWorker.ready : null
 }
 
-/**
- * 通知時刻の変更をサーバーの購読に反映する。どちらもオフなら購読を解除して行を消す。
- * 権限が未許可なら何もしない（許可ダイアログはユーザー操作から出す）。
- */
-export async function syncWebPush({
-  userId,
-  reminders,
-  eventReminderMinutes,
-  dueReminders,
-  recordPrompts,
-  hasTaskReminders,
-  activeTimer,
-  lang,
-}: {
+type SyncWebPushArgs = {
   userId: string | null
   reminders: DailyReminders
   eventReminderMinutes: number | null
@@ -64,7 +51,22 @@ export async function syncWebPush({
   /** 動いているタイマー（止め忘れの通知） */
   activeTimer: ActiveTimer | null
   lang: string
-}): Promise<void> {
+}
+/** 最後に反映した設定（アカウントが替わって購読を外したあと、同じ設定で購読し直す） */
+let lastSyncArgs: SyncWebPushArgs | null = null
+
+/** 最後の設定で購読し直す（`clearPreviousAccount`） */
+export function resyncWebPush(): Promise<void> {
+  return lastSyncArgs ? syncWebPush(lastSyncArgs) : Promise.resolve()
+}
+
+/**
+ * 通知時刻の変更をサーバーの購読に反映する。どちらもオフなら購読を解除して行を消す。
+ * 権限が未許可なら何もしない（許可ダイアログはユーザー操作から出す）。
+ */
+export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
+  const { userId, reminders, eventReminderMinutes, dueReminders, recordPrompts, hasTaskReminders, activeTimer, lang } = args
+  lastSyncArgs = args
   pushActive = false
   const supabase = getSupabase()
   if (!userId || !supabase || !isWebPushSupported() || Notification.permission !== 'granted') return

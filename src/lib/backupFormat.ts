@@ -143,7 +143,7 @@ function readRecurrence(v: unknown): Recurrence | null {
   const r = v as Record<string, unknown>
   if (r.type !== 'daily' && r.type !== 'weekly' && r.type !== 'monthly' && r.type !== 'yearly') return null
   const interval = typeof r.interval === 'number' && Number.isInteger(r.interval) && r.interval > 0 ? r.interval : 1
-  return buildRecurrence(r.type, interval, r.weekdays)
+  return buildRecurrence(r.type, interval, r.weekdays, r.monthDay)
 }
 
 /** 通知は「いつ基準か」と「何分前か」だけ。壊れた要素は捨てる。配列でなければ既定（null） */
@@ -162,7 +162,7 @@ function normalizePriority(raw: unknown): Priority {
   return 'medium'
 }
 
-function normalizeTaskRow(raw: unknown): Task | null {
+export function normalizeTaskRow(raw: unknown): Task | null {
   if (typeof raw !== 'object' || raw === null) return null
   const row = raw as Record<string, unknown>
   const id = readString(row, 'id')
@@ -232,13 +232,15 @@ function normalizeTaskRow(raw: unknown): Task | null {
     priority: normalizePriority(row.priority),
     kind,
     habitId: typeof habitIdRaw === 'string' ? habitIdRaw : null,
+    sourceTaskId:
+      typeof (row.sourceTaskId ?? row.source_task_id) === 'string' ? ((row.sourceTaskId ?? row.source_task_id) as string) : null,
     completedAt,
     archivedAt: typeof archivedAtRaw === 'string' ? archivedAtRaw : null,
     deletedAt: typeof deletedAtRaw === 'string' ? deletedAtRaw : null,
   }
 }
 
-function normalizeListRow(raw: unknown): TaskList | null {
+export function normalizeListRow(raw: unknown): TaskList | null {
   if (typeof raw !== 'object' || raw === null) return null
   const row = raw as Record<string, unknown>
   const id = readString(row, 'id')
@@ -251,10 +253,12 @@ function normalizeListRow(raw: unknown): TaskList | null {
     color: typeof row.color === 'string' ? row.color : INBOX_COLOR,
     order: readOrder(row),
     kind: normalizeListKind(row.kind),
+    // 同期でどちらの端末の変更を残すかに使う（保存データの読み込みでも通るので落とさない）
+    ...(typeof row.updatedAt === 'string' ? { updatedAt: row.updatedAt } : {}),
   }
 }
 
-function normalizeSectionRow(raw: unknown): ListSection | null {
+export function normalizeSectionRow(raw: unknown): ListSection | null {
   if (typeof raw !== 'object' || raw === null) return null
   const row = raw as Record<string, unknown>
   const id = readString(row, 'id')
@@ -266,10 +270,11 @@ function normalizeSectionRow(raw: unknown): ListSection | null {
     listId,
     name,
     order: readOrder(row),
+    ...(typeof row.updatedAt === 'string' ? { updatedAt: row.updatedAt } : {}),
   }
 }
 
-function normalizeHabitRow(raw: unknown): Habit | null {
+export function normalizeHabitRow(raw: unknown): Habit | null {
   if (typeof raw !== 'object' || raw === null) return null
   const rec = raw as Record<string, unknown>
   const id = rec.id
@@ -443,4 +448,25 @@ export function withFreshStamps(result: BackupImportResult): BackupImportResult 
     sections: result.sections.map((s) => ({ ...s, updatedAt })),
     habits: result.habits.map((h) => ({ ...h, updatedAt })),
   }
+}
+
+const ROW_NORMALIZERS = {
+  tasks: normalizeTaskRow,
+  lists: normalizeListRow,
+  sections: normalizeSectionRow,
+  habits: normalizeHabitRow,
+} as const
+type RowKind = keyof typeof ROW_NORMALIZERS
+type RowOf<K extends RowKind> = NonNullable<ReturnType<(typeof ROW_NORMALIZERS)[K]>>
+
+/**
+ * 保存データ・他のタブの書き込みの一覧を、バックアップの取り込みと同じ基準で行ごとにそろえる。
+ * 型の違う項目は直し、読めない行（id・題名が無いなど）は外す。`broken` は配列でない・外した行があったとき
+ * （元の中身を別のキーに写す合図）。配列でなければ `rows` は null
+ */
+export function normalizeStoredRows<K extends RowKind>(kind: K, value: unknown): { rows: RowOf<K>[] | null; broken: boolean } {
+  if (!Array.isArray(value)) return { rows: null, broken: value !== undefined }
+  const normalize = ROW_NORMALIZERS[kind] as (raw: unknown) => RowOf<K> | null
+  const rows = value.map(normalize).filter((r): r is RowOf<K> => r !== null)
+  return { rows, broken: rows.length !== value.length }
 }

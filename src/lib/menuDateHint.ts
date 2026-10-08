@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns'
 import i18n from '../i18n/config'
-import { formatDate } from './dateFormat'
+import { formatShortDateWeekday } from './dateFormat'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appTodayKey } from './timeZone'
 
@@ -26,6 +26,6 @@ export function menuDateHint(
       : first.date === tomorrowKey
         ? t('common.tomorrow')
         : // 今年でない日は年も付ける（To-Do の行の日付と同じ）
-          formatDate(first.date, first.date.slice(0, 4) === todayKey.slice(0, 4) ? 'shortDateWeekday' : 'shortDateWeekdayYear', language)
+          formatShortDateWeekday(first.date, language, todayKey)
   return first.time ? `${day} ${first.time}` : day
 }
