@@ -14,6 +14,7 @@ import {
   type ReminderSettings,
   type ReminderTask,
 } from '../../supabase/functions/daily-reminders/schedule.ts'
+import { taskUrl } from '../../supabase/functions/daily-reminders/payload.ts'
 import { isActiveTask } from './taskLifecycle'
 import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -73,7 +74,15 @@ export function reminderCandidates(tasks: readonly Task[], excludedListIds: Read
     .map(toReminderTask)
 }
 
-type Shown = { title: string; body: string; tag: string; taskId?: string; record?: boolean }
+type Shown = {
+  title: string
+  body: string
+  tag: string
+  taskId?: string
+  record?: boolean
+  /** 押したときに開く URL（開始前・締切 1 件はその件の詳細。無ければ今日の計画） */
+  url?: string
+}
 
 async function show(n: Shown, onClick: () => void) {
   // アクション（予定どおり / 記録する）は Service Worker の通知でしか付けられない
@@ -83,7 +92,11 @@ async function show(n: Shown, onClick: () => void) {
       body: n.body,
       tag: n.tag,
       icon: '/icons/icon-192.png',
-      data: { url: n.record && n.taskId ? `/?record=${encodeURIComponent(n.taskId)}` : '/?view=planner', taskId: n.taskId },
+      data: {
+        url: n.record && n.taskId ? `/?record=${encodeURIComponent(n.taskId)}` : (n.url ?? '/?view=planner'),
+        // `taskId` は記録の確認だけ（Service Worker は `taskId` があると記録の画面を開く）
+        taskId: n.record ? n.taskId : undefined,
+      },
       ...(n.record
         ? {
             actions: [
@@ -121,6 +134,7 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
       title: r.title,
       body: r.minutesBefore > 0 ? i18n.t('reminders.startBody', { count: r.minutesBefore, when }) : i18n.t('reminders.startNow', { when }),
       tag: `chronograma-start-${r.taskId}`,
+      url: taskUrl(r.taskId, r.date),
     }
   }
   if (r.kind === 'due') {
@@ -129,6 +143,7 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
       title: i18n.t('reminders.dueTitle', { title: r.title }),
       body: r.startTime ? i18n.t('reminders.dueBy', { day, time: r.startTime }) : i18n.t('reminders.dueByDay', { day }),
       tag: `chronograma-due-${r.taskId}`,
+      url: taskUrl(r.taskId, r.date),
     }
   }
   return {
@@ -170,6 +185,8 @@ export function checkLocalReminders(ctx: {
   activeTimer: ActiveTimer | null
   onOpen: () => void
   onRecord: (taskId: string) => void
+  /** 開始前・締切 1 件（Service Worker の無い通知を押したとき） */
+  onOpenTask: (taskId: string, date: string) => void
 }) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return
   const now = zonedNow()
@@ -189,7 +206,7 @@ export function checkLocalReminders(ctx: {
     if (sent.has(r.key)) continue
     keys.push(r.key)
     const msg = reminderMessage(r, today)
-    void show(msg, () => (msg.record ? ctx.onRecord(r.taskId) : ctx.onOpen()))
+    void show(msg, () => (msg.record ? ctx.onRecord(r.taskId) : ctx.onOpenTask(r.taskId, r.date)))
   }
   const timer = ctx.activeTimer
   if (timer && staleTimerDue(timer.startedAt, Date.now(), state.timer)) {

@@ -1,7 +1,8 @@
 /* Chronograma service worker
  * - オフラインでも開けるように、画面（HTML）はネットワーク優先・失敗時はキャッシュ、
  *   ビルド済みアセット（/assets/ はハッシュ付き）はキャッシュ優先
- * - 通知（Web Push）を表示し、タップで「今日の計画」を開く。記録の確認は「予定どおり」「記録する」のボタン付き
+ * - 通知（Web Push）を表示し、タップで「今日の計画」を開く（開始前・締切 1 件はその To-Do・予定の詳細）。
+ *   記録の確認は「予定どおり」「記録する」のボタン付き
  * Supabase や Google など別オリジンの通信には触らない（同期は常に最新が必要なため）
  */
 // ビルドごとに変わる印（vite.config.ts の swBuildStamp が置き換える）。中身が変わらないとブラウザは新しい版を見つけず、
@@ -164,6 +165,8 @@ self.addEventListener('notificationclick', (event) => {
   // 通知の中身に別サイトの URL が入っていても、このアプリの外へは開かない
   if (target.origin !== self.location.origin) target = new URL('/?view=planner', self.location.origin)
   const taskId = data.taskId || target.searchParams.get('record')
+  // 開始前・締切 1 件の通知（`?task=<id>&date=<日>`）: その To-Do・予定の詳細とその日を開く
+  const openTaskId = taskId ? null : target.searchParams.get('task')
   const asPlanned = event.action === 'as-planned'
   // 「予定どおり」は開いた画面で確かめずに記録する。同じ URL を他人のリンクから踏んでも記録されないよう、
   // この通知から開いたことを 1 回きりの印（launch）で示す。ページは控えに印があるときだけそのまま記録する
@@ -178,7 +181,13 @@ self.addEventListener('notificationclick', (event) => {
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
         for (const w of wins) {
           if (new URL(w.url).origin === target.origin) {
-            w.postMessage(taskId ? { type: 'record', taskId, asPlanned } : { type: 'open-view', view: target.searchParams.get('view') })
+            w.postMessage(
+              taskId
+                ? { type: 'record', taskId, asPlanned }
+                : openTaskId
+                  ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
+                  : { type: 'open-view', view: target.searchParams.get('view') },
+            )
             return w.focus()
           }
         }
