@@ -18,7 +18,6 @@ import { MoveHereButton } from './PlannerRowActions'
  */
 export function PlannerSuggestions({
   env,
-  suggestions,
   addAllTargets,
   pool,
   candidateGroups,
@@ -29,9 +28,10 @@ export function PlannerSuggestions({
   groupId,
 }: {
   env: PlannerRowEnv
-  /** 締切間近（見出しの件数） */
-  suggestions: Task[]
-  /** 「すべて追加」の対象（締切間近のうち絞り込みに合うもの。締切順以外では空） */
+  /**
+   * 「すべて追加」の対象で、見出しの「締切が近い n 件」（締切間近のうち絞り込みに合うもの）。
+   * 締切順以外は中身が締切の近いものだけではないので空（見出しは「To-Do から追加」）
+   */
   addAllTargets: Task[]
   /** 絞り込む前の候補すべて（メニューに出すリスト・ラベル・タグ） */
   pool: Task[]
@@ -69,7 +69,9 @@ export function PlannerSuggestions({
       <div className="flex flex-wrap items-center justify-end gap-1">
         <DisclosureButton open={open} onToggle={onToggle} className="flex-1 whitespace-nowrap">
           <span className="flex-1">
-            {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
+            {addAllTargets.length > 0
+              ? t('planner.suggestionsHeading', { count: addAllTargets.length })
+              : t('planner.suggestionsHeadingPlain')}
           </span>
         </DisclosureButton>
         {open && filter.button}

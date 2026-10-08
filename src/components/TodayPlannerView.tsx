@@ -265,7 +265,6 @@ export function TodayPlannerView() {
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <PlannerSuggestions
             env={rowEnv}
-            suggestions={suggestions}
             addAllTargets={shownSuggestions}
             pool={candidatePool}
             candidateGroups={candidateGroups}
