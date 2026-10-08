@@ -1,4 +1,3 @@
-import { addDays, startOfWeek, subWeeks } from 'date-fns'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
@@ -14,6 +13,7 @@ import { zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
 import { timeToMinutes } from './timeGrid'
+import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
 
 /** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
 function plannedItemMinutes(p: PlannedItem): number {
@@ -74,10 +74,25 @@ export function getWeekReview(
   anchor: Date,
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
+  labelOf?: (log: Task) => string,
+): WeekReview {
+  return getReview(tasks, habits, 'week', anchor, excludedListIds, now, labelOf)
+}
+
+/**
+ * `anchor` を含む期間（週: 月曜始まり / 月: 暦の月, #304）の振り返り。未来の日は数えない。
+ * 月の「週に◯回」の習慣は、4 日以上がその月にある週だけで数える（`monthHabitWeekStarts`）
+ */
+export function getReview(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  period: ReviewPeriod,
+  anchor: Date,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = zonedNow(),
   /** 記録のラベル（タグ無しは空文字）。既定は先頭のタグ。画面は `recordLabelKey` で名前の無い色も分ける */
   labelOf: (log: Task) => string = (log) => log.category ?? '',
 ): WeekReview {
-  const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const todayKey = toDateKey(now)
   const nowHm = clockOf(now)
   const days: WeekReviewDay[] = []
@@ -88,8 +103,7 @@ export function getWeekReview(
   let habitDone = 0
   const habitRecords = buildHabitRecordIndex(tasks)
 
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(start, i)
+  for (const date of reviewPeriodDays(period, anchor)) {
     const key = toDateKey(date)
     if (key > todayKey) break
     const plan = getDayPlan(tasks, key, excludedListIds)
@@ -151,11 +165,15 @@ export function getWeekReview(
     }
   }
 
+  const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
   for (const h of habits) {
     if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
-    const tally = timesPerWeekTally(h, start, todayKey, habitRecords)
-    habitDue += tally.expected
-    habitDone += tally.completed
+    for (const week of habitWeeks) {
+      if (toDateKey(week) > todayKey) break
+      const tally = timesPerWeekTally(h, week, todayKey, habitRecords)
+      habitDue += tally.expected
+      habitDone += tally.completed
+    }
   }
 
   const sum = (f: (d: WeekReviewDay) => number) => days.reduce((a, d) => a + f(d), 0)
@@ -174,6 +192,49 @@ export function getWeekReview(
 }
 
 /**
+ * 前の期間の振り返り。今の期間は今日までしか数えないので、前の期間も同じ日（曜日・日付）までで打ち切る
+ * （週・月の頭に「先週より −10時間」と出さない）。過ぎた期間どうしなら丸ごと。
+ * 前の月が短ければ末日まで（3/31 の前の月は 2 月まる 1 か月）
+ */
+export function getPrevReview(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  period: ReviewPeriod,
+  anchor: Date,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = zonedNow(),
+  labelOf?: (log: Task) => string,
+): WeekReview {
+  // 「今」を 1 期間前にずらすと、前の期間は同じ日で打ち切られる
+  return getReview(
+    tasks,
+    habits,
+    period,
+    shiftReviewPeriod(period, anchor, -1),
+    excludedListIds,
+    shiftReviewPeriod(period, now, -1),
+    labelOf,
+  )
+}
+
+export interface ReviewComparison {
+  /** 記録した時間の差（分。今 − 前）。前の期間に記録が無ければ null（比べる相手が無いので出さない） */
+  loggedDiff: number | null
+  /** ラベルごとの記録時間の差（分。今 − 前）。前の期間に記録が無ければ空。前の期間に無かったラベルは今の分そのまま */
+  labelDiff: Map<string, number>
+}
+
+/** 今の期間と前の期間（`getPrevReview`）の記録時間を比べる */
+export function compareReviews(current: WeekReview, prev: WeekReview): ReviewComparison {
+  if (prev.loggedMinutes === 0) return { loggedDiff: null, labelDiff: new Map() }
+  const prevByLabel = new Map(prev.labelMinutes.map((x) => [x.tag, x.minutes]))
+  return {
+    loggedDiff: current.loggedMinutes - prev.loggedMinutes,
+    labelDiff: new Map(current.labelMinutes.map((x) => [x.tag, x.minutes - (prevByLabel.get(x.tag) ?? 0)])),
+  }
+}
+
+/**
  * 記録した時間の、前の週との差（分。今週 − 前の週）。前の週に記録が無ければ null（比べる相手が無いので出さない）。
  * 今週は今日までしか数えないので、前の週も同じ曜日までで比べる（週の頭に「先週より −10時間」と出さない）
  */
@@ -185,8 +246,7 @@ export function loggedMinutesVsPrevWeek(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
 ): number | null {
-  // 「今」を 1 週前にずらすと、前の週は同じ曜日で打ち切られる（過ぎた週どうしなら丸ごと比べる）
-  const prev = getWeekReview(tasks, habits, subWeeks(anchor, 1), excludedListIds, subWeeks(now, 1))
+  const prev = getPrevReview(tasks, habits, 'week', anchor, excludedListIds, now)
   if (prev.loggedMinutes === 0) return null
   return loggedMinutes - prev.loggedMinutes
 }

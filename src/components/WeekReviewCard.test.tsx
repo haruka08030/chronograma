@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DEFAULTS } from '../lib/taskDefaults'
-import { toDateKey } from '../lib/dateKey'
+import { fromDateKey, toDateKey } from '../lib/dateKey'
+import { shiftReviewPeriod } from '../lib/reviewPeriod'
 import { zonedNow } from '../lib/timeZone'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
@@ -78,5 +79,36 @@ describe('TaskEstimateField: 完了した To-Do に記録した時間を添え�
     const es = seed()
     render(<TaskEstimateField task={{ ...es, completed: false, completedAt: null }} />)
     expect(screen.queryByText(/Time logged/)).toBeNull()
+  })
+})
+
+describe('WeekReviewCard: 月のふりかえり（#304）', () => {
+  it('月に切り替えると、日のマスと、ラベル別の時間の前の月との差を出す。‹ で前の月へ戻れる', () => {
+    const today = toDateKey(zonedNow())
+    const prevMonthDay = toDateKey(shiftReviewPeriod('month', fromDateKey(today), -1))
+    const study = { kind: 'log' as const, completed: true, tags: ['Study'], category: 'Study' }
+    useTaskStore.setState({
+      tasks: [
+        task('now', { ...study, dueDate: today, startTime: '00:00', endTime: '02:00' }),
+        task('prev', { ...study, dueDate: prevMonthDay, startTime: '00:00', endTime: '01:00' }),
+      ],
+    })
+    render(<WeekReviewCard />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Month' }))
+
+    expect(screen.getByText('Monthly review')).toBeInTheDocument()
+    expect(screen.getByText('+1h vs last month')).toBeInTheDocument()
+    expect(screen.getByText('vs last month')).toBeInTheDocument()
+    expect(screen.getByText('+1h')).toBeInTheDocument()
+    // 日のマス: 今日のマスに記録の合計（色だけに頼らない）
+    expect(screen.getByRole('button', { name: new RegExp(`logged 2h`) })).toHaveTextContent('2h')
+    // 週の棒の「予定」の凡例は月では出さない
+    expect(screen.queryByText('Planned')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(screen.getByText('Habits kept that month')).toBeInTheDocument()
+    expect(screen.getAllByText('1h').length).toBeGreaterThan(0)
+    // その前の月に記録が無いので差は出さない
+    expect(screen.queryByText(/vs previous month/)).toBeNull()
   })
 })

@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from './weekReview'
+import type { Habit } from '../types/habit'
+import { compareReviews, foldLabelMinutes, getPrevReview, getReview, getWeekReview, loggedMinutesVsPrevWeek } from './weekReview'
+import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 import { matchPlanAndActualForDate } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
@@ -147,5 +149,96 @@ describe('loggedMinutesVsPrevWeek', () => {
   it('前の週に記録が無ければ null', () => {
     const now = at('20:00')
     expect(loggedMinutesVsPrevWeek(100, [tasks[0]], [], now, new Set(), now)).toBeNull()
+  })
+})
+
+describe('getReview: 月（#304）', () => {
+  afterEach(() => setAppTimeZoneSetting(null))
+  const log = (id: string, date: string, start: string, end: string, tag = '') =>
+    task(id, { kind: 'log', dueDate: date, startTime: start, endTime: end, tags: tag ? [tag] : [] })
+
+  it('暦の月の 1 日から今日までを数える。月をまたぐ記録は 0 時で分ける', () => {
+    const now = at('20:00') // 10/3
+    const tasks = [
+      log('sep30', '2026-09-30', '10:00', '12:00'),
+      // 9/30 23:00 → 10/1 1:00。10 月には 0 時からの 1 時間だけ
+      log('overnight', '2026-09-30', '23:00', '01:00'),
+      log('oct1', '2026-10-01', '10:00', '10:30'),
+      log('oct3', '2026-10-03', '09:00', '10:00'),
+    ]
+    const review = getReview(tasks, [], 'month', now, new Set(), now)
+    expect(review.days.map((d) => d.dateKey)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03'])
+    expect(review.loggedMinutes).toBe(60 + 30 + 60)
+    const sep = getReview(tasks, [], 'month', new Date('2026-09-10T12:00:00'), new Set(), now)
+    expect(sep.days).toHaveLength(30)
+    expect(sep.loggedMinutes).toBe(120 + 60)
+  })
+
+  it('完了したタスクはアプリのタイムゾーンの完了日の月に入れる', () => {
+    setAppTimeZoneSetting('Asia/Tokyo')
+    const tasks = [
+      task('a', { completed: true, completedAt: '2026-09-30T14:30:00Z' }), // 9/30 23:30 JST
+      task('b', { completed: true, completedAt: '2026-09-30T15:30:00Z' }), // 10/1 0:30 JST
+    ]
+    const now = at('20:00')
+    expect(getReview(tasks, [], 'month', now, new Set(), now).done).toBe(1)
+    expect(getReview(tasks, [], 'month', new Date('2026-09-15T12:00:00'), new Set(), now).done).toBe(1)
+  })
+
+  it('前の月は同じ日までと比べ、ラベルごとの差も出す', () => {
+    const now = at('20:00') // 10/3
+    const tasks = [
+      log('job', '2026-10-02', '10:00', '13:00', '就活'),
+      log('work', '2026-10-02', '18:00', '19:00', 'バイト'),
+      log('prevJob', '2026-09-02', '10:00', '11:00', '就活'),
+      log('prevWork', '2026-09-03', '18:00', '20:00', 'バイト'),
+      // 9/4 以降は今月の同じ日（3 日）より先なので比べない
+      log('prevLate', '2026-09-20', '10:00', '15:00', '就活'),
+    ]
+    const review = getReview(tasks, [], 'month', now, new Set(), now)
+    const prev = getPrevReview(tasks, [], 'month', now, new Set(), now)
+    expect(prev.days.map((d) => d.dateKey)).toEqual(['2026-09-01', '2026-09-02', '2026-09-03'])
+    const cmp = compareReviews(review, prev)
+    expect(cmp.loggedDiff).toBe(240 - 180)
+    expect(cmp.labelDiff.get('就活')).toBe(180 - 60)
+    expect(cmp.labelDiff.get('バイト')).toBe(60 - 120)
+  })
+
+  it('過ぎた月どうしは丸ごと比べる。3 月末の前の月は 2 月まる 1 か月', () => {
+    const tasks = [log('feb28', '2026-02-28', '10:00', '11:00'), log('mar31', '2026-03-31', '10:00', '12:00')]
+    const mar31 = new Date('2026-03-31T20:00:00')
+    const prev = getPrevReview(tasks, [], 'month', mar31, new Set(), mar31)
+    expect(prev.days).toHaveLength(28)
+    expect(prev.loggedMinutes).toBe(60)
+    const cmp = compareReviews(getReview(tasks, [], 'month', mar31, new Set(), mar31), prev)
+    expect(cmp.loggedDiff).toBe(60)
+  })
+
+  it('前の月に記録が無ければ差を出さない', () => {
+    const now = at('20:00')
+    const tasks = [log('oct', '2026-10-01', '10:00', '11:00', '就活')]
+    const cmp = compareReviews(getReview(tasks, [], 'month', now, new Set(), now), getPrevReview(tasks, [], 'month', now, new Set(), now))
+    expect(cmp).toEqual({ loggedDiff: null, labelDiff: new Map() })
+  })
+
+  it('週に◯回の習慣は、4 日以上がその月にある週で数える', () => {
+    // 10/1 は木曜なので 9/28 の週は 10 月に入る。9/29・10/2 にやって週 2 回を満たした
+    const h: Habit = {
+      id: 'gym',
+      title: 'gym',
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'timesPerWeek', count: 2 },
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      completedDates: ['2026-09-29', '2026-10-02'],
+      archivedAt: null,
+    }
+    const now = at('20:00')
+    expect(getReview([], [h], 'month', now, new Set(), now).habitRate).toBe(1)
+    // 9 月には 9/28 の週を入れない（9/21 の週までの 4 週。やった日が無いので 0）
+    expect(getReview([], [h], 'month', new Date('2026-09-15T12:00:00'), new Set(), now).habitRate).toBe(0)
   })
 })

@@ -320,6 +320,17 @@ body {
 .dark .gc-dot {
   background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
 }
+/*
+ * 量の濃さのマス（月のふりかえりの日のマス）: 予定タイルと同じ抜け感の塗りのまま、量は縁の濃さで見せる（ベタ塗りにしない）。
+ * `--heat` は 0〜1（多いほど 1）。塗りは最大でも予定タイルほど、縁は最大でその色そのもの（gc-dot と同じ）
+ */
+.gc-heat {
+  background-color: color-mix(in srgb, var(--c) calc(4% + var(--heat) * 10%), var(--gc-surface));
+  border: 1px solid color-mix(in srgb, var(--c) calc(25% + var(--heat) * 75%), var(--gc-surface));
+}
+.dark .gc-heat {
+  background-color: color-mix(in srgb, var(--c) calc(6% + var(--heat) * 14%), var(--gc-surface));
+}
 /* 色の細い線（To-Do 行の左の縦線）: 縁を付けると線の中に線が見えてごちゃつくので、丸の中の色だけで塗る。丸と同じ 30% だと細すぎて黄色が消えるので少し濃く */
 .gc-line {
   background-color: color-mix(in srgb, var(--c) 55%, var(--gc-surface));

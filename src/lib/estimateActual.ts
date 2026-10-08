@@ -1,10 +1,10 @@
-import { addDays, startOfWeek } from 'date-fns'
 import { isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
 import { completionDayKey } from './dayPlan'
 import { isDeletedTask } from './taskLifecycle'
 import { durationMinutesForTaskSlot } from './taskTimeRange'
 import { appDayKeyOf, zonedNow } from './timeZone'
 import { toDateKey } from './dateKey'
+import { reviewPeriodDays, type ReviewPeriod } from './reviewPeriod'
 
 /**
  * 見積もり（`estimateMinutes`）と、その To-Do に実際に記録した時間を並べる（#297）。
@@ -101,11 +101,11 @@ export interface EstimateRow {
   mainLog: Task
 }
 
-/** 週のふりかえりに出す見積もりと記録の行数 */
+/** ふりかえりに出す見積もりと記録の行数 */
 export const ESTIMATE_ROWS = 5
 
 /**
- * `anchor` を含む週（月曜始まり、今日まで）に完了した To-Do のうち、見積もりがあって記録も結び付いているもの。
+ * `anchor` を含む期間（週: 月曜始まり / 月: 暦の月、今日まで）に完了した To-Do のうち、見積もりがあって記録も結び付いているもの。
  * 見積もりを超えた分の大きい順（大きく超えたものが先頭。超えていないものは後ろ）。
  * 決めた後（完了した To-Do）だけを見る。いつか・チェックリストのリスト（`excludedListIds`）は入れない
  */
@@ -114,12 +114,13 @@ export function getEstimateRows(
   anchor: Date,
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
+  period: ReviewPeriod = 'week',
 ): EstimateRow[] {
   const todayKey = toDateKey(now)
-  const start = startOfWeek(anchor, { weekStartsOn: 1 })
-  const from = toDateKey(start)
-  const weekEnd = toDateKey(addDays(start, 6))
-  const to = weekEnd < todayKey ? weekEnd : todayKey
+  const days = reviewPeriodDays(period, anchor)
+  const from = toDateKey(days[0]!)
+  const periodEnd = toDateKey(days[days.length - 1]!)
+  const to = periodEnd < todayKey ? periodEnd : todayKey
   const linked = linkLogsToTasks(tasks, todayKey)
 
   const rows: EstimateRow[] = []

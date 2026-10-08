@@ -174,3 +174,20 @@ describe('getEstimateRows: 週のふりかえり', () => {
     expect(getEstimateRows(tasks, anchor, new Set(['someday']), now)).toEqual([])
   })
 })
+
+describe('getEstimateRows: 月のふりかえり（#304）', () => {
+  const now = new Date('2026-10-08T13:00:00')
+  const anchor = new Date('2026-10-08T12:00:00')
+
+  it('この月（1 日〜今日）に完了したものを出し、前の月に完了したものは出さない', () => {
+    const tasks = [
+      done('oct1', '2026-10-01', { estimateMinutes: 60 }),
+      log('a', '2026-10-01', '10:00', '11:00', { sourceTaskId: 'oct1' }),
+      done('sep30', '2026-09-30', { estimateMinutes: 60 }),
+      log('b', '2026-09-30', '10:00', '11:00', { sourceTaskId: 'sep30' }),
+    ]
+    expect(getEstimateRows(tasks, anchor, new Set(), now, 'month').map((r) => r.task.id)).toEqual(['oct1'])
+    const sep = getEstimateRows(tasks, new Date('2026-09-15T12:00:00'), new Set(), now, 'month')
+    expect(sep.map((r) => r.task.id)).toEqual(['sep30'])
+  })
+})

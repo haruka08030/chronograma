@@ -303,6 +303,31 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     ),
     // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
     task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, instant),
+    // 先週より前・前の月の記録（月のふりかえりの日のマスと、前の月との差が見えるように。#304）
+    ...[
+      [-5, '企業研究', '13:00', '15:30', '就活'],
+      [-12, 'レポート', '10:00', '12:00', '課題'],
+      [-16, '面接対策', '19:00', '20:30', '就活'],
+      [-20, '2 限 授業', '10:40', '12:10', '授業'],
+      [-31, '説明会', '14:00', '16:00', '就活'],
+      [-34, 'レポート', '13:00', '16:00', '課題'],
+      [-36, '2 限 授業', '10:40', '12:10', '授業'],
+    ].map(([days, title, startTime, endTime, tag], i) =>
+      task(
+        {
+          id: `p${i}`,
+          title,
+          dueDate: dayKey(shift(now, days)),
+          startTime,
+          endTime,
+          kind: 'log',
+          completed: true,
+          order: 40 + i,
+          tags: [tag],
+        },
+        instant,
+      ),
+    ),
     task({ id: 's20', title: '就活サイトのプロフィール更新', scheduledDate: dayKey(shift(now, -2)), order: 15 }, instant),
   ]
 

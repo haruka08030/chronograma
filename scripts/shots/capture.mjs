@@ -272,6 +272,8 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // 統計のふりかえりを「月」に切り替えたところ（日のマスの濃さ・ラベル別の前の月との差。#304）
+  { name: 'stats-month', view: 'stats', click: '[aria-label="ふりかえりの期間"] button:has-text("月") >> visible=true' },
   // 統計の睡眠: 記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
   {
     name: 'stats-sleep-edit',
