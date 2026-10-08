@@ -7,7 +7,7 @@ import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 import { isAppToday, appToday } from './timeZone'
 import { NO_LABEL } from './todoColorLabels'
 
-export const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
+import { hasTaskFilter, matchesTaskFilter, PRIORITY_ORDER, type TaskFilter } from './taskFilter'
 
 export interface MainListTasksInput {
   tasks: Task[]
@@ -22,6 +22,8 @@ export interface MainListTasksInput {
   listOrderById?: Map<string, number>
   /** いつか / チェックリストのリスト ID。スマートビュー（今日・近日中・期限切れ・すべて）から外す */
   excludedListIds?: ReadonlySet<string>
+  /** 優先度・見積もりなどの絞り込み（To-Do 一覧のじょうご） */
+  taskFilter?: Partial<TaskFilter>
 }
 
 /** 締切の近い順。締切なしは後ろ、同じなら手動の順 */
@@ -35,7 +37,7 @@ function byDue(a: Task, b: Task): number {
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds, taskFilter } = input
   // 予定（完了の丸の無いもの）は To-Do の一覧に出さない（カレンダーで見る）
   let result = tasks.filter((t) => t.parentId === null && isActiveTask(t) && !isEventTask(t))
   // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
@@ -71,6 +73,10 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
 
   if (filterTag) {
     result = result.filter((t) => t.tags?.includes(filterTag))
+  }
+
+  if (taskFilter && hasTaskFilter(taskFilter)) {
+    result = result.filter((t) => matchesTaskFilter(t, taskFilter))
   }
 
   if (filterColor === NO_LABEL) {

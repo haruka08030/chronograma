@@ -11,6 +11,7 @@ import { DRAGSEC_PREFIX, DROPSEC_PREFIX, parseSectionReorderId } from './section
 import { SUBTASK_PREFIX, parseSubtaskDragId } from './subtaskDnD'
 import { sortKeyOf, sortModeOf } from './todoSurfaceView'
 import { canNestUnder } from './taskDepth'
+import { todoFilterFor } from './taskFilter'
 import { isIndentIntent, isOutdentIntent } from './taskDragIntent'
 
 /**
@@ -146,6 +147,8 @@ export function applyDragEnd(event: DragEndEvent) {
       sections: state.sections,
       listOrderById: new Map(state.lists.map((l) => [l.id, l.order])),
       excludedListIds: unplannedListIds(state.lists),
+      // 一覧と同じ行で並べ直す（じょうごの絞り込みは To-Do のリスト・ビューだけ）
+      taskFilter: todoFilterFor(state.lists, state.selectedListId, state.todoFilter),
     })
     const built = buildReorderedActiveRootIdsForGroup(currentOrdered, taskId, overId, group, state.sections, state.selectedListId)
     if (built) {

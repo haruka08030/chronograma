@@ -1,4 +1,5 @@
 import { readCandidateView } from '../lib/plannerCandidates'
+import { isRecord as isFilterRecord, readTaskFilter } from '../lib/taskFilter'
 import type { CalendarMode, SectionGrouping, SmartView, SortMode, TaskState } from './storeTypes'
 
 /**
@@ -7,7 +8,7 @@ import type { CalendarMode, SectionGrouping, SmartView, SortMode, TaskState } fr
  */
 type ViewState = Pick<
   TaskState,
-  'selectedListId' | 'selectedView' | 'calendarMode' | 'sortByKey' | 'sectionGrouping' | 'plannerCandidateView'
+  'selectedListId' | 'selectedView' | 'calendarMode' | 'sortByKey' | 'sectionGrouping' | 'plannerCandidateView' | 'todoFilter'
 >
 
 // Record にして、型に値を足したらここでも足すよう型で知らせる
@@ -50,5 +51,9 @@ export function readViewState(raw: unknown): Partial<ViewState> {
   }
   const candidateView = readCandidateView(raw.plannerCandidateView)
   if (candidateView) out.plannerCandidateView = candidateView
+  if (isFilterRecord(raw.todoFilter)) {
+    const { priority, estimate } = readTaskFilter(raw.todoFilter)
+    out.todoFilter = { priority, estimate }
+  }
   return out
 }

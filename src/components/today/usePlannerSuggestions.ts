@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Task } from '../../types/task'
 import { getMoreSuggestions, groupCandidatesByDue, type DueGroup } from '../../lib/dayPlan'
-import { filterCandidates, sortCandidates, type CandidateView } from '../../lib/plannerCandidates'
+import { sortCandidates, type CandidateView } from '../../lib/plannerCandidates'
+import { filterTasks } from '../../lib/taskFilter'
 
 const MORE_SUGGESTIONS_PAGE = 10
 
@@ -37,8 +38,8 @@ export function usePlannerSuggestions({
   }
   const moreSentinelRef = useRef<HTMLDivElement>(null)
   // 「すべて追加」は締切間近のうち絞り込みに合うもの（締切順のときだけ出す）
-  const shownSuggestions = useMemo(() => filterCandidates(suggestions, view), [suggestions, view])
-  const shownMore = useMemo(() => filterCandidates(moreSuggestions, view), [moreSuggestions, view])
+  const shownSuggestions = useMemo(() => filterTasks(suggestions, view), [suggestions, view])
+  const shownMore = useMemo(() => filterTasks(moreSuggestions, view), [moreSuggestions, view])
   const sorted = useMemo(
     () => (view.sort === 'due' ? null : sortCandidates([...shownSuggestions, ...shownMore], view.sort)),
     [view.sort, shownSuggestions, shownMore],

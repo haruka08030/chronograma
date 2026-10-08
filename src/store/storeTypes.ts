@@ -9,6 +9,7 @@ import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { CandidateView } from '../lib/plannerCandidates'
+import type { TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
 
 /**
@@ -75,6 +76,8 @@ export interface TaskState {
   sectionGrouping: SectionGrouping
   /** 今日の計画の「今日やる候補」の並び順・絞り込み */
   plannerCandidateView: CandidateView
+  /** To-Do 一覧の絞り込み（優先度・見積もり。リスト・ビューをまたいで同じ） */
+  todoFilter: TodoFilter
   /**
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
@@ -203,6 +206,8 @@ export interface TaskState {
   setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
   /** 今日やる候補の並び順・絞り込みを変える（渡した項目だけ） */
   setPlannerCandidateView: (patch: Partial<CandidateView>) => void
+  /** To-Do 一覧の絞り込みを変える（渡した項目だけ） */
+  setTodoFilter: (patch: Partial<TodoFilter>) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
