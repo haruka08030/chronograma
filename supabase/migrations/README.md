@@ -23,6 +23,8 @@
 | [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは行を update）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
 | [`018_habit_time_overrides.sql`](018_habit_time_overrides.sql) | 習慣の日ごとの時間 `habits.time_overrides`（日付 → 開始・終了。タイムラインで枠を動かした日だけ。null は無し）。大きさの上限 256KB |
 | [`019_shared_active_timer.sql`](019_shared_active_timer.sql) | 動いているタイマー `user_active_timer`（利用者ごとに 1 行。`started_at` / `task_title` / `tags` / `task_id` / `color`、`started_at` が null なら止まっている。RLS は本人だけ、大きさの上限 `user_active_timer_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる。行が替わるとトリガー `copy_active_timer_to_push` がその人の全部の `push_subscriptions` の `timer_started_at` / `timer_title`（止め忘れの通知）に写し、購読を書くときもトリガー `push_subscription_shared_timer` がこの行の値にする（行が無い利用者は端末が送った値のまま） |
+| [`020_client_error_kinds.sql`](020_client_error_kinds.sql) | `client_errors` の種類に `storage`（端末の保存・読み込み・自動バックアップ）・`integration`（Canvas・Notion・Google カレンダー）・`push`（Web Push の購読・保存・削除）を足す（`client_errors_kind_check` の置き換え） |
+| [`021_reminder_run_stats.sql`](021_reminder_run_stats.sql) | `reminder_runs` に最後の回の時刻 `last_run_at`・数 `last_checked` / `last_sent` / `last_removed` / `last_failed`・最後の失敗の時刻 `last_failed_at` を足す（書くのは `daily-reminders`。見る SQL は [`../metrics/health.sql`](../metrics/health.sql)） |
 
 テーブル（最新の形）:
 
@@ -42,8 +44,8 @@
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
-| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「端末のエラーを見る」） |
-| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`。読み書きは Edge Function `daily-reminders`（service_role）だけ |
+| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
+| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
 
 **メモ**
 

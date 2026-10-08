@@ -119,3 +119,21 @@ export function runWindowStart(lastOkAt: string | null | undefined, nowMs: numbe
 export function runFinishPatch(failed: number, nowIso: string): { running_since: null; last_ok_at?: string } {
   return failed > 0 ? { running_since: null } : { running_since: null, last_ok_at: nowIso }
 }
+
+export type RunStats = { checked: number; sent: number; removed: number; failed: number }
+
+/**
+ * 回の終わりに `reminder_runs` へ残す数（`021`）。`last_failed_at` は失敗があった回だけ進める。
+ * 目印を外す `runFinishPatch` とは別の update で書く（`021` を流す前の DB でも、目印を外して `last_ok_at` を進められるように）
+ */
+export function runStatsPatch(stats: RunStats, nowIso: string): Record<string, string | number> {
+  const patch: Record<string, string | number> = {
+    last_run_at: nowIso,
+    last_checked: stats.checked,
+    last_sent: stats.sent,
+    last_removed: stats.removed,
+    last_failed: stats.failed,
+  }
+  if (stats.failed > 0) patch.last_failed_at = nowIso
+  return patch
+}

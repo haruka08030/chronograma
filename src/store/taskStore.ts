@@ -41,6 +41,7 @@ import { normalizeStoredRows } from '../lib/backupFormat'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
+import { reportFailure } from '../lib/errorReport'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -56,8 +57,12 @@ function migrateLegacyPersistKey(): void {
 }
 migrateLegacyPersistKey()
 
-/** 読めなかった保存データを、上書きされる前に別のキーへ写す */
-function preserveUnreadableStorage() {
+/**
+ * 読めなかった保存データを、上書きされる前に別のキーへ写す。
+ * 記録に残すのは どこで読めなかったか（`stage`）とエラーのメッセージだけ（中身は送らない）
+ */
+function preserveUnreadableStorage(stage: string, error: unknown) {
+  reportFailure('storage', stage, error)
   try {
     const raw = localStorage.getItem(PERSIST_STORAGE_KEY)
     if (raw) localStorage.setItem(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
@@ -163,7 +168,7 @@ export const useTaskStore = create<TaskState>()(
       onRehydrateStorage: () => (_state, error) => {
         if (!error) return
         console.error('[storage] could not load saved data', error)
-        preserveUnreadableStorage()
+        preserveUnreadableStorage('load', error)
       },
       // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
       // 読める行だけ使い、元の中身は別のキーに写しておく
@@ -181,7 +186,7 @@ export const useTaskStore = create<TaskState>()(
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
-        if (broken) preserveUnreadableStorage()
+        if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
       },
       migrate: migrateTaskState,
@@ -310,7 +315,7 @@ export function adoptOtherTabChanges(): void {
     if (rows) incoming[key] = rows
     else delete incoming[key]
   }
-  if (broken) preserveUnreadableStorage()
+  if (broken) preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
@@ -351,6 +356,7 @@ setPersistWriteHandlers({
   },
   onFailed: (err) => {
     console.error('[storage] save failed', err)
+    reportFailure('storage', 'save', err)
     // 保存の途中なので、知らせるのは今の更新が終わってから（保存し直すとまた失敗するので保存しない）
     queueMicrotask(() => {
       if (!useTaskStore.getState().storageFull) withoutPersisting(() => useTaskStore.setState({ storageFull: true }))

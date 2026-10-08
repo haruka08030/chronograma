@@ -7,6 +7,7 @@
 import type { ActiveTimer, DailyReminders } from '../store/taskStore'
 import { getSupabase } from './supabase'
 import { appTimeZone } from './timeZone'
+import { reportFailure } from './errorReport'
 
 const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim()
 
@@ -80,7 +81,8 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
 
   if (!wantsAny) {
     if (sub) {
-      await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      if (error) reportFailure('push', 'delete', error.message)
       await sub.unsubscribe()
     }
     return
@@ -94,6 +96,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
       })
     } catch (err) {
       console.error('[push] subscribe failed', err)
+      reportFailure('push', 'subscribe', err)
       return
     }
   }
@@ -121,6 +124,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
   const { error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' })
   if (error) {
     console.error('[push] save failed', error.message)
+    reportFailure('push', 'save', error.message, { code: error.code ?? null })
     return
   }
   pushActive = true
@@ -141,10 +145,14 @@ export async function detachWebPush(): Promise<void> {
     const supabase = getSupabase()
     if (supabase) {
       const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-      if (error) console.error('[push] delete on sign-out failed', error.message)
+      if (error) {
+        console.error('[push] delete on sign-out failed', error.message)
+        reportFailure('push', 'detach:delete', error.message)
+      }
     }
     await sub.unsubscribe()
   } catch (err) {
     console.error('[push] detach failed', err)
+    reportFailure('push', 'detach', err)
   }
 }

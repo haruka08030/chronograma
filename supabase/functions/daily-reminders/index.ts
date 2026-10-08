@@ -17,7 +17,18 @@ import {
   type ReminderTask,
 } from './schedule.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
-import { fetchAllPages, groupBy, runFinishPatch, runPool, runStatus, runWindowStart, RUN_CLAIM_STALE_MINUTES, sendJobs } from './batch.ts'
+import {
+  fetchAllPages,
+  groupBy,
+  runFinishPatch,
+  runPool,
+  runStatsPatch,
+  runStatus,
+  runWindowStart,
+  RUN_CLAIM_STALE_MINUTES,
+  sendJobs,
+  type RunStats,
+} from './batch.ts'
 
 type Sub = {
   endpoint: string
@@ -217,11 +228,17 @@ Deno.serve(async (req) => {
   }
   const windowStartMs = runWindowStart((claim.data[0] as { last_ok_at: string | null }).last_ok_at, now.getTime(), CRON_INTERVAL_MINUTES)
 
-  /** 回の終わり。目印を外し、全部うまくいったときだけ last_ok_at を進める（自分の目印のときだけ。取り直されていたら触らない） */
-  const finishRun = async (failedCount: number) => {
-    const { error } = await admin.from('reminder_runs').update(runFinishPatch(failedCount, nowIso)).eq('id', 1).eq('running_since', nowIso)
+  /**
+   * 回の終わり。目印を外し、全部うまくいったときだけ last_ok_at を進める（自分の目印のときだけ。取り直されていたら触らない）。
+   * そのあと、この回の数と失敗の時刻を残す（運用で見る。`supabase/metrics/health.sql`）
+   */
+  const finishRun = async (stats: RunStats) => {
+    const { error } = await admin.from('reminder_runs').update(runFinishPatch(stats.failed, nowIso)).eq('id', 1).eq('running_since', nowIso)
     // 書けなくても、目印は RUN_CLAIM_STALE_MINUTES 分で取り直され、last_ok_at が進まない分は次の回が送る
     if (error) console.error('[daily-reminders] finish run failed', error)
+    // 数は別に書く（列が無い DB（`021` の前）でも、上の目印の外しと last_ok_at は止めない）
+    const stat = await admin.from('reminder_runs').update(runStatsPatch(stats, nowIso)).eq('id', 1)
+    if (stat.error) console.error('[daily-reminders] save run stats failed', stat.error)
   }
 
   // 1 回に返るのは 1000 行まで。主キーの順にページを読み切る（読み終えてから送るので、途中で消しても行はずれない）
@@ -241,7 +258,7 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('[daily-reminders] load subscriptions failed', err)
-    await finishRun(1)
+    await finishRun({ checked: 0, sent: 0, removed: 0, failed: 1 })
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
@@ -418,7 +435,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  await finishRun(failed)
+  await finishRun({ checked: subs.length, sent, removed, failed })
 
   // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
   return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {

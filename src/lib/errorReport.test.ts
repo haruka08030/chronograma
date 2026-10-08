@@ -8,14 +8,18 @@ vi.mock('./supabase', () => ({
 
 const {
   LIMITS,
-  MAX_REPORTS_PER_SESSION,
+  MAX_PENDING_REPORTS,
+  MAX_REPORTS_PER_HOUR,
   PAUSE_AFTER_FAILURE_MS,
+  PENDING_REPORTS_KEY,
+  REPORT_WINDOW_MS,
   SAME_ERROR_INTERVAL_MS,
   buildReport,
   flushErrorReports,
   pageLocation,
   redact,
   reportError,
+  reportFailure,
   reportSyncError,
   resetErrorReportForTests,
   setErrorReportUser,
@@ -29,8 +33,22 @@ function errorAt(message: string, frame: string): Error {
   return e
 }
 
+/** localStorage の代わり（unit のテストは node で動くので無い） */
+function memoryStorage() {
+  const map = new Map<string, string>()
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+    map,
+  }
+}
+let storage: ReturnType<typeof memoryStorage>
+
 beforeEach(() => {
   resetErrorReportForTests()
+  storage = memoryStorage()
+  vi.stubGlobal('localStorage', storage)
   insert.mockReset()
   insert.mockResolvedValue({ error: null })
   vi.useFakeTimers()
@@ -49,6 +67,49 @@ describe('reportError', () => {
     reportError('error', new Error('x'))
     await flushErrorReports()
     expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('ログインしていない間の失敗はためておき、ログインしたらまとめて 1 回で送る', async () => {
+    const quota = new Error('quota')
+    reportError('storage', quota, { stage: 'save' })
+    reportError('storage', quota, { stage: 'save' }) // 同じエラーは 1 件
+    reportError('push', new Error('denied'))
+    await flushErrorReports()
+    expect(insert).not.toHaveBeenCalled()
+    expect(JSON.parse(storage.getItem(PENDING_REPORTS_KEY)!)).toHaveLength(2)
+    setErrorReportUser('u1')
+    await flushErrorReports()
+    expect(insert).toHaveBeenCalledTimes(1)
+    const rows = insert.mock.calls[0][0]
+    expect(rows.map((r: { kind: string }) => r.kind)).toEqual(['storage', 'push'])
+    // 起きた時刻は extra に残す（created_at は送った時刻）
+    expect(rows[0].extra).toEqual({ stage: 'save', occurred_at: '2026-10-05T10:00:00.000Z' })
+    expect(storage.getItem(PENDING_REPORTS_KEY)).toBeNull()
+  })
+
+  it('ためておくのは新しい数件まで。起動し直してもログインしたら送る', async () => {
+    for (let i = 0; i < MAX_PENDING_REPORTS + 5; i++) reportError('storage', new Error(`e${i}`))
+    // 起動し直した（手元の状態は消え、localStorage だけ残る）
+    const saved = storage.getItem(PENDING_REPORTS_KEY)
+    resetErrorReportForTests()
+    storage.setItem(PENDING_REPORTS_KEY, saved!)
+    setErrorReportUser('u1')
+    await flushErrorReports()
+    const rows = insert.mock.calls[0][0]
+    expect(rows).toHaveLength(MAX_PENDING_REPORTS)
+    expect(rows[0].message).toBe('e5')
+  })
+
+  it('オフラインの間の失敗はためておき、回線が戻ってからログインし直すと送る', async () => {
+    setErrorReportUser('u1')
+    vi.stubGlobal('navigator', { onLine: false, userAgent: 'x' })
+    reportError('storage', new Error('offline quota'))
+    await flushErrorReports()
+    expect(insert).not.toHaveBeenCalled()
+    vi.stubGlobal('navigator', { onLine: true, userAgent: 'x' })
+    setErrorReportUser('u1')
+    await flushErrorReports()
+    expect(insert.mock.calls[0][0][0].message).toBe('offline quota')
   })
 
   it('ログイン中は 1 行送る。場所はパスと view だけ', async () => {
@@ -89,13 +150,17 @@ describe('reportError', () => {
     expect(insert).toHaveBeenCalledTimes(4)
   })
 
-  it('1 回の起動で送るのは上限まで', async () => {
+  it('1 時間に送るのは上限まで。開いたままでも 1 時間たてばまた送る', async () => {
     setErrorReportUser('u1')
-    for (let i = 0; i < MAX_REPORTS_PER_SESSION + 10; i++) {
+    for (let i = 0; i < MAX_REPORTS_PER_HOUR + 10; i++) {
       reportError('error', new Error(`e${i}`))
       await flushErrorReports()
     }
-    expect(insert).toHaveBeenCalledTimes(MAX_REPORTS_PER_SESSION)
+    expect(insert).toHaveBeenCalledTimes(MAX_REPORTS_PER_HOUR)
+    vi.setSystemTime(Date.now() + REPORT_WINDOW_MS)
+    reportError('error', new Error('next hour'))
+    await flushErrorReports()
+    expect(insert).toHaveBeenCalledTimes(MAX_REPORTS_PER_HOUR + 1)
   })
 
   it('送るのを待っている数が多ければ捨てる', async () => {
@@ -172,6 +237,28 @@ describe('reportSyncError', () => {
     reportSyncError('push', 'row_limit_exceeded')
     await flushErrorReports()
     expect(insert.mock.calls[0][0]).toMatchObject({ kind: 'sync', message: 'push: row_limit_exceeded', extra: { stage: 'push' } })
+  })
+})
+
+describe('reportFailure', () => {
+  it('種類と段階を付けて送る', async () => {
+    setErrorReportUser('u1')
+    reportFailure('storage', 'save', new DOMException('full', 'QuotaExceededError'))
+    reportFailure('integration', 'canvas', new Error('token expired'), { code: 'canvas_unauthorized' })
+    reportFailure('push', 'save', 'row_limit_exceeded', { code: 'P0001' })
+    await flushErrorReports()
+    expect(insert.mock.calls.map((c) => c[0])).toMatchObject([
+      { kind: 'storage', message: 'QuotaExceededError: full', extra: { stage: 'save' } },
+      { kind: 'integration', message: 'token expired', extra: { stage: 'canvas', code: 'canvas_unauthorized' } },
+      { kind: 'push', message: 'save: row_limit_exceeded', extra: { stage: 'save', code: 'P0001' } },
+    ])
+  })
+
+  it('回線の失敗は送らない', async () => {
+    setErrorReportUser('u1')
+    reportFailure('integration', 'notion', new TypeError('Failed to fetch'))
+    await flushErrorReports()
+    expect(insert).not.toHaveBeenCalled()
   })
 })
 
