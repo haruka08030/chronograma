@@ -118,7 +118,10 @@ export function HabitsView() {
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
-          <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          // フォームを開いている間は「右上の＋習慣を追加」の案内を出さない（ボタンは「閉じる」になっている）
+          showComposer ? null : (
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          )
         ) : (
           <section className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">

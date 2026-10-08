@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import { useId, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import {
@@ -32,6 +32,48 @@ const FREQ_OPTIONS: { value: HabitFrequencyType; labelKey: string }[] = [
   { value: 'daily', labelKey: 'habits.freqDaily' },
   { value: 'weekly', labelKey: 'habits.freqWeeklyLabel' },
   { value: 'timesPerWeek', labelKey: 'habits.freqTimesPerWeek' },
+]
+
+/**
+ * 見出し付きのラジオのまとまり（くり返し・時間）。見出しは色の見出しと同じ SectionLabel。
+ * まとまりごとに見出しを付けて、続けて並んでも 6 択に見えないようにする
+ */
+function RadioChoices<T extends string>({
+  heading,
+  name,
+  options,
+  value,
+  onChange,
+}: {
+  heading: string
+  name: string
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  const headingId = useId()
+  return (
+    <div className="flex flex-col gap-2">
+      <SectionLabel as="span" level="field" id={headingId}>
+        {heading}
+      </SectionLabel>
+      <div role="radiogroup" aria-labelledby={headingId} className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        {options.map((o) => (
+          <label key={o.value} className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
+            <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} className="text-accent-500" />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 時間の選択肢（時間指定なし / 時刻を指定 / 時間帯を指定） */
+const TIME_MODE_OPTIONS: { value: HabitTimeMode; labelKey: string }[] = [
+  { value: 'none', labelKey: 'habits.timeModeNone' },
+  { value: 'fixed', labelKey: 'habits.timeModeFixed' },
+  { value: 'range', labelKey: 'habits.timeModeRange' },
 ]
 
 function ColorPicker({ color, onPick }: { color: string; onPick: (hex: string) => void }) {
@@ -98,38 +140,13 @@ function HabitTimeFields({
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-5 text-sm">
-        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
-          <input
-            type="radio"
-            name={`${name}-time-mode`}
-            checked={mode === 'none'}
-            onChange={() => onModeChange('none')}
-            className="text-accent-500"
-          />
-          {t('habits.timeModeNone')}
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
-          <input
-            type="radio"
-            name={`${name}-time-mode`}
-            checked={mode === 'fixed'}
-            onChange={() => onModeChange('fixed')}
-            className="text-accent-500"
-          />
-          {t('habits.timeModeFixed')}
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
-          <input
-            type="radio"
-            name={`${name}-time-mode`}
-            checked={mode === 'range'}
-            onChange={() => onModeChange('range')}
-            className="text-accent-500"
-          />
-          {t('habits.timeModeRange')}
-        </label>
-      </div>
+      <RadioChoices
+        heading={t('habits.time')}
+        name={`${name}-time-mode`}
+        options={TIME_MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+        value={mode}
+        onChange={onModeChange}
+      />
 
       {mode === 'fixed' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -141,10 +158,8 @@ function HabitTimeFields({
       ) : null}
 
       {mode === 'range' ? (
+        // 「時間」は上のまとまりの見出しにあるので、ここでは欄だけ並べる
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <SectionLabel as="span" level="field">
-            {t('habits.time')}
-          </SectionLabel>
           <TimeInput value={startTime} onChange={onStartTimeChange} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
@@ -201,20 +216,13 @@ export function HabitFormFields({
         className={fieldClass({}, 'w-full')}
       />
       <ColorPicker color={form.color} onPick={(color) => onChange({ color })} />
-      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-        {FREQ_OPTIONS.map((o) => (
-          <label key={o.value} className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
-            <input
-              type="radio"
-              name={`${name}-frequency`}
-              checked={form.freq === o.value}
-              onChange={() => onChange({ freq: o.value })}
-              className="text-accent-500"
-            />
-            {t(o.labelKey)}
-          </label>
-        ))}
-      </div>
+      <RadioChoices
+        heading={t('habits.freqHeading')}
+        name={`${name}-frequency`}
+        options={FREQ_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+        value={form.freq}
+        onChange={(freq) => onChange({ freq })}
+      />
       {form.freq === 'weekly' ? (
         <WeekdayPicker weekdays={form.weekdays} onToggle={(v) => onChange({ weekdays: toggleHabitWeekdaySelection(form.weekdays, v) })} />
       ) : null}

@@ -533,6 +533,7 @@ export default {
     nameShort: '名前',
     newHabit: '新しい習慣',
     placeholderName: '名前（例: 朝のストレッチ）',
+    freqHeading: 'くり返し',
     freqDaily: '毎日',
     freqWeeklyLabel: '曜日を指定',
     freqTimesPerWeek: '回数を指定',
