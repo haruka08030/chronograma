@@ -16,6 +16,13 @@ describe('readFunctionErrorBody', () => {
     expect(await readFunctionErrorBody(err)).toEqual({ ok: false, error: 'x' })
   })
 
+  it('supabase-js を読まずに見分ける（名前が FunctionsHttpError で context が Response なら読む、#268）', async () => {
+    const err = Object.assign(new Error('non-2xx'), { name: 'FunctionsHttpError', context: new Response('{"error":"x"}', { status: 400 }) })
+    expect(await readFunctionErrorBody(err)).toEqual({ error: 'x' })
+    const noResponse = Object.assign(new Error('non-2xx'), { name: 'FunctionsHttpError', context: { json: async () => ({}) } })
+    expect(await readFunctionErrorBody(noResponse)).toBeNull()
+  })
+
   it('JSON でない本文・関数に届かなかったエラーは null', async () => {
     expect(await readFunctionErrorBody(httpError('Bad Gateway', 502))).toBeNull()
     expect(await readFunctionErrorBody(new FunctionsFetchError(new TypeError('Failed to fetch')))).toBeNull()

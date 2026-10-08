@@ -4,18 +4,21 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { useTextAreaEntry } from '../../hooks/useTextEntry'
 import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
+import { useDraftField } from '../../hooks/useDraftField'
 import { LinkifiedText } from '../ui/LinkifiedText'
 import { fieldClass } from '../ui/fieldClass'
 import { DESCRIPTION_MAX_LENGTH } from '../../lib/textLimits'
 
-/** タスク詳細のメモ。押すと書ける欄になり、打つたびに保存する。リンクは押せる */
+/** タスク詳細のメモ。押すと書ける欄になり、打つのが止まったら・離れたら保存する。リンクは押せる */
 export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
   const { t } = useTranslation()
   const updateTask = useTaskStore((s) => s.updateTask)
   const [editingMemo, setEditingMemo] = useState(false)
   const memoTextareaRef = useRef<HTMLTextAreaElement>(null)
+  // 打つたびにストアを変えず、手元の書きかけで持つ（#266）
+  const memo = useDraftField(task.description, (description) => updateTask(task.id, { description }), task.id)
   // 長く書いても入力欄の中でスクロールさせず、欄を伸ばす
-  useAutoGrowTextarea(memoTextareaRef, task.description, editingMemo)
+  useAutoGrowTextarea(memoTextareaRef, memo.value, editingMemo)
   useEffect(() => {
     if (editingMemo) {
       const el = memoTextareaRef.current
@@ -23,16 +26,21 @@ export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
       if (el) el.selectionStart = el.selectionEnd = el.value.length
     }
   }, [editingMemo])
-  // メモは打つたびに保存している。離れたら表示に戻すだけ
-  const memoEntry = useTextAreaEntry({ onCommit: () => setEditingMemo(false) })
+  // 離れたら書きかけを保存して表示に戻す
+  const memoEntry = useTextAreaEntry({
+    onCommit: () => {
+      memo.flush()
+      setEditingMemo(false)
+    },
+  })
 
   return (
     <div>
       {editingMemo ? (
         <textarea
           ref={memoTextareaRef}
-          value={task.description}
-          onChange={(e) => updateTask(task.id, { description: e.target.value })}
+          value={memo.value}
+          onChange={(e) => memo.change(e.target.value)}
           maxLength={DESCRIPTION_MAX_LENGTH}
           {...memoEntry}
           placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}

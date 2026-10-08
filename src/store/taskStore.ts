@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { assignColorsInOrder } from '../lib/logCategoryColors'
@@ -13,7 +13,7 @@ import { normalizeLabelTargets } from '../lib/labelTargets'
 import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
-import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
@@ -53,6 +53,7 @@ import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
 import { reportFailure } from '../lib/errorReport'
+import { flushPendingEdits } from '../lib/pendingEdits'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -194,7 +195,7 @@ export const useTaskStore = create<TaskState>()(
     {
       name: PERSIST_STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => persistStorage),
+      storage: createPersistStorage<TaskState>(),
       // 読み込み（migrate）に失敗すると初期状態のまま動き、次の保存で元のデータを上書きしていた。
       // 上書きされる前に、保存されていた中身を別のキーへ写しておく（設定 → データ の書き出しとは別に残る）
       onRehydrateStorage: () => (_state, error) => {
@@ -393,7 +394,11 @@ export function adoptOtherTabChanges(): void {
   markRawKnown(raw)
   if (parsed.version !== STORE_VERSION) {
     // 新しい版のアプリを開いたタブが書いた。古いコードで読むと壊すので、このタブも新しい版で開き直す
-    if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) window.location.reload()
+    // 打っている途中のメモ・場所は先にストアに入れて保存する（読み込み直すと手元の書きかけは消える）
+    if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) {
+      flushPendingEdits()
+      window.location.reload()
+    }
     return
   }
   const incoming: Record<string, unknown> = { ...parsed.state }
@@ -412,6 +417,7 @@ export function adoptOtherTabChanges(): void {
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
+  // 打っている途中のメモ・場所（`pendingEdits.ts`）はここでは入れない。止まったときに取り込んだ後のタスクへ 1 項目だけ当たる
   adoptingFromOtherTab = true
   try {
     // 保存し直さない（同じ内容を書くだけで、表示の状態だけが違う書き込みがタブ間を往復する）

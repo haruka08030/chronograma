@@ -8,6 +8,8 @@ import { useTaskStore } from '../store/taskStore'
 const initialStoreState = useTaskStore.getInitialState()
 
 beforeAll(async () => {
+  // 文言は後から読む（i18n/config.ts）。テストでは両方の言語を先に読んでおく（日本語の文言を直接見るテストがある）
+  await i18n.loadLanguages(['ja', 'en'])
   await i18n.changeLanguage('en')
 })
 

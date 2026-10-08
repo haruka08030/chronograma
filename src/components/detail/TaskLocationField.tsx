@@ -7,25 +7,29 @@ import { MapPinIcon } from '../icons'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { LOCATION_MAX_LENGTH } from '../../lib/textLimits'
+import { useDraftField } from '../../hooks/useDraftField'
 
 /** タスク詳細の場所。書いてあれば地図で開くリンク */
 export function TaskLocationField({ task }: { task: Task }) {
   const { t } = useTranslation()
   const updateTask = useTaskStore((s) => s.updateTask)
+  // 打つたびにストアを変えず、止まったら・離れたら保存する（#266）
+  const place = useDraftField(task.location ?? '', (v) => updateTask(task.id, { location: v || null }), task.id)
   return (
     <div>
       <label className={sectionLabelClass('field', 'mb-2 block')}>{t('taskDetail.location')}</label>
       <div className="flex items-center gap-2">
         <input
-          value={task.location ?? ''}
-          onChange={(e) => updateTask(task.id, { location: e.target.value || null })}
+          value={place.value}
+          onChange={(e) => place.change(e.target.value)}
+          onBlur={place.flush}
           maxLength={LOCATION_MAX_LENGTH}
           placeholder={t('taskDetail.locationPlaceholder')}
           className={fieldClass({}, 'min-w-0 flex-1')}
         />
-        {task.location?.trim() && (
+        {place.value.trim() && (
           <a
-            href={googleMapsUrl(task.location)}
+            href={googleMapsUrl(place.value)}
             target="_blank"
             rel="noopener noreferrer"
             {...tip(t('taskDetail.openInMaps'), { name: true })}

@@ -159,3 +159,39 @@ describe('他のタブの書き込みの見分け（readChangedRaw）', () => {
     expect(m.persistStorage.getItem(KEY)).toBeNull()
   })
 })
+
+describe('createPersistStorage（zustand の persist に渡す保存先）', () => {
+  it('保存する値がどれも前と同じ参照なら、文字列にもしない（検索欄の 1 文字などで全データを文字列にしない）', async () => {
+    const m = await load()
+    const storage = m.createPersistStorage<{ tasks: string[]; n: number }>()
+    const tasks = ['a', 'b']
+    const stringify = vi.spyOn(JSON, 'stringify')
+    void storage.setItem(KEY, { state: { tasks, n: 1 }, version: 1 })
+    expect(stringify).toHaveBeenCalledTimes(1)
+    // persist は毎回 partialize で新しい入れ物を作るが、中身の参照は同じ
+    for (let i = 0; i < 20; i++) void storage.setItem(KEY, { state: { tasks, n: 1 }, version: 1 })
+    expect(stringify).toHaveBeenCalledTimes(1)
+    expect(fake.ctl.writes).toBe(1)
+    // 1 つでも変われば書く
+    void storage.setItem(KEY, { state: { tasks: [...tasks, 'c'], n: 1 }, version: 1 })
+    expect(stringify).toHaveBeenCalledTimes(2)
+    stringify.mockRestore()
+    expect(JSON.parse(fake.map.get(KEY)!)).toEqual({ state: { tasks: ['a', 'b', 'c'], n: 1 }, version: 1 })
+    expect(storage.getItem(KEY)).toEqual({ state: { tasks: ['a', 'b', 'c'], n: 1 }, version: 1 })
+  })
+
+  it('withoutPersisting の間は書かず、保存に失敗している間は同じ参照でも書き直す', async () => {
+    const m = await load()
+    m.setPersistWriteHandlers({ freeSpace: () => false, onFailed: vi.fn(), onRecovered: vi.fn() })
+    const storage = m.createPersistStorage<{ tasks: string[] }>()
+    const tasks = ['a']
+    m.withoutPersisting(() => void storage.setItem(KEY, { state: { tasks }, version: 1 }))
+    expect(fake.map.has(KEY)).toBe(false)
+    fake.ctl.full = true
+    void storage.setItem(KEY, { state: { tasks }, version: 1 })
+    expect(fake.map.has(KEY)).toBe(false)
+    fake.ctl.full = false
+    void storage.setItem(KEY, { state: { tasks }, version: 1 })
+    expect(JSON.parse(fake.map.get(KEY)!)).toEqual({ state: { tasks: ['a'] }, version: 1 })
+  })
+})

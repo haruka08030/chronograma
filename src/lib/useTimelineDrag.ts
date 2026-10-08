@@ -92,6 +92,27 @@ export function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin
   return { startMin, endMin }
 }
 
+/**
+ * ドラッグの見た目と置き場所を決める値（15 分に丸めた時刻と日）。前と同じなら state を変えない（#265）。
+ * 生の Y 座標を毎回入れると、見た目の変わらない 1 px の動きでも週の画面全体を描き直していた。
+ * 作るドラッグの始めの少し（`CREATE_MIN_COARSE_PX` 未満）は、離したときのクリック・タップの判定が px を見るので丸めない
+ */
+function dragSpot(d: DragState): string | null {
+  if (d.kind === 'create') {
+    if (Math.abs(d.currentY - d.startY) < CREATE_MIN_COARSE_PX) return null
+    const { startMin, endMin } = createRangeMinutes(d)
+    return `${d.dateKey}|${startMin}|${endMin}`
+  }
+  if (d.kind === 'move') return `${d.dateKey}|${yToTime(Math.max(0, d.currentY - d.offsetY))}`
+  return `${d.dateKey}|${yToTime(d.currentY)}`
+}
+
+/** 置き場所が変わらない動きなら前の state をそのまま返す（描き直さない） */
+function nextDrag(prev: DragState, next: DragState): DragState {
+  const spot = dragSpot(next)
+  return spot !== null && spot === dragSpot(prev) ? prev : next
+}
+
 interface UseTimelineDragOptions {
   getRelativeY: (clientY: number, dateKey: string) => number
   getDateKeyFromX?: (clientX: number) => string | null
@@ -123,6 +144,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     onBlockLongPress,
   } = options
   const [drag, setDrag] = useState<DragState | null>(null)
+  /** 今の `drag`（端のスクロールから呼ぶ `repoint` を作り直さずに読むため） */
+  const dragRef = useRef<DragState | null>(null)
+  useEffect(() => {
+    dragRef.current = drag
+  }, [drag])
   const [popup, setPopup] = useState<CreatePopup | null>(null)
   const didMoveRef = useRef(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -311,22 +337,26 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         // 長押しで作っているときは、指を動かした分だけ終わりを動かす（範囲の始まりはそのまま。上へ行けば上へ伸びる）
         const cy = y + createOffsetRef.current
         setDrag((prev) =>
-          prev && prev.kind === 'create' ? { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey } : prev,
+          prev && prev.kind === 'create'
+            ? nextDrag(prev, { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey })
+            : prev,
         )
       } else if (current.kind === 'move') {
-        setDrag((prev) => (prev && prev.kind === 'move' ? { ...prev, currentY: y, dateKey } : prev))
+        setDrag((prev) => (prev && prev.kind === 'move' ? nextDrag(prev, { ...prev, currentY: y, dateKey }) : prev))
       } else {
-        setDrag((prev) => (prev && prev.kind === 'resize' ? { ...prev, currentY: y } : prev))
+        setDrag((prev) => (prev && prev.kind === 'resize' ? nextDrag(prev, { ...prev, currentY: y }) : prev))
       }
     },
     [getRelativeY, getDateKeyFromX],
   )
 
   /** 持ち上げ中に端でスクロールしたとき、最後の指の位置で置き場所を出し直す */
+  // `drag` に依存させない。作り直すと端のスクロール（`useDragEdgeScroll`）がやり直しになり、指を止めたままだと 1 段で止まっていた
   const repoint = useCallback(() => {
     const p = lastPointRef.current
-    if (p && drag && didMoveRef.current) applyPoint(p.x, p.y, drag)
-  }, [drag, applyPoint])
+    const current = dragRef.current
+    if (p && current && didMoveRef.current) applyPoint(p.x, p.y, current)
+  }, [applyPoint])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -344,6 +374,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         const threshold = isCoarsePointer() ? CREATE_MIN_COARSE_PX : 6
         if (dx > threshold || dy > threshold) {
           didMoveRef.current = true
+          // 動かし始めた（移動・長さの枠を出す）。置き場所が同じでも 1 回描き直す
+          setDrag((prev) => (prev ? { ...prev } : prev))
           if (drag.kind === 'create' && isCoarsePointer() && e.currentTarget instanceof HTMLElement) {
             try {
               e.currentTarget.setPointerCapture(e.pointerId)

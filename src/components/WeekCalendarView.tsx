@@ -38,6 +38,7 @@ import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
+import { useStableRows } from '../hooks/useStableRows'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
@@ -50,7 +51,8 @@ import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekDays } from '../lib/weekStart'
 import { useDayLoads } from '../hooks/useDayLoads'
 
-const NO_LOGS = new Map<string, Task[]>()
+const NO_TASKS: Task[] = []
+const NO_EVENTS: CalendarEvent[] = []
 
 export function WeekCalendarView({
   anchor,
@@ -81,7 +83,9 @@ export function WeekCalendarView({
   const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
-  const habitIndex = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
+  // 習慣の達成は記録だけで決まる。記録が変わらない変更（予定を動かすなど）では作り直さず、日の列（memo）を描き直さない
+  const logRows = useStableRows(useMemo(() => tasks.filter(isLogTask), [tasks]))
+  const habitIndex = useMemo(() => buildHabitRecordIndex(logRows), [logRows])
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const dropLaneRef = useRef<CreateIntent>('schedule')
   const openDetail = openTaskDetail
@@ -124,18 +128,25 @@ export function WeekCalendarView({
   const gridHeight = hourHeight * 24
   /** 予定（左）と 記録（右）の 2 列（今日・週とも。3 日表示は狭いので予定だけ）。押した・落とした列で作るものが決まる */
   const splitLanes = !threeDay
-  const laneAt = (clientX: number, el: HTMLElement): CreateIntent => {
-    if (!splitLanes) return 'schedule'
-    const rect = el.getBoundingClientRect()
-    return clientX >= rect.left + rect.width / 2 ? 'log' : 'schedule'
-  }
-  const laneClass = (lane: CreateIntent | null | undefined) =>
-    !splitLanes ? 'left-0.5 right-0.5' : lane === 'log' ? 'left-[calc(50%+2px)] right-0.5' : 'left-0.5 right-[calc(50%+2px)]'
+  // 日の列（memo）に渡すので、描くたびに作り直さない
+  const laneAt = useCallback(
+    (clientX: number, el: HTMLElement): CreateIntent => {
+      if (!splitLanes) return 'schedule'
+      const rect = el.getBoundingClientRect()
+      return clientX >= rect.left + rect.width / 2 ? 'log' : 'schedule'
+    },
+    [splitLanes],
+  )
+  const laneClass = useCallback(
+    (lane: CreateIntent | null | undefined) =>
+      !splitLanes ? 'left-0.5 right-0.5' : lane === 'log' ? 'left-[calc(50%+2px)] right-0.5' : 'left-0.5 right-[calc(50%+2px)]',
+    [splitLanes],
+  )
   const [dropLane, setDropLane] = useState<CreateIntent>('schedule')
   const [dropBlocked, setDropBlocked] = useState(false)
   /** 記録は今より先には作れない。その日の記録に使える最後の分（null は制限なし＝過去の日） */
   const now = useNow()
-  const logLimitMin = logLimitAt(now)
+  const logLimitMin = useMemo(() => logLimitAt(now), [now])
   const logLimitRef = useRef(logLimitMin)
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
@@ -216,15 +227,24 @@ export function WeekCalendarView({
     [setEventCard, setGoogleCard],
   )
 
+  // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
+  const onMoveDone = useCallback((taskId: string, dateKey: string, startTime: string, endTime: string) => {
+    applyBlockMove(taskId, dateKey, startTime, endTime, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
+  }, [])
+  const onResizeDone = useCallback((taskId: string, startTime: string, endTime: string, dateKey: string) => {
+    applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
+  }, [])
+  const onBlockLongPress = useCallback(
+    (id: string, x: number, y: number) => {
+      openBlockMenu(id, x, y)
+    },
+    [openBlockMenu],
+  )
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
-    onMoveDone: (taskId, dateKey, startTime, endTime) => {
-      applyBlockMove(taskId, dateKey, startTime, endTime, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
-    },
-    onResizeDone: (taskId, startTime, endTime, dateKey) => {
-      applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
-    },
+    onMoveDone,
+    onResizeDone,
     onBlockTap: useCallback(
       (taskId: string) => {
         if (parseHabitSlotId(taskId)) return
@@ -234,9 +254,7 @@ export function WeekCalendarView({
       [openCard, openGoogleCard],
     ),
     clickCreateMinutes: defaultBlockMinutes,
-    onBlockLongPress: (id, x, y) => {
-      openBlockMenu(id, x, y)
-    },
+    onBlockLongPress,
   })
   // Tab で止めたブロック: Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（ドラッグと同じ決まり・元に戻せる）。
   // カードを開いているときはカードのほうで受ける（層が開いていると 'global' は効かない）
@@ -272,7 +290,11 @@ export function WeekCalendarView({
   // 2 本指でつまむと 1 時間の高さが変わる（ブラウザの拡大は止めてある）
   usePinchHourHeight(scrollRef, timelineDrag.handlePointerCancel)
 
-  const getTaskDuration = useCallback((taskId: string): number | null => durationMinutesForTaskId(tasks, taskId), [tasks])
+  // 落とすときにだけ読む。tasks に依存させると、変更のたびに列（memo）に渡す落とす処理が変わる
+  const getTaskDuration = useCallback(
+    (taskId: string): number | null => durationMinutesForTaskId(useTaskStore.getState().tasks, taskId),
+    [],
+  )
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
@@ -344,10 +366,9 @@ export function WeekCalendarView({
     endMoveExtras()
   }
 
-  const timelineDrop = useTimelineDrop({
-    getRelativeY,
-    getTaskDuration,
-    onDrop: (taskId, dateKey, startTime, endTime) => {
+  // 列（memo）に渡す落とす処理が描くたびに変わらないよう、作り直さない（読むのはストアと ref だけ）
+  const onDrop = useCallback(
+    (taskId: string, dateKey: string, startTime: string, endTime: string) => {
       if (dropLaneRef.current === 'log') {
         // 記録の列に落とした = その時間にやった（今より先は不可）。記録だけ作り、To-Do は途中までのこともあるので完了にするか聞く
         const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -373,7 +394,9 @@ export function WeekCalendarView({
         { key: 'undo.blockPlaced', params: { title: task.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` } },
       )
     },
-  })
+    [addTimeLog, updateTask],
+  )
+  const timelineDrop = useTimelineDrop({ getRelativeY, getTaskDuration, onDrop })
 
   /** 祝日の名前は終日の行に出す（今日の計画は自分の見出しがあるので出さない） */
   const holidayNameOf = useHolidayName()
@@ -388,15 +411,24 @@ export function WeekCalendarView({
     })
   }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate, holidayNameOf])
 
-  /** 日の列（1 日表示の夜の続きも）に渡すもの */
+  const { dragPreview, activeCreateIntent, movingTaskId, popup } = timelineDrag
+  /** 動かしている予定がこの日の列にあるか（ある列にだけ渡し、つかむ・離すときに全部の列を描き直さない） */
+  const movingIn = (key: string): string | null => {
+    const id = movingTaskId
+    if (!id) return null
+    if (id.startsWith('event-')) return timedEventsByDate.get(key)?.some((e) => `event-${e.id}` === id) ? id : null
+    const slot = parseHabitSlotId(id)
+    if (slot) return slot.dateKey === key ? id : null
+    const has = (rows: Task[] | undefined) => rows?.some((t) => t.id === id) ?? false
+    return has(timedByDate.get(key)) || (splitLanes && has(timeLogsByDate.get(key))) ? id : null
+  }
+  const { dropPreview } = timelineDrop
+  /** 日の列（memo）に渡すもの。その日だけの行・枠は下で列ごとに渡す */
   const columnProps = {
     gridDays,
     singleDay,
     selectedDateKey,
     onSelectDate,
-    timedByDate,
-    timeLogsByDate: splitLanes ? timeLogsByDate : NO_LOGS,
-    timedEventsByDate,
     habitIndex,
     splitLanes,
     laneAt,
@@ -404,8 +436,14 @@ export function WeekCalendarView({
     logLimitMin,
     getRelativeY,
     gridRef,
-    timelineDrag,
-    timelineDrop,
+    popupOpen: popup !== null,
+    handleCreatePointerDown: timelineDrag.handleCreatePointerDown,
+    handleBlockPointerDown: timelineDrag.handleBlockPointerDown,
+    openPopup: timelineDrag.openPopup,
+    handleDragEnter: timelineDrop.handleDragEnter,
+    handleDragOver: timelineDrop.handleDragOver,
+    handleDragLeave: timelineDrop.handleDragLeave,
+    handleDropEvent: timelineDrop.handleDropEvent,
     dropLane,
     setDropLane,
     dropBlocked,
@@ -499,9 +537,24 @@ export function WeekCalendarView({
                   onPointerUp={handleGridPointerUp}
                   onPointerCancel={handleGridPointerCancel}
                 >
-                  {gridDays.map((day) => (
-                    <WeekDayColumn key={toDateKey(day)} day={day} {...columnProps} />
-                  ))}
+                  {gridDays.map((day) => {
+                    const key = toDateKey(day)
+                    return (
+                      <WeekDayColumn
+                        key={key}
+                        day={day}
+                        {...columnProps}
+                        dayTimed={timedByDate.get(key) ?? NO_TASKS}
+                        dayLogs={splitLanes ? (timeLogsByDate.get(key) ?? NO_TASKS) : NO_TASKS}
+                        timedEvents={timedEventsByDate.get(key) ?? NO_EVENTS}
+                        movingTaskId={movingIn(key)}
+                        dragPreview={dragPreview?.dateKey === key ? dragPreview : null}
+                        activeCreateIntent={dragPreview?.dateKey === key ? activeCreateIntent : null}
+                        popup={popup?.dateKey === key ? popup : null}
+                        dropPreview={dropPreview?.dateKey === key ? dropPreview : null}
+                      />
+                    )
+                  })}
                 </div>
               </div>
             </div>

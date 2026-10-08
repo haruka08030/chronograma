@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './i18n/config'
+import { i18nReady } from './i18n/config'
 import './index.css'
 import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
@@ -57,12 +57,15 @@ consumeLaunch(launch)
 // 開いている画面を URL と履歴に載せる（起動 URL の `?view=` / `?list=` もここで開く）
 setupUrlHistory()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary scope="app">
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </ErrorBoundary>
-  </StrictMode>,
+// 表示する言語の文言を読み終えてから描く（文言は表示する言語の分だけ後から読む、#268）
+void i18nReady.then(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <ErrorBoundary scope="app">
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorBoundary>
+    </StrictMode>,
+  ),
 )

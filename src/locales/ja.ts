@@ -1,3 +1,5 @@
+import { BUILTIN_NAMES } from './builtinNames'
+
 /** 既定 UI 言語（日本語） */
 export default {
   common: {
@@ -44,8 +46,8 @@ export default {
     monthDayTime: 'M月d日 HH:mm',
   },
   lists: {
-    defaultSomeday: 'いつか',
-    defaultShopping: '買い物',
+    defaultSomeday: BUILTIN_NAMES.ja.someday,
+    defaultShopping: BUILTIN_NAMES.ja.shopping,
     inbox: 'To-Do',
     unnamedList: 'リスト',
   },
@@ -379,7 +381,7 @@ export default {
     label: 'ラベル',
     add: 'ラベルを追加',
     newPlaceholder: '新しいラベル',
-    defaults: ['勉強', '課題', '就活', 'バイト', '運動', '生活', '休憩'],
+    defaults: [...BUILTIN_NAMES.ja.logCategories],
   },
   records: {
     later: '後から記録',
