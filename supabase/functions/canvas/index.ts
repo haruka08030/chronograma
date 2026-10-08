@@ -6,7 +6,8 @@ import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
-import { isPrivateAddress, parseBaseUrl } from './host.ts'
+import { parseBaseUrl } from './host.ts'
+import { BlockedAddressError, pinnedFetch, type PinnedInit } from '../_shared/pinnedFetch.ts'
 import { readJsonCapped, readTextCapped, ResponseTooLargeError } from './body.ts'
 
 /**
@@ -53,29 +54,23 @@ class CanvasError extends Error {
   }
 }
 
-/** 確かめた結果を覚えておく時間。長く覚えると、確かめたあとで名前の向き先を内部へ変えられる */
-const HOST_CHECK_TTL_MS = 30_000
-const checkedHosts = new Map<string, { ok: boolean; at: number }>()
-
 /**
- * 名前が内部のアドレスを指していないか確かめる（ドメイン名で内部のサーバーへ届かせないため）。
- * 送るたびに確かめ直し、結果は短い間だけ覚える。名前解決の API が無い環境では送らない。
- * 名前が引けない（A も AAAA も無い・引けない）宛先も送らない（確かめていない宛先を fetch に任せない）
+ * 学校のサイトへ送る。名前を引いて公開のアドレスだけだと確かめ、確かめたアドレスにそのままつなぐ（`pinnedFetch.ts`。
+ * 確かめたあとで名前の向き先を内部へ替えられても届かない。結果は覚えず、送るたびに引く）。リダイレクトは追わない。
+ * 名前が引けない・内部を指す宛先は canvas_bad_url、名前解決の API が無い環境では送らない（canvas_api）
  */
-async function assertPublicHost(host: string): Promise<void> {
-  if (typeof Deno.resolveDns !== 'function') {
-    console.error('[canvas] Deno.resolveDns is unavailable; refusing to call school sites')
-    throw new CanvasError('canvas_api', 'DNS lookup unavailable')
+async function schoolFetch(url: string, init: PinnedInit = {}): Promise<Response> {
+  try {
+    return await pinnedFetch(url, init)
+  } catch (e) {
+    if (e instanceof BlockedAddressError) throw new CanvasError('canvas_bad_url', e.message)
+    const message = e instanceof Error ? e.message : String(e)
+    if (message.includes('Deno.resolveDns is unavailable')) {
+      console.error('[canvas] Deno.resolveDns is unavailable; refusing to call school sites')
+      throw new CanvasError('canvas_api', 'DNS lookup unavailable')
+    }
+    throw new CanvasError('canvas_bad_url', message)
   }
-  const hit = checkedHosts.get(host)
-  let ok = hit && Date.now() - hit.at < HOST_CHECK_TTL_MS ? hit.ok : undefined
-  if (ok === undefined) {
-    const lookups = await Promise.all((['A', 'AAAA'] as const).map((type) => Deno.resolveDns(host, type).catch(() => [] as string[])))
-    const addresses = lookups.flat()
-    ok = addresses.length > 0 && !addresses.some(isPrivateAddress)
-    checkedHosts.set(host, { ok, at: Date.now() })
-  }
-  if (!ok) throw new CanvasError('canvas_bad_url', 'Private or unresolvable address')
 }
 
 /** 応答の本文を上限つきで読む。大きすぎれば canvas_api */
@@ -108,11 +103,11 @@ async function feedItems(storedUrl: string) {
     // リダイレクトは自動で追わない。追うと、学校の URL のふりをしたサイトから内部の宛先へ飛ばされる。
     // 学校が別ドメインへ移した場合に備え、行き先も https の公開ドメインなら数回まで追う
     for (let hop = 0; ; hop++) {
-      await assertPublicHost(new URL(url).hostname)
-      res = await fetch(url, { headers: { Accept: 'text/calendar' }, redirect: 'manual' })
+      res = await schoolFetch(url, { headers: { Accept: 'text/calendar' } })
       if (res.status < 300 || res.status >= 400) break
       const next = res.headers.get('location')
       const nextBase = next ? parseBaseUrl(new URL(next, url).href) : null
+      await res.body?.cancel()
       if (!next || !nextBase || hop >= 3) throw new CanvasError('canvas_feed_invalid', `HTTP ${res.status}`)
       url = new URL(next, url).href
     }
@@ -134,21 +129,13 @@ async function feedItems(storedUrl: string) {
   return { windowStart, windowEnd, readOnly: true, items }
 }
 
-async function canvasRequest(baseUrl: string, token: string, url: string, init: RequestInit = {}): Promise<Response> {
+async function canvasRequest(baseUrl: string, token: string, url: string, init: PinnedInit = {}): Promise<Response> {
   // ページ送りの URL も含め、つないだ Canvas 以外にはトークンを送らない
   if (!url.startsWith(`${baseUrl}/`)) throw new CanvasError('canvas_api', 'Unexpected host')
-  let res: Response
-  try {
-    await assertPublicHost(new URL(baseUrl).hostname)
-    res = await fetch(url, {
-      ...init,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-      redirect: 'manual',
-    })
-  } catch (e) {
-    if (e instanceof CanvasError) throw e
-    throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
-  }
+  const res = await schoolFetch(url, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+  })
   if (res.ok) return res
   const text = await readTextCapped(res, 64 * 1024).catch(() => '')
   if (res.status === 401) throw new CanvasError('canvas_unauthorized', text.slice(0, 200))
@@ -158,7 +145,7 @@ async function canvasRequest(baseUrl: string, token: string, url: string, init: 
   throw new CanvasError('canvas_api', `Canvas API ${res.status}: ${text.slice(0, 200)}`)
 }
 
-async function canvasJson<T>(baseUrl: string, token: string, path: string, init: RequestInit = {}) {
+async function canvasJson<T>(baseUrl: string, token: string, path: string, init: PinnedInit = {}) {
   const res = await canvasRequest(baseUrl, token, `${baseUrl}${path}`, init)
   const data = await readJson(res)
   if (data === null) throw new CanvasError('canvas_bad_url', 'Not JSON')
@@ -444,8 +431,10 @@ Deno.serve(
         if (target?.kind === 'token' && target.token) {
           await canvasRequest(target.base_url, target.token, `${target.base_url}/login/oauth2/token`, {
             method: 'DELETE',
-            signal: AbortSignal.timeout(5000),
-          }).catch((e) => console.warn('[canvas] revoke failed', e instanceof Error ? e.message : e))
+            timeoutMs: 5000,
+          })
+            .then((res) => res.body?.cancel())
+            .catch((e) => console.warn('[canvas] revoke failed', e instanceof Error ? e.message : e))
         }
         const { error } = await admin.from('canvas_connection').delete().eq('user_id', user.id).eq('id', connectionId)
         if (error) {

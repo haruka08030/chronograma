@@ -17,12 +17,14 @@ Several schools can be connected; all their assignments go into one "Canvas" lis
 
 ## Which hosts it will call
 
-The token is sent only to the school's own origin, so the function refuses internal destinations (`host.ts`):
+The token is sent only to the school's own origin, so the function refuses internal destinations (`host.ts`, `../_shared/pinnedFetch.ts`):
 
 - `parseBaseUrl` accepts only `https://` domain names: no IPs, ports, user info, or internal names (`localhost`, `.local`, `.internal`, single-label names…).
-- Before every request, `assertPublicHost` resolves the name (A / AAAA) and refuses loopback, private, link-local (cloud metadata), CGNAT, multicast and other reserved addresses, including IPv4 written inside IPv6 (`::ffff:`, NAT64, 6to4). Results are cached for 30 seconds only, so pointing the name at an internal address later doesn't slip through for long.
+- Every request goes through `pinnedFetch` (`../_shared/pinnedFetch.ts`). It resolves the name (A / AAAA) once, refuses the host if any address is loopback, private, link-local (cloud metadata), CGNAT, multicast or otherwise reserved, including IPv4 written inside IPv6 (`::ffff:`, NAT64, 6to4) (`../_shared/address.ts`), and then connects to that checked address itself (`Deno.connect`), opening TLS with the school's name (`Deno.startTls`, so the certificate is still checked) and sending one HTTP/1.1 request (`Connection: close`). Nothing is cached and `fetch` is not used, so pointing the name at an internal address after the check (DNS rebinding) can't redirect the connection. (`Deno.createHttpClient` with a `tcp` proxy can pin the address too, but it sends plain HTTP without TLS.)
 - If the runtime has no `Deno.resolveDns`, no school site is called (`canvas_api`, logged as `Deno.resolveDns is unavailable`).
-- Redirects are not followed automatically; a feed follows at most 3 hops, each checked the same way.
+- Redirects are never followed by `pinnedFetch`; a feed follows at most 3 hops itself, each one an `https://` domain name (`parseBaseUrl`) that is resolved, checked and pinned the same way.
+- Each request has a 30-second limit (connect, send and read the body); revoking a token on disconnect has 5 seconds.
+- The account deletion function (`../account`) revokes Canvas tokens through the same `pinnedFetch`.
 
 ## Calendar feed (schools that don't allow tokens)
 
