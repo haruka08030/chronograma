@@ -55,7 +55,7 @@ const SEED_TEMPLATES = [
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -371,6 +371,13 @@ const SCREENS = [
       { click: '[role=option]:has-text("参考文献を集める")' },
       { rightClick: '[role=option]:has-text("参考文献を集める")', mobileClick: 'button:has-text("操作") >> visible=true' },
     ],
+  },
+  // ⌘K の検索パレット（今日の計画の上に出し、画面は替えない。選んだ結果の操作を下の段に）
+  {
+    name: 'palette',
+    view: 'planner',
+    desktopOnly: true,
+    steps: [{ press: 'ControlOrMeta+k' }, { fill: { selector: '[role=dialog] input[role=combobox]', text: 'ゼミ' } }],
   },
   // 選んだ複数の To-Do の右クリック（PC）・「操作」のシート（スマホ）で「ラベル ›」を開いたところ
   {
@@ -690,6 +697,11 @@ async function main() {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
                 await page.click(step.click)
+              } else if (step.press) {
+                // キーを押す（⌘K など。'ControlOrMeta+k'）
+                await page.keyboard.press(step.press)
+              } else if (step.fill) {
+                await page.locator(step.fill.selector).first().fill(step.fill.text)
               }
               await page.waitForTimeout(300)
             }

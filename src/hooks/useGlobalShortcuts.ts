@@ -12,8 +12,17 @@ import { undoGoogleDelete } from '../lib/googleEventEdit'
  * 1 文字のもの（Google カレンダー風）は入力中・修飾キー付き・ダイアログやカードが開いている間は効かない。
  * ⌘K・⌘N・⌘A・⌘Z は層が開いていても効く
  */
-export function useGlobalShortcuts({ searchRef, onShowHelp }: { searchRef: RefObject<HTMLInputElement | null>; onShowHelp: () => void }) {
-  // 検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから、欄が出たら入る
+export function useGlobalShortcuts({
+  searchRef,
+  onShowHelp,
+  onOpenPalette,
+}: {
+  searchRef: RefObject<HTMLInputElement | null>
+  onShowHelp: () => void
+  /** ⌘K の検索パレットを開く（画面は切り替えない） */
+  onOpenPalette: () => void
+}) {
+  // / は To-Do の検索欄へ。検索欄の無い画面（今日・カレンダーなど）では To-Do へ切り替えてから、欄が出たら入る
   const focusSearch = () => {
     if (!searchRef.current) useTaskStore.getState().selectView('all')
     whenElement(
@@ -44,8 +53,8 @@ export function useGlobalShortcuts({ searchRef, onShowHelp }: { searchRef: RefOb
   useHotkey(SHORTCUTS.search.hotkeys, focusSearch)
   useHotkey(SHORTCUTS.help.hotkeys, onShowHelp)
 
-  // ⌘K 検索・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く
-  useHotkey(SHORTCUTS.searchAnywhere.hotkeys, focusSearch, { scope: 'always', allowInInputs: true })
+  // ⌘K 検索パレット・⌘N 追加は入力中でも、カードやタスク詳細が開いていても効く。パレットは今の画面の上に出す
+  useHotkey(SHORTCUTS.searchAnywhere.hotkeys, onOpenPalette, { scope: 'always', allowInInputs: true })
   useHotkey(
     SHORTCUTS.createAnywhere.hotkeys,
     () => {

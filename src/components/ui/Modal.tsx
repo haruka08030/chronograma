@@ -24,6 +24,7 @@ export function Modal({
   className = '',
   initialFocus,
   closeKeys,
+  placement = 'center',
 }: {
   children: ReactNode
   onClose: () => void
@@ -31,12 +32,15 @@ export function Modal({
   labelledBy?: string
   /** 見出しが無いときの読み上げ名 */
   label?: string
-  width?: 'sm' | 'md'
+  /** lg は検索パレット（結果の題名を 1 行で見せる） */
+  width?: 'sm' | 'md' | 'lg'
   className?: string
   /** 開いたときにフォーカスする要素（省略するとダイアログ自体） */
   initialFocus?: RefObject<HTMLElement | null>
   /** Esc のほかに閉じるキー（ショートカット一覧の「?」） */
   closeKeys?: string[]
+  /** top: 画面の上寄りに出す（検索パレット。結果の数が変わっても入力欄が動かない） */
+  placement?: 'center' | 'top'
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const layer = useEscapeLayer(onClose)
@@ -47,7 +51,9 @@ export function Modal({
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため・ダイアログのキーをまとめて受けるため
     <div
       data-popover-keep
-      className="fixed inset-0 z-[80] flex animate-fade-in items-center justify-center bg-black/30 p-4 dark:bg-black/50"
+      className={`fixed inset-0 z-[80] flex animate-fade-in justify-center bg-black/30 p-4 dark:bg-black/50 ${
+        placement === 'top' ? 'items-start pt-[12vh]' : 'items-center'
+      }`}
       onKeyDown={(e) => {
         dispatchHotkey(e.nativeEvent, { layerOnly: true })
         e.stopPropagation()
@@ -72,7 +78,7 @@ export function Modal({
         aria-label={labelledBy ? undefined : label}
         tabIndex={-1}
         className={`animate-pop-in max-h-full w-full overflow-y-auto overscroll-contain rounded-2xl ${FLOATING_SURFACE} shadow-2xl outline-none ${
-          width === 'sm' ? 'max-w-[380px]' : 'max-w-md'
+          width === 'sm' ? 'max-w-[380px]' : width === 'lg' ? 'max-w-xl' : 'max-w-md'
         } ${className}`}
       >
         {children}
