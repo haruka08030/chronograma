@@ -11,7 +11,7 @@ import { requestQuickStart } from './lib/quickStart'
 import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting } from './lib/errorReport'
 import { reloadForStaleChunk } from './lib/chunkLoad'
-import { openTaskFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
+import { openTaskFromNotification, openWrapUpFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
 import { closeTaskNotifications, installNotificationCleanup } from './lib/notificationCleanup'
 
 const launch: LaunchHandlers = {
@@ -30,6 +30,8 @@ const launch: LaunchHandlers = {
   openTask: ({ taskId, date }) => openTaskFromNotification(taskId, date),
   // 止め忘れの「止める」はそのタイマーを止めて、記録の終わりを直せる詳細を開く
   stopTimer: ({ startedAt }) => stopTimerFromNotification(startedAt),
+  // 夜の締めは今日の計画の「1 日を締める」の所を見せる
+  wrapUp: () => openWrapUpFromNotification(),
   add: () => useTaskStore.getState().requestQuickAdd(),
   // データ（ログイン中は最初の同期）がそろってから `useQuickStartLaunch` が始める
   start: (request) => requestQuickStart(request),

@@ -166,7 +166,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setRecordPrompts: (on) => set({ recordPrompts: on }),
     enableRecommendedNotifications: () =>
       set((s) => ({
-        dailyReminders: { planTime: s.dailyReminders.planTime ?? '08:00' },
+        dailyReminders: { ...s.dailyReminders, planTime: s.dailyReminders.planTime ?? '08:00' },
         eventReminderMinutes: s.eventReminderMinutes ?? 10,
         notificationsEnabled: true,
         recordPrompts: true,

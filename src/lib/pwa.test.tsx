@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { consumeLaunch, type LaunchHandlers } from './pwa'
 
 const handlers = () =>
-  ({ openView: vi.fn(), record: vi.fn(), openTask: vi.fn(), stopTimer: vi.fn(), add: vi.fn() }) satisfies LaunchHandlers
+  ({ openView: vi.fn(), record: vi.fn(), openTask: vi.fn(), stopTimer: vi.fn(), wrapUp: vi.fn(), add: vi.fn() }) satisfies LaunchHandlers
 
 const launchAt = (path: string) => window.history.replaceState(null, '', path)
 
@@ -72,5 +72,16 @@ describe('consumeLaunch: 止め忘れの「止める」', () => {
     const h = handlers()
     consumeLaunch(h)
     await vi.waitFor(() => expect(h.stopTimer).toHaveBeenCalledWith({ startedAt: null }))
+  })
+})
+
+describe('consumeLaunch: 夜の締め', () => {
+  it('?wrap-up=1 は「1 日を締める」を見せ、URL から消す（画面の指定は残す）', () => {
+    launchAt('/?view=planner&wrap-up=1')
+    const h = handlers()
+    consumeLaunch(h)
+    expect(h.wrapUp).toHaveBeenCalledTimes(1)
+    expect(h.openTask).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('?view=planner')
   })
 })

@@ -1,7 +1,7 @@
 /* Chronograma service worker
  * - オフラインでも開けるように、画面（HTML）はネットワーク優先・失敗時はキャッシュ、
  *   ビルド済みアセット（/assets/ はハッシュ付き）はキャッシュ優先
- * - 通知（Web Push）を表示し、タップで「今日の計画」を開く（開始前・締切 1 件はその To-Do・予定の詳細）。
+ * - 通知（Web Push）を表示し、タップで「今日の計画」を開く（開始前・締切 1 件はその To-Do・予定の詳細、夜の締めは「1 日を締める」の所）。
  *   記録の確認は「予定どおり」「記録する」のボタン付き
  * Supabase や Google など別オリジンの通信には触らない（同期は常に最新が必要なため）
  */
@@ -167,6 +167,8 @@ self.addEventListener('notificationclick', (event) => {
   const taskId = data.taskId || target.searchParams.get('record')
   // 開始前・締切 1 件の通知（`?task=<id>&date=<日>`）: その To-Do・予定の詳細とその日を開く
   const openTaskId = taskId ? null : target.searchParams.get('task')
+  // 夜の締め（`?wrap-up=1`）: 今日の計画の「1 日を締める」の所を見せる
+  const wrapUp = !taskId && !openTaskId && target.searchParams.get('wrap-up') === '1'
   const asPlanned = event.action === 'as-planned'
   // 止め忘れの「止める」: そのタイマー（開始時刻）を止める
   const stopTimer = event.action === 'stop-timer'
@@ -193,7 +195,9 @@ self.addEventListener('notificationclick', (event) => {
                   ? { type: 'record', taskId, asPlanned }
                   : openTaskId
                     ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
-                    : { type: 'open-view', view: target.searchParams.get('view') },
+                    : wrapUp
+                      ? { type: 'wrap-up' }
+                      : { type: 'open-view', view: target.searchParams.get('view') },
             )
             return w.focus()
           }

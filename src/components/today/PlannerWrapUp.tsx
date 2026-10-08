@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -10,10 +11,12 @@ const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 
 const textButton = buttonClass({ variant: 'link', size: 'xs' })
 
 /**
- * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける）と、通知をすすめる 1 行
+ * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける）と、通知をすすめる 1 行。
+ * 夜の締めの通知から開いたとき（`focusKey` が 1 以上）はここまでスクロールし、することが無ければそう書く
  */
 export function PlannerWrapUp({
   showWrapUp,
+  focusKey = 0,
   open,
   untaggedLogs,
   totalCount,
@@ -21,6 +24,8 @@ export function PlannerWrapUp({
   openDetail,
 }: {
   showWrapUp: boolean
+  /** 夜の締めの通知から開いた回数（増えるたびにここまでスクロールする） */
+  focusKey?: number
   open: Task[]
   untaggedLogs: Task[]
   totalCount: number
@@ -32,7 +37,11 @@ export function PlannerWrapUp({
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
   const anyNotification = useTaskStore(
-    (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled || s.recordPrompts,
+    (s) =>
+      Boolean(s.dailyReminders.planTime || s.dailyReminders.wrapUpTime) ||
+      s.eventReminderMinutes != null ||
+      s.notificationsEnabled ||
+      s.recordPrompts,
   )
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const onboardingNudge = useOnboardingNudge()
@@ -46,6 +55,11 @@ export function PlannerWrapUp({
     'Notification' in window &&
     Notification.permission !== 'denied'
 
+  const footerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (focusKey > 0) footerRef.current?.scrollIntoView?.({ block: 'end' })
+  }, [focusKey])
+
   const enableReminders = async () => {
     const granted = await requestPermission()
     if (granted) enableRecommendedNotifications()
@@ -53,7 +67,7 @@ export function PlannerWrapUp({
   }
 
   return (
-    <footer className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
+    <footer ref={footerRef} data-wrap-up className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
       {showWrapUp && (open.length > 0 || untaggedLogs.length > 0) && (
         <div className="space-y-2">
           {open.length > 0 && <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpRemaining', { count: open.length })}</p>}
@@ -79,6 +93,9 @@ export function PlannerWrapUp({
             )}
           </div>
         </div>
+      )}
+      {showWrapUp && focusKey > 0 && open.length === 0 && untaggedLogs.length === 0 && (
+        <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpAllSet')}</p>
       )}
       {showReminderPrompt && (
         <p className="text-zinc-400 dark:text-zinc-500">

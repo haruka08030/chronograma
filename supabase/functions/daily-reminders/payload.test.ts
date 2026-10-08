@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MESSAGES, reminderPayload, timerPayload } from './payload'
+import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, WRAP_UP_URL } from './payload'
 import type { FiredReminder } from './schedule'
 
 const fired = (p: Partial<FiredReminder> & Pick<FiredReminder, 'kind'>): FiredReminder => ({
@@ -51,5 +51,31 @@ describe('timerPayload', () => {
     })
     expect(p.taskId).toBeUndefined()
     expect(timerPayload(MESSAGES.en, 'x', 's').actions).toEqual([{ action: 'stop-timer', title: 'Stop' }])
+  })
+})
+
+describe('夜の締め（wrapUpPayload）', () => {
+  it('数字だけを並べ、押すと今日の計画の「1 日を締める」を開く', () => {
+    const p = wrapUpPayload(MESSAGES.ja, { done: 3, total: 5, open: 2, loggedMinutes: 150 })
+    expect(p).toEqual({
+      title: '1 日を締める',
+      body: '今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件',
+      tag: 'chronograma-wrap-up',
+      url: '/?view=planner&wrap-up=1',
+    })
+    expect(WRAP_UP_URL).toBe('/?view=planner&wrap-up=1')
+  })
+
+  it('To-Do が無い日は予定の部分を、残りが無ければ残りを出さない', () => {
+    expect(wrapUpPayload(MESSAGES.ja, { done: 0, total: 0, open: 0, loggedMinutes: 45 }).body).toBe('今日: 記録 45分')
+    expect(wrapUpPayload(MESSAGES.ja, { done: 4, total: 4, open: 0, loggedMinutes: 120 }).body).toBe(
+      '今日: 予定 4 件中 4 件完了 ・ 記録 2時間',
+    )
+  })
+
+  it('英語', () => {
+    const p = wrapUpPayload(MESSAGES.en, { done: 3, total: 5, open: 2, loggedMinutes: 150 })
+    expect(p.title).toBe('Wrap up the day')
+    expect(p.body).toBe('Today: 3 of 5 done · 2h 30m logged · 2 left')
   })
 })

@@ -77,6 +77,8 @@ export interface LaunchHandlers {
   record: (launch: RecordLaunch) => void
   openTask: (launch: TaskLaunch) => void
   stopTimer: (launch: TimerStopLaunch) => void
+  /** 夜の締めの通知から: 今日の計画の「1 日を締める」の所を見せる（`?wrap-up=1`） */
+  wrapUp: () => void
   /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
   add: () => void
   /** 開いてすぐ記録を始める（`?start=last`、アイコン長押しの「前回の記録を再開」。`quickStart.ts`） */
@@ -84,7 +86,7 @@ export interface LaunchHandlers {
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`、アイコン長押しの `?add=1` / `?start=last` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`・`?wrap-up=1`、アイコン長押しの `?add=1` / `?start=last` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -97,8 +99,9 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const date = url.searchParams.get('date')
   const stopTimer = url.searchParams.get('stop-timer')
   const start = parseStartParam(url.searchParams.get('start'))
+  const wrapUp = url.searchParams.get('wrap-up') === '1'
   // 読んだら URL から消す（読み込み直しで同じ操作をもう一度しない）
-  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start']
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start', 'wrap-up']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
@@ -109,6 +112,7 @@ export function consumeLaunch(handlers: LaunchHandlers) {
     void consumeLaunchMark(nonce).then((ok) => ok && handlers.stopTimer({ startedAt: stopTimer === '1' ? null : stopTimer }))
   }
   if (start) handlers.start(start)
+  if (wrapUp) handlers.wrapUp()
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })
@@ -167,6 +171,7 @@ export function setupPwa(handlers: LaunchHandlers) {
     ) => {
       const view = toSmartView(e.data?.view)
       if (e.data?.type === 'open-view' && view) handlers.openView(view)
+      if (e.data?.type === 'wrap-up') handlers.wrapUp()
       if (e.data?.type === 'stop-timer') handlers.stopTimer({ startedAt: typeof e.data.startedAt === 'string' ? e.data.startedAt : null })
       if (e.data?.type === 'open-task' && e.data.taskId) handlers.openTask({ taskId: e.data.taskId, date: launchDate(e.data.date) })
       if (e.data?.type === 'record' && e.data.taskId) handlers.record({ taskId: e.data.taskId, asPlanned: e.data.asPlanned === true })

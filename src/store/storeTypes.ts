@@ -52,9 +52,12 @@ export interface ActiveTimer {
   color?: string | null
 }
 
-/** 朝のまとめの通知時刻（`HH:mm`）。null はオフ */
+/** 毎日 1 回の通知の時刻（`HH:mm`）。null はオフ */
 export interface DailyReminders {
+  /** 朝のまとめ */
   planTime: string | null
+  /** 夜の締め（その日の数字つきで「1 日を締める」へ誘う、#299）。無い（前の版の保存）は null と同じ */
+  wrapUpTime?: string | null
 }
 
 export interface TaskState {

@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DEFAULTS } from './taskDefaults'
 import { closeTaskDetail, useOverlays } from './overlays'
-import { openTaskFromNotification, stopTimerFromNotification, taskLaunchDate } from './notificationLaunch'
+import {
+  onWrapUpRequest,
+  openTaskFromNotification,
+  openWrapUpFromNotification,
+  stopTimerFromNotification,
+  taskLaunchDate,
+} from './notificationLaunch'
 import { notifyActiveTimerSynced } from './timerSync'
 import { isLogTask, type Task } from '../types/task'
 import { appTodayKey } from './timeZone'
@@ -137,5 +143,31 @@ describe('stopTimerFromNotification', () => {
     // あとから同期が来ても 2 回目は動かない
     notifyActiveTimerSynced()
     expect(useTaskStore.getState().tasks.filter(isLogTask)).toHaveLength(1)
+  })
+})
+
+describe('openWrapUpFromNotification（夜の締め）', () => {
+  it('今日の計画（今日）を開き、受け取っている今日の計画に 1 回だけ知らせる', () => {
+    useTaskStore.getState().setSelectedCalendarDateKey('2020-01-01')
+    const fn = vi.fn()
+    const stop = onWrapUpRequest(fn)
+    openWrapUpFromNotification()
+    expect(useTaskStore.getState().selectedView).toBe('planner')
+    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(appTodayKey())
+    expect(fn).toHaveBeenCalledTimes(1)
+    // 受け取った頼みは消える（あとで受け取り始めた所へもう一度は行かない）
+    const later = vi.fn()
+    const stopLater = onWrapUpRequest(later)
+    expect(later).not.toHaveBeenCalled()
+    stop()
+    stopLater()
+  })
+
+  it('まだ誰も受け取っていなければ、受け取り始めたときに知らせる', () => {
+    openWrapUpFromNotification()
+    const fn = vi.fn()
+    const stop = onWrapUpRequest(fn)
+    expect(fn).toHaveBeenCalledTimes(1)
+    stop()
   })
 })
