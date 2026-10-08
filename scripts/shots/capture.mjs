@@ -52,6 +52,19 @@ const SEED_TEMPLATES = [
   { id: 'tpl-late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#7986CB' },
   { id: 'tpl-class', title: 'ゼミ', startTime: '13:00', endTime: '14:30', color: null },
 ]
+/** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
+const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+const addClass = (cell, title) => [
+  { click: `[data-timetable-cell="${cell}"]` },
+  { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
+  { click: '[role=dialog] button:has-text("保存")' },
+]
+const SEED_CLASSES = [
+  ...addClass('1:0', '経済学入門'),
+  ...addClass('3:1', '英語コミュニケーション'),
+  ...addClass('4:0', '情報科学概論'),
+  ...addClass('5:2', '統計学'),
+]
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
@@ -226,6 +239,29 @@ const SCREENS = [
       { click: 'div[aria-pressed="false"] >> nth=20' },
       { click: 'div[aria-pressed="false"] >> nth=22' },
       { click: 'div[aria-pressed="false"] >> nth=24' },
+    ],
+  },
+  // 時間割（#279）: 授業を入れたマス・空きのマスを押して授業名を入れるところ・入れた授業が毎週の予定として出る次の週（スマホは翌日）
+  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, steps: SEED_CLASSES },
+  {
+    name: 'calendar-timetable-cell',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    steps: [
+      ...SEED_CLASSES,
+      { click: '[data-timetable-cell="2:1"]' },
+      { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
+    ],
+  },
+  {
+    name: 'calendar-week-classes',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    steps: [
+      ...SEED_CLASSES,
+      { click: '[role=dialog] button:has-text("閉じる")' },
+      // 次の週へ（スマホ幅は 1 日ずつなので翌日）
+      { press: 'n' },
     ],
   },
   // 時刻の無い To-Do が多い日（終日の欄は 3 行までにたたみ「他 N 件」。▾ で全件）

@@ -33,6 +33,8 @@ import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
+import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
@@ -158,6 +160,9 @@ export const useTaskStore = create<TaskState>()(
         courseLinks: [] as CourseLink[],
         courseLinksUpdatedAt: null as string | null,
         dayMoods: {} as DayMoods,
+        timetable: DEFAULT_TIMETABLE as Timetable,
+        timetableUpdatedAt: null as string | null,
+        seriesEditScope: null,
 
         habits: [],
 
@@ -182,6 +187,7 @@ export const useTaskStore = create<TaskState>()(
           set({ courseLinks: next })
         },
         ...createDayMoodsSlice(ctx),
+        ...createEventSeriesSlice(ctx),
         ...undo.actions,
       }
     },
@@ -215,6 +221,7 @@ export const useTaskStore = create<TaskState>()(
         merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
         merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
+        merged.timetable = normalizeTimetable(merged.timetable)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
@@ -328,6 +335,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.courseLinks === prev.courseLinks) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ courseLinksUpdatedAt: new Date().toISOString() })
+})
+// 時間割の設定（時限・学期、#279）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.timetable === prev.timetable) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ timetableUpdatedAt: new Date().toISOString() })
 })
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {

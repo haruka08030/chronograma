@@ -7,6 +7,7 @@ import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
+import { readEventSeries } from './eventSeries'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -203,7 +204,10 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   // 以前は欠けた `tags` などをそのまま入れ、読み込むたびに画面が落ちていた（保存されるので再読み込みでも直らない）。
   // 知っている項目だけを取り出す（知らない項目をストアに残さない。前の版の印 isTimeLog / isSleep も kind にして捨てる）
   const createdAt = readStamp(now, row.createdAt, row.created_at)
+  // 毎週の予定の印（#279）は予定の行だけ。印のある行だけ項目を持つ
+  const series = kind === 'event' ? readEventSeries(row.series ?? row.event_series) : null
   return {
+    ...(series ? { series } : {}),
     id,
     title,
     listId,

@@ -18,6 +18,20 @@ export interface Recurrence {
 }
 
 /**
+ * 毎週繰り返す予定（授業など、#279）の 1 回分に付ける印。回は前もって終わりの日までの分を、ふつうの予定の行として作る
+ * （`eventSeries.ts`）。同じ繰り返しの回は `id` が同じ。サーバーでは `tasks.event_series`（`027`）
+ */
+export interface EventSeries {
+  id: string
+  /** 曜日（1=月 … 7=日、月曜から順） */
+  weekdays: number[]
+  /** 終わりの日（`yyyy-MM-dd`、この日まで） */
+  until: string
+  /** 祝日に入れなかったか */
+  skipHolidays: boolean
+}
+
+/**
  * タスクの種類。
  * - `todo`: To-Do（やること）
  * - `event`: 予定（バイト・授業など、時刻のある予定）。完了の丸が無く、時間が過ぎたらグレー（Google の予定と同じ）。
@@ -88,6 +102,11 @@ interface TaskBase {
    * To-Do・予定では使わない（null）
    */
   sourceTaskId: string | null
+  /**
+   * 毎週繰り返す予定の 1 回分なら、その繰り返し（予定だけ）。繰り返さない予定・To-Do・記録では持たない（無い・null）。
+   * 持たない行どうしを「変わった」と見ないよう、繰り返しのある行だけ項目を持つ
+   */
+  series?: EventSeries | null
   /** アーカイブした瞬間の ISO 時刻。`null`/未設定はアーカイブされていない。アーカイブ済みタスクは通常のビューから除外され「アーカイブ済み」箱に入る */
   archivedAt: string | null
   /** 削除（ゴミ箱行き）した瞬間の ISO 時刻。`null`/未設定は削除されていない。ソフト削除で「削除済み」箱から復元・完全削除できる */
