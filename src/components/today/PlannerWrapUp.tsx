@@ -38,7 +38,8 @@ export function PlannerWrapUp({
   const onboardingNudge = useOnboardingNudge()
   const showReminderPrompt =
     totalCount > 0 &&
-    onboardingNudge !== 'recordPrompts' &&
+    // 案内のあとのカード（ログイン・通知など）を出している間は出さない（一度に 1 つだけ聞く）
+    onboardingNudge == null &&
     !reminderPromptDismissed &&
     !anyNotification &&
     typeof window !== 'undefined' &&

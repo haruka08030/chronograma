@@ -23,6 +23,7 @@ type SettingsActions = Pick<
   | 'finishOnboarding'
   | 'completeOnboarding'
   | 'dismissInstallNudge'
+  | 'dismissSignInNudge'
   | 'setDailyCapacityMinutes'
   | 'setDefaultBlockMinutes'
   | 'setAppTimeZone'
@@ -141,6 +142,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     finishOnboarding: () => set({ onboardingDone: true }),
     completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true }),
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
+    dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setDefaultBlockMinutes: (minutes) => set({ defaultBlockMinutes: Math.min(24 * 60, Math.max(15, Math.round(minutes))) }),
     setAppTimeZone: (tz) => {

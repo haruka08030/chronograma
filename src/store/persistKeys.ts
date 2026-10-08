@@ -29,6 +29,7 @@ export const DATA_KEYS = [
   'onboardingDone',
   'onboardingCompleted',
   'installNudgeDismissed',
+  'signInNudgeDismissed',
   'dailyCapacityMinutes',
   'defaultBlockMinutes',
   'eventReminderMinutes',

@@ -12,7 +12,7 @@ import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
-import { GoogleLogo } from './ui/GoogleLogo'
+import { GoogleSignInButton } from './ui/GoogleSignInButton'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
 
 export function AccountMenu() {
@@ -303,17 +303,9 @@ export function AccountMenu() {
             <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
             {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
             {!codeSentTo && googleSignIn && (
-              <button
-                type="button"
-                onClick={() => void handleGoogle()}
-                disabled={pending || redirecting}
-                className={buttonClass({ variant: 'primary', size: 'lg' }, 'w-full')}
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white" aria-hidden>
-                  <GoogleLogo className="h-3.5 w-3.5" />
-                </span>
+              <GoogleSignInButton onClick={() => void handleGoogle()} disabled={pending || redirecting} className="w-full">
                 {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
-              </button>
+              </GoogleSignInButton>
             )}
             {codeSentTo ? (
               <form onSubmit={handleVerify} className="flex flex-col gap-2">

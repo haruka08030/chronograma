@@ -48,7 +48,7 @@ const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -265,6 +265,17 @@ const SCREENS = [
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
   // iPhone の Safari（ホーム画面に未追加）の「通知」（通知は追加すると使える。手順の行へ飛ぶ 1 行）
   { name: 'settings-ios-notifications', view: 'settings', mobileOnly: true, iosSafari: true, scrollTo: '#settings-rhythm' },
+  // はじめの 3 ステップのあとの誘い（ログインしていない人）。Supabase の設定（.env）があるビルドでだけ出る
+  { name: 'planner-signin-nudge', view: 'planner', state: { onboardingCompleted: true }, scrollTo: 'section[aria-label^="いまの To-Do"]' },
+  // iPhone の Safari ではホーム画面への追加の誘いにログインのことを添える
+  {
+    name: 'planner-ios-install-nudge',
+    view: 'planner',
+    mobileOnly: true,
+    iosSafari: true,
+    state: { onboardingCompleted: true },
+    scrollTo: 'section[aria-label^="ホーム画面に追加"]',
+  },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
@@ -504,6 +515,7 @@ async function main() {
             ]
           }
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
+          if (screen.state) Object.assign(seed.state, screen.state)
           if (screen.manyAllDay) {
             const base = seed.state.tasks.find((x) => x.id === 's7')
             const titles = ['ES を出す', '履歴書の写真', 'Week 2 課題', '出席フォーム', 'OB 訪問のお礼', '教科書を買う', 'シフト提出']

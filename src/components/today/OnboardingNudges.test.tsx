@@ -15,6 +15,32 @@ vi.mock('../../lib/pwa', async (importOriginal) => ({
   isStandalone: () => env.standalone,
 }))
 
+/** ログイン: 既定は Supabase なし（ログインの誘いは出ない） */
+const auth = vi.hoisted(() => ({
+  configured: false,
+  user: null as { id: string; email: string } | null,
+  loading: false,
+  google: true,
+  signInWithGoogle: vi.fn(async (): Promise<{ error?: string }> => ({})),
+}))
+vi.mock('../../lib/supabase', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/supabase')>()),
+  get isSupabaseConfigured() {
+    return auth.configured
+  },
+}))
+vi.mock('../../lib/googleCalendar', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/googleCalendar')>()),
+  isGoogleAvailable: () => auth.google,
+}))
+vi.mock('../../contexts/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../contexts/AuthContext')>()
+  return {
+    ...actual,
+    useAuth: () => ({ ...actual.useAuth(), user: auth.user, loading: auth.loading, signInWithGoogle: auth.signInWithGoogle }),
+  }
+})
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
   globalThis.ResizeObserver ??= class {
@@ -35,6 +61,11 @@ beforeAll(() => {
 beforeEach(() => {
   env.ios = true
   env.standalone = false
+  auth.configured = false
+  auth.user = null
+  auth.loading = false
+  auth.google = true
+  auth.signInWithGoogle.mockClear()
 })
 
 const installCard = () => screen.queryByRole('region', { name: 'Add to your Home Screen to get notifications' })
@@ -183,5 +214,111 @@ describe('案内のあとの通知の誘い（予定のあとの確認）', () =
     render(<TodayPlannerView />)
     expect(card()).toBeNull()
     expect(screen.getByRole('button', { name: /^Turn on$/ })).toBeInTheDocument()
+  })
+})
+
+describe('案内のあとのログインの誘い（ログインしていない人）', () => {
+  const card = () => screen.queryByRole('region', { name: 'Your to-dos and records are saved only in this browser' })
+  const recordCard = () => screen.queryByRole('region', { name: /When a plan ends, get a notification/ })
+
+  beforeEach(() => {
+    env.ios = false
+    auth.configured = true
+    vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn(async () => 'granted') })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('3 ステップを終えると 1 回出て、押すと Google のログインに進む（押しただけでは閉じない）', async () => {
+    const user = userEvent.setup()
+    completed()
+    render(<OnboardingNudges />)
+    expect(card()).toBeInTheDocument()
+    expect(screen.getByText(/Your phone or the Home Screen app will open empty/)).toBeInTheDocument()
+    // 通知の誘いはログインの誘いのあと（一度に 1 つ）
+    expect(recordCard()).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    expect(auth.signInWithGoogle).toHaveBeenCalledOnce()
+    expect(useTaskStore.getState().signInNudgeDismissed).toBe(false)
+  })
+
+  it('× で閉じたら二度と出ず、次の誘い（通知）に替わる', async () => {
+    const user = userEvent.setup()
+    completed()
+    const { unmount } = render(<OnboardingNudges />)
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(card()).toBeNull()
+    expect(useTaskStore.getState().signInNudgeDismissed).toBe(true)
+    expect(recordCard()).toBeInTheDocument()
+    unmount()
+    render(<OnboardingNudges />)
+    expect(card()).toBeNull()
+  })
+
+  it('ログイン中・ログインを確かめている間・Supabase が無いとき・3 ステップを終えていないときは出さない', () => {
+    completed()
+    auth.user = { id: 'u1', email: 'a@example.com' }
+    const r1 = render(<OnboardingNudges />)
+    expect(card()).toBeNull()
+    r1.unmount()
+
+    auth.user = null
+    auth.loading = true
+    const r2 = render(<OnboardingNudges />)
+    expect(card()).toBeNull()
+    r2.unmount()
+
+    auth.loading = false
+    auth.configured = false
+    const r3 = render(<OnboardingNudges />)
+    expect(card()).toBeNull()
+    r3.unmount()
+
+    auth.configured = true
+    useTaskStore.setState({ onboardingCompleted: false })
+    render(<OnboardingNudges />)
+    expect(card()).toBeNull()
+  })
+
+  it('Google が使えなければ、設定のログインを開く', async () => {
+    const user = userEvent.setup()
+    auth.google = false
+    completed()
+    render(<OnboardingNudges />)
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(auth.signInWithGoogle).not.toHaveBeenCalled()
+    expect(useTaskStore.getState().settingsScrollTarget).toBe('account')
+  })
+
+  it('iPhone の Safari ではホーム画面への追加の誘いにログインのことを添え、別のカードは出さない', async () => {
+    const user = userEvent.setup()
+    env.ios = true
+    completed()
+    const r1 = render(<OnboardingNudges />)
+    expect(installCard()).toBeInTheDocument()
+    expect(screen.getByText('Sign in first and the Home Screen app will show the same data')).toBeInTheDocument()
+    expect(card()).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    expect(auth.signInWithGoogle).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(installCard()).toBeNull()
+    expect(card()).toBeNull()
+    r1.unmount()
+
+    // ログイン中は添えない
+    useTaskStore.setState({ installNudgeDismissed: false })
+    auth.user = { id: 'u1', email: 'a@example.com' }
+    render(<OnboardingNudges />)
+    expect(installCard()).toBeInTheDocument()
+    expect(screen.queryByText('Sign in first and the Home Screen app will show the same data')).toBeNull()
+  })
+
+  it('ログインの誘いを出している間は、今日の画面の下の通知の 1 行を出さない', () => {
+    completed()
+    const id = useTaskStore.getState().addTask('Essay')!
+    useTaskStore.getState().updateTask(id, { scheduledDate: toDateKey(appToday()) })
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    render(<TodayPlannerView />)
+    expect(card()).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Turn on$/ })).toBeNull()
   })
 })

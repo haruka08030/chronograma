@@ -1,5 +1,6 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
+import { usePersistLocalData } from './hooks/usePersistLocalData'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
 import { Suspense, useState, useRef } from 'react'
@@ -53,6 +54,7 @@ export default function App() {
   // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
   useAutoBackup()
   useSupabaseSync()
+  usePersistLocalData()
   useNotionSync()
   useCanvasSync()
   useAppTheme()
