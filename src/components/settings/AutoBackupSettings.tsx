@@ -6,6 +6,7 @@ import { listAutoBackups, loadAutoBackup, type AutoBackupKind, type AutoBackupMe
 import { onAutoBackupSaved } from '../../hooks/useAutoBackup'
 import { useTaskStore } from '../../store/taskStore'
 import { notify } from '../../lib/notify'
+import { downloadTextFile } from '../../lib/downloadFile'
 import { SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
 import { askConfirm } from '../../lib/confirmDialog'
@@ -73,12 +74,7 @@ export function AutoBackupSettings() {
       notify(i18n.t('autoBackup.unreadable'))
       return
     }
-    const url = URL.createObjectURL(new Blob([full.json], { type: 'application/json' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `chronograma-auto-backup-${b.savedAt.slice(0, 16).replace(/[:T]/g, '-')}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadTextFile(full.json, `chronograma-auto-backup-${b.savedAt.slice(0, 16).replace(/[:T]/g, '-')}.json`, 'application/json')
   }
 
   // 見出しの行の下に、控えを 1 件ずつ設定の行として並べる（枠の中に枠を作らない）

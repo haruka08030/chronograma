@@ -16,6 +16,7 @@ import { GoogleCalendarSettings } from './settings/GoogleCalendarSettings'
 import { IntegrationsSummary } from './settings/IntegrationsSummary'
 import { ChevronLeftIcon } from './icons'
 import { AutoBackupSettings } from './settings/AutoBackupSettings'
+import { RecordExportSettings } from './settings/RecordExportSettings'
 import { TimeZoneSettings } from './settings/TimeZoneSettings'
 import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/SettingsPrimitives'
 import { Segmented } from './ui/Segmented'
@@ -196,6 +197,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               {t('sidebar.importCsv')}
             </button>
           </SettingsRow>
+          <RecordExportSettings />
         </SettingsGroup>
 
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
