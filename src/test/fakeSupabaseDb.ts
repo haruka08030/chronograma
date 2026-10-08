@@ -175,8 +175,26 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
         return { error: null }
       },
     },
-    /** `008` の sync_server_now() */
-    rpc: async (name: string) => {
+    /** `008` の sync_server_now()・`023` の note_app_version()（ログイン中の人の行を upsert して last_seen を進める） */
+    rpc: async (name: string, args?: Record<string, unknown>) => {
+      if (name === 'note_app_version' && !missing.has(name)) {
+        if (!auth.user) return { data: null, error: { code: '42501', message: 'not signed in' } }
+        const all = (tables.app_versions_seen ??= [])
+        const at = now()
+        const key = (r: Row) =>
+          r.user_id === auth.user && r.app_version === args?.p_app_version && r.sync_protocol_version === args?.p_sync_protocol_version
+        const old = all.find(key)
+        if (old) old.last_seen = at
+        else
+          all.push({
+            user_id: auth.user,
+            app_version: args?.p_app_version,
+            sync_protocol_version: args?.p_sync_protocol_version,
+            first_seen: at,
+            last_seen: at,
+          })
+        return { data: null, error: null }
+      }
       if (name !== 'sync_server_now' || missing.has(name)) {
         return {
           data: null,

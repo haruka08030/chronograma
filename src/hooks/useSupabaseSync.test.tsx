@@ -7,6 +7,9 @@ import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { backupNow } from './useAutoBackup'
 import i18n from '../i18n/config'
 import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
+import { reportSyncError } from '../lib/errorReport'
+import { SYNC_PROTOCOL_VERSION } from '../lib/syncVersion'
+import { resetVersionSeenForTests } from '../lib/versionSeen'
 
 /**
  * 同期のフックを、本物のストアと PostgREST・DB の偽物（`fakeSupabaseDb`、サーバーのトリガーと印を真似る）で回す。
@@ -537,5 +540,60 @@ describe('useSupabaseSync', () => {
     }
     expect(useTaskStore.getState().syncState).toBe('outdated')
     expect(serverTitles('u1')).toEqual([])
+  })
+
+  describe('どの版が同期しているかの記録（#360）', () => {
+    beforeEach(() => {
+      resetVersionSeenForTests()
+      vi.mocked(reportSyncError).mockClear()
+    })
+    const seen = () => db.tables.app_versions_seen ?? []
+
+    it('同期の最初に 1 日 1 回だけ版を書く。同じ日の次の同期・開き直しでは書かず、次の日にまた書く', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      const view = signIn('u1')
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]).toMatchObject({ user_id: 'u1', sync_protocol_version: SYNC_PROTOCOL_VERSION })
+      expect(typeof seen()[0]!.app_version).toBe('string')
+      const first = seen()[0]!.last_seen
+
+      // 同じ日の次の同期（回線が戻ったとき）
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      // 開き直し（このページの印は消えるが、端末に送れた日が残っている）
+      view.unmount()
+      resetVersionSeenForTests()
+      const again = signIn('u1')
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]!.last_seen).toBe(first)
+
+      // 次の日
+      vi.setSystemTime(new Date('2026-10-04T09:00:00.000Z'))
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]!.last_seen).not.toBe(first)
+      again.unmount()
+    })
+
+    it('書けなくても（関数がまだ無い）同期は続け、同期の失敗として残す。同じ日には呼び直さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.missing.add('note_app_version')
+      useTaskStore.getState().addTask('still sent')
+      signIn('u1')
+      await untilSynced()
+      expect(useTaskStore.getState().syncState).toBe('idle')
+      expect(serverTitles('u1')).toEqual(['still sent'])
+      expect(seen()).toHaveLength(0)
+      const calls = () => vi.mocked(reportSyncError).mock.calls.filter((c) => c[0] === 'version-seen')
+      expect(calls()).toHaveLength(1)
+      expect(String(calls()[0]![1])).toContain('note_app_version')
+
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      expect(calls()).toHaveLength(1)
+    })
   })
 })
