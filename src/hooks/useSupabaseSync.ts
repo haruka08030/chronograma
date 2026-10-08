@@ -11,9 +11,11 @@ import {
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
 import { clearPreviousAccount } from '../lib/accountBoundary'
+import { requestPersistentStorage } from '../lib/persistentStorage'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
+  clearBaseline,
   hasOtherUsersBaseline,
   loadBaseline,
   mergeSnapshots,
@@ -246,9 +248,19 @@ export function useSupabaseSync() {
       let toPush: SyncSnapshot
       let deletes: Parameters<typeof pushListsTasksHabits>[6] = { lists: [], tasks: [], habits: [], sections: [] }
       const done = (synced: SyncSnapshot, clockOffsetMs?: number) => {
-        // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
-        saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
+        // 本体を保存できていない間（容量不足）は控えも書かずに消す。再読み込みで本体だけ古い中身に戻ると、
+        // 控えにだけある行（他の端末から取り込んだ行）を「この端末で消した」と読み、サーバーから消していた
+        if (useTaskStore.getState().storageFull) {
+          clearBaseline(userId)
+          reportSyncError('baseline', 'skipped while local storage is full')
+        } else if (
+          // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
+          !saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
+        ) {
+          reportSyncError('baseline', 'could not save the baseline')
+        }
         useTaskStore.getState().setDataOwner(userId)
+        void requestPersistentStorage()
       }
 
       if (!baseline) {
