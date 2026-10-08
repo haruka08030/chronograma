@@ -58,6 +58,44 @@ export function NotionSettings() {
 
   if (!isSupabaseConfigured) return null
 
+  const saveConfig = async (current: Connected, config: NotionConfig) => {
+    // 先に画面を変えてから保存する（選ぶたびに待たせない）
+    setStatus({ ...current, config })
+    setError(null)
+    try {
+      setStatus(await saveNotionConfig(config))
+      requestNotionSync()
+    } catch (e) {
+      setError(toMessage(e))
+    }
+  }
+
+  const disconnect = async () => {
+    if (!(await askConfirm({ message: t('notion.disconnectConfirm'), confirmLabel: t('notion.disconnect'), danger: true }))) return
+    setBusy(true)
+    try {
+      await disconnectNotion()
+      setStatus({ connected: false })
+      requestNotionSync()
+    } catch (e) {
+      setError(toMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const connect = async (token: string, database: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      setStatus(await connectNotion(token, database))
+    } catch (e) {
+      setError(toMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const body = !user ? (
     <SettingsRow label={t('notion.needsLogin')} />
   ) : status === null ? (
@@ -66,46 +104,11 @@ export function NotionSettings() {
     <ConnectedRows
       status={status}
       busy={busy}
-      onConfig={async (config) => {
-        // 先に画面を変えてから保存する（選ぶたびに待たせない）
-        setStatus({ ...status, config })
-        setError(null)
-        try {
-          setStatus(await saveNotionConfig(config))
-          requestNotionSync()
-        } catch (e) {
-          setError(toMessage(e))
-        }
-      }}
-      onDisconnect={async () => {
-        if (!(await askConfirm({ message: t('notion.disconnectConfirm'), confirmLabel: t('notion.disconnect'), danger: true }))) return
-        setBusy(true)
-        try {
-          await disconnectNotion()
-          setStatus({ connected: false })
-          requestNotionSync()
-        } catch (e) {
-          setError(toMessage(e))
-        } finally {
-          setBusy(false)
-        }
-      }}
+      onConfig={(config) => void saveConfig(status, config)}
+      onDisconnect={() => void disconnect()}
     />
   ) : (
-    <ConnectForm
-      busy={busy}
-      onConnect={async (token, database) => {
-        setBusy(true)
-        setError(null)
-        try {
-          setStatus(await connectNotion(token, database))
-        } catch (e) {
-          setError(toMessage(e))
-        } finally {
-          setBusy(false)
-        }
-      }}
-    />
+    <ConnectForm busy={busy} onConnect={(token, database) => void connect(token, database)} />
   )
 
   const shownError = errorText(error) ?? (status?.connected ? errorText(sync.error) : null)

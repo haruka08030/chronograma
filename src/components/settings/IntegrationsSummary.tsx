@@ -49,6 +49,24 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
     }
   }
 
+  const disconnectNotionRow = async () => {
+    if (!(await askConfirm({ message: t('notion.disconnectConfirm'), confirmLabel: t('notion.disconnect'), danger: true }))) return
+    void run(async () => {
+      await disconnectNotion()
+      setNotion(null)
+      requestNotionSync()
+    })
+  }
+
+  const disconnectCanvasRow = async (id: string, host: string) => {
+    if (!(await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })))
+      return
+    void run(async () => {
+      setCanvas((await disconnectCanvas(id)).connections)
+      requestCanvasSync()
+    })
+  }
+
   const disconnectButton = (onClick: () => void) => (
     <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={onClick}>
       {t('integrations.disconnect')}
@@ -66,34 +84,14 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
       )}
       {notion !== null && (
         <SettingsRow label="Notion" help={notion}>
-          {disconnectButton(async () => {
-            if (!(await askConfirm({ message: t('notion.disconnectConfirm'), confirmLabel: t('notion.disconnect'), danger: true }))) return
-            void run(async () => {
-              await disconnectNotion()
-              setNotion(null)
-              requestNotionSync()
-            })
-          })}
+          {disconnectButton(() => void disconnectNotionRow())}
         </SettingsRow>
       )}
       {canvas.map((c) => {
         const host = new URL(c.baseUrl).host
         return (
           <SettingsRow key={c.id} label="Canvas" help={host}>
-            {disconnectButton(async () => {
-              if (
-                !(await askConfirm({
-                  message: t('canvas.disconnectConfirm', { host }),
-                  confirmLabel: t('canvas.disconnect'),
-                  danger: true,
-                }))
-              )
-                return
-              void run(async () => {
-                setCanvas((await disconnectCanvas(c.id)).connections)
-                requestCanvasSync()
-              })
-            })}
+            {disconnectButton(() => void disconnectCanvasRow(c.id, host))}
           </SettingsRow>
         )
       })}

@@ -153,10 +153,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         {mode === 'deleted' && rows.length > 0 && (
           <button
             type="button"
-            onClick={async () => {
-              if (await askConfirm({ message: t('taskBin.emptyConfirm'), confirmLabel: t('taskBin.emptyTrash'), danger: true }))
-                emptyDeleted()
-            }}
+            onClick={() =>
+              void askConfirm({ message: t('taskBin.emptyConfirm'), confirmLabel: t('taskBin.emptyTrash'), danger: true }).then((ok) => {
+                if (ok) emptyDeleted()
+              })
+            }
             className={buttonClass({ variant: 'danger', size: 'sm' })}
           >
             {t('taskBin.emptyTrash')}

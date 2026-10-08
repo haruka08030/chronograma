@@ -226,13 +226,18 @@ export function AccountMenu() {
         <span className="max-w-full truncate text-xs text-zinc-600 sm:max-w-md dark:text-zinc-300" title={label}>
           {label}
         </span>
-        <button type="button" onClick={handleSignOut} disabled={pending} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          disabled={pending}
+          className={buttonClass({ variant: 'secondary', size: 'sm' })}
+        >
           {t('account.signOut')}
         </button>
         <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
           <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
           {reauth && user.email ? (
-            <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+            <form onSubmit={(e) => void confirmReauth(e)} className="flex max-w-sm flex-col gap-2">
               <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
               {reauth === 'codeSent' && (
                 <input
@@ -313,7 +318,7 @@ export function AccountMenu() {
               </GoogleSignInButton>
             )}
             {codeSentTo ? (
-              <form onSubmit={handleVerify} className="flex flex-col gap-2">
+              <form onSubmit={(e) => void handleVerify(e)} className="flex flex-col gap-2">
                 <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
                 <input
                   type="text"
@@ -337,7 +342,7 @@ export function AccountMenu() {
               </form>
             ) : emailOpen ? (
               <form
-                onSubmit={handleSubmit}
+                onSubmit={(e) => void handleSubmit(e)}
                 className={`flex flex-col gap-2${googleSignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
               >
                 <input
