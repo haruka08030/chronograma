@@ -112,7 +112,8 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
     event_reminder_minutes: eventReminderMinutes,
     due_reminders: dueReminders,
     updated_at: new Date().toISOString(),
-    // 記録の確認・止め忘れ（列が無いと言われても外して送り直さない。外すとこの 2 つの通知が黙って止まっていた）
+    // 記録の確認・止め忘れ（列が無いと言われても外して送り直さない。外すとこの 2 つの通知が黙って止まっていた）。
+    // 止め忘れの 2 列は、共有のタイマー（`user_active_timer`）の行があればサーバーがその値にする（`019`。全部の購読に同じタイマー）
     record_prompts: recordPrompts,
     timer_started_at: activeTimer?.startedAt ?? null,
     timer_title: activeTimer?.taskTitle?.slice(0, 2000) ?? null,

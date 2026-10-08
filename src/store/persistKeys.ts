@@ -22,6 +22,7 @@ export const DATA_KEYS = [
   'logLabelsUpdatedAt',
   'googleEventColors',
   'activeTimer',
+  'activeTimerUpdatedAt',
   'dailyReminders',
   'reminderPromptDismissed',
   'googleConnectLineDismissed',

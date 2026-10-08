@@ -112,6 +112,8 @@ export interface TaskState {
   googleCanWrite: boolean
 
   activeTimer: ActiveTimer | null
+  /** 手元でタイマーを始めた・止めた時刻（端末間でどちらに合わせるかを比べる、`timerSync.ts`）。同期で届いた変更では付けない */
+  activeTimerUpdatedAt: string | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
   completePromptTaskId: string | null
   /** タイマー停止後に「ラベルは？」を出す記録（ラベルなしで止めたとき。永続化しない） */
