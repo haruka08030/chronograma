@@ -480,10 +480,18 @@ export function clearBaseline(userId: string) {
   }
 }
 
-export function saveBaseline(userId: string, baseline: SyncBaseline) {
+/**
+ * 前回同期の控えを保存し、保存できたかを返す。保存できなければ前の控えを消す
+ * （古い控えが残ると、それより後に合わせた項目を「この端末で変えた」と読み、他の端末の新しい値を上書きしていた）。
+ * 控えが無ければ次の同期は初回と同じ、両方を残す合わせ方になる
+ */
+export function saveBaseline(userId: string, baseline: SyncBaseline): boolean {
   try {
     localStorage.setItem(baselineKey(userId), JSON.stringify(baseline))
-  } catch {
-    /* 保存できなければ次回は初回同期扱い（両方を残すマージ）になるだけ */
+    return true
+  } catch (err) {
+    console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
+    clearBaseline(userId)
+    return false
   }
 }

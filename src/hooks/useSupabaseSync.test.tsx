@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
-import { loadBaseline } from '../lib/syncMerge'
+import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
 import { clearLocalAccountState } from '../lib/accountBoundary'
 import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
@@ -305,6 +305,41 @@ describe('useSupabaseSync', () => {
         synced = await flushPendingSync()
       })
       expect(synced).toBe(false)
+    })
+  })
+
+  describe('前回同期の控えを保存できないとき（#255）', () => {
+    it('保存に失敗したら前の控えを消す（古い控えのまま次の同期で合わせない）', () => {
+      saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)
+      expect(loadBaseline('u1')).not.toBeNull()
+      const real = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key.startsWith('chronograma-sync-baseline')) throw new DOMException('full', 'QuotaExceededError')
+        return real.call(this, key, value)
+      }
+      try {
+        expect(saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)).toBe(false)
+      } finally {
+        Storage.prototype.setItem = real
+      }
+      expect(loadBaseline('u1')).toBeNull()
+    })
+
+    it('本体を保存できていない間（容量不足）は、同期しても控えを書かずに消す', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      signIn('u1')
+      await untilSynced()
+      expect(loadBaseline('u1')).not.toBeNull()
+
+      useTaskStore.setState({ storageFull: true })
+      const before = useTaskStore.getState().lastSyncedAt
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+        await flushPendingSync()
+      })
+      expect(useTaskStore.getState().lastSyncedAt).not.toBe(before)
+      expect(loadBaseline('u1')).toBeNull()
     })
   })
 })
