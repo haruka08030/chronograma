@@ -43,6 +43,7 @@ import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
+import { useHolidayName } from '../hooks/useHolidayName'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useWeekEdgeFlip } from '../hooks/useWeekEdgeFlip'
@@ -432,15 +433,18 @@ export function WeekCalendarView({
     },
   })
 
+  /** 祝日の名前は終日の行に出す（今日の計画は自分の見出しがあるので出さない） */
+  const holidayNameOf = useHolidayName()
+  const holidayName = singleDay ? () => null : holidayNameOf
   const hasAnyAllDay = useMemo(() => {
     return gridDays.some((d) => {
       const key = toDateKey(d)
       // 1 日表示では終日タスクは左のリストに出るので、外部の終日予定だけを数える
       const taskCount = singleDay ? 0 : (allDayByDate.get(key)?.length ?? 0) + (dueByDate.get(key)?.length ?? 0)
       const eventCount = (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay).length
-      return taskCount + eventCount > 0
+      return taskCount + eventCount > 0 || (!singleDay && holidayNameOf(key) !== null)
     })
-  }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate])
+  }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate, holidayNameOf])
 
   /** 日の列（1 日表示の夜の続きも）に渡すもの */
   const columnProps = {
@@ -507,6 +511,7 @@ export function WeekCalendarView({
               allDayByDate={allDayByDate}
               dueByDate={dueByDate}
               eventsByDate={eventsByDate}
+              holidayName={holidayName}
               allDayDragOver={allDayDragOver}
               setAllDayDragOver={setAllDayDragOver}
               allDayMoveKey={allDayMoveKey}

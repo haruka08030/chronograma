@@ -180,6 +180,12 @@ const SCREENS = [
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
   { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
+  // 撮る日（2026/10）の次の週の 10/12 スポーツの日。スマホは月のマスの祝日を押してその日の 1 日表示へ
+  { name: 'calendar-holiday', view: 'calendar', desktopOnly: true, click: 'button[aria-label="次の週"] >> visible=true' },
+  { name: 'calendar-holiday-day', view: 'calendar', mobileOnly: true, calendarMode: 'month', click: '[data-holiday] >> visible=true' },
+  { name: 'calendar-holiday-month', view: 'calendar', calendarMode: 'month' },
+  { name: 'calendar-holiday-schedule', view: 'calendar', calendarMode: 'schedule' },
   // スマホの見出しの「10月 ▾」でミニ月を開いた状態・表示の切り替えメニュー（PC 幅には無いボタン）
   {
     name: 'calendar-mobile-month-picker',
