@@ -1,12 +1,12 @@
 /**
- * 夜の締めの通知（#299）に載せる、その日の数字。サーバー（Edge Function `index.ts`、Deno）が DB の行から数える。
+ * 夜の締めの通知（#299）と朝のまとめの「昨日」の行（#278）に載せる、その日の数字。サーバー（Edge Function `index.ts`、Deno）が DB の行から数える。
  * 数え方はアプリの今日の計画（`src/lib/dayPlan.ts` の `getDayPlan`。週のふりかえりの日ごとの完了数・記録時間も同じ）と同じ:
  * - 予定 n 件中 m 件: その日に置いた To-Do（未完了）＋その日に完了した To-Do。予定（授業・バイト）・記録・サブタスク・いつか / チェックリストのリストは入れない
  * - 記録: その日にかかる記録の分（日をまたぐ記録はその日の分だけ）。睡眠は入れない
  * - 残り: その日に置いた未完了の To-Do
  * 同じになることは `wrapUp.test.ts` で `getDayPlan` と突き合わせて確かめる。依存は持たない（どちらからも読めるように）
  */
-import { dayWallMs, localNow, wallMs } from './schedule.ts'
+import { dayWallMs, localNow, wallDate, wallMs } from './schedule.ts'
 
 /** 数えるのに使うタスクの列（DB の行と同じ名前） */
 export interface WrapUpRow {
@@ -40,6 +40,16 @@ export interface WrapUpDigest {
 }
 
 const DAY_MS = 24 * 60 * 60_000
+
+/** 前の日（`yyyy-MM-dd`）。朝のまとめの「昨日」（#278） */
+export function previousDay(date: string): string {
+  return wallDate((dayWallMs(date) ?? 0) - DAY_MS)
+}
+
+/** その日に To-Do（完了・残り）か記録があったか。どちらも無い日は朝のまとめに昨日の行を出さない（#278） */
+export function hasDayNumbers(d: WrapUpDigest): boolean {
+  return d.total > 0 || d.loggedMinutes > 0
+}
 
 /** 瞬間（ISO）が、そのタイムゾーンのどの日か（`yyyy-MM-dd`）。読めないタイムゾーンは UTC */
 export function zonedDateKey(instant: string, timeZone: string): string | null {

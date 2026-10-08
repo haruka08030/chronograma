@@ -1,6 +1,6 @@
 // 通知の文面と中身（Web Push で送る JSON）。index.ts（Deno）から使い、vitest でも確かめる
-import { dayWallMs, type FiredReminder } from './schedule.ts'
-import type { WrapUpDigest } from './wrapUp.ts'
+import { dayWallMs, type FiredReminder, type MorningDigest } from './schedule.ts'
+import { hasDayNumbers, type WrapUpDigest } from './wrapUp.ts'
 
 export const MESSAGES = {
   ja: {
@@ -31,6 +31,7 @@ export const MESSAGES = {
     wrapUpDone: (done: number, total: number) => `予定 ${total} 件中 ${done} 件完了`,
     wrapUpLogged: (time: string) => `記録 ${time}`,
     wrapUpLeft: (n: number) => `残り ${n} 件`,
+    yesterday: (parts: string) => `昨日: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`),
   },
   en: {
@@ -61,6 +62,7 @@ export const MESSAGES = {
     wrapUpDone: (done: number, total: number) => `${done} of ${total} done`,
     wrapUpLogged: (time: string) => `${time} logged`,
     wrapUpLeft: (n: number) => `${n} left`,
+    yesterday: (parts: string) => `Yesterday: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`),
   },
 } as const
@@ -76,6 +78,42 @@ export function dayLabel(msg: Msg, date: string, today: string): string {
   if (diff === 1) return msg.tomorrow
   const [, m, d] = date.split('-').map(Number)
   return `${m}/${d}`
+}
+
+/** 朝のまとめを押したときに開く URL。今日の計画 */
+export const MORNING_URL = '/?view=planner'
+
+/**
+ * 朝のまとめの「昨日」の行（#278）: 「昨日: 予定 5 件中 3 件完了 ・ 記録 4時間10分」。夜の締めと同じ言葉で、数字だけ（残り・責める言葉は出さない）。
+ * To-Do が無い日は予定の部分を、記録が無い日は記録の部分を出さない。どちらも無ければ null（行ごと出さない）
+ */
+export function yesterdayLine(msg: Msg, d: WrapUpDigest | null): string | null {
+  if (!d || !hasDayNumbers(d)) return null
+  const parts = [
+    d.total > 0 ? msg.wrapUpDone(d.done, d.total) : null,
+    d.loggedMinutes > 0 ? msg.wrapUpLogged(msg.duration(Math.floor(d.loggedMinutes / 60), d.loggedMinutes % 60)) : null,
+  ].filter(Boolean)
+  return msg.yesterday(parts.join(msg.sep))
+}
+
+/**
+ * 朝のまとめ。1 行目は今日（予定・締切・締切切れ。何も無ければ「まだありません」）、2 行目に昨日の数字（#278）。
+ * 今日の締切を押し出さないよう、昨日は後ろの 1 行だけ（通知を畳んだときは 1 行目だけが見える）
+ */
+export function morningPayload(msg: Msg, d: MorningDigest, yesterday: WrapUpDigest | null): Payload {
+  const parts = [
+    d.planned > 0 ? msg.planned(d.planned) : null,
+    d.due.length > 0 ? msg.due(d.due.map((x) => msg.dueItem(x.title, x.time)).join(msg.listSep)) : null,
+    d.overdue > 0 ? msg.overdue(d.overdue) : null,
+  ].filter(Boolean)
+  const today = parts.length > 0 ? parts.join(msg.sep) : msg.emptyDay
+  const past = yesterdayLine(msg, yesterday)
+  return {
+    title: msg.morningTitle,
+    body: past ? `${today}\n${past}` : today,
+    tag: 'chronograma-morning',
+    url: MORNING_URL,
+  }
 }
 
 export type Payload = {

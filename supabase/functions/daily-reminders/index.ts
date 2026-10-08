@@ -1,4 +1,4 @@
-// Sends Web Push reminders: morning summary, before plans, before deadlines, record prompts after plans,
+// Sends Web Push reminders: morning summary (with yesterday's numbers, #278), before plans, before deadlines, record prompts after plans,
 // the evening wrap-up with the day's numbers, a stale-timer nudge and the focus timer's time-up (#290). Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
@@ -21,8 +21,17 @@ import {
   wrapUpDue,
   type ReminderTask,
 } from './schedule.ts'
-import { MESSAGES, reminderPayload, timerEndPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
-import { wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
+import {
+  MESSAGES,
+  morningPayload,
+  reminderPayload,
+  timerEndPayload,
+  timerPayload,
+  wrapUpPayload,
+  type Msg,
+  type Payload,
+} from './payload.ts'
+import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import { keyRing } from '../_shared/secretBox.ts'
 import { resealStaleTokens, type SweepDb } from '../_shared/tokenSweep.ts'
@@ -246,10 +255,10 @@ Deno.serve(async (req) => {
   }
 
   /**
-   * 夜の締めの数字（その日の To-Do・完了・記録）。アプリの今日の計画と同じ数え方（`wrapUp.ts`）。
-   * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む。読めなかったら送らない（次の回にやり直す）
+   * その日の数字（To-Do・完了・記録）。夜の締めは今日、朝のまとめは昨日（#278）。アプリの今日の計画と同じ数え方（`wrapUp.ts`）。
+   * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む
    */
-  const dayDigest = async (userId: string, today: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
+  const dayDigest = async (userId: string, date: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
     const rows = await fetchAllAfter(
       async (after: string | null, limit) => {
         let query = admin
@@ -260,7 +269,7 @@ Deno.serve(async (req) => {
           .eq('user_id', userId)
           .is('deleted_at', null)
           .is('archived_at', null)
-          .or(wrapUpRowFilter(today))
+          .or(wrapUpRowFilter(date))
         if (after !== null) query = query.gt('id', after)
         const { data, error } = await query.order('id').limit(limit)
         if (error) throw new Error(error.message)
@@ -268,7 +277,7 @@ Deno.serve(async (req) => {
       },
       (t) => t.id,
     )
-    return wrapUpDigest(rows, today, timeZone, excluded)
+    return wrapUpDigest(rows, date, timeZone, excluded)
   }
 
   let sent = 0
@@ -290,7 +299,7 @@ Deno.serve(async (req) => {
   }
 
   /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
-  const processSub = async (sub: Sub, tasks: ReminderTask[], digestOf: (sub: Sub) => Promise<WrapUpDigest | null>) => {
+  const processSub = async (sub: Sub, tasks: ReminderTask[], digestOf: (sub: Sub, date: string) => Promise<WrapUpDigest | null>) => {
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
     const nowWall = (dayWallMs(local.date) ?? 0) + local.minutes * 60_000
@@ -299,25 +308,17 @@ Deno.serve(async (req) => {
     const jobs: { payload: Payload; keys?: string[]; patch?: Record<string, unknown> }[] = []
 
     if (dailyDue(sub.plan_time, sub.last_plan_sent, local.date, local.minutes)) {
-      const d = morningDigest(tasks, local.date)
-      const parts = [
-        d.planned > 0 ? msg.planned(d.planned) : null,
-        d.due.length > 0 ? msg.due(d.due.map((x) => msg.dueItem(x.title, x.time)).join(msg.listSep)) : null,
-        d.overdue > 0 ? msg.overdue(d.overdue) : null,
-      ].filter(Boolean)
+      // 昨日の数字（#278）。読めなければ昨日の行だけを出さずに送る（今日の予定・締切は止めない）
+      const yesterday = await digestOf(sub, previousDay(local.date))
       jobs.push({
-        payload: {
-          title: msg.morningTitle,
-          body: parts.length > 0 ? parts.join(msg.sep) : msg.emptyDay,
-          tag: 'chronograma-morning',
-          url: '/?view=planner',
-        },
+        payload: morningPayload(msg, morningDigest(tasks, local.date), yesterday),
         patch: { last_plan_sent: local.date },
       })
     }
 
     if (wrapUpWindow(sub)) {
-      const d = await digestOf(sub)
+      // 読めなかったら夜の締めだけを送らない（印を残さないので次の回にやり直す）
+      const d = await digestOf(sub, local.date)
       if (d && wrapUpDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes, d.loggedMinutes)) {
         jobs.push({ payload: wrapUpPayload(msg, d), patch: { last_wrap_up_sent: local.date } })
       }
@@ -411,18 +412,17 @@ Deno.serve(async (req) => {
     if ((valid.some(needsTasks) || wantsDigest) && !excludedByUser) throw new Error('lists not loaded')
     const excluded = excludedByUser?.get(userId) ?? new Set<string>()
     const tasks = valid.some(needsTasks) ? await openTasks(userId, excluded) : []
-    // 夜の締めの数字は、日（端末のタイムゾーン）ごとに 1 回だけ読む
-    // 読めなかったら夜の締めだけを送らない（ほかの通知は送る。印を残さないので次の回にやり直す）
+    // その日の数字（夜の締めは今日、朝のまとめは昨日）は、日とタイムゾーン（端末）の組ごとに 1 回だけ読む。
+    // 読めなかったら null（その数字を使う部分だけを出さない。ほかの通知は送る）
     const digests = new Map<string, Promise<WrapUpDigest | null>>()
-    const digestOf = (sub: Sub): Promise<WrapUpDigest | null> => {
-      const date = localNow(sub.timezone, now).date
+    const digestOf = (sub: Sub, date: string): Promise<WrapUpDigest | null> => {
       const key = `${date}|${sub.timezone}`
       if (!digests.has(key)) {
         digests.set(
           key,
           dayDigest(userId, date, sub.timezone, excluded).catch((err) => {
             failed++
-            console.error('[daily-reminders] load wrap-up numbers failed', err)
+            console.error('[daily-reminders] load day numbers failed', date, err)
             return null
           }),
         )

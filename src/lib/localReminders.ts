@@ -1,7 +1,7 @@
 /**
  * タブを開いている間の通知（Web Push が使えないとき）。何をいつ出すかはサーバーと同じ
  * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め・タイマーの止め忘れ。
- * 夜の締めの数字は今日の計画と同じ `getDayPlan` で数える（サーバーは同じ数え方の `wrapUp.ts`）。
+ * 夜の締め・朝のまとめの「昨日」の数字は今日の計画と同じ `getDayPlan` で数える（サーバーは同じ数え方の `wrapUp.ts`）。
  */
 import i18n from '../i18n/config'
 import { isLogTask, type Task } from '../types/task'
@@ -17,6 +17,7 @@ import {
   type ReminderTask,
 } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { taskUrl, WRAP_UP_URL } from '../../supabase/functions/daily-reminders/payload.ts'
+import { hasDayNumbers, type WrapUpDigest } from '../../supabase/functions/daily-reminders/wrapUp.ts'
 import { getDayPlan } from './dayPlan'
 import { formatDuration } from './timeGrid'
 import { isActiveTask } from './taskLifecycle'
@@ -170,10 +171,19 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
 }
 
 /**
+ * その日の数字（夜の締めは今日、朝のまとめは昨日）。今日の計画（`getDayPlan`、週のふりかえりの日ごとの数も同じ）と同じ数。
+ * サーバーの `wrapUpDigest` と同じ形
+ */
+export function dayNumbers(tasks: readonly Task[], dateKey: string, excludedListIds: ReadonlySet<string>): WrapUpDigest {
+  const plan = getDayPlan(tasks, dateKey, excludedListIds)
+  return { done: plan.done.length, total: plan.done.length + plan.open.length, open: plan.open.length, loggedMinutes: plan.loggedMinutes }
+}
+
+/**
  * 夜の締め（#299）。数字だけ: 「今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件」（サーバーの `wrapUpPayload` と同じ並び）。
  * To-Do が無い日は予定の部分を、残りが無ければ残りを出さない
  */
-export function wrapUpMessage(d: { done: number; total: number; open: number; loggedMinutes: number }): Shown {
+export function wrapUpMessage(d: WrapUpDigest): Shown {
   const parts = [
     d.total > 0 ? i18n.t('reminders.wrapUpDone', { done: d.done, total: d.total }) : null,
     i18n.t('reminders.wrapUpLogged', { time: formatDuration(d.loggedMinutes) }),
@@ -187,7 +197,21 @@ export function wrapUpMessage(d: { done: number; total: number; open: number; lo
   }
 }
 
-export function morningMessage(tasks: readonly ReminderTask[], today: string): Shown {
+/**
+ * 朝のまとめの「昨日」の行（#278）: 「昨日: 予定 5 件中 3 件完了 ・ 記録 4時間10分」（サーバーの `yesterdayLine` と同じ）。
+ * To-Do も記録も無い日は null
+ */
+export function yesterdayLine(d: WrapUpDigest | null): string | null {
+  if (!d || !hasDayNumbers(d)) return null
+  const parts = [
+    d.total > 0 ? i18n.t('reminders.wrapUpDone', { done: d.done, total: d.total }) : null,
+    d.loggedMinutes > 0 ? i18n.t('reminders.wrapUpLogged', { time: formatDuration(d.loggedMinutes) }) : null,
+  ].filter(Boolean)
+  return i18n.t('reminders.yesterday', { parts: parts.join(i18n.t('reminders.sep')) })
+}
+
+/** 朝のまとめ。1 行目は今日、2 行目に昨日の数字（サーバーの `morningPayload` と同じ並び） */
+export function morningMessage(tasks: readonly ReminderTask[], today: string, yesterday: WrapUpDigest | null = null): Shown {
   const d = morningDigest(tasks, today)
   const sep = i18n.t('reminders.sep')
   const parts = [
@@ -201,9 +225,11 @@ export function morningMessage(tasks: readonly ReminderTask[], today: string): S
       : null,
     d.overdue > 0 ? i18n.t('reminders.overdue', { count: d.overdue }) : null,
   ].filter(Boolean)
+  const todayLine = parts.length > 0 ? parts.join(sep) : i18n.t('reminders.emptyDay')
+  const past = yesterdayLine(yesterday)
   return {
     title: i18n.t('reminders.morningTitle'),
-    body: parts.length > 0 ? parts.join(sep) : i18n.t('reminders.emptyDay'),
+    body: past ? `${todayLine}\n${past}` : todayLine,
     tag: 'chronograma-morning',
   }
 }
@@ -234,15 +260,15 @@ export function checkLocalReminders(ctx: {
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
   if (dailyDue(ctx.daily.planTime, state.morning, today, nowMinutes)) {
-    void show(morningMessage(tasks, today), ctx.onOpen)
+    const yesterday = toDateKey(addDays(fromDateKey(today), -1))
+    void show(morningMessage(tasks, today, dayNumbers(ctx.tasks, yesterday, ctx.excludedListIds)), ctx.onOpen)
     state.morning = today
   }
   if (dailyDue(ctx.daily.wrapUpTime, state.wrapUp, today, nowMinutes)) {
-    const plan = getDayPlan(ctx.tasks, today, ctx.excludedListIds)
+    const d = dayNumbers(ctx.tasks, today, ctx.excludedListIds)
     // 記録が 0 の日は出さない（印も残さないので、時刻から 60 分の間に記録すれば出る）
-    if (wrapUpDue(ctx.daily.wrapUpTime, state.wrapUp, today, nowMinutes, plan.loggedMinutes)) {
-      const total = plan.done.length + plan.open.length
-      void show(wrapUpMessage({ done: plan.done.length, total, open: plan.open.length, loggedMinutes: plan.loggedMinutes }), ctx.onWrapUp)
+    if (wrapUpDue(ctx.daily.wrapUpTime, state.wrapUp, today, nowMinutes, d.loggedMinutes)) {
+      void show(wrapUpMessage(d), ctx.onWrapUp)
       state.wrapUp = today
     }
   }

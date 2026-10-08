@@ -306,6 +306,7 @@ export default {
     wrapUpDone: '{{done}} of {{total}} done',
     wrapUpLogged: '{{time}} logged',
     wrapUpLeft: '{{count}} left',
+    yesterday: 'Yesterday: {{parts}}',
   },
   weekReview: {
     title: 'Weekly review',
