@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import type { Task } from '../types/task'
 import { useTaskStore } from '../store/taskStore'
-import { getDayReviews } from '../lib/weekReview'
+import { getDayReviews, type LabelSource } from '../lib/weekReview'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { computeDayInsights, INSIGHT_DAYS, insightDateKeys, type DayInsight } from '../lib/dayInsights'
 import { unplannedListIds } from '../lib/listKind'
@@ -19,7 +18,10 @@ export function useDayInsights(): DayInsight[] {
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const todayKey = useAppTodayKey()
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
-  const labelOf = useMemo(() => (log: Task) => recordLabelKey(log, labelPresets, logCategoryColors), [labelPresets, logCategoryColors])
+  const labelOf = useMemo(
+    () => (log: LabelSource) => recordLabelKey(log, labelPresets, logCategoryColors),
+    [labelPresets, logCategoryColors],
+  )
   // 記録・予定の数字は日ごと（ふりかえりと同じ数え方）。気分が変わっただけでは数え直さない
   const days = useMemo(
     () => getDayReviews(tasks, habits, insightDateKeys(todayKey).map(fromDateKey), excluded, undefined, labelOf),

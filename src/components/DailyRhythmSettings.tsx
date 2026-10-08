@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
@@ -6,6 +7,9 @@ import { SettingsGroup, SettingsLinkRow, SettingsRow, Switch } from './settings/
 import { fieldClass } from './ui/fieldClass'
 import { formatDuration } from '../lib/timeGrid'
 import { DEFAULT_BLOCK_OPTIONS } from '../lib/defaultBlock'
+import { recentDailyLoggedMinutes } from '../lib/weekReview'
+import { unplannedListIds } from '../lib/listKind'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
@@ -25,6 +29,17 @@ export function DailyRhythmSettings() {
   const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const setDailyCapacityMinutes = useTaskStore((s) => s.setDailyCapacityMinutes)
+  const tasks = useTaskStore((s) => s.tasks)
+  const habits = useTaskStore((s) => s.habits)
+  const lists = useTaskStore((s) => s.lists)
+  const todayKey = useAppTodayKey()
+  // 目安を決める材料に、直近 2 週（昨日まで）の記録のある日の平均（#275）。記録が無ければ出さない
+  const recent = useMemo(
+    () => recentDailyLoggedMinutes(tasks, habits, unplannedListIds(lists)),
+    // 日が変わったら数え直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, habits, lists, todayKey],
+  )
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const setDefaultBlockMinutes = useTaskStore((s) => s.setDefaultBlockMinutes)
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
@@ -141,7 +156,11 @@ export function DailyRhythmSettings() {
       </SettingsGroup>
 
       <SettingsGroup id="settings-planning" title={t('settings.planningTitle')}>
-        <SettingsRow label={t('settings.dailyCapacity')} htmlFor="daily-capacity">
+        <SettingsRow
+          label={t('settings.dailyCapacity')}
+          htmlFor="daily-capacity"
+          help={recent ? t('settings.dailyCapacityRecent', { time: formatDuration(recent.average), count: recent.days }) : undefined}
+        >
           <select
             id="daily-capacity"
             value={Math.round(dailyCapacityMinutes / 60)}

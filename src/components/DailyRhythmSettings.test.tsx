@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DailyRhythmSettings } from './DailyRhythmSettings'
 import { useTaskStore } from '../store/taskStore'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
+import { toDateKey } from '../lib/dateKey'
+import { zonedNow } from '../lib/timeZone'
+import type { Task } from '../types/task'
 
 const env = vi.hoisted(() => ({ ios: false, standalone: false }))
 vi.mock('../lib/pwa', async (importOriginal) => ({
@@ -89,5 +93,41 @@ describe('設定「通知」の夜の締め', () => {
     expect(useTaskStore.getState().dailyReminders).toEqual({ planTime: null, wrapUpTime: '21:15' })
     await user.click(screen.getByRole('switch', { name: WRAP_UP }))
     expect(useTaskStore.getState().dailyReminders.wrapUpTime).toBeNull()
+  })
+})
+
+describe('設定「計画」の 1 日に計画する時間の目安（#275）', () => {
+  it('直近 2 週の、記録のある日の平均を添える。記録が無ければ出さない', () => {
+    useTaskStore.setState({ tasks: [] })
+    const { unmount } = render(<DailyRhythmSettings />)
+    expect(screen.queryByText(/Last 2 weeks/)).toBeNull()
+    unmount()
+
+    const yesterday = zonedNow()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const log = {
+      ...TASK_DEFAULTS,
+      id: 'l',
+      title: 'Study',
+      kind: 'log',
+      description: '',
+      completed: true,
+      completedAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      order: 0,
+      listId: 'inbox',
+      sectionId: null,
+      parentId: null,
+      priority: 'none',
+      tags: [],
+      recurrence: null,
+      dueDate: toDateKey(yesterday),
+      startTime: '09:00',
+      endTime: '12:30',
+    } as Task
+    useTaskStore.setState({ tasks: [log] })
+    render(<DailyRhythmSettings />)
+    expect(screen.getByText('Last 2 weeks: 3h 30m logged on average on days with records (1 day)')).toBeInTheDocument()
   })
 })

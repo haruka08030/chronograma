@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import type { Task } from '../types/task'
 import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { compareReviews, foldLabelMinutes, getPrevReview, getReview } from '../lib/weekReview'
+import { compareReviews, foldLabelMinutes, getPrevReview, getReview, UNPLANNED_ROWS, type LabelSource } from '../lib/weekReview'
 import { reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from '../lib/reviewPeriod'
 import { ESTIMATE_ROWS, getEstimateRows } from '../lib/estimateActual'
 import { unplannedListIds } from '../lib/listKind'
@@ -90,7 +89,10 @@ export function WeekReviewCard() {
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const labelTargets = useTaskStore((s) => s.logLabelTargets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
-  const labelOf = useMemo(() => (log: Task) => recordLabelKey(log, labelPresets, logCategoryColors), [labelPresets, logCategoryColors])
+  const labelOf = useMemo(
+    () => (log: LabelSource) => recordLabelKey(log, labelPresets, logCategoryColors),
+    [labelPresets, logCategoryColors],
+  )
   const review = useMemo(
     () => getReview(tasks, habits, period, anchor, excluded, undefined, labelOf),
     [tasks, habits, period, anchor, excluded, labelOf],
@@ -119,17 +121,28 @@ export function WeekReviewCard() {
   // 予定の枠も同じ目盛りで重ねるので、高さは記録と予定の大きいほうに合わせる
   const maxMinutes = Math.max(60, ...review.days.map((d) => Math.max(barMinutes(d), d.plannedMinutes)))
   const hasPlanned = review.plannedMinutes > 0
-  // ラベル別の行に週の目安（#291）を添える。目安のあるラベルは記録が 0 でも並べ、「その他」にまとめない。
+  // ラベル別の行に週の目安（#291）と予定した時間（#275）を添える。目安・予定のあるラベルは記録が 0 でも並べる
+  // （予定はあるのに記録が無い週こそ、記録の抜けに気づける）。目安のある行は「その他」にまとめない。
   // 月は週の目安をその月の日数に合わせる（`periodTargetMinutes`）
   const labelRows = useMemo(() => {
     const weeklyOf = (tag: string) => (labelPresets.includes(tag) ? validTargetMinutes(labelTargets[tag]) : undefined)
-    const rows: { tag: string; minutes: number; weekly?: number }[] = review.labelMinutes.map((x) => ({ ...x, weekly: weeklyOf(x.tag) }))
+    const plannedOf = new Map(review.labelPlans.map((p) => [p.tag, p.minutes]))
+    const rows: { tag: string; minutes: number; weekly?: number; planned?: number }[] = review.labelMinutes.map((x) => ({
+      ...x,
+      weekly: weeklyOf(x.tag),
+      planned: plannedOf.get(x.tag),
+    }))
+    for (const p of review.labelPlans) {
+      if (!rows.some((r) => r.tag === p.tag)) rows.push({ tag: p.tag, minutes: 0, weekly: weeklyOf(p.tag), planned: p.minutes })
+    }
     for (const name of labelPresets) {
       const weekly = weeklyOf(name)
       if (weekly && !rows.some((r) => r.tag === name)) rows.push({ tag: name, minutes: 0, weekly })
     }
     return foldLabelMinutes(rows, (r) => r.weekly != null)
-  }, [review.labelMinutes, labelPresets, labelTargets])
+  }, [review.labelMinutes, review.labelPlans, labelPresets, labelTargets])
+  // 予定に無かった記録（#275）は、予定（時刻つきの To-Do・習慣の枠）のある期間だけ。予定を立てない人には全部の記録になるので出さない
+  const unplannedRows = hasPlanned ? review.unplanned.slice(0, UNPLANNED_ROWS) : []
   // ラベル別の前の月との差は月だけ（週は記録した時間の差だけで足りる）。前の月に記録が無ければ出さない
   const showLabelDiff = period === 'month' && comparison.loggedDiff != null
 
@@ -250,7 +263,10 @@ export function WeekReviewCard() {
                         planned: formatDuration(day.plannedMinutes),
                         done: day.done,
                         total: day.total,
-                      })
+                      }) +
+                      (hasPlanned && day.unplannedMinutes > 0
+                        ? t('weekReview.dayTooltipUnplanned', { time: formatDuration(day.unplannedMinutes) })
+                        : '')
                     : label
                   return (
                     // 押すとその日の今日の計画を開く（記録の中身を見に行ける）
@@ -323,7 +339,7 @@ export function WeekReviewCard() {
               </span>
             )}
           </div>
-          {review.labelMinutes.length === 0 ? (
+          {labelRows.shown.length === 0 ? (
             <p className={META_TEXT}>{t('weekReview.noLogs')}</p>
           ) : (
             <ul aria-labelledby="review-by-label" className="space-y-1.5">
@@ -359,16 +375,17 @@ export function WeekReviewCard() {
                         {showLabelDiff && <LabelDiff diff={comparison.labelDiff.get(x.tag) ?? 0} />}
                       </span>
                     </div>
-                    {/* 細い進みの線: 点線の枠が目安、塗りが記録（見積もりと記録・日ごとの棒の予定の枠と同じ見方）。超えたら枠いっぱいで止める */}
-                    {target && (
-                      <div className="relative ml-3.5 mt-1 h-2.5" aria-hidden>
-                        {x.minutes > 0 && (
-                          <div
-                            className="gc-dot absolute inset-y-[2px] left-0 rounded-[2px]"
-                            style={{ ...colorVars(hex), width: `${Math.min(100, (x.minutes / target) * 100)}%` }}
-                          />
-                        )}
-                        <div className={`absolute inset-0 rounded-[3px] ${PLANNED_FRAME}`} />
+                    {/* 細い進みの線: 点線の枠が予定した時間（予定が無ければ目安）、塗りが記録（日ごとの棒の予定の枠・見積もりと記録と同じ見方）。
+                        予定は超えた分も見えるよう長いほうに合わせ、目安は超えたら枠いっぱいで止める。予定は枠の横に文字でも出す（色だけに頼らない） */}
+                    {(x.planned || target) && (
+                      <div className="ml-3.5 mt-1 flex items-center gap-2">
+                        <LabelBar hex={hex} logged={x.minutes} frame={x.planned || target!} overflow={Boolean(x.planned)} />
+                        {/* 線の右端がそろうよう、文字の幅を決める */}
+                        {x.planned ? (
+                          <span className="min-w-[5.75rem] shrink-0 text-right text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                            {t('weekReview.plannedRow', { time: formatDuration(x.planned) })}
+                          </span>
+                        ) : null}
                       </div>
                     )}
                   </li>
@@ -384,6 +401,32 @@ export function WeekReviewCard() {
                 </li>
               )}
             </ul>
+          )}
+          {/* 予定に無かった記録（#275）: どの予定とも組にならなかった記録を、ラベルと題名ごとに多い順で 3 件。0 件なら出さない */}
+          {unplannedRows.length > 0 && (
+            <div className="mt-4">
+              <SectionLabel as="h3" id="review-unplanned" className="mb-2">
+                {t('weekReview.unplannedTitle')}
+              </SectionLabel>
+              <ul aria-labelledby="review-unplanned" className="space-y-1.5">
+                {unplannedRows.map((x) => {
+                  const labelText = recordLabelKeyText(x.tag, labelPresets, logCategoryColors, t)
+                  return (
+                    <li key={`${x.tag}\u0000${x.title}`} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex min-w-0 items-center gap-1.5" {...tip(labelText)}>
+                        <span
+                          className="gc-dot h-2 w-2 shrink-0 rounded-full"
+                          style={colorVars(recordLabelKeyHex(x.tag, logCategoryColors))}
+                          aria-hidden
+                        />
+                        <span className="truncate text-zinc-700 dark:text-zinc-300">{x.title || labelText}</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(x.minutes)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
         </div>
       </div>
@@ -429,6 +472,25 @@ export function WeekReviewCard() {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * ラベル別の行の細い線。点線の枠（予定・目安）と、記録の塗り（ラベルの色、枠より少し細い）。
+ * `overflow` なら長いほうに合わせて超えた分も見せ（予定）、そうでなければ枠いっぱいで止める（目安）
+ */
+function LabelBar({ hex, logged, frame, overflow }: { hex: string; logged: number; frame: number; overflow: boolean }) {
+  const scale = overflow ? Math.max(frame, logged) : frame
+  return (
+    <div className="relative h-2.5 min-w-0 flex-1" aria-hidden>
+      {logged > 0 && (
+        <div
+          className="gc-dot absolute inset-y-[2px] left-0 rounded-[2px]"
+          style={{ ...colorVars(hex), width: `${Math.min(100, (logged / scale) * 100)}%` }}
+        />
+      )}
+      <div className={`absolute inset-y-0 left-0 rounded-[3px] ${PLANNED_FRAME}`} style={{ width: `${(frame / scale) * 100}%` }} />
+    </div>
   )
 }
 

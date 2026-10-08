@@ -17,6 +17,7 @@ const day = (i: number, over: Partial<WeekReviewDay> = {}): WeekReviewDay => ({
   tagMinutes: [],
   timedPlanned: 0,
   followed: 0,
+  unplannedMinutes: 0,
   ...over,
 })
 
