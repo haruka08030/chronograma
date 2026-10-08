@@ -6,6 +6,7 @@ import { isLogTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { unplannedListIds } from '../lib/listKind'
+import type { TaskFilter } from '../lib/taskFilter'
 import { getFilteredRootTasks, getOrderedActiveRootTasksForDnD } from '../lib/mainListTasks'
 import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
@@ -31,6 +32,7 @@ export function useTaskListRows({
   sectionGrouping,
   filterTag,
   filterColor,
+  taskFilter,
 }: {
   tasks: Task[]
   lists: TaskList[]
@@ -41,6 +43,7 @@ export function useTaskListRows({
   sectionGrouping: SectionGrouping
   filterTag: string | null
   filterColor: string | null
+  taskFilter?: Partial<TaskFilter>
 }) {
   const { t } = useTranslation()
   const listOrderById = useMemo(() => {
@@ -61,8 +64,9 @@ export function useTaskListRows({
         filterColor,
         sections,
         excludedListIds,
+        taskFilter,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds, taskFilter],
   )
 
   const listSectionsOrdered = useMemo(() => {
@@ -104,6 +108,7 @@ export function useTaskListRows({
       sections,
       listOrderById,
       excludedListIds,
+      taskFilter,
     })
   }, [
     filtered,
@@ -117,6 +122,7 @@ export function useTaskListRows({
     sections,
     listOrderById,
     excludedListIds,
+    taskFilter,
   ])
 
   const sectionBlocks = useMemo((): SectionBlockRow[] | null => {

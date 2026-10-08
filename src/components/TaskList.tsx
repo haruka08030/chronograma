@@ -27,6 +27,8 @@ import { TaskListHeader } from './todo/TaskListHeader'
 import { TaskListActiveContent } from './todo/TaskListActiveContent'
 import { CompletedTasksSection } from './todo/CompletedTasksSection'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { FilterNoMatch } from './ui/FilterChips'
+import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -56,6 +58,11 @@ export function TaskList({
   const sectionGrouping = useTaskStore((s) => s.sectionGrouping)
   const filterTag = useTaskStore((s) => s.filterTag)
   const filterColor = useTaskStore((s) => s.filterColor)
+  const todoFilter = useTaskStore((s) => s.todoFilter)
+  const setTodoFilter = useTaskStore((s) => s.setTodoFilter)
+  // じょうごの絞り込み（優先度・見積もり）は To-Do のリスト・ビューだけ
+  const taskFilter = useMemo(() => todoFilterFor(lists, selectedListId, todoFilter), [lists, selectedListId, todoFilter])
+  const filtering = taskFilter !== undefined && hasTaskFilter(taskFilter)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
@@ -96,6 +103,7 @@ export function TaskList({
     sectionGrouping,
     filterTag,
     filterColor,
+    taskFilter,
   })
 
   /** 塊で分けないとき、行に出すセクション名 */
@@ -299,7 +307,11 @@ export function TaskList({
             </div>
           )}
 
-          {incompleteCount === 0 && !showQuickAdd && (
+          {incompleteCount === 0 && filtering && (
+            <FilterNoMatch text={t('taskList.noMatch')} onClear={() => setTodoFilter(NO_TODO_FILTER)} className="px-3 py-2" />
+          )}
+
+          {incompleteCount === 0 && !showQuickAdd && !filtering && (
             <EmptyState
               icon={<CheckCircleIcon strokeWidth={1} />}
               title={t('taskList.allDoneTitle')}

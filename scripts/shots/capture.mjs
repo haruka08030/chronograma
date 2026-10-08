@@ -36,6 +36,8 @@ const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
 const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
 /** 見出しの並び順のボタン（種データはどこも手動） */
 const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
+/** To-Do 一覧の絞り込み（じょうご）のボタン */
+const TODO_FILTER = 'button[aria-label="絞り込む"] >> visible=true'
 /** 今日やる候補の並び順のボタンと、絞り込み（じょうご）のボタン */
 const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順"] >> visible=true'
 const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=true'
@@ -137,6 +139,13 @@ const SCREENS = [
   { name: 'todo-label', view: 'all', mobileClick: OPEN_LISTS, click: LABEL_JOBHUNT },
   // 見出しの並び順のメニュー（スマホは下から出すシート）。色ラベル・いつかでも同じメニュー
   { name: 'todo-sort-menu', view: 'all', click: SORT_BUTTON },
+  // To-Do 一覧の絞り込み（じょうご）と、優先度で絞ったところ（チップ・件数）
+  { name: 'todo-filter-menu', view: 'all', click: [TODO_FILTER, '[role=menu] >> text=優先度で絞る >> visible=true'] },
+  {
+    name: 'todo-filtered',
+    view: 'all',
+    click: [TODO_FILTER, '[role=menu] >> text=優先度で絞る >> visible=true', '[role=menu] >> text=高のみ >> visible=true'],
+  },
   { name: 'todo-label-sort-menu', view: 'all', mobileClick: OPEN_LISTS, click: [LABEL_JOBHUNT, SORT_BUTTON] },
   { name: 'someday-sort-menu', list: 'seed-someday', click: SORT_BUTTON },
   // 手動以外に変えたあと（つまみの幅を空けたまま、行の文字の位置が手動と同じ）

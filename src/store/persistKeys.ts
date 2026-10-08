@@ -43,6 +43,7 @@ export const VIEW_KEYS = [
   'sortByKey',
   'sectionGrouping',
   'plannerCandidateView',
+  'todoFilter',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const TRANSIENT_KEYS = [

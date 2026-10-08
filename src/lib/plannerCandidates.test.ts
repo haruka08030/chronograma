@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { DEFAULT_CANDIDATE_VIEW, filterCandidates, readCandidateView, sortCandidates } from './plannerCandidates'
+import { DEFAULT_CANDIDATE_VIEW, readCandidateView, sortCandidates } from './plannerCandidates'
+import { filterTasks as filterCandidates } from './taskFilter'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task =>
