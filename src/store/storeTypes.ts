@@ -136,6 +136,8 @@ export interface TaskState {
   onboardingCompleted: boolean
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
+  /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
+  signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
@@ -297,6 +299,7 @@ export interface TaskState {
   /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
   completeOnboarding: () => void
   dismissInstallNudge: () => void
+  dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
