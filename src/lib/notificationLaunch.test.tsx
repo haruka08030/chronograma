@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DEFAULTS } from './taskDefaults'
-import type { Task } from '../types/task'
 import { closeTaskDetail, useOverlays } from './overlays'
-import { openTaskFromNotification, taskLaunchDate } from './notificationLaunch'
+import { openTaskFromNotification, stopTimerFromNotification, taskLaunchDate } from './notificationLaunch'
+import { notifyActiveTimerSynced } from './timerSync'
+import { isLogTask, type Task } from '../types/task'
 import { appTodayKey } from './timeZone'
 
 const task = (id: string, over: Partial<Task> = {}): Task =>
@@ -88,5 +89,53 @@ describe('openTaskFromNotification', () => {
     vi.advanceTimersByTime(1001)
     useTaskStore.setState({ tasks: [task('late2', { dueDate: '2026-10-12' })] })
     expect(useOverlays.getState().detailTaskId).toBeNull()
+  })
+})
+
+describe('stopTimerFromNotification', () => {
+  const startedAt = new Date(Date.now() - 4 * 3600_000).toISOString()
+  const running = { taskTitle: '卒論', startedAt, tags: [], taskId: null, color: null }
+
+  it('そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）', () => {
+    useTaskStore.setState({ tasks: [], activeTimer: running })
+    stopTimerFromNotification(startedAt)
+    const s = useTaskStore.getState()
+    expect(s.activeTimer).toBeNull()
+    const log = s.tasks.find(isLogTask)!
+    expect(log.title).toBe('卒論')
+    expect(useOverlays.getState().detailTaskId).toBe(log.id)
+    expect(s.selectedView).toBe('planner')
+  })
+
+  it('別のタイマーが動いているときは止めずに知らせる', () => {
+    const other = { ...running, startedAt: new Date(Date.now() - 600_000).toISOString() }
+    useTaskStore.setState({ tasks: [], activeTimer: other })
+    stopTimerFromNotification(startedAt)
+    expect(useTaskStore.getState().activeTimer).toEqual(other)
+    expect(useTaskStore.getState().moveBannerText).toEqual({ key: 'reminders.timerAlreadyStopped' })
+    expect(useOverlays.getState().detailTaskId).toBeNull()
+  })
+
+  it('ログイン中は、タイマーの同期を待ってから決める（別の端末で止めていたら記録を足さない）', () => {
+    useTaskStore.setState({ tasks: [], activeTimer: running, dataOwner: 'user-1' })
+    stopTimerFromNotification(startedAt, 1000)
+    expect(useTaskStore.getState().activeTimer).toEqual(running)
+    // 同期で「別の端末で止めた」が届く
+    useTaskStore.setState({ activeTimer: null })
+    notifyActiveTimerSynced()
+    expect(useTaskStore.getState().tasks).toEqual([])
+    expect(useTaskStore.getState().moveBannerText).toEqual({ key: 'reminders.timerAlreadyStopped' })
+  })
+
+  it('同期が来なくても、待つ上限を過ぎたら手元のタイマーで止める', () => {
+    vi.useFakeTimers()
+    useTaskStore.setState({ tasks: [], activeTimer: running, dataOwner: 'user-1' })
+    stopTimerFromNotification(startedAt, 1000)
+    vi.advanceTimersByTime(1001)
+    expect(useTaskStore.getState().activeTimer).toBeNull()
+    expect(useTaskStore.getState().tasks.filter(isLogTask)).toHaveLength(1)
+    // あとから同期が来ても 2 回目は動かない
+    notifyActiveTimerSynced()
+    expect(useTaskStore.getState().tasks.filter(isLogTask)).toHaveLength(1)
   })
 })

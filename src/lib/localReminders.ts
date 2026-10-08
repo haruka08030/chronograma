@@ -82,10 +82,12 @@ type Shown = {
   record?: boolean
   /** 押したときに開く URL（開始前・締切 1 件はその件の詳細。無ければ今日の計画） */
   url?: string
+  /** 止め忘れ: どのタイマーか（開始時刻）。「止める」ボタンを付ける */
+  timerStartedAt?: string
 }
 
 async function show(n: Shown, onClick: () => void) {
-  // アクション（予定どおり / 記録する）は Service Worker の通知でしか付けられない
+  // アクション（予定どおり / 記録する / 止める）は Service Worker の通知でしか付けられない
   const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
   if (reg) {
     await reg.showNotification(n.title, {
@@ -96,6 +98,7 @@ async function show(n: Shown, onClick: () => void) {
         url: n.record && n.taskId ? `/?record=${encodeURIComponent(n.taskId)}` : (n.url ?? '/?view=planner'),
         // `taskId` は記録の確認だけ（Service Worker は `taskId` があると記録の画面を開く）
         taskId: n.record ? n.taskId : undefined,
+        timerStartedAt: n.timerStartedAt,
       },
       ...(n.record
         ? {
@@ -104,7 +107,9 @@ async function show(n: Shown, onClick: () => void) {
               { action: 'record', title: i18n.t('reminders.record') },
             ],
           }
-        : {}),
+        : n.timerStartedAt
+          ? { actions: [{ action: 'stop-timer', title: i18n.t('reminders.stopTimer') }] }
+          : {}),
     } as NotificationOptions)
     return
   }
@@ -211,7 +216,12 @@ export function checkLocalReminders(ctx: {
   const timer = ctx.activeTimer
   if (timer && staleTimerDue(timer.startedAt, Date.now(), state.timer)) {
     void show(
-      { title: i18n.t('reminders.timerTitle'), body: i18n.t('reminders.timerBody', { title: timer.taskTitle }), tag: 'chronograma-timer' },
+      {
+        title: i18n.t('reminders.timerTitle'),
+        body: i18n.t('reminders.timerBody', { title: timer.taskTitle }),
+        tag: 'chronograma-timer',
+        timerStartedAt: timer.startedAt,
+      },
       ctx.onOpen,
     )
     state.timer = timer.startedAt

@@ -15,7 +15,7 @@ import {
   staleTimerDue,
   type ReminderTask,
 } from './schedule.ts'
-import { MESSAGES, reminderPayload, type Msg, type Payload } from './payload.ts'
+import { MESSAGES, reminderPayload, timerPayload, type Msg, type Payload } from './payload.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import {
   fetchAllPages,
@@ -270,9 +270,9 @@ Deno.serve(async (req) => {
       jobs.push({ payload: reminderPayload(msg, r, local.date), keys: [r.key] })
     }
 
-    if (staleTimerDue(sub.timer_started_at, now.getTime(), sub.timer_notified_for)) {
+    if (sub.timer_started_at && staleTimerDue(sub.timer_started_at, now.getTime(), sub.timer_notified_for)) {
       jobs.push({
-        payload: { title: msg.timerTitle, body: msg.timerBody(sub.timer_title ?? ''), tag: 'chronograma-timer', url: '/?view=planner' },
+        payload: timerPayload(msg, sub.timer_title ?? '', sub.timer_started_at),
         patch: { timer_notified_for: sub.timer_started_at },
       })
     }

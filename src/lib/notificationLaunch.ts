@@ -1,13 +1,15 @@
 /**
  * 通知を押して開いたときの動き（起動 URL・Service Worker のメッセージは `pwa.ts` が読む）。
  * - 開始前・締切 1 件: その To-Do・予定の詳細と、その日の今日の計画を開く
+ * - 止め忘れの「止める」: そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）
  */
 import { useTaskStore } from '../store/taskStore'
-import type { Task } from '../types/task'
+import { isLogTask, type Task } from '../types/task'
 import { openTaskDetail, useOverlays } from './overlays'
 import { isActiveTask } from './taskLifecycle'
 import { taskPlacementDate } from './taskTimeRange'
 import { appTodayKey } from './timeZone'
+import { onActiveTimerSynced } from './timerSync'
 
 /** 開いた時点で手元に無い件（別の端末で作った直後など）を、同期で届くまで待つ長さ */
 export const TASK_LAUNCH_WAIT_MS = 15_000
@@ -72,4 +74,43 @@ export function openTaskFromNotification(taskId: string, date: string | null, wa
     if (cancelWait === done) cancelWait = null
   }
   cancelWait = done
+}
+
+/** 「止める」で、動いているタイマーの同期を待つ上限（オフライン・同期が始まらないときはそのあと手元のタイマーで決める） */
+export const TIMER_STOP_WAIT_MS = 10_000
+
+/**
+ * 止め忘れの通知の「止める」。そのタイマー（開始時刻が同じもの）を止め、できた記録の詳細を開く。
+ * 3 時間以上気づかずに動いていたことが多いので、止めた時刻のままにせず、詳細で終わりの時刻を直せるようにする。
+ * ログイン中は、別の端末で止めた古いタイマーを止めて記録が 2 本にならないよう、タイマーの同期を 1 回待ってから決める。
+ * もう止まっている・別のタイマーが動いているときは止めずに知らせる
+ */
+export function stopTimerFromNotification(startedAt: string | null, waitMs = TIMER_STOP_WAIT_MS) {
+  useTaskStore.getState().selectView('planner')
+  const run = () => {
+    const s = useTaskStore.getState()
+    const timer = s.activeTimer
+    if (!timer || (startedAt !== null && Date.parse(timer.startedAt) !== Date.parse(startedAt))) {
+      s.showMoveBanner({ key: 'reminders.timerAlreadyStopped' })
+      return
+    }
+    const before = new Set(s.tasks.map((t) => t.id))
+    s.stopTimer()
+    const log = useTaskStore.getState().tasks.find((t) => !before.has(t.id) && isLogTask(t))
+    if (log) openTaskDetail(log.id)
+  }
+  if (useTaskStore.getState().dataOwner === null) {
+    run()
+    return
+  }
+  let settled = false
+  const settle = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(timer)
+    off()
+    run()
+  }
+  const off = onActiveTimerSynced(settle)
+  const timer = setTimeout(settle, waitMs)
 }

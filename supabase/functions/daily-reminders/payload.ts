@@ -22,6 +22,7 @@ export const MESSAGES = {
     record: '記録する',
     timerTitle: 'タイマーが動いたままです',
     timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
+    stopTimer: '止める',
   },
   en: {
     morningTitle: 'Today at a glance',
@@ -43,6 +44,7 @@ export const MESSAGES = {
     record: 'Record',
     timerTitle: 'Your timer is still running',
     timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
+    stopTimer: 'Stop',
   },
 } as const
 export type Msg = (typeof MESSAGES)['ja'] | (typeof MESSAGES)['en']
@@ -65,6 +67,8 @@ export type Payload = {
   tag: string
   url: string
   taskId?: string
+  /** 止め忘れの通知: どのタイマーか（開始時刻。「止める」で別のタイマーを止めないように） */
+  timerStartedAt?: string
   actions?: { action: string; title: string }[]
 }
 
@@ -103,5 +107,20 @@ export function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payl
       { action: 'as-planned', title: msg.asPlanned },
       { action: 'record', title: msg.record },
     ],
+  }
+}
+
+/**
+ * タイマーの止め忘れ。「止める」で、アプリを開いてそのタイマーを止め、記録の終わりを直せる詳細を開く。
+ * 本文を押したときは動いているタイマーが見える今日の計画
+ */
+export function timerPayload(msg: Msg, title: string, startedAt: string): Payload {
+  return {
+    title: msg.timerTitle,
+    body: msg.timerBody(title),
+    tag: 'chronograma-timer',
+    url: '/?view=planner',
+    timerStartedAt: startedAt,
+    actions: [{ action: 'stop-timer', title: msg.stopTimer }],
   }
 }

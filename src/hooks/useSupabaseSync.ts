@@ -40,7 +40,7 @@ import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { hasExistingData } from '../lib/onboarding'
-import { activeTimerSyncDeps } from '../lib/timerSync'
+import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
 
 const DEBOUNCE_MS = 1800
@@ -231,7 +231,7 @@ export function useSupabaseSync() {
       })
 
     /** 動いているタイマー（どの端末でも同じタイマー、#301） */
-    const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo))
+    const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo)).finally(notifyActiveTimerSynced)
 
     /** ラベル表・他のタイムゾーン・動いているタイマー（タスクとは別に、まとめて 1 つの値として合わせる設定） */
     const syncSettings = async () => {

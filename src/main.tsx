@@ -10,7 +10,7 @@ import { useTaskStore } from './store/taskStore'
 import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting } from './lib/errorReport'
 import { reloadForStaleChunk } from './lib/chunkLoad'
-import { openTaskFromNotification } from './lib/notificationLaunch'
+import { openTaskFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
 
 const launch: LaunchHandlers = {
   openView: (view) => useTaskStore.getState().selectView(view),
@@ -23,6 +23,8 @@ const launch: LaunchHandlers = {
   },
   // 開始前・締切の通知はその To-Do・予定の詳細を開く
   openTask: ({ taskId, date }) => openTaskFromNotification(taskId, date),
+  // 止め忘れの「止める」はそのタイマーを止めて、記録の終わりを直せる詳細を開く
+  stopTimer: ({ startedAt }) => stopTimerFromNotification(startedAt),
   add: () => useTaskStore.getState().requestQuickAdd(),
 }
 // デプロイ後に古いタブで別画面を開くと、古いファイル名がもう無くて読み込みに失敗する。

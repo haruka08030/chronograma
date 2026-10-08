@@ -66,16 +66,22 @@ export interface TaskLaunch {
   date: string | null
 }
 
+/** 止め忘れの通知の「止める」から: そのタイマー（開始時刻。分からなければ null）を止める */
+export interface TimerStopLaunch {
+  startedAt: string | null
+}
+
 export interface LaunchHandlers {
   openView: (view: SmartView) => void
   record: (launch: RecordLaunch) => void
   openTask: (launch: TaskLaunch) => void
+  stopTimer: (launch: TimerStopLaunch) => void
   /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
   add: () => void
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -86,12 +92,17 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const add = url.searchParams.get('add') === '1'
   const task = url.searchParams.get('task')
   const date = url.searchParams.get('date')
-  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date']
+  const stopTimer = url.searchParams.get('stop-timer')
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (add) handlers.add()
   if (task && !record) handlers.openTask({ taskId: task, date: launchDate(date) })
+  // 止める: 通知から開いたときだけ（ただのリンクではタイマーの見える今日の計画が開くだけ）
+  if (stopTimer) {
+    void consumeLaunchMark(nonce).then((ok) => ok && handlers.stopTimer({ startedAt: stopTimer === '1' ? null : stopTimer }))
+  }
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })
@@ -138,9 +149,19 @@ export function setupPwa(handlers: LaunchHandlers) {
   if (!('serviceWorker' in navigator)) return
   navigator.serviceWorker.addEventListener(
     'message',
-    (e: MessageEvent<{ type?: string; view?: string; taskId?: string; asPlanned?: boolean; date?: string | null }>) => {
+    (
+      e: MessageEvent<{
+        type?: string
+        view?: string
+        taskId?: string
+        asPlanned?: boolean
+        date?: string | null
+        startedAt?: string | null
+      }>,
+    ) => {
       const view = toSmartView(e.data?.view)
       if (e.data?.type === 'open-view' && view) handlers.openView(view)
+      if (e.data?.type === 'stop-timer') handlers.stopTimer({ startedAt: typeof e.data.startedAt === 'string' ? e.data.startedAt : null })
       if (e.data?.type === 'open-task' && e.data.taskId) handlers.openTask({ taskId: e.data.taskId, date: launchDate(e.data.date) })
       if (e.data?.type === 'record' && e.data.taskId) handlers.record({ taskId: e.data.taskId, asPlanned: e.data.asPlanned === true })
     },

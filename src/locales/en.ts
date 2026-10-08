@@ -277,6 +277,8 @@ export default {
     record: 'Record',
     timerTitle: 'Your timer is still running',
     timerBody: '"{{title}}" has been running for over 3 hours',
+    stopTimer: 'Stop',
+    timerAlreadyStopped: 'This timer has already been stopped',
   },
   weekReview: {
     title: 'Weekly review',

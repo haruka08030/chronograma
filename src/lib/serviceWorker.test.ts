@@ -42,3 +42,40 @@ describe('sw.js notificationclick', () => {
     expect(sw.shown[0].options.tag).toBe('chronograma-due-t1')
   })
 })
+
+describe('sw.js 止め忘れの「止める」', () => {
+  const data = { url: '/?view=planner', timerStartedAt: '2026-10-08T01:00:00.000Z' }
+
+  it('push の「止める」ボタンとタイマーの開始時刻を通知に載せる', async () => {
+    const sw = loadServiceWorker()
+    await sw.push({
+      title: 'タイマーが動いたままです',
+      tag: 'chronograma-timer',
+      ...data,
+      actions: [{ action: 'stop-timer', title: '止める' }],
+    })
+    expect(sw.shown[0].options.actions).toEqual([{ action: 'stop-timer', title: '止める' }])
+    expect(sw.shown[0].options.data).toMatchObject(data)
+  })
+
+  it('アプリが閉じていれば、1 回きりの印を置いて ?stop-timer= の URL を開く', async () => {
+    const sw = loadServiceWorker()
+    await sw.click(data, 'stop-timer')
+    const url = new URL(sw.opened[0])
+    expect(url.searchParams.get('stop-timer')).toBe('2026-10-08T01:00:00.000Z')
+    expect(url.searchParams.get('view')).toBe('planner')
+    expect(await sw.hasLaunchMark(url.searchParams.get('launch')!)).toBe(true)
+  })
+
+  it('開いているアプリへは stop-timer を送る', async () => {
+    const sw = loadServiceWorker({ windows: ['https://app.test/'] })
+    await sw.click(data, 'stop-timer')
+    expect(sw.windows[0].messages).toEqual([{ type: 'stop-timer', startedAt: '2026-10-08T01:00:00.000Z' }])
+  })
+
+  it('本文を押したときは止めずに今日の計画（タイマーが見える）', async () => {
+    const sw = loadServiceWorker({ windows: ['https://app.test/'] })
+    await sw.click(data)
+    expect(sw.windows[0].messages).toEqual([{ type: 'open-view', view: 'planner' }])
+  })
+})

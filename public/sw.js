@@ -151,8 +151,8 @@ self.addEventListener('push', (event) => {
       tag: data.tag || 'chronograma',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { url: data.url || '/?view=planner', taskId: data.taskId },
-      // 記録の確認: 「予定どおり」「記録する」（対応していないブラウザでは本文のタップで記録の画面）
+      data: { url: data.url || '/?view=planner', taskId: data.taskId, timerStartedAt: data.timerStartedAt },
+      // 記録の確認: 「予定どおり」「記録する」（対応していないブラウザでは本文のタップで記録の画面）。止め忘れ: 「止める」
       actions: Array.isArray(data.actions) ? data.actions : undefined,
     }),
   )
@@ -168,10 +168,15 @@ self.addEventListener('notificationclick', (event) => {
   // 開始前・締切 1 件の通知（`?task=<id>&date=<日>`）: その To-Do・予定の詳細とその日を開く
   const openTaskId = taskId ? null : target.searchParams.get('task')
   const asPlanned = event.action === 'as-planned'
-  // 「予定どおり」は開いた画面で確かめずに記録する。同じ URL を他人のリンクから踏んでも記録されないよう、
+  // 止め忘れの「止める」: そのタイマー（開始時刻）を止める
+  const stopTimer = event.action === 'stop-timer'
+  // 「予定どおり」「止める」は開いた画面で確かめずに記録する。同じ URL を他人のリンクから踏んでも記録されないよう、
   // この通知から開いたことを 1 回きりの印（launch）で示す。ページは控えに印があるときだけそのまま記録する
-  const nonce = taskId && asPlanned ? self.crypto.randomUUID() : null
-  if (nonce) {
+  const nonce = (taskId && asPlanned) || stopTimer ? self.crypto.randomUUID() : null
+  if (nonce && stopTimer) {
+    target.searchParams.set('stop-timer', data.timerStartedAt || '1')
+    target.searchParams.set('launch', nonce)
+  } else if (nonce) {
     target.searchParams.set('as', 'planned')
     target.searchParams.set('launch', nonce)
   }
@@ -182,11 +187,13 @@ self.addEventListener('notificationclick', (event) => {
         for (const w of wins) {
           if (new URL(w.url).origin === target.origin) {
             w.postMessage(
-              taskId
-                ? { type: 'record', taskId, asPlanned }
-                : openTaskId
-                  ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
-                  : { type: 'open-view', view: target.searchParams.get('view') },
+              stopTimer
+                ? { type: 'stop-timer', startedAt: data.timerStartedAt || null }
+                : taskId
+                  ? { type: 'record', taskId, asPlanned }
+                  : openTaskId
+                    ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
+                    : { type: 'open-view', view: target.searchParams.get('view') },
             )
             return w.focus()
           }
