@@ -2,7 +2,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useIsLargeScreen } from '../hooks/useMediaQuery'
-import { isImeKeyEvent, isSubmitEnter, shortcutLabel } from '../lib/keyboard'
+import { isCancelEscape, isImeKeyEvent, isSubmitEnter, shortcutLabel } from '../lib/keyboard'
 import { requestListCursor, SHORTCUTS } from '../lib/shortcuts'
 import { searchTasks } from '../lib/searchTasks'
 import { openTaskDetail } from '../lib/overlays'
@@ -18,7 +18,7 @@ export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement |
   // Esc 1 回で文字を消し、2 回目で欄から出る。↓ で結果の一覧へ（最初の行に枠）、Enter で最初の結果を開く
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (isImeKeyEvent(e.nativeEvent)) return
-    if (e.key === 'Escape') {
+    if (isCancelEscape(e)) {
       e.preventDefault()
       e.stopPropagation()
       if (searchQuery) setSearchQuery('')

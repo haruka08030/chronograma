@@ -93,6 +93,8 @@ export function TimeBlock({
       onPointerMove={handlePointerMoveLocal}
       onClick={onTap}
       onKeyDown={(e) => {
+        // 入力欄でないボタン（予定カード）の Enter / Space。日本語の変換は来ない
+        // eslint-disable-next-line no-restricted-syntax
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           e.stopPropagation()

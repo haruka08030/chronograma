@@ -334,6 +334,8 @@ export function useTaskListSelection({
   // e は予定カードと同じ「詳細を開く」。ボタンの上の Enter はボタンのほうを押す
   useHotkey([...SHORTCUTS.openRow.hotkeys, ...SHORTCUTS.edit.hotkeys], (e) => {
     const target = targetRow()
+    // 一覧のショートカット（useHotkey が入力中・変換中を除いた後）で、ボタンの上の Enter かを見るだけ
+    // eslint-disable-next-line no-restricted-syntax
     if (!target || (e.key === 'Enter' && onButton(e))) return false
     openDetail(target)
   })
