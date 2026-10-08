@@ -4,6 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { DAY_MOOD_NOTE_MAX, MOODS, type Mood } from '../../lib/dayMood'
 import { tip } from '../../lib/tooltip'
 import { FIELD_FOCUS_RING, fieldClass } from '../ui/fieldClass'
+import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { META_TEXT } from '../ui/textClass'
 
 /**
@@ -109,11 +110,10 @@ function MoodNoteField({ dateKey, note }: { dateKey: string; note: string }) {
       onChange={(e) => edit(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return
-        if (e.key === 'Enter') {
+        if (isSubmitEnter(e)) {
           e.preventDefault()
           e.currentTarget.blur()
-        } else if (e.key === 'Escape') {
+        } else if (isCancelEscape(e)) {
           edit(null)
           e.currentTarget.blur()
         }

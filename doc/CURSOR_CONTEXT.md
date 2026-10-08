@@ -514,7 +514,8 @@ limit 50;
 
 - `dev` — Vite 開発サーバー
 - `build` — `tsc -b` && `vite build`
-- `lint` — ESLint（CI で必須）
+- `lint` — ESLint（CI で必須）。型を見るルール（`no-floating-promises`・`no-misused-promises`・`await-thenable`）入り: Promise を返す関数を `onClick` などに直接渡さず、`() => void fn()` で呼ぶ
+- `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとの件数で出す（テスト以外。0 件になったら `tsconfig.app.json` で有効にする）
 - `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 

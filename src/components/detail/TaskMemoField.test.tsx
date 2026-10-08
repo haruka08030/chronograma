@@ -62,7 +62,7 @@ describe('メモ・場所の欄は打っている間ストアを変えない（#
     expect(taskUpdates).toBe(0)
     expect(storeTask(id).description).toBe('')
 
-    act(() => vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
+    act(() => void vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
     expect(persistWrites() - before).toBe(1)
     expect(taskUpdates).toBe(1)
     expect(savedTask(id).description).toBe('hello world, twenty!')
@@ -109,7 +109,7 @@ describe('メモ・場所の欄は打っている間ストアを変えない（#
     fireEvent.click(screen.getByRole('button', { name: 'Add notes…' }))
     const memo = screen.getByPlaceholderText('Add notes…')
     typeEach(memo, 'one')
-    act(() => vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
+    act(() => void vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
     typeEach(memo, ' two')
     fireEvent.blur(memo)
     expect(storeTask(id).description).toBe('one two')
@@ -134,7 +134,7 @@ describe('メモ・場所の欄は打っている間ストアを変えない（#
     expect(savedTask(id).location).toBe('Tokyo')
     // 空にしたら null
     fireEvent.change(place, { target: { value: '' } })
-    act(() => vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
+    act(() => void vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
     expect(savedTask(id).location).toBeNull()
   })
 
@@ -150,7 +150,7 @@ describe('メモ・場所の欄は打っている間ストアを変えない（#
     expect(useTaskStore.getState().tasks.map((t) => t.title)).toEqual(['Buy milk', 'From the other tab'])
     expect(screen.getByPlaceholderText('Add notes…')).toHaveValue('memo')
 
-    act(() => vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
+    act(() => void vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS))
     expect(savedTask(id).description).toBe('memo')
     expect(savedTask('other')).toBeDefined()
   })

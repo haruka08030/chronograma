@@ -322,25 +322,23 @@ function RestoreBeforeImportRow() {
 
   if (!saved) return null
 
+  const restore = async () => {
+    if (
+      !(await askConfirm({
+        message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }),
+        confirmLabel: i18n.t('settings.restoreImportAction'),
+      }))
+    )
+      return
+    if (restoreBeforeImport()) {
+      setSaved(null)
+      setReloadKey((n) => n + 1)
+    }
+  }
+
   return (
     <SettingsRow label={t('settings.restoreImportTitle')}>
-      <button
-        type="button"
-        className={buttonClass({ variant: 'secondary', size: 'md' })}
-        onClick={async () => {
-          if (
-            !(await askConfirm({
-              message: i18n.t('confirm.restoreBeforeImport', { count: saved.taskCount }),
-              confirmLabel: i18n.t('settings.restoreImportAction'),
-            }))
-          )
-            return
-          if (restoreBeforeImport()) {
-            setSaved(null)
-            setReloadKey((n) => n + 1)
-          }
-        }}
-      >
+      <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void restore()}>
         {t('settings.restoreImportAction')}
       </button>
     </SettingsRow>

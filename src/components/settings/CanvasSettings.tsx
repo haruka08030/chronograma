@@ -80,6 +80,13 @@ export function CanvasSettings() {
     }
   }
 
+  const disconnect = async (c: CanvasConnection) => {
+    const host = new URL(c.baseUrl).host
+    if (await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })) {
+      void act(c.id, () => disconnectCanvas(c.id))
+    }
+  }
+
   const connections = status?.connections ?? []
   const syncCell = (
     <SettingsRow
@@ -122,15 +129,8 @@ export function CanvasSettings() {
           // 貼り直しに失敗したときは、その失敗を優先して出す
           error={errors[c.id] ?? sync.connectionErrors[c.id] ?? null}
           errorText={errorText}
-          onRenew={(token) => act(c.id, () => renewCanvasToken(c.id, token))}
-          onDisconnect={async () => {
-            const host = new URL(c.baseUrl).host
-            if (
-              await askConfirm({ message: t('canvas.disconnectConfirm', { host }), confirmLabel: t('canvas.disconnect'), danger: true })
-            ) {
-              void act(c.id, () => disconnectCanvas(c.id))
-            }
-          }}
+          onRenew={(token) => void act(c.id, () => renewCanvasToken(c.id, token))}
+          onDisconnect={() => void disconnect(c)}
         />
       ))}
       {adding ? (
@@ -216,7 +216,7 @@ function NewConnectionForm({
   const { t } = useTranslation()
   const [lms, setLms] = useState<'canvas' | 'moodle'>('canvas')
   const [method, setMethod] = useState<'token' | 'feed'>('token')
-  const connectFeed = (url: string) => act('new', () => connectCanvasFeed(url))
+  const connectFeed = (url: string) => void act('new', () => connectCanvasFeed(url))
   return (
     <div>
       <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -244,7 +244,7 @@ function NewConnectionForm({
       {lms === 'moodle' ? (
         <FeedForm lms="moodle" busy={busy} onSubmit={connectFeed} onCancel={onCancel} />
       ) : method === 'token' ? (
-        <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} onCancel={onCancel} />
+        <TokenForm busy={busy} onSubmit={(token, url) => void act('new', () => connectCanvas(token, url))} onCancel={onCancel} />
       ) : (
         <FeedForm lms="canvas" busy={busy} onSubmit={connectFeed} onCancel={onCancel} />
       )}

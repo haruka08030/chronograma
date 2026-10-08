@@ -5,6 +5,7 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { POPOVER_PANEL } from './surface'
 import { MenuDivider, MenuItem, MenuLabel } from './Menu'
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../icons'
+import { isCancelEscape, isImeKeyEvent, isSubmitEnter } from '../../lib/keyboard'
 import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
 
 /** 画面の端からはみ出さないための余白 */
@@ -203,7 +204,7 @@ export function ActionMenu({
   })
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (isImeKeyEvent(e.nativeEvent)) return
     const inSub = openedSub !== null && subActive >= 0
     const step = (n: number, len: number, cur: number) => (len === 0 ? 0 : (cur + n + len) % len)
     const current = q ? undefined : entries[activeIndex]
@@ -219,11 +220,11 @@ export function ActionMenu({
       openSub(current.id, true)
     } else if (e.key === 'ArrowLeft' && inSub) {
       closeSub()
-    } else if (e.key === 'Enter') {
+    } else if (isSubmitEnter(e)) {
       const leaf = inSub ? openedSub.leaves[subActive] : q ? results[activeIndex] : current?.kind === 'leaf' ? current : undefined
       if (leaf) runLeaf(leaf)
       else if (current?.kind === 'sub') openSub(current.id, true)
-    } else if (e.key === 'Escape') {
+    } else if (isCancelEscape(e)) {
       if (query) setQuery('')
       else if (sub) closeSub()
       else onClose()

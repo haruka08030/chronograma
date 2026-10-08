@@ -40,6 +40,15 @@ export function SelectColorDialog({
     setHexDraft(up)
     setHsv(hexToHsv(up))
   }
+  /** 画面の色を拾う（スポイト）。閉じた（キャンセル）ときは何もしない */
+  const pickWithEyeDropper = async (Ctor: EyeDropperCtor) => {
+    try {
+      const res = await new Ctor().open()
+      if (/^#[0-9a-f]{6}$/i.test(res.sRGBHex)) applyHex(res.sRGBHex)
+    } catch {
+      /* キャンセル */
+    }
+  }
   const applyHsv = (h: number, s: number, v: number) => {
     setHsv([h, s, v])
     const next = hsvToHex(h, s, v)
@@ -90,14 +99,7 @@ export function SelectColorDialog({
           {EyeDropper && (
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  const res = await new EyeDropper().open()
-                  if (/^#[0-9a-f]{6}$/i.test(res.sRGBHex)) applyHex(res.sRGBHex)
-                } catch {
-                  /* キャンセル */
-                }
-              }}
+              onClick={() => void pickWithEyeDropper(EyeDropper)}
               {...tip(t('labels.eyedropper'), { name: true })}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
             >
