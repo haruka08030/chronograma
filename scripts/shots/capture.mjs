@@ -269,6 +269,13 @@ const SCREENS = [
   { name: 'archive-menu', view: 'archived', archived: ['s20'], rightClick: 'div.group:has-text("就活サイトのプロフィール更新")' },
   // 完了した To-Do を全リスト分集めた画面（完了した日ごと）
   { name: 'completed', view: 'completed' },
+  // 完了済みの絞り込み（リスト・ラベル・期間）と、期間で絞ったところ
+  { name: 'completed-filter-menu', view: 'completed', click: TODO_FILTER },
+  {
+    name: 'completed-filtered',
+    view: 'completed',
+    click: [TODO_FILTER, '[role=menu] >> text=期間で絞る >> visible=true', '[role=menu] >> text=過去 7 日 >> visible=true'],
+  },
 ]
 
 const VIEWPORTS = [

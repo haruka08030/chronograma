@@ -40,7 +40,7 @@ import { isIncomingChange } from '../lib/changeOrigin'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
-import { NO_TODO_FILTER } from '../lib/taskFilter'
+import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
 
 /** Renamed app: copy persisted state once from the old localStorage key. */
 function migrateLegacyPersistKey(): void {
@@ -92,6 +92,7 @@ export const useTaskStore = create<TaskState>()(
         sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
         plannerCandidateView: DEFAULT_CANDIDATE_VIEW,
         todoFilter: NO_TODO_FILTER,
+        completedFilter: NO_COMPLETED_FILTER,
         recentDeletes: [],
         moveBannerText: null as string | null,
         undoBanner: null as { text: string; at: number } | null,

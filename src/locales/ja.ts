@@ -144,11 +144,13 @@ export default {
   filter: {
     by: {
       listId: 'リストで絞る',
+      period: '期間で絞る',
       color: 'ラベルで絞る',
       tag: 'タグで絞る',
       priority: '優先度で絞る',
       estimate: '見積もりで絞る',
     },
+    periodDays: '過去 {{count}} 日',
     priorityHigh: '高のみ',
     priorityMedium: '中以上',
     estimateSet: '見積もりあり',
@@ -770,6 +772,7 @@ export default {
   completedView: {
     yesterday: '昨日',
     empty: '完了したタスクはありません',
+    noMatch: '条件に合う完了済みはありません',
   },
   taskBin: {
     count: '{{count}} 件',

@@ -44,6 +44,7 @@ export const VIEW_KEYS = [
   'sectionGrouping',
   'plannerCandidateView',
   'todoFilter',
+  'completedFilter',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const TRANSIENT_KEYS = [

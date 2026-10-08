@@ -20,12 +20,17 @@ import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { FilterMenuButton } from './ui/SortMenuButton'
+import { FilterChips, FilterNoMatch } from './ui/FilterChips'
+import { filterSub, useTaskFilterMenu } from './ui/useTaskFilterMenu'
+import { COMPLETED_FILTER_KEYS, hasTaskFilter, inPeriod, matchesTaskFilter, NO_COMPLETED_FILTER, PERIOD_FILTERS } from '../lib/taskFilter'
 
 const SUBTASK_NEST = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
 
 /**
  * 完了した To-Do をリストをまたいで集める（アーカイブ・ゴミ箱と同じ並び）。完了した日ごとに新しい順。
- * チェックリスト（使い回す）といつか（かなえた）はリストの中に残すので出さない
+ * チェックリスト（使い回す）といつか（かなえた）はリストの中に残すので出さない。
+ * 見出しのじょうごでリスト・ラベル・期間（過去 7 日・30 日）に絞れる（覚えておく）
  */
 export function CompletedTasksView() {
   const { t } = useTranslation()
@@ -37,17 +42,21 @@ export function CompletedTasksView() {
   const bulk = useBulkTaskActions()
 
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
+  const todayKey = useAppTodayKey()
+  const filter = useTaskStore((s) => s.completedFilter)
+  const setFilter = useTaskStore((s) => s.setCompletedFilter)
 
-  const { days, childrenByParent, flatIds, count } = useMemo(() => {
+  const { days, childrenByParent, flatIds, count, pool } = useMemo(() => {
     const byId = new Map(tasks.map((x) => [x.id, x]))
     const isTodoList = (listId: string) => (listById.get(listId)?.kind ?? 'tasks') === 'tasks'
     const isDone = (x: Task) => x.completed && !isLogTask(x) && isActiveTask(x)
     // 親も完了しているなら親の下に出す。親が未完了（サブだけ終えた）ならここで 1 行にする
-    const roots = tasks.filter((x) => {
+    const allRoots = tasks.filter((x) => {
       if (!isDone(x) || !isTodoList(x.listId)) return false
       const parent = x.parentId ? byId.get(x.parentId) : undefined
       return !(parent && isDone(parent))
     })
+    const roots = allRoots.filter((x) => matchesTaskFilter(x, filter) && inPeriod(completionDayKey(x), todayKey, filter.period))
     const children = new Map<string, Task[]>()
     for (const x of tasks) {
       if (!x.parentId || !isActiveTask(x) || isLogTask(x)) continue
@@ -73,8 +82,27 @@ export function CompletedTasksView() {
       for (const c of children.get(id) ?? []) walk(c.id)
     }
     for (const x of roots) walk(x.id)
-    return { days: grouped, childrenByParent: children, flatIds: flat, count: roots.length }
-  }, [tasks, listById])
+    return { days: grouped, childrenByParent: children, flatIds: flat, count: roots.length, pool: allRoots }
+  }, [tasks, listById, filter, todayKey])
+
+  const filterMenu = useTaskFilterMenu({ filter, setFilter, keys: COMPLETED_FILTER_KEYS, pool })
+  const periodLabel = (days: number) => t('filter.periodDays', { count: days })
+  const filterEntries = [
+    ...filterMenu.entries,
+    filterSub({
+      id: 'period',
+      label: t('filter.by.period'),
+      anyLabel: t('filter.any'),
+      values: PERIOD_FILTERS.map((p) => ({ value: p, label: periodLabel(p) })),
+      current: filter.period,
+      onPick: (period) => setFilter({ period }),
+    }),
+  ]
+  const chips = [
+    ...filterMenu.chips,
+    ...(filter.period ? [{ key: 'period', label: periodLabel(filter.period), onRemove: () => setFilter({ period: null }) }] : []),
+  ]
+  const filtering = hasTaskFilter(filter) || filter.period !== null
 
   const clearSelectionRef = useRef<() => void>(() => {})
   const openMenu = useCallback(
@@ -95,7 +123,6 @@ export function CompletedTasksView() {
     clearSelectionRef.current = clearSelection
   }, [clearSelection])
 
-  const todayKey = useAppTodayKey()
   const yesterdayKey = toDateKey(addDays(fromDateKey(todayKey), -1))
   const dayLabel = (key: string) =>
     key === todayKey
@@ -114,13 +141,24 @@ export function CompletedTasksView() {
   return (
     <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="px-6 pt-8 pb-2">
-        <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.completed')}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.completed')}</h1>
+          {/* 完了したものが 1 件もなければ絞るものがないので出さない */}
+          {pool.length > 0 && <FilterMenuButton entries={filterEntries} ariaLabel={t('taskList.filterMenu')} active={filtering} />}
+        </div>
         {/* 空なら下の「ありません」で分かるので件数は出さない */}
-        {days.length > 0 && <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count })}</p>}
+        {(days.length > 0 || chips.length > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {days.length > 0 && <p className={META_TEXT}>{t('taskBin.count', { count })}</p>}
+            <FilterChips chips={chips} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 px-4 pb-6">
-        {days.length === 0 ? (
+        {days.length === 0 && filtering ? (
+          <FilterNoMatch text={t('completedView.noMatch')} onClear={() => setFilter(NO_COMPLETED_FILTER)} className="px-1 py-2" />
+        ) : days.length === 0 ? (
           <EmptyState icon={<CheckCircleIcon strokeWidth={1} />} title={t('completedView.empty')} />
         ) : (
           // 読み上げ: 日ごとの塊（group）をまとめて 1 つの listbox に（↑↓ は日をまたいで動く）
