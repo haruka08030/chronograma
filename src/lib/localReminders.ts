@@ -1,6 +1,7 @@
 /**
  * タブを開いている間の通知（Web Push が使えないとき）。何をいつ出すかはサーバーと同じ
- * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ。
+ * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め・タイマーの止め忘れ。
+ * 夜の締めの数字は今日の計画と同じ `getDayPlan` で数える（サーバーは同じ数え方の `wrapUp.ts`）。
  */
 import i18n from '../i18n/config'
 import { isLogTask, type Task } from '../types/task'
@@ -10,11 +11,14 @@ import {
   morningDigest,
   remindersInWindow,
   staleTimerDue,
+  wrapUpDue,
   type FiredReminder,
   type ReminderSettings,
   type ReminderTask,
 } from '../../supabase/functions/daily-reminders/schedule.ts'
-import { taskUrl } from '../../supabase/functions/daily-reminders/payload.ts'
+import { taskUrl, WRAP_UP_URL } from '../../supabase/functions/daily-reminders/payload.ts'
+import { getDayPlan } from './dayPlan'
+import { formatDuration } from './timeGrid'
 import { isActiveTask } from './taskLifecycle'
 import { trackPageNotification } from './notificationCleanup'
 import { zonedNow } from './timeZone'
@@ -32,6 +36,8 @@ interface LocalState {
   keys?: string[]
   /** 朝のまとめを出した日 */
   morning?: string
+  /** 夜の締めを出した日 */
+  wrapUp?: string
   /** 止め忘れを知らせたタイマーの開始時刻 */
   timer?: string
 }
@@ -163,6 +169,24 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
   }
 }
 
+/**
+ * 夜の締め（#299）。数字だけ: 「今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件」（サーバーの `wrapUpPayload` と同じ並び）。
+ * To-Do が無い日は予定の部分を、残りが無ければ残りを出さない
+ */
+export function wrapUpMessage(d: { done: number; total: number; open: number; loggedMinutes: number }): Shown {
+  const parts = [
+    d.total > 0 ? i18n.t('reminders.wrapUpDone', { done: d.done, total: d.total }) : null,
+    i18n.t('reminders.wrapUpLogged', { time: formatDuration(d.loggedMinutes) }),
+    d.open > 0 ? i18n.t('reminders.wrapUpLeft', { count: d.open }) : null,
+  ].filter(Boolean)
+  return {
+    title: i18n.t('reminders.wrapUpTitle'),
+    body: i18n.t('reminders.wrapUpToday', { parts: parts.join(i18n.t('reminders.sep')) }),
+    tag: 'chronograma-wrap-up',
+    url: WRAP_UP_URL,
+  }
+}
+
 export function morningMessage(tasks: readonly ReminderTask[], today: string): Shown {
   const d = morningDigest(tasks, today)
   const sep = i18n.t('reminders.sep')
@@ -195,6 +219,8 @@ export function checkLocalReminders(ctx: {
   onRecord: (taskId: string) => void
   /** 開始前・締切 1 件（Service Worker の無い通知を押したとき） */
   onOpenTask: (taskId: string, date: string) => void
+  /** 夜の締め（Service Worker の無い通知を押したとき） */
+  onWrapUp: () => void
 }) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return
   const now = zonedNow()
@@ -206,9 +232,19 @@ export function checkLocalReminders(ctx: {
   const keys = [...(state.keys ?? [])]
   const tasks = reminderCandidates(ctx.tasks, ctx.excludedListIds)
 
-  if (dailyDue(ctx.daily.planTime, state.morning, today, now.getHours() * 60 + now.getMinutes())) {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  if (dailyDue(ctx.daily.planTime, state.morning, today, nowMinutes)) {
     void show(morningMessage(tasks, today), ctx.onOpen)
     state.morning = today
+  }
+  if (dailyDue(ctx.daily.wrapUpTime, state.wrapUp, today, nowMinutes)) {
+    const plan = getDayPlan(ctx.tasks, today, ctx.excludedListIds)
+    // 記録が 0 の日は出さない（印も残さないので、時刻から 60 分の間に記録すれば出る）
+    if (wrapUpDue(ctx.daily.wrapUpTime, state.wrapUp, today, nowMinutes, plan.loggedMinutes)) {
+      const total = plan.done.length + plan.open.length
+      void show(wrapUpMessage({ done: plan.done.length, total, open: plan.open.length, loggedMinutes: plan.loggedMinutes }), ctx.onWrapUp)
+      state.wrapUp = today
+    }
   }
   for (const r of remindersInWindow(tasks, ctx.settings, from, nowWall)) {
     if (sent.has(r.key)) continue

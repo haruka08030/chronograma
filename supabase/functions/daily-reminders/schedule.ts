@@ -239,10 +239,48 @@ export function staleTimerDue(startedAt: string | null | undefined, nowMs: numbe
   return Number.isFinite(start) && nowMs - start >= STALE_TIMER_MS
 }
 
-/** 毎日 1 回の通知（朝のまとめ）を出すか。指定時刻から 60 分を過ぎたらその日は出さない */
+/** 毎日 1 回の通知（朝のまとめ・夜の締め）を出すか。指定時刻から 60 分を過ぎたらその日は出さない */
 export function dailyDue(time: string | null | undefined, lastSent: string | null | undefined, today: string, nowMinutes: number): boolean {
   const at = minutesOfClock(time)
   if (at == null || lastSent === today) return false
   const diff = nowMinutes - at
   return diff >= 0 && diff < 60
+}
+
+/**
+ * 夜の締めの通知（#299）を出すか。時刻は朝のまとめと同じく指定時刻から 60 分まで、1 日 1 回。
+ * その日の記録が 0 なら出さない（使っていない日に責めない。60 分の間に記録すれば出る）
+ */
+export function wrapUpDue(
+  time: string | null | undefined,
+  lastSent: string | null | undefined,
+  today: string,
+  nowMinutes: number,
+  loggedMinutes: number,
+): boolean {
+  return loggedMinutes > 0 && dailyDue(time, lastSent, today, nowMinutes)
+}
+
+/** 今（`now`）が、そのタイムゾーンの壁時計で何日の何分か（0 時からの分）。読めないタイムゾーンは UTC */
+export function localNow(timeZone: string, now: Date): { date: string; minutes: number } {
+  let tz = timeZone
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+  } catch {
+    tz = 'UTC'
+  }
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
+  )
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) }
 }

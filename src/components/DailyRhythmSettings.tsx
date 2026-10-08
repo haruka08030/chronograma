@@ -9,12 +9,14 @@ import { DEFAULT_BLOCK_OPTIONS } from '../lib/defaultBlock'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
+/** 夜の締めをオンにしたときの時刻 */
+const DEFAULT_WRAP_UP_TIME = '22:00'
 
 const selectClass = fieldClass({ size: 'sm' })
 
 /**
  * 設定「通知」: 放っておくと逃すことを、手を打てるときだけ知らせる。
- * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認（タイマーの止め忘れは常に）。
+ * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め（タイマーの止め忘れは常に）。
  * 1 日に計画する時間の目安・既定の予定の長さは通知ではないので別のまとまり（計画）。
  */
 export function DailyRhythmSettings() {
@@ -115,6 +117,25 @@ export function DailyRhythmSettings() {
             disabled={off}
             onChange={(on) => (on ? void turnOn(() => setRecordPrompts(true)) : setRecordPrompts(false))}
             label={t('settings.recordPrompts')}
+          />
+        </SettingsRow>
+        <SettingsRow label={t('settings.wrapUpReminder')}>
+          {dailyReminders.wrapUpTime && (
+            <input
+              type="time"
+              value={dailyReminders.wrapUpTime}
+              onChange={(e) => e.target.value && setDailyReminders({ wrapUpTime: e.target.value })}
+              aria-label={t('settings.wrapUpReminder')}
+              className={selectClass}
+            />
+          )}
+          <Switch
+            checked={Boolean(dailyReminders.wrapUpTime)}
+            disabled={off}
+            onChange={(on) =>
+              on ? void turnOn(() => setDailyReminders({ wrapUpTime: DEFAULT_WRAP_UP_TIME })) : setDailyReminders({ wrapUpTime: null })
+            }
+            label={t('settings.wrapUpReminder')}
           />
         </SettingsRow>
       </SettingsGroup>

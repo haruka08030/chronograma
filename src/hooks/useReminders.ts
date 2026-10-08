@@ -6,10 +6,10 @@ import { checkLocalReminders } from '../lib/localReminders'
 import { isWebPushActive, syncWebPush } from '../lib/webPush'
 import { unplannedListIds } from '../lib/listKind'
 import { subscribeAppClock } from '../lib/appClock'
-import { openTaskFromNotification } from '../lib/notificationLaunch'
+import { openTaskFromNotification, openWrapUpFromNotification } from '../lib/notificationLaunch'
 
 /**
- * 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・タイマーの止め忘れ）。
+ * 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め・タイマーの止め忘れ）。
  * ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す
  */
 export function useReminders() {
@@ -51,6 +51,7 @@ export function useReminders() {
         onOpen: () => useTaskStore.getState().selectView('planner'),
         onRecord: (taskId) => useTaskStore.getState().openRecordPrompt(taskId),
         onOpenTask: (taskId, date) => openTaskFromNotification(taskId, date),
+        onWrapUp: () => openWrapUpFromNotification(),
       })
     }
     tick()

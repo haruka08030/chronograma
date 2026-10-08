@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { consumeLaunch } from './pwa'
 
 function handlers() {
-  return { openView: vi.fn(), record: vi.fn(), add: vi.fn(), start: vi.fn(), openTask: vi.fn(), stopTimer: vi.fn() }
+  return { openView: vi.fn(), record: vi.fn(), add: vi.fn(), start: vi.fn(), openTask: vi.fn(), stopTimer: vi.fn(), wrapUp: vi.fn() }
 }
 
 afterEach(() => {

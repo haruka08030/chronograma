@@ -2,6 +2,7 @@
  * 通知を押して開いたときの動き（起動 URL・Service Worker のメッセージは `pwa.ts` が読む）。
  * - 開始前・締切 1 件: その To-Do・予定の詳細と、その日の今日の計画を開く
  * - 止め忘れの「止める」: そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）
+ * - 夜の締め: 今日の計画の「1 日を締める」の所を見せる
  */
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -113,4 +114,34 @@ export function stopTimerFromNotification(startedAt: string | null, waitMs = TIM
   }
   const off = onActiveTimerSynced(settle)
   const timer = setTimeout(settle, waitMs)
+}
+
+/** 夜の締めの通知から開いた印（今日の計画がまだ描かれていなければ、描いたときに受け取る） */
+let wrapUpPending = false
+const wrapUpListeners = new Set<() => void>()
+
+/**
+ * 夜の締めの通知（#299）を押したとき: 今日の計画（今日）を開き、「1 日を締める」の所を見せる。
+ * 今日の計画が描かれていれば `onWrapUpRequest` の関数をすぐ呼び、まだなら描いたときに呼ぶ
+ */
+export function openWrapUpFromNotification() {
+  const s = useTaskStore.getState()
+  s.selectView('planner')
+  s.setSelectedCalendarDateKey(appTodayKey())
+  wrapUpPending = true
+  for (const fn of [...wrapUpListeners]) fn()
+}
+
+/** 「1 日を締める」を見せる頼みを受け取る（今日の計画）。前に来ていた頼みもここで受け取る。戻り値で受け取りをやめる */
+export function onWrapUpRequest(fn: () => void): () => void {
+  const listener = () => {
+    if (!wrapUpPending) return
+    wrapUpPending = false
+    fn()
+  }
+  wrapUpListeners.add(listener)
+  listener()
+  return () => {
+    wrapUpListeners.delete(listener)
+  }
 }

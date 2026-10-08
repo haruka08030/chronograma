@@ -7,6 +7,8 @@ import { getDayPlan } from '../lib/dayPlan'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
+import { onWrapUpRequest } from '../lib/notificationLaunch'
+import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
@@ -37,7 +39,7 @@ import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
 
-/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
+/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
 /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
@@ -77,6 +79,17 @@ export function TodayPlannerView() {
   const [showLeftOver, setShowLeftOver] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
+  /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
+  const [wrapUpFocus, setWrapUpFocus] = useState(0)
+  useEffect(
+    () =>
+      onWrapUpRequest(() => {
+        setMobilePane('list')
+        setWrapUpFocus((n) => n + 1)
+      }),
+    [],
+  )
+  const wrapUpTime = useTaskStore((s) => s.dailyReminders.wrapUpTime ?? null)
 
   const date = fromDateKey(dateKey)
   const viewingToday = isAppToday(date)
@@ -207,7 +220,11 @@ export function TodayPlannerView() {
   })()
 
   const totalCount = open.length + done.length
-  const showWrapUp = viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
+  const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
+  const showWrapUp =
+    viewingToday &&
+    (wrapUpFocus > 0 ||
+      (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)))
 
   // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
@@ -306,6 +323,7 @@ export function TodayPlannerView() {
 
         <PlannerWrapUp
           showWrapUp={showWrapUp}
+          focusKey={wrapUpFocus}
           open={open}
           untaggedLogs={untaggedLogs}
           totalCount={totalCount}

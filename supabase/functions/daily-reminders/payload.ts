@@ -1,5 +1,6 @@
 // 通知の文面と中身（Web Push で送る JSON）。index.ts（Deno）から使い、vitest でも確かめる
 import { dayWallMs, type FiredReminder } from './schedule.ts'
+import type { WrapUpDigest } from './wrapUp.ts'
 
 export const MESSAGES = {
   ja: {
@@ -23,6 +24,12 @@ export const MESSAGES = {
     timerTitle: 'タイマーが動いたままです',
     timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
     stopTimer: '止める',
+    wrapUpTitle: '1 日を締める',
+    wrapUpToday: (parts: string) => `今日: ${parts}`,
+    wrapUpDone: (done: number, total: number) => `予定 ${total} 件中 ${done} 件完了`,
+    wrapUpLogged: (time: string) => `記録 ${time}`,
+    wrapUpLeft: (n: number) => `残り ${n} 件`,
+    duration: (h: number, m: number) => (h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`),
   },
   en: {
     morningTitle: 'Today at a glance',
@@ -45,6 +52,12 @@ export const MESSAGES = {
     timerTitle: 'Your timer is still running',
     timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
     stopTimer: 'Stop',
+    wrapUpTitle: 'Wrap up the day',
+    wrapUpToday: (parts: string) => `Today: ${parts}`,
+    wrapUpDone: (done: number, total: number) => `${done} of ${total} done`,
+    wrapUpLogged: (time: string) => `${time} logged`,
+    wrapUpLeft: (n: number) => `${n} left`,
+    duration: (h: number, m: number) => (h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`),
   },
 } as const
 export type Msg = (typeof MESSAGES)['ja'] | (typeof MESSAGES)['en']
@@ -122,5 +135,26 @@ export function timerPayload(msg: Msg, title: string, startedAt: string): Payloa
     url: '/?view=planner',
     timerStartedAt: startedAt,
     actions: [{ action: 'stop-timer', title: msg.stopTimer }],
+  }
+}
+
+/** 夜の締めの通知を押したときに開く URL。今日の計画の「1 日を締める」へ */
+export const WRAP_UP_URL = '/?view=planner&wrap-up=1'
+
+/**
+ * 夜の締め（#299）。数字だけを並べる（責める言葉は入れない）: 「今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件」。
+ * To-Do が無い日は予定の部分を、残りが無ければ残りを出さない。記録が 0 の日は送らない（呼び出し側で `wrapUpDue`）
+ */
+export function wrapUpPayload(msg: Msg, d: WrapUpDigest): Payload {
+  const parts = [
+    d.total > 0 ? msg.wrapUpDone(d.done, d.total) : null,
+    msg.wrapUpLogged(msg.duration(Math.floor(d.loggedMinutes / 60), d.loggedMinutes % 60)),
+    d.open > 0 ? msg.wrapUpLeft(d.open) : null,
+  ].filter(Boolean)
+  return {
+    title: msg.wrapUpTitle,
+    body: msg.wrapUpToday(parts.join(msg.sep)),
+    tag: 'chronograma-wrap-up',
+    url: WRAP_UP_URL,
   }
 }

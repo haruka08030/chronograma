@@ -75,7 +75,13 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
   if (!reg) return
 
   const wantsAny = Boolean(
-    reminders.planTime || eventReminderMinutes != null || dueReminders || recordPrompts || hasTaskReminders || activeTimer,
+    reminders.planTime ||
+    reminders.wrapUpTime ||
+    eventReminderMinutes != null ||
+    dueReminders ||
+    recordPrompts ||
+    hasTaskReminders ||
+    activeTimer,
   )
   let sub = await reg.pushManager.getSubscription()
 
@@ -111,7 +117,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
     timezone: appTimeZone(),
     lang: lang.startsWith('ja') ? 'ja' : 'en',
     plan_time: reminders.planTime,
-    wrap_up_time: null,
+    wrap_up_time: reminders.wrapUpTime ?? null,
     event_reminder_minutes: eventReminderMinutes,
     due_reminders: dueReminders,
     updated_at: new Date().toISOString(),

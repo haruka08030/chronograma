@@ -1,5 +1,5 @@
 // Sends Web Push reminders: morning summary, before plans, before deadlines, record prompts after plans,
-// and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
+// the evening wrap-up with the day's numbers, and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET
@@ -10,12 +10,15 @@ import {
   CRON_INTERVAL_MINUTES,
   dailyDue,
   dayWallMs,
+  localNow,
   morningDigest,
   remindersInWindow,
   staleTimerDue,
+  wrapUpDue,
   type ReminderTask,
 } from './schedule.ts'
-import { MESSAGES, reminderPayload, timerPayload, type Msg, type Payload } from './payload.ts'
+import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
+import { wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import {
   fetchAllPages,
@@ -39,6 +42,9 @@ type Sub = {
   lang: string
   plan_time: string | null
   last_plan_sent: string | null
+  /** 夜の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回） */
+  wrap_up_time?: string | null
+  last_wrap_up_sent?: string | null
   event_reminder_minutes?: number | null
   due_reminders?: boolean | null
   record_prompts?: boolean | null
@@ -54,29 +60,6 @@ const MAX_SENT_KEYS = 300
 const USER_CONCURRENCY = 10
 /** 1 通の送信を待つ上限。応答しないプッシュサービスで枠を塞がない */
 const SEND_TIMEOUT_MS = 10_000
-
-function localNow(timeZone: string, now: Date): { date: string; minutes: number } {
-  let tz = timeZone
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz })
-  } catch {
-    tz = 'UTC'
-  }
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(now)
-      .map((p) => [p.type, p.value]),
-  )
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) }
-}
 
 /** 秘密の値を比べる。かかる時間から一致した長さが分からないよう、両方のハッシュを全バイト比べる */
 async function secretEquals(given: string, expected: string): Promise<boolean> {
@@ -152,7 +135,7 @@ Deno.serve(async (req) => {
         .from('push_subscriptions')
         .select('*')
         .or(
-          'plan_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null',
+          'plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null',
         )
         .order('endpoint')
         .range(from, to)
@@ -165,11 +148,8 @@ Deno.serve(async (req) => {
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
-  /**
-   * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
-   * 1 回に返るのは 1000 行まで。主キー（id）の順にページを読み切る
-   */
-  const openTasks = async (userId: string): Promise<ReminderTask[]> => {
+  /** いつか / チェックリストのリスト（予定・締切・その日の数字に入れない） */
+  const excludedLists = async (userId: string): Promise<Set<string>> => {
     const unplanned = await fetchAllPages(async (from, to) => {
       const { data, error } = await admin
         .from('lists')
@@ -181,7 +161,14 @@ Deno.serve(async (req) => {
       if (error) throw new Error(error.message)
       return (data ?? []) as { id: string }[]
     })
-    const excluded = new Set(unplanned.map((l) => l.id))
+    return new Set(unplanned.map((l) => l.id))
+  }
+
+  /**
+   * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
+   * 1 回に返るのは 1000 行まで。主キー（id）の順にページを読み切る
+   */
+  const openTasks = async (userId: string, excluded: ReadonlySet<string>): Promise<ReminderTask[]> => {
     // 読めなかったら送らない（空のまとめを送って last_plan_sent を進めない。次の回にやり直す）
     const rows = await fetchAllPages(async (from, to) => {
       const { data, error } = await admin
@@ -202,6 +189,29 @@ Deno.serve(async (req) => {
     return rows.filter((t) => !excluded.has(t.list_id))
   }
 
+  /**
+   * 夜の締めの数字（その日の To-Do・完了・記録）。アプリの今日の計画と同じ数え方（`wrapUp.ts`）。
+   * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む。読めなかったら送らない（次の回にやり直す）
+   */
+  const dayDigest = async (userId: string, today: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
+    const rows = await fetchAllPages(async (from, to) => {
+      const { data, error } = await admin
+        .from('tasks')
+        .select(
+          'id,list_id,parent_id,is_time_log,is_sleep,is_event,completed,completed_at,updated_at,scheduled_date,due_date,start_time,end_time,end_date',
+        )
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .is('archived_at', null)
+        .or(wrapUpRowFilter(today))
+        .order('id')
+        .range(from, to)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as WrapUpRow[]
+    })
+    return wrapUpDigest(rows, today, timeZone, excluded)
+  }
+
   let sent = 0
   let removed = 0
   let failed = 0
@@ -214,8 +224,14 @@ Deno.serve(async (req) => {
 
   const needsTasks = (sub: Sub) => Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
 
+  /** 夜の締めの時刻に入っているか（記録の数は見ない。数字を読むかどうかを決める） */
+  const wrapUpWindow = (sub: Sub) => {
+    const local = localNow(sub.timezone, now)
+    return dailyDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes)
+  }
+
   /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
-  const processSub = async (sub: Sub, tasks: ReminderTask[]) => {
+  const processSub = async (sub: Sub, tasks: ReminderTask[], digestOf: (sub: Sub) => Promise<WrapUpDigest | null>) => {
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
     const nowWall = (dayWallMs(local.date) ?? 0) + local.minutes * 60_000
@@ -239,6 +255,13 @@ Deno.serve(async (req) => {
         },
         patch: { last_plan_sent: local.date },
       })
+    }
+
+    if (wrapUpWindow(sub)) {
+      const d = await digestOf(sub)
+      if (d && wrapUpDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes, d.loggedMinutes)) {
+        jobs.push({ payload: wrapUpPayload(msg, d), patch: { last_wrap_up_sent: local.date } })
+      }
     }
 
     const fired = remindersInWindow(
@@ -316,8 +339,29 @@ Deno.serve(async (req) => {
       else await removeSub(sub.endpoint)
     }
     if (valid.length === 0) return
-    const tasks = valid.some(needsTasks) ? await openTasks(valid[0].user_id) : []
-    const results = await Promise.allSettled(valid.map((sub) => processSub(sub, tasks)))
+    const userId = valid[0].user_id
+    const wantsDigest = valid.some(wrapUpWindow)
+    const excluded = valid.some(needsTasks) || wantsDigest ? await excludedLists(userId) : new Set<string>()
+    const tasks = valid.some(needsTasks) ? await openTasks(userId, excluded) : []
+    // 夜の締めの数字は、日（端末のタイムゾーン）ごとに 1 回だけ読む
+    // 読めなかったら夜の締めだけを送らない（ほかの通知は送る。印を残さないので次の回にやり直す）
+    const digests = new Map<string, Promise<WrapUpDigest | null>>()
+    const digestOf = (sub: Sub): Promise<WrapUpDigest | null> => {
+      const date = localNow(sub.timezone, now).date
+      const key = `${date}|${sub.timezone}`
+      if (!digests.has(key)) {
+        digests.set(
+          key,
+          dayDigest(userId, date, sub.timezone, excluded).catch((err) => {
+            failed++
+            console.error('[daily-reminders] load wrap-up numbers failed', err)
+            return null
+          }),
+        )
+      }
+      return digests.get(key)!
+    }
+    const results = await Promise.allSettled(valid.map((sub) => processSub(sub, tasks, digestOf)))
     for (const r of results) {
       if (r.status === 'rejected') {
         failed++
