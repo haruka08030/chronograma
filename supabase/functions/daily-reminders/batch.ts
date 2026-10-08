@@ -1,6 +1,6 @@
 /**
  * 通知の一斉送信で使う、DB や Web Push に依存しない部品。
- * - 購読を 1000 行ずつ（PostgREST の上限）読み切る
+ * - 購読・タスクを 1000 行ずつ（PostgREST の上限）キーの順に読み切る
  * - 利用者ごとの処理を決まった数だけ同時に走らせる（1 人の失敗でほかを止めない）
  * - 1 つの購読への送信を並べて送り、成功したものと失効したかをまとめる
  * - 1 回の実行の応答の status を決める
@@ -11,16 +11,41 @@
 export const PAGE_SIZE = 1000
 
 /**
- * `fetchPage(from, to)`（両端を含む行番号）を、短いページが返るまで呼んで全部つなげる。
- * 並びは呼ぶ側で安定したキーにしておく（ページの境目で行が重なったり抜けたりしないように）
+ * キーの順に、前のページの最後のキーより後ろを読み切る（keyset）。offset で読むと、読んでいる間に前の行が消えたとき
+ * 1 行飛ばす（#206）。`fetchPage(after, limit)` は `after` より後ろのキーの行をキーの昇順で `limit` 行まで返す
+ * （`after` が null なら先頭から）。短いページが返ったら終わり
  */
-export async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise<T[]>, pageSize = PAGE_SIZE): Promise<T[]> {
+export async function fetchAllAfter<T, K>(
+  fetchPage: (after: K | null, limit: number) => Promise<T[]>,
+  keyOf: (row: T) => K,
+  pageSize = PAGE_SIZE,
+): Promise<T[]> {
   const out: T[] = []
-  for (let from = 0; ; from += pageSize) {
-    const page = await fetchPage(from, from + pageSize - 1)
+  let after: K | null = null
+  for (;;) {
+    const page = await fetchPage(after, pageSize)
     out.push(...page)
     if (page.length < pageSize) return out
+    after = keyOf(page[page.length - 1])
   }
+}
+
+/** PostgREST の `or=(…)` の中に置く値。区切り（`,` `(` `)` `.` `:`）や引用符を含む id もそのまま比べられるよう、引用符で囲む */
+export function quoteFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/** 2 つの列 (a, b) の並びで (afterA, afterB) より後ろの行の条件（PostgREST の `or` の中身） */
+export function afterPairFilter(a: string, b: string, after: readonly [string, string]): string {
+  const [x, y] = after.map(quoteFilterValue)
+  return `${a}.gt.${x},and(${a}.eq.${x},${b}.gt.${y})`
+}
+
+/** `size` 個ずつに分ける（URL の長さを抑えるため、`in` に並べる値を分ける） */
+export function chunks<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
 }
 
 /**

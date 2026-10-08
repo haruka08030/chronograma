@@ -29,6 +29,7 @@
 | [`023_app_versions_seen.sql`](023_app_versions_seen.sql) | どの版のアプリがまだ同期しているか `app_versions_seen`（主キー `(user_id, app_version, sync_protocol_version)`・`first_seen` / `last_seen`。大きさの上限 `app_versions_seen_shape_check`）。書くのは `note_app_version(版, 取り決めの版)`（SECURITY DEFINER、`authenticated` だけ実行できる。本人の行を upsert し `last_seen` をサーバーの時刻にする。1 人 `last_seen` の新しい 20 行まで）。RLS あり・ポリシーなし、`anon` / `authenticated` の表の権限は外す（読むのは service_role。数える SQL は [`../metrics/versions.sql`](../metrics/versions.sql)） |
 | [`024_course_links.sql`](024_course_links.sql) | 授業の予定と LMS の科目のつながり `user_course_links`（利用者ごとに 1 行。`links` は `{ title, course }` の並び、`course` が空なら「つながない」。RLS は本人だけ、大きさの上限 `user_course_links_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 | [`025_day_moods.sql`](025_day_moods.sql) | 1 日の気分とひとこと `day_moods`（利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、`note` は 500 字まで、`day` は 2000〜2100 年。RLS は本人だけ）。書き込みはトリガー `day_mood_write_guard`（`017` の `sync_write_guard` と同じ確かめを `(user_id, day)` で）。行は消さない（外すのは null / '' の更新）。索引 `(user_id, updated_at)`、行数の上限 40,000（`006` の `enforce_row_limit`） |
+| [`026_reminder_open_tasks_index.sql`](026_reminder_open_tasks_index.sql) | 通知の送信（`daily-reminders`）が読む未完了のタスクの部分索引 `tasks_reminder_open_idx`（`(user_id, id)`、`completed is false and is_time_log is false and parent_id is null and deleted_at is null and archived_at is null and (scheduled_date is not null or due_date is not null)`）。関数の問い合わせと同じ形の条件（`is false`）で、完了・削除・記録の行をなめずに読む |
 
 テーブル（最新の形）:
 

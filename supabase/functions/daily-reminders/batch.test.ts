@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  afterPairFilter,
   CATCHUP_MAX_MINUTES,
-  fetchAllPages,
+  chunks,
+  fetchAllAfter,
   groupBy,
   isGoneStatus,
   PAGE_SIZE,
+  quoteFilterValue,
   runFinishPatch,
   runPool,
   runStatsPatch,
@@ -16,40 +19,76 @@ import { CRON_INTERVAL_MINUTES, remindersInWindow, wallMs, type ReminderTask } f
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-describe('fetchAllPages', () => {
-  it('1000 行を超える購読もページをまたいで全部読む', async () => {
-    const rows = Array.from({ length: 2345 }, (_, i) => i)
-    const calls: [number, number][] = []
-    const all = await fetchAllPages(async (from, to) => {
-      calls.push([from, to])
-      return rows.slice(from, to + 1)
-    })
-    expect(all).toEqual(rows)
-    expect(calls).toEqual([
-      [0, PAGE_SIZE - 1],
-      [PAGE_SIZE, 2 * PAGE_SIZE - 1],
-      [2 * PAGE_SIZE, 3 * PAGE_SIZE - 1],
-    ])
+/** キーの順に並んだ行を、`after` より後ろから `limit` 行返す（PostgREST の gt + order + limit と同じ） */
+function keysetTable(rows: string[]) {
+  const calls: (string | null)[] = []
+  const page = async (after: string | null, limit: number) => {
+    calls.push(after)
+    return rows.filter((r) => after === null || r > after).slice(0, limit)
+  }
+  return { page, calls }
+}
+
+describe('fetchAllAfter', () => {
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `t${String(i).padStart(5, '0')}`)
+
+  it('1000 行を超えても、前のページの最後のキーの続きから全部読む', async () => {
+    const rows = ids(2345)
+    const { page, calls } = keysetTable(rows)
+    expect(await fetchAllAfter(page, (r) => r)).toEqual(rows)
+    expect(calls).toEqual([null, rows[PAGE_SIZE - 1], rows[2 * PAGE_SIZE - 1]])
   })
 
   it('ちょうどページの大きさの倍数なら、空のページを読んで終わる', async () => {
-    const rows = Array.from({ length: 6 }, (_, i) => i)
-    let calls = 0
-    const all = await fetchAllPages(async (from, to) => {
-      calls++
-      return rows.slice(from, to + 1)
-    }, 3)
-    expect(all).toEqual(rows)
-    expect(calls).toBe(3)
+    const { page, calls } = keysetTable(ids(6))
+    expect(await fetchAllAfter(page, (r) => r, 3)).toEqual(ids(6))
+    expect(calls).toHaveLength(3)
+  })
+
+  it('読んでいる間に前のページの行が消えても、行を飛ばさない（offset で読むと 1 行飛ぶ）', async () => {
+    const rows = ids(7)
+    const all = await fetchAllAfter(
+      async (after: string | null, limit) => {
+        const out = rows.filter((r) => after === null || r > after).slice(0, limit)
+        // 1 ページ目を読んだあとで、その中の行が消える
+        if (after === null) rows.splice(0, 1)
+        return out
+      },
+      (r) => r,
+      3,
+    )
+    expect(all).toEqual(ids(7))
   })
 
   it('ページの読み込みに失敗したら途中で止めて投げる', async () => {
     await expect(
-      fetchAllPages(async (from) => {
-        if (from > 0) throw new Error('db down')
-        return [1, 2, 3]
-      }, 3),
+      fetchAllAfter(
+        async (after) => {
+          if (after !== null) throw new Error('db down')
+          return ['a', 'b', 'c']
+        },
+        (r) => r,
+        3,
+      ),
     ).rejects.toThrow('db down')
+  })
+})
+
+describe('afterPairFilter / quoteFilterValue', () => {
+  it('(a, b) の並びの続きの条件にする', () => {
+    expect(afterPairFilter('user_id', 'id', ['u1', 'l9'])).toBe('user_id.gt."u1",and(user_id.eq."u1",id.gt."l9")')
+  })
+
+  it('区切りや引用符を含む id も引用符で囲んでそのまま比べる', () => {
+    expect(quoteFilterValue('a,b(c).d')).toBe('"a,b(c).d"')
+    expect(quoteFilterValue('say "hi" \\ bye')).toBe('"say \\"hi\\" \\\\ bye"')
+  })
+})
+
+describe('chunks', () => {
+  it('決まった数ずつに分ける', () => {
+    expect(chunks([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
+    expect(chunks([], 100)).toEqual([])
   })
 })
 
