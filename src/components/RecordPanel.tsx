@@ -24,6 +24,7 @@ import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
+import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -212,6 +213,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             autoFocus={!coarse}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            maxLength={TITLE_MAX_LENGTH}
             onKeyDown={onEnter}
             placeholder={mode === 'timer' ? t('quickLog.titlePlaceholder') : t('records.laterPlaceholder')}
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"

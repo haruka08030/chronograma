@@ -64,11 +64,13 @@ function parseOr(text: string): (r: Row) => boolean {
 
 /**
  * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）、
- * 消すと `008` の印、同じ id が入り直すと印を消す。`noTombstones` は `008` を流す前の DB。
- * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`）は `007` の settings_write_guard
+ * 消すと `008` の印、同じ id が入り直すと印を消す。
+ * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`）は `007` の settings_write_guard。
+ * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）
  */
-export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
+export function fakeDb(opts: { maxRows?: number } = {}) {
   const maxRows = opts.maxRows ?? 1000
+  const missing = new Set<string>()
   const tables: Record<string, Row[]> = { lists: [], list_sections: [], tasks: [], habits: [], sync_tombstones: [] }
   let clock = micros('2026-10-03T00:00:00.000000+00:00')
   /** サーバーの now()（呼ぶたびに 1 マイクロ秒進む。文の中では同じ） */
@@ -147,9 +149,9 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
   /** 送信（upsert）を受ける直前に呼ぶ。テストで「取得した後に他の端末が変えた」を挟む */
   const hooks: { beforeUpsert?: (table: string) => void } = {}
   const client = {
-    /** `008` の sync_server_now()（前の DB には無い） */
+    /** `008` の sync_server_now() */
     rpc: async (name: string) => {
-      if (name !== 'sync_server_now' || opts.noTombstones) {
+      if (name !== 'sync_server_now' || missing.has(name)) {
         return {
           data: null,
           error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` },
@@ -167,11 +169,11 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
           let next = false
           const run = async (from: number, to: number) => {
             if (from === 0 && !next) selects.push({ table, since })
-            if (table === 'sync_tombstones' && opts.noTombstones) {
+            if (missing.has(table)) {
               return {
                 data: null,
                 count: null,
-                error: { code: 'PGRST205', message: "Could not find the table 'public.sync_tombstones' in the schema cache" },
+                error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` },
               }
             }
             const rows = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
@@ -246,6 +248,8 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
     downloaded,
     selects,
     hooks,
+    /** 読めなくする表・関数の名前 */
+    missing,
     /** 表を全部取った回数（差分ではなく） */
     fullFetches: () => selects.filter((x) => x.table === 'lists' && !x.since).length,
     /** サーバーの時計を進める */

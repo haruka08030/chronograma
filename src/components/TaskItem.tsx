@@ -34,6 +34,7 @@ import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { colorVars } from '../lib/logCategoryColors'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -416,6 +417,7 @@ export const TaskItem = memo(function TaskItem({
               aria-label={t('taskDetail.titleEditAria')}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
+              maxLength={TITLE_MAX_LENGTH}
               {...titleEntryWithSibling}
               onClick={(e) => e.stopPropagation()}
               // 下線と余白（3px）は負のマージンで行の高さに数えない。押して編集に入っても行が動かない

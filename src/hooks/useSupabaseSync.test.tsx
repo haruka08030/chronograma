@@ -182,6 +182,33 @@ describe('useSupabaseSync', () => {
     expect(serverTitles('u1')).toEqual(['keep'])
   })
 
+  it('上限で消した印の表が読めなければ、差分のまま進めずに同期の失敗として出し、読めるようになったら消えた行を外す（#355）', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('a', { title: 'keep' }), taskRow('b', { title: 'gone elsewhere' }))
+    signIn('u1')
+    await untilSynced()
+    const { reportSyncError } = await import('../lib/errorReport')
+    vi.mocked(reportSyncError).mockClear()
+
+    await db.client.from('tasks').delete().eq('user_id', 'u1').in('id', ['b'])
+    db.missing.add('sync_tombstone_purges')
+    window.dispatchEvent(new Event('online'))
+    for (let i = 0; i < 200 && useTaskStore.getState().syncState !== 'error'; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+    }
+
+    expect(useTaskStore.getState().syncState).toBe('error')
+    expect(reportSyncError).toHaveBeenCalledWith('pull', expect.stringContaining('sync_tombstone_purges'))
+    expect(storeTitles()).toEqual(['gone elsewhere', 'keep'])
+
+    db.missing.delete('sync_tombstone_purges')
+    window.dispatchEvent(new Event('online'))
+    await untilSynced()
+    expect(storeTitles()).toEqual(['keep'])
+  })
+
   it('編集は待ち時間の後に送る。取得の後に他の端末が変えて断られたら、次は全部を取り直して合わせる', async () => {
     db.tables.lists!.push({ ...inboxRow })
     db.tables.tasks!.push(taskRow('a', { title: 'a' }), taskRow('b', { title: 'b' }))

@@ -6,6 +6,7 @@ import { useTextAreaEntry } from '../../hooks/useTextEntry'
 import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
 import { LinkifiedText } from '../ui/LinkifiedText'
 import { fieldClass } from '../ui/fieldClass'
+import { DESCRIPTION_MAX_LENGTH } from '../../lib/textLimits'
 
 /** タスク詳細のメモ。押すと書ける欄になり、打つたびに保存する。リンクは押せる */
 export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
@@ -32,6 +33,7 @@ export function TaskMemoField({ task, isLog }: { task: Task; isLog: boolean }) {
           ref={memoTextareaRef}
           value={task.description}
           onChange={(e) => updateTask(task.id, { description: e.target.value })}
+          maxLength={DESCRIPTION_MAX_LENGTH}
           {...memoEntry}
           placeholder={isLog ? t('taskDetail.memoPlaceholderLog') : t('taskDetail.memoPlaceholderTask')}
           rows={isLog ? 4 : 2}

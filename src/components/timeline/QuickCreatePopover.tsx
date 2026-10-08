@@ -22,6 +22,7 @@ import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { endKeepingLength, toMinutes } from '../../lib/clockTime'
 import { CardTimeRange } from './CardTimeRange'
+import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -184,6 +185,7 @@ export function QuickCreatePopover({
         ref={inputRef}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        maxLength={TITLE_MAX_LENGTH}
         onKeyDown={(e) => {
           if (isSubmitEnter(e)) {
             e.preventDefault()

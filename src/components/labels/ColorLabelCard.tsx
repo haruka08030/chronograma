@@ -14,6 +14,7 @@ import { ColorSwatches } from '../ui/ColorSwatches'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { TrashIcon } from '../icons'
 import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
+import { CATEGORY_MAX_LENGTH } from '../../lib/textLimits'
 
 const WIDTH = 232
 
@@ -74,6 +75,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
         autoFocus={!sheet}
         value={name}
         onChange={(e) => setName(e.target.value)}
+        maxLength={CATEGORY_MAX_LENGTH}
         {...entry}
         aria-label={t('labels.name')}
         placeholder={t('labels.placeholder')}

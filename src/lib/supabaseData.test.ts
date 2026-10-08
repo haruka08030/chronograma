@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
+import { fetchChangesSince, fetchListsTasksHabits, fetchServerNow, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import type { Habit } from '../types/habit'
@@ -14,6 +14,7 @@ import {
   type SyncBaseline,
   type SyncSnapshot,
 } from './syncMerge'
+import { fakeDb } from '../test/fakeSupabaseDb'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
@@ -383,6 +384,33 @@ describe('pushListsTasksHabits', () => {
       { lists: [], tasks: [], habits: [], sections: [] },
     )
     expect(deletes.map((d) => d.ids.length)).toEqual([100, 100, 50])
+  })
+
+  it('sends titles, memos, places and names as they are (no silent truncation; the server rejects rows over its limits) (#355)', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const long = (n: number) => 'あ'.repeat(n)
+    const [t] = fetchedTasks(['long'])
+    const local = [{ ...t!, title: long(2001), description: long(200_001), location: long(2001) }]
+    const habit: Habit = {
+      id: 'h1',
+      title: long(2001),
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      completedDates: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      archivedAt: null,
+    }
+    const section = { id: 's1', listId: '__inbox__', name: long(501), order: 0 }
+    await pushListsTasksHabits(client, 'u1', [{ ...inbox, name: long(501) }], local, [habit], [section], noDeletes)
+    const sent = (table: string) => upserts.find((u) => u.table === table)!.rows[0]!
+    expect((sent('lists').name as string).length).toBe(501)
+    expect((sent('list_sections').name as string).length).toBe(501)
+    expect((sent('habits').title as string).length).toBe(2001)
+    expect(sent('tasks')).toMatchObject({ title: long(2001), description: long(200_001), location: long(2001) })
   })
 
   it('sends the other rows when the server rejects one, and reports the rejected one', async () => {
@@ -822,4 +850,21 @@ describe('two devices editing the same task (#77)', () => {
     expect(stored(tables)).toMatchObject({ title: 'edited' })
     expect(phone.local.tasks.map((t) => t.title)).toEqual(['edited'])
   })
+})
+
+describe('reading the server time and changes (#355)', () => {
+  it('reports a missing sync_server_now as an error (no fallback to a full fetch)', async () => {
+    const db = fakeDb()
+    db.missing.add('sync_server_now')
+    expect(await fetchServerNow(db.client)).toEqual({ error: expect.stringContaining('sync_server_now') })
+  })
+
+  for (const table of ['sync_tombstones', 'sync_tombstone_purges']) {
+    it(`reports an unreadable ${table} as an error instead of treating it as empty`, async () => {
+      const db = fakeDb()
+      db.missing.add(table)
+      const res = await fetchChangesSince(db.client, 'u1', '2026-01-01T00:00:00.000000+00:00')
+      expect(res).toEqual({ error: expect.stringContaining(table) })
+    })
+  }
 })
