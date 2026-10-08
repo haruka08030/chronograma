@@ -139,3 +139,119 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
     expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['他端末', '手元'])
   })
 })
+
+describe('ラベルの週の目安の同期（#291）', () => {
+  const S1 = '2026-10-01T00:00:00.123456+00:00'
+  const S2 = '2026-10-01T00:05:00.654321+00:00'
+  const L1 = '2026-10-01T00:03:00.000Z'
+
+  it('目安のある行だけ weeklyTargetMinutes を足して送る（目安の無い行は前の版と同じ形）', () => {
+    const plan = planLabelSync(
+      { presets: ['勉強', 'バイト'], colors: { 勉強: 'sage', バイト: 'peacock' }, targets: { 勉強: 900 }, updatedAt: T1 },
+      null,
+      NOW,
+    )
+    expect(plan.push?.labels).toEqual([
+      { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
+      { name: 'バイト', color: 'peacock' },
+    ])
+  })
+
+  it('送った行を別の端末で読むと目安も届き、サーバーで外されていれば手元も外れる', () => {
+    const pushed = planLabelSync(
+      { presets: ['勉強', 'ES'], colors: { 勉強: 'sage', ES: 'tomato' }, targets: { 勉強: 900, ES: 300 }, updatedAt: T1 },
+      null,
+      NOW,
+    ).push!
+    // jsonb を通しても形が変わらない
+    const remote = { labels: JSON.parse(JSON.stringify(pushed.labels)), updatedAt: T2 }
+    const b = planLabelSync({ presets: ['勉強', 'ES'], colors: { 勉強: 'sage', ES: 'tomato' }, updatedAt: T1, syncedAt: T1 }, remote, NOW)
+    expect(b.apply).toEqual({
+      presets: ['勉強', 'ES'],
+      colors: { 勉強: 'sage', ES: 'tomato' },
+      targets: { 勉強: 900, ES: 300 },
+      updatedAt: T2,
+    })
+    // 目安だけ違っても「同じ中身」にはしない（サーバーで外されたら手元も外れる）
+    const cleared = planLabelSync(
+      { presets: ['勉強'], colors: { 勉強: 'sage' }, targets: { 勉強: 900 }, updatedAt: S1, syncedAt: S1 },
+      { labels: [{ name: '勉強', color: 'sage' }], updatedAt: S2 },
+      NOW,
+    )
+    expect(cleared.apply).toEqual({ presets: ['勉強'], colors: { 勉強: 'sage' }, updatedAt: S2 })
+  })
+
+  it('2 台で別々に変えても、名前ごとの合わせで目安は残る（同じ名前は新しいほう、外したのも新しいほう）', () => {
+    // 手元: 勉強に 15 時間を付け、ES の目安を外した。サーバー（もう 1 台）: ゼミを足して 3 時間、ES は 5 時間のまま
+    const plan = planLabelSync(
+      { presets: ['勉強', 'ES'], colors: { 勉強: 'sage', ES: 'tomato' }, targets: { 勉強: 900 }, updatedAt: L1, syncedAt: S1 },
+      {
+        labels: [
+          { name: '勉強', color: 'sage' },
+          { name: 'ES', color: 'tomato', weeklyTargetMinutes: 300 },
+          { name: 'ゼミ', color: 'grape', weeklyTargetMinutes: 180 },
+        ],
+        updatedAt: S2,
+      },
+      NOW,
+      // 手元の編集のほうが新しい
+      Date.parse(S2) - Date.parse(L1) + 60_000,
+    )
+    expect(plan.apply?.presets).toEqual(['勉強', 'ES', 'ゼミ'])
+    expect(plan.apply?.targets).toEqual({ 勉強: 900, ゼミ: 180 })
+    expect(plan.push?.labels).toEqual([
+      { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
+      { name: 'ES', color: 'tomato' },
+      { name: 'ゼミ', color: 'grape', weeklyTargetMinutes: 180 },
+    ])
+    expect(plan.push?.base).toBe(S2)
+  })
+
+  it('2 台で変えてサーバーのほうが新しければ、同じ名前の目安はサーバー、手元にしか無いラベルの目安は残す', () => {
+    const plan = planLabelSync(
+      {
+        presets: ['勉強', '読書'],
+        colors: { 勉強: 'sage', 読書: 'basil' },
+        targets: { 勉強: 600, 読書: 120 },
+        updatedAt: L1,
+        syncedAt: S1,
+      },
+      { labels: [{ name: '勉強', color: 'sage', weeklyTargetMinutes: 900 }], updatedAt: S2 },
+      NOW,
+    )
+    expect(plan.apply?.presets).toEqual(['勉強', '読書'])
+    expect(plan.apply?.targets).toEqual({ 勉強: 900, 読書: 120 })
+    expect(plan.push?.labels.find((l) => l.name === '読書')).toMatchObject({ weeklyTargetMinutes: 120 })
+  })
+
+  it('この端末で初めてなら、どちらかに付いている目安を残す（両方にあればサーバー）', () => {
+    const plan = planLabelSync(
+      { presets: ['勉強', 'ジム'], colors: {}, targets: { 勉強: 300, ジム: 120 }, updatedAt: null },
+      {
+        labels: [
+          { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
+          { name: 'ES', color: 'tomato' },
+        ],
+        updatedAt: T1,
+      },
+      NOW,
+    )
+    expect(plan.apply?.targets).toEqual({ 勉強: 900, ジム: 120 })
+    expect(plan.push?.labels.find((l) => l.name === 'ジム')).toMatchObject({ weeklyTargetMinutes: 120 })
+  })
+
+  it('壊れた目安（0・文字）は読まない', () => {
+    const plan = planLabelSync(
+      { presets: ['勉強'], colors: {}, updatedAt: T1, syncedAt: T1 },
+      {
+        labels: [
+          { name: '勉強', color: 'sage', weeklyTargetMinutes: 0 },
+          { name: 'ES', color: 'tomato', weeklyTargetMinutes: 'x' as unknown as number },
+        ],
+        updatedAt: T2,
+      },
+      NOW,
+    )
+    expect(plan.apply?.targets).toBeUndefined()
+  })
+})

@@ -13,6 +13,7 @@ import { tip } from '../../lib/tooltip'
 import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
 import { REVEAL_ON_HOVER } from '../ui/revealClass'
 import { CATEGORY_MAX_LENGTH } from '../../lib/textLimits'
+import { parseTargetHours, targetHoursInput } from '../../lib/labelTargets'
 
 let nextRowId = 0
 
@@ -22,24 +23,29 @@ interface Row {
   from: string | null
   name: string
   hex: string
+  /** 週の目安（時間）の欄の文字。空なら目安なし（#291） */
+  target: string
 }
 
 /**
  * Google カレンダーの「ラベル」と同じ編集画面: 色 ▾ ＋ 名前 ＋ 削除 の行を並べ、＋ で行を足し、保存でまとめて反映。
  * 最初は今のラベルの下に、まだ名前の無い色の行を空欄で並べる（色に名前を付ける感覚で書ける）。
+ * 名前の右に任意の「週に◯時間」の目安（#291）。週のふりかえりのラベル別の行で記録と並べる
  */
 export function LabelsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)
+  const targets = useTaskStore((s) => s.logLabelTargets)
   const saveLogLabels = useTaskStore((s) => s.saveLogLabels)
   const [rows, setRows] = useState<Row[]>(() => [
-    ...presets.map((n) => ({ id: nextRowId++, from: n, name: n, hex: categoryHex(n, colors) })),
+    ...presets.map((n) => ({ id: nextRowId++, from: n, name: n, hex: categoryHex(n, colors), target: targetHoursInput(targets[n]) })),
     ...unnamedColorKeys(presets, colors).map((k) => ({
       id: nextRowId++,
       from: null,
       name: '',
       hex: CALENDAR_COLORS.find((c) => c.key === k)!.hex,
+      target: '',
     })),
   ])
   const [colorFor, setColorFor] = useState<number | null>(null)
@@ -51,7 +57,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
     const used = new Set(rows.map((r) => r.hex))
     const hex = CALENDAR_COLORS.find((c) => !used.has(c.hex))?.hex ?? CALENDAR_COLORS[14].hex
     const id = nextRowId++
-    setRows((rs) => [...rs, { id, from: null, name: '', hex }])
+    setRows((rs) => [...rs, { id, from: null, name: '', hex, target: '' }])
     requestAnimationFrame(() => {
       const el = listRef.current?.querySelector<HTMLInputElement>(`[data-row="${id}"]`)
       el?.scrollIntoView({ block: 'nearest' })
@@ -60,7 +66,14 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
   }
 
   const save = () => {
-    saveLogLabels(rows.map((r) => ({ from: r.from, name: r.name, color: colorKeyForHex(r.hex) ?? r.hex })))
+    saveLogLabels(
+      rows.map((r) => ({
+        from: r.from,
+        name: r.name,
+        color: colorKeyForHex(r.hex) ?? r.hex,
+        weeklyTargetMinutes: parseTargetHours(r.target) ?? null,
+      })),
+    )
     onClose()
   }
 
@@ -71,6 +84,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
       <Modal onClose={onClose} labelledBy="labels-title" className="flex max-h-[min(86vh,720px)] flex-col overflow-hidden">
         <div className="border-b border-zinc-200 px-6 pb-4 pt-6 dark:border-zinc-700">
           <ModalTitle id="labels-title">{t('labels.title')}</ModalTitle>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t('labels.targetHint')}</p>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <ul ref={listRef} className="space-y-2">
@@ -96,6 +110,27 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                   placeholder={t('labels.placeholder')}
                   className={LABEL_NAME_INPUT_CLASS}
                 />
+                {/* 週の目安（時間）。空なら目安なし。数として読めない文字は入らない。
+                    名前の無い色の行には出さない（ごちゃつかせない・狭い画面で名前の欄を潰さない） */}
+                {(r.name.trim() !== '' || r.target !== '') && (
+                  <label className="flex shrink-0 items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <input
+                      value={r.target}
+                      inputMode="decimal"
+                      onChange={(e) => {
+                        if (parseTargetHours(e.target.value) !== undefined) patch(r.id, { target: e.target.value })
+                      }}
+                      onKeyDown={(e) => {
+                        if (isSubmitEnter(e)) save()
+                      }}
+                      maxLength={5}
+                      placeholder="–"
+                      aria-label={t('labels.targetAria', { name: r.name.trim() || t('labels.placeholder') })}
+                      className="h-11 w-12 rounded-lg bg-zinc-100 px-2 text-right text-sm tabular-nums text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-accent-500 dark:bg-zinc-700/60 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <span aria-hidden>{t('labels.targetUnit')}</span>
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}

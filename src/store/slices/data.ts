@@ -48,6 +48,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         set({
           timeLogTagPresets: defaultLogCategories(),
           logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+          logLabelTargets: {},
           logLabelsUpdatedAt: null,
           extraTimeZones: [],
           extraTimeZonesUpdatedAt: null,

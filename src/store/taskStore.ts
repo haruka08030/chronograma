@@ -9,6 +9,7 @@ import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
+import { normalizeLabelTargets } from '../lib/labelTargets'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
@@ -119,6 +120,7 @@ export const useTaskStore = create<TaskState>()(
         // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
         timeLogTagPresets: defaultLogCategories(),
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+        logLabelTargets: {},
         logLabelsUpdatedAt: null,
 
         calendarEvents: [],
@@ -196,6 +198,7 @@ export const useTaskStore = create<TaskState>()(
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
+        merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
       },
@@ -256,7 +259,12 @@ useTaskStore.subscribe((s, prev) => {
 
 // ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
 useTaskStore.subscribe((s, prev) => {
-  if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
+  if (
+    s.timeLogTagPresets === prev.timeLogTagPresets &&
+    s.logCategoryColors === prev.logCategoryColors &&
+    s.logLabelTargets === prev.logLabelTargets
+  )
+    return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
 })

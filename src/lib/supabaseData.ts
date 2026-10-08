@@ -8,7 +8,8 @@ import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
-import type { RemoteLabels } from './labelSync'
+import type { LogLabelRow, RemoteLabels } from './labelSync'
+import { validTargetMinutes } from './labelTargets'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
@@ -777,9 +778,13 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
   if (error) return { error: error.message }
   if (!data) return null
   const rows = Array.isArray(data.log_labels) ? (data.log_labels as unknown[]) : []
-  const labels = rows.flatMap((r) => {
-    const x = r as { name?: unknown; color?: unknown }
-    return typeof x.name === 'string' ? [{ name: x.name, color: typeof x.color === 'string' ? x.color : '' }] : []
+  const labels = rows.flatMap((r): LogLabelRow[] => {
+    const x = r as { name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
+    if (typeof x.name !== 'string') return []
+    const color = typeof x.color === 'string' ? x.color : ''
+    // 週の目安（#291）。無い・壊れた値なら目安なし
+    const target = validTargetMinutes(x.weeklyTargetMinutes)
+    return [target ? { name: x.name, color, weeklyTargetMinutes: target } : { name: x.name, color }]
   })
   return { labels, updatedAt: String(data.updated_at) }
 }

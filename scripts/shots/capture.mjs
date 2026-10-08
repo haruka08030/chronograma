@@ -52,6 +52,10 @@ const SEED_TEMPLATES = [
   { id: 'tpl-late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#7986CB' },
   { id: 'tpl-class', title: 'ゼミ', startTime: '13:00', endTime: '14:30', color: null },
 ]
+/** ラベルの週の目安（分、#291）。種データのラベル名 */
+const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
+/** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
+const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
@@ -312,6 +316,22 @@ const SCREENS = [
   { name: 'stats', view: 'stats' },
   // 統計のふりかえりを「月」に切り替えたところ（日のマスの濃さ・ラベル別の前の月との差。#304）
   { name: 'stats-month', view: 'stats', click: '[aria-label="ふりかえりの期間"] button:has-text("月") >> visible=true' },
+  // ラベルの週の目安（#291）: ふりかえりのラベル別の行に「記録 / 目安」と細い線（月は週の目安を月の日数に合わせる）
+  { name: 'stats-targets', view: 'stats', state: { logLabelTargets: SEED_TARGETS }, scrollTo: TARGET_ROWS },
+  {
+    name: 'stats-month-targets',
+    view: 'stats',
+    state: { logLabelTargets: SEED_TARGETS },
+    click: '[aria-label="ふりかえりの期間"] button:has-text("月") >> visible=true',
+    scrollTo: TARGET_ROWS,
+  },
+  // 「ラベルを編集」で週の目安を書く欄（名前の右）
+  {
+    name: 'labels-targets',
+    view: 'settings',
+    state: { logLabelTargets: SEED_TARGETS },
+    click: 'button:has-text("ラベルを編集") >> visible=true',
+  },
   // 統計の睡眠: 記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
   {
     name: 'stats-sleep-edit',

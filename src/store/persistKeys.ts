@@ -19,6 +19,7 @@ export const DATA_KEYS = [
   'recordPrompts',
   'timeLogTagPresets',
   'logCategoryColors',
+  'logLabelTargets',
   'logLabelsUpdatedAt',
   'googleEventColors',
   'activeTimer',

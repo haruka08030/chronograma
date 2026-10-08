@@ -116,6 +116,12 @@ describe('foldLabelMinutes', () => {
     expect(shown.map((x) => x.tag)).toEqual(['l0', 'l1', 'l2', 'l3', 'l4'])
     expect(others).toBe(55 + 54 + 53)
   })
+
+  it('目安のある行（keep）は「その他」にまとめず、残りの枠を上位で埋める（#291）', () => {
+    const { shown, others } = foldLabelMinutes(rows(8), (r) => r.tag === 'l7' || r.tag === 'l6')
+    expect(shown.map((x) => x.tag)).toEqual(['l0', 'l1', 'l2', 'l6', 'l7'])
+    expect(others).toBe(57 + 56 + 55)
+  })
 })
 
 describe('loggedMinutesVsPrevWeek', () => {
