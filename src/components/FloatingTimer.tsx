@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import type { Task } from '../types/task'
 import { appTimeZone, instantFromWall, toAppWall } from '../lib/timeZone'
 import { buttonClass } from './ui/buttonClass'
 import { tip } from '../lib/tooltip'
@@ -184,11 +185,14 @@ function CompletePrompt() {
  * ラベルなしで止めた記録に、その場でラベルを付ける（放置すると数秒で消え、ラベルなしのまま残る）。
  * 「完了にしますか？」と同じ位置。止めるの 2 度押しでラベルが付かないよう、出てすぐの押下は受けない
  */
+const NO_TASKS: Task[] = []
+
 function LabelPrompt() {
   const { t } = useTranslation()
   const logId = useTaskStore((s) => s.labelPromptLogId)
   const log = useTaskStore((s) => (logId ? (s.tasks.find((x) => x.id === logId) ?? null) : null))
-  const tasks = useTaskStore((s) => s.tasks)
+  // 出していない間はタスクの変更で描き直さない（#266）
+  const tasks = useTaskStore((s) => (logId ? s.tasks : NO_TASKS))
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)
   const updateTask = useTaskStore((s) => s.updateTask)
