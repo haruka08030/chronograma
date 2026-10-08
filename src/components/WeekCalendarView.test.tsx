@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -121,5 +121,62 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(time!.className).toContain('truncate')
     expect(time!.textContent).toBe('20:00 – 21:00')
     expect(time!.lastElementChild!.className).toContain('@max-[5rem]:hidden')
+  })
+})
+
+describe('WeekCalendarView: キーでブロックを動かす（Alt+↑↓ / Alt+Shift+↑↓）', () => {
+  function seedPlan() {
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: '読書', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' }, 0),
+          id: 'p',
+        },
+      ],
+    })
+  }
+  const plan = () => useTaskStore.getState().tasks.find((x) => x.id === 'p')!
+  function renderFocused() {
+    seedPlan()
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    const block = view.container.querySelector<HTMLElement>('[data-block-id="p"]')!
+    block.focus()
+    return { ...view, block }
+  }
+
+  it('フォーカスしたブロックが Alt+↓ で 15 分後、Alt+↑ で 15 分前へ。Option の Mac でも矢印の key で合う', () => {
+    const { block } = renderFocused()
+    fireEvent.keyDown(block, { key: 'ArrowDown', code: 'ArrowDown', altKey: true })
+    expect(plan()).toMatchObject({ startTime: '10:15', endTime: '11:15' })
+    fireEvent.keyDown(block, { key: 'ArrowUp', code: 'ArrowUp', altKey: true })
+    fireEvent.keyDown(block, { key: 'ArrowUp', code: 'ArrowUp', altKey: true })
+    expect(plan()).toMatchObject({ startTime: '09:45', endTime: '10:45' })
+  })
+
+  it('Alt+Shift+↓ で終わりだけ 15 分伸びる。動かしたあとも同じブロックにフォーカスがあり、新しい時刻を読み上げる', async () => {
+    const { block } = renderFocused()
+    fireEvent.keyDown(block, { key: 'ArrowDown', altKey: true, shiftKey: true })
+    expect(plan()).toMatchObject({ startTime: '10:00', endTime: '11:15' })
+    await waitFor(() => expect(document.querySelector('[data-testid="live-announcer"]')?.textContent).toBe('“読書” 10:00–11:15'))
+    await waitFor(() => expect((document.activeElement as HTMLElement).dataset.blockId).toBe('p'))
+  })
+
+  it('修飾キーの無い矢印・入力中・日本語の変換中は動かさない', () => {
+    const { block, container } = renderFocused()
+    fireEvent.keyDown(block, { key: 'ArrowDown' })
+    fireEvent.keyDown(block, { key: 'ArrowDown', altKey: true, isComposing: true })
+    fireEvent.keyDown(block, { key: 'ArrowDown', altKey: true, keyCode: 229 })
+    const input = document.createElement('input')
+    container.appendChild(input)
+    input.focus()
+    fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+    expect(plan()).toMatchObject({ startTime: '10:00', endTime: '11:00' })
+  })
+
+  it('ブロックにフォーカスが無ければ何もしない', () => {
+    seedPlan()
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    fireEvent.keyDown(document.body, { key: 'ArrowDown', altKey: true })
+    expect(plan()).toMatchObject({ startTime: '10:00', endTime: '11:00' })
   })
 })

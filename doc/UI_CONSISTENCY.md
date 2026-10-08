@@ -78,7 +78,8 @@
 | 浮く面の閉じ方 | 外側を押す・Esc は一番上だけ・`data-popover-keep` の要素は内側扱い。返す層を `useHotkey` の scope に使う。外を押したら保存・Esc は取り消しの面（ナビの色ラベルのカード）は `onEscape` | `hooks/useDismiss.ts` |
 | Esc で閉じる層 | 一番上の層だけ閉じる（タスク詳細・完了＋記録・日付ピッカー・ミニカレンダー・予定カード・ラベルのダイアログ・ナビの色ラベルのカード・ショートカット一覧）。モーダルは Esc 以外の閉じるキーを `closeKeys` で足す | `hooks/useHotkey.ts` `useEscapeLayer`・`components/ui/Modal.tsx` |
 | ショートカット | `useHotkey(キー, 処理, { scope, allowInInputs, enabled })`。scope: `'global'`（層が開いていないときだけ）/ `'always'`（⌘Z・⌘K・⌘N・⌘A）/ 層（`useEscapeLayer`・`useDismiss` の戻り値。その層が一番上のときだけ）。入力中・変換中・部品が先に使ったキーでは動かない。false を返すと次に回す。To-Do 一覧の `e` はカーソルの行の詳細、Delete は削除 | `hooks/useHotkey.ts` |
-| キーの書き方 | `'e'`・`'Delete'`・`'mod+Enter'`・`'shift+ArrowDown'`・`'?'`・`'Space'`。修飾キーは書いたものだけ。? / は Shift を見ない | `lib/keyboard.ts` `matchesHotkey` |
+| キーの書き方 | `'e'`・`'Delete'`・`'mod+Enter'`・`'shift+ArrowDown'`・`'alt+ArrowUp'`・`'?'`・`'Space'`。修飾キーは書いたものだけ。? / は Shift を見ない。alt 付きの文字・数字はキーの位置（`code`）で見る（Mac の Option は `key` を別の文字にする）。一覧の 'Alt' は Mac で ⌥ | `lib/keyboard.ts` `matchesHotkey`・`keyCapLabel` |
+| タイムラインのブロックの時刻 | ドラッグもキー（フォーカスしたブロック・開いたカードで Alt+↑↓ は 15 分ずつ動かす、Alt+Shift+↑↓ は終わりを伸び縮み）も `applyBlockMove` / `applyBlockResize` を通る。記録は今より先にしない（伸ばすときは今で止める）、日をまたぐ記録は日付ごと動く、済んだ習慣の枠・書き換えられない Google の予定・日をまたぐ Google の予定は動かさない。動かすたびに元に戻すトースト、新しい時刻は読み上げにも伝える（`announce`） | `lib/timelineBlockEdit.ts`・`lib/announce.ts` |
 | 入力中か・変換中か | 入力中＝テキスト欄・選択・contenteditable（ショートカットも ⌘Z もこれで見る）。`isComposing` または keyCode 229 のキーではショートカット・Esc を動かさない | `lib/keyboard.ts` `isTypingTarget`・`isImeKeyEvent` |
 | Enter で確定 | 変換確定の Enter では送らない | `lib/keyboard.ts` `isSubmitEnter` |
 | 複数行の入力欄 | `useTextAreaEntry`: Enter で改行、⌘/Ctrl+Enter で確定して欄を離れる、Esc で欄を離れる（書いた分は捨てない・親のダイアログは閉じない）、外したら保存。変換中の Enter / Esc は何もしない。タスク詳細のメモと完了＋記録のメモ | `hooks/useTextEntry.ts` `useTextAreaEntry`・`lib/keyboard.ts` `textAreaKeyAction` |

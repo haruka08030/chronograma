@@ -26,13 +26,14 @@ import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
 import { CardTimeRange } from './CardTimeRange'
+import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 
 const WIDTH = 320
 
 /**
  * タイムラインの予定・記録を押したときの小さなカード（Google カレンダーのイベントカード相当）。
  * よく使う操作（完了・記録開始・削除）はここで済ませ、細かい編集だけ「詳細」へ。予定（完了の無いもの）には完了を出さない。
- * キー: Esc 閉じる / e 詳細 / Delete・Backspace 削除
+ * キー: Esc 閉じる / e 詳細 / Delete・Backspace 削除 / Alt+↑↓ 15 分ずつ動かす / Alt+Shift+↑↓ 終わりを伸び縮み
  */
 export function EventPopover({
   taskId,
@@ -60,6 +61,11 @@ export function EventPopover({
     },
     { scope: layer },
   )
+
+  // カードを開いたまま Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（時刻の欄で打ち直さずに）
+  useHotkey([...SHORTCUTS.nudgeBlock.hotkeys, ...SHORTCUTS.resizeBlock.hotkeys], (e) => void nudgeBlockByKey(taskId, e), {
+    scope: layer,
+  })
 
   useEffect(() => {
     ref.current?.focus()
