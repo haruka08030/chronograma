@@ -371,6 +371,7 @@
   既存データに**マージ**（全置換 JSON とは別ボタン）。列: `title`
   必須、`due_date`、 `list`、`completed`、`tags`、`priority`、`description` 等
 - **記録の書き出し（CSV・ICS）**: `src/lib/recordExport.ts`（`collectExportRows` → `buildRecordsCsv` / `buildRecordsIcs`）、画面は `settings/RecordExportSettings.tsx`。元の予定の列は `plannedItemsOnDay`（`weekReview.ts`）と `matchPlanAndActualForDate`。保存は `downloadTextFile`（`src/lib/downloadFile.ts`）
+- **ふりかえりの画像（共有・保存）**: `src/lib/reviewImage.ts`（`buildReviewImageModel` → `layoutReviewImage`（描く命令、文字の幅は `measure` で）→ `drawReviewImage` / `renderReviewImage`（PNG）、`shareableInsight`・`reviewShareText`・`shareOrSaveImage`）、画面は `ReviewShareDialog.tsx`（`WeekReviewCard` の見出しのアイコンから）。保存は `downloadBlob`（`src/lib/downloadFile.ts`）
 
 ## Supabase 同期（`src/hooks/useSupabaseSync.ts`）
 

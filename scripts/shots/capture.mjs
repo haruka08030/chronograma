@@ -366,6 +366,13 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // ふりかえりを画像にして共有する前の見本（#283。画像は共有先で読みやすいライトで作る）
+  { name: 'stats-share', view: 'stats', click: 'button[aria-label="画像にして共有"] >> visible=true' },
+  {
+    name: 'stats-share-month',
+    view: 'stats',
+    click: ['[aria-label="ふりかえりの期間"] button:has-text("月") >> visible=true', 'button[aria-label="画像にして共有"] >> visible=true'],
+  },
   // 統計のふりかえりを「月」に切り替えたところ（日のマスの濃さ・ラベル別の前の月との差。#304）
   { name: 'stats-month', view: 'stats', click: '[aria-label="ふりかえりの期間"] button:has-text("月") >> visible=true' },
   // ラベルの週の目安（#291）: ふりかえりのラベル別の行に「記録 / 目安」と細い線（月は週の目安を月の日数に合わせる）
