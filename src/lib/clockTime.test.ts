@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addClockMinutes, clockOf, minutesToTime, timeToMinutes, toMinutes } from './clockTime'
+import { addClockMinutes, clockOf, endWithinDay, minutesToTime, timeToMinutes, toMinutes } from './clockTime'
 
 describe('clockTime', () => {
   it('timeToMinutes は保存済みの HH:MM を分にし、欠けた分は 0 とみなす', () => {
@@ -22,6 +22,14 @@ describe('clockTime', () => {
   it('addClockMinutes は 24 時で折り返す', () => {
     expect(addClockMinutes('23:30', 45)).toBe('00:15')
     expect(addClockMinutes('00:10', -20)).toBe('23:50')
+  })
+
+  it('endWithinDay は開始＋長さで、日をまたぐ分は 23:59 で止める（開始が 23:59 なら翌 0:00）', () => {
+    expect(endWithinDay('10:00', 90)).toBe('11:30')
+    expect(endWithinDay('23:00', 120)).toBe('23:59')
+    expect(endWithinDay('22:30', 60)).toBe('23:30')
+    expect(endWithinDay('23:59', 60)).toBe('00:00')
+    expect(endWithinDay('abc', 60)).toBe('')
   })
 
   it('clockOf は Date の壁時計を HH:MM で返す', () => {

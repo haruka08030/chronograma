@@ -1,11 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { INBOX_ID } from '../store/storeConstants'
+import { taskTimedInterval } from '../lib/taskTimeRange'
 import { QuickAdd } from './QuickAdd'
 
 const tasks = () => useTaskStore.getState().tasks
+
+beforeAll(() => {
+  Element.prototype.scrollIntoView = () => {}
+})
 
 describe('QuickAdd', () => {
   it('書いて Enter でタスクが増え、欄は空に戻る', async () => {
@@ -67,5 +72,22 @@ describe('QuickAdd', () => {
     const [task] = tasks()
     expect(task.title).toBe('Milk')
     expect(task.listId).toBe(shop)
+  })
+
+  it('時間チップで遅い開始（23:00）を入れても終わりはその日の中で、足した To-Do はタイムラインに出る', async () => {
+    useTaskStore.setState({ defaultBlockMinutes: 120 })
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+
+    await user.type(input, 'ES')
+    await user.click(screen.getByRole('button', { name: 'Time' }))
+    await user.type(screen.getByRole('combobox', { name: 'Start' }), '23:00{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    await user.type(input, '{Enter}')
+
+    const [task] = tasks()
+    expect(task).toMatchObject({ title: 'ES', startTime: '23:00', endTime: '23:59' })
+    expect(taskTimedInterval(task)).not.toBeNull()
   })
 })
