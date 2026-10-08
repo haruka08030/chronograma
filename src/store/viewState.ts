@@ -1,10 +1,14 @@
+import { readCandidateView } from '../lib/plannerCandidates'
 import type { CalendarMode, SectionGrouping, SmartView, SortMode, TaskState } from './storeTypes'
 
 /**
  * 画面の好みの保存（`chronograma-view-v1`）を読む。版も migrate も通らないので、キーごとに形と取りうる値を確かめ、
  * 合わないものは捨てる（既定のまま）。ビューの名前が変わった古い値や、`sortByKey: null` で落ちないように
  */
-type ViewState = Pick<TaskState, 'selectedListId' | 'selectedView' | 'calendarMode' | 'sortByKey' | 'sectionGrouping'>
+type ViewState = Pick<
+  TaskState,
+  'selectedListId' | 'selectedView' | 'calendarMode' | 'sortByKey' | 'sectionGrouping' | 'plannerCandidateView'
+>
 
 // Record にして、型に値を足したらここでも足すよう型で知らせる
 const SMART_VIEWS: Record<SmartView, true> = {
@@ -44,5 +48,7 @@ export function readViewState(raw: unknown): Partial<ViewState> {
     }
     out.sectionGrouping = grouping
   }
+  const candidateView = readCandidateView(raw.plannerCandidateView)
+  if (candidateView) out.plannerCandidateView = candidateView
   return out
 }
