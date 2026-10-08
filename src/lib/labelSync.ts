@@ -9,8 +9,7 @@
  *   手元の変えた時刻は進めず、足した名前を `pendingAdds` に覚えておき、合わせた表に無ければ後ろに足して送る。
  *   取り込みで手元が新しい扱いになり、ほかの端末の名前・色・並びの編集を上書きしていた
  */
-import jaLocale from '../locales/ja'
-import enLocale from '../locales/en'
+import { BUILTIN_NAMES } from '../locales/builtinNames'
 import { settingSyncStep } from './settingSync'
 import { validTargetMinutes, type LabelTargets } from './labelTargets'
 
@@ -71,7 +70,7 @@ function toApply(t: LabelTable, updatedAt: string): NonNullable<LabelSyncPlan['a
 }
 
 /** どれかの言語の初期ラベル（名前も並びも同じ）のままか */
-const DEFAULT_PRESETS: readonly (readonly string[])[] = [jaLocale.logCategories.defaults, enLocale.logCategories.defaults]
+const DEFAULT_PRESETS: readonly (readonly string[])[] = Object.values(BUILTIN_NAMES).map((n) => n.logCategories)
 const isUntouchedDefault = (presets: readonly string[]) =>
   DEFAULT_PRESETS.some((d) => d.length === presets.length && d.every((n, i) => n === presets[i]))
 

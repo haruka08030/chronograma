@@ -13,6 +13,8 @@
 
 スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
 
+起動時に読まないもの: `@supabase/supabase-js` はログインのセッションが保存されている・ログインから戻ってきた（`#access_token`）・アカウント欄でログインの欄を出した・ログインを始めた・ほかのタブでログインしたときに `loadSupabase()` で読む（`getSupabase()` は読み込み済みのときだけ返す。型以外で静的に読まない）。言語の文言は表示する言語の分だけ `i18n/config.ts` が読み（chunk は `locale-ja` / `locale-en`、日本語は date-fns の日本語も一緒）、画面は読み終えてから描く。最初から作る名前（「いつか」「買い物」・初期のラベル）は `locales/builtinNames.ts`。
+
 ---
 
 ## 通知

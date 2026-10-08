@@ -3,6 +3,7 @@
  */
 import type { TaskList } from '../types/list'
 import i18n from '../i18n/config'
+import { BUILTIN_NAMES, toAppLanguage } from '../locales/builtinNames'
 import { CATEGORY_COLOR_KEYS } from '../lib/logCategoryColors'
 import { INBOX_COLOR, INBOX_ID } from './storeConstants'
 import { inferCategoryTags, type CategoryInferenceState } from './taskHelpers'
@@ -16,8 +17,14 @@ export const defaultInbox: TaskList = {
   order: 0,
 }
 
+/** 表示言語の最初から作る名前。ストアを作るとき（文言を読む前）にも呼ぶので、文言ではなく `BUILTIN_NAMES` から */
+function builtinNames() {
+  return BUILTIN_NAMES[toAppLanguage(i18n.resolvedLanguage) ?? toAppLanguage(i18n.language) ?? 'en']
+}
+
+/** 初期のラベル */
 export function defaultLogCategories(): string[] {
-  return i18n.t('logCategories.defaults', { returnObjects: true }) as string[]
+  return [...builtinNames().logCategories]
 }
 
 /** 色の名前（表示言語）。分類名が色の名前だけのときは推定に使わない */
@@ -44,7 +51,7 @@ export function initialLists(): TaskList[] {
   return [
     defaultInbox,
     // id は決まったもの（どの端末・言語で作っても同じ。同期で 2 つにならない）。名前だけ言語に合わせる
-    { id: DEFAULT_LIST_IDS.someday, name: i18n.t('lists.defaultSomeday'), color: '#F6BF26', order: 1, kind: 'someday' },
-    { id: DEFAULT_LIST_IDS.checklist, name: i18n.t('lists.defaultShopping'), color: '#33B679', order: 2, kind: 'checklist' },
+    { id: DEFAULT_LIST_IDS.someday, name: builtinNames().someday, color: '#F6BF26', order: 1, kind: 'someday' },
+    { id: DEFAULT_LIST_IDS.checklist, name: builtinNames().shopping, color: '#33B679', order: 2, kind: 'checklist' },
   ]
 }

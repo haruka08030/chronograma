@@ -38,6 +38,15 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [
+            // 言語の文言（と date-fns の日本語）は表示する言語の分だけ後から読む（i18n/config.ts）。名前で中身が分かるように分ける。
+            // 使っている共通の部品（初期の名前・date-fns の locale の部品）まで引き込むと起動時に読むことになるので、引き込まない
+            {
+              name: 'locale-ja',
+              test: /src[\\/]locales[\\/]ja\.ts$|node_modules[\\/]date-fns[\\/]locale[\\/]ja[\\/.]/,
+              priority: 30,
+              includeDependenciesRecursively: false,
+            },
+            { name: 'locale-en', test: /src[\\/]locales[\\/]en\.ts$/, priority: 30, includeDependenciesRecursively: false },
             vendor('react', 'react|react-dom|scheduler'),
             vendor('i18n', 'i18next|react-i18next|i18next-browser-languagedetector'),
             vendor('supabase', '@supabase'),

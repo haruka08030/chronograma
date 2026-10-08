@@ -1,3 +1,5 @@
+import { BUILTIN_NAMES } from './builtinNames'
+
 /** English UI strings */
 export default {
   common: {
@@ -44,8 +46,8 @@ export default {
     monthDayTime: 'MMM d, HH:mm',
   },
   lists: {
-    defaultSomeday: 'Someday',
-    defaultShopping: 'Shopping',
+    defaultSomeday: BUILTIN_NAMES.en.someday,
+    defaultShopping: BUILTIN_NAMES.en.shopping,
     inbox: 'To-Do',
     unnamedList: 'List',
   },
@@ -381,7 +383,7 @@ export default {
     label: 'Label',
     add: 'Add label',
     newPlaceholder: 'New label',
-    defaults: ['Study', 'Assignments', 'Job hunting', 'Work', 'Exercise', 'Chores', 'Break'],
+    defaults: [...BUILTIN_NAMES.en.logCategories],
   },
   records: {
     later: 'Log past time',

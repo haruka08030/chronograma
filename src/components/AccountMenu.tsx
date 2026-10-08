@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../lib/authLinkError'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { isSupabaseConfigured, loadSupabase } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
@@ -40,6 +40,11 @@ export function AccountMenu() {
     return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
+  // ログインの欄を開いたら、押す前に Supabase を読んでおく（ログインしない人は起動時に読まない、#268）
+  const signedOut = !user && !loading
+  useEffect(() => {
+    if (signedOut && isSupabaseConfigured) void loadSupabase().catch(() => {})
+  }, [signedOut])
   // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
