@@ -6,6 +6,7 @@ import { logOverlapsDateKey } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { unplannedListIds } from '../lib/listKind'
 import { toDateKey } from '../lib/dateKey'
+import { googleEventDateKeys } from '../lib/googleEventSpan'
 import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
 
 /** 週タイムラインに出すものを日ごとに分ける（終日の ToDo・時刻つきの予定・記録・Google の予定） */
@@ -54,5 +55,19 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
     return map
   }, [calendarEvents])
 
-  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate }
+  /** タイムラインの列に描く時刻つきの Google の予定。日をまたぐ予定は重なる日すべてに入れる（記録と同じ） */
+  const timedEventsByDate = useMemo(() => {
+    const map = new Map<string, typeof calendarEvents>()
+    for (const e of calendarEvents) {
+      if (e.isAllDay || !e.startTime || !e.endTime) continue
+      for (const dk of googleEventDateKeys(e)) {
+        const arr = map.get(dk) ?? []
+        arr.push(e)
+        map.set(dk, arr)
+      }
+    }
+    return map
+  }, [calendarEvents])
+
+  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate }
 }

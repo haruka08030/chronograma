@@ -20,6 +20,7 @@ import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
+import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 
 /** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
 export function WeekDayColumn({
@@ -30,7 +31,7 @@ export function WeekDayColumn({
   onSelectDate,
   timedByDate,
   timeLogsByDate,
-  eventsByDate,
+  timedEventsByDate,
   habitIndex,
   splitLanes,
   laneAt,
@@ -59,7 +60,8 @@ export function WeekDayColumn({
   onSelectDate?: (dateKey: string) => void
   timedByDate: Map<string, Task[]>
   timeLogsByDate: Map<string, Task[]>
-  eventsByDate: Map<string, CalendarEvent[]>
+  /** 時刻つきの Google の予定（日をまたぐものは重なる日すべて） */
+  timedEventsByDate: Map<string, CalendarEvent[]>
   habitIndex: HabitRecordIndex
   splitLanes: boolean
   laneAt: (clientX: number, el: HTMLElement) => CreateIntent
@@ -93,7 +95,11 @@ export function WeekDayColumn({
   const key = toDateKey(day)
   const dayTimed = timedByDate.get(key) ?? []
   const dayLogs = timeLogsByDate.get(key) ?? []
-  const dayTimedEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay && e.startTime && e.endTime)
+  // 日をまたぐ予定は、この日にかかる区間だけ描く（始まった日は 24:00 まで、次の日は 0:00 から）
+  const dayTimedEvents = (timedEventsByDate.get(key) ?? []).map((e) => ({
+    e,
+    seg: googleEventSegmentOnDay(e, key) ?? { startTime: e.startTime!, endTime: e.endTime! },
+  }))
   const today = isAppToday(day)
   // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
   const dayHabitSlots = habits.flatMap((h) => {
@@ -116,9 +122,9 @@ export function WeekDayColumn({
           false,
         ),
       })),
-      ...dayTimedEvents.map((e) => ({
+      ...dayTimedEvents.map(({ e, seg }) => ({
         id: `event-${e.id}`,
-        ...blockGeometry({ id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false }, key, false),
+        ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
       })),
     ],
     dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
@@ -269,10 +275,11 @@ export function WeekDayColumn({
           )}
         </div>
       ))}
-      {dayTimedEvents.map((e) => {
+      {dayTimedEvents.map(({ e, seg }) => {
         // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
         const recorded = dayLogs.some((l) => l.title === e.summary)
-        const editable = canEditGoogleEvent(e, googleCanWrite)
+        // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
+        const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
           <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
             <TimeBlock
@@ -282,6 +289,7 @@ export function WeekDayColumn({
                 startTime: e.startTime!,
                 endTime: e.endTime!,
                 completed: recorded,
+                segment: seg,
               }}
               dayKey={key}
               hStyle={planStyle(`event-${e.id}`)}
@@ -298,21 +306,22 @@ export function WeekDayColumn({
               }}
               onTap={editable ? undefined : () => openGoogleCard(e.id)}
               onOpenDetail={() => openGoogleCard(e.id)}
-              withCheck={hasStarted(e.startTime!) && !recorded}
+              withCheck={hasStarted(seg.startTime) && !recorded}
             />
-            {hasStarted(e.startTime!) && !recorded && (
+            {hasStarted(seg.startTime) && !recorded && (
               <SlotCheck
                 {...blockGeometry(
-                  { id: e.id, title: e.summary, startTime: e.startTime!, endTime: e.endTime!, completed: false },
+                  { id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },
                   key,
                   false,
                 )}
                 hStyle={planStyle(`event-${e.id}`)}
                 label={t('weekCalendar.eventToRecord')}
                 onCheck={() => {
-                  // 今より先までの予定は、今までの分だけ記録にする
-                  const end = limitMin !== null && timeToMinutes(e.endTime!) > limitMin ? minutesToTime(limitMin) : e.endTime!
-                  addCompletedTaskWithTime(e.summary, key, e.startTime!, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
+                  // 今より先までの予定は、今までの分だけ記録にする。日をまたぐ予定はこの日の区間（24:00 までは 0:00 終わり）
+                  const segEnd = seg.endTime === '24:00' ? '00:00' : seg.endTime
+                  const end = limitMin !== null && timeToMinutes(seg.endTime) > limitMin ? minutesToTime(limitMin) : segEnd
+                  addCompletedTaskWithTime(e.summary, key, seg.startTime, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
                 }}
               />
             )}
