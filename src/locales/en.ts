@@ -177,7 +177,8 @@ export default {
     suggestionsHeading: 'Due soon ({{count}})',
     suggestionsHeadingPlain: 'Add from to-dos',
     candidates: {
-      menu: 'Sort and filter candidates',
+      menu: 'Sort candidates',
+      filterMenu: 'Filter candidates',
       sort: {
         due: 'Due date',
         priority: 'Priority',
