@@ -104,7 +104,11 @@ function readJaRepeat(s: string): { repeat: QuickAddRepeat; rest: string } | nul
 }
 
 const EN_REPEAT_UNITS: Record<string, Recurrence['type']> = { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' }
-const EN_WEEKDAY_WORD = /^(sun|mon|tue|wed|thu|fri|sat)(?:day|s|nesday|sday|rsday|r|rs|urday)?$/
+/** 英語の曜日の綴り（fri / friday / fridays / tues / thurs）。「friend」「Monthly」のような語は曜日にしない */
+const EN_WEEKDAY_SPELLING = '(sun|mon|tue|wed|thu|fri|sat)(?:(?:day|nesday|sday|rsday|urday)s?|s|r|rs)?'
+const EN_WEEKDAY_WORD = new RegExp(`^${EN_WEEKDAY_SPELLING}$`)
+/** 語の頭の曜日。後ろに英字が続けば曜日ではない（「fri10am」の「fri」は読む） */
+const EN_WEEKDAY_HEAD = new RegExp(`^${EN_WEEKDAY_SPELLING}(?![a-z])`)
 
 /** 「mon」「wed,」「mon/wed/fri」のように曜日だけでできた語なら、その曜日（0=日）。違えば null */
 function readEnWeekdayWord(word: string): number[] | null {
@@ -219,6 +223,9 @@ const DEADLINE_SUFFIX = /^(.+?)(?:期限|締め?切り?|〆切り?)$/
  */
 export const QUICK_ADD_PAST_DAYS = 60
 
+/** 書いた月（1〜12）として読める数か */
+const isMonth = (n: number) => n >= 1 && n <= 12
+
 /** その年の月日。無い日（2/29 のうるう年以外など）は null */
 function dateOf(year: number, month: number, day: number): Date | null {
   const d = new Date(year, month, day)
@@ -292,17 +299,20 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     const target = s.startsWith('来週') ? addDays(nextMonday, (dow + 6) % 7) : nextWeekday(today, dow)
     return { piece: { kind: 'date', date: target }, rest: s.slice(m[0].length) }
   }
-  if ((m = low.match(/^(sun|mon|tue|wed|thu|fri|sat)[a-z]*/))) {
+  if ((m = low.match(EN_WEEKDAY_HEAD))) {
     return { piece: { kind: 'date', date: nextWeekday(today, EN_WEEKDAYS.indexOf(m[1]!)) }, rest: s.slice(m[0].length) }
   }
   // 年を書いた日付（2026-10-03 / 2027/1/15 / 2026-1-5 / 2027年1月15日）はその年
   if ((m = s.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{4})(年)(\d{1,2})月(\d{1,2})日/)))) {
+    if (!isMonth(Number(m[3]))) return null
     const d = dateOf(Number(m[1]), Number(m[3]) - 1, Number(m[4]))
     if (d) return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
     return null
   }
   // 9/30, 10月3日（過ぎて QUICK_ADD_PAST_DAYS 日を超えていれば来年）
+  // 月が 1〜12 でなければ日付にしない（日/月の書き方の「25/10」を 2 年後の 1 月として読まない）
   if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{1,2})月(\d{1,2})日/)))) {
+    if (!isMonth(Number(m[1]))) return null
     const d = monthDayDate(today, Number(m[1]) - 1, Number(m[2]))
     if (!d) return null
     return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }

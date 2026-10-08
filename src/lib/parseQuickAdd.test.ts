@@ -651,3 +651,36 @@ describe('過ぎた月日・年・あり得ない時刻・日をまたぐ範囲�
     expect(ja6('バイト 22-24')).toMatchObject({ title: 'バイト', startTime: '22:00', endTime: '23:59' })
   })
 })
+
+describe('英語の題名の語を曜日・月日と取り違えない（2026-10-06 火曜）', () => {
+  const OCT6 = new Date(2026, 9, 6, 10, 0, 0)
+  const en6 = (raw: string) => parseQuickAddTitle(raw, false, OCT6)
+  const ja6 = (raw: string) => parseQuickAddTitle(raw, true, OCT6)
+
+  it('曜日の略で始まるだけの語（friend・sunscreen・Wedding・Monthly・monitor・Satellite）は題名に残す', () => {
+    expect(en6('Call friend')).toMatchObject({ title: 'Call friend', date: null })
+    expect(en6('Buy sunscreen')).toMatchObject({ title: 'Buy sunscreen', date: null })
+    expect(en6('Wedding gift')).toMatchObject({ title: 'Wedding gift', date: null })
+    expect(en6('Monthly report')).toMatchObject({ title: 'Monthly report', date: null })
+    expect(en6('Fix monitor')).toMatchObject({ title: 'Fix monitor', date: null })
+    expect(en6('Satellite lab')).toMatchObject({ title: 'Satellite lab', date: null })
+    expect(ja6('Call friend')).toMatchObject({ title: 'Call friend', date: null })
+  })
+
+  it('曜日の綴り（fri / friday / fridays / thurs / Sat）は日付として読む', () => {
+    expect(en6('Call Sat')).toMatchObject({ title: 'Call', date: '2026-10-10' })
+    expect(en6('mtg fri')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg Friday')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg fridays')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg wednesday')).toMatchObject({ title: 'mtg', date: '2026-10-07' })
+    expect(en6('mtg thurs')).toMatchObject({ title: 'mtg', date: '2026-10-08' })
+    expect(en6('mtg fri10am')).toMatchObject({ title: 'mtg', date: '2026-10-09', startTime: '10:00' })
+  })
+
+  it('月が 1〜12 でない月日（25/10・13/1）は日付にせず題名に残す', () => {
+    expect(en6('25/10 party')).toMatchObject({ title: '25/10 party', date: null })
+    expect(ja6('13/1 レポート')).toMatchObject({ title: '13/1 レポート', date: null })
+    expect(ja6('2026/13/5 レポート')).toMatchObject({ title: '2026/13/5 レポート', date: null })
+    expect(ja6('12/1 レポート')).toMatchObject({ title: 'レポート', date: '2026-12-01' })
+  })
+})
