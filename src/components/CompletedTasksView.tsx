@@ -24,6 +24,7 @@ import { FilterMenuButton } from './ui/SortMenuButton'
 import { FilterChips, FilterNoMatch } from './ui/FilterChips'
 import { filterSub, useTaskFilterMenu } from './ui/useTaskFilterMenu'
 import { COMPLETED_FILTER_KEYS, hasTaskFilter, inPeriod, matchesTaskFilter, NO_COMPLETED_FILTER, PERIOD_FILTERS } from '../lib/taskFilter'
+import { compareByOrder } from '../lib/orderCompare'
 
 const SUBTASK_NEST = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl-3'
 
@@ -64,7 +65,7 @@ export function CompletedTasksView() {
       if (arr) arr.push(x)
       else children.set(x.parentId, [x])
     }
-    for (const arr of children.values()) arr.sort((a, b) => a.order - b.order)
+    for (const arr of children.values()) arr.sort(compareByOrder)
 
     const doneAt = (x: Task) => x.completedAt ?? x.updatedAt
     roots.sort((a, b) => doneAt(b).localeCompare(doneAt(a)))

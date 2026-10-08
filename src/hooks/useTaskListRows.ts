@@ -10,6 +10,7 @@ import type { TaskFilter } from '../lib/taskFilter'
 import { getFilteredRootTasks, getOrderedActiveRootTasksForDnD } from '../lib/mainListTasks'
 import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
+import { compareByOrder } from '../lib/orderCompare'
 
 export type SectionBlockRow = {
   listId: string
@@ -71,7 +72,7 @@ export function useTaskListRows({
 
   const listSectionsOrdered = useMemo(() => {
     if (!selectedListId) return []
-    return sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
+    return sections.filter((s) => s.listId === selectedListId).sort(compareByOrder)
   }, [sections, selectedListId])
 
   // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
@@ -162,7 +163,7 @@ export function useTaskListRows({
     }
 
     // スマートビュー: リスト order 順に、セクションがあるリストはセクション分割、無いリストはフラット
-    const sortedLists = [...lists].sort((a, b) => a.order - b.order)
+    const sortedLists = [...lists].sort(compareByOrder)
     const activeByList = new Map<string, typeof active>()
     for (const t of active) {
       const arr = activeByList.get(t.listId)
@@ -175,7 +176,7 @@ export function useTaskListRows({
       const listTasks = activeByList.get(list.id)
       if (!listTasks || listTasks.length === 0) continue
 
-      const listSecs = sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)
+      const listSecs = sections.filter((s) => s.listId === list.id).sort(compareByOrder)
       const listLabel = displayListName(list.id, list.name)
 
       if (listSecs.length === 0) {

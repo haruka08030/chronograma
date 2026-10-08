@@ -40,11 +40,19 @@ import {
   type SyncBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
-import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
+import {
+  useTaskStore,
+  INBOX_LIST_ID,
+  LEGACY_DATA_OWNER,
+  adoptOtherTabChanges,
+  dropPendingLabelAdds,
+  isAdoptingFromOtherTab,
+} from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
-import { planLabelSync } from '../lib/labelSync'
+import { planLabelSync, settledLabelAdds } from '../lib/labelSync'
+import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
@@ -210,6 +218,9 @@ export function useSupabaseSync() {
         fetch: () => fetchLogLabels(supabase, userId),
         plan: (remote, syncedAt, offset) => {
           const st = useTaskStore.getState()
+          // 取り込みで足したラベルのうち、サーバーにある・手元で消したものはもう覚えない
+          const settled = settledLabelAdds(st.logLabelPendingAdds, st.timeLogTagPresets, remote)
+          if (settled.length > 0) dropPendingLabelAdds(settled)
           return planLabelSync(
             {
               presets: st.timeLogTagPresets,
@@ -217,6 +228,7 @@ export function useSupabaseSync() {
               targets: st.logLabelTargets,
               updatedAt: st.logLabelsUpdatedAt,
               syncedAt,
+              pendingAdds: st.logLabelPendingAdds,
             },
             remote,
             undefined,
@@ -235,6 +247,8 @@ export function useSupabaseSync() {
           ),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
         push: (p) => pushLogLabels(supabase, userId, p, p.base),
+        // 送れた表に入った取り込みのラベルは、もう覚えない
+        onPushed: (p) => dropPendingLabelAdds(p.labels.map((l) => l.name)),
       })
 
     /** 他のタイムゾーン（並び・名前） */
@@ -486,6 +500,8 @@ export function useSupabaseSync() {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
         const local = localSnapshot()
         const result = mergeSnapshots(local, remote, baseline)
+        // 両方の端末で同じ項目を変えて片方を捨てた回数（表・項目の名前と回数だけ。1 日 1 回まとめて送る）
+        noteMergeConflicts(result.conflicts)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
         const same = <T>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i])
         const merged: SyncSnapshot = {

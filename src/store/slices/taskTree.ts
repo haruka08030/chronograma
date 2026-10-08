@@ -7,6 +7,7 @@ import { expandDescendantIds, isAncestorInChain, siblingIdsOrdered } from '../ta
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { minimalReorder } from '../../lib/minimalReorder'
+import { compareByOrder } from '../../lib/orderCompare'
 
 type TaskTreeActions = Pick<
   TaskState,
@@ -192,7 +193,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
 
         const rootOrder = s.tasks
           .filter((t) => t.parentId === null && t.id !== taskId && t.listId === parent.listId && t.sectionId === targetSectionId)
-          .sort((a, b) => a.order - b.order)
+          .sort(compareByOrder)
           .map((t) => t.id)
         const parentIdx = rootOrder.indexOf(parent.id)
         if (parentIdx >= 0) rootOrder.splice(parentIdx + 1, 0, taskId)

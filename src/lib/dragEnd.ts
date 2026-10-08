@@ -13,6 +13,7 @@ import { sortKeyOf, sortModeOf } from './todoSurfaceView'
 import { canNestUnder } from './taskDepth'
 import { todoFilterFor } from './taskFilter'
 import { isIndentIntent, isOutdentIntent } from './taskDragIntent'
+import { compareByOrder } from './orderCompare'
 
 /**
  * 画面全体の DndContext でドラッグを離したときの動き（タイマーへ・インデント・セクション/サブタスク/タスク/リストの並べ替え・
@@ -56,7 +57,7 @@ export function applyDragEnd(event: DragEndEvent) {
             // 親もサブタスク → 祖父母の直下（旧親の直後）へ
             const gpChildren = state.tasks
               .filter((t) => t.parentId === parent.parentId && t.id !== movedId)
-              .sort((a, b) => a.order - b.order)
+              .sort(compareByOrder)
               .map((t) => t.id)
             const parentIdx = gpChildren.indexOf(parent.id)
             const insertBefore = parentIdx >= 0 ? (gpChildren[parentIdx + 1] ?? null) : null
@@ -84,7 +85,7 @@ export function applyDragEnd(event: DragEndEvent) {
     const state = useTaskStore.getState()
     const sorted = state.sections
       .filter((s) => s.listId === a.listId)
-      .sort((x, y) => x.order - y.order)
+      .sort(compareByOrder)
       .map((s) => s.id)
     const from = sorted.indexOf(a.sectionId)
     const to = sorted.indexOf(b.sectionId)
@@ -172,7 +173,7 @@ export function applyDragEnd(event: DragEndEvent) {
     }
   } else if (activeId.startsWith(LIST_PREFIX) && overId.startsWith(LIST_PREFIX)) {
     const state = useTaskStore.getState()
-    const sorted = [...state.lists].sort((a, b) => a.order - b.order)
+    const sorted = [...state.lists].sort(compareByOrder)
     const ids = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
     const oldIndex = ids.indexOf(activeId)
     const newIndex = ids.indexOf(overId)

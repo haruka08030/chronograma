@@ -29,6 +29,7 @@ import { ColorLabelCard } from './labels/ColorLabelCard'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { colorVars } from '../lib/logCategoryColors'
 import { NAME_MAX_LENGTH } from '../lib/textLimits'
+import { compareByOrder } from '../lib/orderCompare'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -400,7 +401,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [labelCard, setLabelCard] = useState<{ hex: string; anchor: AnchorRect } | null>(null)
 
   // To-Do はリストで分けない（ラベルで分ける）。リストはいつか・チェックリストだけ
-  const sorted = lists.filter((l) => l.kind === 'someday' || l.kind === 'checklist').sort((a, b) => a.order - b.order)
+  const sorted = lists.filter((l) => l.kind === 'someday' || l.kind === 'checklist').sort(compareByOrder)
   const sortedIds = sorted.map((l) => `${LIST_PREFIX}${l.id}`)
   const sectionsByList = new Map<string, typeof sections>()
   for (const s of sections) {
@@ -408,7 +409,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
     if (arr) arr.push(s)
     else sectionsByList.set(s.listId, [s])
   }
-  for (const arr of sectionsByList.values()) arr.sort((a, b) => a.order - b.order)
+  for (const arr of sectionsByList.values()) arr.sort(compareByOrder)
 
   const handleNav = (cb: () => void) => {
     cb()

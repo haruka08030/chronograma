@@ -110,6 +110,8 @@ export interface TaskState {
   logLabelTargets: Record<string, number>
   /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
   logLabelsUpdatedAt: string | null
+  /** 取り込み（Notion・フォルダを畳む）で足し、まだサーバーに届いていないラベルの名前。手元の変えた時刻は進めず「無ければ足す」で送る（`labelSync.ts`、#357） */
+  logLabelPendingAdds: string[]
 
   calendarEvents: CalendarEvent[]
   /** Google の予定にアプリで付けた色（`googleEventColors.ts`）。API に出ない新しい色（アボカドなど）の代わり */

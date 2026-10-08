@@ -17,6 +17,7 @@ import { ArrowRightIcon, CalendarIcon, ClockIcon, FlagIcon, HourglassIcon } from
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
+import { compareByOrder } from '../lib/orderCompare'
 
 type Panel = 'date' | 'time' | 'estimate' | 'due' | 'list' | 'label'
 
@@ -220,19 +221,17 @@ export function QuickAddDetails({
   } else if (panel === 'list') {
     body = (
       <div className="flex flex-wrap gap-1.5">
-        {[...lists]
-          .sort((a, b) => a.order - b.order)
-          .map((l) =>
-            optionChip(
-              l.id,
-              <>
-                <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(l.color)} />
-                {displayListName(l.id, l.name)}
-              </>,
-              l.id === draft.listId,
-              () => pick({ listId: l.id }),
-            ),
-          )}
+        {[...lists].sort(compareByOrder).map((l) =>
+          optionChip(
+            l.id,
+            <>
+              <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(l.color)} />
+              {displayListName(l.id, l.name)}
+            </>,
+            l.id === draft.listId,
+            () => pick({ listId: l.id }),
+          ),
+        )}
       </div>
     )
   } else if (panel === 'label') {

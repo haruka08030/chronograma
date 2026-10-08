@@ -142,7 +142,8 @@ export function mergeTaskTags(
  * 両方が変えた項目（と前回の値が分からない項目）は新しいほうの値。
  * どちらが新しいかは、手元の編集時刻をサーバーの時計に直して（`clockOffsetMs`）サーバーの updatedAt と比べる。
  * 全部の項目がサーバー側なら行をそのまま（updatedAt もサーバーの値）、全部が手元側なら手元の行。
- * 両方から取ったときは updatedAt を今にする（送るとサーバーが時刻を付け直す）
+ * 両方から取ったときは updatedAt を今にする（送るとサーバーが時刻を付け直す）。
+ * 前回の値が分かっていて両方が別の値に変えた項目を新しいほうにしたとき（片方の編集を捨てた）は `onConflict` に項目名を渡す（#357）
  */
 function mergeRow<T extends { id: string }>(
   l: T,
@@ -151,6 +152,7 @@ function mergeRow<T extends { id: string }>(
   stamp: (x: T) => number,
   nowIso: string,
   clockOffsetMs: number,
+  onConflict?: (field: string) => void,
 ): T {
   if (!base) return stamp(r) > stamp(l) ? r : l
   const winner = stamp(r) > stamp(l) + clockOffsetMs ? r : l
@@ -176,7 +178,10 @@ function mergeRow<T extends { id: string }>(
     let take: 'l' | 'r' | null = null
     if (bh !== undefined && lh === bh) take = 'r'
     else if (bh !== undefined && rh === bh) take = 'l'
-    if (!take) take = winner === r ? 'r' : 'l'
+    if (!take) {
+      take = winner === r ? 'r' : 'l'
+      if (bh !== undefined) onConflict?.(k)
+    }
     out[k] = take === 'r' ? rr[k] : lr[k]
     if (take === 'l') fromLocal = true
     else fromRemote = true
@@ -225,6 +230,7 @@ function mergeKind<T extends { id: string }>(
   /** 中身を控えと比べる前にそろえる（タスクはこの端末のタイムゾーンの書き方に。控えも同じ書き方） */
   normalize: (x: T) => T = (x) => x,
   nowIso: string = new Date().toISOString(),
+  onConflict?: (field: string) => void,
 ): MergeResult<T> {
   const remoteById = new Map(remote.map((r) => [r.id, r]))
   const localIds = new Set(local.map((l) => l.id))
@@ -257,6 +263,7 @@ function mergeKind<T extends { id: string }>(
         stamp,
         nowIso,
         clockOffsetMs,
+        onConflict,
       )
       merged.push(row === ln ? l : row)
       continue
@@ -303,16 +310,50 @@ export function mergeHabitDates(
   })
 }
 
+/**
+ * 両方の端末が同じ項目を別の値に変え、新しいほうに任せた（片方の編集を捨てた）回数。キーは `表.項目`（例 `tasks.title`）。
+ * 値そのものは入れない。あとで集合として合わせ直す項目（控えのあるタスクのタグ・習慣の達成日）は捨てていないので数えない
+ */
+export type MergeConflictCounts = Record<string, number>
+
 /** ローカル・サーバー・前回同期の 3 点から、両端末の変更を取りこぼさない状態を作る */
 export function mergeSnapshots(
   local: SyncSnapshot,
   remote: SyncSnapshot,
   baseline: SyncBaseline,
-): { merged: SyncSnapshot; deletes: SyncDeletes } {
+): { merged: SyncSnapshot; deletes: SyncDeletes; conflicts: MergeConflictCounts } {
   const f = baseline.fields?.tasks ? { ...baseline.fields, tasks: withTaskKindField(baseline.fields.tasks) } : baseline.fields
   const off = baseline.clockOffsetMs ?? 0
-  const lists = mergeKind(local.lists, remote.lists, baseline.lists, (l) => stampMs(l.updatedAt), f?.lists, off)
-  const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt), f?.sections, off)
+  const conflicts: MergeConflictCounts = {}
+  const count = (kind: SyncKind, skip?: string) => (field: string) => {
+    if (field === skip) return
+    const key = `${kind}.${field}`
+    conflicts[key] = (conflicts[key] ?? 0) + 1
+  }
+  const nowIso = new Date().toISOString()
+  const asIs = <T>(x: T) => x
+  const lists = mergeKind(
+    local.lists,
+    remote.lists,
+    baseline.lists,
+    (l) => stampMs(l.updatedAt),
+    f?.lists,
+    off,
+    asIs,
+    nowIso,
+    count('lists'),
+  )
+  const sections = mergeKind(
+    local.sections,
+    remote.sections,
+    baseline.sections,
+    (s) => stampMs(s.updatedAt),
+    f?.sections,
+    off,
+    asIs,
+    nowIso,
+    count('sections'),
+  )
   // タスクの時刻は端末のタイムゾーンで書き方が違う。項目ごとに比べる前に、サーバーの行をこの端末の書き方にそろえる
   const tasks = mergeKind(
     local.tasks,
@@ -322,9 +363,21 @@ export function mergeSnapshots(
     f?.tasks,
     off,
     (t) => reanchorTask(t),
+    nowIso,
+    count('tasks', baseline.taskTags ? 'tags' : undefined),
   )
   tasks.merged = mergeTaskTags(tasks.merged, local.tasks, remote.tasks, baseline.taskTags)
-  const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt), f?.habits, off)
+  const habits = mergeKind(
+    local.habits,
+    remote.habits,
+    baseline.habits,
+    (h) => stampMs(h.updatedAt),
+    f?.habits,
+    off,
+    asIs,
+    nowIso,
+    count('habits', 'completedDates'),
+  )
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
@@ -370,6 +423,7 @@ export function mergeSnapshots(
       tasks: tasks.deleteRemote,
       habits: habits.deleteRemote,
     },
+    conflicts,
   }
 }
 

@@ -6,6 +6,7 @@ import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { compareByOrder } from '../../lib/orderCompare'
 
 type TasksActions = Pick<
   TaskState,
@@ -88,7 +89,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
           if (afterTask.parentId !== null) return true
           return t.sectionId === afterTask.sectionId
         })
-        .sort((a, b) => a.order - b.order)
+        .sort(compareByOrder)
       const afterIndex = siblings.findIndex((t) => t.id === afterTaskId)
       if (afterIndex < 0) return undefined
       const nextSibling = siblings[afterIndex + 1]

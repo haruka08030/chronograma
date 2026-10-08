@@ -11,7 +11,7 @@ import {
   parseNotionTaskId,
   reconcileNotionPages,
 } from '../lib/notion'
-import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from '../store/taskStore'
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
@@ -126,9 +126,11 @@ export function useNotionSync() {
           })
           savePulled(notionPulledKey(userId), result.pulled)
           result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
-          // ラベルを作ったら、ほかの端末へ送るよう時刻を付ける（届いた変更の扱いなので自動では付かない）
-          const labelPatch = labels === labels0 ? {} : { ...labels, logLabelsUpdatedAt: new Date().toISOString() }
-          if (result.changed) asIncomingChange(() => useTaskStore.setState({ tasks: result.tasks, ...labelPatch }))
+          // 作ったラベルは「無ければ足す」だけ送る（ラベル表の変えた時刻は進めない。進めるとほかの端末のラベルの編集が負けていた、#357）
+          if (result.changed) {
+            if (labels === labels0) asIncomingChange(() => useTaskStore.setState({ tasks: result.tasks }))
+            else setStateWithImportedLabels({ tasks: result.tasks, ...labels })
+          }
           setSyncState({ connected: true, configured: true, lastSyncedAt: new Date().toISOString(), error: null })
         } while (rerun && !cancelled)
       } catch (e) {

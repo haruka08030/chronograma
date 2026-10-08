@@ -10,6 +10,7 @@ import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
 import { reportSyncError } from '../lib/errorReport'
 import { SYNC_PROTOCOL_VERSION } from '../lib/syncVersion'
 import { resetVersionSeenForTests } from '../lib/versionSeen'
+import { MERGE_CONFLICTS_KEY, resetMergeConflictReportForTests } from '../lib/mergeConflictReport'
 
 /**
  * 同期のフックを、本物のストアと PostgREST・DB の偽物（`fakeSupabaseDb`、サーバーのトリガーと印を真似る）で回す。
@@ -409,6 +410,42 @@ describe('useSupabaseSync', () => {
     const s = useTaskStore.getState()
     expect(s.tasks.find((t) => t.id === 'a')).toMatchObject({ title: 'a edited here', priority: 'high' })
     expect(s.syncRejected).toEqual([])
+  })
+
+  it('2 台で同じ項目を変えて新しいほうに任せたら、表・項目の名前と回数だけを記録に送る（#357）', async () => {
+    localStorage.removeItem(MERGE_CONFLICTS_KEY)
+    resetMergeConflictReportForTests()
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+    signIn('u1')
+    await untilSynced()
+    vi.mocked(reportSyncError).mockClear()
+
+    useTaskStore.getState().updateTask('a', { title: 'a edited here' })
+    // 送る前に、もう一方の端末も同じタスクの題名を変える（サーバーの時計で後に書かれたあちらが新しいので、こちらの題名を捨てる）
+    let interfered = false
+    db.hooks.beforeUpsert = (table) => {
+      if (table !== 'tasks' || interfered) return
+      interfered = true
+      db.oldClientWrite('tasks', {
+        ...db.tables.tasks!.find((r) => r.id === 'a')!,
+        title: 'a edited on phone',
+        updated_at: '2026-10-03T08:59:00.000000+00:00',
+      })
+    }
+    const before = useTaskStore.getState().lastSyncedAt
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await untilSynced(before)
+
+    expect(interfered).toBe(true)
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'a')!.title).toBe('a edited on phone')
+    const calls = vi.mocked(reportSyncError).mock.calls.filter((c) => c[0] === 'merge-conflicts')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]![2]).toEqual({ conflicts: { 'tasks.title': 1 }, total: 1, since: expect.any(String) })
+    // 題名などの中身は送らない
+    expect(JSON.stringify(calls[0])).not.toMatch(/edited here|on phone/)
   })
 
   describe('アカウントの境目のラベル表と購読（#286）', () => {

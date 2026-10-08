@@ -5,6 +5,9 @@
  *   ただし手元が最初に作られた初期ラベルのままならサーバーに合わせる（英語で開いた端末の Study… が日本語のラベル表に足されない）
  * - 週の目安（#291）は行に `weeklyTargetMinutes` を足すだけ（目安の無い行は今までと同じ形）。前の版のアプリは知らない項目を読み飛ばす。
  *   ただし前の版のアプリでラベルを変えて送ると目安は消える（その版は目安を持たないため）
+ * - 取り込み（Notion のデータベース名・フォルダを畳んだラベル）で足したラベルは「無ければ足す」だけ（#357）。
+ *   手元の変えた時刻は進めず、足した名前を `pendingAdds` に覚えておき、合わせた表に無ければ後ろに足して送る。
+ *   取り込みで手元が新しい扱いになり、ほかの端末の名前・色・並びの編集を上書きしていた
  */
 import jaLocale from '../locales/ja'
 import enLocale from '../locales/en'
@@ -27,6 +30,8 @@ export type LocalLabels = {
   updatedAt: string | null
   /** 手元のラベル表のもとになったサーバーの版（`settingSync.ts`）。まだ無ければ null */
   syncedAt?: string | null
+  /** 取り込みで足し、まだサーバーに届いていないラベルの名前（#357）。手元の表から消したものは足さない */
+  pendingAdds?: readonly string[]
 }
 
 export type RemoteLabels = { labels: LogLabelRow[]; updatedAt: string }
@@ -89,6 +94,40 @@ export function planLabelSync(
   nowIso: string = new Date().toISOString(),
   clockOffsetMs = 0,
 ): LabelSyncPlan {
+  const plan = planLabelTable(local, remote, nowIso, clockOffsetMs)
+  const adds = (local.pendingAdds ?? []).filter((n) => local.presets.includes(n))
+  // 送るなら手元の表（取り込んだラベルを含む）か、それと合わせた表なので足りている
+  if (!remote || adds.length === 0 || plan.push) return plan
+  // 当てる表（サーバーの表・合わせた表）か、そのままならサーバーの表に、無いものだけ後ろに足す
+  const base: LabelTable = plan.apply
+    ? { presets: plan.apply.presets, colors: plan.apply.colors, targets: plan.apply.targets ?? {} }
+    : rowsToLocal(remote.labels)
+  const missing = adds.filter((n) => !base.presets.includes(n))
+  if (missing.length === 0) return plan
+  const colors = { ...base.colors }
+  for (const n of missing) if (local.colors[n]) colors[n] = local.colors[n]
+  return mergedPlan({ presets: [...base.presets, ...missing], colors, targets: base.targets }, remote, nowIso)
+}
+
+/**
+ * 覚えておいた取り込みのラベルのうち、もう覚えなくてよい名前（サーバーの表にある・手元の表から消した）。
+ * 送った表に入った名前は送れたあと（`onPushed`）に外す
+ */
+export function settledLabelAdds(
+  pending: readonly string[],
+  presets: readonly string[],
+  remote: Pick<RemoteLabels, 'labels'> | null,
+): string[] {
+  return pending.filter((n) => !presets.includes(n) || !!remote?.labels.some((r) => r.name === n))
+}
+
+/** 取り込みで表を変えたあとの覚えておく名前（前から覚えている名前と、新しく足した名前） */
+export function pendingAddsAfterImport(pending: readonly string[], before: readonly string[], after: readonly string[]): string[] {
+  const added = after.filter((n) => !before.includes(n) && !pending.includes(n))
+  return added.length === 0 ? [...pending] : [...pending, ...added]
+}
+
+function planLabelTable(local: LocalLabels, remote: RemoteLabels | null, nowIso: string, clockOffsetMs: number): LabelSyncPlan {
   const localTargets = local.targets ?? {}
   const localRows = labelsToRows(local.presets, local.colors, localTargets)
   const localTable: LabelTable = { presets: local.presets, colors: local.colors, targets: localTargets }

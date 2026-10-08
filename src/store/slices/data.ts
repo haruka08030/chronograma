@@ -50,6 +50,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           logCategoryColors: assignColorsInOrder(defaultLogCategories()),
           logLabelTargets: {},
           logLabelsUpdatedAt: null,
+          logLabelPendingAdds: [],
           extraTimeZones: [],
           extraTimeZonesUpdatedAt: null,
           eventTemplates: [],

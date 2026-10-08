@@ -24,6 +24,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { isEventTask, type Task } from '../types/task'
 import { planHex, planVisualState } from '../lib/planVisual'
 import type { CalendarEvent } from '../types/calendarEvent'
+import { compareByOrder } from '../lib/orderCompare'
 
 /** 最初に並べる日数と「さらに表示」で足す日数 */
 const SCHEDULE_PAGE_DAYS = 30
@@ -70,7 +71,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
       // 一覧は「これからのこと」なので、終えた To‑Do は出さない（終えた日の記録はタイムライン・日のパネル）
       const dayTasks = [...(allDayByDate.get(key) ?? []), ...(timedByDate.get(key) ?? [])]
         .filter((x) => !x.completed)
-        .sort((a, b) => byTime(a, b) || a.order - b.order)
+        .sort((a, b) => byTime(a, b) || compareByOrder(a, b))
       const dayEvents = [...(eventsByDate.get(key) ?? [])].sort((a, b) => byTime(a, b) || a.summary.localeCompare(b.summary))
       // 祝日は予定が無くても出す（休みの日を見ながら予定を決められるように）
       const holiday = holidayName(key)

@@ -21,6 +21,7 @@ export const DATA_KEYS = [
   'logCategoryColors',
   'logLabelTargets',
   'logLabelsUpdatedAt',
+  'logLabelPendingAdds',
   'googleEventColors',
   'activeTimer',
   'activeTimerUpdatedAt',

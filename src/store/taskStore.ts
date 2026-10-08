@@ -44,7 +44,8 @@ export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeC
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
 import { withTaskDefaults } from '../lib/taskDefaults'
-import { isIncomingChange } from '../lib/changeOrigin'
+import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
+import { pendingAddsAfterImport } from '../lib/labelSync'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
@@ -126,6 +127,7 @@ export const useTaskStore = create<TaskState>()(
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),
         logLabelTargets: {},
         logLabelsUpdatedAt: null,
+        logLabelPendingAdds: [],
 
         calendarEvents: [],
         googleEventColors: {},
@@ -215,6 +217,9 @@ export const useTaskStore = create<TaskState>()(
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
+        merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
+          ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
+          : []
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
       },
@@ -284,6 +289,28 @@ useTaskStore.subscribe((s, prev) => {
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
 })
+
+/**
+ * 取り込み（Notion・フォルダを畳む）でラベル表を変えた結果を当てる（#357）。ラベル表の変えた時刻は進めず、足した名前を覚えておき、
+ * 次の同期で「無ければ足す」だけ送る（`labelSync.ts`）。時刻を進めると手元が新しい扱いになり、ほかの端末の編集を上書きしていた
+ */
+export function setStateWithImportedLabels(patch: Partial<TaskState>): void {
+  const s = useTaskStore.getState()
+  const pending = patch.timeLogTagPresets
+    ? pendingAddsAfterImport(s.logLabelPendingAdds, s.timeLogTagPresets, patch.timeLogTagPresets)
+    : s.logLabelPendingAdds
+  asIncomingChange(() =>
+    useTaskStore.setState(pending.length === s.logLabelPendingAdds.length ? patch : { ...patch, logLabelPendingAdds: pending }),
+  )
+}
+
+/** 覚えておいた取り込みのラベルから外す（サーバーに届いた・手元で消した） */
+export function dropPendingLabelAdds(names: readonly string[]): void {
+  const s = useTaskStore.getState()
+  const next = s.logLabelPendingAdds.filter((n) => !names.includes(n))
+  if (next.length !== s.logLabelPendingAdds.length) useTaskStore.setState({ logLabelPendingAdds: next })
+}
+
 // 他のタイムゾーン（並び・名前）を変えたときも同じ
 useTaskStore.subscribe((s, prev) => {
   if (s.extraTimeZones === prev.extraTimeZones) return
@@ -315,12 +342,14 @@ useTaskStore.subscribe((s, prev) => {
 /**
  * To-Do のリスト（フォルダ）はラベルに畳む（`foldTaskFolders`）。前の版のデータ・前の版の端末から同期で届いたフォルダ・
  * 取り込んだバックアップのどれもここで畳む。同期で届いた変更の中でも、畳んだ結果はこの端末の変更として送る（`queueMicrotask` で同期の取り込みの外に出す）。
+ * 畳んで作ったラベルはラベル表の変えた時刻を進めず、取り込みと同じく「無ければ足す」だけ送る（#357）。
  * 他のタブから取り込んだものは、そのタブが畳んで送る
  */
 function foldFolders() {
   const s = useTaskStore.getState()
   const folded = foldTaskFolders(s, new Date().toISOString())
-  if (folded) useTaskStore.setState(folded)
+  // 畳んで作ったラベルは「無ければ足す」だけ送る（タスクの変更は届いた変更の扱いでも同期で送る）
+  if (folded) setStateWithImportedLabels(folded)
 }
 /** To-Do はリストを開かず「すべて」で見る。未分類・消えたリストを開いていたら「すべて」へ */
 function settleTodoView() {

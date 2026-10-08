@@ -12,6 +12,7 @@ import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
 import { withLogCategory } from '../lib/taskDefaults'
 import { sameValue } from '../lib/sameValue'
+import { compareByOrder } from '../lib/orderCompare'
 
 /** `updateTask` で書き換えられる列 */
 
@@ -32,7 +33,7 @@ export function isAncestorInChain(tasks: Task[], possibleAncestorId: string, nod
 export function siblingIdsOrdered(tasks: Task[], parentId: string | null, excludeTaskId?: string): string[] {
   return tasks
     .filter((t) => t.parentId === parentId && (!excludeTaskId || t.id !== excludeTaskId))
-    .sort((a, b) => a.order - b.order)
+    .sort(compareByOrder)
     .map((t) => t.id)
 }
 
