@@ -134,7 +134,7 @@
 - Canvas の接続は 1 人 5 校まで。学校のサイトの応答は 5 MB まで読む（`canvas/body.ts`）。名前が引けない・内部を指す宛先には送らない
 - Edge Function の呼び出しは利用者ごとに 10 分あたり Google 600・Notion 300・Canvas 300 回まで、Canvas の接続は 1 時間 20 回・アカウントの削除は 1 時間 10 回まで（`_shared/rateLimit.ts`）。超えると 429 で、Notion / Canvas は `*_rate_limited` の文言。数えられないとき（`hit_rate_limit` の失敗）も 429 で止める
 - Google が断った理由は本文の `reason` で分ける（`supabase/functions/google-calendar/googleError.ts`）。利用上限（403 の `rateLimitExceeded` / `userRateLimitExceeded` / `quotaExceeded` / `dailyLimitExceeded`、429）は 429 の `google_rate_limited` で連携を残す（予定の読み取りは一度だけ待ってやり直す）。取り消し・期限切れ（`invalid_grant`・401）と許可不足（`insufficientPermissions`）は 409 でつなぎ直し、他人の予定は 409 の `google_read_only`、それ以外は 502 で連携を残す
-- DB の行には大きさの上限（タイトル 2000 字・メモ 20 万字・名前 500 字など、`001_chronograma_schema.sql` の `*_size_check`）。送る前に同じ長さで切る（超えると同期が止まり続けるため）
+- DB の行には大きさの上限（タイトル 2000 字・メモ 20 万字・場所 2000 字・リストとセクションの名前 500 字・記録の分類 200 字など、`001_chronograma_schema.sql` の `*_size_check`）。入力欄はその長さまでしか書けない（`maxLength`、`src/lib/textLimits.ts`）。送るときには切らない。超えた行（取り込みなど）はその行だけ断られ、同期の表示は「N 件 未保存」
 - 1 人が持てる行数にも上限（タスク・記録 20 万・セクション 5,000・リスト 1,000・習慣 1,000・Web Push の購読 100、`006_row_limits.sql`）。既にある行の更新は止めない。超えると同期は「未同期」のまま、ツールチップで上限に達したことを伝える
 - ログインせずに使っていた端末の初回同期: 中身の無い「いつか」「買い物」はアカウントに同じものがあれば外す。手元にサーバーに無いリスト・セクションがあれば合わせて残す
 - 持ち主の記録が無い古いデータ（`*legacy*`）は、その人として同期した控えがあればその人のもの。ほかの人の控えしか無ければ外す

@@ -20,6 +20,7 @@ import { SectionLabel } from '../ui/SectionLabel'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT } from '../ui/textClass'
 import type { HabitFormState } from './habitFormState'
+import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 const TIMES_PER_WEEK_OPTIONS = Array.from(
@@ -188,6 +189,7 @@ export function HabitFormFields({
         ref={titleRef}
         value={form.title}
         onChange={(e) => onChange({ title: e.target.value })}
+        maxLength={TITLE_MAX_LENGTH}
         onKeyDown={(e) => {
           if (isSubmitEnter(e)) {
             e.preventDefault()

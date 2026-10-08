@@ -28,6 +28,7 @@ import { META_TEXT } from './ui/textClass'
 import { ColorLabelCard } from './labels/ColorLabelCard'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { colorVars } from '../lib/logCategoryColors'
+import { NAME_MAX_LENGTH } from '../lib/textLimits'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -497,6 +498,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
                 autoFocus
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
+                maxLength={NAME_MAX_LENGTH}
                 {...renameEntry}
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none
                            ring-2 ring-accent-500/40 text-zinc-900 dark:text-zinc-100"
@@ -567,6 +569,7 @@ export function TodoNavContent({ onNavigate }: { onNavigate?: () => void }) {
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              maxLength={NAME_MAX_LENGTH}
               {...newListEntry}
               placeholder={t('sidebar.listPlaceholder')}
               className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 rounded-lg outline-none

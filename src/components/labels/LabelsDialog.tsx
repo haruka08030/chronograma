@@ -12,6 +12,7 @@ import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
 import { REVEAL_ON_HOVER } from '../ui/revealClass'
+import { CATEGORY_MAX_LENGTH } from '../../lib/textLimits'
 
 let nextRowId = 0
 
@@ -88,6 +89,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
                   data-row={r.id}
                   value={r.name}
                   onChange={(e) => patch(r.id, { name: e.target.value })}
+                  maxLength={CATEGORY_MAX_LENGTH}
                   onKeyDown={(e) => {
                     if (isSubmitEnter(e)) save()
                   }}

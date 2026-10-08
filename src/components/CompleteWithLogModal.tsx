@@ -10,6 +10,7 @@ import { useTextAreaEntry } from '../hooks/useTextEntry'
 import { SectionLabel } from './ui/SectionLabel'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { ERROR_TEXT, HINT_TEXT } from './ui/textClass'
+import { DESCRIPTION_MAX_LENGTH } from '../lib/textLimits'
 
 export interface CompleteWithLogDraft {
   taskId: string
@@ -113,6 +114,7 @@ export function CompleteWithLogModal({
         <textarea
           value={draft.memo}
           onChange={(e) => onChange({ memo: e.target.value })}
+          maxLength={DESCRIPTION_MAX_LENGTH}
           {...memoEntry}
           rows={4}
           placeholder={t('task.completeModal.memoPlaceholder')}

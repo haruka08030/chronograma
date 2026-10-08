@@ -111,21 +111,12 @@ function rowToSection(row: SectionRow): ListSection {
   }
 }
 
-/**
- * DB の大きさの上限（`001_chronograma_schema.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
- * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
- */
-const MAX_NAME = 500
-const MAX_TITLE = 2000
-const MAX_DESCRIPTION = 200_000
-const clip = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text)
-
 function sectionToRow(userId: string, sec: ListSection): SectionRow {
   return {
     id: sec.id,
     user_id: userId,
     list_id: sec.listId,
-    name: clip(sec.name, MAX_NAME),
+    name: sec.name,
     sort_order: sec.order,
     // 送った時刻にすると、手元で変えていない端末の送信が「新しい変更」に見えて他端末の変更を上書きする
     updated_at: sec.updatedAt ?? UNKNOWN_UPDATED_AT,
@@ -176,7 +167,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
   return {
     id: h.id,
     user_id: userId,
-    title: clip(h.title, MAX_TITLE),
+    title: h.title,
     color: h.color,
     time_mode: h.timeMode,
     start_time: h.startTime,
@@ -261,7 +252,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
   return {
     id: list.id,
     user_id: userId,
-    name: clip(list.name, MAX_NAME),
+    name: list.name,
     color: list.color,
     sort_order: list.order,
     kind: list.kind ?? 'tasks',
@@ -276,8 +267,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     list_id: task.listId,
     parent_id: task.parentId,
     section_id: task.sectionId,
-    title: clip(task.title, MAX_TITLE),
-    description: clip(task.description, MAX_DESCRIPTION),
+    title: task.title,
+    description: task.description,
     completed: task.completed,
     completed_at: task.completedAt,
     created_at: task.createdAt,
@@ -289,7 +280,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_date: task.endDate,
     start_time: task.startTime,
     end_time: task.endTime,
-    location: task.location == null ? null : clip(task.location, MAX_TITLE),
+    location: task.location ?? null,
     estimate_minutes: task.estimateMinutes,
     color: task.color,
     priority: task.priority,
@@ -389,7 +380,7 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   userId: string,
   since: string,
   keys: readonly [string, ...string[]],
-): Promise<{ rows: T[] } | { error: string; code?: string }> {
+): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
   let total: number | null = null
   for (;;) {
@@ -410,7 +401,7 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
     }
     for (const k of keys) q = q.order(k)
     const { data, count, error } = await q.limit(PAGE_SIZE)
-    if (error) return { error: error.message, code: error.code }
+    if (error) return { error: error.message }
     if (rows.length === 0) total = count ?? null
     const page = (data ?? []) as T[]
     if (page.length === 0) break
@@ -420,46 +411,25 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   return { rows }
 }
 
-/** `008` を流す前の DB（印の表が無い） */
-function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
-  return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
-}
-
-/** `010` を流す前の DB（上限で消した印の表が無い）。印は消えていないので、差分のままでよい */
-function isMissingPurgeTable(e: { message: string; code?: string }): boolean {
-  return (
-    /sync_tombstone_purges/.test(e.message) &&
-    (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.message))
-  )
-}
-
 /**
  * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
- * `unsupported` は関数が無い DB（`008` を流す前）
+ * 取れなければ（関数が無い・PostgREST の一覧が古いときも）同期の失敗
  */
-export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string; unsupported?: boolean }> {
+export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string }> {
   const { data, error } = await supabase.rpc('sync_server_now')
-  if (error) {
-    const missing =
-      /sync_server_now/.test(error.message) &&
-      (error.code === 'PGRST202' || error.code === '42883' || /could not find|does not exist/i.test(error.message))
-    return missing ? { error: error.message, unsupported: true } : { error: `sync_server_now: ${error.message}` }
-  }
+  if (error) return { error: `sync_server_now: ${error.message}` }
   const at = typeof data === 'string' ? data : null
-  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value', unsupported: true }
+  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value' }
   return { at }
 }
 
 /**
  * 差分の取得: `since` より後に変わった行と、`since` より後に消えた行の印。
  * 行を先に、印を後に取る（印は取った時点でその行がサーバーに無いことを示すので、行より後に取れば行の取得と食い違わない）。
- * `unsupported` は差分を取れない DB（`008` を流す前）。全部を取り直す
+ * 印の表（`008`）・上限で消した印の表（`010`）が読めなければ同期の失敗（読めないのを「印は無い」とすると、
+ * ほかの端末で消した行が次の全部の取得まで手元に残る）
  */
-export async function fetchChangesSince(
-  supabase: SupabaseClient,
-  userId: string,
-  since: string,
-): Promise<SyncChanges | { error: string; unsupported?: boolean }> {
+export async function fetchChangesSince(supabase: SupabaseClient, userId: string, since: string): Promise<SyncChanges | { error: string }> {
   const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
   for (const table of SYNC_TABLES) {
     const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
@@ -471,7 +441,7 @@ export async function fetchChangesSince(
     'table_name',
     'row_id',
   ])
-  if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  if ('error' in ts) return { error: `sync_tombstones: ${ts.error}` }
   // 上限で消した印の一番新しい時刻（`010`）。印を取った後に読むので、取った印より前に消えた分は必ず見える
   const trimmed = await supabase
     .from('sync_tombstone_purges')
@@ -479,7 +449,7 @@ export async function fetchChangesSince(
     .eq('user_id', userId)
     .gt('last_deleted_at', since)
     .limit(1)
-  if (trimmed.error && !isMissingPurgeTable(trimmed.error)) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
+  if (trimmed.error) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
   return {
     lists: (got.lists as unknown as ListRow[]).map(rowToList),
     sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),

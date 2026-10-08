@@ -43,17 +43,15 @@ export interface PullState {
   lastPullAt: number
   /** 次は全部を取る（送った行が断られた・送信が途中で失敗した） */
   forceFull: boolean
-  /** 差分を取れない DB（`008` を流す前）。このログインの間は毎回全部を取る */
-  deltaUnsupported: boolean
 }
 
 export function createPullState(): PullState {
-  return { mirror: null, cursor: null, lastFullAt: 0, lastPullAt: 0, forceFull: false, deltaUnsupported: false }
+  return { mirror: null, cursor: null, lastFullAt: 0, lastPullAt: 0, forceFull: false }
 }
 
 /** `serverNowMs` はサーバーの時計 */
 export function needsFullFetch(state: PullState, serverNowMs: number): boolean {
-  if (!state.mirror || state.cursor === null || state.forceFull || state.deltaUnsupported) return true
+  if (!state.mirror || state.cursor === null || state.forceFull) return true
   if (serverNowMs - state.lastFullAt >= FULL_FETCH_INTERVAL_MS) return true
   return serverNowMs - state.lastPullAt + DELTA_OVERLAP_MS >= TOMBSTONE_RETENTION_MS
 }
@@ -105,7 +103,7 @@ export function applyPushToMirror(
  * いまのサーバーの内容を取る。全部を取るか差分かは `needsFullFetch`（と `full`）で決める。
  * 最初にサーバーの時刻を取り、それを次の目印にする（その時刻より前に確定した行は、この取得で見えている。
  * 前後して確定する行は、次の取得でさかのぼる 5 分で拾う）。
- * 差分を取れない DB なら、その場で全部を取る。`state` は取れたときだけ書き換える
+ * サーバーの時刻・差分・印が取れなければ失敗として返す（全部を取る道へは逃げない）。`state` は取れたときだけ書き換える
  */
 export async function pullRemote(
   supabase: SupabaseClient,
@@ -114,17 +112,14 @@ export async function pullRemote(
   opts: { full?: boolean } = {},
 ): Promise<{ snapshot: SyncSnapshot; full: boolean; tombstoned: ReadonlySet<string> } | { error: string }> {
   const now = await fetchServerNow(supabase)
-  if ('error' in now && !now.unsupported) return { error: now.error }
-  if ('error' in now) state.deltaUnsupported = true
-  const startedAt = 'error' in now ? null : now.at
-  const startedMs = startedAt === null ? Number.NaN : Date.parse(startedAt)
-  if (startedAt !== null && !opts.full && !needsFullFetch(state, startedMs)) {
+  if ('error' in now) return { error: now.error }
+  const startedAt = now.at
+  const startedMs = Date.parse(startedAt)
+  if (!opts.full && !needsFullFetch(state, startedMs)) {
     const since = new Date(Date.parse(state.cursor!) - DELTA_OVERLAP_MS).toISOString()
     const changes = await fetchChangesSince(supabase, userId, since)
-    if ('error' in changes && !changes.unsupported) return { error: changes.error }
-    if ('error' in changes) {
-      state.deltaUnsupported = true
-    } else if (!changes.tombstonesTrimmed) {
+    if ('error' in changes) return { error: changes.error }
+    if (!changes.tombstonesTrimmed) {
       state.mirror = applyChanges(state.mirror!, changes)
       state.cursor = startedAt
       state.lastPullAt = startedMs
@@ -134,7 +129,7 @@ export async function pullRemote(
   const all = await fetchListsTasksHabits(supabase, userId)
   if ('error' in all) return all
   state.mirror = all
-  state.cursor = state.deltaUnsupported ? null : startedAt
+  state.cursor = startedAt
   state.lastFullAt = startedMs
   state.lastPullAt = startedMs
   state.forceFull = false

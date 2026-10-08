@@ -6,6 +6,7 @@ import { tip } from '../../lib/tooltip'
 import { MapPinIcon } from '../icons'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
+import { LOCATION_MAX_LENGTH } from '../../lib/textLimits'
 
 /** タスク詳細の場所。書いてあれば地図で開くリンク */
 export function TaskLocationField({ task }: { task: Task }) {
@@ -18,6 +19,7 @@ export function TaskLocationField({ task }: { task: Task }) {
         <input
           value={task.location ?? ''}
           onChange={(e) => updateTask(task.id, { location: e.target.value || null })}
+          maxLength={LOCATION_MAX_LENGTH}
           placeholder={t('taskDetail.locationPlaceholder')}
           className={fieldClass({}, 'min-w-0 flex-1')}
         />
