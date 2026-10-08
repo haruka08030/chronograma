@@ -6,12 +6,19 @@ export function modKeyLabel(): string {
   return IS_MAC ? '⌘' : 'Ctrl'
 }
 
+/** 一覧・ヒントのキーの名前。'mod' は ⌘ / Ctrl、'Alt' は Mac で ⌥（Mac のキーボードには Alt と書いていない） */
+export function keyCapLabel(k: string): string {
+  if (k === 'mod') return modKeyLabel()
+  if (k === 'Alt' && IS_MAC) return '⌥'
+  return k
+}
+
 /**
- * ショートカットの表示。'mod' は ⌘ / Ctrl、Mac の 'Shift' は ⇧ に置き換える。Mac は詰めて（⌘Z）、それ以外は + でつなぐ（Ctrl+Z）
+ * ショートカットの表示。'mod' は ⌘ / Ctrl、Mac の 'Alt' は ⌥、'Shift' は ⇧ に置き換える。Mac は詰めて（⌘Z）、それ以外は + でつなぐ（Ctrl+Z）
  *   shortcutLabel(['mod', 'Z'])
  */
 export function shortcutLabel(keys: string[]): string {
-  const parts = keys.map((k) => (k === 'mod' ? modKeyLabel() : k === 'Shift' && IS_MAC ? '⇧' : k))
+  const parts = keys.map((k) => (k === 'Shift' && IS_MAC ? '⇧' : keyCapLabel(k)))
   return parts.join(IS_MAC ? '' : '+')
 }
 
@@ -39,7 +46,7 @@ export function isImeKeyEvent(e: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>)
   return e.isComposing || e.keyCode === 229
 }
 
-type HotkeyEvent = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
+type HotkeyEvent = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'> & { code?: string }
 
 /** 一覧やヒントに出す名前 → KeyboardEvent.key */
 const KEY_ALIASES: Record<string, string> = { Space: ' ', Esc: 'Escape' }
@@ -49,6 +56,7 @@ const KEY_ALIASES: Record<string, string> = { Space: ' ', Esc: 'Escape' }
  * - mod（⌘ / Ctrl）・alt・shift は書いたものだけを押しているときに合う（⌘E で e は動かない）
  * - ? / などの記号は Shift で打つ配列があるので Shift を見ない
  * - mod 付きの文字は大文字・小文字を区別しない（⌘⇧Z が 'Z' で来るブラウザがある）
+ * - alt 付きの文字・数字はキーの位置（code）で見る（Mac の Option は key を別の文字にする）
  */
 export function matchesHotkey(e: HotkeyEvent, spec: string): boolean {
   const parts = spec.split('+')
@@ -60,6 +68,10 @@ export function matchesHotkey(e: HotkeyEvent, spec: string): boolean {
   if (e.altKey !== parts.includes('alt')) return false
   const symbol = key.length === 1 && key !== ' ' && key.toLowerCase() === key.toUpperCase()
   if (!symbol && e.shiftKey !== parts.includes('shift')) return false
+  // Mac の Option と一緒の文字は key が別の文字になる（⌥E は '´'）ので、押したキーの位置（code）で見る。矢印などの名前のキーはそのまま来る
+  if (parts.includes('alt') && /^[a-z0-9]$/i.test(key) && e.code) {
+    return e.code === (/\d/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`)
+  }
   // ⌘ や Shift と一緒の文字は大文字で来る（Shift+L は 'L'）
   if ((mod || parts.includes('shift')) && key.length === 1) return e.key.toLowerCase() === key.toLowerCase()
   return e.key === key

@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SHORTCUT_LIST } from '../lib/shortcuts'
-import { modKeyLabel } from '../lib/keyboard'
+import { keyCapLabel } from '../lib/keyboard'
 import { Modal, ModalTitle } from './ui/Modal'
 
 /** 「?」で開くキーボードショートカット一覧 */
@@ -24,7 +24,7 @@ export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
                     <Fragment key={k}>
                       {j > 0 && <span aria-hidden>+</span>}
                       <kbd className="min-w-6 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-center font-mono text-xs text-zinc-600 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-                        {k === 'mod' ? modKeyLabel() : k}
+                        {keyCapLabel(k)}
                       </kbd>
                     </Fragment>
                   ))}

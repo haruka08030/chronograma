@@ -167,8 +167,15 @@ export function patchAfterLogResize(
   const start = startTime !== seg.startTime ? at(startTime) : iv.start
   const end = endTime !== seg.endTime ? at(endTime) : iv.end
   if (end <= start) return null
+  return logPatchForInterval(start, end)
+}
+
+/**
+ * 記録の開始・終わり（壁時計の Date）を、記録の日付と時刻に直す。日をまたがなければ `endDate` は付けない
+ * （翌日の 0:00 ちょうどに終わるときも付けない。終わりが開始以前の記録は翌日まで、で読める）
+ */
+export function logPatchForInterval(start: Date, end: Date): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> {
   const dueDate = toDateKey(start)
-  // 翌日の 0:00 ちょうどに終わるなら endDate は付けない（終わりが開始以前の記録は翌日まで、で読める）
   const endsAtNextMidnight = clockOf(end) === '00:00' && differenceInCalendarDays(end, start) === 1
   const endKey = toDateKey(end)
   return {

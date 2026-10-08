@@ -92,7 +92,7 @@ export function useListCursorRequest(handler: () => void) {
  * ショートカットの表（1 つだけ）。処理の登録（`useHotkey(SHORTCUTS.x.hotkeys, …)`）・「?」の一覧・ボタンのヒント（`shortcutTip`）を
  * ここから作る。別々に書くと、一覧に載っているのに効かない・ヒントのキーが違う、がおきる。
  * - hotkeys: `useHotkey` に渡すキー（'mod' は ⌘ / Ctrl）
- * - display: 一覧とヒントに出すキー。外側の並びは「どれか」（J / N）、内側は「同時に」（⌘ + A）。'mod' は ⌘ / Ctrl
+ * - display: 一覧とヒントに出すキー。外側の並びは「どれか」（J / N）、内側は「同時に」（⌘ + A）。'mod' は ⌘ / Ctrl、'Alt' は Mac で ⌥
  * - label: 説明の i18n キー
  */
 export const SHORTCUTS = {
@@ -110,6 +110,22 @@ export const SHORTCUTS = {
   searchAnywhere: { hotkeys: ['mod+k'], display: [['mod', 'K']], label: 'shortcuts.searchAnywhere' },
   edit: { hotkeys: ['e'], display: [['E']], label: 'shortcuts.edit' },
   delete: { hotkeys: ['Delete', 'Backspace'], display: [['Delete']], label: 'shortcuts.delete' },
+  nudgeBlock: {
+    hotkeys: ['alt+ArrowUp', 'alt+ArrowDown'],
+    display: [
+      ['Alt', '↑'],
+      ['Alt', '↓'],
+    ],
+    label: 'shortcuts.nudgeBlock',
+  },
+  resizeBlock: {
+    hotkeys: ['alt+shift+ArrowUp', 'alt+shift+ArrowDown'],
+    display: [
+      ['Alt', 'Shift', '↑'],
+      ['Alt', 'Shift', '↓'],
+    ],
+    label: 'shortcuts.resizeBlock',
+  },
   moveRow: { hotkeys: ['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], display: [['↑'], ['↓']], label: 'shortcuts.moveRow' },
   openRow: { hotkeys: ['Enter'], display: [['Enter']], label: 'shortcuts.openRow' },
   completeRow: { hotkeys: ['Space'], display: [['Space']], label: 'shortcuts.completeRow' },

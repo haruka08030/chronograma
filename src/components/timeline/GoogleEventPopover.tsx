@@ -9,6 +9,7 @@ import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } f
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
+import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { PillToggle } from '../ui/PillToggle'
@@ -68,6 +69,11 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     },
     { scope: layer },
   )
+
+  // 書き換えられる予定は、カードを開いたまま Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（日をまたぐ予定はドラッグと同じく動かさない）
+  useHotkey([...SHORTCUTS.nudgeBlock.hotkeys, ...SHORTCUTS.resizeBlock.hotkeys], (e) => void nudgeBlockByKey(`event-${eventId}`, e), {
+    scope: layer,
+  })
 
   useEffect(() => {
     ref.current?.focus()

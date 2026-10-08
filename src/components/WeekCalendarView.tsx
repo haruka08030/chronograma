@@ -4,13 +4,10 @@ import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
-import {
-  durationMinutesForTaskId,
-  isOvernightTimeLog,
-  patchAfterLogResize,
-  patchAfterTimelineMove,
-  taskTimedInterval,
-} from '../lib/taskTimeRange'
+import { durationMinutesForTaskId } from '../lib/taskTimeRange'
+import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey } from '../lib/timelineBlockEdit'
+import { useHotkey } from '../hooks/useHotkey'
+import { SHORTCUTS } from '../lib/shortcuts'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
@@ -22,8 +19,6 @@ import {
   useCalendarItemDrag,
 } from '../lib/calendarItemDrag'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
-import { moveGoogleEvent } from '../lib/googleEventEdit'
-import { googleEventTiming, movedGoogleEventTiming } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNow } from '../hooks/useAppClock'
 import { useIsDesktop } from '../hooks/useMediaQuery'
@@ -31,7 +26,7 @@ import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
-import { appTodayKey, zonedNow } from '../lib/timeZone'
+import { appTodayKey } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -135,8 +130,7 @@ export function WeekCalendarView({
   const [dropBlocked, setDropBlocked] = useState(false)
   /** 記録は今より先には作れない。その日の記録に使える最後の分（null は制限なし＝過去の日） */
   const now = useNow()
-  const todayKey = toDateKey(now)
-  const logLimitMin = (key: string): number | null => (key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes())
+  const logLimitMin = logLimitAt(now)
   const logLimitRef = useRef(logLimitMin)
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
@@ -217,91 +211,14 @@ export function WeekCalendarView({
     [setEventCard, setGoogleCard],
   )
 
-  /** 習慣の枠を動かした・伸ばした: その日だけの時間にする */
-  const setHabitDayTimeFromSlot = (slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) => {
-    const { habits, setHabitDayTime } = useTaskStore.getState()
-    const habit = habits.find((h) => h.id === slot.habitId)
-    if (!habit) return
-    const time = habit.timeMode === 'range' ? `${startTime}–${endTime}` : startTime
-    setHabitDayTime(habit.id, slot.dateKey, startTime, endTime, {
-      key: 'undo.habitDayTime',
-      params: { name: habit.title, date: shortDate(slot.dateKey), time },
-    })
-  }
-
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
-      const habitSlot = parseHabitSlotId(taskId)
-      if (habitSlot) {
-        // 習慣の枠はその日の中だけ動かせる（ほかの日へ持っていったら元に戻す）
-        if (dateKey === habitSlot.dateKey) setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
-        return
-      }
-      if (taskId.startsWith('event-')) {
-        const ev = googleDragRef.current
-        // 元の枠に戻しただけなら Google へ書き込まない。動かすときは長さ（日をまたぐ予定は終わりの日も）を保つ
-        const same = ev && ev.date === dateKey && ev.startTime === startTime
-        if (ev && !same) void moveGoogleEvent(ev, movedGoogleEventTiming(ev, dateKey, startTime))
-        return
-      }
-      const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
-      if (!prev) return
-      const patch = patchAfterTimelineMove(prev, dateKey, startTime, endTime)
-      if (isLogTask(prev)) {
-        // 記録を今より先へは動かせない（元の位置に戻る）
-        const limit = logLimitRef.current(dateKey)
-        const crossesDay = isOvernightTimeLog({ ...prev, ...patch } as Task)
-        if (limit !== null && (crossesDay || timeToMinutes(endTime) > limit)) return
-      }
-      updateTask(taskId, patch, {
-        key: 'undo.blockMoved',
-        params: { title: prev.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
-      })
+      applyBlockMove(taskId, dateKey, startTime, endTime, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
     },
     onResizeDone: (taskId, startTime, endTime, dateKey) => {
-      const habitSlot = parseHabitSlotId(taskId)
-      if (habitSlot) {
-        setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
-        return
-      }
-      if (taskId.startsWith('event-')) {
-        const ev = googleDragRef.current
-        if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) {
-          // 上の端（開始）だけ変えたときは終わりの日を保つ（日をまたぐ予定が 1 日に縮まないように）
-          const endDate = ev.endTime === endTime ? googleEventTiming(ev).endDate : null
-          void moveGoogleEvent(ev, { date: ev.date, endDate, startTime, endTime })
-        }
-        return
-      }
-      const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
-      // 日をまたぐ記録: 引いた列の日付と時刻で開始・終了を決める（記録全体の時刻だけ書き換えると 1 日ぶん長くなっていた）
-      if (prev && isLogTask(prev) && isOvernightTimeLog(prev)) {
-        const patch = patchAfterLogResize(prev, dateKey, startTime, endTime)
-        if (!patch) return
-        // 今より先の記録にはしない
-        const next = taskTimedInterval({ ...prev, ...patch } as Task)
-        if (!next || next.end > zonedNow()) return
-        updateTask(taskId, patch, {
-          key: 'undo.blockResized',
-          params: { title: prev.title, time: `${patch.startTime}–${patch.endTime}` },
-        })
-        return
-      }
-      if (prev && isLogTask(prev) && prev.dueDate && !prev.endDate) {
-        const limit = logLimitRef.current(prev.dueDate)
-        if (limit !== null && timeToMinutes(endTime) > limit) {
-          if (timeToMinutes(startTime) >= limit) return
-          endTime = minutesToTime(limit)
-        }
-      }
-      if (!prev) return
-      updateTask(
-        taskId,
-        { startTime, endTime },
-        { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } },
-      )
+      applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
     },
     onBlockTap: useCallback(
       (taskId: string) => {
@@ -315,6 +232,26 @@ export function WeekCalendarView({
     onBlockLongPress: (id, x, y) => {
       openBlockMenu(id, x, y)
     },
+  })
+  // Tab で止めたブロック: Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（ドラッグと同じ決まり・元に戻せる）。
+  // カードを開いているときはカードのほうで受ける（層が開いていると 'global' は効かない）
+  useHotkey([...SHORTCUTS.nudgeBlock.hotkeys, ...SHORTCUTS.resizeBlock.hotkeys], (e) => {
+    const active = document.activeElement
+    const block = active instanceof HTMLElement && rootRef.current?.contains(active) ? active.closest<HTMLElement>('[data-block-id]') : null
+    const id = block?.dataset.blockId
+    if (!id || timelineDrag.drag) return false
+    const column = block.closest<HTMLElement>('[data-datekey]')?.dataset.datekey
+    if (nudgeBlockByKey(id, e)) {
+      // 動いたブロックは描き直しで別の要素・別の日の列になることがあるので、同じブロックにフォーカスを戻す
+      requestAnimationFrame(() => {
+        const root = rootRef.current
+        if (!root) return
+        const sel = `[data-block-id="${CSS.escape(id)}"]`
+        const next = root.querySelector<HTMLElement>(`[data-datekey="${column}"] ${sel}`) ?? root.querySelector<HTMLElement>(sel)
+        if (next && document.activeElement !== next) next.focus()
+      })
+    }
+    // 動かせなかった（日の端・今より先・書き換えられない予定）ときもキーは使ったことにする（格子がスクロールしない）
   })
   // タッチで持ち上げている間は縦スクロールを止め（指で動かす）、上下の端に寄せたら送る
   useEffect(() => {
