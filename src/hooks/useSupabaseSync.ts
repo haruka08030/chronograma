@@ -52,6 +52,7 @@ import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync, settledLabelAdds } from '../lib/labelSync'
+import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
@@ -499,6 +500,8 @@ export function useSupabaseSync() {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
         const local = localSnapshot()
         const result = mergeSnapshots(local, remote, baseline)
+        // 両方の端末で同じ項目を変えて片方を捨てた回数（表・項目の名前と回数だけ。1 日 1 回まとめて送る）
+        noteMergeConflicts(result.conflicts)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
         const same = <T>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i])
         const merged: SyncSnapshot = {
