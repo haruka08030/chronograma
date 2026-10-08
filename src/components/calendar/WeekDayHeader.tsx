@@ -5,6 +5,8 @@ import { TimeGutterHeader } from '../timeline/TimeGutter'
 import { dayMarkerClass, TODAY_TEXT } from '../../lib/dayMarker'
 import { CalendarAddTaskButton } from '../CalendarInlineTaskAdd'
 import { dateFnsLocale, toDateKey } from '../../lib/dateKey'
+import type { DayLoad } from '../../lib/dayLoad'
+import { DayFreeTime } from './DayFreeTime'
 
 /** 週の曜日・日付の行（押すとその日を選ぶ。＋ で終日の ToDo を追加）と、1 日だけ描くときの「予定 / 記録」の行 */
 export function WeekDayHeader({
@@ -16,6 +18,7 @@ export function WeekDayHeader({
   selectedDateKey,
   onSelectDate,
   setAllDayAddDate,
+  dayLoads,
 }: {
   singleDay: boolean
   days: Date[]
@@ -25,6 +28,8 @@ export function WeekDayHeader({
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
   setAllDayAddDate: (dateKey: string) => void
+  /** 日ごとの空きと置いた To-Do（今日から先の日だけ入れる。無い日は出さない） */
+  dayLoads?: ReadonlyMap<string, DayLoad>
 }) {
   const { t, i18n } = useTranslation()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -54,6 +59,7 @@ export function WeekDayHeader({
                     >
                       {format(day, 'd')}
                     </div>
+                    {dayLoads?.get(key) && <DayFreeTime load={dayLoads.get(key)!} />}
                     <div
                       className={`mt-0.5 hidden grid-cols-2 text-[9px] font-normal text-zinc-400 dark:text-zinc-500 ${showLaneLabels ? 'md:grid' : ''}`}
                     >

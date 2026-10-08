@@ -164,6 +164,8 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 見出しの空き時間で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「空き 2h / 3h45」を締切の色で）
+  { name: 'calendar-free-over', view: 'calendar', state: { dailyCapacityMinutes: 120 } },
   // 締切が先（あさって）の To-Do を今日終えたところ（完了した日＝今日の列に出る）
   { name: 'calendar-early-done', view: 'calendar', doneNow: ['s4'] },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）

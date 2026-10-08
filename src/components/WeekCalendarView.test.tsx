@@ -1,5 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
 import { HOUR_HEIGHT } from '../lib/timeGrid'
@@ -178,5 +178,40 @@ describe('WeekCalendarView: キーでブロックを動かす（Alt+↑↓ / Alt
     render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
     fireEvent.keyDown(document.body, { key: 'ArrowDown', altKey: true })
     expect(plan()).toMatchObject({ startTime: '10:00', endTime: '11:00' })
+  })
+})
+
+describe('WeekCalendarView: 見出しの空き時間', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('今日から先の日に空きを出し、置いた To-Do が空きを超える日は置いた時間も足して知らせる', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 7, 8, 0, 0))
+    useTaskStore.setState({
+      dailyCapacityMinutes: 8 * 60,
+      tasks: [
+        // 10/8: 授業 9〜16 時（7 時間）→ 空き 1 時間に、見積もり 4 時間のレポート
+        {
+          ...makeTask(
+            { title: '授業', listId: INBOX_LIST_ID, kind: 'event', scheduledDate: '2026-10-08', startTime: '09:00', endTime: '16:00' },
+            0,
+          ),
+          id: 'class',
+        },
+        { ...makeTask({ title: 'レポート', listId: INBOX_LIST_ID, scheduledDate: '2026-10-08' }, 1), id: 'report', estimateMinutes: 240 },
+      ],
+    })
+    const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-06')} selectedDateKey="2026-10-07" threeDay />)
+    const lines = [...container.querySelectorAll<HTMLElement>('[data-day-free]')]
+    // 10/6 は過ぎた日なので出さない
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toHaveAttribute('data-day-free', 'ok')
+    expect(lines[0]).toHaveTextContent('Free 8h')
+    expect(lines[1]).toHaveAttribute('data-day-free', 'over')
+    expect(lines[1]).toHaveTextContent('Free 1h / 4h')
+    // 色だけでなく、読み上げでも分かる
+    expect(lines[1]).toHaveTextContent('To-Dos placed on this day (4h) are more than the free time (1h)')
   })
 })
