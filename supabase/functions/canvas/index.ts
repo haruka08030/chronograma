@@ -5,7 +5,7 @@ import { parseFeedUrl } from './feedUrl.ts'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
-import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
+import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 import { isPrivateAddress, parseBaseUrl } from './host.ts'
 import { readJsonCapped, readTextCapped, ResponseTooLargeError } from './body.ts'
 
@@ -330,14 +330,15 @@ Deno.serve(
           .eq('user_id', user.id)
           .order('updated_at')
         if (error) throw new Error(error.message)
-        // トークンとフィードの URL は暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+        // トークンとフィードの URL は暗号化して置く。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
         return await Promise.all(
           ((data ?? []) as Row[]).map(async (r) => {
             const token = r.token ? await openSecret(r.token, secretContext.canvasToken(user.id, r.id)) : null
             const feedUrl = r.feed_url ? await openSecret(r.feed_url, secretContext.canvasFeed(user.id, r.id)) : null
             const patch: Record<string, string> = {}
-            if (token && r.token && needsSeal(r.token)) patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
-            if (feedUrl && r.feed_url && needsSeal(r.feed_url))
+            if (token && r.token && (await needsReseal(r.token)))
+              patch.token = await sealSecret(token, secretContext.canvasToken(user.id, r.id))
+            if (feedUrl && r.feed_url && (await needsReseal(r.feed_url)))
               patch.feed_url = await sealSecret(feedUrl, secretContext.canvasFeed(user.id, r.id))
             if (Object.keys(patch).length > 0) {
               await admin.from('canvas_connection').update(patch).eq('user_id', user.id).eq('id', r.id)

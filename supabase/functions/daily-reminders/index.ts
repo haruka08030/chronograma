@@ -2,9 +2,12 @@
 // the evening wrap-up with the day's numbers, and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
-// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET
+// 回の終わりに、連携のトークンのうち今の鍵で閉じていない行を少しずつ閉じ直す（`_shared/tokenSweep.ts`、鍵の入れ替え）。
+//
+// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET,
+// TOKEN_ENCRYPTION_KEY / TOKEN_ENCRYPTION_PREVIOUS_KEYS (closing tokens again with the current key)
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
-import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.103.0'
 import webpush from 'npm:web-push@3.6.7'
 import {
   CRON_INTERVAL_MINUTES,
@@ -20,6 +23,8 @@ import {
 import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
 import { wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
+import { keyRing } from '../_shared/secretBox.ts'
+import { resealStaleTokens, type SweepDb } from '../_shared/tokenSweep.ts'
 import {
   fetchAllPages,
   groupBy,
@@ -60,6 +65,31 @@ const MAX_SENT_KEYS = 300
 const USER_CONCURRENCY = 10
 /** 1 通の送信を待つ上限。応答しないプッシュサービスで枠を塞がない */
 const SEND_TIMEOUT_MS = 10_000
+
+/** 1 回に閉じ直すトークンの行の数（表ごと） */
+const TOKEN_SWEEP_LIMIT = 100
+
+/** 閉じ直す処理の DB の読み書き。今の鍵の形で始まらない値のある行だけを読む（null の列は数えない） */
+function tokenSweepDb(admin: SupabaseClient): SweepDb {
+  return {
+    async stale(table, key, columns, prefix, limit) {
+      let query = admin
+        .from(table)
+        .select([...key, ...columns].join(','))
+        .or(columns.map((c) => `${c}.not.like.${prefix}*`).join(','))
+      for (const k of key) query = query.order(k)
+      const { data, error } = await query.limit(limit)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as unknown as Record<string, string | null>[]
+    },
+    async update(table, match, patch) {
+      let query = admin.from(table).update(patch)
+      for (const [k, v] of Object.entries(match)) query = query.eq(k, v ?? '')
+      const { error } = await query
+      if (error) throw new Error(error.message)
+    },
+  }
+}
 
 /** 秘密の値を比べる。かかる時間から一致した長さが分からないよう、両方のハッシュを全バイト比べる */
 async function secretEquals(given: string, expected: string): Promise<boolean> {
@@ -384,8 +414,18 @@ Deno.serve(async (req) => {
 
   await finishRun({ checked: subs.length, sent, removed, failed })
 
+  // 連携のトークンの閉じ直し。通知の回の成否には数えない（失敗はログだけ。次の回にまた試す）
+  let resealed = 0
+  try {
+    const sweep = await resealStaleTokens(tokenSweepDb(admin), keyRing(), TOKEN_SWEEP_LIMIT)
+    resealed = sweep.resealed
+    if (sweep.unreadable > 0) console.warn('[daily-reminders] token sweep: unreadable values', sweep.unreadable)
+  } catch (err) {
+    console.error('[daily-reminders] token sweep failed', err instanceof Error ? err.message : err)
+  }
+
   // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
-  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {
+  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed, resealed }), {
     status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })

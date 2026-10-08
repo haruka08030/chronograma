@@ -72,7 +72,13 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
-   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークンは、次に使われたときに暗号化し直されます。**鍵を変えたり消したりすると、保存済みの連携はすべてつなぎ直しになります**（鍵が無い間は連携の保存を断り、500 を返します）。
+   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークン（平文）は、`daily-reminders` が 5 分ごとに少しずつ暗号化し直します（それまでの間、平文のトークンは使わずにエラーにします）。鍵が無い間は連携の保存を断り、500 を返します。
+   **鍵の入れ替え**（漏れたときや定期的に）は、連携を切らずにできます:
+   1. 今の鍵を前の鍵に回し、新しい鍵を入れる（2 つを 1 回で）: `supabase secrets set TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵> TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。前の鍵がすでにあるなら、カンマ区切りで並べる（`TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵>,<その前の鍵>`）。secret は次の呼び出しから効き、デプロイし直しは要りません
+   2. 連携の関数は前の鍵でも開け、読んだついでに新しい鍵で閉じ直します。使われていない連携の行も `daily-reminders` が 5 分ごとに（表ごと 100 行まで）閉じ直します
+   3. 全部閉じ直されたか SQL Editor で確かめる（新しい鍵の名前は暗号文の `enc:v2:` の次の 8 文字。新しく保存された行で分かる）: `select count(*) from google_oauth where refresh_token not like 'enc:v2:<新しい鍵の名前>:%'`（`notion_connection.token`・`canvas_connection.token` / `feed_url` も同じ）が 0 になったら
+   4. 前の鍵を外す: `supabase secrets unset TOKEN_ENCRYPTION_PREVIOUS_KEYS`（漏れた鍵はこれで使えなくなる）。0 にならない行は、どの鍵でも開けない壊れた値です（`daily-reminders` のログに `token sweep: unreadable values`）。その連携はつなぎ直しになります
+   **鍵を消したり、前の鍵に回さずに替えたりすると、保存済みの連携はすべてつなぎ直しになります**。
    ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
