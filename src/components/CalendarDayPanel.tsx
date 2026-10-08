@@ -20,6 +20,7 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { useHolidayName } from '../hooks/useHolidayName'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { GoogleEventPopover } from './lazyOverlays'
@@ -47,10 +48,12 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   const openDetail = openTaskDetail
   const df = useDateFormat()
 
+  const holiday = useHolidayName()(selectedDateKey)
   const date = parseISO(`${selectedDateKey}T00:00:00`)
-  const dateLabel = isAppToday(date)
-    ? `${df.monthDayWeekday(selectedDateKey)} · ${t('activityLog.today')}`
-    : df.monthDayWeekday(selectedDateKey)
+  // 「10月12日 (月) · 今日 · スポーツの日」（祝日は名前を添えるだけ）
+  const dateLabel = [df.monthDayWeekday(selectedDateKey), isAppToday(date) ? t('activityLog.today') : null, holiday]
+    .filter(Boolean)
+    .join(' · ')
 
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストは日付があってもカレンダーの予定として出さない

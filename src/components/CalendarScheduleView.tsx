@@ -6,6 +6,8 @@ import { useTaskStore } from '../store/taskStore'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { useHolidayName } from '../hooks/useHolidayName'
+import { HolidayLabel } from './calendar/HolidayLabel'
 import { TaskItem } from './TaskItem'
 import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
@@ -41,6 +43,7 @@ function byTime(a: { startTime?: string | null }, b: { startTime?: string | null
 export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey: string; onOpenDay: (dateKey: string) => void }) {
   const { t, i18n } = useTranslation()
   const df = useDateFormat()
+  const holidayName = useHolidayName()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
@@ -61,7 +64,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   useGoogleCalendarEvents(range.start, range.end)
 
   const rows = useMemo(() => {
-    const out: { key: string; day: Date; events: CalendarEvent[]; tasks: Task[] }[] = []
+    const out: { key: string; day: Date; holiday: string | null; events: CalendarEvent[]; tasks: Task[] }[] = []
     for (const day of days) {
       const key = toDateKey(day)
       // 一覧は「これからのこと」なので、終えた To‑Do は出さない（終えた日の記録はタイムライン・日のパネル）
@@ -69,10 +72,12 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
         .filter((x) => !x.completed)
         .sort((a, b) => byTime(a, b) || a.order - b.order)
       const dayEvents = [...(eventsByDate.get(key) ?? [])].sort((a, b) => byTime(a, b) || a.summary.localeCompare(b.summary))
-      if (dayTasks.length || dayEvents.length) out.push({ key, day, events: dayEvents, tasks: dayTasks })
+      // 祝日は予定が無くても出す（休みの日を見ながら予定を決められるように）
+      const holiday = holidayName(key)
+      if (dayTasks.length || dayEvents.length || holiday) out.push({ key, day, holiday, events: dayEvents, tasks: dayTasks })
     }
     return out
-  }, [days, allDayByDate, timedByDate, eventsByDate])
+  }, [days, allDayByDate, timedByDate, eventsByDate, holidayName])
 
   return (
     <div className={PAGE_SCROLL_CLASS}>
@@ -80,7 +85,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
         {rows.length === 0 ? (
           <EmptyState icon={<CalendarIcon strokeWidth={1} />} title={t('calendarHub.scheduleEmpty')} />
         ) : (
-          rows.map(({ key, day, events, tasks: dayTasks }, i) => {
+          rows.map(({ key, day, holiday, events, tasks: dayTasks }, i) => {
             const today = isAppToday(day)
             // 月が変わるところに月の見出し（Google カレンダーと同じ）
             const newMonth = i === 0 || rows[i - 1]!.day.getMonth() !== day.getMonth()
@@ -104,6 +109,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                     </span>
                   </button>
                   <div className="min-w-0 flex-1 space-y-1">
+                    {holiday && <HolidayLabel name={holiday} size="sm" className="px-1 pt-1" />}
                     {events.map((event) => (
                       // 月・週と同じく、押すと小さなカード、右クリックでメニュー
                       <button

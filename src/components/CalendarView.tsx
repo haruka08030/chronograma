@@ -38,6 +38,8 @@ import { isEventTask, isLogTask, planKindOf } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
+import { useHolidayName } from '../hooks/useHolidayName'
+import { HolidayLabel } from './calendar/HolidayLabel'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -76,6 +78,7 @@ export function CalendarView({
   // タッチは項目の長押しで右クリックと同じメニュー
   useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()
+  const holidayName = useHolidayName()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -186,6 +189,7 @@ export function CalendarView({
             const inMonth = isSameMonth(day, displayMonth)
             const today = isAppToday(day)
             const selected = selectedDateKey ? key === selectedDateKey : false
+            const holiday = holidayName(key)
 
             return (
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 月のマスを押す・ダブルクリックはマウス・指の近道（キーではマスの ＋ ボタンで追加できる）
@@ -245,7 +249,7 @@ export function CalendarView({
               >
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <div
-                    className={`text-xs w-6 h-6 flex items-center justify-center rounded-full
+                    className={`text-xs w-6 h-6 shrink-0 flex items-center justify-center rounded-full
                     ${
                       today || selected
                         ? dayMarkerClass({ today, selected })
@@ -256,6 +260,8 @@ export function CalendarView({
                   >
                     {format(day, 'd')}
                   </div>
+                  {/* 祝日は日付の横に名前だけ（行を使わない。月の外の日は日付と同じく薄く）。スマホ幅は横に入らないので下の行へ */}
+                  {holiday && <HolidayLabel name={holiday} className={`min-w-0 flex-1 max-md:hidden ${inMonth ? '' : 'opacity-60'}`} />}
                   <CalendarAddTaskButton
                     onClick={(e) => {
                       e.stopPropagation()
@@ -269,6 +275,7 @@ export function CalendarView({
                   />
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
+                  {holiday && <HolidayLabel name={holiday} wrap className="px-0.5 md:hidden" />}
                   {(() => {
                     const recs = recordsByDate.get(key)
                     if (!recs) return null
