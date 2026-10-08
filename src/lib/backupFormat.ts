@@ -1,7 +1,7 @@
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
@@ -285,6 +285,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const endTime = typeof rec.endTime === 'string' ? rec.endTime : null
   const timeMode =
     rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range' ? rec.timeMode : inferHabitTimeMode(startTime, endTime)
+  const timeOverrides = readHabitTimeOverrides(rec.timeOverrides)
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
@@ -299,6 +300,8 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     endTime: readTime(endTime),
     // 古いバックアップには無い（使用中）
     archivedAt: typeof rec.archivedAt === 'string' && !Number.isNaN(Date.parse(rec.archivedAt)) ? rec.archivedAt : null,
+    // 古いバックアップ・1 日も無い習慣には無い
+    ...(timeOverrides ? { timeOverrides } : {}),
   }
 }
 

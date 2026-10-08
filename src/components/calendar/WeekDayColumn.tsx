@@ -235,15 +235,20 @@ export function WeekDayColumn({
         </div>
       ))}
       {dayHabitSlots.map(({ habit, slot, done }) => (
-        <div key={slot.id}>
+        <div key={slot.id} style={{ opacity: timelineDrag.movingTaskId === slot.id ? 0.3 : 1 }}>
           <TimeBlock
             task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
             dayKey={key}
             hStyle={planStyle(slot.id)}
             colorHex={habit.color}
             onPointerDown={(evt) => {
-              evt.preventDefault()
-              evt.stopPropagation()
+              // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
+              if (done) {
+                evt.preventDefault()
+                evt.stopPropagation()
+                return
+              }
+              timelineDrag.handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
             }}
             onOpenDetail={() => {}}
             withCheck={done || hasStarted(slot.startTime)}

@@ -21,6 +21,7 @@
 | [`015_task_estimate.sql`](015_task_estimate.sql) | タスクの見積もり `tasks.estimate_minutes`（分、null は見積もりなし、1〜1440）。タイムラインに置く・時間を決めるときの長さ |
 | [`016_task_source_task.sql`](016_task_source_task.sql) | ▶ で始めた記録の元の To-Do・予定 `tasks.source_task_id`（null は元なし）。計画どおりかの突き合わせで元の予定と組にする |
 | [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは行を update）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
+| [`018_habit_time_overrides.sql`](018_habit_time_overrides.sql) | 習慣の日ごとの時間 `habits.time_overrides`（日付 → 開始・終了。タイムラインで枠を動かした日だけ。null は無し）。大きさの上限 256KB |
 
 テーブル（最新の形）:
 
@@ -29,7 +30,7 @@
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
 | `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id` を含む |
-| `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中） |
+| `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders` |

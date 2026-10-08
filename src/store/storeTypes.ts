@@ -232,6 +232,11 @@ export interface TaskState {
   /** 足した習慣の id を返す */
   addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => string
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  /**
+   * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
+   * 時刻ひとつの習慣は `endTime` を見ない
+   */
+  setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
   deleteHabit: (id: string) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void

@@ -1,3 +1,4 @@
+import { parseHabitSlotId } from '../lib/habitSlots'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
@@ -209,10 +210,28 @@ export function WeekCalendarView({
     [setEventCard, setGoogleCard],
   )
 
+  /** 習慣の枠を動かした・伸ばした: その日だけの時間にする */
+  const setHabitDayTimeFromSlot = (slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) => {
+    const { habits, setHabitDayTime } = useTaskStore.getState()
+    const habit = habits.find((h) => h.id === slot.habitId)
+    if (!habit) return
+    const time = habit.timeMode === 'range' ? `${startTime}–${endTime}` : startTime
+    setHabitDayTime(habit.id, slot.dateKey, startTime, endTime, {
+      key: 'undo.habitDayTime',
+      params: { name: habit.title, date: shortDate(slot.dateKey), time },
+    })
+  }
+
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
+      const habitSlot = parseHabitSlotId(taskId)
+      if (habitSlot) {
+        // 習慣の枠はその日の中だけ動かせる（ほかの日へ持っていったら元に戻す）
+        if (dateKey === habitSlot.dateKey) setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
+        return
+      }
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
         // 元の枠に戻しただけなら Google へ書き込まない
@@ -235,6 +254,11 @@ export function WeekCalendarView({
       })
     },
     onResizeDone: (taskId, startTime, endTime, dateKey) => {
+      const habitSlot = parseHabitSlotId(taskId)
+      if (habitSlot) {
+        setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
+        return
+      }
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
         if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
@@ -270,6 +294,7 @@ export function WeekCalendarView({
     },
     onBlockTap: useCallback(
       (taskId: string) => {
+        if (parseHabitSlotId(taskId)) return
         if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
         else openCard(taskId)
       },

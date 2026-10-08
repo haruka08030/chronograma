@@ -3,7 +3,7 @@ import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } fro
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
@@ -42,6 +42,8 @@ interface HabitRow {
   updated_at: string
   /** 古い DB には無い（`003`）。無い・null は使用中 */
   archived_at?: string | null
+  /** 日ごとの時間（`018`）。古い DB には無い。無い・null は無し */
+  time_overrides?: unknown
 }
 
 interface TaskRow {
@@ -160,7 +162,14 @@ function rowToHabit(row: HabitRow): Habit {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
+    ...withTimeOverrides(row.time_overrides),
   }
+}
+
+/** 日ごとの時間は、1 日でもあるときだけ項目を持つ（無い行どうしを「変わった」と見ない） */
+function withTimeOverrides(raw: unknown): Pick<Habit, 'timeOverrides'> {
+  const timeOverrides = readHabitTimeOverrides(raw)
+  return timeOverrides ? { timeOverrides } : {}
 }
 
 function habitToRow(userId: string, h: Habit): HabitRow {
@@ -177,6 +186,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     created_at: h.createdAt,
     updated_at: h.updatedAt,
     archived_at: h.archivedAt ?? null,
+    time_overrides: h.timeOverrides ?? null,
   }
 }
 

@@ -34,6 +34,31 @@ export function readHabitFrequency(raw: unknown): HabitFrequency {
 
 export type HabitTimeMode = 'none' | 'fixed' | 'range'
 
+/** その日だけの時間（タイムラインで習慣の枠を動かした日）。時刻ひとつの習慣は終わりを持たない */
+export interface HabitTimeOverride {
+  startTime: string
+  endTime: string | null
+}
+
+/** yyyy-MM-dd → その日だけの時間 */
+export type HabitTimeOverrides = Record<string, HabitTimeOverride>
+
+const OVERRIDE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const OVERRIDE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** 保存データ・同期・バックアップのその日だけの時間を読む。読めない日は捨て、1 日も無ければ undefined */
+export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const out: HabitTimeOverrides = {}
+  for (const [date, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!OVERRIDE_DATE_RE.test(date) || typeof v !== 'object' || v === null) continue
+    const { startTime, endTime } = v as Record<string, unknown>
+    if (typeof startTime !== 'string' || !OVERRIDE_TIME_RE.test(startTime)) continue
+    out[date] = { startTime, endTime: typeof endTime === 'string' && OVERRIDE_TIME_RE.test(endTime) ? endTime : null }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 export interface Habit {
   id: string
   title: string
@@ -48,6 +73,8 @@ export interface Habit {
   completedDates: string[]
   /** アーカイブした時刻（ISO）。null は使用中。アーカイブした習慣は今日の計画・一覧・タイムライン・統計から外れ、達成日は残す */
   archivedAt: string | null
+  /** 日ごとの時間（タイムラインで枠を動かした日だけ）。無い日は上の時間。1 日も無ければ項目ごと無い */
+  timeOverrides?: HabitTimeOverrides
 }
 
 /** 使用中か（アーカイブしていない）。古いデータで項目が無いものも使用中 */
