@@ -6,6 +6,8 @@ import { useTaskStore } from '../store/taskStore'
 import { sleepEndingOn } from '../lib/sleep'
 import { toDateKey } from '../lib/dateKey'
 import { appToday } from '../lib/timeZone'
+import { TASK_DEFAULTS } from '../lib/taskDefaults'
+import type { Task } from '../types/task'
 import { SleepStatsCard } from './SleepStatsCard'
 
 beforeAll(() => {
@@ -123,5 +125,84 @@ describe('統計の睡眠: 夜を押して直す・埋める', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
 
     expect(useTaskStore.getState().tasks).toBe(before)
+  })
+})
+
+/** その日の記録（▶ で記録した時間、ラベル付き） */
+const logOn = (offset: number, start: string, end: string, category = 'Study'): Task =>
+  ({
+    ...TASK_DEFAULTS,
+    id: `log${offset}-${start}`,
+    title: category,
+    kind: 'log',
+    description: '',
+    completed: true,
+    completedAt: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    order: 0,
+    listId: 'inbox',
+    sectionId: null,
+    parentId: null,
+    dueDate: dayKey(offset),
+    startTime: start,
+    endTime: end,
+    priority: 'none',
+    tags: [category],
+    category,
+    recurrence: null,
+  }) as Task
+
+describe('統計の睡眠: 日の違い（#326）', () => {
+  /** 2〜4 日前は 5 時間（記録 1 時間）、5〜7 日前は 8 時間（記録 4 時間）。`short` 日だけ短い側にする */
+  function seedSplit(short = 3) {
+    const { logSleep } = useTaskStore.getState()
+    const logs: Task[] = []
+    for (let i = 2; i <= 7; i++) {
+      const isShort = i < 2 + short
+      logSleep(dayKey(-i), isShort ? '02:00' : '23:00', '07:00')
+      logs.push(logOn(-i, '10:00', isShort ? '11:00' : '14:00'))
+    }
+    useTaskStore.setState((s) => ({ tasks: [...s.tasks, ...logs] }))
+  }
+
+  it('両側に 3 日以上あれば、睡眠の長さ・寝た時刻で分けた記録した時間の差を、日数と注意書きを添えて出す', () => {
+    seedSplit(3)
+    render(<SleepStatsCard />)
+    expect(screen.getByRole('heading', { name: 'How days differ' })).toBeInTheDocument()
+    const length = document.querySelector('[data-day-insight="sleepLength"]') as HTMLElement
+    expect(within(length).getByText('Time logged (daily average)')).toBeInTheDocument()
+    expect(within(length).getByText('Slept under 6 h')).toBeInTheDocument()
+    expect(within(length).getByText('Slept 7 h or more')).toBeInTheDocument()
+    expect(within(length).getByText('1h')).toBeInTheDocument()
+    expect(within(length).getByText('4h')).toBeInTheDocument()
+    expect(within(length).getAllByText('3 days')).toHaveLength(2)
+    const bed = document.querySelector('[data-day-insight="bedtime"]') as HTMLElement
+    expect(within(bed).getByText('Went to bed after 0:00')).toBeInTheDocument()
+    expect(screen.getByText(/at least 3 days/)).toBeInTheDocument()
+  })
+
+  it('片側が 2 日しか無ければ段ごと出さない', () => {
+    seedSplit(2)
+    render(<SleepStatsCard />)
+    expect(screen.getAllByText('Each night').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('heading', { name: 'How days differ' })).toBeNull()
+  })
+
+  it('気分で分けた比較は記号と読み上げの名前で出す（睡眠が無くても見出しと段だけ出す）', () => {
+    const logs: Task[] = []
+    const { setDayMood } = useTaskStore.getState()
+    for (let i = 2; i <= 7; i++) {
+      const good = i <= 4
+      setDayMood(dayKey(-i), { mood: good ? 5 : 1 })
+      logs.push(logOn(-i, '10:00', good ? '13:00' : '11:00'))
+    }
+    useTaskStore.setState((s) => ({ tasks: [...s.tasks, ...logs] }))
+    render(<SleepStatsCard />)
+    expect(screen.queryAllByText('Each night')).toEqual([])
+    const mood = document.querySelector('[data-day-insight="mood"]') as HTMLElement
+    expect(within(mood).getByText('Mood good or very good')).toHaveClass('sr-only')
+    expect(within(mood).getByText('3h')).toBeInTheDocument()
+    expect(within(mood).getByText('1h')).toBeInTheDocument()
   })
 })

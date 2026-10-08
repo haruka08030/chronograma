@@ -33,6 +33,9 @@ export interface WeekReviewDay {
   unrecordedMinutes: number
   /** 分類ごとの記録時間（多い順、キーは `labelOf`、タグ無しは空文字）。日ごとの棒を分類の色で積む */
   tagMinutes: { tag: string; minutes: number }[]
+  /** その日の「計画どおり実行」の分母（数えた時間つきの予定）と分子（#284 の数え方、`followRate` と同じ） */
+  timedPlanned: number
+  followed: number
 }
 
 export interface WeekReview {
@@ -106,19 +109,69 @@ export function getReview(
   /** 記録のラベル（タグ無しは空文字）。既定は先頭のタグ。画面は `recordLabelKey` で名前の無い色も分ける */
   labelOf: (log: Task) => string = (log) => log.category ?? '',
 ): WeekReview {
+  const {
+    days,
+    tagMinutes,
+    habitDue: dailyDue,
+    habitDone: dailyDone,
+  } = collectReviewDays(tasks, habits, reviewPeriodDays(period, anchor), excludedListIds, now, labelOf)
+  const todayKey = toDateKey(now)
+  let habitDue = dailyDue
+  let habitDone = dailyDone
+  const habitRecords = buildHabitRecordIndex(tasks)
+
+  const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
+  for (const h of habits) {
+    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
+    for (const week of habitWeeks) {
+      if (toDateKey(week) > todayKey) break
+      const tally = timesPerWeekTally(h, week, todayKey, habitRecords)
+      habitDue += tally.expected
+      habitDone += tally.completed
+    }
+  }
+
+  const sum = (f: (d: WeekReviewDay) => number) => days.reduce((a, d) => a + f(d), 0)
+  const timedPlanned = sum((d) => d.timedPlanned)
+  const followed = sum((d) => d.followed)
+  return {
+    days,
+    plannedMinutes: sum((d) => d.plannedMinutes),
+    loggedMinutes: sum((d) => d.loggedMinutes),
+    unrecordedMinutes: sum((d) => d.unrecordedMinutes),
+    done: sum((d) => d.done),
+    total: sum((d) => d.total),
+    followRate: timedPlanned > 0 ? followed / timedPlanned : null,
+    timedPlanned,
+    followed,
+    habitRate: habitDue > 0 ? habitDone / habitDue : null,
+    labelMinutes: sortedTagMinutes(tagMinutes),
+  }
+}
+
+/**
+ * 並べた日ごとの記録・予定・計画どおり（`getReview` の日ごとの部分）。未来の日は数えない（そこで打ち切る）。
+ * 「週に◯回」の習慣の回数は週でまとめて数えるので、ここの `habitDue` / `habitDone` には入らない
+ */
+function collectReviewDays(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  dates: readonly Date[],
+  excludedListIds: ReadonlySet<string>,
+  now: Date,
+  labelOf: (log: Task) => string,
+): { days: WeekReviewDay[]; tagMinutes: Map<string, number>; habitDue: number; habitDone: number } {
   const todayKey = toDateKey(now)
   const nowHm = clockOf(now)
   /** 記録に使える最後の分（今日は今、過ぎた日は制限なし）。タイムラインと同じ */
   const logLimit = (key: string) => (key < todayKey ? null : timeToMinutes(nowHm))
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
-  let timedPlanned = 0
-  let followed = 0
   let habitDue = 0
   let habitDone = 0
   const habitRecords = buildHabitRecordIndex(tasks)
 
-  for (const date of reviewPeriodDays(period, anchor)) {
+  for (const date of dates) {
     const key = toDateKey(date)
     if (key > todayKey) break
     const plan = getDayPlan(tasks, key, excludedListIds)
@@ -130,6 +183,8 @@ export function getReview(
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
       tagMinutes: [],
+      timedPlanned: 0,
+      followed: 0,
     }
     days.push(day)
 
@@ -176,36 +231,26 @@ export function getReview(
       // 今日の、まだ終わっていない予定（日をまたぐものも含む）は、先に記録できていなければ数えない
       const ended = key < todayKey || (pair.planned.endTime > pair.planned.startTime && pair.planned.endTime <= nowHm)
       if (!ended && !followedPair) continue
-      timedPlanned++
-      if (followedPair) followed++
+      day.timedPlanned++
+      if (followedPair) day.followed++
     }
   }
+  return { days, tagMinutes, habitDue, habitDone }
+}
 
-  const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
-  for (const h of habits) {
-    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
-    for (const week of habitWeeks) {
-      if (toDateKey(week) > todayKey) break
-      const tally = timesPerWeekTally(h, week, todayKey, habitRecords)
-      habitDue += tally.expected
-      habitDone += tally.completed
-    }
-  }
-
-  const sum = (f: (d: WeekReviewDay) => number) => days.reduce((a, d) => a + f(d), 0)
-  return {
-    days,
-    plannedMinutes: sum((d) => d.plannedMinutes),
-    loggedMinutes: sum((d) => d.loggedMinutes),
-    unrecordedMinutes: sum((d) => d.unrecordedMinutes),
-    done: sum((d) => d.done),
-    total: sum((d) => d.total),
-    followRate: timedPlanned > 0 ? followed / timedPlanned : null,
-    timedPlanned,
-    followed,
-    habitRate: habitDue > 0 ? habitDone / habitDue : null,
-    labelMinutes: sortedTagMinutes(tagMinutes),
-  }
+/**
+ * 並べた日（古い順）ごとの振り返りの数字（記録した時間・ラベル別・計画どおり）。未来の日は数えない。
+ * 日の違い（#326）が睡眠・気分で日を分けて比べるのに使う
+ */
+export function getDayReviews(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  dates: readonly Date[],
+  excludedListIds: ReadonlySet<string> = new Set(),
+  now = zonedNow(),
+  labelOf: (log: Task) => string = (log) => log.category ?? '',
+): WeekReviewDay[] {
+  return collectReviewDays(tasks, habits, dates, excludedListIds, now, labelOf).days
 }
 
 /**
