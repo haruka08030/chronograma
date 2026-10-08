@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from './taskFilter'
+import { hasTaskFilter, inPeriod, NO_TODO_FILTER, todoFilterFor } from './taskFilter'
+
+describe('完了済みの期間', () => {
+  it('今日を入れて過去 n 日（月をまたいでも）', () => {
+    expect(inPeriod('2026-10-02', '2026-10-08', 7)).toBe(true)
+    expect(inPeriod('2026-10-01', '2026-10-08', 7)).toBe(false)
+    expect(inPeriod('2026-09-09', '2026-10-08', 30)).toBe(true)
+    expect(inPeriod('2026-09-08', '2026-10-08', 30)).toBe(false)
+    expect(inPeriod('2025-01-01', '2026-10-08', null)).toBe(true)
+    // 今日より先の日（時計のずれ・別のタイムゾーン）も外さない
+    expect(inPeriod('2026-10-09', '2026-10-08', 7)).toBe(true)
+  })
+})
 
 describe('To-Do 一覧の絞り込み', () => {
   const lists = [

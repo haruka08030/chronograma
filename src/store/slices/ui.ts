@@ -20,6 +20,7 @@ type UiActions = Pick<
   | 'setSectionGrouping'
   | 'setPlannerCandidateView'
   | 'setTodoFilter'
+  | 'setCompletedFilter'
   | 'setFilterTag'
   | 'requestQuickAdd'
   | 'clearQuickAddRequest'
@@ -106,6 +107,7 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
       })),
     setPlannerCandidateView: (patch) => set((s) => ({ plannerCandidateView: { ...s.plannerCandidateView, ...patch } })),
     setTodoFilter: (patch) => set((s) => ({ todoFilter: { ...s.todoFilter, ...patch } })),
+    setCompletedFilter: (patch) => set((s) => ({ completedFilter: { ...s.completedFilter, ...patch } })),
     setFilterTag: (tag) => {
       pushUndo()
       set({ filterTag: tag })

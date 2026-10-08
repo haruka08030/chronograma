@@ -26,6 +26,26 @@ export type TodoFilter = Pick<TaskFilter, 'priority' | 'estimate'>
 export const TODO_FILTER_KEYS = ['priority', 'estimate'] as const satisfies readonly TaskFilterKey[]
 export const NO_TODO_FILTER: TodoFilter = { priority: null, estimate: null }
 
+/** 完了した日の期間: 今日を入れて過去 n 日 */
+export type PeriodFilter = 7 | 30
+export const PERIOD_FILTERS: readonly PeriodFilter[] = [7, 30]
+
+/** 完了済みの絞り込み（リスト・ラベル・期間） */
+export type CompletedFilter = Pick<TaskFilter, 'listId' | 'color'> & { period: PeriodFilter | null }
+export const COMPLETED_FILTER_KEYS = ['listId', 'color'] as const satisfies readonly TaskFilterKey[]
+export const NO_COMPLETED_FILTER: CompletedFilter = { listId: null, color: null, period: null }
+
+/**
+ * 完了した日（`yyyy-MM-dd`）が期間に入るか。今日を入れて過去 `period` 日。
+ * 今日より先の日（端末の時計がずれていた・別のタイムゾーンで完了した）も外さない
+ */
+export function inPeriod(dayKey: string, todayKey: string, period: PeriodFilter | null): boolean {
+  if (period === null) return true
+  const from = new Date(`${todayKey}T00:00:00Z`)
+  from.setUTCDate(from.getUTCDate() - (period - 1))
+  return dayKey >= from.toISOString().slice(0, 10)
+}
+
 /** 開いている画面に効く To-Do 一覧の絞り込み。いつか・チェックリストは優先度・見積もりを持たないので効かせない */
 export function todoFilterFor(
   lists: readonly Pick<TaskList, 'id' | 'kind'>[],

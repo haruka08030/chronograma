@@ -9,7 +9,7 @@ import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { CandidateView } from '../lib/plannerCandidates'
-import type { TodoFilter } from '../lib/taskFilter'
+import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
 
 /**
@@ -78,6 +78,8 @@ export interface TaskState {
   plannerCandidateView: CandidateView
   /** To-Do 一覧の絞り込み（優先度・見積もり。リスト・ビューをまたいで同じ） */
   todoFilter: TodoFilter
+  /** 完了済みの絞り込み（リスト・ラベル・期間） */
+  completedFilter: CompletedFilter
   /**
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
@@ -208,6 +210,8 @@ export interface TaskState {
   setPlannerCandidateView: (patch: Partial<CandidateView>) => void
   /** To-Do 一覧の絞り込みを変える（渡した項目だけ） */
   setTodoFilter: (patch: Partial<TodoFilter>) => void
+  /** 完了済みの絞り込みを変える（渡した項目だけ） */
+  setCompletedFilter: (patch: Partial<CompletedFilter>) => void
   requestQuickAdd: () => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void

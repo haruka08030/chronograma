@@ -153,11 +153,13 @@ export default {
   filter: {
     by: {
       listId: 'Filter by list',
+      period: 'Filter by period',
       color: 'Filter by label',
       tag: 'Filter by tag',
       priority: 'Filter by priority',
       estimate: 'Filter by estimate',
     },
+    periodDays: 'Past {{count}} days',
     priorityHigh: 'High only',
     priorityMedium: 'Medium or higher',
     estimateSet: 'Has an estimate',
@@ -790,6 +792,7 @@ export default {
   completedView: {
     yesterday: 'Yesterday',
     empty: 'No completed tasks',
+    noMatch: 'No completed tasks match',
   },
   taskBin: {
     count: '{{count}} items',
