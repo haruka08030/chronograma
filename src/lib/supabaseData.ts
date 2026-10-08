@@ -14,6 +14,8 @@ import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
+import { normalizeTimetable, type RemoteTimetable } from './timetable'
+import { readEventSeries, withSeries } from './eventSeries'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -73,6 +75,8 @@ interface TaskRow {
   estimate_minutes?: number | null
   /** 古い DB には無い（`016`） */
   source_task_id?: string | null
+  /** 毎週の予定の印（`027`）。古い DB には無い */
+  event_series?: unknown
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -199,7 +203,9 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
-  return withLogCategory(rowToTaskFields(row))
+  const task = withLogCategory(rowToTaskFields(row))
+  // 毎週の印は予定の行だけ。印のある行だけ項目を持つ
+  return task.kind === 'event' ? withSeries(task, readEventSeries(row.event_series)) : task
 }
 
 function rowToTaskFields(row: TaskRow): Task {
@@ -295,6 +301,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
+    event_series: isEventTask(task) ? (task.series ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
@@ -792,12 +799,12 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
 }
 
 /**
- * `user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` / `user_course_links` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * `user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` / `user_course_links` / `user_timetable` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
  * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
  */
 export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links',
+  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable',
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
@@ -885,6 +892,23 @@ export function pushCourseLinks(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_course_links', { user_id: userId, links: value.links, updated_at: value.updatedAt }, base)
+}
+
+/** 時間割の設定（`user_timetable.timetable`、`027`）。行が無ければ null */
+export async function fetchTimetable(supabase: SupabaseClient, userId: string): Promise<RemoteTimetable | null | { error: string }> {
+  const { data, error } = await supabase.from('user_timetable').select('timetable, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { timetable: normalizeTimetable(data.timetable), updatedAt: String(data.updated_at) }
+}
+
+export function pushTimetable(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteTimetable,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_timetable', { user_id: userId, timetable: value.timetable, updated_at: value.updatedAt }, base)
 }
 
 /**

@@ -277,6 +277,25 @@ describe('task kind', () => {
     const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
     expect((payload.tasks as unknown[])[0]).toMatchObject({ kind: 'event', isTimeLog: false, isSleep: false, isEvent: true })
   })
+
+  it('keeps the weekly series mark of an event through the file, and drops it on other kinds or when unreadable', () => {
+    const series = { id: 's1', weekdays: [1], until: '2026-11-30', skipHolidays: true }
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 'c', title: '経済学入門', listId: '__inbox__', kind: 'event', series },
+          { id: 'r', title: '英語', list_id: '__inbox__', is_event: true, event_series: series },
+          { id: 't', title: 'レポート', listId: '__inbox__', kind: 'todo', series },
+          { id: 'b', title: 'ゼミ', listId: '__inbox__', kind: 'event', series: { weekdays: [1] } },
+        ],
+      }),
+    )!.tasks
+    expect(tasks.map((t) => t.series ?? null)).toEqual([series, series, null, null])
+    expect(tasks.map((t) => 'series' in t)).toEqual([true, true, false, false])
+    const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
+    expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.series).toEqual(series)
+  })
 })
 
 describe('readBackupJson', () => {

@@ -15,6 +15,7 @@ import { appTodayKey } from '../../lib/timeZone'
 import { downloadTextFile } from '../../lib/downloadFile'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
+import { DEFAULT_TIMETABLE } from '../../lib/timetable'
 
 type DataActions = Pick<
   TaskState,
@@ -43,7 +44,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       // 取り消しの履歴や取り込み前の控えにも前の人のデータが残っている
       undo.clear()
       clearImportRollback()
-      // ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・1 日の気分・Google の予定の色・動いているタイマーもその人のもの（科目名・会社名が次の人に見え、次の人のアカウントに送られていた）。
+      // ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・時間割・1 日の気分・Google の予定の色・動いているタイマーもその人のもの（科目名・会社名が次の人に見え、次の人のアカウントに送られていた）。
       // 時刻は null（次の人とは「まだ合わせていない」から始める）。初期の値に戻すのは利用者の編集ではないので時刻を付けない
       asIncomingChange(() =>
         set({
@@ -58,6 +59,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           eventTemplatesUpdatedAt: null,
           courseLinks: [],
           courseLinksUpdatedAt: null,
+          timetable: DEFAULT_TIMETABLE,
+          timetableUpdatedAt: null,
           dayMoods: {},
           googleEventColors: {},
           activeTimer: null,

@@ -7,6 +7,7 @@ import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { compareByOrder } from '../../lib/orderCompare'
+import { seriesScopeIds, sharedSeriesPatch } from '../../lib/eventSeries'
 
 type TasksActions = Pick<
   TaskState,
@@ -135,14 +136,27 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       })
     },
     updateTask: (id, patch, label) => {
-      const task = get().tasks.find((t) => t.id === id)
+      const s0 = get()
+      const task = s0.tasks.find((t) => t.id === id)
+      // 毎週の予定のカード・詳細で「以降すべて / すべて」を選んでいれば、ほかの回にも同じ項目を写す（日付・種類は回ごと）
+      const scope = s0.seriesEditScope?.taskId === id ? s0.seriesEditScope.scope : 'one'
+      const shared = task && scope !== 'one' ? sharedSeriesPatch(patch) : {}
+      const others = Object.keys(shared).length > 0 && task ? seriesScopeIds(s0.tasks, task, scope) : null
+      others?.delete(id)
+      const othersChange = !!others && s0.tasks.some((t) => others.has(t.id) && patchChangesTask(t, shared))
       // 同じ値を選び直しただけなら何もしない（取り消しの履歴・トースト・同期の書き込みを積まない）
-      if (task && !patchChangesTask(task, patch)) return
+      if (task && !patchChangesTask(task, patch) && !othersChange) return
       // 作った直後の空の行に名前を付けるだけなら、作成と同じ 1 手にまとめる
       // メモ・場所を打っている間は 1 回分にまとめる
       const keys = Object.keys(patch)
       const typingKey = keys.length === 1 && (keys[0] === 'description' || keys[0] === 'location') ? `${id}:${keys[0]}` : undefined
       if (!isUnnamedJustCreated(id)) pushUndo(label, typingKey)
+      if (othersChange) {
+        const now = new Date().toISOString()
+        return set((s) => ({
+          tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch, now) : others.has(t.id) ? applyTaskPatch(t, shared, now) : t)),
+        }))
+      }
       return set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))

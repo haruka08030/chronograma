@@ -9,12 +9,14 @@ import {
   fetchExtraTimeZones,
   fetchLogLabels,
   fetchMinSyncVersion,
+  fetchTimetable,
   pushCourseLinks,
   pushDayMoods,
   pushEventTemplates,
   pushExtraTimeZones,
   pushListsTasksHabits,
   pushLogLabels,
+  pushTimetable,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
 import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
@@ -56,6 +58,7 @@ import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
+import { planTimetableSync } from '../lib/timetable'
 import { createDayMoodPullState, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
@@ -99,6 +102,7 @@ function settingsSent(userId: string): boolean {
     ['timer', s.activeTimerUpdatedAt],
     ['templates', s.eventTemplatesUpdatedAt],
     ['courses', s.courseLinksUpdatedAt],
+    ['timetable', s.timetableUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -308,6 +312,21 @@ export function useSupabaseSync() {
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ courseLinksUpdatedAt: at })),
         push: (p) => pushCourseLinks(supabase, userId, p, p.base),
       })
+    /** 時間割の設定（時限・学期、#279） */
+    const syncTimetable = () =>
+      syncSetting({
+        key: 'timetable',
+        fetch: () => fetchTimetable(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planTimetableSync({ timetable: st.timetable, updatedAt: st.timetableUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().timetableUpdatedAt,
+        applyLocal: ({ timetable, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ timetable, timetableUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ timetableUpdatedAt: at })),
+        push: (p) => pushTimetable(supabase, userId, p, p.base),
+      })
     /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
     const syncDayMoods = () =>
       runDayMoodSync(
@@ -331,6 +350,7 @@ export function useSupabaseSync() {
       await syncActiveTimer()
       await syncEventTemplates()
       await syncCourseLinks()
+      await syncTimetable()
       await syncDayMoods()
     }
 
@@ -636,6 +656,7 @@ export function useSupabaseSync() {
         state.activeTimer === prev.activeTimer &&
         state.eventTemplates === prev.eventTemplates &&
         state.courseLinks === prev.courseLinks &&
+        state.timetable === prev.timetable &&
         state.dayMoods === prev.dayMoods
       )
         return

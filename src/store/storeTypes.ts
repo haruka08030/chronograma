@@ -10,6 +10,8 @@ import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
+import type { Timetable } from '../lib/timetable'
+import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
 import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
@@ -172,6 +174,15 @@ export interface TaskState {
   courseLinksUpdatedAt: string | null
   /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
   dayMoods: DayMoods
+  /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
+  timetable: Timetable
+  /** 時間割の設定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null（一度も変えていない既定の値） */
+  timetableUpdatedAt: string | null
+  /**
+   * 毎週の予定のカード・詳細で選んでいる直す範囲（その予定の id と範囲）。null・ほかの予定は「この予定のみ」。
+   * `updateTask` はこの範囲のほかの回にも同じ項目を写す（`SERIES_SHARED_FIELDS`）。カード・詳細を閉じたら null
+   */
+  seriesEditScope: { taskId: string; scope: SeriesScope } | null
 
   habits: Habit[]
 
@@ -349,6 +360,23 @@ export interface TaskState {
   ) => { kind: 'added' | 'removed'; taskId: string } | null
   /** 予定の名前と科目をつなぐ（同じ名前の予定はみな同じ科目）。`course` が '' なら「つながない」 */
   setCourseLink: (eventTitle: string, course: string) => void
+  /**
+   * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
+   * 変わったら true
+   */
+  setEventRepeat: (taskId: string, rule: SeriesRule | null) => boolean
+  /** カード・詳細で直す範囲を選ぶ（null は選んでいない＝この予定のみ） */
+  setSeriesEditScope: (taskId: string, scope: SeriesScope | null) => void
+  /** 毎週の予定をゴミ箱へ（この予定のみ / 以降すべて / すべて）。消した数を返す */
+  deleteEventSeries: (taskId: string, scope: SeriesScope) => number
+  /** 時間割の設定を保存する（同じ中身なら何もしない） */
+  saveTimetable: (timetable: Timetable) => void
+  /**
+   * 時間割のマスに授業を入れる。学期の間（今日より前は作らない）の、その曜日の毎週の予定を作る。作った回の数を返す
+   */
+  addTimetableClass: (cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null }) => number
+  /** 時間割の授業（その回から後）の名前・ラベルを直す */
+  updateTimetableClass: (firstTaskId: string, patch: { title?: string; color?: string | null }) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (

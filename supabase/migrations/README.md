@@ -30,6 +30,7 @@
 | [`024_course_links.sql`](024_course_links.sql) | 授業の予定と LMS の科目のつながり `user_course_links`（利用者ごとに 1 行。`links` は `{ title, course }` の並び、`course` が空なら「つながない」。RLS は本人だけ、大きさの上限 `user_course_links_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 | [`025_day_moods.sql`](025_day_moods.sql) | 1 日の気分とひとこと `day_moods`（利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、`note` は 500 字まで、`day` は 2000〜2100 年。RLS は本人だけ）。書き込みはトリガー `day_mood_write_guard`（`017` の `sync_write_guard` と同じ確かめを `(user_id, day)` で）。行は消さない（外すのは null / '' の更新）。索引 `(user_id, updated_at)`、行数の上限 40,000（`006` の `enforce_row_limit`） |
 | [`026_reminder_open_tasks_index.sql`](026_reminder_open_tasks_index.sql) | 通知の送信（`daily-reminders`）が読む未完了のタスクの部分索引 `tasks_reminder_open_idx`（`(user_id, id)`、`completed is false and is_time_log is false and parent_id is null and deleted_at is null and archived_at is null and (scheduled_date is not null or due_date is not null)`）。関数の問い合わせと同じ形の条件（`is false`）で、完了・削除・記録の行をなめずに読む |
+| [`027_event_series.sql`](027_event_series.sql) | 毎週の予定の印 `tasks.event_series`（`{ id, weekdays, until, skipHolidays }`、null は繰り返さない。id のある object・2KB まで `tasks_event_series_check`）。回は 1 回ずつの予定の行で、同じ繰り返しの回は id が同じ。時間割の設定 `user_timetable`（利用者ごとに 1 行。`timetable` は `{ periods: [{ start, end }], termStart, termEnd, skipHolidays }`。RLS は本人だけ、大きさの上限 `user_timetable_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 
 テーブル（最新の形）:
 
@@ -37,13 +38,14 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series` を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
 | `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている |
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
 | `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
+| `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
 | `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）は `user_active_timer` の写し（`019`） |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |

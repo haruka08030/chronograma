@@ -25,9 +25,10 @@ import { openShortcutsHelp } from '../lib/shortcuts'
 import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { TimetableDialog } from './calendar/TimetableDialog'
 
 /**
- * 設定。上から アカウント → ラベル → 通知・計画 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
+ * 設定。上から アカウント → ラベル → 通知・計画 → 時間割 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
  * 誰として使っているかを先頭に、よく触るもの（記録の分類）を上に、一度決めたら触らないものを下に。
  * どのまとまりも「見出し + 1 枚の枠に行を並べる」形に揃える。
  * 外部連携は使う人だけが使うので、トップには接続中のものだけを出し、つなぐ・設定するのは次のページにする。
@@ -134,6 +135,8 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
         </SettingsGroup>
 
         <DailyRhythmSettings />
+
+        <TimetableSettingsGroup />
 
         <TimeZoneSettings />
 
@@ -281,6 +284,22 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
         />
       </div>
     </div>
+  )
+}
+
+/** 時間割（時限・学期・授業、#279）。中身はカレンダーの週表示の「時間割」と同じダイアログ */
+function TimetableSettingsGroup() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <SettingsGroup id="settings-timetable" title={t('timetable.title')}>
+      <SettingsRow label={t('timetable.settingsRow')} help={t('timetable.settingsHelp')}>
+        <button type="button" onClick={() => setOpen(true)} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+          {t('timetable.open')}
+        </button>
+      </SettingsRow>
+      {open && <TimetableDialog onClose={() => setOpen(false)} />}
+    </SettingsGroup>
   )
 }
 
