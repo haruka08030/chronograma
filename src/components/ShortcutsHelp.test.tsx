@@ -10,4 +10,10 @@ describe('ShortcutsHelp', () => {
     const resize = screen.getByText('Make the focused or open timeline block end 15 minutes earlier / later').closest('li')!
     expect(Array.from(resize.querySelectorAll('kbd')).map((k) => k.textContent)).toEqual(['Alt', 'Shift', '↑', 'Alt', 'Shift', '↓'])
   })
+
+  it('選んだ To-Do の「時間を決める」を開く S が載る', () => {
+    render(<ShortcutsHelp onClose={() => {}} />)
+    const row = screen.getByText('Set a time for the selected untimed task (↑↓ free slot, ←→ length, Enter to place)').closest('li')!
+    expect(Array.from(row.querySelectorAll('kbd')).map((k) => k.textContent)).toEqual(['S'])
+  })
 })

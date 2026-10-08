@@ -133,6 +133,7 @@ export const SHORTCUTS = {
   openMenu: { hotkeys: ['mod+/', 'ContextMenu', 'shift+F10'], display: [['mod', '/']], label: 'shortcuts.openMenu' },
   completeSelected: { hotkeys: ['mod+Enter'], display: [['mod', 'Enter']], label: 'shortcuts.completeSelected' },
   todayToggle: { hotkeys: ['shift+t'], display: [['Shift', 'T']], label: 'shortcuts.todayToggle' },
+  pickTime: { hotkeys: ['s'], display: [['S']], label: 'shortcuts.pickTime' },
   close: { hotkeys: ['Escape'], display: [['Esc']], label: 'shortcuts.close' },
   undo: { hotkeys: ['mod+z'], display: [['mod', 'Z']], label: 'shortcuts.undo' },
   redo: { hotkeys: ['mod+shift+z'], display: [['mod', 'Shift', 'Z']], label: 'shortcuts.redo' },

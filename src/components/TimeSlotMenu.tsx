@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
@@ -15,18 +15,23 @@ import { TimeInput } from './TimeInput'
 import { buttonClass } from './ui/buttonClass'
 import { MenuLabel } from './ui/Menu'
 import { formatDuration } from '../lib/timeGrid'
+import { isImeKeyEvent, isTypingTarget } from '../lib/keyboard'
+import { TIME_SLOT_MENU_WIDTH } from '../lib/timeSlotTarget'
 
 /** 長さの選択肢。見積もり・設定の既定の長さが無ければ足す */
 const DURATIONS = [30, 60, 120]
 /** 先の日を見ているときは朝から探す */
 const FUTURE_DAY_FROM = 9 * 60
 const EDGE = 8
-const WIDTH = 288
+const WIDTH = TIME_SLOT_MENU_WIDTH
+/** ↑↓ で動く項目（空きの候補と「その他の時刻…」） */
+const ITEM = '[data-slot-item]'
 
 /**
  * 時間未定のタスクの「時間を決める」（今日の計画のホバーのボタン・スマホのシート）。
  * その日のタイムラインの空きから近い順に 3 つと長さを出し、選ぶとその時間に置く。「その他の時刻…」で自由に入れる。
- * PC は押した所の下に小さく、スマホは下からのシート
+ * PC は押した所の下に小さく、スマホは下からのシート。
+ * キー（PC）: 開くと最初の候補にフォーカス、↑↓ で候補、←→・数字で長さ、Enter で置く、Esc で閉じて開く前の所（一覧の行）へ戻る
  */
 export function TimeSlotMenu({
   x,
@@ -65,6 +70,17 @@ export function TimeSlotMenu({
 
   useDismiss({ open: true, onClose, inside: [panelRef] })
 
+  // 閉じたら、開いたときのフォーカス（S で開いた一覧の箱・押したボタン）へ戻す。中で別の所へ移したあと（クリックで他を押した）は動かさない
+  const [returnFocus] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null))
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    return () => {
+      const active = document.activeElement
+      const lost = !active || active === document.body || (panel?.contains(active) ?? false)
+      if (lost && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
+    }
+  }, [returnFocus])
+
   const slots = useMemo(() => {
     const now = zonedNow()
     const from = isAppToday(fromDateKey(dateKey)) ? now.getHours() * 60 + now.getMinutes() : FUTURE_DAY_FROM
@@ -79,6 +95,64 @@ export function TimeSlotMenu({
     const top = y + r.height + EDGE > window.innerHeight ? Math.max(EDGE, y - r.height - 8) : y
     setPos({ left, top })
   }, [sheet, x, y, custom])
+
+  const items = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])
+  // PC は開いたら最初の候補（無ければ「その他の時刻…」）にフォーカス。スマホのシートでは動かさない（キーボードが出る・ずれる）
+  useEffect(() => {
+    if (sheet) return
+    items()[0]?.focus({ preventScroll: true })
+    // 開いたときだけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // 長さを変えると候補が並び直すので、変える前と同じ位置の候補へフォーカスを戻す
+  const refocusIndexRef = useRef<number | null>(null)
+  useEffect(() => {
+    const i = refocusIndexRef.current
+    if (i == null) return
+    refocusIndexRef.current = null
+    const list = items()
+    list[Math.min(i, list.length - 1)]?.focus({ preventScroll: true })
+  }, [slots])
+  // 「その他の時刻…」を開いたら開始の欄へ（押したボタンが消えてフォーカスが外へ落ちないように）
+  useEffect(() => {
+    if (custom && !sheet) panelRef.current?.querySelector('input')?.focus({ preventScroll: true })
+  }, [custom, sheet])
+
+  const changeDuration = (d: number) => {
+    if (d === duration) return
+    const i = items().indexOf(document.activeElement as HTMLElement)
+    refocusIndexRef.current = i >= 0 ? i : null
+    setDuration(d)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // 時刻の入力中・変換中はその欄のキー
+    if (e.defaultPrevented || isImeKeyEvent(e.nativeEvent) || isTypingTarget(e.target)) return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const list = items()
+      if (list.length === 0) return
+      e.preventDefault()
+      const i = list.indexOf(document.activeElement as HTMLElement)
+      const next =
+        i < 0 ? (e.key === 'ArrowDown' ? 0 : list.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length
+      list[next].focus()
+      return
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      const i = durations.indexOf(duration)
+      const next = durations[Math.min(durations.length - 1, Math.max(0, i + (e.key === 'ArrowRight' ? 1 : -1)))]
+      if (next != null) changeDuration(next)
+      return
+    }
+    // 1・2・3…: 長さを左から選ぶ
+    const n = /^[1-9]$/.test(e.key) ? Number(e.key) : 0
+    if (n > 0 && n <= durations.length) {
+      e.preventDefault()
+      changeDuration(durations[n - 1])
+    }
+  }
 
   if (!task) return null
 
@@ -101,11 +175,13 @@ export function TimeSlotMenu({
   return createPortal(
     <>
       {sheet && <div className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 中の候補・長さのボタンの矢印キーをまとめて受ける */}
       <div
         ref={panelRef}
         role="dialog"
         aria-label={t('timeSlot.title')}
         data-popover-keep
+        onKeyDown={onKeyDown}
         className={`${anchoredCardClass(sheet)} p-2 ${sheet ? 'inset-x-0 bottom-0' : ''}`}
         style={sheet ? undefined : { left: pos.left, top: pos.top, width: WIDTH }}
       >
@@ -117,7 +193,7 @@ export function TimeSlotMenu({
             fullWidth
             ariaLabel={t('timeSlot.duration')}
             value={String(duration)}
-            onChange={(v) => setDuration(Number(v))}
+            onChange={(v) => changeDuration(Number(v))}
             options={durations.map((d) => ({
               value: String(d),
               label:
@@ -131,7 +207,7 @@ export function TimeSlotMenu({
           <ul>
             {slots.map((s) => (
               <li key={s}>
-                <button type="button" className={row} onClick={() => place(s, s + duration)}>
+                <button type="button" data-slot-item className={row} onClick={() => place(s, s + duration)}>
                   {minutesToTime(s)} – {minutesToTime(Math.min(s + duration, 24 * 60))}
                 </button>
               </li>
@@ -156,7 +232,7 @@ export function TimeSlotMenu({
             </button>
           </div>
         ) : (
-          <button type="button" className={`${row} text-zinc-600 dark:text-zinc-300`} onClick={() => setCustom(true)}>
+          <button type="button" data-slot-item className={`${row} text-zinc-600 dark:text-zinc-300`} onClick={() => setCustom(true)}>
             {t('timeSlot.custom')}
           </button>
         )}

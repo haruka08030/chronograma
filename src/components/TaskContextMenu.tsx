@@ -25,6 +25,7 @@ import {
 } from './icons'
 import { startTimerForTask } from '../lib/timerDrop'
 import { openTaskMenu } from '../lib/overlays'
+import { canPickTime, timeSlotDateKey } from '../lib/timeSlotTarget'
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -428,7 +429,7 @@ export function TaskContextMenu({
         ]
       : []
   // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
-  const untimed = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed && !targets[0].startTime ? targets[0] : null
+  const untimed = taskIds.length === 1 && targets[0] && canPickTime(targets[0], lists) ? targets[0] : null
   const setTimeEntry: ActionEntry[] = untimed
     ? [
         {
@@ -437,7 +438,7 @@ export function TaskContextMenu({
           label: t('timeSlot.title'),
           icon: <ClockIcon className={ICON} />,
           run: done(() => {
-            const dateKey = untimed.scheduledDate ?? untimed.dueDate ?? toDateKey(appToday())
+            const dateKey = timeSlotDateKey(untimed)
             queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
           }),
         },

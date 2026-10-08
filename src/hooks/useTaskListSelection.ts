@@ -24,6 +24,7 @@ const MENU_ROOM = 340
  * - タッチ: 行を長押しすると浮いて選択に入り、押さえたまま別の指でタップした行も足す（`lib/touchLift`）
  * - ⌘A で全部、↑↓ で行を動く（Shift で選択を広げる）、Enter・e で詳細、Space で完了
  * - 選択中（なければ枠の行）: Delete で削除、⌘Enter で完了、⌘/ でメニュー、Esc で解除
+ * - 選んだ 1 行（なければ枠の行）: S で「時間を決める」（`pickTimeRow` を渡した一覧だけ）
  * 削除・完了・詳細は枠が見えている行にだけ効かせる（見えない行を消さない）。対象がなければ次へ回す
  *
  * 読み上げ: 行を包む箱に `listboxProps` を付ける（listbox・複数選択）。行は option（`TaskItemSelection.optionId`・aria-selected）。
@@ -38,6 +39,7 @@ export function useTaskListSelection({
   completeRows,
   openMenu,
   todayToggleRows,
+  pickTimeRow,
   resetOn,
 }: {
   /** 上から順の、操作できる行（⌘A・↑↓・枠の対象） */
@@ -54,6 +56,8 @@ export function useTaskListSelection({
   openMenu: (menu: { x: number; y: number; taskIds: string[]; above?: boolean }) => void
   /** Shift+T: 今日やる ⇄ 明日へ回す（`useTodayToggle`）。渡さない一覧では効かせない */
   todayToggleRows?: (ids: string[]) => void
+  /** S: その行の「時間を決める」を開く（`openTimeSlotForTask`）。開けなかったら false。渡さない一覧では効かせない */
+  pickTimeRow?: (id: string) => boolean
   /** これが変わったら選択と枠を外す（開いているリスト・絞り込みなど） */
   resetOn: DependencyList
 }) {
@@ -304,6 +308,16 @@ export function useTaskListSelection({
     if (!todayToggleRows || ids.length === 0) return false
     todayToggleRows(ids)
     clearSelection()
+  })
+  useHotkey(SHORTCUTS.pickTime.hotkeys, () => {
+    // 選んでいるのが 1 行ならその行、選んでいなければ枠の行。2 行以上は時間を 1 つに決められないので何もしない
+    const sel = selectedRef.current
+    const id = sel.size === 1 ? [...sel][0] : sel.size === 0 ? targetRow() : null
+    if (!pickTimeRow || !id) return false
+    // 閉じたら一覧に戻れるよう、先に箱へフォーカスを置く（「時間を決める」は開いたときのフォーカスへ戻す）
+    const box = listboxRef.current
+    if (box && document.activeElement !== box) box.focus({ preventScroll: true })
+    if (!pickTimeRow(id)) return false
   })
   useHotkey(SHORTCUTS.openMenu.hotkeys, () => {
     // ⌘/（Notion と同じ）: 選択中（なければ枠の行）のメニューを、その行の下に開く
