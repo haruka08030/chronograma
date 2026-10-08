@@ -1,8 +1,18 @@
+// @vitest-environment jsdom
+// 起動 URL を読んで消すので window.location / history を使う（pwa.test.ts と同じ）
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { consumeLaunch, type LaunchHandlers } from './pwa'
 
 const handlers = () =>
-  ({ openView: vi.fn(), record: vi.fn(), openTask: vi.fn(), stopTimer: vi.fn(), wrapUp: vi.fn(), add: vi.fn() }) satisfies LaunchHandlers
+  ({
+    openView: vi.fn(),
+    record: vi.fn(),
+    start: vi.fn(),
+    openTask: vi.fn(),
+    stopTimer: vi.fn(),
+    wrapUp: vi.fn(),
+    add: vi.fn(),
+  }) satisfies LaunchHandlers
 
 const launchAt = (path: string) => window.history.replaceState(null, '', path)
 
