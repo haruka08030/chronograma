@@ -29,7 +29,8 @@ const field = fieldClass({}, 'w-full')
 const errorClass = `px-4 py-3 ${ERROR_TEXT}`
 
 /**
- * Canvas LMS 連携。学校の Canvas の URL とアクセストークンを貼ってつなぐ。学校ごとに 1 つ、いくつでもつなげる。
+ * 学校の LMS の連携（Canvas・Moodle）。Canvas は学校の URL とアクセストークン（またはカレンダーフィードの URL）、
+ * Moodle はカレンダーの書き出しの URL を貼ってつなぐ。学校ごとに 1 つ、いくつでもつなげる。
  * トークンは最長 90 日で切れるので、切れた学校の下でトークンだけ貼り直せるようにする。
  * 取り込み自体は useCanvasSync が行う。
  */
@@ -177,10 +178,11 @@ function ConnectionRows({
   const host = new URL(connection.baseUrl).host
   // 期限切れ（つないだあとに切れた）ときと、延ばせないまま期限が近いときは、トークンだけ貼り直す欄を出す
   const feed = connection.kind === 'ical'
+  const moodle = connection.lms === 'moodle'
   const expiring = error || feed ? null : canvasExpiryWarning(connection.expiresAt)
   return (
     <>
-      <SettingsRow label={host} help={feed ? t('canvas.feedHelp') : (connection.userName ?? undefined)}>
+      <SettingsRow label={host} help={moodle ? t('canvas.moodleHelp') : feed ? t('canvas.feedHelp') : (connection.userName ?? undefined)}>
         <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} disabled={busy} onClick={onDisconnect}>
           {t('canvas.disconnect')}
         </button>
@@ -199,7 +201,8 @@ function ConnectionRows({
 }
 
 /**
- * 新しくつなぐ。アクセストークン（読み書き）が基本で、トークンを作れない学校はカレンダーフィード（読むだけ）。
+ * 新しくつなぐ。まず学校の LMS（Canvas・Moodle）を選ぶ。
+ * Canvas はアクセストークン（読み書き）が基本で、トークンを作れない学校はカレンダーフィード（読むだけ）。Moodle は書き出しの URL（読むだけ）
  */
 function NewConnectionForm({
   busy,
@@ -211,34 +214,61 @@ function NewConnectionForm({
   onCancel?: () => void
 }) {
   const { t } = useTranslation()
+  const [lms, setLms] = useState<'canvas' | 'moodle'>('canvas')
   const [method, setMethod] = useState<'token' | 'feed'>('token')
+  const connectFeed = (url: string) => act('new', () => connectCanvasFeed(url))
   return (
     <div>
-      <div className="px-4 pt-3">
+      <div className="flex flex-wrap gap-2 px-4 pt-3">
         <Segmented
-          ariaLabel={t('canvas.methodLabel')}
-          value={method}
-          onChange={setMethod}
+          ariaLabel={t('canvas.lmsLabel')}
+          value={lms}
+          onChange={setLms}
           options={[
-            { value: 'token', label: t('canvas.methodToken') },
-            { value: 'feed', label: t('canvas.methodFeed') },
+            { value: 'canvas', label: 'Canvas' },
+            { value: 'moodle', label: 'Moodle' },
           ]}
         />
+        {lms === 'canvas' && (
+          <Segmented
+            ariaLabel={t('canvas.methodLabel')}
+            value={method}
+            onChange={setMethod}
+            options={[
+              { value: 'token', label: t('canvas.methodToken') },
+              { value: 'feed', label: t('canvas.methodFeed') },
+            ]}
+          />
+        )}
       </div>
-      {method === 'token' ? (
+      {lms === 'moodle' ? (
+        <FeedForm lms="moodle" busy={busy} onSubmit={connectFeed} onCancel={onCancel} />
+      ) : method === 'token' ? (
         <TokenForm busy={busy} onSubmit={(token, url) => act('new', () => connectCanvas(token, url))} onCancel={onCancel} />
       ) : (
-        <FeedForm busy={busy} onSubmit={(url) => act('new', () => connectCanvasFeed(url))} onCancel={onCancel} />
+        <FeedForm lms="canvas" busy={busy} onSubmit={connectFeed} onCancel={onCancel} />
       )}
     </div>
   )
 }
 
-function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feedUrl: string) => void; onCancel?: () => void }) {
+/** カレンダーの URL を貼ってつなぐ（Canvas のカレンダーフィード・Moodle の書き出し。どちらも読むだけ） */
+function FeedForm({
+  lms,
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  lms: 'canvas' | 'moodle'
+  busy: boolean
+  onSubmit: (feedUrl: string) => void
+  onCancel?: () => void
+}) {
   const { t } = useTranslation()
   const [url, setUrl] = useState('')
   const problem = canvasFeedUrlProblem(url)
   const ready = url.trim() !== '' && !problem
+  const moodle = lms === 'moodle'
   return (
     <form
       className="space-y-3 px-4 py-3"
@@ -248,18 +278,22 @@ function FeedForm({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (feed
       }}
     >
       <ol className={STEPS_LIST_CLASS}>
-        <li>{t('canvas.feedStep1')}</li>
-        <li>{t('canvas.feedStep2')}</li>
+        <li>{t(moodle ? 'canvas.moodleStep1' : 'canvas.feedStep1')}</li>
+        <li>{t(moodle ? 'canvas.moodleStep2' : 'canvas.feedStep2')}</li>
       </ol>
       <label className="block">
-        <span className={sectionLabelClass('field', 'mb-1 block')}>{t('canvas.feedLabel')}</span>
+        <span className={sectionLabelClass('field', 'mb-1 block')}>{t(moodle ? 'canvas.moodleLabel' : 'canvas.feedLabel')}</span>
         <input
           type="text"
           inputMode="url"
           autoComplete="off"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://canvas.ucsc.edu/feeds/calendars/user_….ics"
+          placeholder={
+            moodle
+              ? 'https://moodle.example.ac.jp/calendar/export_execute.php?userid=…&authtoken=…'
+              : 'https://canvas.ucsc.edu/feeds/calendars/user_….ics'
+          }
           className={field}
           aria-invalid={problem ? true : undefined}
         />

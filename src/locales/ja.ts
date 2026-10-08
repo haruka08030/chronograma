@@ -1262,8 +1262,9 @@ export default {
     },
   },
   canvas: {
-    title: 'Canvas',
-    needsLogin: 'Canvas と連携するには、まずログインが必要です。',
+    title: 'Canvas・Moodle',
+    needsLogin: '学校の LMS（Canvas・Moodle）と連携するには、まずログインが必要です。',
+    lmsLabel: '学校の LMS',
     step1Link: 'Canvas の「アカウント → 設定」',
     step1: 'で「新しいアクセストークン」を作り、トークンをコピーする（期限は最長 90 日）',
     step2: '学校の Canvas の URL と、トークンを下に貼る',
@@ -1274,20 +1275,28 @@ export default {
     feedStep1: 'Canvas の「カレンダー」を開き、右下の「カレンダーフィード」から URL をコピーする（トークンを作れない学校向け）',
     feedStep2: 'URL を下に貼る。読むだけなので、提出しても自動では完了にならず、ここで完了にしても Canvas には反映されません',
     feedLabel: 'カレンダーフィードの URL',
+    moodleStep1:
+      'Moodle の「カレンダー」を開き、「カレンダーをエクスポート」で「カレンダー URL を取得」を押し、出た URL をコピーする（選ぶ範囲はどれでもかまいません）',
+    moodleStep2: 'URL を下に貼る。読むだけなので、提出しても自動では完了にならず、ここで完了にしても Moodle には反映されません',
+    moodleLabel: 'カレンダーの書き出しの URL',
+    moodleHelp: 'Moodle のカレンダー（読むだけ）',
     feedProblem: {
       calendarPage:
         'これはカレンダー画面の URL です。その画面の右下にある「カレンダーフィード」を押すと出る URL（…/feeds/calendars/….ics）を貼ってください',
-      notFeed: 'カレンダーフィードの URL ではありません。…/feeds/calendars/….ics で終わる URL を貼ってください',
+      moodlePage:
+        'これは Moodle のカレンダーの画面の URL です。「カレンダーをエクスポート」で「カレンダー URL を取得」を押すと出る URL（…/calendar/export_execute.php?…&authtoken=…）を貼ってください',
+      notFeed:
+        'カレンダーの URL ではありません。Canvas は …/feeds/calendars/….ics、Moodle は …/calendar/export_execute.php?… の URL を貼ってください',
     },
     feedHelp: 'カレンダーフィード（読むだけ）',
-    feedCompleteNotice: 'カレンダーフィードでつないだ課題なので、Canvas 側は完了になりません',
+    feedCompleteNotice: 'カレンダーの URL でつないだ課題なので、Canvas・Moodle 側は完了になりません',
     urlLabel: 'Canvas の URL',
     tokenLabel: 'アクセストークン',
     connect: '接続する',
     renew: '貼り直す',
     connecting: '接続中…',
     disconnect: '接続を解除',
-    addAnother: '別の Canvas',
+    addAnother: '別の学校',
     add: '追加',
     disconnectConfirm: '{{host}} との接続を解除しますか？ 取り込み済みのタスクはそのまま残ります。',
     syncNow: '同期',
@@ -1301,7 +1310,7 @@ export default {
       canvas_bad_url:
         'Canvas の URL を読み取れませんでした。Canvas にログインしたときのアドレス（例: https://xxx.instructure.com）を貼ってください。',
       canvas_feed_invalid:
-        'カレンダーフィードを読めませんでした。Canvas のカレンダーの「カレンダーフィード」の URL（…/feeds/calendars/….ics）を貼り直してください。',
+        'カレンダーを読めませんでした。Canvas のカレンダーフィードの URL（…/feeds/calendars/….ics）か、Moodle の「カレンダー URL を取得」で出る URL を貼り直してください。',
       canvas_rate_limited: 'Canvas へのアクセスが多すぎます。少し待ってから同期してください。',
       canvas_too_many: 'つなげる学校は 5 つまでです。使っていない学校を外してから追加してください。',
       canvas_api: 'Canvas からエラーが返りました。少し待ってからもう一度お試しください。',
