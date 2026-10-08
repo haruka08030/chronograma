@@ -28,6 +28,11 @@ export interface SyncBaseline {
    */
   habitDates?: Record<string, string[]>
   /**
+   * 前回同期した時点のタスクごとのタグ（タグのあるタスクだけ）。タグも集合として合わせる
+   * （片方で足し、片方で外したとき、どちらも残す）。古い控えには無い
+   */
+  taskTags?: Record<string, string[]>
+  /**
    * 前回同期した時点の、行ごと・項目ごとの値の短いハッシュ（値そのものは持たない。容量を食うため）。
    * 両方の端末で同じ行を変えたとき、変えた項目どうしなら両方を残すのに使う（スマホでタイトル・PC で完了）。古い控えには無い
    */
@@ -94,6 +99,44 @@ function rowHash(row: object, order: readonly string[]): string {
   return order.map((k) => fieldHash(rec[k])).join('.')
 }
 
+/** 両方の端末で別々に直したメモの区切り（下が負けたほうの版） */
+export const MEMO_CONFLICT_SEPARATOR = '\n\n―― ―― ――\n'
+
+/** 両方が変えたメモ。一方がもう一方を含む（書き足した）なら長いほう、違えば新しいほうの下に古いほうを残す */
+export function mergeMemo(l: string, r: string, winner: 'l' | 'r'): string {
+  if (l.includes(r)) return l
+  if (r.includes(l)) return r
+  const [win, lose] = winner === 'r' ? [r, l] : [l, r]
+  return `${win}${MEMO_CONFLICT_SEPARATOR}${lose}`
+}
+
+/**
+ * タスクのタグを集合として合わせる（`mergeHabitDates` と同じ）。前回同期にあって片方で外したタグは外し、
+ * 片方で足したタグは残す。並びは手元の並びのあとにサーバーにしか無いものを足す。控えにタグの記録が無ければ（古い控え）何もしない
+ */
+export function mergeTaskTags(
+  merged: Task[],
+  local: readonly Task[],
+  remote: readonly Task[],
+  baseTags: Record<string, string[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Task[] {
+  if (!baseTags) return merged
+  const localById = new Map(local.map((t) => [t.id, t]))
+  const remoteById = new Map(remote.map((t) => [t.id, t]))
+  return merged.map((t) => {
+    const l = localById.get(t.id)
+    const r = remoteById.get(t.id)
+    if (!l || !r) return t
+    const base = new Set(baseTags[t.id] ?? [])
+    const ls = new Set(l.tags)
+    const rs = new Set(r.tags)
+    const tags = [...l.tags, ...r.tags.filter((x) => !ls.has(x))].filter((x) => !(base.has(x) && (!ls.has(x) || !rs.has(x))))
+    const same = tags.length === t.tags.length && tags.every((x, i) => x === t.tags[i])
+    return same ? t : { ...t, tags, updatedAt: nowIso }
+  })
+}
+
 /**
  * 両方の端末で変わった 1 行を項目ごとに合わせる。前回同期から片方だけが変えた項目はその側の値、
  * 両方が変えた項目（と前回の値が分からない項目）は新しいほうの値。
@@ -123,6 +166,13 @@ function mergeRow<T extends { id: string }>(
     const rh = fieldHash(rr[k])
     if (lh === rh) continue
     const bh = baseByKey.get(k)
+    // メモを両方の端末で変えた: 新しいほうに、もう一方の版を消さずに下へ足す（書き足しどうしなら長いほう）
+    if (k === 'description' && bh !== undefined && lh !== bh && rh !== bh && typeof lr[k] === 'string' && typeof rr[k] === 'string') {
+      out[k] = mergeMemo(lr[k] as string, rr[k] as string, winner === r ? 'r' : 'l')
+      fromLocal = true
+      fromRemote = true
+      continue
+    }
     let take: 'l' | 'r' | null = null
     if (bh !== undefined && lh === bh) take = 'r'
     else if (bh !== undefined && rh === bh) take = 'l'
@@ -273,6 +323,7 @@ export function mergeSnapshots(
     off,
     (t) => reanchorTask(t),
   )
+  tasks.merged = mergeTaskTags(tasks.merged, local.tasks, remote.tasks, baseline.taskTags)
   const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt), f?.habits, off)
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
 
@@ -371,6 +422,7 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
     habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
+    taskTags: Object.fromEntries(s.tasks.filter((t) => t.tags.length > 0).map((t) => [t.id, [...t.tags]])),
     fields: {
       lists: fieldsBaseline(s.lists),
       sections: fieldsBaseline(s.sections),

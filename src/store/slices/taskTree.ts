@@ -6,6 +6,7 @@ import { canNestUnder, getIndentTargetId } from '../../lib/taskDepth'
 import { expandDescendantIds, isAncestorInChain, siblingIdsOrdered } from '../taskHelpers'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
+import { minimalReorder } from '../../lib/minimalReorder'
 
 type TaskTreeActions = Pick<
   TaskState,
@@ -29,6 +30,10 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       const targetListId = sectionUpdate?.listId
       const descendantsForListMove = targetListId && sectionSet ? expandDescendantIds(sectionUpdate!.taskIds, get().tasks) : null
       pushUndo()
+      // 並びが変わった行だけに、前後の行の間の値を付ける（以前は並べた全部の行に 0, 1, 2… を振り直して全部を送り、
+      // 2 台で並べ替えると行ごとに混ざっていた。絞り込んだ画面では見えていない行の順番ともぶつかっていた）
+      const byId = new Map(get().tasks.map((t) => [t.id, t]))
+      const nextOrder = minimalReorder(orderedTaskIds.map((id) => byId.get(id)?.order ?? 0))
       set((s) => ({
         tasks: s.tasks.map((t) => {
           const idx = orderedTaskIds.indexOf(t.id)
@@ -36,7 +41,9 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
           const inDescendantListMove = Boolean(descendantsForListMove?.has(t.id) && targetListId && t.listId !== targetListId)
           if (idx < 0 && !inDescendantListMove) return t
 
-          let next: Task = idx >= 0 ? { ...t, order: idx, updatedAt: now } : { ...t, updatedAt: now }
+          const orderChanged = idx >= 0 && nextOrder[idx] !== t.order
+          if (!orderChanged && !inSectionPatch && !inDescendantListMove) return t
+          let next: Task = orderChanged ? { ...t, order: nextOrder[idx]!, updatedAt: now } : { ...t, updatedAt: now }
           if (inSectionPatch && sectionUpdate) {
             next = { ...next, sectionId: sectionUpdate.sectionId }
             if (targetListId) next = { ...next, listId: targetListId }

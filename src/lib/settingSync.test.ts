@@ -185,11 +185,12 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     // 1 回目は古い版をもとにしていて断られ、取り直した 2 回目は b の版をもとに送る（a の編集のほうが新しい）
     expect(plans).toHaveLength(2)
     expect(plans[1].push?.base).toBe(b.updatedAt)
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'A の追加'])
+    // 両方が足したラベルは名前ごとに合わせて両方残す（並びは新しいほう＝a が先）
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'A の追加', 'B の追加'])
     expect(a.updatedAt).toBe(rows.get('u1')!.updated_at)
   })
 
-  it('両方で変えて、ほかの端末の編集のほうが新しければ、断られた後にそちらに合わせる', async () => {
+  it('両方で変えて、ほかの端末の編集のほうが新しければ、断られた後にそちらの並びで両方のラベルを残す', async () => {
     const { client, rows } = fakeSettings()
     const a = device(REAL - 60_000, ['授業'])
     a.edit(['授業'])
@@ -204,8 +205,9 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
       interleaved = true
       await sync(client, b, 'b')
     })
-    expect(a.presets).toEqual(['授業', 'B の追加'])
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'B の追加'])
+    // 名前ごとに合わせて両方残す（並びは新しいほう＝b が先）
+    expect(a.presets).toEqual(['授業', 'B の追加', 'A の追加'])
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'B の追加', 'A の追加'])
   })
 
   it('版の列が無いと言われても、版を外して送り直さない（失敗として返す）', async () => {
@@ -221,6 +223,28 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     expect('updatedAt' in res1).toBe(true)
     const res2 = await pushLogLabels(client, 'u1', { labels: [{ name: 'x', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
     expect(res2).toEqual({ stale: true })
+  })
+})
+
+describe('ラベル表を 2 台で別々に変えたとき（#261）', () => {
+  it('2 台で別々に足したラベルはどちらも残る', async () => {
+    const { client, rows } = fakeSettings()
+    const phone = device(REAL, ['授業'])
+    const pc = device(REAL, ['授業'])
+    phone.edit(['授業'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    phone.clock += 1000
+    pc.clock += 2000
+    phone.edit(['授業', 'ゼミ'])
+    pc.edit(['授業', 'バイト'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    await sync(client, phone, 'phone')
+    const names = (rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)
+    expect(names.sort()).toEqual(['ゼミ', 'バイト', '授業'].sort())
+    expect([...phone.presets].sort()).toEqual(names)
+    expect([...pc.presets].sort()).toEqual(names)
   })
 })
 

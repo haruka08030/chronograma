@@ -127,13 +127,15 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
     expect(plan).toEqual({})
   })
 
-  it('両方で変えたときは、手元の編集時刻をサーバーの時計に直して比べる', () => {
+  it('両方で変えたときは名前ごとに合わせ、並びは手元の編集時刻をサーバーの時計に直して新しいほう', () => {
     const local = { presets: ['手元'], colors: {}, updatedAt: FAST, syncedAt: S1 }
     const remote = { labels: [{ name: '他端末', color: '' }], updatedAt: S2 }
-    // 時計が進んでいなければ手元が新しい
-    expect(planLabelSync(local, remote, NOW, 0).push?.base).toBe(S2)
-    // 3 か月進んでいる端末なら、直すとサーバーのほうが新しい
+    // 時計が進んでいなければ手元が新しい（手元の並びが先）
+    const p0 = planLabelSync(local, remote, NOW, 0)
+    expect(p0.push?.base).toBe(S2)
+    expect(p0.apply?.presets).toEqual(['手元', '他端末'])
+    // 3 か月進んでいる端末なら、直すとサーバーのほうが新しい（サーバーの並びが先）
     const offset = Date.parse(S2) - Date.parse(FAST) - 1000
-    expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['他端末'])
+    expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['他端末', '手元'])
   })
 })
