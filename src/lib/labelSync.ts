@@ -67,6 +67,19 @@ export function planLabelSync(
     clockOffsetMs,
   )
   if (!remote) return { push: { labels: localRows, updatedAt: local.updatedAt ?? nowIso, base: null } }
+  // 両方の端末で前回合わせた後に変えていた: 丸ごと新しいほうにせず名前ごとに合わせる（2 台で別々に足したラベルをどちらも残す）。
+  // 並びと同じ名前の色は新しいほう。前回の中身は持たないので、片方で消したラベルはもう一方にあれば戻る
+  const bothChanged =
+    local.updatedAt !== null && local.syncedAt != null && local.updatedAt !== local.syncedAt && remote.updatedAt !== local.syncedAt
+  if (bothChanged && (step.kind === 'push' || step.kind === 'apply')) {
+    const fromRemote = rowsToLocal(remote.labels)
+    const [first, second] = step.kind === 'push' ? [local, fromRemote] : [fromRemote, local]
+    const presets = [...first.presets, ...second.presets.filter((n) => !first.presets.includes(n))]
+    const colors = { ...second.colors, ...first.colors }
+    const mergedRows = labelsToRows(presets, colors)
+    if (sameRows(mergedRows, remote.labels)) return { apply: { presets, colors, updatedAt: remote.updatedAt } }
+    return { apply: { presets, colors, updatedAt: nowIso }, push: { labels: mergedRows, updatedAt: nowIso, base: remote.updatedAt } }
+  }
   switch (step.kind) {
     case 'initial': {
       // 初めて: サーバーの並びのあとに、手元にしか無いラベルを足す。同じ名前の色はサーバーの色

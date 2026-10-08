@@ -741,6 +741,34 @@ describe('two devices editing the same task (#77)', () => {
     expect(pc.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
   })
 
+  it('tags added on one device and removed on the other both survive (#261)', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { tags: ['a', 'b'] }, '2026-10-03T00:00:05.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    edit(phone, 't', { tags: ['a', 'b', 'c'] }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { tags: ['b'] }, '2026-10-03T00:00:20.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    await syncDevice(client, phone)
+    expect(stored(tables).tags).toEqual(['b', 'c'])
+    expect(phone.local.tasks[0]!.tags).toEqual(['b', 'c'])
+    expect(pc.local.tasks[0]!.tags).toEqual(['b', 'c'])
+  })
+
+  it('memos edited on both devices keep both versions (#261)', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { description: 'phone note' }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { description: 'pc note' }, '2026-10-03T00:00:20.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    await syncDevice(client, phone)
+    const memo = String(stored(tables).description)
+    expect(memo).toContain('phone note')
+    expect(memo).toContain('pc note')
+    expect(phone.local.tasks[0]!.description).toBe(memo)
+  })
+
   it('a device whose clock is far ahead does not wipe the other device’s field', async () => {
     const { client, tables, phone, pc } = await setup()
     // PC の時計は 1 年進んでいる。スマホの変更は PC より後でも、時刻では古く見える
