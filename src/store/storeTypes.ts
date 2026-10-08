@@ -355,8 +355,12 @@ export interface TaskState {
   promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
+  /** ゴミ箱からまとめて復元（2 件以上なら件数のトースト）。Undo は 1 段 */
+  restoreDeletedTasks: (ids: string[]) => void
   /** ゴミ箱から完全に削除（対象と全子孫をストアから除去） */
   permanentlyDeleteTask: (id: string) => void
+  /** ゴミ箱からまとめて完全に削除（対象と全子孫）。Undo は 1 段 */
+  permanentlyDeleteTasks: (ids: string[]) => void
   /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
   emptyDeleted: () => void
   /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
@@ -367,6 +371,8 @@ export interface TaskState {
   archiveTasks: (ids: string[]) => void
   /** アーカイブから戻す（対象と全子孫の archivedAt をクリア） */
   unarchiveTask: (id: string) => void
+  /** アーカイブからまとめて戻す（2 件以上なら件数のトースト）。Undo は 1 段 */
+  unarchiveTasks: (ids: string[]) => void
   undoDelete: () => void
   /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
   /** 中の操作をまとめて 1 回の取り消しで戻せるようにする */

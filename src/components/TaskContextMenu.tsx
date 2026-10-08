@@ -7,7 +7,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
-import { isEventTask, type Priority } from '../types/task'
+import { isEventTask, isLogTask, type Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
@@ -34,6 +34,11 @@ import { colorVars } from '../lib/logCategoryColors'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { MemoPreview } from './ui/MemoPreview'
 import { menuDateHint } from '../lib/menuDateHint'
+import { categoryHex } from '../lib/logCategoryColors'
+import { colorLabelText } from '../lib/todoColorLabels'
+import { NEUTRAL_HEX } from '../lib/googleColors'
+import { ColorDot } from './ui/FilterChips'
+import { ColorPalette } from './labels/ColorPalette'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -69,6 +74,8 @@ export function TaskContextMenu({
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const sections = useTaskStore((s) => s.sections)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const bulk = useBulkTaskActions()
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
@@ -83,6 +90,7 @@ export function TaskContextMenu({
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
   const sharedSection = shared((x) => x.sectionId)
+  const sharedColor = shared((x) => x.color?.toUpperCase() ?? null)
   // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけ・チェックリストだけなら専用の短いメニューにする
   const kindOf = (listId: string) => lists.find((l) => l.id === listId)?.kind ?? 'tasks'
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
@@ -178,6 +186,52 @@ export function TaskContextMenu({
             run: done(() => bulk.moveToSection(taskIds, sec.id, sec.name)),
           })),
         ]
+
+  // ラベル（色）: 名前を付けたラベル → 「ラベルなし」、下に 24 色（詳細の「色とラベル」と同じ色の一覧）。記録には出さない
+  const labelNone = <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: NEUTRAL_HEX }} aria-hidden />
+  const labelLeaves: ActionLeaf[] = [
+    ...presets
+      .map((name) => categoryHex(name, categoryColors))
+      .filter((hex, i, arr) => arr.indexOf(hex) === i)
+      .map((hex): ActionLeaf => ({
+        id: `label-${hex}`,
+        label: colorLabelText(hex, presets, categoryColors, t),
+        icon: <ColorDot hex={hex} />,
+        checked: sharedColor === hex,
+        run: done(() => bulk.setLabel(taskIds, hex)),
+      })),
+    {
+      id: 'label-none',
+      label: t('labels.none'),
+      icon: labelNone,
+      checked: sharedColor === null,
+      run: done(() => bulk.setLabel(taskIds, null)),
+    },
+  ]
+  const labelEntry: ActionEntry[] = targets.some((x) => !isLogTask(x))
+    ? [
+        {
+          kind: 'sub',
+          id: 'label',
+          label: t('taskMenu.label'),
+          icon: sharedColor ? <ColorDot hex={sharedColor} /> : labelNone,
+          // 今のラベル。選んだタスクで違えば出さない
+          hint: sharedColor ? colorLabelText(sharedColor, presets, categoryColors, t) : undefined,
+          leaves: labelLeaves,
+          width: 'lg',
+          extra: (close) => (
+            <ColorPalette
+              bare
+              selectedHex={sharedColor ?? null}
+              onChoose={(hex) => {
+                done(() => bulk.setLabel(taskIds, hex))()
+                close()
+              }}
+            />
+          ),
+        },
+      ]
+    : []
 
   const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
   // いちばん使う日の付け替えは、サブメニューを開かずに先頭で押せるようにする（今日の行なら明日へ、それ以外は今日へ）
@@ -324,6 +378,7 @@ export function TaskContextMenu({
                 },
               ]
             : []),
+          ...labelEntry,
           ...(allEvents ? [] : [{ ...completeEntry, divider: true }]),
           ...(taskIds.length === 1
             ? [

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -18,6 +18,10 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { colorVars } from '../lib/logCategoryColors'
+import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
+import { SelectionBar } from './ui/SelectionBar'
+import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
 
 type BinMode = 'archived' | 'deleted'
 
@@ -31,34 +35,52 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const restoreDeletedTask = useTaskStore((s) => s.restoreDeletedTask)
-  const permanentlyDeleteTask = useTaskStore((s) => s.permanentlyDeleteTask)
+  const restoreDeletedTasks = useTaskStore((s) => s.restoreDeletedTasks)
+  const permanentlyDeleteTasks = useTaskStore((s) => s.permanentlyDeleteTasks)
   const emptyDeleted = useTaskStore((s) => s.emptyDeleted)
-  const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
-  const deleteTask = useTaskStore((s) => s.deleteTask)
+  const unarchiveTasks = useTaskStore((s) => s.unarchiveTasks)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
 
-  const [menu, setMenu] = useState<{ x: number; y: number; task: Task } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
 
-  // 行のボタンと右クリックのメニューで同じ動きにする。完全に削除は戻せないので確認する（アーカイブの削除はゴミ箱へ・元に戻せる）
+  // 行のボタン・右クリックのメニュー・選択中のバーで同じ動きにする（選んだ行はまとめて。元に戻すは 1 回で戻る）。
+  // 完全に削除は戻せないので件数を出して確認する（アーカイブの削除はゴミ箱へ・元に戻せる）
   const restoreLabel = mode === 'deleted' ? t('taskBin.restore') : t('taskBin.unarchive')
   const deleteLabel = mode === 'deleted' ? t('taskBin.deleteForever') : t('common.delete')
-  const restore = (id: string) => (mode === 'deleted' ? restoreDeletedTask(id) : unarchiveTask(id))
-  const remove = async (id: string) => {
-    if (mode !== 'deleted') {
-      deleteTask(id)
-      return
-    }
-    if (await askConfirm({ message: t('taskBin.permanentConfirm'), confirmLabel: t('taskBin.deleteForever'), danger: true })) {
-      permanentlyDeleteTask(id)
-    }
-  }
-  const menuEntries = (id: string): ActionEntry[] => [
+  const restore = useCallback(
+    (ids: string[]) => (mode === 'deleted' ? restoreDeletedTasks(ids) : unarchiveTasks(ids)),
+    [mode, restoreDeletedTasks, unarchiveTasks],
+  )
+  const remove = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return
+      if (mode !== 'deleted') {
+        deleteTasks(ids)
+        return
+      }
+      const { tasks: all } = useTaskStore.getState()
+      const subCount = all.filter((x) => x.parentId && ids.includes(x.parentId)).length
+      const message =
+        ids.length === 1
+          ? t('taskBin.permanentConfirm')
+          : subCount > 0
+            ? t('taskBin.permanentConfirmManyWithSub', { count: ids.length, sub: subCount })
+            : t('taskBin.permanentConfirmMany', { count: ids.length })
+      const confirmLabel = ids.length === 1 ? t('taskBin.deleteForever') : t('taskBin.deleteForeverCount', { count: ids.length })
+      if (await askConfirm({ message, confirmLabel, danger: true })) permanentlyDeleteTasks(ids)
+    },
+    [mode, deleteTasks, permanentlyDeleteTasks, t],
+  )
+  const menuEntries = (ids: string[]): ActionEntry[] => [
     {
       kind: 'leaf',
       id: 'restore',
       label: restoreLabel,
       icon: <PathIcon d={RESTORE_ICON} className="h-4 w-4 flex-shrink-0" />,
-      run: () => restore(id),
+      run: () => {
+        restore(ids)
+        clearSelection()
+      },
     },
     {
       kind: 'leaf',
@@ -67,7 +89,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       danger: true,
       label: deleteLabel,
       icon: <PathIcon d={DELETE_ICON} className="h-4 w-4 flex-shrink-0" />,
-      run: () => void remove(id),
+      run: () => {
+        void remove(ids)
+        clearSelection()
+      },
     },
   ]
 
@@ -94,6 +119,26 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       .sort((a, b) => b.stamp.localeCompare(a.stamp))
   }, [tasks, flagged, mode])
 
+  const rowIds = useMemo(() => rows.map((r) => r.task.id), [rows])
+  // 完了済みと同じ選択（クリック・Shift・⌘A・↑↓）。開く詳細は無いので、行を押すと選ぶ
+  const openMenu = useCallback((m: { x: number; y: number; taskIds: string[]; above?: boolean }) => setMenu(m), [])
+  const removeRows = useCallback((ids: string[]) => void remove(ids), [remove])
+  const noop = useCallback(() => {}, [])
+  const toggleRef = useRef<(id: string) => void>(() => {})
+  const toggleRow = useCallback((id: string) => toggleRef.current(id), [])
+  const { selected, clearSelection, toggleInSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
+    rowIds,
+    openDetail: toggleRow,
+    toggleRow,
+    removeRows,
+    completeRows: noop,
+    openMenu,
+    resetOn: [mode],
+  })
+  useEffect(() => {
+    toggleRef.current = toggleInSelection
+  }, [toggleInSelection])
+
   const title = mode === 'deleted' ? t('sidebar.views.deleted') : t('sidebar.views.archived')
   const boxIcon = mode === 'deleted' ? TRASH_BOX_ICON : ARCHIVE_BOX_ICON
 
@@ -119,7 +164,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         )}
       </div>
 
-      <div className="flex-1 space-y-1 px-4 pb-6">
+      <div
+        {...(rows.length > 0 ? listboxProps : {})}
+        aria-label={rows.length > 0 ? title : undefined}
+        className="flex-1 space-y-1 px-4 pb-6 outline-none"
+      >
         {rows.length === 0 ? (
           <EmptyState
             icon={<PathIcon d={boxIcon} strokeWidth={1} />}
@@ -140,17 +189,30 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             } catch {
               stampLabel = ''
             }
+            const selection = makeSelection(task.id)
             return (
+              // 行のクリックはマウスの近道。キーでは一覧（listbox）の ↑↓・Space・Enter で選べる
+              // 行は listbox の option（フォーカスは箱に置き、aria-activedescendant で今の行を伝える）
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
               <div
                 key={task.id}
+                id={selection.optionId}
+                role="option"
+                aria-selected={selection.selected}
+                aria-labelledby={`${selection.optionId}-title`}
+                data-task-row={task.id}
+                onClick={makeRowClick(task.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  setMenu({ x: e.clientX, y: e.clientY, task })
+                  selection.onContextMenu?.(e)
                 }}
-                className="group flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40"
+                className={`group flex cursor-pointer select-none items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40
+                  ${selection.selected ? ROW_SELECTED_CLASS : ''} ${selection.cursor ? ROW_CURSOR_CLASS : ''}`}
               >
+                <RowSelectCheckbox selected={selection.selected} reveal={selection.reveal} onToggle={selection.onToggle} />
                 <div className="min-w-0 flex-1">
                   <p
+                    id={`${selection.optionId}-title`}
                     className={`truncate text-sm ${task.completed && !timeLog ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
                   >
                     {task.title || '\u00A0'}
@@ -171,7 +233,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => restore(task.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      restore([task.id])
+                    }}
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
                     {...tip(restoreLabel, { name: true })}
                   >
@@ -180,7 +245,10 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void remove(task.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void remove([task.id])
+                    }}
                     className={iconButtonClass('p-1.5!')}
                     {...tip(deleteLabel, { name: true })}
                   >
@@ -192,12 +260,27 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           })
         )}
       </div>
+      {/* 選んでいる間: 件数・戻す・削除（To-Do 一覧と同じバー）。「操作」はこの画面のメニュー */}
+      <SelectionBar
+        selectedIds={selected}
+        actions={[
+          { label: restoreLabel, icon: <PathIcon d={RESTORE_ICON} className="h-4 w-4" />, onClick: () => restore([...selected]) },
+          { label: deleteLabel, icon: <PathIcon d={DELETE_ICON} className="h-4 w-4" />, onClick: () => void remove([...selected]) },
+        ]}
+        onClear={clearSelection}
+        onOpenMenu={(x, y) => setMenu({ x, y, taskIds: [...selected], above: true })}
+      />
       {menu && (
         <ActionMenu
           x={menu.x}
           y={menu.y}
-          header={menu.task.title || t('taskMenu.one')}
-          entries={menuEntries(menu.task.id)}
+          above={menu.above}
+          header={
+            menu.taskIds.length > 1
+              ? t('taskMenu.count', { count: menu.taskIds.length })
+              : tasks.find((x) => x.id === menu.taskIds[0])?.title || t('taskMenu.one')
+          }
+          entries={menuEntries(menu.taskIds)}
           onClose={() => setMenu(null)}
           searchable={false}
         />
