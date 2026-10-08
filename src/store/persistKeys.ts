@@ -33,6 +33,7 @@ export const DATA_KEYS = [
   'defaultBlockMinutes',
   'eventReminderMinutes',
   'appTimeZone',
+  'weekStartsOn',
   'extraTimeZones',
   'extraTimeZonesUpdatedAt',
 ] as const satisfies readonly (keyof TaskState)[]

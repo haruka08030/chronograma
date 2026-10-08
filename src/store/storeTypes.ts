@@ -11,6 +11,7 @@ import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
+import type { WeekStartDay } from '../lib/weekStart'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
@@ -143,6 +144,8 @@ export interface TaskState {
   eventReminderMinutes: number | null
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
   appTimeZone: string | null
+  /** 週の開始日（0 = 日曜、1 = 月曜、6 = 土曜）。カレンダーの週・月表示と日付ピッカーが従う（lib/weekStart.ts） */
+  weekStartsOn: WeekStartDay
   /** タイムラインの時間バーに並べて出す別のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」） */
   extraTimeZones: ExtraTimeZone[]
   /** 他のタイムゾーン（並び・名前）をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
@@ -298,6 +301,7 @@ export interface TaskState {
   setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
+  setWeekStartsOn: (day: WeekStartDay) => void
   setExtraTimeZones: (zones: ExtraTimeZone[]) => void
   /** 他のタイムゾーンに名前を付ける（空にすると外す） */
   setExtraTimeZoneLabel: (tz: string, label: string) => void

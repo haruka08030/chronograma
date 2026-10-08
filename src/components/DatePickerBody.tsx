@@ -1,31 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  addDays,
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameMonth,
-  startOfMonth,
-  startOfWeek,
-  subMonths,
-} from 'date-fns'
+import { addDays, addMonths, format, isSameMonth, startOfMonth, subMonths } from 'date-fns'
 import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
-
-/** `viewMonth` を含む月を、月曜始まりの 6 週グリッドとして並べる。 */
-function monthGridDays(viewMonth: Date): Date[] {
-  const monthStart = startOfMonth(viewMonth)
-  const monthEnd = endOfMonth(viewMonth)
-  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
-  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
-  return eachDayOfInterval({ start: calStart, end: calEnd })
-}
+import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
+import { dayIndexInWeek, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 
 /**
  * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
@@ -57,8 +39,10 @@ export function DatePickerBody({
   const df = useDateFormat()
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(month ?? (value ? fromDateKey(value) : appToday())))
   const pick = onPick
-  const days = monthGridDays(viewMonth)
-  const weekdays = t('calendar.weekdayInitials', { returnObjects: true }) as string[]
+  // 週の並びは設定の週の開始日から（カレンダーの月表示と同じ）
+  const weekStartsOn = useWeekStartsOn()
+  const days = monthGridDays(viewMonth, weekStartsOn)
+  const weekdays = weekdayLabelsFrom(t('calendar.weekdayInitials', { returnObjects: true }) as string[], weekStartsOn)
   const todayKey = appTodayKey()
   const tomorrowKey = toDateKey(addDays(appToday(), 1))
 
@@ -76,7 +60,7 @@ export function DatePickerBody({
 
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const from = fromDateKey(tabKey)
-    const dow = (from.getDay() + 6) % 7
+    const dow = dayIndexInWeek(from, weekStartsOn)
     const next =
       e.key === 'ArrowLeft'
         ? addDays(from, -1)

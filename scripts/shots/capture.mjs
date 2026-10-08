@@ -186,6 +186,16 @@ const SCREENS = [
   { name: 'calendar-holiday-day', view: 'calendar', mobileOnly: true, calendarMode: 'month', click: '[data-holiday] >> visible=true' },
   { name: 'calendar-holiday-month', view: 'calendar', calendarMode: 'month' },
   { name: 'calendar-holiday-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // 週の開始日を日曜にした週・月表示・ミニ月（`weekStartsOn` は設定の値。既定は月曜）
+  { name: 'calendar-week-sunday', view: 'calendar', weekStartsOn: 0 },
+  { name: 'calendar-month-sunday', view: 'calendar', calendarMode: 'month', weekStartsOn: 0 },
+  {
+    name: 'calendar-mobile-month-picker-sunday',
+    view: 'calendar',
+    mobileOnly: true,
+    weekStartsOn: 0,
+    click: 'button[aria-expanded][aria-label="日付を選択"] >> visible=true',
+  },
   // スマホの見出しの「10月 ▾」でミニ月を開いた状態・表示の切り替えメニュー（PC 幅には無いボタン）
   {
     name: 'calendar-mobile-month-picker',
@@ -269,6 +279,8 @@ const SCREENS = [
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
   { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
+  // 「日付と時刻」の週の開始日（日曜を選んだところ）
+  { name: 'settings-week-start', view: 'settings', weekStartsOn: 0, scrollTo: '#settings-time-zone' },
   { name: 'calendar-time-zones', view: 'calendar', extraTimeZones: true, hover: '[data-tip^="ロンドンの友達"]' },
   { name: 'someday', list: 'seed-someday' },
   { name: 'checklist', list: 'seed-shopping' },
@@ -504,6 +516,7 @@ async function main() {
             ]
           }
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
+          if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.manyAllDay) {
             const base = seed.state.tasks.find((x) => x.id === 's7')
             const titles = ['ES を出す', '履歴書の写真', 'Week 2 課題', '出席フォーム', 'OB 訪問のお礼', '教科書を買う', 'シフト提出']
