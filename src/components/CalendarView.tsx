@@ -42,6 +42,8 @@ import { useHolidayName } from '../hooks/useHolidayName'
 import { HolidayLabel } from './calendar/HolidayLabel'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekEnd, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
+import { formatDate } from '../lib/dateFormat'
+import { isSubmitEnter } from '../lib/keyboard'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -63,6 +65,7 @@ export function CalendarView({
   onSelectDate,
   onOpenDay,
   onSwipe,
+  stamp,
 }: {
   displayMonth: Date
   selectedDateKey?: string
@@ -74,6 +77,11 @@ export function CalendarView({
   onOpenDay?: (dateKey: string) => void
   /** 横に払ったとき前後の月へ（スマホ幅） */
   onSwipe?: (dir: -1 | 1) => void
+  /**
+   * よく入れる予定を選んで日を押している間（#311）。マスのどこを押しても `onDay`（入れる・外す）だけ。
+   * `days` はその予定が入っている日（印を付ける）
+   */
+  stamp?: { title: string; days: ReadonlySet<string>; onDay: (dateKey: string) => void }
 }) {
   const swipeRef = useRef<HTMLDivElement>(null)
   useSwipeNav(swipeRef, onSwipe)
@@ -188,24 +196,53 @@ export function CalendarView({
             const selected = selectedDateKey ? key === selectedDateKey : false
             const holiday = holidayName(key)
 
+            const stamped = stamp?.days.has(key) ?? false
+            // よく入れる予定を入れている間は、マスがその日の入れる・外すボタンになる（キーでも押せる）
+            const stampProps = stamp
+              ? {
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-pressed': stamped,
+                  'aria-label': t(stamped ? 'eventTemplates.dayOn' : 'eventTemplates.dayOff', {
+                    date: formatDate(key, 'monthDayWeekday'),
+                    title: stamp.title,
+                  }),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (isSubmitEnter(e) || e.key === ' ') {
+                      e.preventDefault()
+                      stamp.onDay(key)
+                    }
+                  },
+                }
+              : {}
+
             return (
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 月のマスを押す・ダブルクリックはマウス・指の近道（キーではマスの ＋ ボタンで追加できる）
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 月のマスを押す・ダブルクリックはマウス・指の近道（キーではマスの ＋ ボタンで追加できる。日を押して入れる間はマス自体がボタン）
               <div
                 key={key}
+                {...stampProps}
                 className={`group min-h-[64px] border-t border-zinc-100 p-1 transition-colors touch-manipulation dark:border-zinc-800 md:min-h-[80px] md:p-1.5 cursor-pointer
-                            hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30
+                            ${stamped ? 'bg-accent-50/80 dark:bg-accent-500/15' : 'hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30'}
+                            ${stamp ? 'select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500' : ''}
                             ${dragOverDate === key ? DROP_HIGHLIGHT_CLASS : ''}`}
                 onClick={() => onSelectDate?.(key)}
                 onClickCapture={
-                  onOpenDay
+                  stamp
                     ? (e) => {
-                        if ((e.target as Element).closest('button')) return
+                        // マスの中の予定・✓・＋ を押しても、開かずにその日に入れる・外す
                         e.stopPropagation()
-                        onOpenDay(key)
+                        e.preventDefault()
+                        stamp.onDay(key)
                       }
-                    : undefined
+                    : onOpenDay
+                      ? (e) => {
+                          if ((e.target as Element).closest('button')) return
+                          e.stopPropagation()
+                          onOpenDay(key)
+                        }
+                      : undefined
                 }
-                onDoubleClick={() => setAddingDate(key)}
+                onDoubleClick={stamp ? undefined : () => setAddingDate(key)}
                 onDragOver={(e) => {
                   if (acceptTaskDrag(e, { googleEvents: true })) setDragOverDate(key)
                 }}
@@ -267,17 +304,19 @@ export function CalendarView({
                       }`}
                     />
                   )}
-                  <CalendarAddTaskButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onSelectDate?.(key)
-                      setAddingDate(key)
-                    }}
-                    // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
-                    className={`absolute right-0 top-1 h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
-                      selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'
-                    }`}
-                  />
+                  {!stamp && (
+                    <CalendarAddTaskButton
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelectDate?.(key)
+                        setAddingDate(key)
+                      }}
+                      // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
+                      className={`absolute right-0 top-1 h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                        selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'
+                      }`}
+                    />
+                  )}
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
                   {holiday && <HolidayLabel name={holiday} wrap className="px-0.5 md:hidden" />}

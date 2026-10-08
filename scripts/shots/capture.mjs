@@ -45,6 +45,13 @@ const TODO_FILTER = 'button[aria-label="絞り込む"] >> visible=true'
 /** 今日やる候補の並び順のボタンと、絞り込み（じょうご）のボタン */
 const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順"] >> visible=true'
 const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=true'
+/** 月表示の見出しの「よく入れる予定」と、撮るときに登録しておくもの（#311） */
+const TEMPLATES_BUTTON = 'button:has-text("よく入れる予定") >> visible=true'
+const SEED_TEMPLATES = [
+  { id: 'tpl-early', title: 'バイト 早番', startTime: '09:00', endTime: '15:00', color: '#7986CB' },
+  { id: 'tpl-late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#7986CB' },
+  { id: 'tpl-class', title: 'ゼミ', startTime: '13:00', endTime: '14:30', color: null },
+]
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
@@ -172,6 +179,35 @@ const SCREENS = [
   { name: 'calendar-early-done', view: 'calendar', doneNow: ['s4'] },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // よく入れる予定（#311）: 見出しのボタンを押したところ・登録の画面・選んで日を続けて押しているところ
+  {
+    name: 'calendar-month-templates',
+    view: 'calendar',
+    calendarMode: 'month',
+    state: { eventTemplates: SEED_TEMPLATES },
+    click: TEMPLATES_BUTTON,
+  },
+  {
+    name: 'calendar-month-templates-edit',
+    view: 'calendar',
+    calendarMode: 'month',
+    state: { eventTemplates: SEED_TEMPLATES },
+    click: [TEMPLATES_BUTTON, '[role=menuitem]:has-text("登録・編集") >> visible=true'],
+  },
+  {
+    name: 'calendar-month-templates-stamp',
+    view: 'calendar',
+    calendarMode: 'month',
+    state: { eventTemplates: SEED_TEMPLATES },
+    click: [TEMPLATES_BUTTON, '[role=menuitem]:has-text("バイト 遅番") >> visible=true'],
+    steps: [
+      { click: 'div[aria-pressed="false"] >> nth=16' },
+      { click: 'div[aria-pressed="false"] >> nth=18' },
+      { click: 'div[aria-pressed="false"] >> nth=20' },
+      { click: 'div[aria-pressed="false"] >> nth=22' },
+      { click: 'div[aria-pressed="false"] >> nth=24' },
+    ],
+  },
   // 時刻の無い To-Do が多い日（終日の欄は 3 行までにたたみ「他 N 件」。▾ で全件）
   { name: 'calendar-allday-many', view: 'calendar', manyAllDay: true },
   {

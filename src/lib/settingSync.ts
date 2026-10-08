@@ -1,5 +1,6 @@
 /**
- * 利用者ごとに 1 行の設定（ラベル表 `user_settings`・他のタイムゾーン `user_extra_time_zones`・動いているタイマー `user_active_timer`）の同期で、
+ * 利用者ごとに 1 行の設定（ラベル表 `user_settings`・他のタイムゾーン `user_extra_time_zones`・動いているタイマー `user_active_timer`・
+ * よく入れる予定 `user_event_templates`）の同期で、
  * どちらに合わせるかを決める共通の部分。
  *
  * サーバーの `updated_at` はサーバーの時計で付く（`007`）。端末の時計どうしを比べないように、
@@ -51,8 +52,8 @@ export function settingSyncStep(
   return { kind: 'apply' }
 }
 
-/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`） */
-export type SettingKey = 'labels' | 'zones' | 'timer'
+/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`） */
+export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates'
 
 const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
 

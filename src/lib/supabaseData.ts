@@ -11,6 +11,7 @@ import { withLogCategory } from './taskDefaults'
 import type { RemoteLabels } from './labelSync'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
+import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
 
@@ -784,12 +785,12 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
 }
 
 /**
- * `user_settings` / `user_extra_time_zones` / `user_active_timer` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * `user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
  * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
  */
 export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer',
+  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates',
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
@@ -835,6 +836,31 @@ export function pushExtraTimeZones(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_extra_time_zones', { user_id: userId, zones: value.zones, updated_at: value.updatedAt }, base)
+}
+
+/** よく入れる予定（`user_event_templates.templates`、`022`）。行が無ければ null */
+export async function fetchEventTemplates(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RemoteEventTemplates | null | { error: string }> {
+  const { data, error } = await supabase.from('user_event_templates').select('templates, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { templates: normalizeEventTemplates(data.templates), updatedAt: String(data.updated_at) }
+}
+
+export function pushEventTemplates(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteEventTemplates,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(
+    supabase,
+    'user_event_templates',
+    { user_id: userId, templates: value.templates, updated_at: value.updatedAt },
+    base,
+  )
 }
 
 /** 同期の取り決めの版の下限（`app_config.min_sync_version`、017）。読めなければエラー（黙って送らない・黙って送るのどちらにもしない） */

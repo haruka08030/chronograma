@@ -37,6 +37,8 @@ export const DATA_KEYS = [
   'weekStartsOn',
   'extraTimeZones',
   'extraTimeZonesUpdatedAt',
+  'eventTemplates',
+  'eventTemplatesUpdatedAt',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const VIEW_KEYS = [

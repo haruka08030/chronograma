@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, startOfMonth } from 'date-fns'
 import type { CalendarMode } from '../store/storeTypes'
@@ -25,6 +25,7 @@ export function CalendarMobileHeader({
   onPickDate,
   dockOpen,
   onToggleDock,
+  extra,
 }: {
   mode: CalendarMode
   onModeChange: (mode: CalendarMode) => void
@@ -34,6 +35,8 @@ export function CalendarMobileHeader({
   onPickDate: (dateKey: string) => void
   dockOpen: boolean
   onToggleDock: () => void
+  /** 表示の切り替えの後ろに足すボタン（月表示の「よく入れる予定」） */
+  extra?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -99,6 +102,7 @@ export function CalendarMobileHeader({
           {modeLabel(mode)}
           <CaretDownIcon className="h-2.5 w-2.5 text-zinc-500" />
         </button>
+        {extra}
         <button
           type="button"
           onClick={onToggleDock}
