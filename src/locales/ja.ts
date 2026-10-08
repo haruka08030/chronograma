@@ -344,6 +344,9 @@ export default {
     colBed: '寝た時刻',
     colWake: '起きた時刻',
     colSleep: '睡眠時間',
+    noRecord: '記録なし',
+    fillAria: '{{day}}の睡眠を入れる',
+    editTitle: '{{day}}の朝',
   },
   sleep: {
     title: '睡眠',

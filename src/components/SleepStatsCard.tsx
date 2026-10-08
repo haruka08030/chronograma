@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { summarizeSleep, type SleepNight } from '../lib/sleep'
+import { sleepEndingOn, summarizeSleep, type SleepNight } from '../lib/sleep'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
@@ -10,6 +10,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { SleepTimesField } from './SleepTimesField'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -18,6 +19,8 @@ const CHART_HEIGHT = 144
  * 統計の「睡眠」。直近 14 日の平均（睡眠時間・寝た時刻・起きた時刻とそのばらつき）と、
  * 夜ごとの「寝た → 起きた」を縦の帯で並べた図。帯の上下がそろっているほど規則正しい。
  * 睡眠の記録が無い期間は出さない。
+ * 帯を押すとその夜の時刻を図の下で直せ、記録の無い夜（薄い点線の枠）を押すとその夜を埋められる。
+ * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
  */
 export function SleepStatsCard() {
   const { t } = useTranslation()
@@ -26,6 +29,8 @@ export function SleepStatsCard() {
   const todayKey = useAppTodayKey()
   const summary = useMemo(() => summarizeSleep(tasks, todayKey, DAYS), [tasks, todayKey])
   const [focusKey, setFocusKey] = useState<string | null>(null)
+  // 入力欄を開いている夜（起きた日）
+  const [editKey, setEditKey] = useState<string | null>(null)
 
   if (summary.count === 0) return null
 
@@ -40,6 +45,9 @@ export function SleepStatsCard() {
   const ticks: number[] = []
   for (let m = lo; m <= hi; m += step) ticks.push(m)
   const y = (off: number) => ((off - lo) / span) * CHART_HEIGHT
+  // 記録の無い夜の点線の枠は、平均の寝た時刻〜起きた時刻の位置に置く
+  const avgBedOffset = nights.reduce((a, n) => a + n.bedOffset, 0) / nights.length
+  const avgWakeOffset = nights.reduce((a, n) => a + n.wakeOffset, 0) / nights.length
   const clockLabel = (off: number) => `${((off / 60 + 12) % 24).toFixed(0)}:00`
 
   const dayLabel = (key: string) => df.shortDateWeekday(key)
@@ -51,8 +59,11 @@ export function SleepStatsCard() {
     { label: t('sleepStats.avgWake'), value: summary.avgWake ?? '—', sub: spreadText(summary.wakeSpread) },
   ]
 
-  // 図の上の読み取り行: 押した・ホバーした夜、なければいちばん新しい夜
-  const focused = nights.find((n) => n.dateKey === focusKey) ?? nights[nights.length - 1]!
+  // 図の上の読み取り行: 直している・押した・ホバーした夜（記録の無い夜も）、なければいちばん新しい夜
+  const activeKey = editKey ?? focusKey
+  const focusedKey = activeKey ?? nights[nights.length - 1]!.dateKey
+  const focused = nights.find((n) => n.dateKey === focusedKey) ?? null
+  const editRecord = editKey ? sleepEndingOn(tasks, editKey) : null
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -77,7 +88,9 @@ export function SleepStatsCard() {
         <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-xs">
           <span className="font-medium text-zinc-600 dark:text-zinc-300">{t('sleepStats.chartTitle')}</span>
           <span className="tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
-            {dayLabel(focused.dateKey)} {focused.bed}–{focused.wake} · {formatDuration(focused.minutes)}
+            {focused
+              ? `${dayLabel(focused.dateKey)} ${focused.bed}–${focused.wake} · ${formatDuration(focused.minutes)}`
+              : `${dayLabel(focusedKey)} ${t('sleepStats.noRecord')}`}
           </span>
         </figcaption>
         <div className="flex gap-2">
@@ -104,35 +117,54 @@ export function SleepStatsCard() {
                 />
               ))}
               <div className="absolute inset-0 flex gap-0.5" onPointerLeave={() => setFocusKey(null)}>
-                {summary.nights.map((n, i) => (
-                  <button
-                    key={n?.dateKey ?? `empty-${i}`}
-                    type="button"
-                    disabled={!n}
-                    tabIndex={n ? 0 : -1}
-                    aria-hidden={!n}
-                    aria-label={n ? `${dayLabel(n.dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}` : undefined}
-                    onPointerEnter={() => n && setFocusKey(n.dateKey)}
-                    onFocus={() => n && setFocusKey(n.dateKey)}
-                    onClick={() => n && setFocusKey(n.dateKey)}
-                    className="group relative flex-1 cursor-default rounded-md outline-none focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800"
-                  >
-                    {n && (
-                      <span
-                        className={`gc-plan absolute left-1/2 w-2.5 -translate-x-1/2 rounded outline-offset-1 outline-sleep sm:w-3 ${
-                          focused.dateKey === n.dateKey ? 'outline-2' : 'group-hover:outline-2'
-                        }`}
-                        style={
-                          {
-                            '--c': 'var(--color-sleep)',
-                            top: y(n.bedOffset),
-                            height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4),
-                          } as CSSProperties
-                        }
-                      />
-                    )}
-                  </button>
-                ))}
+                {summary.nights.map((n, i) => {
+                  const key = toDateKey(addDays(fromDateKey(todayKey), i - (DAYS - 1)))
+                  const active = focusedKey === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-label={
+                        n
+                          ? `${dayLabel(key)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}`
+                          : t('sleepStats.fillAria', { day: dayLabel(key) })
+                      }
+                      aria-expanded={editKey === key}
+                      onPointerEnter={() => setFocusKey(key)}
+                      onFocus={() => setFocusKey(key)}
+                      onClick={() => {
+                        setFocusKey(key)
+                        setEditKey((k) => (k === key ? null : key))
+                      }}
+                      className="group relative flex-1 rounded-md outline-none focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800"
+                    >
+                      {n ? (
+                        <span
+                          className={`gc-plan absolute left-1/2 w-2.5 -translate-x-1/2 rounded outline-offset-1 outline-sleep sm:w-3 ${
+                            active ? 'outline-2' : 'group-hover:outline-2'
+                          }`}
+                          style={
+                            {
+                              '--c': 'var(--color-sleep)',
+                              top: y(n.bedOffset),
+                              height: Math.max(y(n.wakeOffset) - y(n.bedOffset), 4),
+                            } as CSSProperties
+                          }
+                        />
+                      ) : (
+                        // 記録の無い夜: 平均の位置に薄い点線の枠（押すと埋められる）
+                        <span
+                          className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded border border-dashed sm:w-3 ${
+                            active
+                              ? 'border-sleep'
+                              : 'border-zinc-300 group-hover:border-sleep dark:border-zinc-600 dark:group-hover:border-sleep'
+                          }`}
+                          style={{ top: y(avgBedOffset), height: Math.max(y(avgWakeOffset) - y(avgBedOffset), 4) }}
+                        />
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             </div>
             <div className="mt-1 flex gap-0.5 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
@@ -150,6 +182,19 @@ export function SleepStatsCard() {
             </div>
           </div>
         </div>
+        {editKey && (
+          <div className="mt-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+            <SleepTimesField
+              // 夜・記録が変わるたびに下書きを作り直す
+              key={`${editKey}|${editRecord?.id ?? ''}`}
+              dateKey={editKey}
+              record={editRecord}
+              label={t('sleepStats.editTitle', { day: dayLabel(editKey) })}
+              onSaved={() => setEditKey(null)}
+              onCancel={() => setEditKey(null)}
+            />
+          </div>
+        )}
         <table className="sr-only">
           <caption>{t('sleepStats.chartTitle')}</caption>
           <thead>
