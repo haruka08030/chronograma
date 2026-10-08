@@ -4,6 +4,7 @@ import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
 import { LEGACY_DATA_OWNER } from '../store/storeConstants'
+import { reportFailure } from './errorReport'
 
 /**
  * 自動バックアップ。この端末の IndexedDB に控えを残す。
@@ -164,6 +165,7 @@ export async function saveAutoBackup(
     return true
   } catch (e) {
     console.error('[backup]', e)
+    reportFailure('storage', 'auto-backup', e, { kind })
     return false
   }
 }

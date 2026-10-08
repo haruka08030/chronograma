@@ -14,6 +14,7 @@ import {
   reconcileCanvasItems,
 } from '../lib/canvas'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
@@ -161,6 +162,7 @@ export function useCanvasSync() {
       } catch (e) {
         if (cancelled) return
         console.error('[canvas]', e)
+        reportFailure('integration', 'canvas', e, { code: e instanceof CanvasRequestError ? e.code : null })
         setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : e instanceof Error ? e.message : String(e) })
       } finally {
         running = false
@@ -182,6 +184,7 @@ export function useCanvasSync() {
           markCanvasComplete(connectionId, type, id, task.completed)
             .catch((e) => {
               console.error('[canvas] complete', e)
+              reportFailure('integration', 'canvas:complete', e, { code: e instanceof CanvasRequestError ? e.code : null })
               if (!cancelled) setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : String(e) })
             })
             .finally(() => pendingWrite.delete(taskId))

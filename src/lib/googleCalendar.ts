@@ -2,6 +2,7 @@ import { calendarColorHex, googleEventHex, hasOwnEventColor } from './googleColo
 import type { CalendarEvent } from '../types/calendarEvent'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
+import { reportFailure } from './errorReport'
 import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
@@ -198,6 +199,7 @@ export function localizeGoogleError(message: string, t: (key: string, options?: 
   if (lower.includes('scope not granted')) return t('planVsActual.scopeNotGranted')
   // ここから下はサーバーやアプリの設定の誤り。利用者には直せないので、開発中だけ詳しく出す
   console.error('[google]', message)
+  reportFailure('integration', 'google', message)
   if (!import.meta.env.DEV) return t('planVsActual.connectFailed')
   if (lower.includes('redirect_uri_mismatch')) {
     return t('planVsActual.redirectUriMismatch', { uri: getGoogleRedirectUri() })

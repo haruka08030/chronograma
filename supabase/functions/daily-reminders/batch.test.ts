@@ -7,6 +7,7 @@ import {
   PAGE_SIZE,
   runFinishPatch,
   runPool,
+  runStatsPatch,
   runStatus,
   runWindowStart,
   sendJobs,
@@ -171,6 +172,20 @@ describe('runFinishPatch', () => {
   it('全部うまくいった回だけ last_ok_at を進める。走っている目印はいつも外す', () => {
     expect(runFinishPatch(0, '2026-10-06T10:00:00.000Z')).toEqual({ running_since: null, last_ok_at: '2026-10-06T10:00:00.000Z' })
     expect(runFinishPatch(1, '2026-10-06T10:00:00.000Z')).toEqual({ running_since: null })
+  })
+})
+
+describe('runStatsPatch', () => {
+  const now = '2026-10-06T10:00:00.000Z'
+  it('最後の回の数を残す。失敗の時刻は失敗があった回だけ進める', () => {
+    expect(runStatsPatch({ checked: 12, sent: 3, removed: 1, failed: 0 }, now)).toEqual({
+      last_run_at: now,
+      last_checked: 12,
+      last_sent: 3,
+      last_removed: 1,
+      last_failed: 0,
+    })
+    expect(runStatsPatch({ checked: 12, sent: 2, removed: 0, failed: 1 }, now)).toMatchObject({ last_failed: 1, last_failed_at: now })
   })
 })
 

@@ -12,6 +12,7 @@ import {
   reconcileNotionPages,
 } from '../lib/notion'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { loadPulled, savePulled } from '../lib/externalFields'
@@ -133,6 +134,7 @@ export function useNotionSync() {
       } catch (e) {
         if (cancelled) return
         console.error('[notion]', e)
+        reportFailure('integration', 'notion', e, { code: e instanceof NotionRequestError ? e.code : null })
         setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : e instanceof Error ? e.message : String(e) })
       } finally {
         running = false
@@ -156,6 +158,7 @@ export function useNotionSync() {
             })
             .catch((e) => {
               console.error('[notion] advance', e)
+              reportFailure('integration', 'notion:advance', e, { code: e instanceof NotionRequestError ? e.code : null })
               if (!cancelled) setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : String(e) })
             })
         }, ADVANCE_DELAY_MS),

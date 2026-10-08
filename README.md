@@ -32,7 +32,7 @@
 | サーバー | Supabase（Postgres + RLS で本人の行だけ）。外部サービスのトークンは Edge Function が暗号化して持ち、ブラウザには出さない。通知は pg_cron が 5 分ごとに Edge Function `daily-reminders` を呼ぶ | `supabase/migrations/`、`supabase/functions/` |
 | 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |
 | 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
-| エラー | 画面・同期のエラーは、ログイン中なら Supabase の `client_errors` に送る（同じエラーはまとめ、トークンやメールは伏せる。30 日で消える） | `src/lib/errorReport.ts` |
+| エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`） | `src/lib/errorReport.ts` |
 
 **テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
 
