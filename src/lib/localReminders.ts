@@ -16,6 +16,7 @@ import {
 } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { taskUrl } from '../../supabase/functions/daily-reminders/payload.ts'
 import { isActiveTask } from './taskLifecycle'
+import { trackPageNotification } from './notificationCleanup'
 import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { formatDate } from './dateFormat'
@@ -114,6 +115,8 @@ async function show(n: Shown, onClick: () => void) {
     return
   }
   const notification = new Notification(n.title, { body: n.body, tag: n.tag })
+  // 済んだ件になったら閉じられるように（`notificationCleanup.ts`）
+  trackPageNotification(n.tag, notification)
   notification.onclick = () => {
     window.focus()
     onClick()

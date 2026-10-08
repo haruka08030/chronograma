@@ -11,6 +11,7 @@ import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting } from './lib/errorReport'
 import { reloadForStaleChunk } from './lib/chunkLoad'
 import { openTaskFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
+import { closeTaskNotifications, installNotificationCleanup } from './lib/notificationCleanup'
 
 const launch: LaunchHandlers = {
   openView: (view) => useTaskStore.getState().selectView(view),
@@ -18,8 +19,11 @@ const launch: LaunchHandlers = {
   record: ({ taskId, asPlanned }) => {
     const s = useTaskStore.getState()
     s.selectView('planner')
-    if (asPlanned) s.logPlanAsPlanned(taskId)
-    else s.openRecordPrompt(taskId)
+    if (asPlanned) {
+      s.logPlanAsPlanned(taskId)
+      // 予定（完了の無いもの）は記録しても完了にならないので、同じ件の開始前の通知もここで閉じる
+      void closeTaskNotifications(taskId)
+    } else s.openRecordPrompt(taskId)
   },
   // 開始前・締切の通知はその To-Do・予定の詳細を開く
   openTask: ({ taskId, date }) => openTaskFromNotification(taskId, date),
@@ -41,6 +45,8 @@ for (const type of ['gesturestart', 'gesturechange'] as const) {
 
 // 拾われなかったエラーを記録する（ログイン中だけ送る。`client_errors`）
 installGlobalErrorReporting()
+// 済んだ件（完了・記録・削除、別の端末の完了も）の通知を通知センターから閉じる
+installNotificationCleanup()
 setupPwa(launch)
 consumeLaunch(launch)
 // 開いている画面を URL と履歴に載せる（起動 URL の `?view=` / `?list=` もここで開く）

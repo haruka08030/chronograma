@@ -8,6 +8,7 @@ import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { PartBoundary } from '../components/ui/ErrorBoundary'
+import { closeTaskNotifications } from '../lib/notificationCleanup'
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻で埋めておき、ずれたらそこを直す）。
@@ -46,6 +47,8 @@ export function useCompleteWithLog() {
       addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
       if (!draft.fromEvent) toggleTask(draft.taskId)
     })
+    // 記録した件の通知（記録の確認・開始前）を通知センターから閉じる。予定は完了にならないのでここで閉じる
+    void closeTaskNotifications(draft.taskId)
     setDraft(null)
   }, [draft, addTimeLog, toggleTask])
 
@@ -54,7 +57,11 @@ export function useCompleteWithLog() {
       <OverlaySuspense>
         <CompleteWithLogModal
           draft={draft}
-          onClose={() => setDraft(null)}
+          onClose={() => {
+            // 記録の確認を閉じたら、同じ件の通知も閉じる（残しておいても押して何も起きない）
+            void closeTaskNotifications(draft.taskId)
+            setDraft(null)
+          }}
           onChange={(patch) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev))}
           onSubmit={submit}
         />
