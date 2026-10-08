@@ -105,6 +105,8 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
     expect(planBlock(container, 'shift').style.width).toBe('calc(25% - 4px)')
     expect(planBlock(container, 'es').style.left).toBe('calc(25% + 2px)')
+    // 文字は上端に寄せる（長いバイトに後の予定が重なっても題名が隠れない）
+    expect(planBlock(container, 'shift').className).toContain('flex-col justify-start')
   })
 
   it('狭いカードは「タイトル、開始」を 1 行に並べ（入らなければ時刻ごと次の行へ）、時刻は折り返さない', () => {

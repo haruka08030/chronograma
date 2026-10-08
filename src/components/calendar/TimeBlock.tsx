@@ -17,6 +17,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
  * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
  * 終わった・完了した予定は灰色（`gc-missed`）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
+ * 文字はブロックの上端に寄せる（button は既定で縦中央。長いブロックに後の予定が重なっても題名・時刻が隠れないように）。
  */
 export function TimeBlock({
   task,
@@ -98,7 +99,7 @@ export function TimeBlock({
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
+      className={`${variant} absolute flex flex-col justify-start overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
         cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
