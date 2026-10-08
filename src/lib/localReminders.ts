@@ -14,7 +14,9 @@ import {
   type ReminderSettings,
   type ReminderTask,
 } from '../../supabase/functions/daily-reminders/schedule.ts'
+import { taskUrl } from '../../supabase/functions/daily-reminders/payload.ts'
 import { isActiveTask } from './taskLifecycle'
+import { trackPageNotification } from './notificationCleanup'
 import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { formatDate } from './dateFormat'
@@ -73,17 +75,32 @@ export function reminderCandidates(tasks: readonly Task[], excludedListIds: Read
     .map(toReminderTask)
 }
 
-type Shown = { title: string; body: string; tag: string; taskId?: string; record?: boolean }
+type Shown = {
+  title: string
+  body: string
+  tag: string
+  taskId?: string
+  record?: boolean
+  /** 押したときに開く URL（開始前・締切 1 件はその件の詳細。無ければ今日の計画） */
+  url?: string
+  /** 止め忘れ: どのタイマーか（開始時刻）。「止める」ボタンを付ける */
+  timerStartedAt?: string
+}
 
 async function show(n: Shown, onClick: () => void) {
-  // アクション（予定どおり / 記録する）は Service Worker の通知でしか付けられない
+  // アクション（予定どおり / 記録する / 止める）は Service Worker の通知でしか付けられない
   const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
   if (reg) {
     await reg.showNotification(n.title, {
       body: n.body,
       tag: n.tag,
       icon: '/icons/icon-192.png',
-      data: { url: n.record && n.taskId ? `/?record=${encodeURIComponent(n.taskId)}` : '/?view=planner', taskId: n.taskId },
+      data: {
+        url: n.record && n.taskId ? `/?record=${encodeURIComponent(n.taskId)}` : (n.url ?? '/?view=planner'),
+        // `taskId` は記録の確認だけ（Service Worker は `taskId` があると記録の画面を開く）
+        taskId: n.record ? n.taskId : undefined,
+        timerStartedAt: n.timerStartedAt,
+      },
       ...(n.record
         ? {
             actions: [
@@ -91,11 +108,15 @@ async function show(n: Shown, onClick: () => void) {
               { action: 'record', title: i18n.t('reminders.record') },
             ],
           }
-        : {}),
+        : n.timerStartedAt
+          ? { actions: [{ action: 'stop-timer', title: i18n.t('reminders.stopTimer') }] }
+          : {}),
     } as NotificationOptions)
     return
   }
   const notification = new Notification(n.title, { body: n.body, tag: n.tag })
+  // 済んだ件になったら閉じられるように（`notificationCleanup.ts`）
+  trackPageNotification(n.tag, notification)
   notification.onclick = () => {
     window.focus()
     onClick()
@@ -121,6 +142,7 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
       title: r.title,
       body: r.minutesBefore > 0 ? i18n.t('reminders.startBody', { count: r.minutesBefore, when }) : i18n.t('reminders.startNow', { when }),
       tag: `chronograma-start-${r.taskId}`,
+      url: taskUrl(r.taskId, r.date),
     }
   }
   if (r.kind === 'due') {
@@ -129,6 +151,7 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
       title: i18n.t('reminders.dueTitle', { title: r.title }),
       body: r.startTime ? i18n.t('reminders.dueBy', { day, time: r.startTime }) : i18n.t('reminders.dueByDay', { day }),
       tag: `chronograma-due-${r.taskId}`,
+      url: taskUrl(r.taskId, r.date),
     }
   }
   return {
@@ -170,6 +193,8 @@ export function checkLocalReminders(ctx: {
   activeTimer: ActiveTimer | null
   onOpen: () => void
   onRecord: (taskId: string) => void
+  /** 開始前・締切 1 件（Service Worker の無い通知を押したとき） */
+  onOpenTask: (taskId: string, date: string) => void
 }) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return
   const now = zonedNow()
@@ -189,12 +214,17 @@ export function checkLocalReminders(ctx: {
     if (sent.has(r.key)) continue
     keys.push(r.key)
     const msg = reminderMessage(r, today)
-    void show(msg, () => (msg.record ? ctx.onRecord(r.taskId) : ctx.onOpen()))
+    void show(msg, () => (msg.record ? ctx.onRecord(r.taskId) : ctx.onOpenTask(r.taskId, r.date)))
   }
   const timer = ctx.activeTimer
   if (timer && staleTimerDue(timer.startedAt, Date.now(), state.timer)) {
     void show(
-      { title: i18n.t('reminders.timerTitle'), body: i18n.t('reminders.timerBody', { title: timer.taskTitle }), tag: 'chronograma-timer' },
+      {
+        title: i18n.t('reminders.timerTitle'),
+        body: i18n.t('reminders.timerBody', { title: timer.taskTitle }),
+        tag: 'chronograma-timer',
+        timerStartedAt: timer.startedAt,
+      },
       ctx.onOpen,
     )
     state.timer = timer.startedAt

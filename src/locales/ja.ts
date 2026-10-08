@@ -265,6 +265,8 @@ export default {
     record: '記録する',
     timerTitle: 'タイマーが動いたままです',
     timerBody: '「{{title}}」を 3 時間以上記録しています',
+    stopTimer: '止める',
+    timerAlreadyStopped: 'このタイマーはもう止まっています',
   },
   weekReview: {
     title: '週のふりかえり',

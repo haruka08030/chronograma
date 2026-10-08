@@ -60,15 +60,28 @@ export interface RecordLaunch {
   asPlanned: boolean
 }
 
+/** 開始前・締切の通知から: その To-Do・予定の詳細を開く。`date` は通知の日（予定の日・締切日） */
+export interface TaskLaunch {
+  taskId: string
+  date: string | null
+}
+
+/** 止め忘れの通知の「止める」から: そのタイマー（開始時刻。分からなければ null）を止める */
+export interface TimerStopLaunch {
+  startedAt: string | null
+}
+
 export interface LaunchHandlers {
   openView: (view: SmartView) => void
   record: (launch: RecordLaunch) => void
+  openTask: (launch: TaskLaunch) => void
+  stopTimer: (launch: TimerStopLaunch) => void
   /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
   add: () => void
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -77,11 +90,19 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const asPlanned = url.searchParams.get('as') === 'planned'
   const nonce = url.searchParams.get('launch')
   const add = url.searchParams.get('add') === '1'
-  const keys = ['source', 'record', 'as', 'launch', 'add']
+  const task = url.searchParams.get('task')
+  const date = url.searchParams.get('date')
+  const stopTimer = url.searchParams.get('stop-timer')
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (add) handlers.add()
+  if (task && !record) handlers.openTask({ taskId: task, date: launchDate(date) })
+  // 止める: 通知から開いたときだけ（ただのリンクではタイマーの見える今日の計画が開くだけ）
+  if (stopTimer) {
+    void consumeLaunchMark(nonce).then((ok) => ok && handlers.stopTimer({ startedAt: stopTimer === '1' ? null : stopTimer }))
+  }
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })
@@ -89,6 +110,11 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   }
   // 通知から開いたときだけ確かめずに記録する。印が無ければ（ただのリンク）時刻を直せる画面を開くだけ
   void consumeLaunchMark(nonce).then((ok) => handlers.record({ taskId: record, asPlanned: ok }))
+}
+
+/** 起動 URL・通知の日付（`YYYY-MM-DD` だけ受け取る） */
+function launchDate(raw: unknown): string | null {
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null
 }
 
 async function consumeLaunchMark(nonce: string | null): Promise<boolean> {
@@ -123,9 +149,20 @@ export function setupPwa(handlers: LaunchHandlers) {
   if (!('serviceWorker' in navigator)) return
   navigator.serviceWorker.addEventListener(
     'message',
-    (e: MessageEvent<{ type?: string; view?: string; taskId?: string; asPlanned?: boolean }>) => {
+    (
+      e: MessageEvent<{
+        type?: string
+        view?: string
+        taskId?: string
+        asPlanned?: boolean
+        date?: string | null
+        startedAt?: string | null
+      }>,
+    ) => {
       const view = toSmartView(e.data?.view)
       if (e.data?.type === 'open-view' && view) handlers.openView(view)
+      if (e.data?.type === 'stop-timer') handlers.stopTimer({ startedAt: typeof e.data.startedAt === 'string' ? e.data.startedAt : null })
+      if (e.data?.type === 'open-task' && e.data.taskId) handlers.openTask({ taskId: e.data.taskId, date: launchDate(e.data.date) })
       if (e.data?.type === 'record' && e.data.taskId) handlers.record({ taskId: e.data.taskId, asPlanned: e.data.asPlanned === true })
     },
   )

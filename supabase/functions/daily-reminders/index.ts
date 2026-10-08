@@ -13,9 +13,9 @@ import {
   morningDigest,
   remindersInWindow,
   staleTimerDue,
-  type FiredReminder,
   type ReminderTask,
 } from './schedule.ts'
+import { MESSAGES, reminderPayload, timerPayload, type Msg, type Payload } from './payload.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import {
   fetchAllPages,
@@ -55,52 +55,6 @@ const USER_CONCURRENCY = 10
 /** 1 通の送信を待つ上限。応答しないプッシュサービスで枠を塞がない */
 const SEND_TIMEOUT_MS = 10_000
 
-const MESSAGES = {
-  ja: {
-    morningTitle: '今日のまとめ',
-    planned: (n: number) => `予定 ${n} 件`,
-    due: (items: string) => `締切: ${items}`,
-    overdue: (n: number) => `締切切れ ${n} 件`,
-    emptyDay: '今日の予定はまだありません。やることを決めましょう。',
-    sep: ' ・ ',
-    listSep: '、',
-    dueItem: (title: string, time: string | null) => (time ? `${title}（${time}）` : title),
-    startBody: (min: number, range: string) => (min > 0 ? `${min} 分後 · ${range}` : `今から · ${range}`),
-    dueTitle: (title: string) => `締切: ${title}`,
-    dueBody: (day: string, time: string | null) => (time ? `${day} ${time} まで` : `${day}まで`),
-    dueGroupTitle: '締切',
-    today: '今日',
-    tomorrow: '明日',
-    recordTitle: (title: string) => `「${title}」は終わりましたか？`,
-    asPlanned: '予定どおり',
-    record: '記録する',
-    timerTitle: 'タイマーが動いたままです',
-    timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
-  },
-  en: {
-    morningTitle: 'Today at a glance',
-    planned: (n: number) => `${n} planned`,
-    due: (items: string) => `Due: ${items}`,
-    overdue: (n: number) => `${n} overdue`,
-    emptyDay: 'Nothing planned yet. Decide what to do today.',
-    sep: ' · ',
-    listSep: ', ',
-    dueItem: (title: string, time: string | null) => (time ? `${title} (${time})` : title),
-    startBody: (min: number, range: string) => (min > 0 ? `In ${min} min · ${range}` : `Now · ${range}`),
-    dueTitle: (title: string) => `Due: ${title}`,
-    dueBody: (day: string, time: string | null) => (time ? `${day} ${time}` : day),
-    dueGroupTitle: 'Deadlines',
-    today: 'Today',
-    tomorrow: 'Tomorrow',
-    recordTitle: (title: string) => `Did "${title}" happen?`,
-    asPlanned: 'As planned',
-    record: 'Record',
-    timerTitle: 'Your timer is still running',
-    timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
-  },
-} as const
-type Msg = (typeof MESSAGES)['ja'] | (typeof MESSAGES)['en']
-
 function localNow(timeZone: string, now: Date): { date: string; minutes: number } {
   let tz = timeZone
   try {
@@ -122,57 +76,6 @@ function localNow(timeZone: string, now: Date): { date: string; minutes: number 
       .map((p) => [p.type, p.value]),
   )
   return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) }
-}
-
-function range(start: string | null, end: string | null): string {
-  return end ? `${start} – ${end}` : (start ?? '')
-}
-
-function dayLabel(msg: Msg, date: string, today: string): string {
-  const diff = Math.round(((dayWallMs(date) ?? 0) - (dayWallMs(today) ?? 0)) / 86_400_000)
-  if (diff === 0) return msg.today
-  if (diff === 1) return msg.tomorrow
-  const [, m, d] = date.split('-').map(Number)
-  return `${m}/${d}`
-}
-
-type Payload = {
-  title: string
-  body: string
-  tag: string
-  url: string
-  taskId?: string
-  actions?: { action: string; title: string }[]
-}
-
-function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payload {
-  if (r.kind === 'start') {
-    return {
-      title: r.title,
-      body: msg.startBody(r.minutesBefore, range(r.startTime, r.endTime)),
-      tag: `chronograma-start-${r.taskId}`,
-      url: '/?view=planner',
-    }
-  }
-  if (r.kind === 'due') {
-    return {
-      title: msg.dueTitle(r.title),
-      body: msg.dueBody(dayLabel(msg, r.date, today), r.startTime),
-      tag: `chronograma-due-${r.taskId}`,
-      url: '/?view=planner',
-    }
-  }
-  return {
-    title: msg.recordTitle(r.title),
-    body: range(r.startTime, r.endTime),
-    tag: `chronograma-record-${r.taskId}`,
-    url: `/?record=${encodeURIComponent(r.taskId)}`,
-    taskId: r.taskId,
-    actions: [
-      { action: 'as-planned', title: msg.asPlanned },
-      { action: 'record', title: msg.record },
-    ],
-  }
 }
 
 /** 秘密の値を比べる。かかる時間から一致した長さが分からないよう、両方のハッシュを全バイト比べる */
@@ -367,9 +270,9 @@ Deno.serve(async (req) => {
       jobs.push({ payload: reminderPayload(msg, r, local.date), keys: [r.key] })
     }
 
-    if (staleTimerDue(sub.timer_started_at, now.getTime(), sub.timer_notified_for)) {
+    if (sub.timer_started_at && staleTimerDue(sub.timer_started_at, now.getTime(), sub.timer_notified_for)) {
       jobs.push({
-        payload: { title: msg.timerTitle, body: msg.timerBody(sub.timer_title ?? ''), tag: 'chronograma-timer', url: '/?view=planner' },
+        payload: timerPayload(msg, sub.timer_title ?? '', sub.timer_started_at),
         patch: { timer_notified_for: sub.timer_started_at },
       })
     }
