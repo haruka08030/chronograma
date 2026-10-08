@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { Habit } from '../types/habit'
-import { compareReviews, foldLabelMinutes, getPrevReview, getReview, getWeekReview, loggedMinutesVsPrevWeek } from './weekReview'
+import {
+  compareReviews,
+  foldLabelMinutes,
+  getDayReviews,
+  getPrevReview,
+  getReview,
+  getWeekReview,
+  loggedMinutesVsPrevWeek,
+} from './weekReview'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 import { matchPlanAndActualForDate } from './matchEvents'
@@ -88,6 +96,12 @@ describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業など�
     const review = getWeekReview(tasks, [], at('20:00'), new Set(), at('20:00'))
     expect(review.timedPlanned).toBe(2)
     expect(review.followed).toBe(2)
+  })
+
+  it('日ごとの計画どおりの数（getDayReviews）は期間の合計と同じ。未来の日は数えない（#326）', () => {
+    const days = getDayReviews(tasks, [], [at('00:00'), new Date('2026-10-04T00:00:00')], new Set(), at('20:00'))
+    expect(days).toHaveLength(1)
+    expect(days[0]).toMatchObject({ dateKey: '2026-10-03', timedPlanned: 2, followed: 2 })
   })
 
   it('予定と同じ時間の記録は「予定に無かった記録」にならない', () => {

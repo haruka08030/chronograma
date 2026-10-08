@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
-import { buildSeedState, PERSIST_KEY } from './seed.mjs'
+import { addInsightHistory, buildSeedState, PERSIST_KEY } from './seed.mjs'
 
 /** ここから順に空いているポートを探す（5173 は普段の dev サーバー用に空けておく） */
 const FIRST_PORT = 5180
@@ -355,6 +355,8 @@ const SCREENS = [
     click: 'button[aria-label$="の睡眠を入れる"] >> nth=-1',
     scrollTo: 'figure:has(button[aria-expanded="true"])',
   },
+  // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
+  { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
   { name: 'settings', view: 'settings' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
@@ -621,6 +623,7 @@ async function main() {
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.state) Object.assign(seed.state, screen.state)
+          if (screen.insightHistory) addInsightHistory(seed.state, { now: seedNow, instant: seedInstant })
           if (screen.manyAllDay) {
             const base = seed.state.tasks.find((x) => x.id === 's7')
             const titles = ['ES を出す', '履歴書の写真', 'Week 2 課題', '出席フォーム', 'OB 訪問のお礼', '教科書を買う', 'シフト提出']

@@ -11,6 +11,8 @@ import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { SleepTimesField } from './SleepTimesField'
+import { DayInsightsSection } from './DayInsights'
+import { useDayInsights } from '../hooks/useDayInsights'
 
 const DAYS = 14
 const CHART_HEIGHT = 144
@@ -21,6 +23,8 @@ const CHART_HEIGHT = 144
  * 睡眠の記録が無い期間は出さない。
  * 帯を押すとその夜の時刻を図の下で直せ、記録の無い夜（薄い点線の枠）を押すとその夜を埋められる。
  * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
+ * 下の段は「日の違い」（#326）: 睡眠の長さ・寝た時刻・気分で分けた日どうしの記録・予定どおりの差（直近 28 日）。
+ * 直近 14 日に睡眠の記録が無くても、日の違いが出せるなら見出しと下の段だけ出す
  */
 export function SleepStatsCard() {
   const { t } = useTranslation()
@@ -31,8 +35,17 @@ export function SleepStatsCard() {
   const [focusKey, setFocusKey] = useState<string | null>(null)
   // 入力欄を開いている夜（起きた日）
   const [editKey, setEditKey] = useState<string | null>(null)
+  const insights = useDayInsights()
 
-  if (summary.count === 0) return null
+  if (summary.count === 0) {
+    if (insights.length === 0) return null
+    return (
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
+        <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
+        <DayInsightsSection rows={insights} />
+      </section>
+    )
+  }
 
   const nights = summary.nights.filter((n): n is SleepNight => n !== null)
   // 縦軸: 寝た時刻〜起きた時刻が全部入る範囲。上下の端を目盛りにそろえる（最低 8 時間ぶん）
@@ -217,6 +230,7 @@ export function SleepStatsCard() {
           </tbody>
         </table>
       </figure>
+      <DayInsightsSection rows={insights} />
     </section>
   )
 }

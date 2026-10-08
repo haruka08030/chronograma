@@ -419,4 +419,50 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
   }
 }
 
+/**
+ * 統計の「日の違い」（#326）を撮るための過去 2 週間（昨日〜14 日前）の睡眠・記録・気分。ほかの画面の構図を変えないよう、
+ * その画面（`insightHistory`）でだけ足す。3 日に 1 回は短く遅い夜（記録が少ない・気分 ◔）、
+ * 3 日に 1 回はよく寝た早い夜（記録が多い・気分 ◕）、残りは遅いがよく寝た夜
+ */
+export function addInsightHistory(state, { now, instant }) {
+  for (let i = 1; i <= 14; i++) {
+    const wake = dayKey(shift(now, -i))
+    const prev = dayKey(shift(now, -i - 1))
+    const type = i % 3 // 1: 短く遅い 2: よく寝た早い 0: 遅いがよく寝た
+    const [bed, up] = type === 1 ? ['01:30', '07:00'] : type === 2 ? ['23:00', '07:00'] : ['00:30', '08:00']
+    const crosses = bed > up
+    state.tasks.push(
+      task(
+        {
+          id: `hist-${i}-sleep`,
+          title: '睡眠',
+          dueDate: crosses ? prev : wake,
+          endDate: crosses ? wake : null,
+          startTime: bed,
+          endTime: up,
+          kind: 'sleep',
+          completed: true,
+          tags: ['睡眠'],
+        },
+        instant,
+      ),
+    )
+    const logs = [
+      ['課題', '10:00', type === 1 ? '11:00' : type === 2 ? '12:30' : '12:00'],
+      ['授業', '13:00', '14:30'],
+      ...(type === 2 ? [['就活', '16:00', '17:30']] : []),
+    ]
+    logs.forEach(([tag, start, end], j) =>
+      state.tasks.push(
+        task(
+          { id: `hist-${i}-log${j}`, title: tag, dueDate: wake, startTime: start, endTime: end, kind: 'log', completed: true, tags: [tag] },
+          instant,
+        ),
+      ),
+    )
+    const mood = type === 1 ? 2 : type === 2 ? 4 : i % 2 === 0 ? 5 : 3
+    state.dayMoods[wake] ??= { mood, note: '', updatedAt: instant.toISOString(), syncedAt: null }
+  }
+}
+
 export { PERSIST_KEY }
