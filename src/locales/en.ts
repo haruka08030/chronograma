@@ -549,6 +549,7 @@ export default {
     nameShort: 'Name',
     newHabit: 'New habit',
     placeholderName: 'Name (e.g. morning stretch)',
+    freqHeading: 'Repeat',
     freqDaily: 'Daily',
     freqWeeklyLabel: 'Specific days',
     freqTimesPerWeek: 'Times a week',

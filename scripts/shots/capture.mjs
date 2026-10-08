@@ -51,6 +51,8 @@ const SCREENS = [
   { name: 'first-run-todo', fresh: true, view: 'all' },
   { name: 'first-run-calendar', fresh: true, view: 'calendar' },
   { name: 'first-run-habits', fresh: true, view: 'habits' },
+  // 習慣がまだないときに追加フォームを開いた状態（空の案内は出さない）
+  { name: 'first-run-habits-add', fresh: true, view: 'habits', click: 'button:has-text("習慣を追加") >> visible=true' },
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
