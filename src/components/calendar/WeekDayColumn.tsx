@@ -1,9 +1,9 @@
-import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react'
+import { memo, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
-import type { CreateIntent, useTimelineDrag } from '../../lib/useTimelineDrag'
-import type { useTimelineDrop } from '../../lib/useTimelineDrop'
+import type { CreateIntent, CreatePopup, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
+import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { isEventTask, isSleepTask, type Task } from '../../types/task'
@@ -23,16 +23,22 @@ import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
 
-/** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
-export function WeekDayColumn({
+type TimelineDrag = ReturnType<typeof useTimelineDrag>
+type TimelineDrop = ReturnType<typeof useTimelineDrop>
+
+/**
+ * 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠）。
+ * `memo` で、渡すのはその日の行・その日のドラッグの枠だけ（ドラッグ中は枠のある日の列だけ描き直す、#265）
+ */
+export const WeekDayColumn = memo(function WeekDayColumn({
   day,
   gridDays,
   singleDay,
   selectedDateKey,
   onSelectDate,
-  timedByDate,
-  timeLogsByDate,
-  timedEventsByDate,
+  dayTimed,
+  dayLogs,
+  timedEvents,
   habitIndex,
   splitLanes,
   laneAt,
@@ -40,8 +46,19 @@ export function WeekDayColumn({
   logLimitMin,
   getRelativeY,
   gridRef,
-  timelineDrag,
-  timelineDrop,
+  dragPreview,
+  activeCreateIntent,
+  movingTaskId,
+  popup,
+  popupOpen,
+  handleCreatePointerDown,
+  handleBlockPointerDown,
+  openPopup,
+  dropPreview,
+  handleDragEnter,
+  handleDragOver,
+  handleDragLeave,
+  handleDropEvent,
   dropLane,
   setDropLane,
   dropBlocked,
@@ -59,10 +76,12 @@ export function WeekDayColumn({
   singleDay: boolean
   selectedDateKey?: string
   onSelectDate?: (dateKey: string) => void
-  timedByDate: Map<string, Task[]>
-  timeLogsByDate: Map<string, Task[]>
-  /** 時刻つきの Google の予定（日をまたぐものは重なる日すべて） */
-  timedEventsByDate: Map<string, CalendarEvent[]>
+  /** この日の時刻つきの予定・To-Do */
+  dayTimed: Task[]
+  /** この日にかかる記録 */
+  dayLogs: Task[]
+  /** この日にかかる時刻つきの Google の予定（日をまたぐものは重なる日すべて） */
+  timedEvents: CalendarEvent[]
   habitIndex: HabitRecordIndex
   splitLanes: boolean
   laneAt: (clientX: number, el: HTMLElement) => CreateIntent
@@ -70,8 +89,23 @@ export function WeekDayColumn({
   logLimitMin: (key: string) => number | null
   getRelativeY: (clientY: number, dateKey: string) => number
   gridRef: RefObject<HTMLDivElement | null>
-  timelineDrag: ReturnType<typeof useTimelineDrag>
-  timelineDrop: ReturnType<typeof useTimelineDrop>
+  /** この日の列に出すドラッグの枠（ほかの日なら null） */
+  dragPreview: DragPreview | null
+  activeCreateIntent: CreateIntent | null
+  movingTaskId: string | null
+  /** この日の作成カードの仮の枠（ほかの日なら null） */
+  popup: CreatePopup | null
+  /** どこかの日で作成カードを開いている */
+  popupOpen: boolean
+  handleCreatePointerDown: TimelineDrag['handleCreatePointerDown']
+  handleBlockPointerDown: TimelineDrag['handleBlockPointerDown']
+  openPopup: TimelineDrag['openPopup']
+  /** この日の列に出す To-Do を落とす枠（ほかの日なら null） */
+  dropPreview: DropPreview | null
+  handleDragEnter: TimelineDrop['handleDragEnter']
+  handleDragOver: TimelineDrop['handleDragOver']
+  handleDragLeave: TimelineDrop['handleDragLeave']
+  handleDropEvent: TimelineDrop['handleDropEvent']
   dropLane: CreateIntent
   setDropLane: Dispatch<SetStateAction<CreateIntent>>
   dropBlocked: boolean
@@ -95,10 +129,8 @@ export function WeekDayColumn({
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const key = toDateKey(day)
-  const dayTimed = timedByDate.get(key) ?? []
-  const dayLogs = timeLogsByDate.get(key) ?? []
   // 日をまたぐ予定は、この日にかかる区間だけ描く（始まった日は 24:00 まで、次の日は 0:00 から）
-  const dayTimedEvents = (timedEventsByDate.get(key) ?? []).map((e) => ({
+  const dayTimedEvents = timedEvents.map((e) => ({
     e,
     seg: googleEventSegmentOnDay(e, key) ?? { startTime: e.startTime!, endTime: e.endTime! },
   }))
@@ -164,9 +196,9 @@ export function WeekDayColumn({
         onSelectDate?.(key)
         const lane = laneAt(e.clientX, e.currentTarget)
         const limit = lane === 'log' ? logLimitMin(key) : null
-        timelineDrag.handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
+        handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
       }}
-      onDragEnter={timelineDrop.handleDragEnter}
+      onDragEnter={handleDragEnter}
       onDragOver={(e) => {
         const lane = laneAt(e.clientX, e.currentTarget)
         if (lane !== dropLane) setDropLane(lane)
@@ -174,12 +206,12 @@ export function WeekDayColumn({
         const blocked = limit !== null && timeToMinutes(yToTime(getRelativeY(e.clientY, key))) >= limit
         if (blocked !== dropBlocked) setDropBlocked(blocked)
         // 記録の列の「今より先」には落とせない（preventDefault しない＝ドロップ不可）
-        if (!blocked) timelineDrop.handleDragOver(e, key)
+        if (!blocked) handleDragOver(e, key)
       }}
-      onDragLeave={timelineDrop.handleDragLeave}
+      onDragLeave={handleDragLeave}
       onDrop={(e) => {
         dropLaneRef.current = laneAt(e.clientX, e.currentTarget)
-        timelineDrop.handleDropEvent(e, key)
+        handleDropEvent(e, key)
       }}
     >
       {/* 予定｜記録の境目は点線にして、日の境目（実線）と見分ける。終わった日も 2 列だと分かる */}
@@ -228,9 +260,9 @@ export function WeekDayColumn({
             // 列の「押して作る」を始めない（押すと枠の時間そのままで後から記録のカードを出す）
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
-              if (timelineDrag.popup) return
+              if (popupOpen) return
               onSelectDate?.(key)
-              timelineDrag.openPopup({ dateKey: key, startTime, endTime, intent: 'log' })
+              openPopup({ dateKey: key, startTime, endTime, intent: 'log' })
             }}
           >
             <span className="truncate px-1 tabular-nums">
@@ -243,11 +275,11 @@ export function WeekDayColumn({
       })}
 
       {dayTimed.map((t) => (
-        <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
+        <div key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
             task={t as TimeBlockTask}
             onPointerDown={(e) =>
-              timelineDrag.handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+              handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
                 startTime: t.startTime!,
                 endTime: t.endTime!,
                 kind: 'todo',
@@ -272,7 +304,7 @@ export function WeekDayColumn({
         </div>
       ))}
       {dayLogs.map((t) => (
-        <div key={`${t.id}::${key}`} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>
+        <div key={`${t.id}::${key}`} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
             task={t as TimeBlockTask}
             dayKey={key}
@@ -283,7 +315,7 @@ export function WeekDayColumn({
             onPointerDown={(e) => {
               // 日をまたぐ記録は、この列に描いている区間を端の元の値にする（記録全体の時刻だと 1 日ぶん長くなる）
               const seg = logSegmentClockOnDay(t, key) ?? { startTime: t.startTime!, endTime: t.endTime! }
-              timelineDrag.handleBlockPointerDown(e, t.id, key, seg.startTime, seg.endTime, gridRef.current, {
+              handleBlockPointerDown(e, t.id, key, seg.startTime, seg.endTime, gridRef.current, {
                 startTime: t.startTime!,
                 endTime: t.endTime!,
                 kind: 'log',
@@ -296,7 +328,7 @@ export function WeekDayColumn({
         </div>
       ))}
       {dayHabitSlots.map(({ habit, slot, done }) => (
-        <div key={slot.id} style={{ opacity: timelineDrag.movingTaskId === slot.id ? 0.3 : 1 }}>
+        <div key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
           <TimeBlock
             task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
             dayKey={key}
@@ -309,7 +341,7 @@ export function WeekDayColumn({
                 evt.stopPropagation()
                 return
               }
-              timelineDrag.handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
+              handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
             }}
             onOpenDetail={() => {}}
             withCheck={done || hasStarted(slot.startTime)}
@@ -336,7 +368,7 @@ export function WeekDayColumn({
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
-          <div key={`event-${e.id}`} style={{ opacity: timelineDrag.movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
+          <div key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
             <TimeBlock
               task={{
                 id: `event-${e.id}`,
@@ -357,7 +389,7 @@ export function WeekDayColumn({
                 }
                 // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
                 googleDragRef.current = e
-                timelineDrag.handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
+                handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
               }}
               onTap={editable ? undefined : () => openGoogleCard(e.id)}
               onOpenDetail={() => openGoogleCard(e.id)}
@@ -384,39 +416,33 @@ export function WeekDayColumn({
         )
       })}
 
-      {timelineDrag.dragPreview && timelineDrag.dragPreview.dateKey === key && !allDayMoveKey && !unscheduleHover && (
+      {dragPreview && !allDayMoveKey && !unscheduleHover && (
         <div
           className={`absolute ${laneClass(
-            timelineDrag.dragPreview.kind === 'create'
-              ? timelineDrag.activeCreateIntent
-              : dayLogs.some((x) => x.id === timelineDrag.dragPreview!.taskId)
-                ? 'log'
-                : 'schedule',
+            dragPreview.kind === 'create' ? activeCreateIntent : dayLogs.some((x) => x.id === dragPreview.taskId) ? 'log' : 'schedule',
           )} rounded-md pointer-events-none z-20
             ${
-              timelineDrag.dragPreview.kind === 'create'
+              dragPreview.kind === 'create'
                 ? 'bg-accent-500/20 border-2 border-accent-500/60'
                 : 'bg-accent-400/30 border-2 border-accent-500 shadow-lg'
             }`}
-          style={{ top: timelineDrag.dragPreview.top, height: timelineDrag.dragPreview.height }}
+          style={{ top: dragPreview.top, height: dragPreview.height }}
         >
-          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{timelineDrag.dragPreview.label}</span>
+          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{dragPreview.label}</span>
         </div>
       )}
 
-      {timelineDrop.dropPreview && timelineDrop.dropPreview.dateKey === key && !dropBlocked && (
+      {dropPreview && !dropBlocked && (
         <div
           className={`absolute ${laneClass(dropLane)} rounded-md pointer-events-none z-20
                      bg-accent-500/20 border-2 border-accent-500/60 border-dashed`}
-          style={{ top: timelineDrop.dropPreview.top, height: timelineDrop.dropPreview.height }}
+          style={{ top: dropPreview.top, height: dropPreview.height }}
         >
-          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{timelineDrop.dropPreview.label}</span>
+          <span className="text-[10px] text-accent-700 dark:text-accent-300 px-1.5 font-medium">{dropPreview.label}</span>
         </div>
       )}
 
-      {timelineDrag.popup && timelineDrag.popup.dateKey === key && (
-        <CreateGhost popup={timelineDrag.popup} onAnchor={setCreateAnchorFromEl} laneClass={laneClass(timelineDrag.popup.intent)} />
-      )}
+      {popup && <CreateGhost popup={popup} onAnchor={setCreateAnchorFromEl} laneClass={laneClass(popup.intent)} />}
     </div>
   )
-}
+})
