@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, WRAP_UP_URL } from './payload'
+import { MESSAGES, reminderPayload, timerEndPayload, timerPayload, wrapUpPayload, WRAP_UP_URL } from './payload'
 import type { FiredReminder } from './schedule'
 
 const fired = (p: Partial<FiredReminder> & Pick<FiredReminder, 'kind'>): FiredReminder => ({
@@ -51,6 +51,24 @@ describe('timerPayload', () => {
     })
     expect(p.taskId).toBeUndefined()
     expect(timerPayload(MESSAGES.en, 'x', 's').actions).toEqual([{ action: 'stop-timer', title: 'Stop' }])
+  })
+})
+
+describe('timerEndPayload（「あと何分」の時間、#290）', () => {
+  it('記録は止めないと伝え、「止める」は止め忘れと同じ動き（そのタイマーを止める）', () => {
+    expect(timerEndPayload(MESSAGES.ja, 'レポート', '2026-10-08T00:00:00.000Z')).toEqual({
+      title: '「レポート」の時間です',
+      body: '記録は止めずに続けています',
+      tag: 'chronograma-timer-end',
+      url: '/?view=planner',
+      timerStartedAt: '2026-10-08T00:00:00.000Z',
+      actions: [{ action: 'stop-timer', title: '止める' }],
+    })
+    expect(timerEndPayload(MESSAGES.en, 'Essay', 's')).toMatchObject({
+      title: 'Time\'s up: "Essay"',
+      body: 'The timer keeps running until you stop it.',
+      actions: [{ action: 'stop-timer', title: 'Stop' }],
+    })
   })
 })
 

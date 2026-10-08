@@ -72,7 +72,7 @@ const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -84,6 +84,15 @@ const SCREENS = [
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
+  // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
+  { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
+  {
+    name: 'timer-length-menu',
+    view: 'planner',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
+    click: 'button:has-text("あと何分") >> visible=true',
+  },
+  { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
   // 見出しの「予定 / 空き」で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「（超過）」を締切の色で）
   { name: 'planner-free-over', view: 'planner', state: { dailyCapacityMinutes: 120 } },
   // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
@@ -661,6 +670,18 @@ async function main() {
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.state) Object.assign(seed.state, screen.state)
+          if (screen.timer) {
+            const ms = instant.getTime()
+            const { title, tags = [], startedAgo, endsIn } = screen.timer
+            seed.state.activeTimer = {
+              taskTitle: title,
+              startedAt: new Date(ms - startedAgo * 60_000).toISOString(),
+              tags,
+              taskId: null,
+              color: null,
+              ...(endsIn != null ? { endsAt: new Date(ms + endsIn * 60_000).toISOString() } : {}),
+            }
+          }
           if (screen.insightHistory) addInsightHistory(seed.state, { now: seedNow, instant: seedInstant })
           if (screen.manyAllDay) {
             const base = seed.state.tasks.find((x) => x.id === 's7')

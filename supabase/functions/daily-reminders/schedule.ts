@@ -15,6 +15,8 @@ export const DUE_EVE_MINUTES = -4 * 60
 export const DUE_LEAD_MINUTES = 3 * 60
 /** タイマーがこの時間を超えたら止め忘れとして知らせる */
 export const STALE_TIMER_MS = 3 * 60 * 60 * 1000
+/** 「あと何分」の時間になった通知（#290）を、時間から遅れて出してよい上限。通知の回が止まっていた・閉じていた間の古い知らせは出さない */
+export const TIMER_END_LATE_MS = 30 * 60_000
 
 /**
  * 通知の基準。
@@ -237,6 +239,19 @@ export function staleTimerDue(startedAt: string | null | undefined, nowMs: numbe
   if (!startedAt || notifiedFor === startedAt) return false
   const start = Date.parse(startedAt)
   return Number.isFinite(start) && nowMs - start >= STALE_TIMER_MS
+}
+
+/**
+ * 「あと何分」の時間になった通知（#290）を出すか。終わりの時刻を過ぎていて、遅れが `TIMER_END_LATE_MS` まで、
+ * 同じ終わりの時刻にはまだ出していないとき（終わりを選び直したら、新しい時刻でもう 1 回）。比べるのは時刻の値（書き方の違いは見ない）
+ */
+export function timerEndDue(endsAt: string | null | undefined, nowMs: number, notifiedFor: string | null | undefined): boolean {
+  if (!endsAt) return false
+  const end = Date.parse(endsAt)
+  if (!Number.isFinite(end)) return false
+  if (notifiedFor && Date.parse(notifiedFor) === end) return false
+  const late = nowMs - end
+  return late >= 0 && late < TIMER_END_LATE_MS
 }
 
 /** 毎日 1 回の通知（朝のまとめ・夜の締め）を出すか。指定時刻から 60 分を過ぎたらその日は出さない */

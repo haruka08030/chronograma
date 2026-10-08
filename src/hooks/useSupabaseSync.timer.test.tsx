@@ -104,6 +104,30 @@ describe('動いているタイマーの同期（#301）', () => {
     expect(serverLogs()).toEqual(['ES'])
   })
 
+  it('「あと何分」（#290）: ここで付けた終わりはサーバーに届き、ほかの端末で選び直した終わりはここに出る', async () => {
+    signIn('u1')
+    await untilSynced()
+    act(() => useTaskStore.getState().startTimer('レポート', [], null, null, { minutes: 25 }))
+    await afterDebounce()
+    expect(timerRow()).toMatchObject({ task_title: 'レポート', ends_at: useTaskStore.getState().activeTimer?.endsAt })
+    expect(Date.parse(String(timerRow()!.ends_at)) - Date.parse(String(timerRow()!.started_at))).toBe(25 * 60_000)
+
+    // もう 1 台が 50 分に選び直した
+    Object.assign(timerRow()!, { ends_at: '2026-10-03T09:50:00+00:00', updated_at: '2026-10-03T00:10:00.000000+00:00' })
+    const before = useTaskStore.getState().lastSyncedAt
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+      window.dispatchEvent(new Event('online'))
+    })
+    await untilSynced(before)
+    expect(useTaskStore.getState().activeTimer?.endsAt).toBe('2026-10-03T09:50:00.000Z')
+
+    // ここで外す（数え上げに戻す）と、サーバーの終わりも消える
+    act(() => useTaskStore.getState().setTimerEnd(null))
+    await afterDebounce()
+    expect(timerRow()).toMatchObject({ task_title: 'レポート', ends_at: null })
+  })
+
   it('ほかの端末で止められたら、ここのタイマーは記録を作らずに消える', async () => {
     signIn('u1')
     await untilSynced()

@@ -7,6 +7,8 @@ import {
   morningDigest,
   remindersInWindow,
   staleTimerDue,
+  timerEndDue,
+  TIMER_END_LATE_MS,
   wallMs,
   wrapUpDue,
   type ReminderSettings,
@@ -102,6 +104,27 @@ describe('dailyDue / staleTimerDue', () => {
     expect(staleTimerDue(start, at(2.9), null)).toBe(false)
     expect(staleTimerDue(start, at(3), null)).toBe(true)
     expect(staleTimerDue(start, at(5), start)).toBe(false)
+  })
+})
+
+describe('「あと何分」の時間（timerEndDue、#290）', () => {
+  const end = '2026-10-08T00:25:00.000Z'
+  const at = (min: number) => Date.parse(end) + min * 60_000
+
+  it('終わりの時刻を過ぎた回に 1 回だけ（5 分ごとの回なので遅れて送ることがある）', () => {
+    expect(timerEndDue(end, at(-0.1), null)).toBe(false)
+    expect(timerEndDue(end, at(0), null)).toBe(true)
+    expect(timerEndDue(end, at(4.9), null)).toBe(true)
+    // 送った印は DB の書き方（+00:00）で返ってくる
+    expect(timerEndDue(end, at(5), '2026-10-08 00:25:00+00')).toBe(false)
+    expect(timerEndDue(end, at(5), '2026-10-08T00:25:00+00:00')).toBe(false)
+  })
+
+  it('終わりを選び直したら新しい終わりでもう 1 回。古すぎる知らせ・終わりなしは送らない', () => {
+    expect(timerEndDue('2026-10-08T00:50:00.000Z', Date.parse('2026-10-08T00:51:00.000Z'), end)).toBe(true)
+    expect(timerEndDue(end, Date.parse(end) + TIMER_END_LATE_MS, null)).toBe(false)
+    expect(timerEndDue(null, at(1), null)).toBe(false)
+    expect(timerEndDue('bad', at(1), null)).toBe(false)
   })
 })
 

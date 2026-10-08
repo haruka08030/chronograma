@@ -12,6 +12,7 @@ import type { ActiveTimer, TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { clockOf } from '../../lib/clockTime'
+import { endsAfter, normalizeEndsAt } from '../../lib/timerLength'
 import { isLogTask, isTodoTask, type Task } from '../../types/task'
 
 type TimeLogsActions = Pick<
@@ -20,6 +21,7 @@ type TimeLogsActions = Pick<
   | 'addTimeLog'
   | 'logSleep'
   | 'startTimer'
+  | 'setTimerEnd'
   | 'resolveStaleTimer'
   | 'discardActiveTimer'
   | 'askComplete'
@@ -114,7 +116,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       )
       set((s) => ({ tasks: [...s.tasks, log] }))
     },
-    startTimer: (title, tags, taskId, color) => {
+    startTimer: (title, tags, taskId, color, options) => {
       // 走っているものを黙って捨てると記録が消える。先に記録にして閉じてから始め、切り替えたことを知らせる
       const previous = get().activeTimer
       if (previous) {
@@ -123,17 +125,33 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         get().stopTimer()
         get().showMoveBanner({ key: saved ? 'quickLog.switched' : 'quickLog.switchedUnsaved', params: { title: previous.taskTitle } })
       }
+      const nowMs = Date.now()
+      const startedAt = new Date(nowMs).toISOString()
+      // 「あと何分」を付けて始める（#290）。付けなければ今までどおり数え上げ（項目ごと持たない）
+      const endsAt = options?.minutes ? normalizeEndsAt(endsAfter(options.minutes, nowMs), startedAt) : null
       set({
         activeTimer: {
           taskTitle: title,
-          startedAt: new Date().toISOString(),
+          startedAt,
           tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId }),
           taskId: taskId ?? null,
           color: color ?? null,
+          ...(endsAt ? { endsAt } : {}),
         },
         completePromptTaskId: null,
         labelPromptLogId: null,
       })
+    },
+    setTimerEnd: (endsAt) => {
+      const timer = get().activeTimer
+      if (!timer) return
+      const next = endsAt === null ? null : normalizeEndsAt(endsAt, timer.startedAt)
+      // 始めた時刻より前・1 日より先の終わりは付けない（DB でも断る）
+      if (endsAt !== null && next === null) return
+      if ((timer.endsAt ?? null) === next) return
+      const { endsAt: _drop, ...rest } = timer
+      void _drop
+      set({ activeTimer: next ? { ...rest, endsAt: next } : rest })
     },
     /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
     resolveStaleTimer: (endedAt) => {
