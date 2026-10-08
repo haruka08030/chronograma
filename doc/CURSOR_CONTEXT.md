@@ -98,6 +98,8 @@
   （`user_active_timer`、`lib/timerSync.ts`）。別の端末で始めたものもここで止められる
 - **クイック追加の日時解釈**（`parseQuickAddTitle`）: 空白区切りの語から 今日/明日/明後日/曜日/来週X曜/9/30/10月3日、
   15時/15時半/午後3時/15:00/3pm、範囲 15:00-16:30・15時〜16時半、長さ 1時間/30分/1h/45m を読む。
+  英語は today/tomorrow/tmr/tonight/曜日/noon と、空白をまたぐ next fri（来週の金曜）・this fri・this week/next week（その週の日曜締切）・
+  this weekend（土曜）・in 2 days/in 3 weeks/in a week・Dec 5/5 Dec/Dec 5 2027 も読む（表示言語を問わない。`readEnPhrase`）
   時刻があれば予定（`scheduledDate`+時間幅、長さ未指定は 60 分）、日付だけなら To‑Do では期限日・「今日の計画」では予定日
 - **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
