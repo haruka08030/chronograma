@@ -49,6 +49,8 @@ function task(fields, stamp) {
     recurrence: fields.recurrence ?? null,
     kind: fields.kind ?? 'todo',
     habitId: null,
+    estimateMinutes: fields.estimateMinutes ?? null,
+    sourceTaskId: fields.sourceTaskId ?? null,
     archivedAt: null,
     deletedAt: null,
   }
@@ -123,6 +125,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         completed: true,
         order: 7,
         tags: ['課題'],
+        // ▶ で始めた記録（元の To-Do を覚えている）。統計の「見積もりと記録」に出る
+        sourceTaskId: 's60',
       },
       instant,
     ),
@@ -217,6 +221,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     ),
     task({ id: 's42', title: '出席登録', scheduledDate: today, startTime: '14:30', endTime: '14:45', order: 16 }, instant),
     // 完了したタスク（統計の数字を埋める）
+    // 見積もり 1 時間で始めて 1 時間半かかった To-Do（記録 s8 が ▶ で結び付いている）
+    task({ id: 's60', title: '確率論の課題', completed: true, dueDate: today, estimateMinutes: 60, order: 17 }, instant),
     task({ id: 's11', title: '履修登録', completed: true, dueDate: yesterday, order: 10 }, instant),
     task({ id: 's12', title: '健康診断の予約', completed: true, dueDate: yesterday, order: 11 }, instant),
     // いつか（Wish）と買い物（チェックリスト）は別リスト
@@ -243,6 +249,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         completed: true,
         color: '#33B679',
         order: 20,
+        estimateMinutes: 90,
       },
       instant,
     ),
@@ -256,6 +263,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         kind: 'log',
         completed: true,
         order: 21,
+        sourceTaskId: 's50',
         tags: ['授業'],
       },
       instant,
