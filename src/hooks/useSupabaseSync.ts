@@ -18,6 +18,7 @@ import { askConfirm } from '../lib/confirmDialog'
 import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
 import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
+import { noteAppVersion } from '../lib/versionSeen'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
@@ -304,6 +305,8 @@ export function useSupabaseSync() {
         reportSyncError('min-version', min.error)
         return false
       }
+      // どの版がまだ同期しているかを 1 日 1 回残す（#360。下限より古い版も数える）。待たない・失敗しても同期は続ける
+      void noteAppVersion(supabase, userId)
       if (min > SYNC_PROTOCOL_VERSION) {
         outdated = true
         return false

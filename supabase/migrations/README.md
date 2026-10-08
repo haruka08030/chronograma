@@ -26,6 +26,7 @@
 | [`020_client_error_kinds.sql`](020_client_error_kinds.sql) | `client_errors` の種類に `storage`（端末の保存・読み込み・自動バックアップ）・`integration`（Canvas・Notion・Google カレンダー）・`push`（Web Push の購読・保存・削除）を足す（`client_errors_kind_check` の置き換え） |
 | [`021_reminder_run_stats.sql`](021_reminder_run_stats.sql) | `reminder_runs` に最後の回の時刻 `last_run_at`・数 `last_checked` / `last_sent` / `last_removed` / `last_failed`・最後の失敗の時刻 `last_failed_at` を足す（書くのは `daily-reminders`。見る SQL は [`../metrics/health.sql`](../metrics/health.sql)） |
 | [`022_event_templates.sql`](022_event_templates.sql) | よく入れる予定 `user_event_templates`（利用者ごとに 1 行。`templates` は `{ id, title, startTime, endTime, color }` の並び。RLS は本人だけ、大きさの上限 `user_event_templates_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
+| [`023_app_versions_seen.sql`](023_app_versions_seen.sql) | どの版のアプリがまだ同期しているか `app_versions_seen`（主キー `(user_id, app_version, sync_protocol_version)`・`first_seen` / `last_seen`。大きさの上限 `app_versions_seen_shape_check`）。書くのは `note_app_version(版, 取り決めの版)`（SECURITY DEFINER、`authenticated` だけ実行できる。本人の行を upsert し `last_seen` をサーバーの時刻にする。1 人 `last_seen` の新しい 20 行まで）。RLS あり・ポリシーなし、`anon` / `authenticated` の表の権限は外す（読むのは service_role。数える SQL は [`../metrics/versions.sql`](../metrics/versions.sql)） |
 
 テーブル（最新の形）:
 
@@ -48,6 +49,7 @@
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
 | `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
 | `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
+| `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 
 **メモ**
 
