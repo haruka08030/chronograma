@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { parseISO } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
 import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { CardTimeRange } from './CardTimeRange'
-import { addClockMinutes } from '../../lib/clockTime'
-import { googleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
+import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -18,7 +16,6 @@ import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { shortcutTip, tip } from '../../lib/tooltip'
-import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
@@ -92,29 +89,21 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     pendingTitleRef.current = null
     setTitleDraft(null)
   }
-  /** 日付・時刻の変更。開始を動かしたら長さを保って終わりもずらす（Google と同じ） */
+  /** 日付・時刻の変更。日付・開始を動かしたら長さを保って終わりもずらす（Google と同じ。日をまたぐ予定は終わりの日も） */
   const commitTiming = (next: { date?: string; startTime?: string; endTime?: string }) => {
     const cur = googleEventTiming(event)
-    if (event.isAllDay) {
-      if (!next.date || next.date === cur.date) return
-      const span = cur.endDate ? Math.round((parseISO(cur.endDate).getTime() - parseISO(cur.date).getTime()) / 86_400_000) : 0
-      const end = fromDateKey(next.date)
-      end.setDate(end.getDate() + span)
-      void moveGoogleEvent(event, { date: next.date, endDate: span > 0 ? toDateKey(end) : null, startTime: null, endTime: null })
+    if (next.endTime) {
+      if (event.isAllDay || next.endTime === cur.endTime) return
+      // 終わりの時刻だけ変えた: 丸 1 日以上続く予定は終わりの日を保つ。それより短ければ、終わりが始まり以前なら翌日
+      const long = new Date(event.end).getTime() - new Date(event.start).getTime() >= 86_400_000
+      if (!long && next.endTime === cur.startTime) return
+      void moveGoogleEvent(event, { date: cur.date, endDate: long ? cur.endDate : null, startTime: cur.startTime, endTime: next.endTime })
       return
     }
-    let startTime = cur.startTime!
-    let endTime = cur.endTime!
-    if (next.startTime && next.startTime !== startTime) {
-      const dur = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60_000
-      startTime = next.startTime
-      endTime = addClockMinutes(startTime, Math.max(15, Math.round(dur)))
-    }
-    if (next.endTime) endTime = next.endTime
     const date = next.date ?? cur.date
-    if (date === cur.date && startTime === cur.startTime && endTime === cur.endTime) return
-    if (startTime === endTime) return
-    void moveGoogleEvent(event, { date, startTime, endTime })
+    const startTime = event.isAllDay ? null : (next.startTime ?? cur.startTime)
+    if (date === cur.date && startTime === cur.startTime) return
+    void moveGoogleEvent(event, movedGoogleEventTiming(event, date, startTime))
   }
 
   return (
