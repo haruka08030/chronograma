@@ -65,7 +65,7 @@ function parseOr(text: string): (r: Row) => boolean {
 /**
  * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）、
  * 消すと `008` の印、同じ id が入り直すと印を消す。
- * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`）は `007` の settings_write_guard。
+ * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`・`user_active_timer`）は `007` の settings_write_guard。
  * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）
  */
 export function fakeDb(opts: { maxRows?: number } = {}) {

@@ -8,11 +8,11 @@ import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
 import { logColorNames, withInferredCategory } from '../storeDefaults'
 import { completedRecordPatch, makeTask } from '../taskHelpers'
-import type { TaskState } from '../storeTypes'
+import type { ActiveTimer, TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { toDateKey } from '../../lib/dateKey'
 import { clockOf } from '../../lib/clockTime'
-import { isLogTask, isTodoTask } from '../../types/task'
+import { isLogTask, isTodoTask, type Task } from '../../types/task'
 
 type TimeLogsActions = Pick<
   TaskState,
@@ -29,6 +29,29 @@ type TimeLogsActions = Pick<
   | 'openRecordPrompt'
   | 'logPlanAsPlanned'
 >
+
+/**
+ * タイマーを指定の終了時刻までの記録にする（取り残したタイマー・別の端末で知らずに 2 つ動いていたときの負けたほう）。
+ * 1 分未満は記録にしない（null）
+ */
+export function timerLogTask(timer: ActiveTimer, endedAt: string, tasks: readonly Task[]): Task | null {
+  const times = timerRecordTimes(timer.startedAt, endedAt)
+  if (!times) return null
+  const maxOrder = Math.max(0, ...tasks.map((t) => t.order))
+  return makeTask(
+    {
+      title: timer.taskTitle,
+      listId: INBOX_ID,
+      ...times,
+      kind: 'log',
+      completed: true,
+      tags: timer.tags,
+      color: timer.color ?? null,
+      sourceTaskId: timer.taskId ?? null,
+    },
+    maxOrder + 1,
+  )
+}
 
 export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsActions {
   const { pushUndo } = undo
@@ -116,32 +139,16 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
     resolveStaleTimer: (endedAt) => {
       const timer = get().activeTimer
       if (!timer) return
-      const times = timerRecordTimes(timer.startedAt, endedAt)
-      if (!times) {
+      const log = timerLogTask(timer, endedAt, get().tasks)
+      if (!log) {
         set({ activeTimer: null, completePromptTaskId: null })
         return
       }
-      const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       pushUndo()
       set((s) => ({
         activeTimer: null,
         completePromptTaskId: null,
-        tasks: [
-          ...s.tasks,
-          makeTask(
-            {
-              title: timer.taskTitle,
-              listId: INBOX_ID,
-              ...times,
-              kind: 'log',
-              completed: true,
-              tags: timer.tags,
-              color: timer.color ?? null,
-              sourceTaskId: timer.taskId ?? null,
-            },
-            maxOrder + 1,
-          ),
-        ],
+        tasks: [...s.tasks, log],
       }))
     },
     discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),

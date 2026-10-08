@@ -36,6 +36,8 @@ import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { hasExistingData } from '../lib/onboarding'
+import { activeTimerSyncDeps } from '../lib/timerSync'
+import { storeActiveTimerIo } from './activeTimerIo'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -72,6 +74,7 @@ function settingsSent(userId: string): boolean {
   const local: [SettingKey, string | null][] = [
     ['labels', s.logLabelsUpdatedAt],
     ['zones', s.extraTimeZonesUpdatedAt],
+    ['timer', s.activeTimerUpdatedAt],
   ]
   return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
 }
@@ -198,10 +201,14 @@ export function useSupabaseSync() {
         push: (p) => pushExtraTimeZones(supabase, userId, p, p.base),
       })
 
-    /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
+    /** 動いているタイマー（どの端末でも同じタイマー、#301） */
+    const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo))
+
+    /** ラベル表・他のタイムゾーン・動いているタイマー（タスクとは別に、まとめて 1 つの値として合わせる設定） */
     const syncSettings = async () => {
       await syncLabels()
       await syncExtraTimeZones()
+      await syncActiveTimer()
     }
 
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
@@ -446,7 +453,8 @@ export function useSupabaseSync() {
         state.sections === prev.sections &&
         state.timeLogTagPresets === prev.timeLogTagPresets &&
         state.logCategoryColors === prev.logCategoryColors &&
-        state.extraTimeZones === prev.extraTimeZones
+        state.extraTimeZones === prev.extraTimeZones &&
+        state.activeTimer === prev.activeTimer
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return

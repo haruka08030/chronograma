@@ -784,12 +784,12 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
 }
 
 /**
- * `user_settings` / `user_extra_time_zones` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * `user_settings` / `user_extra_time_zones` / `user_active_timer` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
  * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
  */
-async function pushSettingRow(
+export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones',
+  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer',
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {

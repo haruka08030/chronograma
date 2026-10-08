@@ -120,6 +120,7 @@ export const useTaskStore = create<TaskState>()(
         googleConnectionError: null,
         googleCanWrite: false,
         activeTimer: null,
+        activeTimerUpdatedAt: null as string | null,
         completePromptTaskId: null as string | null,
         labelPromptLogId: null as string | null,
         dailyReminders: { planTime: null } as DailyReminders,
@@ -244,6 +245,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.extraTimeZones === prev.extraTimeZones) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
+})
+// 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
+useTaskStore.subscribe((s, prev) => {
+  if (s.activeTimer === prev.activeTimer) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ activeTimerUpdatedAt: new Date().toISOString() })
 })
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
