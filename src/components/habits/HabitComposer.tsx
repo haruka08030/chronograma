@@ -8,16 +8,18 @@ import { canSubmitHabitForm, habitFromForm, type HabitFormState } from './habitF
 
 /**
  * 習慣を追加するカード。中身は閉じても残す（名前だけ消す）ので、持ち主は習慣の画面。
- * 開いたら名前の欄にフォーカスし、足したら名前を空にして続けて書ける
+ * 開いたら名前の欄にフォーカスする。足したら `onAdded` に新しい習慣の id を渡す（閉じて表のその行を見せるのは持ち主）
  */
 export function HabitComposer({
   form,
   onChange,
   onClose,
+  onAdded,
 }: {
   form: HabitFormState
   onChange: (patch: Partial<HabitFormState>) => void
   onClose: () => void
+  onAdded: (habitId: string) => void
 }) {
   const { t } = useTranslation()
   const addHabit = useTaskStore((s) => s.addHabit)
@@ -29,9 +31,7 @@ export function HabitComposer({
 
   const submit = () => {
     if (!canSubmitHabitForm(form)) return
-    addHabit(habitFromForm(form))
-    onChange({ title: '' })
-    queueMicrotask(() => titleRef.current?.focus())
+    onAdded(addHabit(habitFromForm(form)))
   }
 
   return (

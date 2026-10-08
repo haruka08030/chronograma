@@ -33,6 +33,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         archivedAt: null,
       }
       set((s) => ({ habits: [...s.habits, habit] }))
+      return habit.id
     },
     updateHabit: (id, patch) => {
       // 同じ値なら何もしない（取り消しの履歴を積まない）

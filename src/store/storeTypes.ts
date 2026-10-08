@@ -220,7 +220,8 @@ export interface TaskState {
   setGoogleConnectionError: (error: string | null) => void
   setGoogleCanWrite: (canWrite: boolean) => void
 
-  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
+  /** 足した習慣の id を返す */
+  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => string
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
   deleteHabit: (id: string) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
