@@ -176,7 +176,7 @@ export default {
     remove: 'Remove the {{name}} filter',
   },
   planner: {
-    untimedHeading: 'No time yet',
+    timedHeading: 'Scheduled',
     todayTitle: 'Today',
     prevDay: 'Previous day',
     nextDay: 'Next day',

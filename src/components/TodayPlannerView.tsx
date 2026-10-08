@@ -135,10 +135,14 @@ export function TodayPlannerView() {
   // 対象は開いている未完了の行を上から順に
   const rowIds = useMemo(
     () =>
-      [...overdue, ...(showLeftOver ? leftOver : []), ...open, ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : [])].map(
-        (x) => x.id,
-      ),
-    [showLeftOver, leftOver, overdue, open, showSuggestions, candidateGroups],
+      [
+        ...overdue,
+        ...(showLeftOver ? leftOver : []),
+        ...untimedOpen,
+        ...timedOpen,
+        ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
+      ].map((x) => x.id),
+    [showLeftOver, leftOver, overdue, untimedOpen, timedOpen, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
