@@ -75,7 +75,7 @@ describe('はじめの 3 ステップ', () => {
       expect(guide()).toBeInTheDocument()
       act(() => useTaskStore.getState().startTimer('Essay', [], id))
       expect(screen.getByRole('status')).toHaveTextContent('All set')
-      act(() => vi.advanceTimersByTime(ONBOARDING_DONE_MS))
+      act(() => void vi.advanceTimersByTime(ONBOARDING_DONE_MS))
       expect(screen.queryByText(/All set/)).toBeNull()
       expect(useTaskStore.getState().onboardingDone).toBe(true)
     } finally {

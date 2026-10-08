@@ -87,7 +87,7 @@ describe('端末の保存', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key) => {
       if (key === PERSIST_STORAGE_KEY) throw quota
     })
-    act(() => useTaskStore.setState({ dailyCapacityMinutes: 123 }))
+    act(() => void useTaskStore.setState({ dailyCapacityMinutes: 123 }))
     expect(calls()).toContainEqual(['storage', 'save', quota])
   })
 

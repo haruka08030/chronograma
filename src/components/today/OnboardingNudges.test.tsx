@@ -86,7 +86,7 @@ describe('案内のあとのホーム画面への追加の誘い', () => {
       act(() => useTaskStore.getState().startTimer('Essay', [], id))
       // 「できました」の間はまだ出さない
       expect(installCard()).toBeNull()
-      act(() => vi.advanceTimersByTime(ONBOARDING_DONE_MS))
+      act(() => void vi.advanceTimersByTime(ONBOARDING_DONE_MS))
       expect(installCard()).toBeInTheDocument()
       expect(screen.getByText('Share button → “Add to Home Screen”')).toBeInTheDocument()
     } finally {
