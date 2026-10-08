@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -63,6 +63,9 @@ export function HabitsView() {
     setShowComposer(false)
   }, [patchNewForm])
 
+  /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
+  const [addedId, setAddedId] = useState<string | null>(null)
+
   const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
   const weekDates = useMemo(() => habitWeekDates(focusDate), [focusDate])
   const atThisWeek = weekDates.some((d) => toDateKey(d) === todayKey)
@@ -76,6 +79,21 @@ export function HabitsView() {
   const goToday = useCallback(() => {
     setSelectedCalendarDateKey(todayKey)
   }, [setSelectedCalendarDateKey, todayKey])
+  const onAdded = useCallback(
+    (habitId: string) => {
+      closeComposer()
+      goToday()
+      setAddedId(habitId)
+    },
+    [closeComposer, goToday],
+  )
+  useEffect(() => {
+    if (!addedId) return
+    const id = requestAnimationFrame(() => {
+      document.querySelector(`[data-habit-row="${addedId}"]`)?.scrollIntoView({ block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [addedId])
   useNavShortcut({ today: goToday, prev: () => shiftWeek(-1), next: () => shiftWeek(1) })
 
   return (
@@ -97,7 +115,7 @@ export function HabitsView() {
       </div>
 
       <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
-        {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} /> : null}
+        {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
           <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
@@ -122,6 +140,7 @@ export function HabitsView() {
               habitRecords={habitRecords}
               menuProps={menuProps}
               onOpen={(h) => openDetail(h.id)}
+              addedId={addedId}
             />
           </section>
         )}

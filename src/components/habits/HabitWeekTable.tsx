@@ -30,6 +30,7 @@ export function HabitWeekTable({
   habitRecords,
   menuProps,
   onOpen,
+  addedId,
 }: {
   habits: Habit[]
   weekDates: Date[]
@@ -37,11 +38,14 @@ export function HabitWeekTable({
   habitRecords: HabitRecordIndex
   menuProps: (habitId: string) => HabitMenuProps
   onOpen: (habit: Habit) => void
+  /** いま足した習慣。その行だけふわっと出す */
+  addedId?: string | null
 }) {
   const weekdayLabels = useWeekdayLabels()
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div className="flex items-end border-b border-zinc-100 px-3 py-2 dark:border-zinc-800 md:px-4">
+      {/* すき間（gap-2）は行と同じにして、丸を曜日・日付の真下にそろえる */}
+      <div className="flex items-end gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800 md:px-4">
         <div className="hidden min-w-0 flex-1 md:block" />
         <div className={`${DAYS_GRID} w-full`}>
           {weekDates.map((d, i) => {
@@ -69,6 +73,7 @@ export function HabitWeekTable({
             habitRecords={habitRecords}
             menuProps={menuProps(h.id)}
             onOpen={() => onOpen(h)}
+            added={h.id === addedId}
           />
         ))}
       </ul>
@@ -88,6 +93,7 @@ function HabitWeekRow({
   habitRecords,
   menuProps,
   onOpen,
+  added,
 }: {
   habit: Habit
   weekDates: Date[]
@@ -95,6 +101,7 @@ function HabitWeekRow({
   habitRecords: HabitRecordIndex
   menuProps: HabitMenuProps
   onOpen: () => void
+  added: boolean
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -116,7 +123,7 @@ function HabitWeekRow({
     <li
       {...menuProps}
       data-habit-row={h.id}
-      className="flex select-none flex-col gap-2 px-3 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30 md:flex-row md:items-center md:px-4 md:py-2.5"
+      className={`flex select-none flex-col gap-2 px-3 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30 md:flex-row md:items-center md:px-4 md:py-2.5 ${added ? 'animate-sheet-in' : ''}`}
     >
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="gc-dot h-3 w-3 shrink-0 rounded-full" style={colorVars(h.color)} aria-hidden />
