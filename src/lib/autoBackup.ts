@@ -18,7 +18,7 @@ import { LEGACY_DATA_OWNER } from '../store/storeConstants'
  * 共用の端末で、ログアウトした人の控えを次の人が戻せないようにするため（`visibleBackups`）。
  */
 
-export type AutoBackupKind = 'daily' | 'beforeSync' | 'beforeSignOut'
+export type AutoBackupKind = 'daily' | 'beforeSync' | 'beforeSignOut' | 'beforeSignIn'
 
 export interface AutoBackupMeta {
   id: string

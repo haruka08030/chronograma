@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
-import { clearLocalAccountState } from '../lib/accountBoundary'
+import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
+import { backupNow } from './useAutoBackup'
+import i18n from '../i18n/config'
 import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
 
 /**
@@ -40,6 +42,10 @@ vi.mock('../lib/webPush', async (importOriginal) => ({
   resyncWebPush: push.resync,
 }))
 
+// ログインする前のデータをアカウントに入れるかの確認（既定は「入れる」）
+const confirm = vi.hoisted(() => ({ ask: vi.fn<(o: { message: string; confirmLabel?: string }) => Promise<boolean>>(async () => true) }))
+vi.mock('../lib/confirmDialog', () => ({ askConfirm: confirm.ask }))
+
 let db: ReturnType<typeof fakeDb>
 
 beforeEach(() => {
@@ -50,6 +56,9 @@ beforeEach(() => {
   env.user = null
   push.detach.mockClear()
   push.resync.mockClear()
+  confirm.ask.mockReset()
+  confirm.ask.mockResolvedValue(true)
+  vi.mocked(backupNow).mockClear()
 })
 
 afterEach(() => {
@@ -81,6 +90,7 @@ const serverTitles = (userId: string) =>
 
 function signIn(userId: string) {
   env.user = { id: userId }
+  db.auth.user = userId
   return renderHook(() => useSupabaseSync())
 }
 
@@ -95,6 +105,9 @@ describe('useSupabaseSync', () => {
     signIn('u1')
     await untilSynced()
 
+    // アカウントにもデータがあるので、送る前に確かめた
+    expect(confirm.ask).toHaveBeenCalledTimes(1)
+    expect(confirm.ask.mock.calls[0]![0].confirmLabel).toBe(i18n.t('sync.mergeLocalConfirm', { count: 1 }))
     expect(storeTitles()).toEqual(['from account', 'made offline'])
     expect(serverTitles('u1')).toEqual(['from account', 'made offline'])
     const s = useTaskStore.getState()
@@ -105,6 +118,148 @@ describe('useSupabaseSync', () => {
     // 受信箱は重ねて作らない
     expect(s.lists.filter((l) => l.id === '__inbox__')).toHaveLength(1)
     expect(db.tables.lists!.filter((r) => r.user_id === 'u1' && r.id === '__inbox__')).toHaveLength(1)
+  })
+
+  describe('ログインする前のデータ（#341）', () => {
+    it('入れないと答えたら、アカウントに送らず控えに残し、手元はアカウントの内容だけにする', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('someone else offline')
+      useTaskStore.setState({ timeLogTagPresets: ['A社 面接'] })
+      confirm.ask.mockResolvedValue(false)
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(storeTitles()).toEqual(['from account'])
+      expect(serverTitles('u1')).toEqual(['from account'])
+      // 持ち主のいない控え（ログアウトすると自動バックアップに出る）
+      expect(backupNow).toHaveBeenCalledWith('beforeSignIn', null)
+      expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
+      expect(useTaskStore.getState().dataOwner).toBe('u1')
+      expect(Object.keys(loadBaseline('u1')!.tasks)).toEqual(['r1'])
+
+      // 次の同期でも聞き直さず、送らない
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(serverTitles('u1')).toEqual(['from account'])
+      expect((db.tables.user_settings ?? []).flatMap((r) => (r.log_labels as { name: string }[]).map((l) => l.name))).not.toContain(
+        'A社 面接',
+      )
+    })
+
+    it('アカウントが空なら聞かずに送る', async () => {
+      useTaskStore.getState().addTask('made offline')
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(['made offline'])
+    })
+
+    it('この人のデータ（前回同期の控えが無いだけ）なら聞かない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('mine')
+      useTaskStore.getState().setDataOwner('u1')
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(['from account', 'mine'])
+    })
+  })
+
+  describe('別の端末でアカウントが消されたとき（#341）', () => {
+    const beforeSignOutBackups = () => vi.mocked(backupNow).mock.calls.filter(([kind]) => kind !== 'daily')
+
+    it('送った行が外部キーで断られたら、アカウントが無いと確かめて控えを取らずに消し、「送れません」を出さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const hook = signIn('u1')
+      await untilSynced()
+      expect(storeTitles()).toEqual(['a'])
+
+      db.deleteUser('u1')
+      useTaskStore.getState().addTask('new here')
+      for (let i = 0; i < 100 && db.auth.signOuts === 0; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(100)
+        })
+      }
+
+      expect(db.auth.signOuts).toBe(1)
+      const s = useTaskStore.getState()
+      expect(s.tasks).toEqual([])
+      expect(s.syncRejected).toEqual([])
+      expect(s.dataOwner).toBeNull()
+      expect(loadBaseline('u1')).toBeNull()
+      expect(beforeSignOutBackups()).toEqual([])
+
+      // この後の SIGNED_OUT の片付けでも控えを取らない
+      env.user = null
+      hook.rerender()
+      useTaskStore.getState().addTask('left over')
+      clearLocalAccountState('u1')
+      expect(useTaskStore.getState().tasks).toEqual([])
+      expect(beforeSignOutBackups()).toEqual([])
+    })
+
+    it('開き直したときにサーバーが空なら確かめ、アカウントが無ければ合わせずに消す（同期の直前の控えも取らない）', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const first = signIn('u1')
+      await untilSynced()
+      first.unmount()
+
+      db.deleteUser('u1')
+      signIn('u1')
+      for (let i = 0; i < 100 && db.auth.signOuts === 0; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+        })
+      }
+
+      expect(db.auth.signOuts).toBe(1)
+      expect(useTaskStore.getState().tasks).toEqual([])
+      expect(loadBaseline('u1')).toBeNull()
+      expect(beforeSignOutBackups()).toEqual([])
+    })
+
+    it('アカウントがあれば、サーバーが空でも消さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const first = signIn('u1')
+      await untilSynced()
+      first.unmount()
+
+      // 他の端末が全部消した（アカウントは残っている）
+      await db.client.from('tasks').delete().eq('user_id', 'u1').in('id', ['a'])
+      await db.client.from('lists').delete().eq('user_id', 'u1').in('id', ['__inbox__'])
+      signIn('u1')
+      await untilSynced()
+
+      expect(db.auth.signOuts).toBe(0)
+      expect(useTaskStore.getState().dataOwner).toBe('u1')
+    })
+
+    it('isAccountGone は「ユーザーがいない」のときだけ true。答えが無ければ false', async () => {
+      db.auth.user = 'u1'
+      expect(await isAccountGone(db.client)).toBe(false)
+      db.deleteUser('u1')
+      expect(await isAccountGone(db.client)).toBe(true)
+      const hanging = { auth: { getUser: () => new Promise(() => {}) } } as unknown as typeof db.client
+      const answer = isAccountGone(hanging)
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(await answer).toBe(false)
+    })
   })
 
   it('アカウントにデータがあれば、初めての同期ではじめの案内を終わらせる', async () => {

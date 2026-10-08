@@ -2,9 +2,55 @@
  * アカウントの境目（ログアウト・ログアウトせずにアカウントが替わった・アカウント削除）で、端末の手元から何を片付けるか。
  * 道ごとに消すものが違って、ラベル表や通知の購読が次の人に残っていたので、どの道もここを通す
  */
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
 import { detachWebPush, resyncWebPush } from './webPush'
+import { clearBaseline } from './syncMerge'
+import { clearSettingSyncedAt } from './settingSync'
+import { clearAutoBackups } from './autoBackup'
+
+/** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
+const goneAccounts = new Set<string>()
+
+/** 問い合わせの答えを待つ長さ。回線が無いときにログアウトの片付けを長く止めない */
+const GONE_CHECK_TIMEOUT_MS = 3000
+
+/**
+ * アカウントがもう無いか（別の端末で消された）を Supabase Auth に問い合わせる。`jwt` はログアウトした後に、最後のアクセストークンで聞くとき。
+ * 「ユーザーがいない」（`user_not_found`）と返ったときだけ true。回線が無い・期限切れなど分からないときは false（控えを残す側に倒す）
+ */
+export async function isAccountGone(sb: SupabaseClient, jwt?: string): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), GONE_CHECK_TIMEOUT_MS)
+  })
+  const check = (async () => {
+    try {
+      const { error } = await sb.auth.getUser(jwt)
+      return (error as { code?: string } | null)?.code === 'user_not_found'
+    } catch {
+      return false
+    }
+  })()
+  try {
+    return await Promise.race([check, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * 消えたアカウント（自分で消した・別の端末で消された）の写しをこの端末から消す。
+ * 手元のデータ・前回同期の控え・設定の同期の記録・その人の自動バックアップを、控えを取らずに消す
+ */
+export async function clearDeletedAccount(userId: string): Promise<void> {
+  goneAccounts.add(userId)
+  clearAccountData(userId, { backup: false })
+  clearBaseline(userId)
+  clearSettingSyncedAt(userId)
+  await clearAutoBackups(userId)
+}
 
 /**
  * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）を空にする。
@@ -30,7 +76,9 @@ export function clearLocalAccountState(userId: string | null): void {
   store.setGoogleConnectionError(null)
   // 他のタブでのログアウトなど、ここに来た時点で行を消せなくても購読は解除する
   void detachWebPush()
-  clearAccountData(userId)
+  // 消えたアカウントのデータは控えない（消した人の写しを端末に残さない）
+  const gone = userId !== null && goneAccounts.delete(userId)
+  clearAccountData(userId, { backup: !gone })
 }
 
 /**

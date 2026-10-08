@@ -17,6 +17,7 @@ const KIND_LABEL: Record<AutoBackupKind, string> = {
   daily: 'kindDaily',
   beforeSync: 'kindBeforeSync',
   beforeSignOut: 'kindBeforeSignOut',
+  beforeSignIn: 'kindBeforeSignIn',
 }
 
 /**

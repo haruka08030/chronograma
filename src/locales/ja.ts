@@ -105,6 +105,10 @@ export default {
       '{{count}} 件をクラウドに保存できませんでした（大きすぎる・形が合わないなど）。この端末には残っています。直すと送り直します。ほかの変更は同期されています。',
     rejectedItems: '対象: {{names}}',
     rejectedName: '「{{name}}」',
+    mergeLocalTitle: 'この端末のデータをアカウントに入れますか',
+    mergeLocal:
+      'ログインする前にこの端末で作った {{count}} 件があります。このアカウントにはもうデータがあります。\n入れないときは、この {{count}} 件はアカウントに送らず、この端末の自動バックアップ（ログアウトすると設定に出ます）に残します。',
+    mergeLocalConfirm: 'この {{count}} 件をこのアカウントに入れる',
     justNow: 'たった今',
     minutesAgo: '{{count}} 分前',
     hoursAgo: '{{count}} 時間前',
@@ -831,6 +835,7 @@ export default {
     kindDaily: '毎日',
     kindBeforeSync: '同期の直前',
     kindBeforeSignOut: 'ログアウトの直前',
+    kindBeforeSignIn: 'ログインする前',
     counts: 'To-Do {{todos}} 件・記録 {{logs}} 件',
     restoreMissing: '足りない分を戻す',
     download: '書き出す',

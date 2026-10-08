@@ -116,6 +116,10 @@ export default {
       "{{count}} item(s) couldn't be saved to the cloud (too large or in an unexpected shape). They're still on this device and will be sent again once edited. Everything else is synced.",
     rejectedItems: 'Items: {{names}}',
     rejectedName: '"{{name}}"',
+    mergeLocalTitle: "Add this device's data to the account?",
+    mergeLocal:
+      "{{count}} item(s) were made on this device before signing in, and this account already has data.\nIf you don't add them, they won't be sent to the account and stay in this device's automatic backups (shown in Settings after you sign out).",
+    mergeLocalConfirm: 'Add these {{count}} to this account',
     justNow: 'just now',
     minutesAgo: '{{count}} min ago',
     hoursAgo: '{{count}} h ago',
@@ -855,6 +859,7 @@ export default {
     kindDaily: 'Daily',
     kindBeforeSync: 'Before sync',
     kindBeforeSignOut: 'Before sign-out',
+    kindBeforeSignIn: 'Before sign-in',
     counts: '{{todos}} to-dos · {{logs}} records',
     restoreMissing: 'Bring back missing',
     download: 'Download',

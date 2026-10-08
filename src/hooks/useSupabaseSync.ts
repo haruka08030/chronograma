@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { getSupabase } from '../lib/supabase'
+import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
   fetchExtraTimeZones,
@@ -11,13 +11,16 @@ import {
   pushLogLabels,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
-import { clearPreviousAccount } from '../lib/accountBoundary'
+import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
+import { askConfirm } from '../lib/confirmDialog'
+import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
 import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
   clearBaseline,
+  DEFAULT_LIST_IDS,
   hasOtherUsersBaseline,
   loadBaseline,
   mergeSnapshots,
@@ -27,6 +30,7 @@ import {
   syncedSnapshot,
   withServerStamps,
   adoptServerStamps,
+  type SyncBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
 import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
@@ -76,6 +80,29 @@ function settingsSent(userId: string): boolean {
   return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
 }
 
+/** サーバーに何も無い */
+const isEmptySnapshot = (s: SyncSnapshot) => s.lists.length + s.tasks.length + s.habits.length + s.sections.length === 0
+/** 前回同期の控えに行がある */
+const baselineHasRows = (b: SyncBaseline) =>
+  Object.keys(b.lists).length + Object.keys(b.tasks).length + Object.keys(b.habits).length + Object.keys(b.sections).length > 0
+
+/** 最初から作られるリスト（受信箱・いつか・買い物）。利用者が作ったものではないので数えない */
+const INITIAL_LIST_IDS = new Set<string>([INBOX_LIST_ID, ...Object.values(DEFAULT_LIST_IDS)])
+
+/** 手元にあってサーバーに無い行の数（最初から作られるリストは数えない）。ログインする前のデータをアカウントに入れる前に見せる */
+function countLocalOnly(local: SyncSnapshot, remote: SyncSnapshot): number {
+  const count = <T extends { id: string }>(mine: T[], theirs: T[], skip?: (x: T) => boolean) => {
+    const ids = new Set(theirs.map((x) => x.id))
+    return mine.filter((x) => !ids.has(x.id) && !skip?.(x)).length
+  }
+  return (
+    count(local.lists, remote.lists, (l) => INITIAL_LIST_IDS.has(l.id)) +
+    count(local.sections, remote.sections) +
+    count(local.tasks, remote.tasks) +
+    count(local.habits, remote.habits)
+  )
+}
+
 function localSnapshot(): SyncSnapshot {
   const s = useTaskStore.getState()
   return { lists: s.lists, tasks: s.tasks, habits: s.habits, sections: s.sections }
@@ -117,6 +144,8 @@ export function useSupabaseSync() {
     let outdated = false
     /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
     const pull = createPullState()
+    /** ログインする前のデータをこのアカウントに入れてよいと答えた（送るのに失敗して回り直しても聞き直さない） */
+    let mergeApproved = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -204,6 +233,19 @@ export function useSupabaseSync() {
       await syncExtraTimeZones()
     }
 
+    /**
+     * アカウントがもう無ければ（別の端末で消された）、控えを取らずに手元から消してこの端末をログアウトする。消したら true。
+     * 消えた人の行は外部キーで 1 行ずつ断られ、「n 件を送れません」と出ていた。ログアウトの控えにも消した人の写しが残っていた
+     */
+    const leaveIfAccountGone = async (): Promise<boolean> => {
+      if (!(await isAccountGone(supabase))) return false
+      if (cancelled) return true
+      await clearDeletedAccount(userId)
+      useTaskStore.getState().setSyncRejected([])
+      await signOutThisDevice(supabase)
+      return true
+    }
+
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
@@ -248,6 +290,11 @@ export function useSupabaseSync() {
         }
       }
 
+      // 前回同期したのにサーバーが空: 別の端末でアカウントごと消されたかもしれない。合わせる前に確かめる
+      // （そのまま合わせると「他の端末で消された」として手元も消し、その前の控えに消した人のデータが残る）
+      if (known && isEmptySnapshot(remote) && baselineHasRows(known) && (await leaveIfAccountGone())) return true
+      if (cancelled) return true
+
       const owner = useTaskStore.getState().dataOwner
       // 持ち主の記録が無い古い版のデータ（*legacy*）は、この人として同期したことがあればこの人のもの。
       // この人としては無く、ほかの人として同期した控えがあれば、その人のもの（混ぜずに外す）
@@ -283,7 +330,9 @@ export function useSupabaseSync() {
         // この端末で初めての同期
         // アカウントにもうデータがある人（別の端末で使っていた人）には、はじめの案内を出さない
         if (hasExistingData(remote) && !useTaskStore.getState().onboardingDone) useTaskStore.getState().finishOnboarding()
-        const local = withoutDuplicateDefaults(localSnapshot(), remote)
+        // ログインする前に作ったデータ（持ち主がまだいない）。アカウントにもデータがあれば、送る前に入れてよいか確かめる
+        const madeBeforeSignIn = useTaskStore.getState().dataOwner === null
+        let local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
           remote.lists,
           remote.tasks,
@@ -300,7 +349,34 @@ export function useSupabaseSync() {
           local.habits.length === 0 &&
           local.sections.length === 0 &&
           local.lists.every((l) => l.id === INBOX_LIST_ID || remoteListIds.has(l.id))
-        if (decision.kind === 'use_remote' && onlyInitial) {
+        let declined = false
+        const localOnly = countLocalOnly(local, remote)
+        if (decision.kind === 'use_remote' && !onlyInitial && madeBeforeSignIn && !mergeApproved && localOnly > 0) {
+          // 共用の端末などで、ほかの人がログインせずに作ったデータがこのアカウントに入っていた
+          const ok = await askConfirm({
+            title: i18n.t('sync.mergeLocalTitle'),
+            message: i18n.t('sync.mergeLocal', { count: localOnly }),
+            confirmLabel: i18n.t('sync.mergeLocalConfirm', { count: localOnly }),
+          })
+          if (cancelled) return true
+          if (ok) {
+            mergeApproved = true
+            // 聞いている間の手元の変更も入れる
+            local = withoutDuplicateDefaults(localSnapshot(), remote)
+          } else {
+            // 入れない: アカウントには送らず、持ち主のいない控え（ログアウトすると自動バックアップに出る）に残して、
+            // 手元はアカウントの内容だけにする。ラベル表・他のタイムゾーン・取り消しの履歴もログインする前のものなので初期に戻す
+            backupNow('beforeSignIn', null)
+            applyingRef.current = true
+            try {
+              clearAccountData(null, { backup: false })
+            } finally {
+              applyingRef.current = false
+            }
+            declined = true
+          }
+        }
+        if (decision.kind === 'use_remote' && (onlyInitial || declined)) {
           // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）。
           // 以前はタスクが無ければこちらに来て、手元で作った空のリストやセクションが消えていた
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
@@ -335,6 +411,10 @@ export function useSupabaseSync() {
       }
 
       const res = await pushListsTasksHabits(supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote)
+      if (cancelled) return true
+      // 外部キーで断られた: アカウントが消されていれば行の問題ではない（「送れません」と出さずに片付ける）
+      const fkRejected = (res.error ?? '').includes('foreign key') || res.rejected.some((r) => r.message.includes('foreign key'))
+      if (fkRejected && (await leaveIfAccountGone())) return true
       if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)

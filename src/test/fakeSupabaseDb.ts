@@ -144,9 +144,35 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
     for (const r of gone) tombstone(r.user_id, table, String(r.id), at)
     return gone
   }
+  /**
+   * Supabase Auth の偽物。`user` はログイン中の人、`deleted` は消されたアカウント（`deleteUser`）。
+   * 消された人の書き込みは auth.users への外部キーで断られ（23503）、`getUser` は「ユーザーがいない」を返す
+   */
+  const auth = { user: null as string | null, deleted: new Set<string>(), signOuts: 0 }
+  const fkError = (table: string) => ({
+    code: '23503',
+    message: `insert or update on table "${table}" violates foreign key constraint "${table}_user_id_fkey"`,
+  })
   /** 送信（upsert）を受ける直前に呼ぶ。テストで「取得した後に他の端末が変えた」を挟む */
   const hooks: { beforeUpsert?: (table: string) => void } = {}
   const client = {
+    auth: {
+      getUser: async () => {
+        if (auth.user && auth.deleted.has(auth.user)) {
+          return {
+            data: { user: null },
+            error: { name: 'AuthApiError', status: 403, code: 'user_not_found', message: 'User from sub claim in JWT does not exist' },
+          }
+        }
+        if (auth.user) return { data: { user: { id: auth.user } }, error: null }
+        return { data: { user: null }, error: { name: 'AuthSessionMissingError', status: 400, message: 'Auth session missing!' } }
+      },
+      signOut: async () => {
+        auth.user = null
+        auth.signOuts++
+        return { error: null }
+      },
+    },
     /** `008` の sync_server_now()（前の DB には無い） */
     rpc: async (name: string) => {
       if (name !== 'sync_server_now' || opts.noTombstones) {
@@ -212,6 +238,7 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
         upsert: (rows: Row[] | Row, o?: { onConflict?: string; ignoreDuplicates?: boolean }) => ({
           select: async () => {
             hooks.beforeUpsert?.(table)
+            if ((Array.isArray(rows) ? rows : [rows]).some((r) => auth.deleted.has(r.user_id))) return { data: null, error: fkError(table) }
             if (!Array.isArray(rows)) {
               const done = writeSetting(table, rows, o?.ignoreDuplicates ?? false)
               return { data: done.map((r) => ({ updated_at: r.updated_at })), error: null }
@@ -246,6 +273,12 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
     downloaded,
     selects,
     hooks,
+    auth,
+    /** 別の端末でアカウントを消す（その人の行は印も含めて全部消える。on delete cascade） */
+    deleteUser: (userId: string) => {
+      auth.deleted.add(userId)
+      for (const t of Object.keys(tables)) tables[t] = tables[t]!.filter((r) => r.user_id !== userId)
+    },
     /** 表を全部取った回数（差分ではなく） */
     fullFetches: () => selects.filter((x) => x.table === 'lists' && !x.since).length,
     /** サーバーの時計を進める */

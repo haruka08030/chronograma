@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js'
 import {
   handleGoogleOAuthCallback,
   hasGoogleOAuthCallbackInUrl,
@@ -12,11 +12,8 @@ import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
 import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { clearLocalAccountState } from '../lib/accountBoundary'
-import { clearAutoBackups } from '../lib/autoBackup'
+import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
-import { clearBaseline } from '../lib/syncMerge'
-import { clearSettingSyncedAt } from '../lib/settingSync'
 import { detachWebPush } from '../lib/webPush'
 
 export type AuthContextValue = {
@@ -100,6 +97,28 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
 
 /** 最後にログインしていた人。SIGNED_OUT のときはもうセッションが無いので、控えの持ち主はここから取る */
 let lastUserId: string | null = null
+/** 最後のアクセストークン。SIGNED_OUT の後に、アカウントがまだあるかをこれで聞く */
+let lastAccessToken: string | null = null
+/** セッションのあるイベントの数。アカウントがあるかを聞いている間にログインし直したら、前の片付けはしない */
+let sessionSeq = 0
+
+/**
+ * ログアウトした（他のタブ・期限切れを含む）ときの片付け。別の端末でアカウントを消されると、この端末はトークンを更新できず
+ * ここに来る。そのときは最後のアクセストークン（更新の少し前なのでまだ使える）で聞き、アカウントがもう無ければ控えを取らずに消す
+ */
+async function onSignedOut(sb: SupabaseClient): Promise<void> {
+  const userId = lastUserId
+  const token = lastAccessToken
+  const seq = sessionSeq
+  // 聞くのは 1 回だけ。ログアウトした後のトークンで聞くと auth-js がもう一度 SIGNED_OUT を出すことがあり、繰り返さないように
+  lastAccessToken = null
+  if (userId && token && (await isAccountGone(sb, token))) {
+    if (seq !== sessionSeq) return
+    await clearDeletedAccount(userId)
+  }
+  if (seq !== sessionSeq) return
+  clearLocalAccountState(userId)
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -117,7 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sb.auth
       .getSession()
       .then(({ data: { session: s } }) => {
-        if (s) lastUserId = s.user.id
+        if (s) {
+          lastUserId = s.user.id
+          lastAccessToken = s.access_token
+          sessionSeq++
+        }
         setSession(s)
         if (s) {
           enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
@@ -132,13 +155,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (s) lastUserId = s.user.id
+      if (s) {
+        lastUserId = s.user.id
+        lastAccessToken = s.access_token
+        sessionSeq++
+      }
 
       if (s && GOOGLE_AUTH_EVENTS.has(event)) {
         enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
       }
 
-      if (event === 'SIGNED_OUT') clearLocalAccountState(lastUserId)
+      if (event === 'SIGNED_OUT') void onSignedOut(sb)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -244,11 +271,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const message = err instanceof Error ? err.message : ''
           return { error: i18n.t(isNetworkErrorMessage(message) ? 'account.networkError' : 'account.deleteFailed') }
         }
-        // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
-        useTaskStore.getState().resetLocalData()
-        clearBaseline(userId)
-        clearSettingSyncedAt(userId)
-        await clearAutoBackups(userId)
+        // 消したデータの控えは残さない（clearLocalAccountState より先に空にする。別の端末で消されたときと同じ片付け）
+        await clearDeletedAccount(userId)
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)
         setSession(null)
