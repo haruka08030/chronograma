@@ -14,6 +14,7 @@ import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
+import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
 
@@ -884,6 +885,58 @@ export function pushCourseLinks(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_course_links', { user_id: userId, links: value.links, updated_at: value.updatedAt }, base)
+}
+
+/**
+ * 1 日の気分とひとこと（`day_moods`、`025`）。`since` があればそれより後に変わった行だけ。
+ * 日付の順に、続きは最後に受け取った日より後から、空のページが返るまで取る（`fetchAllRows` と同じ）
+ */
+export async function fetchDayMoods(
+  supabase: SupabaseClient,
+  userId: string,
+  since: string | null,
+): Promise<RemoteDayMood[] | { error: string }> {
+  const out: RemoteDayMood[] = []
+  for (;;) {
+    let q = supabase.from('day_moods').select('day, mood, note, updated_at').eq('user_id', userId)
+    if (since) q = q.gt('updated_at', since)
+    const last = out[out.length - 1]
+    if (last) q = q.gt('day', last.day)
+    const { data, error } = await q.order('day').limit(PAGE_SIZE)
+    if (error) return { error: `day_moods: ${error.message}` }
+    const page = (data ?? []) as { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }[]
+    if (page.length === 0) break
+    for (const r of page) {
+      out.push({
+        day: String(r.day),
+        mood: isMood(r.mood) ? r.mood : null,
+        note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
+        updatedAt: String(r.updated_at),
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * 気分の行を送る。日ごとにもとにした版（`base`、行が無いはずなら '-infinity'）を付け、サーバーの行がその版のときだけ通る
+ * （`025` の day_mood_write_guard）。通った日と付いた版を返す（返らない日は断られた）
+ */
+export async function pushDayMoods(supabase: SupabaseClient, userId: string, rows: DayMoodPush[]): Promise<DayMoodPushResult> {
+  const body = rows.map((r) => ({
+    user_id: userId,
+    day: r.day,
+    mood: r.mood,
+    note: r.note,
+    updated_at: r.updatedAt,
+    base_updated_at: r.base ?? BASE_ABSENT,
+  }))
+  const { data, error } = await supabase.from('day_moods').upsert(body, { onConflict: 'user_id,day' }).select('day, updated_at')
+  if (error) return { error: error.message }
+  const written = ((data ?? []) as { day?: unknown; updated_at?: unknown }[])
+    .filter((r) => r.day != null && r.updated_at != null)
+    .map((r) => ({ day: String(r.day), updatedAt: String(r.updated_at) }))
+  return { written }
 }
 
 /** 同期の取り決めの版の下限（`app_config.min_sync_version`、017）。読めなければエラー（黙って送らない・黙って送るのどちらにもしない） */

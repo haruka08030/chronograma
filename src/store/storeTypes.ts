@@ -10,6 +10,7 @@ import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
+import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
@@ -167,6 +168,8 @@ export interface TaskState {
   courseLinks: CourseLink[]
   /** つながりをこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   courseLinksUpdatedAt: string | null
+  /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
+  dayMoods: DayMoods
 
   habits: Habit[]
 
@@ -331,6 +334,8 @@ export interface TaskState {
   setExtraTimeZoneLabel: (tz: string, label: string) => void
   /** よく入れる予定をまとめて置き換える（登録の画面の「保存」）。名前が空・時刻が使えない行は外す */
   saveEventTemplates: (templates: EventTemplate[]) => void
+  /** その日の気分・ひとことを変える（`mood: null` で記号を外す、`note: ''` で一言を消す） */
+  setDayMood: (dateKey: string, patch: { mood?: Mood | null; note?: string }) => void
   /**
    * よく入れる予定をその日に入れる・外す（月表示で日を押したとき）。同じ予定（名前・時刻）が入っていれば外し、無ければ入れる。
    * 外すとき、`sessionTaskIds` にある予定（この続けて押している間に入れたもの）はそのまま消し、それ以外はゴミ箱へ

@@ -4,11 +4,13 @@ import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
   fetchCourseLinks,
+  fetchDayMoods,
   fetchEventTemplates,
   fetchExtraTimeZones,
   fetchLogLabels,
   fetchMinSyncVersion,
   pushCourseLinks,
+  pushDayMoods,
   pushEventTemplates,
   pushExtraTimeZones,
   pushListsTasksHabits,
@@ -46,6 +48,7 @@ import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
+import { createDayMoodPullState, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
@@ -77,7 +80,7 @@ export function flushPendingSync(): Promise<boolean> {
 }
 
 /**
- * ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・タイマーの手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
+ * ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・タイマー・1 日の気分の手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
  * （送れなかったときは記録するだけでタスクの同期は止めないので、ログアウトの前にここで確かめる）
  */
 function settingsSent(userId: string): boolean {
@@ -89,7 +92,10 @@ function settingsSent(userId: string): boolean {
     ['templates', s.eventTemplatesUpdatedAt],
     ['courses', s.courseLinksUpdatedAt],
   ]
-  return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
+  return (
+    local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
+    Object.values(s.dayMoods).every((m) => m.updatedAt === m.syncedAt)
+  )
 }
 
 /** サーバーに何も無い */
@@ -156,6 +162,8 @@ export function useSupabaseSync() {
     let outdated = false
     /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
     const pull = createPullState()
+    /** 1 日の気分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
+    const moodPull = createDayMoodPullState()
     /** ログインする前のデータをこのアカウントに入れてよいと答えた（送るのに失敗して回り直しても聞き直さない） */
     let mergeApproved = false
 
@@ -286,17 +294,30 @@ export function useSupabaseSync() {
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ courseLinksUpdatedAt: at })),
         push: (p) => pushCourseLinks(supabase, userId, p, p.base),
       })
+    /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
+    const syncDayMoods = () =>
+      runDayMoodSync(
+        {
+          fetch: (since) => fetchDayMoods(supabase, userId, since),
+          push: (rows) => pushDayMoods(supabase, userId, rows),
+          get: () => useTaskStore.getState().dayMoods,
+          set: (dayMoods) => asIncomingChange(() => useTaskStore.setState({ dayMoods })),
+        },
+        moodPull,
+        { isCancelled: () => cancelled, clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0, maxStaleRetries: MAX_STALE_RETRIES },
+      )
 
     /** 動いているタイマー（どの端末でも同じタイマー、#301） */
     const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo)).finally(notifyActiveTimerSynced)
 
-    /** ラベル表・他のタイムゾーン・動いているタイマー・よく入れる予定（タスクとは別に、まとめて 1 つの値として合わせる設定） */
+    /** ラベル表・他のタイムゾーン・動いているタイマー・よく入れる予定（タスクとは別に、まとめて 1 つの値として合わせる設定）と 1 日の気分（日ごと） */
     const syncSettings = async () => {
       await syncLabels()
       await syncExtraTimeZones()
       await syncActiveTimer()
       await syncEventTemplates()
       await syncCourseLinks()
+      await syncDayMoods()
     }
 
     /**
@@ -598,7 +619,8 @@ export function useSupabaseSync() {
         state.extraTimeZones === prev.extraTimeZones &&
         state.activeTimer === prev.activeTimer &&
         state.eventTemplates === prev.eventTemplates &&
-        state.courseLinks === prev.courseLinks
+        state.courseLinks === prev.courseLinks &&
+        state.dayMoods === prev.dayMoods
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return

@@ -28,6 +28,7 @@
 | [`022_event_templates.sql`](022_event_templates.sql) | よく入れる予定 `user_event_templates`（利用者ごとに 1 行。`templates` は `{ id, title, startTime, endTime, color }` の並び。RLS は本人だけ、大きさの上限 `user_event_templates_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 | [`023_app_versions_seen.sql`](023_app_versions_seen.sql) | どの版のアプリがまだ同期しているか `app_versions_seen`（主キー `(user_id, app_version, sync_protocol_version)`・`first_seen` / `last_seen`。大きさの上限 `app_versions_seen_shape_check`）。書くのは `note_app_version(版, 取り決めの版)`（SECURITY DEFINER、`authenticated` だけ実行できる。本人の行を upsert し `last_seen` をサーバーの時刻にする。1 人 `last_seen` の新しい 20 行まで）。RLS あり・ポリシーなし、`anon` / `authenticated` の表の権限は外す（読むのは service_role。数える SQL は [`../metrics/versions.sql`](../metrics/versions.sql)） |
 | [`024_course_links.sql`](024_course_links.sql) | 授業の予定と LMS の科目のつながり `user_course_links`（利用者ごとに 1 行。`links` は `{ title, course }` の並び、`course` が空なら「つながない」。RLS は本人だけ、大きさの上限 `user_course_links_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
+| [`025_day_moods.sql`](025_day_moods.sql) | 1 日の気分とひとこと `day_moods`（利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、`note` は 500 字まで、`day` は 2000〜2100 年。RLS は本人だけ）。書き込みはトリガー `day_mood_write_guard`（`017` の `sync_write_guard` と同じ確かめを `(user_id, day)` で）。行は消さない（外すのは null / '' の更新）。索引 `(user_id, updated_at)`、行数の上限 40,000（`006` の `enforce_row_limit`） |
 
 テーブル（最新の形）:
 
@@ -42,6 +43,7 @@
 | `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている |
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
 | `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
+| `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）は `user_active_timer` の写し（`019`） |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |
 | `notion_connection` | Notion の統合トークン（暗号化して保存）と対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |

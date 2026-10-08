@@ -140,6 +140,22 @@ const SCREENS = [
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   // 夜中に開いたとき（日付が変わった直後のタイムライン）
   { name: 'planner-midnight', view: 'planner', at: '00:30' },
+  // 1 日の気分（#324）: 締めの所で記号を押して一言を書いたところ・前の日の見出しの記号を押して一言を開いたところ
+  {
+    name: 'planner-mood',
+    view: 'planner',
+    at: '21:30',
+    steps: [
+      { click: 'button[aria-label="良い"] >> visible=true' },
+      { fill: { selector: 'input[aria-label="ひとこと"]', text: 'ES が 1 本書けた' } },
+    ],
+    scrollToBottom: true,
+  },
+  {
+    name: 'planner-mood-past',
+    view: 'planner',
+    click: ['button[aria-label="前の日"] >> visible=true', 'button[aria-label="気分: 良い"] >> visible=true'],
+  },
   // 見出しの期間を押したときの月のカレンダー（期限のカレンダーと同じ DatePickerBody）
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）

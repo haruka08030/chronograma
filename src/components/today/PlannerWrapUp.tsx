@@ -5,17 +5,20 @@ import type { Task } from '../../types/task'
 import { requestPermission } from '../../lib/notifications'
 import { buttonClass } from '../ui/buttonClass'
 import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
+import { DayMoodPicker } from './DayMood'
 
 /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
 const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
 const textButton = buttonClass({ variant: 'link', size: 'xs' })
 
 /**
- * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける）と、通知をすすめる 1 行。
+ * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける・その日の気分とひとこと）と、通知をすすめる 1 行。
  * 夜の締めの通知から開いたとき（`focusKey` が 1 以上）はここまでスクロールし、することが無ければそう書く
  */
 export function PlannerWrapUp({
   showWrapUp,
+  showMood = false,
+  dateKey,
   focusKey = 0,
   open,
   untaggedLogs,
@@ -24,6 +27,10 @@ export function PlannerWrapUp({
   openDetail,
 }: {
   showWrapUp: boolean
+  /** 気分の記号の行を出すか（今日の締めの時刻から。残りが無い日も出す） */
+  showMood?: boolean
+  /** 見ている日（気分を付ける日） */
+  dateKey: string
   /** 夜の締めの通知から開いた回数（増えるたびにここまでスクロールする） */
   focusKey?: number
   open: Task[]
@@ -97,6 +104,7 @@ export function PlannerWrapUp({
       {showWrapUp && focusKey > 0 && open.length === 0 && untaggedLogs.length === 0 && (
         <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpAllSet')}</p>
       )}
+      {showMood && <DayMoodPicker dateKey={dateKey} />}
       {showReminderPrompt && (
         <p className="text-zinc-400 dark:text-zinc-500">
           {t('planner.reminderPromptShort')}{' '}

@@ -410,6 +410,10 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       timeLogTagPresets: ['睡眠', '授業', '課題', 'バイト', '就活'],
       // 新規ユーザーと同じ割り当て順（assignColorsInOrder）。To‑Do の色ラベル（color）もこの色で名前が付く
       logCategoryColors: { 睡眠: 'peacock', 授業: 'sage', 課題: 'tangerine', バイト: 'lavender', 就活: 'banana' },
+      // 1 日の気分（#324）。昨日は締めで付けた（前の日の見出しに出る）
+      dayMoods: {
+        [yesterday]: { mood: 4, note: '面接の準備が進んだ', updatedAt: instant.toISOString(), syncedAt: null },
+      },
     },
     version: PERSIST_VERSION,
   }

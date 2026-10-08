@@ -31,6 +31,8 @@ import { createSettingsSlice } from './slices/settings'
 import { createUiSlice } from './slices/ui'
 import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
+import { createDayMoodsSlice } from './slices/dayMoods'
+import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
@@ -153,6 +155,7 @@ export const useTaskStore = create<TaskState>()(
         eventTemplatesUpdatedAt: null as string | null,
         courseLinks: [] as CourseLink[],
         courseLinksUpdatedAt: null as string | null,
+        dayMoods: {} as DayMoods,
 
         habits: [],
 
@@ -176,6 +179,7 @@ export const useTaskStore = create<TaskState>()(
           if (sameValue(next, get().courseLinks)) return
           set({ courseLinks: next })
         },
+        ...createDayMoodsSlice(ctx),
         ...undo.actions,
       }
     },
@@ -208,6 +212,7 @@ export const useTaskStore = create<TaskState>()(
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
         merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
+        merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
