@@ -3,7 +3,7 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
-import { wallInZone } from './timeZone'
+import { instantFromWall, wallInZone } from './timeZone'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { INBOX_ID } from '../store/storeConstants'
 import { externalPatch, type PulledFields } from './externalFields'
@@ -193,6 +193,23 @@ export function canvasDue(dueAt: string | null, timeZone: string): { dueDate: st
   return { dueDate: wall.date, dueTime: wall.time }
 }
 
+/**
+ * 締切が、サーバーが取り込んだ期間（`windowStart`〜`windowEnd`）の確かに内側か。「期間の中なのに返ってこない＝消えた」の判定に使う。
+ * - 期間は UTC の日付で決まる（サーバー）。手元の期限はアプリのタイムゾーンの日付・時刻なので、瞬間に戻して UTC の日付で比べる。
+ *   日本時間の朝（0〜9 時）締切は UTC では前日になり、アプリの日付のまま比べると期間の初日に入って見える（#329）
+ * - 端の日は内側に数えない。Canvas のプランナーは期間の日付を学校のタイムゾーンで読むので、端の日の課題は返ってこないことがある
+ * - 終日の締切（時刻なし）は日付のまま比べる（フィードの終日の課題も日付のまま絞られる）
+ */
+export function insideCanvasWindow(
+  due: { dueDate: string | null; dueTime: string | null },
+  window: { windowStart: string; windowEnd: string },
+  timeZone: string,
+): boolean {
+  if (!due.dueDate) return false
+  const day = due.dueTime ? wallInZone(instantFromWall(due.dueDate, due.dueTime, timeZone), 'UTC').date : due.dueDate
+  return day > window.windowStart && day < window.windowEnd
+}
+
 /** 科目のセクションの id（学校名入りと、最初の版の `canvas-course-<ID>` の両方） */
 const COURSE_SECTION_RE = /^canvas-course-/
 
@@ -325,7 +342,7 @@ export function reconcileCanvasItems(
     if (t.completed || t.archivedAt || t.deletedAt || seen.has(t.id) || skip.has(t.id)) continue
     if (parseCanvasTaskId(t.id)?.connectionId !== conn) continue
     // 期間の外に出ただけのもの（出し忘れたまま 30 日たった課題など）は残す
-    if (!t.dueDate || t.dueDate < payload.windowStart || t.dueDate > payload.windowEnd) continue
+    if (!insideCanvasWindow(opts.pulled?.[t.id] ?? t, payload, opts.timeZone)) continue
     complete(t)
   }
 

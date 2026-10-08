@@ -257,6 +257,8 @@ export async function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise
     calendarColorId?: string | null
     connected?: boolean
     canWrite?: boolean
+    /** 範囲の予定が多すぎて、関数がページ送りの上限で止めた（後ろの予定が欠けている） */
+    truncated?: boolean
     error?: string
   }
   let payload: EventsPayload
@@ -281,6 +283,7 @@ export async function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise
     }
     throw e
   }
+  if (payload.truncated) console.warn('[google] too many events in the range; later events were left out')
   // 自分で色を付けていない予定はカレンダーの色
   lastCalendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)
   return {

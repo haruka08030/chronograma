@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { collectEventPages, type EventPage } from './pages.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
 import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
@@ -138,37 +139,42 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
   return data.access_token
 }
 
-async function fetchGoogleEvents(accessToken: string, timeMin: string, timeMax: string, timeZone: string): Promise<CalendarEvent[]> {
-  const params = new URLSearchParams({
-    timeMin,
-    timeMax,
-    singleEvents: 'true',
-    orderBy: 'startTime',
-    maxResults: '250',
-  })
-
-  const load = async () => {
+async function fetchGoogleEvents(
+  accessToken: string,
+  timeMin: string,
+  timeMax: string,
+  timeZone: string,
+): Promise<{ events: CalendarEvent[]; truncated: boolean }> {
+  const load = async (pageToken: string | undefined) => {
+    const params = new URLSearchParams({
+      timeMin,
+      timeMax,
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      // 1 ページの上限（2500）。続きは nextPageToken でたどる
+      maxResults: '2500',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
     const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } })
     if (!res.ok) {
       const body = await res.text()
       throw new GoogleApiError('calendar', res.status, parseGoogleErrorReasons(body), body)
     }
-    return res
+    return (await res.json()) as EventPage<GoogleEventItem>
   }
 
-  let res: Response
-  try {
-    res = await load()
-  } catch (e) {
-    // 利用上限は一瞬のことが多いので、読み取りだけ一度だけ待ってやり直す
-    if (!isRetryableGoogleError(e)) throw e
-    await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 500))
-    res = await load()
-  }
+  const { items, truncated } = await collectEventPages(async (pageToken) => {
+    try {
+      return await load(pageToken)
+    } catch (e) {
+      // 利用上限は一瞬のことが多いので、読み取りだけ一度だけ待ってやり直す
+      if (!isRetryableGoogleError(e)) throw e
+      await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 500))
+      return await load(pageToken)
+    }
+  })
 
-  const data = (await res.json()) as { items?: GoogleEventItem[] }
-
-  return normalizeEvents(data.items ?? [], timeZone)
+  return { events: normalizeEvents(items, timeZone), truncated }
 }
 
 type EventTime = { date?: string; dateTime?: string; timeZone?: string }
@@ -427,7 +433,7 @@ Deno.serve(
         try {
           const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
           const accessToken = await refreshGoogleAccessToken(row.refresh_token)
-          const events = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
+          const { events, truncated } = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
           // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
           // colorId（1〜24）の方が確実に色を特定できるので両方返す
           let calendarColor: string | null = null
@@ -444,7 +450,8 @@ Deno.serve(
           } catch {
             /* ignore */
           }
-          return jsonResponse({ events, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
+          // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
+          return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
         } catch (e) {
           const kind = classifyGoogleError(e)
           if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)

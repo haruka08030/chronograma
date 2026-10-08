@@ -164,9 +164,13 @@ export function reconcileNotionPages(
     const title = opts.titleFor(page)
     const { dueDate, dueTime } = splitNotionDate(page.date)
     const existing = byId.get(id)
+    // 日付を使わない間は、手元に期限を入れていないので「前回取り込んだ期限」も空で覚える。
+    // Notion の日付で覚えると、あとで日付を使う設定に変えたとき「Notion 側は変わっていない」
+    // かつ「手元の期限（空）がユーザーの変更」に見えて、既存のタスクに期限が入らなくなる（#331）
+    const remembered: PulledFields = payload.datesEnabled ? { title, dueDate, dueTime } : { title, dueDate: null, dueTime: null }
 
     if (!existing) {
-      pulled[id] = { title, dueDate, dueTime }
+      pulled[id] = remembered
       additions.push({
         ...TASK_DEFAULTS,
         id,
@@ -205,7 +209,7 @@ export function reconcileNotionPages(
       remember: Boolean(opts.pulled),
       due: Boolean(payload.datesEnabled),
     })
-    pulled[id] = { title, dueDate, dueTime }
+    pulled[id] = remembered
     if (Object.keys(patch).length > 0) updates.set(id, { ...existing, ...patch, updatedAt: opts.now })
   }
 
