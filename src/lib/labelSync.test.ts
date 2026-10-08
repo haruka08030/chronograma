@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { planLabelSync } from './labelSync'
+import { pendingAddsAfterImport, planLabelSync, settledLabelAdds } from './labelSync'
 
 const T1 = '2026-10-01T00:00:00.000Z'
 const T2 = '2026-10-02T00:00:00.000Z'
@@ -253,5 +253,101 @@ describe('ラベルの週の目安の同期（#291）', () => {
       NOW,
     )
     expect(plan.apply?.targets).toBeUndefined()
+  })
+})
+
+describe('取り込みで足したラベルは「無ければ足す」だけ（#357）', () => {
+  const S1 = '2026-10-01T00:00:00.123456+00:00'
+  const S2 = '2026-10-01T00:05:00.654321+00:00'
+
+  it('ほかの端末が名前・色・並びを変えていたら、それに合わせたうえで取り込んだラベルだけ後ろに足して送る', () => {
+    // 手元はもとにした版のまま（変えた時刻 = 版）。取り込みで「経済学」を足しただけ
+    const plan = planLabelSync(
+      {
+        presets: ['授業', 'バイト', '経済学'],
+        colors: { 授業: 'sage', バイト: 'peacock', 経済学: 'grape' },
+        updatedAt: S1,
+        syncedAt: S1,
+        pendingAdds: ['経済学'],
+      },
+      {
+        labels: [
+          { name: 'アルバイト', color: 'tomato' },
+          { name: '授業', color: 'basil', weeklyTargetMinutes: 600 },
+        ],
+        updatedAt: S2,
+      },
+      NOW,
+    )
+    expect(plan.apply).toEqual({
+      presets: ['アルバイト', '授業', '経済学'],
+      colors: { アルバイト: 'tomato', 授業: 'basil', 経済学: 'grape' },
+      targets: { 授業: 600 },
+      updatedAt: NOW,
+    })
+    expect(plan.push).toEqual({
+      labels: [
+        { name: 'アルバイト', color: 'tomato' },
+        { name: '授業', color: 'basil', weeklyTargetMinutes: 600 },
+        { name: '経済学', color: 'grape' },
+      ],
+      updatedAt: NOW,
+      base: S2,
+    })
+  })
+
+  it('サーバーが変わっていなくても、取り込んだラベルがサーバーに無ければ足して送る（変えた時刻は進めていない）', () => {
+    const plan = planLabelSync(
+      { presets: ['授業', '経済学'], colors: { 授業: 'sage', 経済学: 'grape' }, updatedAt: S1, syncedAt: S1, pendingAdds: ['経済学'] },
+      { labels: [{ name: '授業', color: 'sage' }], updatedAt: S1 },
+      NOW,
+    )
+    expect(plan.push).toEqual({
+      labels: [
+        { name: '授業', color: 'sage' },
+        { name: '経済学', color: 'grape' },
+      ],
+      updatedAt: NOW,
+      base: S1,
+    })
+  })
+
+  it('もうサーバーにある・手元で消したラベルは足さない', () => {
+    const remote = {
+      labels: [
+        { name: '授業', color: 'sage' },
+        { name: '経済学', color: 'tomato' },
+      ],
+      updatedAt: S2,
+    }
+    const p1 = planLabelSync(
+      { presets: ['授業', '経済学'], colors: { 授業: 'sage', 経済学: 'grape' }, updatedAt: S1, syncedAt: S1, pendingAdds: ['経済学'] },
+      remote,
+      NOW,
+    )
+    // サーバーの色のまま（取り込みは名前が無いときだけ足す）
+    expect(p1).toEqual({ apply: { presets: ['授業', '経済学'], colors: { 授業: 'sage', 経済学: 'tomato' }, updatedAt: S2 } })
+    const p2 = planLabelSync(
+      { presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: S1, syncedAt: S1, pendingAdds: ['経済学'] },
+      { labels: [{ name: '授業', color: 'sage' }], updatedAt: S1 },
+      NOW,
+    )
+    expect(p2).toEqual({})
+    expect(settledLabelAdds(['経済学', '統計', '消した'], ['授業', '経済学', '統計'], remote)).toEqual(['経済学', '消した'])
+    expect(settledLabelAdds(['経済学'], ['経済学'], null)).toEqual([])
+  })
+
+  it('手元でも変えていれば今までどおり（取り込んだラベルも手元の表に入っているので一緒に送る）', () => {
+    const plan = planLabelSync(
+      { presets: ['授業', '経済学'], colors: {}, updatedAt: NOW, syncedAt: S1, pendingAdds: ['経済学'] },
+      { labels: [{ name: '授業', color: '' }], updatedAt: S1 },
+      NOW,
+    )
+    expect(plan.push?.labels.map((l) => l.name)).toEqual(['授業', '経済学'])
+  })
+
+  it('取り込みのあとに覚える名前は、前から覚えている名前と新しく足した名前', () => {
+    expect(pendingAddsAfterImport(['経済学'], ['授業', '経済学'], ['授業', '経済学', '統計'])).toEqual(['経済学', '統計'])
+    expect(pendingAddsAfterImport([], ['授業'], ['授業'])).toEqual([])
   })
 })
