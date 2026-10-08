@@ -8,6 +8,7 @@ import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
+import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
@@ -26,6 +27,7 @@ import { createGoogleSlice } from './slices/google'
 import { createSettingsSlice } from './slices/settings'
 import { createUiSlice } from './slices/ui'
 import { createDataSlice } from './slices/data'
+import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
@@ -143,6 +145,8 @@ export const useTaskStore = create<TaskState>()(
         weekStartsOn: DEFAULT_WEEK_STARTS_ON as WeekStartDay,
         extraTimeZones: [] as ExtraTimeZone[],
         extraTimeZonesUpdatedAt: null as string | null,
+        eventTemplates: [] as EventTemplate[],
+        eventTemplatesUpdatedAt: null as string | null,
 
         habits: [],
 
@@ -159,6 +163,7 @@ export const useTaskStore = create<TaskState>()(
         ...createSettingsSlice(ctx),
         ...createUiSlice(ctx),
         ...createDataSlice(ctx),
+        ...createEventTemplatesSlice(ctx),
         ...undo.actions,
       }
     },
@@ -189,6 +194,7 @@ export const useTaskStore = create<TaskState>()(
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
+        merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
@@ -259,6 +265,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.extraTimeZones === prev.extraTimeZones) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
+})
+// よく入れる予定（登録・名前・時刻・ラベル）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.eventTemplates === prev.eventTemplates) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ eventTemplatesUpdatedAt: new Date().toISOString() })
 })
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {

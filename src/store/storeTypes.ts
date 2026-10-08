@@ -8,6 +8,7 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { EventTemplate } from '../lib/eventTemplates'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
@@ -152,6 +153,10 @@ export interface TaskState {
   extraTimeZones: ExtraTimeZone[]
   /** 他のタイムゾーン（並び・名前）をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   extraTimeZonesUpdatedAt: string | null
+  /** よく入れる予定（バイトのシフトなど、#311）。月表示で選んでから日を押すと、その日に同じ予定が入る */
+  eventTemplates: EventTemplate[]
+  /** よく入れる予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  eventTemplatesUpdatedAt: string | null
 
   habits: Habit[]
 
@@ -308,6 +313,17 @@ export interface TaskState {
   setExtraTimeZones: (zones: ExtraTimeZone[]) => void
   /** 他のタイムゾーンに名前を付ける（空にすると外す） */
   setExtraTimeZoneLabel: (tz: string, label: string) => void
+  /** よく入れる予定をまとめて置き換える（登録の画面の「保存」）。名前が空・時刻が使えない行は外す */
+  saveEventTemplates: (templates: EventTemplate[]) => void
+  /**
+   * よく入れる予定をその日に入れる・外す（月表示で日を押したとき）。同じ予定（名前・時刻）が入っていれば外し、無ければ入れる。
+   * 外すとき、`sessionTaskIds` にある予定（この続けて押している間に入れたもの）はそのまま消し、それ以外はゴミ箱へ
+   */
+  toggleEventTemplateDay: (
+    templateId: string,
+    dateKey: string,
+    sessionTaskIds?: ReadonlySet<string>,
+  ) => { kind: 'added' | 'removed'; taskId: string } | null
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (
@@ -384,6 +400,11 @@ export interface TaskState {
   /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
   /** 中の操作をまとめて 1 回の取り消しで戻せるようにする */
   asOneUndo: (fn: () => void) => void
+  /**
+   * 続けて行う操作（月表示で日を続けて押す）を 1 回の取り消しで戻せるようにする。直前の取り消しが同じ `key` の回なら、
+   * 中の操作をそこへ足す（間にほかの操作をしたら新しい回）
+   */
+  asUndoSession: (key: string, fn: () => void) => void
   undoLastOperation: () => boolean
   /** ⌘Z で戻した変更をやり直す（⌘⇧Z）。成功時 true */
   redoLastOperation: () => boolean

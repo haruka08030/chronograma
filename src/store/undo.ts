@@ -27,8 +27,8 @@ type UndoEntry = {
   settings: Partial<Pick<TaskState, SettingKey>>
 }
 
-/** 操作の前の状態。操作が終わってから差分にする（`finalize`） */
-type PendingEntry = { before: DataView; entry: UndoEntry | null }
+/** 操作の前の状態。操作が終わってから差分にする（`finalize`）。`session` は続けて足していく回（`asUndoSession`）の鍵 */
+type PendingEntry = { before: DataView; entry: UndoEntry | null; session?: string }
 
 export interface UndoHistory {
   /**
@@ -46,7 +46,7 @@ export interface UndoHistory {
   dropLastUndo: () => void
   /** 取り消し・やり直しの履歴を空にする（他のタブの取り込み・ログアウト） */
   clear: () => void
-  actions: Pick<TaskState, 'asOneUndo' | 'undoLastOperation' | 'redoLastOperation'>
+  actions: Pick<TaskState, 'asOneUndo' | 'asUndoSession' | 'undoLastOperation' | 'redoLastOperation'>
 }
 
 function dataView(s: TaskState): DataView {
@@ -84,6 +84,19 @@ export function diffEntry(before: DataView, after: DataView): UndoEntry {
     if (before[key] !== after[key]) (entry.settings as Record<string, unknown>)[key] = before[key]
   }
   return entry
+}
+
+/** 後の操作の記録を前の記録へ足す。同じ行・設定は前の記録の姿（より前の姿）を残す */
+function mergeEntry(into: UndoEntry, later: UndoEntry): void {
+  for (const key of COLLECTIONS) {
+    const rows = later.rows[key]
+    if (!rows) continue
+    const target = (into.rows[key] ??= new Map())
+    for (const [id, old] of rows) if (!target.has(id)) target.set(id, old)
+  }
+  for (const key of SETTINGS) {
+    if (key in later.settings && !(key in into.settings)) (into.settings as Record<string, unknown>)[key] = later.settings[key]
+  }
 }
 
 function isEmpty(entry: UndoEntry): boolean {
@@ -216,6 +229,33 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
         } finally {
           undoGroupDepth--
         }
+      },
+      asUndoSession: (key, fn) => {
+        const top = undoStack[undoStack.length - 1]
+        if (undoGroupDepth > 0 || !top || top.session !== key) {
+          // 新しい回: ふつうに 1 回分として積み、鍵を付けておく（次に同じ鍵で来たらここへ足す）
+          const before = undoStack.length
+          get().asOneUndo(fn)
+          const pushed = undoStack[undoStack.length - 1]
+          if (pushed && (undoStack.length !== before || pushed !== top)) pushed.session = key
+          return
+        }
+        // 同じ回の続き: 中の操作では積まず、前後の差分を一番上の記録に足す。
+        // 前後だけを比べるので、押す間に同期で届いた変更は含めない（取り消しで他の端末の変更を戻さない）
+        finalize(top)
+        const before = dataView(get())
+        undoGroupDepth++
+        undoGroupPushed = true
+        try {
+          fn()
+        } finally {
+          undoGroupDepth--
+        }
+        const later = diffEntry(before, dataView(get()))
+        if (isEmpty(later)) return
+        mergeEntry(top.entry!, later)
+        lastTypingKey = null
+        redoStack.length = 0
       },
       undoLastOperation: () => {
         lastTypingKey = null

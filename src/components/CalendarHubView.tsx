@@ -23,6 +23,8 @@ import { isTodoTask } from '../types/task'
 import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { useEventTemplateStamp } from '../hooks/useEventTemplateStamp'
+import { EventTemplateButton, EventTemplateStampBar } from './calendar/EventTemplateControls'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -52,6 +54,11 @@ export function CalendarHubView() {
   const calendarMode: CalendarMode = isDesktop && storedMode === 'threeDay' ? 'week' : storedMode
   /** 週・3 日・スケジュールの表示で ‹ ›・スワイプ 1 回に進む日数（スマホ幅の週は 1 日だけ描くので 1 日ずつ） */
   const pageDays = calendarMode === 'threeDay' ? 3 : isDesktop || calendarMode === 'schedule' ? 7 : 1
+
+  // よく入れる予定を選んで日を押している間（月表示だけ。ほかの表示に移ったら抜ける）
+  const stamp = useEventTemplateStamp()
+  if (stamp.template && calendarMode !== 'month') stamp.stop()
+  const templateButton = calendarMode === 'month' ? <EventTemplateButton activeId={stamp.activeId} onPick={stamp.start} /> : null
 
   const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)
@@ -161,6 +168,7 @@ export function CalendarHubView() {
                 ]}
                 className="shrink-0"
               />
+              {templateButton}
             </div>
             <button
               type="button"
@@ -199,10 +207,12 @@ export function CalendarHubView() {
           onPickDate={applyPickedDate}
           dockOpen={dockOpen}
           onToggleDock={() => setDockOpen((o) => !o)}
+          extra={templateButton}
         />
       )}
       {/* スマホ幅で時間未定のタスクを開いている間は、未接続の案内を畳んで月の格子に場所を譲る */}
       <GoogleConnectLine hideInvite={dockOpen && !isDesktop} />
+      {stamp.template && <EventTemplateStampBar template={stamp.template} onDone={stamp.stop} />}
       {/* まだ何も置いていない人には、どこを押せば入るかを 1 行だけ（＋ボタンの代わり。月とスケジュールは日を押して開く） */}
       {nothingYet && (calendarMode === 'week' || calendarMode === 'threeDay') && (
         <p className={`shrink-0 py-1 pl-4 pr-2 md:pl-6 ${HINT_TEXT}`}>{t('calendarHub.emptyHint')}</p>
@@ -220,6 +230,7 @@ export function CalendarHubView() {
                 onSelectDate={applyPickedDate}
                 onOpenDay={isDesktop ? undefined : openDay}
                 onSwipe={isDesktop ? undefined : stepPeriod}
+                stamp={stamp.template ? { title: stamp.template.title, days: stamp.days, onDay: stamp.toggleDay } : undefined}
               />
             ) : (
               <WeekCalendarView
