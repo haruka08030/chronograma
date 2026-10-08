@@ -1073,6 +1073,13 @@ export default {
     useApp: 'アプリのタイムゾーン（{{zone}}）',
     inApp: '{{zone}}: {{when}}',
   },
+  weekStart: {
+    label: '週の開始日',
+    help: '習慣と週のふりかえりは月曜から数えます',
+    saturday: '土曜日',
+    sunday: '日曜日',
+    monday: '月曜日',
+  },
   staleTimer: {
     title: 'まだ記録中になっています',
     body: '「{{title}}」を {{since}} から記録したままです。終了時刻を選ぶと、その時間までの記録として残します。',

@@ -1,7 +1,8 @@
-import { endOfWeek, format, startOfWeek } from 'date-fns'
+import { format } from 'date-fns'
 import i18n from '../i18n/config'
 import { dateFnsLocale, fromDateKey, toDateKey } from './dateKey'
 import { appTodayKey } from './timeZone'
+import { appWeekStartsOn, calendarWeekEnd, calendarWeekStart, type WeekStartDay } from './weekStart'
 
 /**
  * 日付の表示形式の名前。形式そのものは i18n の `dateFormat.*`（ja / en）にある。
@@ -47,14 +48,18 @@ export function formatShortDateWeekday(
 }
 
 /**
- * 月曜はじまりの週の範囲。言語で並びが違うので形式キーではなくここで組む
+ * 週の範囲（既定は設定の週の開始日から。習慣の週は月曜はじまりを渡す）。言語で並びが違うので形式キーではなくここで組む
  * - ja: 10月5日〜11日、2026年 / 2026年9月28日〜10月4日
  * - en: Oct 5 – 11, 2026 / Sep 28 – Oct 4, 2026 / Dec 28, 2026 – Jan 3, 2027
  */
-export function formatWeekRange(anchor: Date, language: string | undefined = i18n.resolvedLanguage): string {
+export function formatWeekRange(
+  anchor: Date,
+  language: string | undefined = i18n.resolvedLanguage,
+  weekStartsOn: WeekStartDay = appWeekStartsOn(),
+): string {
   const locale = dateFnsLocale(language)
-  const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-  const we = endOfWeek(anchor, { weekStartsOn: 1 })
+  const ws = calendarWeekStart(anchor, weekStartsOn)
+  const we = calendarWeekEnd(anchor, weekStartsOn)
   const f = (d: Date, pattern: string) => format(d, pattern, { locale })
   if (language?.startsWith('ja')) {
     const sameMonth = ws.getMonth() === we.getMonth() && ws.getFullYear() === we.getFullYear()

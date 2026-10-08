@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, addMonths, endOfMonth, endOfWeek, isSameMonth, startOfMonth, startOfWeek } from 'date-fns'
+import { addMonths, isSameMonth, startOfMonth } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
 import {
@@ -26,6 +26,8 @@ import { ArchiveIcon, CheckIcon, PencilIcon, TrashIcon } from '../icons'
 import { HabitFormFields } from './HabitFormFields'
 import { canSubmitHabitForm, habitFormFrom, habitFromForm, useHabitForm } from './habitFormState'
 import { useHabitGoalText } from './useHabitGoalText'
+import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
+import { monthGridDays, weekdayLabelsFrom } from '../../lib/weekStart'
 
 /**
  * 習慣の詳細（右から出るシート）: 連続・最長・直近 4 週の達成率、月のカレンダー（押すと達成を付ける / 外す）、編集・アーカイブ・削除。
@@ -151,16 +153,12 @@ function HabitMonth({ habit: h, habitRecords, todayKey }: { habit: Habit; habitR
   const { t } = useTranslation()
   const df = useDateFormat()
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
-  const weekdayLabels = t('habits.weekdays', { returnObjects: true }) as string[]
+  // 月のカレンダーなので、並びは設定の週の開始日から（カレンダー・日付ピッカーと同じ）。「週に◯回」の週は月曜はじまりのまま
+  const weekStartsOn = useWeekStartsOn()
+  const weekdayLabels = weekdayLabelsFrom(t('habits.weekdays', { returnObjects: true }) as string[], weekStartsOn)
   const [month, setMonth] = useState(() => startOfMonth(fromDateKey(todayKey)))
   const atThisMonth = isSameMonth(month, fromDateKey(todayKey))
-  const days = useMemo(() => {
-    const start = startOfWeek(month, { weekStartsOn: 1 })
-    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
-    const out: Date[] = []
-    for (let d = start; d <= end; d = addDays(d, 1)) out.push(d)
-    return out
-  }, [month])
+  const days = useMemo(() => monthGridDays(month, weekStartsOn), [month, weekStartsOn])
 
   return (
     <section className="space-y-2">

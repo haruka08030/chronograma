@@ -1103,6 +1103,13 @@ export default {
     useApp: 'App time zone ({{zone}})',
     inApp: '{{zone}}: {{when}}',
   },
+  weekStart: {
+    label: 'Start of the week',
+    help: 'Habits and the weekly review still count from Monday',
+    saturday: 'Saturday',
+    sunday: 'Sunday',
+    monday: 'Monday',
+  },
   staleTimer: {
     title: 'A timer is still running',
     body: "“{{title}}” has been running since {{since}}. Pick when it ended and we'll keep the record up to that time.",

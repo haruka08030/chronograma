@@ -8,6 +8,7 @@ import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
+import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
@@ -138,6 +139,7 @@ export const useTaskStore = create<TaskState>()(
         defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,
+        weekStartsOn: DEFAULT_WEEK_STARTS_ON as WeekStartDay,
         extraTimeZones: [] as ExtraTimeZone[],
         extraTimeZonesUpdatedAt: null as string | null,
 
@@ -186,6 +188,7 @@ export const useTaskStore = create<TaskState>()(
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
+        merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
       },
@@ -238,6 +241,11 @@ function applyTimeZoneState() {
 }
 restoreViewState()
 applyTimeZoneState()
+// 週の開始日も、React の外（`appWeekStartsOn()`）から読めるように合わせておく（読み込み直後・設定・他のタブ）
+setAppWeekStartSetting(useTaskStore.getState().weekStartsOn)
+useTaskStore.subscribe((s, prev) => {
+  if (s.weekStartsOn !== prev.weekStartsOn) setAppWeekStartSetting(s.weekStartsOn)
+})
 
 // ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
 useTaskStore.subscribe((s, prev) => {

@@ -1,7 +1,7 @@
 import { parseHabitSlotId } from '../lib/habitSlots'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
-import { startOfWeek, endOfWeek, eachDayOfInterval, addDays } from 'date-fns'
+import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
 import {
@@ -51,6 +51,8 @@ import { useSwipeNav } from '../hooks/useSwipeNav'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { useHourHeight, usePinchHourHeight } from '../hooks/useHourHeight'
+import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
+import { calendarWeekDays } from '../lib/weekStart'
 
 const NO_LOGS = new Map<string, Task[]>()
 
@@ -103,12 +105,11 @@ export function WeekCalendarView({
   const rootRef = useRef<HTMLDivElement>(null)
 
   /** 上の帯に並べる日（週。3 日表示はその 3 日） */
+  const weekStartsOn = useWeekStartsOn()
   const days = useMemo(() => {
     if (threeDay) return [0, 1, 2].map((i) => addDays(anchor, i))
-    const ws = startOfWeek(anchor, { weekStartsOn: 1 })
-    const we = endOfWeek(anchor, { weekStartsOn: 1 })
-    return eachDayOfInterval({ start: ws, end: we })
-  }, [anchor, threeDay])
+    return calendarWeekDays(anchor, weekStartsOn)
+  }, [anchor, threeDay, weekStartsOn])
 
   const focusKey = selectedDateKey ?? appTodayKey()
   const gridDays = useMemo(() => {

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format, isSameMonth } from 'date-fns'
+import { format, isSameMonth } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
@@ -40,6 +40,8 @@ import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { HolidayLabel } from './calendar/HolidayLabel'
+import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
+import { calendarWeekEnd, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 
 /** Google の予定も、タスクと同じく終わったら灰色にする */
 function eventState(e: CalendarEvent, key: string): PlanVisualState {
@@ -92,13 +94,8 @@ export function CalendarView({
   const tr = t
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const dragTaskIdRef = useRef<string | null>(null)
-  const days = useMemo(() => {
-    const monthStart = startOfMonth(displayMonth)
-    const monthEnd = endOfMonth(displayMonth)
-    const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
-    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
-    return eachDayOfInterval({ start: calStart, end: calEnd })
-  }, [displayMonth])
+  const weekStartsOn = useWeekStartsOn()
+  const days = useMemo(() => monthGridDays(displayMonth, weekStartsOn), [displayMonth, weekStartsOn])
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
@@ -147,11 +144,11 @@ export function CalendarView({
   }, [tasks, excludedListIds])
 
   const fetchRange = useMemo(() => {
-    const ws = startOfWeek(startOfMonth(displayMonth), { weekStartsOn: 1 })
-    const we = endOfWeek(endOfMonth(displayMonth), { weekStartsOn: 1 })
+    const ws = days[0]!
+    const we = calendarWeekEnd(days[days.length - 1]!, weekStartsOn)
     we.setHours(23, 59, 59)
     return { ws, we }
-  }, [displayMonth])
+  }, [days, weekStartsOn])
   useGoogleCalendarEvents(fetchRange.ws, fetchRange.we)
 
   const eventsByDate = useMemo(() => {
@@ -168,7 +165,7 @@ export function CalendarView({
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       <div ref={swipeRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <div className="grid grid-cols-7 px-4 pt-4">
-          {(t('calendar.weekdayInitials', { returnObjects: true }) as string[]).map((d) => (
+          {weekdayLabelsFrom(t('calendar.weekdayInitials', { returnObjects: true }) as string[], weekStartsOn).map((d) => (
             <div key={d} className="text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 py-2">
               {d}
             </div>

@@ -5,6 +5,7 @@ import { hexForGoogleKey } from '../../lib/googleColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
 import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
+import { normalizeWeekStart } from '../../lib/weekStart'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { withLogCategory } from '../../lib/taskDefaults'
@@ -26,6 +27,7 @@ type SettingsActions = Pick<
   | 'setDailyCapacityMinutes'
   | 'setDefaultBlockMinutes'
   | 'setAppTimeZone'
+  | 'setWeekStartsOn'
   | 'setExtraTimeZones'
   | 'setExtraTimeZoneLabel'
   | 'setEventReminderMinutes'
@@ -149,6 +151,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       // 時刻のある予定・記録は、すべて同じ瞬間のまま新しいタイムゾーンの時刻に（Google と同じ）
       set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
     },
+    setWeekStartsOn: (day) => set({ weekStartsOn: normalizeWeekStart(day) }),
     setExtraTimeZones: (zones) => set({ extraTimeZones: normalizeExtraTimeZones(zones) }),
     setExtraTimeZoneLabel: (tz, label) =>
       set((s) => {

@@ -4,7 +4,7 @@ import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive } from '../types/habit'
-import { habitWeekDates } from '../lib/habitSchedule'
+import { HABIT_WEEK_STARTS_ON, habitWeekDates } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
@@ -125,7 +125,9 @@ export function HabitsView() {
         ) : (
           <section className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{df.weekRange(focusDate)}</h2>
+              <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {df.weekRange(focusDate, HABIT_WEEK_STARTS_ON)}
+              </h2>
               <DayNav
                 onToday={goToday}
                 onPrev={() => shiftWeek(-1)}

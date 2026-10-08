@@ -9,8 +9,11 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { EXTRA_TIME_ZONE_LABEL_MAX } from '../../lib/extraTimeZones'
 import { isCancelEscape, isImeKeyEvent, isSubmitEnter } from '../../lib/keyboard'
+import { normalizeWeekStart, WEEK_START_OPTIONS, type WeekStartDay } from '../../lib/weekStart'
+import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
+import { Segmented } from '../ui/Segmented'
 
-/** 設定「日付と時刻」: アプリのタイムゾーンと、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
+/** 設定「日付と時刻」: アプリのタイムゾーン、週の開始日、時間バーに並べる他のタイムゾーン（Google カレンダーと同じ） */
 export function TimeZoneSettings() {
   const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage?.startsWith('ja') ? 'ja' : 'en'
@@ -31,6 +34,7 @@ export function TimeZoneSettings() {
           nullOption={t('timeZone.autoWith', { zone: zoneLongName(device, locale) })}
         />
       </SettingsRow>
+      <WeekStartRow />
       <SettingsRow label={t('timeZone.extra')}>
         {extra.length < MAX_EXTRA_TIME_ZONES && (
           <TimeZonePicker
@@ -68,6 +72,28 @@ export function TimeZoneSettings() {
         </div>
       ))}
     </SettingsGroup>
+  )
+}
+
+/** 週の開始日（カレンダーの週・月表示と日付ピッカーの並び）。既定は月曜 */
+function WeekStartRow() {
+  const { t } = useTranslation()
+  const weekStartsOn = useWeekStartsOn()
+  const setWeekStartsOn = useTaskStore((s) => s.setWeekStartsOn)
+  const labels: Record<WeekStartDay, string> = {
+    6: t('weekStart.saturday'),
+    0: t('weekStart.sunday'),
+    1: t('weekStart.monday'),
+  }
+  return (
+    <SettingsRow label={t('weekStart.label')} help={t('weekStart.help')}>
+      <Segmented
+        ariaLabel={t('weekStart.label')}
+        value={String(weekStartsOn)}
+        onChange={(v) => setWeekStartsOn(normalizeWeekStart(Number(v)))}
+        options={WEEK_START_OPTIONS.map((d) => ({ value: String(d), label: labels[d] }))}
+      />
+    </SettingsRow>
   )
 }
 
