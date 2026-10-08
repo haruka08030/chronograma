@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { logMinutesOnDay, wrapUpDigest, wrapUpRowFilter, zonedDateKey, type WrapUpRow } from './wrapUp'
+import { hasDayNumbers, logMinutesOnDay, previousDay, wrapUpDigest, wrapUpRowFilter, zonedDateKey, type WrapUpRow } from './wrapUp'
 import { getDayPlan } from '../../../src/lib/dayPlan'
 import { setAppTimeZoneSetting } from '../../../src/lib/timeZone'
 import { TASK_DEFAULTS } from '../../../src/lib/taskDefaults'
@@ -153,5 +153,20 @@ describe('wrapUpRowFilter', () => {
     // UTC+14 の 0 時（10/7 10:00 UTC）より前から
     expect(filter).toContain('completed_at.gte."2026-10-07T09:00:00.000Z"')
     expect(filter).toContain('and(completed.is.true,completed_at.is.null,updated_at.gte."2026-10-07T09:00:00.000Z")')
+  })
+})
+
+describe('previousDay / hasDayNumbers（#278 朝のまとめの昨日）', () => {
+  it('前の日（月・年・うるう年の境目も）', () => {
+    expect(previousDay(DAY)).toBe('2026-10-07')
+    expect(previousDay('2026-10-01')).toBe('2026-09-30')
+    expect(previousDay('2027-01-01')).toBe('2026-12-31')
+    expect(previousDay('2028-03-01')).toBe('2028-02-29')
+  })
+
+  it('To-Do か記録があれば数字がある日', () => {
+    expect(hasDayNumbers({ done: 0, total: 0, open: 0, loggedMinutes: 0 })).toBe(false)
+    expect(hasDayNumbers({ done: 0, total: 1, open: 1, loggedMinutes: 0 })).toBe(true)
+    expect(hasDayNumbers({ done: 0, total: 0, open: 0, loggedMinutes: 5 })).toBe(true)
   })
 })

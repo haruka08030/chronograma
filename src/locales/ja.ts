@@ -293,6 +293,7 @@ export default {
     wrapUpDone: '予定 {{total}} 件中 {{done}} 件完了',
     wrapUpLogged: '記録 {{time}}',
     wrapUpLeft: '残り {{count}} 件',
+    yesterday: '昨日: {{parts}}',
   },
   weekReview: {
     title: '週のふりかえり',

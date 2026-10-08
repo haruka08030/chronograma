@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { MESSAGES, reminderPayload, timerEndPayload, timerPayload, wrapUpPayload, WRAP_UP_URL } from './payload'
+import {
+  MESSAGES,
+  MORNING_URL,
+  morningPayload,
+  reminderPayload,
+  timerEndPayload,
+  timerPayload,
+  wrapUpPayload,
+  WRAP_UP_URL,
+  yesterdayLine,
+} from './payload'
 import type { FiredReminder } from './schedule'
 
 const fired = (p: Partial<FiredReminder> & Pick<FiredReminder, 'kind'>): FiredReminder => ({
@@ -95,5 +105,41 @@ describe('夜の締め（wrapUpPayload）', () => {
     const p = wrapUpPayload(MESSAGES.en, { done: 3, total: 5, open: 2, loggedMinutes: 150 })
     expect(p.title).toBe('Wrap up the day')
     expect(p.body).toBe('Today: 3 of 5 done · 2h 30m logged · 2 left')
+  })
+})
+
+describe('morningPayload（#278 昨日の行）', () => {
+  const today = { planned: 3, due: [{ title: 'ES', time: '17:00' }], overdue: 0 }
+  const y = (p: Partial<{ done: number; total: number; open: number; loggedMinutes: number }>) => ({
+    done: 0,
+    total: 0,
+    open: 0,
+    loggedMinutes: 0,
+    ...p,
+  })
+
+  it('1 行目に今日、2 行目に昨日の「予定 n 件中 m 件完了 ・ 記録」（残りは出さない）', () => {
+    const p = morningPayload(MESSAGES.ja, today, y({ done: 3, total: 5, open: 2, loggedMinutes: 250 }))
+    expect(p.title).toBe('今日のまとめ')
+    expect(p.body).toBe('予定 3 件 ・ 締切: ES（17:00）\n昨日: 予定 5 件中 3 件完了 ・ 記録 4時間10分')
+    expect(p.tag).toBe('chronograma-morning')
+    expect(p.url).toBe(MORNING_URL)
+    expect(morningPayload(MESSAGES.en, today, y({ done: 3, total: 5, open: 2, loggedMinutes: 250 })).body).toBe(
+      '3 planned · Due: ES (17:00)\nYesterday: 3 of 5 done · 4h 10m logged',
+    )
+  })
+
+  it('To-Do が無い日は記録だけ、記録が無い日は予定だけ', () => {
+    expect(yesterdayLine(MESSAGES.ja, y({ loggedMinutes: 45 }))).toBe('昨日: 記録 45分')
+    expect(yesterdayLine(MESSAGES.en, y({ done: 0, total: 2, open: 2 }))).toBe('Yesterday: 0 of 2 done')
+  })
+
+  it('昨日に To-Do も記録も無い・読めなかったときは昨日の行を出さない（今日が空なら今までの文）', () => {
+    expect(morningPayload(MESSAGES.ja, today, y({})).body).toBe('予定 3 件 ・ 締切: ES（17:00）')
+    expect(morningPayload(MESSAGES.ja, today, null).body).toBe('予定 3 件 ・ 締切: ES（17:00）')
+    expect(morningPayload(MESSAGES.en, { planned: 0, due: [], overdue: 0 }, null).body).toBe(MESSAGES.en.emptyDay)
+    expect(morningPayload(MESSAGES.en, { planned: 0, due: [], overdue: 0 }, y({ loggedMinutes: 60 })).body).toBe(
+      `${MESSAGES.en.emptyDay}\nYesterday: 1h logged`,
+    )
   })
 })
