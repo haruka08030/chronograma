@@ -1,7 +1,7 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
+import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
 import type { CreateIntent, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
@@ -21,6 +21,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
+import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
 
 /** 週タイムラインの 1 日の列（予定・記録・習慣・Google の予定のブロックと、ドラッグ・作成中の枠） */
 export function WeekDayColumn({
@@ -92,6 +93,7 @@ export function WeekDayColumn({
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
+  const activeTimer = useTaskStore((s) => s.activeTimer)
   const key = toDateKey(day)
   const dayTimed = timedByDate.get(key) ?? []
   const dayLogs = timeLogsByDate.get(key) ?? []
@@ -109,6 +111,9 @@ export function WeekDayColumn({
   const limitMin = logLimitMin(key)
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
+  // 過ぎた時間の「記録の無い時間」（起きてから寝るまで・今日は今まで、30 分以上）。記録の列に点線の枠で出し、押すとその時間で記録を作る
+  const gaps = splitLanes ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer) : []
+  const gapId = (g: { start: number }) => `gap-${g.start}`
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'
   // 1 日表示（今日の計画）は 予定 / 記録 の 2 列に固定。週表示は列が狭いので、記録と重なる塊だけ左右に分け、
@@ -130,7 +135,15 @@ export function WeekDayColumn({
         ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
       })),
     ],
-    dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+    [
+      ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+      // 記録の無い時間も記録の列のもの（週表示でも予定と左右に分け、枠が予定の下に隠れないように）
+      ...gaps.map((g) => {
+        const top = (g.start / 60) * HOUR_HEIGHT
+        const height = ((g.end - g.start) / 60) * HOUR_HEIGHT
+        return { id: gapId(g), top, height, span: height }
+      }),
+    ],
     mode,
     fixedLanes,
   )
@@ -189,6 +202,45 @@ export function WeekDayColumn({
       ))}
 
       {isNowOnDay(day) && <NowIndicator />}
+
+      {gaps.map((g) => {
+        const startTime = minutesToTime(g.start)
+        const endTime = minutesToTime(g.end)
+        return (
+          <button
+            key={gapId(g)}
+            type="button"
+            data-unrecorded-gap
+            className="group absolute flex items-start justify-center overflow-hidden rounded-[5px] border border-dashed
+              border-zinc-300 pt-0.5 text-[10px] leading-tight text-zinc-400 transition-colors
+              hover:border-accent-400 hover:bg-accent-500/5 hover:text-accent-600
+              focus-visible:border-accent-500 focus-visible:outline-none
+              dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-accent-400 dark:hover:text-accent-300"
+            // 記録だけの塊は全幅に広がるが、記録の無い時間は常に記録の列（右半分）に収める（週表示で目立たせない）
+            style={{
+              left: 'calc(50% + 2px)',
+              width: 'calc(50% - 4px)',
+              top: (g.start / 60) * HOUR_HEIGHT + 1,
+              height: ((g.end - g.start) / 60) * HOUR_HEIGHT - 2,
+            }}
+            aria-label={t('weekCalendar.unrecordedGapAria', { start: startTime, end: endTime })}
+            title={t('weekCalendar.unrecordedGapAria', { start: startTime, end: endTime })}
+            // 列の「押して作る」を始めない（押すと枠の時間そのままで後から記録のカードを出す）
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              if (timelineDrag.popup) return
+              onSelectDate?.(key)
+              timelineDrag.openPopup({ dateKey: key, startTime, endTime, intent: 'log' })
+            }}
+          >
+            <span className="truncate px-1 tabular-nums">
+              <span aria-hidden>+</span>
+              {/* 週表示は列が狭いので「+」だけ（長さは押す前に title で分かる） */}
+              {mode === 'columns' && <span> {t('weekCalendar.unrecordedGap', { time: formatDuration(g.end - g.start) })}</span>}
+            </span>
+          </button>
+        )
+      })}
 
       {dayTimed.map((t) => (
         <div key={t.id} style={{ opacity: timelineDrag.movingTaskId === t.id ? 0.3 : 1 }}>

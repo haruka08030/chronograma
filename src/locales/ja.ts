@@ -172,6 +172,8 @@ export default {
     summaryPlanned: '予定 {{time}}',
     summaryPlannedFree: '予定 {{time}} / 空き {{free}}',
     summaryLogged: '記録 {{time}}',
+    summaryUnrecorded: '記録なし {{time}}',
+    summaryUnrecordedHint: '起きている間（今日は今まで）で、30 分以上記録の無い時間の合計。タイムラインの点線の枠を押すと記録できます',
     minutes: '{{m}}分',
     hours: '{{h}}時間',
     hoursMinutes: '{{h}}時間{{m}}分',
@@ -322,6 +324,8 @@ export default {
     insightNoBlocksNoDone: '大事なものに時間を割り当てると、予定と記録を比べられます。',
     insightSteady: '着実に進んでいます。',
     insightNoDone: '記録は {{time}}。完了したタスクはまだありません。',
+    unrecorded: '記録なし {{time}}',
+    unrecordedHint: '起きている間で、30 分以上記録の無い時間の合計',
   },
   install: {
     title: 'アプリとして使う',
@@ -1059,6 +1063,8 @@ export default {
     allDay: '終日',
     allDayExpand: 'すべて表示',
     allDayCollapse: 'たたむ',
+    unrecordedGap: '記録なし {{time}}',
+    unrecordedGapAria: '記録なし {{start}}–{{end}}（押すとこの時間の記録を作る）',
   },
   calendarDayPanel: {
     plannedTab: '予定 / To-Do',

@@ -183,6 +183,9 @@ export default {
     summaryPlanned: '{{time}} planned',
     summaryPlannedFree: '{{time}} planned / {{free}} free',
     summaryLogged: '{{time}} logged',
+    summaryUnrecorded: '{{time}} unrecorded',
+    summaryUnrecordedHint:
+      'Total of gaps of 30 minutes or more with no record while awake (today: until now). Click a dashed frame on the timeline to record it',
     minutes: '{{m}}m',
     hours: '{{h}}h',
     hoursMinutes: '{{h}}h {{m}}m',
@@ -334,6 +337,8 @@ export default {
     insightNoBlocksNoDone: 'Blocking time for the important ones lets you compare plan and actual.',
     insightNoDone: 'Logged {{time}}. No tasks done yet.',
     insightSteady: 'Steady progress.',
+    unrecorded: '{{time}} unrecorded',
+    unrecordedHint: 'Total of gaps of 30 minutes or more with no record while awake',
   },
   install: {
     title: 'Use as an app',
@@ -1093,6 +1098,8 @@ export default {
     allDay: 'All day',
     allDayExpand: 'Show all',
     allDayCollapse: 'Collapse',
+    unrecordedGap: '{{time}} unrecorded',
+    unrecordedGapAria: 'Unrecorded {{start}}–{{end}} (click to record this time)',
   },
   calendarDayPanel: {
     plannedTab: 'Planned / To-do',

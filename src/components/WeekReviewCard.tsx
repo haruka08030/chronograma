@@ -144,6 +144,9 @@ export function WeekReviewCard() {
       value: formatDuration(review.loggedMinutes),
       // 前の週との差は事実だけ（減っても色を付けない）。前の週に記録が無ければ出さない
       sub: loggedDiff == null ? null : loggedDiffText(loggedDiff, period, atCurrent, t),
+      // 記録の無い時間（起きている間の 30 分以上の抜け）も同じ枠に小さく
+      note: review.unrecordedMinutes > 0 ? t('weekReview.unrecorded', { time: formatDuration(review.unrecordedMinutes) }) : null,
+      noteTitle: t('weekReview.unrecordedHint'),
     },
     { label: t(atCurrent ? keys.habitsCurrent : keys.habits), value: pct(review.habitRate), sub: null },
   ]
@@ -190,6 +193,11 @@ export function WeekReviewCard() {
             <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{tile.label}</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{tile.value}</dd>
             {tile.sub && <dd className="text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500">{tile.sub}</dd>}
+            {'note' in tile && tile.note && (
+              <dd className="text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500" {...tip(tile.noteTitle)}>
+                {tile.note}
+              </dd>
+            )}
           </div>
         ))}
       </dl>

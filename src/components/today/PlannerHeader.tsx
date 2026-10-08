@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { DayLoad } from '../../lib/dayLoad'
@@ -12,6 +12,10 @@ import { SleepRow } from '../SleepRow'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
 import { SUBTLE_TEXT } from '../ui/textClass'
+import { useNow } from '../../hooks/useAppClock'
+import { logLimitAt } from '../../lib/timelineBlockEdit'
+import { unplannedListIds } from '../../lib/listKind'
+import { unrecordedMinutesOnDay } from '../../lib/unrecordedGaps'
 
 /** 今日の計画の上: 題名と日付・日の移動・睡眠・記録と予定の合計・記録のパネル */
 export function PlannerHeader({
@@ -44,6 +48,16 @@ export function PlannerHeader({
     : overCapacity
       ? t('planner.overCapacity', { planned: plannedTime, free: freeTime })
       : t('weekCalendar.freeTimeHint', { free: freeTime })
+  const tasks = useTaskStore((s) => s.tasks)
+  const lists = useTaskStore((s) => s.lists)
+  const activeTimer = useTaskStore((s) => s.activeTimer)
+  const now = useNow()
+  const nowMinute = Math.floor(now.getTime() / 60_000)
+  // 記録の無い時間（タイムラインの点線の枠の合計）。今日は今まで、先の日は 0
+  const unrecorded = useMemo(
+    () => unrecordedMinutesOnDay(tasks, dateKey, logLimitAt(new Date(nowMinute * 60_000)), activeTimer, unplannedListIds(lists)),
+    [tasks, lists, dateKey, activeTimer, nowMinute],
+  )
   // スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く）
   return (
     <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
@@ -63,20 +77,28 @@ export function PlannerHeader({
         </div>
       )}
       {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
-      {(loggedMinutes > 0 || plannedMinutes > 0) && (
-        <div className="mt-3 flex items-baseline justify-between gap-3 md:mt-5">
-          {loggedMinutes > 0 ? (
-            <span className="text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
+      {(loggedMinutes > 0 || plannedMinutes > 0 || unrecorded > 0) && (
+        // 狭い幅では予定・空きを次の行の右へ送る（記録・記録なしの行と予定の行が互いに折り返して読みにくくならないように）
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 md:mt-5">
+          {loggedMinutes > 0 && (
+            <span className="whitespace-nowrap text-sm font-medium tabular-nums text-zinc-800 dark:text-zinc-200">
               {t('planner.summaryLogged', { time: formatDuration(loggedMinutes) })}
             </span>
-          ) : (
-            <span />
+          )}
+          {/* 記録の無い時間は小さく横に（責めない。タイムラインの点線の枠を押すと埋められる） */}
+          {unrecorded > 0 && (
+            <span
+              className="whitespace-nowrap text-xs tabular-nums text-zinc-400 dark:text-zinc-500"
+              {...tip(t('planner.summaryUnrecordedHint'))}
+            >
+              {t('planner.summaryUnrecorded', { time: formatDuration(unrecorded) })}
+            </span>
           )}
           {plannedMinutes > 0 && (
             <span
               {...tip(plannedHint)}
               data-day-free={showFree ? (overCapacity ? 'over' : 'ok') : undefined}
-              className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+              className={`ml-auto min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
             >
               {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
               {showFree
@@ -89,7 +111,7 @@ export function PlannerHeader({
         </div>
       )}
       {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すと分類ごとの時間を開く */}
-      <div className={loggedMinutes > 0 || plannedMinutes > 0 ? 'mt-2' : 'mt-4'}>
+      <div className={loggedMinutes > 0 || plannedMinutes > 0 || unrecorded > 0 ? 'mt-2' : 'mt-4'}>
         <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} />
       </div>
     </header>

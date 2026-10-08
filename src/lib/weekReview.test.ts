@@ -242,3 +242,37 @@ describe('getReview: 月（#304）', () => {
     expect(getReview([], [h], 'month', new Date('2026-09-15T12:00:00'), new Set(), now).habitRate).toBe(0)
   })
 })
+
+describe('getWeekReview: 記録なしの時間（#298）', () => {
+  const log = (id: string, dueDate: string, startTime: string, endTime: string, over: Partial<Task> = {}) =>
+    task(id, { kind: 'log', completed: true, dueDate, startTime, endTime, ...over })
+
+  it('過ぎた日は記録の最初〜最後（睡眠があれば起きてから寝るまで）、今日は今までの 30 分以上の抜けを足す', () => {
+    const tasks = [
+      // 10/2（金）: 睡眠の記録が無いので記録の最初〜最後。10:00–12:00 が抜け
+      log('a', '2026-10-02', '09:00', '10:00'),
+      log('b', '2026-10-02', '12:00', '13:00'),
+      // 10/3（土・今日）: 7:00 に起きて 8:00–9:00 だけ記録。今は 10:00 → 7:00–8:00 と 9:00–10:00
+      log('s', '2026-10-03', '00:30', '07:00', { kind: 'sleep' }),
+      log('c', '2026-10-03', '08:00', '09:00'),
+    ]
+    const review = getWeekReview(tasks, [], at('10:00'), new Set(), at('10:00'))
+    expect(review.days.find((d) => d.dateKey === '2026-10-02')!.unrecordedMinutes).toBe(120)
+    expect(review.days.find((d) => d.dateKey === '2026-10-03')!.unrecordedMinutes).toBe(120)
+    expect(review.unrecordedMinutes).toBe(240)
+  })
+
+  it('月のふりかえりでも、月の日ごとの記録なしを足す（前の週の日も同じ月なら入る）', () => {
+    const tasks = [
+      // 9/30 は 9 月なので 10 月には入らない
+      log('x', '2026-09-30', '09:00', '10:00'),
+      log('y', '2026-09-30', '12:00', '13:00'),
+      log('a', '2026-10-01', '09:00', '10:00'),
+      log('b', '2026-10-01', '11:00', '12:00'),
+      log('c', '2026-10-02', '09:00', '10:00'),
+      log('d', '2026-10-02', '12:00', '13:00'),
+    ]
+    const review = getReview(tasks, [], 'month', at('10:00'), new Set(), at('10:00'))
+    expect(review.unrecordedMinutes).toBe(60 + 120)
+  })
+})
