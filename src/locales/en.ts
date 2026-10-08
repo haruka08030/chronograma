@@ -32,6 +32,8 @@ export default {
     planned: 'Planned',
     completed: 'Done',
     allDay: 'All day',
+    showMore: 'Show more',
+    showMoreCount: 'Show more ({{count}} left)',
   },
   // Date display formats (date-fns). Only lib/dateFormat.ts (formatDate / useDateFormat) reads these
   dateFormat: {
@@ -969,8 +971,15 @@ export default {
   },
   search: {
     title: 'Search results',
-    countLine: '“{{query}}” · {{count}}',
+    countLine: '“{{query}}” · {{count}} to-dos',
+    countLine_one: '“{{query}}” · {{count}} to-do',
     empty: 'No matching tasks',
+    noTodos: 'No matching to-dos',
+    records: 'Records',
+    recordsCount: '{{count}} records',
+    recordsCount_one: '{{count}} record',
+    showRecords: 'Show records',
+    hideRecords: 'Hide records',
   },
   palette: {
     label: 'Search palette',
@@ -1185,7 +1194,6 @@ export default {
     modeSchedule: 'Schedule',
     scheduleEmpty: 'Nothing scheduled yet',
     emptyHint: 'Click an empty time to add an event or to-do',
-    scheduleMore: 'Show more',
     dropToUnschedule: 'Drop here to unschedule',
     calendarTabsAria: 'Calendar view',
     dockToggle: 'Tasks without a time',

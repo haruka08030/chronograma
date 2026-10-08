@@ -25,6 +25,7 @@ import { isEventTask, type Task } from '../types/task'
 import { planHex, planVisualState } from '../lib/planVisual'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { compareByOrder } from '../lib/orderCompare'
+import { ShowMoreButton } from './ui/ShowMoreButton'
 
 /** 最初に並べる日数と「さらに表示」で足す日数 */
 const SCHEDULE_PAGE_DAYS = 30
@@ -159,15 +160,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
             )
           })
         )}
-        <div className="flex justify-center pt-3">
-          <button
-            type="button"
-            onClick={() => setPages((p) => p + 1)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            {t('calendarHub.scheduleMore')}
-          </button>
-        </div>
+        <ShowMoreButton onClick={() => setPages((p) => p + 1)} />
       </div>
       <OverlaySuspense>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}

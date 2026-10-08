@@ -32,6 +32,8 @@ export default {
     planned: '予定',
     completed: '完了',
     allDay: '終日',
+    showMore: 'さらに表示',
+    showMoreCount: 'さらに表示（残り {{count}} 件）',
   },
   // 日付の表示形式（date-fns）。使うのは lib/dateFormat.ts の formatDate / useDateFormat だけ。曜日の括弧は半角＋前に空白
   dateFormat: {
@@ -939,8 +941,13 @@ export default {
   },
   search: {
     title: '検索結果',
-    countLine: '「{{query}}」{{count}} 件',
+    countLine: '「{{query}}」To-Do {{count}} 件',
     empty: '一致するタスクが見つかりません',
+    noTodos: '一致する To-Do はありません',
+    records: '記録',
+    recordsCount: '記録 {{count}} 件',
+    showRecords: '記録を見る',
+    hideRecords: '記録を閉じる',
   },
   palette: {
     label: '検索パレット',
@@ -1142,7 +1149,6 @@ export default {
     modeSchedule: 'スケジュール',
     scheduleEmpty: 'これからの予定はまだありません',
     emptyHint: '空いている時間を押すと、予定や To-Do を追加できます',
-    scheduleMore: 'さらに表示',
     dropToUnschedule: 'ここに落とすと日付を外して To-Do に戻します',
     calendarTabsAria: 'カレンダー表示',
     dockToggle: '時間未定のタスク',

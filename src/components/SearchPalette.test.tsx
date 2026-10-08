@@ -57,6 +57,17 @@ describe('SearchPalette（⌘K）', () => {
     expect(screen.getByRole('button', { name: 'before' })).toHaveFocus()
   })
 
+  it('記録は出さない（To-Do の検索欄と同じ searchTasks。#288）', async () => {
+    const s = useTaskStore.getState()
+    s.addTask('Buy milk')
+    s.addTimeLog('Buy groceries', '2026-10-01', '09:00', '10:00', [])
+    const user = await openPalette()
+    await user.type(screen.getByRole('combobox'), 'buy')
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(1)
+    expect(options[0]).toHaveTextContent('Buy milk')
+  })
+
   it('打つと題名で絞り、↑↓ で選んで Enter で詳細を開く（閉じてから）', async () => {
     const s = useTaskStore.getState()
     s.addTask('Buy milk')

@@ -10,12 +10,14 @@ import { isLogTask, type Task } from '../types/task'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useShowMore } from '../hooks/useShowMore'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { TaskItem } from './TaskItem'
 import { CompletedSubtreeRows } from './todo/subtaskRows'
 import { CheckCircleIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
 import { SectionLabel } from './ui/SectionLabel'
+import { ShowMoreButton } from './ui/ShowMoreButton'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
@@ -31,7 +33,8 @@ const SUBTASK_NEST = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl
 /**
  * 完了した To-Do をリストをまたいで集める（アーカイブ・ゴミ箱と同じ並び）。完了した日ごとに新しい順。
  * チェックリスト（使い回す）といつか（かなえた）はリストの中に残すので出さない。
- * 見出しのじょうごでリスト・ラベル・期間（過去 7 日・30 日）に絞れる（覚えておく）
+ * 見出しのじょうごでリスト・ラベル・期間（過去 7 日・30 日）に絞れる（覚えておく）。
+ * 新しい順に 100 件だけ描き、「さらに表示」・最後の行で ↓ で足す（件数は全部の数）
  */
 export function CompletedTasksView() {
   const { t } = useTranslation()
@@ -47,7 +50,7 @@ export function CompletedTasksView() {
   const filter = useTaskStore((s) => s.completedFilter)
   const setFilter = useTaskStore((s) => s.setCompletedFilter)
 
-  const { days, childrenByParent, flatIds, count, pool } = useMemo(() => {
+  const { roots, childrenByParent, pool } = useMemo(() => {
     const byId = new Map(tasks.map((x) => [x.id, x]))
     const isTodoList = (listId: string) => (listById.get(listId)?.kind ?? 'tasks') === 'tasks'
     const isDone = (x: Task) => x.completed && !isLogTask(x) && isActiveTask(x)
@@ -69,8 +72,16 @@ export function CompletedTasksView() {
 
     const doneAt = (x: Task) => x.completedAt ?? x.updatedAt
     roots.sort((a, b) => doneAt(b).localeCompare(doneAt(a)))
+    return { roots, childrenByParent: children, pool: allRoots }
+  }, [tasks, listById, filter, todayKey])
+  const count = roots.length
+
+  // 1 年使えば数千行になるので、新しい順に 100 件（とそのサブタスク）だけ描き、「さらに表示」で足す（#288）
+  const { limit, remaining, showMore } = useShowMore(count, `${JSON.stringify(filter)}|${todayKey}`)
+  const { days, flatIds } = useMemo(() => {
+    const visible = roots.slice(0, limit)
     const grouped: { key: string; tasks: Task[] }[] = []
-    for (const x of roots) {
+    for (const x of visible) {
       const key = completionDayKey(x)
       const last = grouped[grouped.length - 1]
       if (last?.key === key) last.tasks.push(x)
@@ -80,11 +91,11 @@ export function CompletedTasksView() {
     const flat: string[] = []
     const walk = (id: string) => {
       flat.push(id)
-      for (const c of children.get(id) ?? []) walk(c.id)
+      for (const c of childrenByParent.get(id) ?? []) walk(c.id)
     }
-    for (const x of roots) walk(x.id)
-    return { days: grouped, childrenByParent: children, flatIds: flat, count: roots.length, pool: allRoots }
-  }, [tasks, listById, filter, todayKey])
+    for (const x of visible) walk(x.id)
+    return { days: grouped, flatIds: flat }
+  }, [roots, childrenByParent, limit])
 
   const filterMenu = useTaskFilterMenu({ filter, setFilter, keys: COMPLETED_FILTER_KEYS, pool })
   const periodLabel = (days: number) => t('filter.periodDays', { count: days })
@@ -118,6 +129,7 @@ export function CompletedTasksView() {
     removeRows: deleteTasks,
     completeRows: bulk.toggleComplete,
     openMenu,
+    onShowMore: showMore,
     resetOn: [],
   })
   useEffect(() => {
@@ -196,6 +208,7 @@ export function CompletedTasksView() {
             ))}
           </div>
         )}
+        {days.length > 0 && showMore && <ShowMoreButton onClick={showMore} remaining={remaining} />}
       </div>
     </div>
   )
