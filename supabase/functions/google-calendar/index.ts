@@ -4,7 +4,7 @@ import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
-import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
+import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
 // 使うのは primary カレンダーだけなので、いちばん狭いものにしている。`src/lib/googleCalendar.ts` とそろえる
@@ -275,7 +275,7 @@ Deno.serve(
 
       const tokenContext = secretContext.google(user.id)
       /**
-       * 保存してある接続（リフレッシュトークンは開いたもの）。暗号化する前の行は、読んだついでに暗号化して書き直す
+       * 保存してある接続（リフレッシュトークンは開いたもの）。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
        */
       const loadConnection = async (): Promise<{
         row: { refresh_token: string; scope: string | null } | null
@@ -284,11 +284,12 @@ Deno.serve(
         const { data, error } = await admin.from('google_oauth').select('refresh_token, scope').eq('user_id', user.id).maybeSingle()
         if (error || !data?.refresh_token) return { row: null, error }
         const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
-        if (needsSeal(data.refresh_token as string)) {
+        if (await needsReseal(data.refresh_token as string)) {
           await admin
             .from('google_oauth')
             .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
             .eq('user_id', user.id)
+            .eq('refresh_token', data.refresh_token as string)
         }
         return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
       }

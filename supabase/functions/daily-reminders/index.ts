@@ -2,9 +2,12 @@
 // the evening wrap-up with the day's numbers, and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
-// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET
+// 回の終わりに、連携のトークンのうち今の鍵で閉じていない行を少しずつ閉じ直す（`_shared/tokenSweep.ts`、鍵の入れ替え）。
+//
+// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:... or https://...), CRON_SECRET,
+// TOKEN_ENCRYPTION_KEY / TOKEN_ENCRYPTION_PREVIOUS_KEYS (closing tokens again with the current key)
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by the platform)
-import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.103.0'
 import webpush from 'npm:web-push@3.6.7'
 import {
   CRON_INTERVAL_MINUTES,
@@ -20,8 +23,12 @@ import {
 import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
 import { wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
+import { keyRing } from '../_shared/secretBox.ts'
+import { resealStaleTokens, type SweepDb } from '../_shared/tokenSweep.ts'
 import {
-  fetchAllPages,
+  afterPairFilter,
+  chunks,
+  fetchAllAfter,
   groupBy,
   runFinishPatch,
   runPool,
@@ -60,6 +67,33 @@ const MAX_SENT_KEYS = 300
 const USER_CONCURRENCY = 10
 /** 1 通の送信を待つ上限。応答しないプッシュサービスで枠を塞がない */
 const SEND_TIMEOUT_MS = 10_000
+
+/** いつか / チェックリストのリストを読むとき、1 回の問い合わせに並べる利用者の数（URL の長さを抑える） */
+const LIST_USERS_PER_QUERY = 100
+/** 1 回に閉じ直すトークンの行の数（表ごと） */
+const TOKEN_SWEEP_LIMIT = 100
+
+/** 閉じ直す処理の DB の読み書き。今の鍵の形で始まらない値のある行だけを読む（null の列は数えない） */
+function tokenSweepDb(admin: SupabaseClient): SweepDb {
+  return {
+    async stale(table, key, columns, prefix, limit) {
+      let query = admin
+        .from(table)
+        .select([...key, ...columns].join(','))
+        .or(columns.map((c) => `${c}.not.like.${prefix}*`).join(','))
+      for (const k of key) query = query.order(k)
+      const { data, error } = await query.limit(limit)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as unknown as Record<string, string | null>[]
+    },
+    async update(table, match, patch) {
+      let query = admin.from(table).update(patch)
+      for (const [k, v] of Object.entries(match)) query = query.eq(k, v ?? '')
+      const { error } = await query
+      if (error) throw new Error(error.message)
+    },
+  }
+}
 
 /** 秘密の値を比べる。かかる時間から一致した長さが分からないよう、両方のハッシュを全バイト比べる */
 async function secretEquals(given: string, expected: string): Promise<boolean> {
@@ -127,65 +161,83 @@ Deno.serve(async (req) => {
     if (stat.error) console.error('[daily-reminders] save run stats failed', stat.error)
   }
 
-  // 1 回に返るのは 1000 行まで。主キーの順にページを読み切る（読み終えてから送るので、途中で消しても行はずれない）
+  // 1 回に返るのは 1000 行まで。主キーの順に、前のページの最後のキーより後ろを読み切る（読み終えてから送るので、途中で消しても行はずれない）
   let subs: Sub[]
   try {
-    subs = await fetchAllPages(async (from, to) => {
-      const { data, error } = await admin
-        .from('push_subscriptions')
-        .select('*')
-        .or(
-          'plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null',
-        )
-        .order('endpoint')
-        .range(from, to)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as Sub[]
-    })
+    subs = await fetchAllAfter(
+      async (after: string | null, limit) => {
+        let query = admin
+          .from('push_subscriptions')
+          .select('*')
+          .or(
+            'plan_time.not.is.null,wrap_up_time.not.is.null,event_reminder_minutes.not.is.null,due_reminders.is.true,record_prompts.is.true,timer_started_at.not.is.null',
+          )
+        if (after !== null) query = query.gt('endpoint', after)
+        const { data, error } = await query.order('endpoint').limit(limit)
+        if (error) throw new Error(error.message)
+        return (data ?? []) as Sub[]
+      },
+      (s) => s.endpoint,
+    )
   } catch (err) {
     console.error('[daily-reminders] load subscriptions failed', err)
     await finishRun({ checked: 0, sent: 0, removed: 0, failed: 1 })
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
-  /** いつか / チェックリストのリスト（予定・締切・その日の数字に入れない） */
-  const excludedLists = async (userId: string): Promise<Set<string>> => {
-    const unplanned = await fetchAllPages(async (from, to) => {
-      const { data, error } = await admin
-        .from('lists')
-        .select('id')
-        .eq('user_id', userId)
-        .in('kind', ['someday', 'checklist'])
-        .order('id')
-        .range(from, to)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as { id: string }[]
-    })
-    return new Set(unplanned.map((l) => l.id))
+  /**
+   * いつか / チェックリストのリスト（予定・締切・その日の数字に入れない）を、要る人の分だけまとめて読む（1 人ずつ読まない）。
+   * 100 人ずつ `in` に並べ、(user_id, id) の順に前のページの続きから読む
+   */
+  const loadExcludedLists = async (userIds: readonly string[]): Promise<Map<string, Set<string>>> => {
+    const byUser = new Map<string, Set<string>>()
+    for (const group of chunks(userIds, LIST_USERS_PER_QUERY)) {
+      const rows = await fetchAllAfter(
+        async (after: readonly [string, string] | null, limit) => {
+          let query = admin.from('lists').select('user_id,id').in('user_id', group).in('kind', ['someday', 'checklist'])
+          if (after) query = query.or(afterPairFilter('user_id', 'id', after))
+          const { data, error } = await query.order('user_id').order('id').limit(limit)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as { user_id: string; id: string }[]
+        },
+        (l) => [l.user_id, l.id] as const,
+      )
+      for (const l of rows) {
+        const set = byUser.get(l.user_id)
+        if (set) set.add(l.id)
+        else byUser.set(l.user_id, new Set([l.id]))
+      }
+    }
+    return byUser
   }
 
   /**
    * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
-   * 1 回に返るのは 1000 行まで。主キー（id）の順にページを読み切る
+   * 条件は部分索引 `tasks_reminder_open_idx`（migration 026）と同じ形にする（completed / is_time_log は `is false`。
+   * 形が違うと索引を使えず、完了・削除・記録の行も含めて 1 人分を全部なめる）。
+   * 1 回に返るのは 1000 行まで。id の順に、前のページの最後の id より後ろを読み切る
    */
   const openTasks = async (userId: string, excluded: ReadonlySet<string>): Promise<ReminderTask[]> => {
     // 読めなかったら送らない（空のまとめを送って last_plan_sent を進めない。次の回にやり直す）
-    const rows = await fetchAllPages(async (from, to) => {
-      const { data, error } = await admin
-        .from('tasks')
-        .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
-        .eq('user_id', userId)
-        .eq('completed', false)
-        .eq('is_time_log', false)
-        .is('parent_id', null)
-        .is('deleted_at', null)
-        .is('archived_at', null)
-        .or('scheduled_date.not.is.null,due_date.not.is.null')
-        .order('id')
-        .range(from, to)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as ReminderTask[]
-    })
+    const rows = await fetchAllAfter(
+      async (after: string | null, limit) => {
+        let query = admin
+          .from('tasks')
+          .select('id,title,list_id,scheduled_date,due_date,due_time,start_time,end_time,end_date,reminders')
+          .eq('user_id', userId)
+          .is('completed', false)
+          .is('is_time_log', false)
+          .is('parent_id', null)
+          .is('deleted_at', null)
+          .is('archived_at', null)
+          .or('scheduled_date.not.is.null,due_date.not.is.null')
+        if (after !== null) query = query.gt('id', after)
+        const { data, error } = await query.order('id').limit(limit)
+        if (error) throw new Error(error.message)
+        return (data ?? []) as ReminderTask[]
+      },
+      (t) => t.id,
+    )
     return rows.filter((t) => !excluded.has(t.list_id))
   }
 
@@ -194,21 +246,24 @@ Deno.serve(async (req) => {
    * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む。読めなかったら送らない（次の回にやり直す）
    */
   const dayDigest = async (userId: string, today: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
-    const rows = await fetchAllPages(async (from, to) => {
-      const { data, error } = await admin
-        .from('tasks')
-        .select(
-          'id,list_id,parent_id,is_time_log,is_sleep,is_event,completed,completed_at,updated_at,scheduled_date,due_date,start_time,end_time,end_date',
-        )
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .is('archived_at', null)
-        .or(wrapUpRowFilter(today))
-        .order('id')
-        .range(from, to)
-      if (error) throw new Error(error.message)
-      return (data ?? []) as WrapUpRow[]
-    })
+    const rows = await fetchAllAfter(
+      async (after: string | null, limit) => {
+        let query = admin
+          .from('tasks')
+          .select(
+            'id,list_id,parent_id,is_time_log,is_sleep,is_event,completed,completed_at,updated_at,scheduled_date,due_date,start_time,end_time,end_date',
+          )
+          .eq('user_id', userId)
+          .is('deleted_at', null)
+          .is('archived_at', null)
+          .or(wrapUpRowFilter(today))
+        if (after !== null) query = query.gt('id', after)
+        const { data, error } = await query.order('id').limit(limit)
+        if (error) throw new Error(error.message)
+        return (data ?? []) as WrapUpRow[]
+      },
+      (t) => t.id,
+    )
     return wrapUpDigest(rows, today, timeZone, excluded)
   }
 
@@ -341,7 +396,8 @@ Deno.serve(async (req) => {
     if (valid.length === 0) return
     const userId = valid[0].user_id
     const wantsDigest = valid.some(wrapUpWindow)
-    const excluded = valid.some(needsTasks) || wantsDigest ? await excludedLists(userId) : new Set<string>()
+    if ((valid.some(needsTasks) || wantsDigest) && !excludedByUser) throw new Error('lists not loaded')
+    const excluded = excludedByUser?.get(userId) ?? new Set<string>()
     const tasks = valid.some(needsTasks) ? await openTasks(userId, excluded) : []
     // 夜の締めの数字は、日（端末のタイムゾーン）ごとに 1 回だけ読む
     // 読めなかったら夜の締めだけを送らない（ほかの通知は送る。印を残さないので次の回にやり直す）
@@ -370,6 +426,15 @@ Deno.serve(async (req) => {
     }
   }
 
+  // いつか / チェックリストのリストは、予定・締切・夜の締めの数字を使う人の分だけ、回の初めにまとめて読む。
+  // 読めなければその人たちの分は送らずに失敗に数える（last_ok_at を進めないので、次の回にやり直す）
+  let excludedByUser: Map<string, Set<string>> | null = null
+  try {
+    excludedByUser = await loadExcludedLists([...new Set(subs.filter((s) => needsTasks(s) || wrapUpWindow(s)).map((s) => s.user_id))])
+  } catch (err) {
+    console.error('[daily-reminders] load lists failed', err)
+  }
+
   const results = await runPool(
     groupBy(subs, (s) => s.user_id),
     USER_CONCURRENCY,
@@ -384,8 +449,18 @@ Deno.serve(async (req) => {
 
   await finishRun({ checked: subs.length, sent, removed, failed })
 
+  // 連携のトークンの閉じ直し。通知の回の成否には数えない（失敗はログだけ。次の回にまた試す）
+  let resealed = 0
+  try {
+    const sweep = await resealStaleTokens(tokenSweepDb(admin), keyRing(), TOKEN_SWEEP_LIMIT)
+    resealed = sweep.resealed
+    if (sweep.unreadable > 0) console.warn('[daily-reminders] token sweep: unreadable values', sweep.unreadable)
+  } catch (err) {
+    console.error('[daily-reminders] token sweep failed', err instanceof Error ? err.message : err)
+  }
+
   // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
-  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed }), {
+  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed, resealed }), {
     status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })

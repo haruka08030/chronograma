@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
-import { needsSeal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
+import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -226,13 +226,14 @@ Deno.serve(
         if (error) throw new Error(error.message)
         const row = data as { token: string; database_id: string; config: NotionConfig } | null
         if (!row) return null
-        // トークンは暗号化して置く。暗号化する前の行は、読んだついでに書き直す
+        // トークンは暗号化して置く。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す（読んだときの値のままの行だけ）
         const token = await openSecret(row.token, tokenContext)
-        if (needsSeal(row.token)) {
+        if (await needsReseal(row.token)) {
           await admin
             .from('notion_connection')
             .update({ token: await sealSecret(token, tokenContext) })
             .eq('user_id', user.id)
+            .eq('token', row.token)
         }
         return { ...row, token }
       }
