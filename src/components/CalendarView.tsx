@@ -247,7 +247,7 @@ export function CalendarView({
                   dragTaskIdRef.current = null
                 }}
               >
-                <div className="mb-1 flex items-center justify-between gap-1">
+                <div className="relative mb-1 flex items-center gap-1">
                   <div
                     className={`text-xs w-6 h-6 shrink-0 flex items-center justify-center rounded-full
                     ${
@@ -260,8 +260,16 @@ export function CalendarView({
                   >
                     {format(day, 'd')}
                   </div>
-                  {/* 祝日は日付の横に名前だけ（行を使わない。月の外の日は日付と同じく薄く）。スマホ幅は横に入らないので下の行へ */}
-                  {holiday && <HolidayLabel name={holiday} className={`min-w-0 flex-1 max-md:hidden ${inMonth ? '' : 'opacity-60'}`} />}
+                  {/* 祝日は日付の横に名前だけ（行を使わない。月の外の日は日付と同じく薄く）。スマホ幅は横に入らないので下の行へ。
+                      ＋ は右端に重ねて置くので、名前が場所を譲るのは ＋ が見えている間（選んだマス・マウスを乗せた・キーで選んだ）だけ */}
+                  {holiday && (
+                    <HolidayLabel
+                      name={holiday}
+                      className={`min-w-0 flex-1 max-md:hidden ${inMonth ? '' : 'opacity-60'} ${
+                        selected ? 'pr-5' : '[@media(hover:hover)]:group-hover:pr-5 group-focus-within:pr-5'
+                      }`}
+                    />
+                  )}
                   <CalendarAddTaskButton
                     onClick={(e) => {
                       e.stopPropagation()
@@ -269,7 +277,7 @@ export function CalendarView({
                       setAddingDate(key)
                     }}
                     // マウスではマスに乗せたとき出す。タッチでは選んだマスだけに出す（全部のマスに並べるとごちゃつく。透明のまま押せる場所も作らない）
-                    className={`h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                    className={`absolute right-0 top-1 h-4 w-4 p-px transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
                       selected ? 'opacity-60' : '[@media(hover:hover)]:opacity-0 [@media(hover:none)]:hidden'
                     }`}
                   />
