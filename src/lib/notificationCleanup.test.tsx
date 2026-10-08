@@ -111,6 +111,19 @@ describe('installNotificationCleanup', () => {
     useTaskStore.getState().stopTimer()
     await waitFor(() => expect(sw.closedTags()).toEqual(['chronograma-timer']))
   })
+
+  it('「あと何分」の時間の通知（#290）は、止めたとき・終わりを選び直したときに閉じる', async () => {
+    const startedAt = new Date(Date.now() - 3600_000).toISOString()
+    const endsAt = new Date(Date.now() - 60_000).toISOString()
+    useTaskStore.setState({ activeTimer: { taskTitle: 'x', startedAt, tags: [], endsAt } })
+    const sw = stubShownNotifications(['chronograma-timer-end'])
+    useTaskStore.getState().setTimerEnd(new Date(Date.now() + 25 * 60_000).toISOString())
+    await waitFor(() => expect(sw.closedTags()).toEqual(['chronograma-timer-end']))
+
+    const again = stubShownNotifications(['chronograma-timer-end'])
+    useTaskStore.getState().stopTimer()
+    await waitFor(() => expect(again.closedTags()).toEqual(['chronograma-timer-end']))
+  })
 })
 
 describe('記録の確認（RecordPromptHost）', () => {

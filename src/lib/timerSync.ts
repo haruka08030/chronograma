@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ActiveTimer } from '../store/storeTypes'
 import { pushSettingRow } from './supabaseData'
 import { settingSyncStep, type SettingPushResult, type SettingSyncDeps } from './settingSync'
+import { normalizeEndsAt } from './timerLength'
 
 export type RemoteActiveTimer = { timer: ActiveTimer | null; updatedAt: string }
 export type LocalActiveTimer = {
@@ -33,24 +34,31 @@ export type ActiveTimerSyncPlan = {
   adopt?: string
 }
 
-/** サーバー・保存から読んだタイマーをそろえる（時刻は ISO の UTC、無い項目は null） */
+/**
+ * サーバー・保存から読んだタイマーをそろえる（時刻は ISO の UTC、無い項目は null）。
+ * 「あと何分」の終わり（`endsAt`、#290）は付いているときだけ持つ（列の無い前の版の行・保存では項目ごと無い）
+ */
 export function normalizeActiveTimer(raw: unknown): ActiveTimer | null {
   const x = raw as Partial<ActiveTimer> | null | undefined
   if (!x || typeof x.taskTitle !== 'string' || typeof x.startedAt !== 'string') return null
   const ms = Date.parse(x.startedAt)
   if (!Number.isFinite(ms)) return null
+  const startedAt = new Date(ms).toISOString()
+  const endsAt = normalizeEndsAt(x.endsAt, startedAt)
   return {
     taskTitle: x.taskTitle,
-    startedAt: new Date(ms).toISOString(),
+    startedAt,
     tags: Array.isArray(x.tags) ? x.tags.filter((t): t is string => typeof t === 'string') : [],
     taskId: typeof x.taskId === 'string' ? x.taskId : null,
     color: typeof x.color === 'string' ? x.color : null,
+    ...(endsAt ? { endsAt } : {}),
   }
 }
 
+// 終わりを選び直しただけでも違うタイマーとして送る・取り込む（どの端末でも同じ残り時間になる）
 const timerKey = (t: ActiveTimer | null) => {
   const n = normalizeActiveTimer(t)
-  return n ? JSON.stringify([n.startedAt, n.taskTitle, n.tags, n.taskId, n.color]) : ''
+  return n ? JSON.stringify([n.startedAt, n.taskTitle, n.tags, n.taskId, n.color, n.endsAt ?? null]) : ''
 }
 
 export const sameActiveTimer = (a: ActiveTimer | null, b: ActiveTimer | null) => timerKey(a) === timerKey(b)
@@ -103,6 +111,8 @@ interface ActiveTimerRow {
   tags: unknown
   task_id: string | null
   color: string | null
+  /** 「あと何分」の終わり（`028`、#290）。null は終わりなし */
+  ends_at?: string | null
   updated_at: string
 }
 
@@ -110,7 +120,7 @@ interface ActiveTimerRow {
 export async function fetchActiveTimer(supabase: SupabaseClient, userId: string): Promise<RemoteActiveTimer | null | { error: string }> {
   const { data, error } = await supabase
     .from('user_active_timer')
-    .select('started_at, task_title, tags, task_id, color, updated_at')
+    .select('started_at, task_title, tags, task_id, color, ends_at, updated_at')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) return { error: error.message }
@@ -125,6 +135,7 @@ export async function fetchActiveTimer(supabase: SupabaseClient, userId: string)
           tags: row.tags,
           taskId: row.task_id,
           color: row.color,
+          endsAt: row.ends_at ?? null,
         })
   return { timer, updatedAt: String(row.updated_at) }
 }
@@ -146,6 +157,7 @@ export function pushActiveTimer(
       tags: t?.tags ?? [],
       task_id: t?.taskId ?? null,
       color: t?.color ?? null,
+      ends_at: t?.endsAt ?? null,
       updated_at: value.updatedAt,
     },
     base,

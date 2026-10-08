@@ -24,6 +24,8 @@ export const MESSAGES = {
     timerTitle: 'タイマーが動いたままです',
     timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
     stopTimer: '止める',
+    timerEndTitle: (title: string) => `「${title}」の時間です`,
+    timerEndBody: '記録は止めずに続けています',
     wrapUpTitle: '1 日を締める',
     wrapUpToday: (parts: string) => `今日: ${parts}`,
     wrapUpDone: (done: number, total: number) => `予定 ${total} 件中 ${done} 件完了`,
@@ -52,6 +54,8 @@ export const MESSAGES = {
     timerTitle: 'Your timer is still running',
     timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
     stopTimer: 'Stop',
+    timerEndTitle: (title: string) => `Time's up: "${title}"`,
+    timerEndBody: 'The timer keeps running until you stop it.',
     wrapUpTitle: 'Wrap up the day',
     wrapUpToday: (parts: string) => `Today: ${parts}`,
     wrapUpDone: (done: number, total: number) => `${done} of ${total} done`,
@@ -132,6 +136,21 @@ export function timerPayload(msg: Msg, title: string, startedAt: string): Payloa
     title: msg.timerTitle,
     body: msg.timerBody(title),
     tag: 'chronograma-timer',
+    url: '/?view=planner',
+    timerStartedAt: startedAt,
+    actions: [{ action: 'stop-timer', title: msg.stopTimer }],
+  }
+}
+
+/**
+ * 「あと何分」の時間になった（#290）。記録は止めない。「止める」は止め忘れと同じ動き（そのタイマーを止め、記録の詳細を開く）。
+ * 本文を押したときは動いているタイマーが見える今日の計画
+ */
+export function timerEndPayload(msg: Msg, title: string, startedAt: string): Payload {
+  return {
+    title: msg.timerEndTitle(title),
+    body: msg.timerEndBody,
+    tag: 'chronograma-timer-end',
     url: '/?view=planner',
     timerStartedAt: startedAt,
     actions: [{ action: 'stop-timer', title: msg.stopTimer }],

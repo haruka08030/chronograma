@@ -91,6 +91,23 @@ describe('planActiveTimerSync', () => {
     expect(normalizeActiveTimer({ taskTitle: 'x', startedAt: 'bad' })).toBeNull()
     expect(normalizeActiveTimer(null)).toBeNull()
   })
+
+  it('「あと何分」の終わり（#290）はそろえて持ち、無い・おかしい終わりは項目ごと持たない（前の版の行・保存）', () => {
+    expect(normalizeActiveTimer({ ...A, endsAt: '2026-10-03T18:25:00+09:00' })).toEqual({ ...A, endsAt: '2026-10-03T09:25:00.000Z' })
+    for (const endsAt of [undefined, null, 'bad', A.startedAt, '2026-10-05T09:00:00.000Z']) {
+      expect(normalizeActiveTimer({ ...A, endsAt })).not.toHaveProperty('endsAt')
+    }
+  })
+
+  it('終わりを選び直しただけでも手元の変更として送り、変えていない端末は取り込む', () => {
+    const withEnd = { ...A, endsAt: '2026-10-03T09:25:00.000Z' }
+    expect(planActiveTimerSync({ timer: withEnd, updatedAt: 't2', syncedAt: 'v1' }, { timer: A, updatedAt: 'v1' })).toEqual({
+      push: { timer: withEnd, updatedAt: 't2', base: 'v1' },
+    })
+    expect(planActiveTimerSync({ timer: A, updatedAt: 'v1', syncedAt: 'v1' }, { timer: withEnd, updatedAt: 'v2' })).toEqual({
+      apply: { timer: withEnd, updatedAt: 'v2' },
+    })
+  })
 })
 
 /**
@@ -164,6 +181,55 @@ describe('2 台の動いているタイマー（#301）', () => {
     await pc.sync()
     expect(pc.st.timer).toBeNull()
     expect([...pc.st.logs, ...phone.st.logs]).toEqual([{ title: 'ES', startedAt: A.startedAt, endedAt: '2026-10-03T10:00:00.000Z' }])
+  })
+
+  it('「あと何分」（#290）: PC で付けた終わりがスマホに出て、スマホで選び直すと PC も同じ残りになる', async () => {
+    const pc = device('pc')
+    const phone = device('phone')
+    await pc.sync()
+    await phone.sync()
+    pc.start('ES', A.startedAt)
+    await pc.sync()
+    await phone.sync()
+
+    pc.st.timer = { ...pc.st.timer!, endsAt: '2026-10-03T09:25:00.000Z' }
+    pc.st.updatedAt = '2026-10-03T09:01:00.000Z'
+    await pc.sync()
+    expect(row()).toMatchObject({ started_at: A.startedAt, ends_at: '2026-10-03T09:25:00.000Z' })
+    await phone.sync()
+    expect(phone.st.timer).toEqual({ ...A, endsAt: '2026-10-03T09:25:00.000Z' })
+
+    phone.st.timer = { ...phone.st.timer!, endsAt: '2026-10-03T10:30:00.000Z' }
+    phone.st.updatedAt = '2026-10-03T09:02:00.000Z'
+    await phone.sync()
+    await pc.sync()
+    expect(pc.st.timer?.endsAt).toBe('2026-10-03T10:30:00.000Z')
+
+    // 止めると記録は 1 本（終わりは記録に残さない）
+    pc.stop('2026-10-03T10:31:00.000Z')
+    await pc.sync()
+    await phone.sync()
+    expect(row()).toMatchObject({ started_at: null, ends_at: null })
+    expect(phone.st.timer).toBeNull()
+    expect([...pc.st.logs, ...phone.st.logs]).toEqual([{ title: 'ES', startedAt: A.startedAt, endedAt: '2026-10-03T10:31:00.000Z' }])
+  })
+
+  it('前の版のアプリが書いた行（ends_at の無い行）は終わりなしのタイマーとして読む', async () => {
+    db.tables.user_active_timer = [
+      {
+        user_id: 'u1',
+        started_at: '2026-10-03T09:00:00+00:00',
+        task_title: 'ES',
+        tags: [],
+        task_id: null,
+        color: null,
+        updated_at: '2026-10-03T00:00:00.000000+00:00',
+      },
+    ]
+    const phone = device('phone')
+    await phone.sync()
+    expect(phone.st.timer).toEqual(A)
+    expect(phone.st.timer).not.toHaveProperty('endsAt')
   })
 
   it('PC で動いているのを知らずにスマホで ▶: 後に始めたスマホのタイマーが残り、PC のタイマーはスマホを始めた時刻までの記録 1 本になる', async () => {

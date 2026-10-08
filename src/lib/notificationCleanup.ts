@@ -1,7 +1,7 @@
 /**
  * 済んだ件の通知を通知センターから閉じる。To-Do を完了にした・記録した・記録の確認を閉じた・消したとき
  * （同期で別の端末の完了が届いたときも）、この端末に出ている同じ件の開始前・締切・記録の確認の通知を閉じる。
- * タイマーを止めたら止め忘れの通知も閉じる。残しておくと、あとで「予定どおり」を押しても何も起きない
+ * タイマーを止めたら止め忘れ・「あと何分」の時間の通知も閉じる。残しておくと、あとで「予定どおり」を押しても何も起きない
  */
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -9,6 +9,8 @@ import { isActiveTask } from './taskLifecycle'
 
 /** 止め忘れの通知の tag（サーバー・`localReminders.ts` と同じ） */
 export const TIMER_NOTIFICATION_TAG = 'chronograma-timer'
+/** 「あと何分」の時間の通知の tag（#290。サーバーの `timerEndPayload`・`timerEndAlert.ts` と同じ） */
+export const TIMER_END_NOTIFICATION_TAG = 'chronograma-timer-end'
 
 /** 1 件ぶんの通知の tag（サーバーの `payload.ts`・`localReminders.ts` と同じ） */
 export function taskNotificationTags(taskId: string): string[] {
@@ -90,7 +92,11 @@ export function installNotificationCleanup(): () => void {
     if (s.tasks !== prev.tasks) {
       for (const id of settledTaskIds(prev.tasks, s.tasks)) tags.push(...taskNotificationTags(id))
     }
-    if (prev.activeTimer && s.activeTimer?.startedAt !== prev.activeTimer.startedAt) tags.push(TIMER_NOTIFICATION_TAG)
+    if (prev.activeTimer && s.activeTimer?.startedAt !== prev.activeTimer.startedAt)
+      tags.push(TIMER_NOTIFICATION_TAG, TIMER_END_NOTIFICATION_TAG)
+    // 終わりを選び直した・外した: 前の終わりの「時間です」は済んだ件
+    else if (prev.activeTimer?.endsAt && s.activeTimer && s.activeTimer.endsAt !== prev.activeTimer.endsAt)
+      tags.push(TIMER_END_NOTIFICATION_TAG)
     if (tags.length > 0) void closeNotifications(tags)
   })
 }

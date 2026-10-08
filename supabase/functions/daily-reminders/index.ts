@@ -1,5 +1,5 @@
 // Sends Web Push reminders: morning summary, before plans, before deadlines, record prompts after plans,
-// the evening wrap-up with the day's numbers, and a stale-timer nudge. Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
+// the evening wrap-up with the day's numbers, a stale-timer nudge and the focus timer's time-up (#290). Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
 // 回の終わりに、連携のトークンのうち今の鍵で閉じていない行を少しずつ閉じ直す（`_shared/tokenSweep.ts`、鍵の入れ替え）。
@@ -17,10 +17,11 @@ import {
   morningDigest,
   remindersInWindow,
   staleTimerDue,
+  timerEndDue,
   wrapUpDue,
   type ReminderTask,
 } from './schedule.ts'
-import { MESSAGES, reminderPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
+import { MESSAGES, reminderPayload, timerEndPayload, timerPayload, wrapUpPayload, type Msg, type Payload } from './payload.ts'
 import { wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import { keyRing } from '../_shared/secretBox.ts'
@@ -59,6 +60,9 @@ type Sub = {
   timer_started_at?: string | null
   timer_title?: string | null
   timer_notified_for?: string | null
+  /** 「あと何分」の終わりの時刻（#290、`user_active_timer.ends_at` の写し、`028`）と、時間の通知を送った終わりの時刻 */
+  timer_ends_at?: string | null
+  timer_end_notified_for?: string | null
 }
 
 /** 送った鍵をいくつまで覚えるか（古いものから捨てる） */
@@ -352,6 +356,14 @@ Deno.serve(async (req) => {
       jobs.push({
         payload: timerPayload(msg, sub.timer_title ?? '', sub.timer_started_at),
         patch: { timer_notified_for: sub.timer_started_at },
+      })
+    }
+    // 「あと何分」の時間（#290）。この回の間隔（5 分）だけ遅れて届くことがある。タブを開いていた端末が先に知らせたら、
+    // その端末が全部の購読に送った印（timer_end_notified_for）を付けるので、ここでは送らない（`src/lib/timerEndAlert.ts`）
+    if (sub.timer_started_at && timerEndDue(sub.timer_ends_at, now.getTime(), sub.timer_end_notified_for)) {
+      jobs.push({
+        payload: timerEndPayload(msg, sub.timer_title ?? '', sub.timer_started_at),
+        patch: { timer_end_notified_for: sub.timer_ends_at },
       })
     }
     if (jobs.length === 0) return

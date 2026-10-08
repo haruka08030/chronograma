@@ -10,12 +10,14 @@ import { toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { DateField } from './DateField'
 import { TimeInput } from './TimeInput'
-import { CloseIcon, StopIcon } from './icons'
+import { ClockIcon, CloseIcon, StopIcon } from './icons'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { frequentLogLabels } from '../lib/timeLogTags'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { HINT_TEXT } from './ui/textClass'
+import { endsAfter, planEndFor, TIMER_LENGTH_CHOICES } from '../lib/timerLength'
+import { primeTimerChime } from '../lib/timerEndAlert'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -56,7 +58,10 @@ export function FloatingTimer() {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
+  const setTimerEnd = useTaskStore((s) => s.setTimerEnd)
   const [elapsed, setElapsed] = useState(0)
+  // 「あと何分」を選ぶ並び（#290）。開いたときの予定の終わり（予定から ▶ したときだけ）も覚える
+  const [lengthMenu, setLengthMenu] = useState<{ planEnd: string | null } | null>(null)
 
   useEffect(() => {
     if (!activeTimer) {
@@ -76,17 +81,32 @@ export function FloatingTimer() {
     return () => document.documentElement.removeAttribute('data-timer-open')
   }, [timerShown])
 
-  // 記録中はタブの題名に経過を出す（PWA ではライブアクティビティを作れない代わり）。止めたら元の題名に戻す
+  // 「あと何分」の残り（終わりが無ければ null、過ぎたら負）。経過と同じ 1 秒ごとの刻みで数える
+  const startMs = activeTimer ? Date.parse(activeTimer.startedAt) : 0
+  const endMs = activeTimer?.endsAt ? Date.parse(activeTimer.endsAt) : null
+  const remaining = endMs === null ? null : endMs - startMs - elapsed
+  // 別のタイマーになった・止めたら選ぶ並びを閉じる
+  const timerStartedAt = activeTimer?.startedAt
+  useEffect(() => {
+    queueMicrotask(() => setLengthMenu(null))
+  }, [timerStartedAt])
+
+  // 記録中はタブの題名に経過（終わりがあれば残り）を出す（PWA ではライブアクティビティを作れない代わり）。止めたら元の題名に戻す
   const elapsedMinutes = Math.floor(elapsed / 60_000)
+  // 残りは分を切り上げる（残り 30 秒で「0:00」と出さない）。過ぎたら経過に戻す
+  const remainingMinutes = remaining !== null && remaining > 0 ? Math.ceil(remaining / 60_000) : null
   const timerTitle = activeTimer?.taskTitle
   useEffect(() => {
     if (!timerTitle) return
     const base = document.title
-    document.title = `▶ ${elapsedForTitle(elapsedMinutes * 60_000)} ${timerTitle}`
+    document.title =
+      remainingMinutes !== null
+        ? `▶ ${t('floatingTimer.tabRemaining', { time: elapsedForTitle(remainingMinutes * 60_000) })} ${timerTitle}`
+        : `▶ ${elapsedForTitle(elapsedMinutes * 60_000)} ${timerTitle}`
     return () => {
       document.title = base
     }
-  }, [timerTitle, elapsedMinutes])
+  }, [timerTitle, elapsedMinutes, remainingMinutes, t])
 
   if (!activeTimer) {
     return (
@@ -102,36 +122,121 @@ export function FloatingTimer() {
     return <StaleTimerPrompt startedAt={activeTimer.startedAt} taskTitle={activeTimer.taskTitle} />
   }
 
+  const chooseLength = (endsAt: string | null) => {
+    // 選んだ操作の中で音を出せるようにしておく（時間になったときに鳴らせるように）
+    if (endsAt) primeTimerChime()
+    setTimerEnd(endsAt)
+    setLengthMenu(null)
+  }
+  const openLengthMenu = () => {
+    const s = useTaskStore.getState()
+    setLengthMenu({ planEnd: s.activeTimer ? planEndFor(s.activeTimer, s.tasks) : null })
+  }
+  const timeUp = remaining !== null && remaining <= 0
+
   return (
     <div
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
                     rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                     dark:border-zinc-700 dark:bg-zinc-800
-                    flex items-center gap-3 md:min-w-[280px] md:w-auto md:gap-4 md:px-5
+                    md:min-w-[280px] md:w-auto md:px-5
                     ${MOBILE_FLOAT_BOTTOM}`}
     >
-      <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{activeTimer.taskTitle}</p>
-        {activeTimer.tags?.length > 0 && (
-          <div className="flex gap-1 mt-0.5">
-            {activeTimer.tags.map((tag) => (
-              <span key={tag} className={chipClass({ variant: 'fill' })}>
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+      <div className="flex items-center gap-3 md:gap-4">
+        <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{activeTimer.taskTitle}</p>
+          {activeTimer.tags?.length > 0 && (
+            <div className="flex gap-1 mt-0.5">
+              {activeTimer.tags.map((tag) => (
+                <span key={tag} className={chipClass({ variant: 'fill' })}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* 「あと何分」（#290）。選ばなければ今までどおり数え上げ。目立たせず、押したときだけ長さを並べる */}
+          {remaining === null && !lengthMenu && (
+            <button
+              type="button"
+              onClick={openLengthMenu}
+              className="-mx-1 mt-0.5 inline-flex min-h-7 items-center gap-1 rounded-md px-1 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 md:min-h-0"
+            >
+              <ClockIcon className="h-3.5 w-3.5" />
+              {t('floatingTimer.setLength')}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+            {remaining === null ? formatElapsed(elapsed) : timeUp ? `+${formatElapsed(-remaining)}` : formatElapsed(remaining + 999)}
+          </span>
+          {remaining !== null && activeTimer.endsAt && (
+            // 残り・時間です。押すと終わりの時間を選び直す・外す
+            <button
+              type="button"
+              onClick={() => (lengthMenu ? setLengthMenu(null) : openLengthMenu())}
+              aria-expanded={lengthMenu !== null}
+              {...tip(t('floatingTimer.changeLength'))}
+              className={`-mr-1 rounded px-1 text-[11px] leading-4 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200 ${
+                timeUp ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-zinc-500 dark:text-zinc-400'
+              }`}
+            >
+              {timeUp
+                ? t('floatingTimer.timeUp')
+                : `${t('floatingTimer.remaining')} · ${t('floatingTimer.until', { time: clockOf(toAppWall(activeTimer.endsAt)) })}`}
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={stopTimer}
+          className="rounded-xl bg-red-500 p-2.5 text-white transition-colors touch-manipulation hover:bg-red-600 md:p-2"
+          {...tip(t('floatingTimer.stopTitle'), { name: true })}
+        >
+          <StopIcon className="w-4 h-4" />
+        </button>
       </div>
-      <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{formatElapsed(elapsed)}</span>
-      <button
-        type="button"
-        onClick={stopTimer}
-        className="rounded-xl bg-red-500 p-2.5 text-white transition-colors touch-manipulation hover:bg-red-600 md:p-2"
-        {...tip(t('floatingTimer.stopTitle'), { name: true })}
-      >
-        <StopIcon className="w-4 h-4" />
-      </button>
+      {lengthMenu && (
+        <div role="group" aria-label={t('floatingTimer.lengthGroup')} className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {lengthMenu.planEnd && (
+            <button
+              type="button"
+              onClick={() => chooseLength(lengthMenu.planEnd)}
+              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 md:min-h-7')}
+            >
+              {t('floatingTimer.untilPlanEnd', { time: clockOf(toAppWall(lengthMenu.planEnd)) })}
+            </button>
+          )}
+          {TIMER_LENGTH_CHOICES.map((min) => (
+            <button
+              key={min}
+              type="button"
+              onClick={() => chooseLength(endsAfter(min))}
+              className={chipClass({ variant: 'outline', size: 'md' }, 'min-h-9 md:min-h-7')}
+            >
+              {t('floatingTimer.lengthMinutes', { count: min })}
+            </button>
+          ))}
+          {remaining !== null && (
+            <button
+              type="button"
+              onClick={() => chooseLength(null)}
+              className={buttonClass({ variant: 'ghost', size: 'sm' }, 'min-h-9 md:min-h-7')}
+            >
+              {t('floatingTimer.noLength')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setLengthMenu(null)}
+            aria-label={t('common.close')}
+            className="ml-auto -m-1 shrink-0 rounded-md p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

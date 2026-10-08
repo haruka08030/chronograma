@@ -54,6 +54,11 @@ export interface ActiveTimer {
   taskId?: string | null
   /** 元タスクの名前の無い色。記録にそのまま付ける */
   color?: string | null
+  /**
+   * 「あと何分」の終わりの時刻（ISO、#290）。無い・null は終わりなし（数え上げ）。時間になっても記録は止めない。
+   * 端末間で同じになる（`user_active_timer.ends_at`）
+   */
+  endsAt?: string | null
 }
 
 /** 毎日 1 回の通知の時刻（`HH:mm`）。null はオフ */
@@ -319,7 +324,9 @@ export interface TaskState {
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
-  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null) => void
+  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
+  /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
+  setTimerEnd: (endsAt: string | null) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
