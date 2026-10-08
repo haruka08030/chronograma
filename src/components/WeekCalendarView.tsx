@@ -48,6 +48,8 @@ import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { useHourHeight, usePinchHourHeight } from '../hooks/useHourHeight'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekDays } from '../lib/weekStart'
+import { dayLoad, type DayLoad } from '../lib/dayLoad'
+import { unplannedListIds } from '../lib/listKind'
 
 const NO_LOGS = new Map<string, Task[]>()
 
@@ -106,7 +108,20 @@ export function WeekCalendarView({
     return calendarWeekDays(anchor, weekStartsOn)
   }, [anchor, threeDay, weekStartsOn])
 
-  const focusKey = selectedDateKey ?? appTodayKey()
+  const todayKey = appTodayKey()
+  const focusKey = selectedDateKey ?? todayKey
+  /** 見出しに出す各日の空きと置いた To-Do（過ぎた日は出さない。1 日だけの表示は見出しが無いので作らない） */
+  const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
+  const dayLoads = useMemo(() => {
+    const out = new Map<string, DayLoad>()
+    if (singleDay) return out
+    const excludedListIds = unplannedListIds(lists)
+    for (const day of days) {
+      const key = toDateKey(day)
+      if (key >= todayKey) out.set(key, dayLoad(tasks, calendarEvents, key, { capacityMinutes: dailyCapacityMinutes, excludedListIds }))
+    }
+    return out
+  }, [singleDay, days, todayKey, tasks, calendarEvents, lists, dailyCapacityMinutes])
   const gridDays = useMemo(() => {
     if ((isDesktop && !singleDay) || threeDay) return days
     const hit = days.find((d) => toDateKey(d) === focusKey)
@@ -436,6 +451,7 @@ export function WeekCalendarView({
             selectedDateKey={selectedDateKey}
             onSelectDate={onSelectDate}
             setAllDayAddDate={setAllDayAddDate}
+            dayLoads={dayLoads}
           />
         </div>
 

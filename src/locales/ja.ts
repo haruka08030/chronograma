@@ -1003,6 +1003,11 @@ export default {
     empty: 'タスクがありません',
   },
   weekCalendar: {
+    freeTime: '空き {{free}}',
+    freeTimeOver: '空き {{free}} / {{planned}}',
+    freeTimeOverShort: '{{free}}/{{planned}}',
+    freeTimeHint: 'この日の空き {{free}}（1 日に計画する時間の目安から、予定と Google の予定を引いた時間）',
+    freeTimeOverHint: 'この日に置いた To-Do（{{planned}}）が空き（{{free}}）を超えています',
     habitDoneAsPlanned: '予定どおり達成（記録する）',
     habitUndo: '達成を取り消す',
     dueMark: '「{{title}}」の締切',

@@ -1035,6 +1035,11 @@ export default {
     empty: 'No tasks',
   },
   weekCalendar: {
+    freeTime: 'Free {{free}}',
+    freeTimeOver: 'Free {{free}} / {{planned}}',
+    freeTimeOverShort: '{{free}}/{{planned}}',
+    freeTimeHint: '{{free}} free this day (your daily planning target minus events and Google events)',
+    freeTimeOverHint: 'To-Dos placed on this day ({{planned}}) are more than the free time ({{free}})',
     habitDoneAsPlanned: 'Done as planned (log it)',
     dueMark: '“{{title}}” is due',
     dueMarkTime: '“{{title}}” is due by {{time}}',
