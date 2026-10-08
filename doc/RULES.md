@@ -46,7 +46,7 @@
 - アカウントの削除は 10 分以内にログインしたセッションからだけ（`account/reauth.ts`）。古ければ設定のアカウント欄にメールのコードを送る欄を出し、コードでログインし直したらそのまま消す
 - 結果は画面下の通知（戻せるものは「元に戻す」付き、`src/lib/notify.ts`）。入力の誤りは赤字＋押せないボタン。`alert` は使わない
 - 名前の変更: PC はダブルクリックかホバーで出る鉛筆、スマホは鉛筆（リスト・セクション共通）
-- Enter の判定は `isSubmitEnter`。ダイアログ内の入力欄でも、欄が使わない Esc でダイアログを閉じる
+- Enter の判定は `isSubmitEnter`、Esc は `isCancelEscape`（`src/lib/keyboard.ts`）。`src/components`・`src/hooks` の素の `e.key === 'Enter'` / `'Escape'` は lint で止める（入力欄でないボタンなどは理由を書いて `eslint-disable-next-line`）。ダイアログ内の入力欄でも、欄が使わない Esc でダイアログを閉じる
 - タスクの追加欄は追加後も開いたまま続けて書ける（空の Enter・Esc・外を押すと閉じる）。入れ物（リスト・セクション）を作る欄は 1 つで閉じる。表記は「タスクを追加」
 - 「＋ セクション」は名前の入力から始め、名前なしで離れたら作らない。タスクも名前なしで離れたら消す（ゴミ箱・取り消し履歴に残さない）
 - タスク詳細のタグ・サブタスクは、確定せずに外を押しても追加する
@@ -76,6 +76,7 @@
 ## タイムゾーン
 
 - アプリのタイムゾーンは設定「日付と時刻」（既定は端末）。「今」「今日」・Google の予定・止め忘れタイマー・Web Push がそれに従う（`src/lib/timeZone.ts` の `zonedNow()` / `isAppToday()`）
+- `src/components`・`src/hooks` の引数なしの `new Date()` は lint で止める（`.toISOString()`・`.getTime()` に続く瞬間の値は使える）。date-fns の `isToday`・`isPast`・`startOfToday` など端末の今日を見る関数はテスト以外で止める（`eslint.config.js`）
 - 画面で「今」「今日」を使うときは時計の購読（`src/hooks/useAppClock.ts` の `useNow()` / `useAppTodayKey()`）を読む。時計はアプリで 1 つ（`src/lib/appClock.ts`）で、分の境目と表に戻ったときに進む。画面ごとにタイマーを回さない。開いたまま日をまたぐと、今日を見ていた人の見ている日は新しい今日に進む（`useFollowToday`）
 - タスク・記録ごとのタイムゾーンを持てる（`src/lib/taskTimeZone.ts`）。列はアプリのタイムゾーンで持ち、`timeZoneAnchor` で同じ瞬間へ書き直す
 - アプリのタイムゾーンを変えると、時刻のある予定・記録は同じ瞬間のままずれる（東京 19 時 → NY 6 時）。日付だけのタスクと習慣は動かない。書いたタイムゾーンが分からない古いものは、最初に開いたときのタイムゾーンで書いたとみなす
