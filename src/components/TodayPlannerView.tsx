@@ -8,6 +8,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { unplannedListIds } from '../lib/listKind'
+import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
 import { isLogTask, isSleepTask } from '../types/task'
@@ -100,9 +101,10 @@ export function TodayPlannerView() {
     dueSoon,
     open,
     done,
-    plannedMinutes,
     loggedMinutes,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
+  /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
+  const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
   const timedOpen = useMemo(() => open.filter((x) => x.startTime && x.endTime), [open])
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
@@ -250,7 +252,7 @@ export function TodayPlannerView() {
           dateKey={dateKey}
           viewingToday={viewingToday}
           dayNav={dayNav}
-          plannedMinutes={plannedMinutes}
+          load={dayLoad}
           loggedMinutes={loggedMinutes}
         />
 

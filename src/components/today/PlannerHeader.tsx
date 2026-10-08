@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
+import type { DayLoad } from '../../lib/dayLoad'
 import { formatDuration } from '../../lib/timeGrid'
+import { tip } from '../../lib/tooltip'
 import { toDateKey } from '../../lib/dateKey'
 import { appToday } from '../../lib/timeZone'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -17,21 +19,31 @@ export function PlannerHeader({
   dateKey,
   viewingToday,
   dayNav,
-  plannedMinutes,
+  load,
   loggedMinutes,
 }: {
   date: Date
   dateKey: string
   viewingToday: boolean
   dayNav: ReactNode
-  plannedMinutes: number
+  /** その日の空きと置いた To-Do（週の見出しと同じ `dayLoad`） */
+  load: DayLoad
   loggedMinutes: number
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const onboardingDone = useTaskStore((s) => s.onboardingDone)
-  const overCapacity = dateKey >= toDateKey(appToday()) && plannedMinutes > dailyCapacityMinutes
+  const { plannedMinutes, freeMinutes } = load
+  // 空きは週の見出しと同じく今日から先の日だけ（過ぎた日の空きは計画に使わない）
+  const showFree = dateKey >= toDateKey(appToday())
+  const overCapacity = showFree && load.over
+  const plannedTime = formatDuration(plannedMinutes)
+  const freeTime = formatDuration(freeMinutes)
+  const plannedHint = !showFree
+    ? undefined
+    : overCapacity
+      ? t('planner.overCapacity', { planned: plannedTime, free: freeTime })
+      : t('weekCalendar.freeTimeHint', { free: freeTime })
   // スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く）
   return (
     <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
@@ -62,11 +74,16 @@ export function PlannerHeader({
           )}
           {plannedMinutes > 0 && (
             <span
-              className={`whitespace-nowrap text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
-              title={overCapacity ? t('planner.overCapacity', { capacity: formatDuration(dailyCapacityMinutes) }) : undefined}
+              {...tip(plannedHint)}
+              data-day-free={showFree ? (overCapacity ? 'over' : 'ok') : undefined}
+              className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
             >
-              {t('planner.summaryPlanned', { time: formatDuration(plannedMinutes) })}
+              {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
+              {showFree
+                ? t('planner.summaryPlannedFree', { time: plannedTime, free: freeTime })
+                : t('planner.summaryPlanned', { time: plannedTime })}
               {overCapacity && ` ${t('planner.overCapacityShort')}`}
+              {plannedHint && <span className="sr-only"> {plannedHint}</span>}
             </span>
           )}
         </div>

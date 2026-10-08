@@ -95,7 +95,7 @@ export function getWeekReview(
     const plan = getDayPlan(tasks, key, excludedListIds)
     const day: WeekReviewDay = {
       dateKey: key,
-      plannedMinutes: plan.plannedMinutes,
+      plannedMinutes: 0,
       loggedMinutes: plan.loggedMinutes,
       done: plan.done.length,
       total: plan.done.length + plan.open.length,

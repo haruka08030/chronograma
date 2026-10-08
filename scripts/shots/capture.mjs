@@ -60,6 +60,8 @@ const SCREENS = [
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
   { name: 'planner', view: 'planner' },
+  // 見出しの「予定 / 空き」で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「（超過）」を締切の色で）
+  { name: 'planner-free-over', view: 'planner', state: { dailyCapacityMinutes: 120 } },
   // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
   { name: 'planner-habits', view: 'planner', scrollToBottom: true },
   // アイコンだけのボタンに乗せたときのヒント（aria-label を出す。スマホは出ない）
