@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
-import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
+import { isIosBrowserNotInstalled } from '../lib/onboardingNudge'
+import { SettingsGroup, SettingsLinkRow, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
 import { formatDuration } from '../lib/timeGrid'
 import { DEFAULT_BLOCK_OPTIONS } from '../lib/defaultBlock'
@@ -33,6 +34,8 @@ export function DailyRhythmSettings() {
   const unsupported = typeof window === 'undefined' || !('Notification' in window)
   const denied = !unsupported && Notification.permission === 'denied'
   const off = unsupported || denied
+  // iPhone / iPad の Safari は、ホーム画面に追加して開くと通知が使える（「対応していません」ではない）
+  const needsInstall = unsupported && isIosBrowserNotInstalled()
 
   /** オンにするときだけ通知の許可を聞く */
   const turnOn = async (apply: () => void) => {
@@ -44,8 +47,23 @@ export function DailyRhythmSettings() {
       <SettingsGroup
         id="settings-rhythm"
         title={t('settings.notificationsTitle')}
-        description={unsupported ? t('settings.notificationsUnsupported') : denied ? t('settings.notificationsDenied') : undefined}
+        description={
+          needsInstall
+            ? undefined
+            : unsupported
+              ? t('settings.notificationsUnsupported')
+              : denied
+                ? t('settings.notificationsDenied')
+                : undefined
+        }
       >
+        {needsInstall && (
+          <SettingsLinkRow
+            label={t('settings.notificationsNeedInstall')}
+            hint={t('settings.notificationsNeedInstallHint')}
+            onClick={() => document.getElementById('settings-app')?.scrollIntoView({ block: 'start' })}
+          />
+        )}
         <SettingsRow label={t('settings.morningSummary')}>
           {dailyReminders.planTime && (
             <input

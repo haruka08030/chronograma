@@ -27,6 +27,10 @@ const FIRST_PORT = 5180
  */
 const TIMEZONE = 'Asia/Tokyo'
 
+/** `iosSafari` の画面で名乗る iPhone の Safari */
+const IOS_SAFARI_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
@@ -44,7 +48,7 @@ const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -160,6 +164,8 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 締切が先（あさって）の To-Do を今日終えたところ（完了した日＝今日の列に出る）
+  { name: 'calendar-early-done', view: 'calendar', doneNow: ['s4'] },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
   // 時刻の無い To-Do が多い日（終日の欄は 3 行までにたたみ「他 N 件」。▾ で全件）
@@ -251,6 +257,8 @@ const SCREENS = [
   { name: 'settings', view: 'settings' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
+  // iPhone の Safari（ホーム画面に未追加）の「通知」（通知は追加すると使える。手順の行へ飛ぶ 1 行）
+  { name: 'settings-ios-notifications', view: 'settings', mobileOnly: true, iosSafari: true, scrollTo: '#settings-rhythm' },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
@@ -431,14 +439,22 @@ async function main() {
             timezoneId: TIMEZONE,
             // 時刻で構図が動く画面（タイムラインの現在線）を落ち着かせる
             reducedMotion: 'reduce',
+            ...(screen.iosSafari ? { userAgent: IOS_SAFARI_UA } : {}),
           })
+          // iPhone の Safari はホーム画面に追加するまで Notification が無い
+          if (screen.iosSafari) await context.addInitScript(() => delete window.Notification)
 
           const at = screen.at ?? args.at
           const instant = at ? instantAt(at, TIMEZONE) : new Date()
           // 朝 4 時までは前の日の種を置く（夜中の画面で、前の日の続きをしている様子を撮るため。アプリの「今日」は 0:00 で変わる）
           const seedNow = nowInTimeZone(TIMEZONE, instant)
-          if (seedNow.getHours() < 4) seedNow.setDate(seedNow.getDate() - 1)
-          const seed = buildSeedState({ theme, now: seedNow })
+          // 完了・作成・更新の時刻は撮る瞬間で付ける（seedNow は壁時計なので ISO にするとホストとのずれの分だけ先になる）
+          const seedInstant = new Date(instant)
+          if (seedNow.getHours() < 4) {
+            seedNow.setDate(seedNow.getDate() - 1)
+            seedInstant.setTime(seedInstant.getTime() - 24 * 60 * 60 * 1000)
+          }
+          const seed = buildSeedState({ theme, now: seedNow, instant: seedInstant })
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
             seed.state.selectedView = screen.view
@@ -462,8 +478,12 @@ async function main() {
             )
           }
           for (const x of seed.state.tasks) {
-            if (screen.deleted?.includes(x.id)) x.deletedAt = seedNow.toISOString()
-            if (screen.archived?.includes(x.id)) x.archivedAt = seedNow.toISOString()
+            if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
+            if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
+            if (screen.doneNow?.includes(x.id)) {
+              x.completed = true
+              x.completedAt = seedInstant.toISOString()
+            }
           }
           if (screen.list) {
             seed.state.selectedView = null

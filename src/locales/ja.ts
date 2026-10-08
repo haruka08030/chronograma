@@ -616,6 +616,8 @@ export default {
     recordPrompts: '予定のあとに記録を確認',
     planningTitle: '計画',
     notificationsUnsupported: 'このブラウザは通知に対応していません。',
+    notificationsNeedInstall: 'ホーム画面に追加すると通知を使えます',
+    notificationsNeedInstallHint: '追加のしかたを見る',
     notificationsDenied: 'ブラウザで通知がブロックされています。サイトの設定から許可してください。',
     dailyCapacity: '1 日に計画する時間の目安',
     capacityHours: '{{count}} 時間',
