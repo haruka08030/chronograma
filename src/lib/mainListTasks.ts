@@ -7,7 +7,7 @@ import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 import { isAppToday, appToday } from './timeZone'
 import { NO_LABEL } from './todoColorLabels'
 
-const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
+export const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
 export interface MainListTasksInput {
   tasks: Task[]

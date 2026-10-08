@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { getDayPlan, type DueGroup } from '../lib/dayPlan'
+import { getDayPlan } from '../lib/dayPlan'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -33,7 +33,7 @@ import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabits } from './today/PlannerHabits'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
-import { usePlannerSuggestions } from './today/usePlannerSuggestions'
+import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
 const WRAP_UP_FROM_HOUR = 17
@@ -113,13 +113,16 @@ export function TodayPlannerView() {
   // 明日までが締切の To-Do は、畳んだ見出しの中に隠さない（今日やるかを決めるのに要る）
   const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
   const showSuggestions = suggestionsChoice ?? dueByTomorrow
-  const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef } = usePlannerSuggestions({
+  const candidateView = useTaskStore((s) => s.plannerCandidateView)
+  const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef, shownSuggestions } = usePlannerSuggestions({
     tasks,
     dateKey,
     excludedListIds,
     suggestions,
     showSuggestions,
+    view: candidateView,
   })
+  const candidatePool = useMemo(() => [...suggestions, ...moreSuggestions], [suggestions, moreSuggestions])
 
   const dayHabits = useMemo(
     () => habits.filter((h) => isHabitScheduledOnDate(h, date)),
@@ -199,7 +202,7 @@ export function TodayPlannerView() {
 
   // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
-  const suggestionGroupId = (group: DueGroup) => `${idPrefix}due-${group.kind === 'day' ? group.dueDate : group.kind}`
+  const suggestionGroupId = (group: CandidateGroup) => `${idPrefix}due-${group.kind === 'day' ? group.dueDate : group.kind}`
   const ownedGroupIds = showSuggestions ? candidateGroups.map(suggestionGroupId) : []
 
   /** 行が共通で使うもの */
@@ -263,6 +266,8 @@ export function TodayPlannerView() {
           <PlannerSuggestions
             env={rowEnv}
             suggestions={suggestions}
+            addAllTargets={shownSuggestions}
+            pool={candidatePool}
             candidateGroups={candidateGroups}
             open={showSuggestions}
             onToggle={() => setSuggestionsChoice(!showSuggestions)}

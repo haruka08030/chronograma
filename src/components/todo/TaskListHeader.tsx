@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID, type SortMode } from '../../store/taskStore'
 import type { SectionGroupingScope } from '../../store/storeTypes'
 import type { ListKind, TaskList } from '../../types/list'
 import { ListKindPicker } from '../ListKindPicker'
-import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CloseIcon, MenuIcon, SortIcon } from '../icons'
+import type { ActionEntry } from '../ui/ActionMenu'
+import { SortMenuButton } from '../ui/SortMenuButton'
+import { CloseIcon, MenuIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
@@ -54,7 +55,6 @@ export function TaskListHeader({
   const filterTag = useTaskStore((s) => s.filterTag)
   const setFilterTag = useTaskStore((s) => s.setFilterTag)
   const setSectionGrouping = useTaskStore((s) => s.setSectionGrouping)
-  const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null)
   const sortOptions = useMemo(
     () => (listKind === 'tasks' ? SORT_OPTIONS : UNPLANNED_SORT_OPTIONS).map((value) => ({ value, label: t(`taskList.sort.${value}`) })),
     [t, listKind],
@@ -120,24 +120,7 @@ export function TaskListHeader({
             {t('taskList.addSection')}
           </button>
         )}
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={!!sortMenu}
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect()
-            setSortMenu(sortMenu ? null : { x: r.left, y: r.bottom + 4 })
-          }}
-          // スマホは指で押せる高さ（40px）に。PC は見出しの脇に小さく
-          className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 md:min-h-0 dark:text-zinc-400 dark:hover:bg-zinc-800"
-        >
-          <SortIcon className="w-3.5 h-3.5" />
-          {sortOptions.find((o) => o.value === sortMode)?.label}
-        </button>
-        {/* 他のメニューと同じ部品（スマホは下から出すシート） */}
-        {sortMenu && (
-          <ActionMenu x={sortMenu.x} y={sortMenu.y} entries={sortEntries} onClose={() => setSortMenu(null)} searchable={false} />
-        )}
+        <SortMenuButton label={sortOptions.find((o) => o.value === sortMode)?.label ?? ''} entries={sortEntries} />
       </div>
     </div>
   )

@@ -36,6 +36,10 @@ const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
 const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
 /** 見出しの並び順のボタン（種データはどこも手動） */
 const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
+/** 今日やる候補の並び順・絞り込みのボタン */
+const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順と絞り込み"] >> visible=true'
+/** 今日やる候補を開く見出し */
+const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
 const SCREENS = [
@@ -93,6 +97,20 @@ const SCREENS = [
     ],
   },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
+  // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
+  { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
+  {
+    name: 'planner-candidates-sorted',
+    view: 'planner',
+    click: [
+      OPEN_CANDIDATES,
+      CANDIDATE_BUTTON,
+      '[role=menu] >> text=見積もりが短い順 >> visible=true',
+      CANDIDATE_BUTTON,
+      '[role=menu] >> text=優先度で絞る >> visible=true',
+      '[role=menu] >> text=中以上 >> visible=true',
+    ],
+  },
   // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）

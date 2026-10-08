@@ -18,6 +18,7 @@ type UiActions = Pick<
   | 'setSearchQuery'
   | 'setSortMode'
   | 'setSectionGrouping'
+  | 'setPlannerCandidateView'
   | 'setFilterTag'
   | 'requestQuickAdd'
   | 'clearQuickAddRequest'
@@ -102,6 +103,7 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
             ? { ...s.sectionGrouping, byList: { ...s.sectionGrouping.byList, [scope.listId]: on } }
             : { ...s.sectionGrouping, [scope]: on },
       })),
+    setPlannerCandidateView: (patch) => set((s) => ({ plannerCandidateView: { ...s.plannerCandidateView, ...patch } })),
     setFilterTag: (tag) => {
       pushUndo()
       set({ filterTag: tag })
