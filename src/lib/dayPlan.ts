@@ -1,7 +1,7 @@
 import { addDays } from 'date-fns'
 import { isEventTask, isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
-import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
+import { minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appDayKeyOf } from './timeZone'
 
@@ -14,7 +14,6 @@ export interface DayPlan {
   dueSoon: Task[]
   open: Task[]
   done: Task[]
-  plannedMinutes: number
   loggedMinutes: number
 }
 
@@ -86,7 +85,6 @@ export function getDayPlan(
   const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const open: Task[] = []
   const done: Task[] = []
-  let plannedMinutes = 0
   let loggedMinutes = 0
   for (const task of tasks) {
     if (!isActiveTask(task)) continue
@@ -95,10 +93,10 @@ export function getDayPlan(
       if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
-    // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了・予定の時間）。カレンダーで見る
+    // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了）。カレンダーで見る。
+    // 「予定 / 空き」の時間は週の見出しと同じ dayLoad.ts で数える
     if (task.parentId || excludedListIds.has(task.listId) || isEventTask(task)) continue
     const placed = taskPlacementDate(task)
-    if (placed === dateKey && task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
     if (task.completed) {
       // やった日が優先: 置いた日・締切ではなく、完了した日の「完了」に出す
       if (completionDayKey(task) === dateKey) done.push(task)
@@ -117,7 +115,7 @@ export function getDayPlan(
   overdue.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
   carryOver.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
   dueSoon.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-  return { overdue, carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes }
+  return { overdue, carryOver, dueSoon, open, done, loggedMinutes }
 }
 
 /**
