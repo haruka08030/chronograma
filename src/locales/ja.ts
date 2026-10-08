@@ -252,7 +252,7 @@ export default {
     record: '▶ で記録する',
     recordHint: '始めるときに行の ▶。予定の横に記録が並びます',
     recordHintTouch: '行を押して「このタスクの記録を開始」。予定の横に記録が並びます',
-    done: 'できました。予定と記録が並びます',
+    done: 'できました。​予定と実際が並び、​ずれが見えます',
     stepDone: '済み',
   },
   onboardingNudge: {
@@ -1103,6 +1103,7 @@ export default {
     signIn: 'ログイン',
     checking: 'ログイン状態を確認中…',
     signedIn: 'ログイン中',
+    tagline: '予定と実際のずれが見える時間割',
     intro: 'ログインすると、複数の端末でデータが同期されます。',
     signInWithGoogle: 'Google でログイン',
     redirecting: 'Google に移動中…',

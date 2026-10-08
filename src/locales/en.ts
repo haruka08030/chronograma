@@ -265,7 +265,7 @@ export default {
     record: 'Record it with ▶',
     recordHint: 'Press ▶ on the row when you start. Your record appears next to the plan',
     recordHintTouch: 'Tap the row, then “Start logging this task”. Your record appears next to the plan',
-    done: 'All set. Plans and records now sit side by side',
+    done: 'All set. Your plan and what you did line up, so you see the gap',
     stepDone: 'done',
   },
   onboardingNudge: {
@@ -1148,6 +1148,7 @@ export default {
     signIn: 'Sign in',
     checking: 'Checking sign-in status…',
     signedIn: 'Signed in',
+    tagline: 'A timetable that shows the gap between plan and reality',
     intro: 'Sign in to sync your data across devices.',
     signInWithGoogle: 'Sign in with Google',
     redirecting: 'Opening Google…',

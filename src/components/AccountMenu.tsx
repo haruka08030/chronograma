@@ -13,7 +13,7 @@ import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleSignInButton } from './ui/GoogleSignInButton'
-import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, META_TEXT, PHRASE_WRAP } from './ui/textClass'
 
 export function AccountMenu() {
   const { t } = useTranslation()
@@ -310,6 +310,7 @@ export function AccountMenu() {
             className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
+            <p className={`mb-1 text-sm font-medium ${PHRASE_WRAP}`}>{t('account.tagline')}</p>
             <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
             {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
             {!codeSentTo && googleSignIn && (
