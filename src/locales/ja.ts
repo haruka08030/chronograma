@@ -165,7 +165,7 @@ export default {
     remove: '{{name}} の絞り込みを外す',
   },
   planner: {
-    untimedHeading: '時間未定',
+    timedHeading: '時間を決めた',
     todayTitle: '今日',
     prevDay: '前の日',
     nextDay: '次の日',

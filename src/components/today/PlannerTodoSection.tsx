@@ -16,7 +16,7 @@ import { OnboardingNudges } from './OnboardingNudges'
 import { focusQuickAdd } from '../../lib/quickAddFocus'
 
 /**
- * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間あり → 時間未定）→ 追加欄 → 一言。
+ * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
  * どの行がどこに属すか見出しで分ける。期限切れは焦らせてよいので畳まない
  */
 export function PlannerTodoSection({
@@ -140,13 +140,14 @@ export function PlannerTodoSection({
             </p>
           )}
           <ul role="group" aria-label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}>
-            {timedOpen.map((task) => (
+            {untimedOpen.map((task) => (
               <PlannerTaskRow
                 key={task.id}
                 task={task}
                 env={env}
                 action={
                   <>
+                    <SetTimeButton task={task} dateKey={dateKey} />
                     <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
                     <TimerButton task={task} />
                   </>
@@ -156,21 +157,20 @@ export function PlannerTodoSection({
               />
             ))}
           </ul>
-          {/* 時間ありは時刻順に上、時間未定はその下に分ける（タイムラインに置くと上へ移る） */}
+          {/* 時間未定（まだいつやるか決める行）を上、時間を決めた行はその下に時刻順（横のタイムラインにも出ている） */}
           {timedOpen.length > 0 && untimedOpen.length > 0 && (
             <p aria-hidden className="ml-11 mt-3 text-xs text-zinc-400 dark:text-zinc-500">
-              {t('planner.untimedHeading')}
+              {t('planner.timedHeading')}
             </p>
           )}
-          <ul role="group" aria-label={t('planner.untimedHeading')}>
-            {untimedOpen.map((task) => (
+          <ul role="group" aria-label={t('planner.timedHeading')}>
+            {timedOpen.map((task) => (
               <PlannerTaskRow
                 key={task.id}
                 task={task}
                 env={env}
                 action={
                   <>
-                    <SetTimeButton task={task} dateKey={dateKey} />
                     <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
                     <TimerButton task={task} />
                   </>
