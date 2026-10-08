@@ -861,6 +861,7 @@ export default {
     blockMoved: '「{{title}}」を {{date}} {{time}} に移動しました',
     blockPlaced: '「{{title}}」を {{date}} {{time}} に入れました',
     blockResized: '「{{title}}」を {{time}} にしました',
+    habitDayTime: '「{{name}}」を {{date}} だけ {{time}} にしました',
     blockToAllDay: '「{{title}}」を {{date}} の終日に移しました',
     taskMovedToDate: '「{{title}}」を {{date}} に移動しました',
     tasksMovedToDate: '{{count}} 件を {{date}} に移動しました',

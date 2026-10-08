@@ -39,3 +39,27 @@ for (const size of [
     }
   })
 }
+
+test('今日の画面で習慣の枠を動かすと、その日だけ時間が変わり、読み込み直しても残る', async ({ page }) => {
+  await page.goto('/?view=habits')
+  await addHabit(page, 'gym')
+  await page.goto('/?view=planner')
+  const slot = page.locator('[data-block-id^="habit-slot::"]')
+  await slot.scrollIntoViewIfNeeded()
+  const before = (await slot.boundingBox())!
+  // 真ん中をつかんで 2 時間ぶん下へ（端をつかむと長さを変える）
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2 + 60, { steps: 5 })
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2 + 120, { steps: 5 })
+  await page.mouse.up()
+  await expect(page.getByText(/Set “gym” to 11:00–12:00 on .* only/)).toBeVisible()
+  const moved = (await slot.boundingBox())!
+  expect(Math.round(moved.y - before.y)).toBe(120)
+
+  await page.reload()
+  await expect(slot).toContainText('11:00')
+  // 習慣の時間は変わらない
+  await page.goto('/?view=habits')
+  await expect(page.locator('[data-habit-row]')).toContainText('9:00')
+})

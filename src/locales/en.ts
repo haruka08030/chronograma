@@ -892,6 +892,7 @@ export default {
     blockMoved: 'Moved “{{title}}” to {{date}} {{time}}',
     blockPlaced: 'Put “{{title}}” on {{date}} {{time}}',
     blockResized: 'Changed “{{title}}” to {{time}}',
+    habitDayTime: 'Set “{{name}}” to {{time}} on {{date}} only',
     blockToAllDay: 'Moved “{{title}}” to all day on {{date}}',
     taskMovedToDate: 'Moved “{{title}}” to {{date}}',
     tasksMovedToDate: 'Moved {{count}} tasks to {{date}}',

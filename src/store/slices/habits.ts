@@ -1,7 +1,7 @@
 /** 習慣 */
-import type { Habit } from '../../types/habit'
+import type { Habit, HabitTimeOverrides } from '../../types/habit'
 import { newId } from '../../lib/id'
-import { buildHabitRecordIndex, habitDayStatus } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
@@ -10,7 +10,14 @@ import type { SliceContext } from './sliceTypes'
 
 type HabitsActions = Pick<
   TaskState,
-  'addHabit' | 'updateHabit' | 'deleteHabit' | 'archiveHabit' | 'restoreHabit' | 'toggleHabitDate' | 'completeHabitAsPlanned'
+  | 'addHabit'
+  | 'updateHabit'
+  | 'setHabitDayTime'
+  | 'deleteHabit'
+  | 'archiveHabit'
+  | 'restoreHabit'
+  | 'toggleHabitDate'
+  | 'completeHabitAsPlanned'
 >
 
 export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActions {
@@ -42,6 +49,29 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       pushUndo()
       return set((s) => ({
         habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h)),
+      }))
+    },
+    setHabitDayTime: (id, dateKey, startTime, endTime, label) => {
+      const habit = get().habits.find((h) => h.id === id)
+      const current = habit ? habitTimesOn(habit, dateKey) : null
+      if (!habit || !current) return
+      const next = { startTime, endTime: current.endTime === null ? null : endTime }
+      if (next.startTime === current.startTime && next.endTime === current.endTime) return
+      // 習慣の時間に戻したら、その日だけの時間は消す
+      const usual = next.startTime === habit.startTime && (next.endTime === null || next.endTime === habit.endTime)
+      const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
+      if (usual) delete overrides[dateKey]
+      else overrides[dateKey] = next
+      pushUndo(label)
+      const now = new Date().toISOString()
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
+          if (Object.keys(overrides).length === 0) delete updated.timeOverrides
+          return updated
+        }),
       }))
     },
     deleteHabit: (id) => {

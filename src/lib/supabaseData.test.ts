@@ -823,3 +823,46 @@ describe('two devices editing the same task (#77)', () => {
     expect(phone.local.tasks.map((t) => t.title)).toEqual(['edited'])
   })
 })
+
+describe('habits.time_overrides', () => {
+  it('reads the per-day times, and leaves the field out when there are none (no column, null, or nothing readable)', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [
+        habitRow('a', { time_overrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' }, bad: { startTime: '19:00' } } }),
+        habitRow('b'),
+        habitRow('c', { time_overrides: null }),
+        habitRow('d', { time_overrides: { '2026-10-08': { startTime: '25:00' } } }),
+      ],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.timeOverrides).toEqual({ '2026-10-08': { startTime: '19:00', endTime: '20:00' } })
+    for (const id of ['b', 'c', 'd']) expect(byId.get(id)).not.toHaveProperty('timeOverrides')
+  })
+
+  it('sends the per-day times, and null when there are none', async () => {
+    const base: Habit = {
+      id: 'h',
+      title: 'h',
+      color: '#33B679',
+      timeMode: 'range',
+      startTime: '18:00',
+      endTime: '19:00',
+      frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      completedDates: [],
+      archivedAt: null,
+    }
+    const withDay = { ...base, id: 'h2', timeOverrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' } } }
+    const { client, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(client, 'u-ovr', [], [], [base, withDay], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'h')).toMatchObject({ time_overrides: null })
+    expect(rows.find((r) => r.id === 'h2')).toMatchObject({ time_overrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' } } })
+  })
+})

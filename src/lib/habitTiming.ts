@@ -81,12 +81,28 @@ export function isTimedHabit(habit: Habit): boolean {
   return false
 }
 
+/**
+ * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければ習慣の時間。
+ * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、習慣の長さのまま開始をずらす
+ */
+export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
+  if (!isTimedHabit(habit)) return null
+  const o = habit.timeOverrides?.[dateKey]
+  const startTime = o?.startTime ?? habit.startTime!
+  if (habit.timeMode !== 'range') return { startTime, endTime: null }
+  if (!o) return { startTime, endTime: habit.endTime! }
+  if (o.endTime) return { startTime, endTime: o.endTime }
+  const length = (timeToMinutes(habit.endTime!) - timeToMinutes(habit.startTime!) + 1440) % 1440
+  return { startTime, endTime: minutesToTime((timeToMinutes(startTime) + length) % 1440) }
+}
+
 /** その日の目標（通しの分）。時刻ひとつの習慣は終わりを持たない */
 function target(habit: Habit, dateKey: string): { start: number; end: number | null } {
+  const times = habitTimesOn(habit, dateKey)!
   const base = dayNumber(dateKey) * 1440
-  const start = base + timeToMinutes(habit.startTime!)
-  if (habit.timeMode !== 'range') return { start, end: null }
-  let end = base + timeToMinutes(habit.endTime!)
+  const start = base + timeToMinutes(times.startTime)
+  if (times.endTime === null) return { start, end: null }
+  let end = base + timeToMinutes(times.endTime)
   if (end <= start) end += 1440
   return { start, end }
 }
@@ -151,11 +167,11 @@ export function habitDayStatus(habit: Habit, dateKey: string, index?: HabitRecor
   return candidates(index.deleted, linkKey(habit.id), habit, dateKey).length > 0 ? 'missed' : 'done'
 }
 
-/** チェックで作る記録の時間。時刻ひとつの習慣は許容幅ぶんの長さにする */
-export function plannedRecordTimes(habit: Habit): { startTime: string; endTime: string } | null {
-  if (!isTimedHabit(habit)) return null
-  const start = habit.startTime!
-  if (habit.timeMode === 'range') return { startTime: start, endTime: habit.endTime! }
-  const end = Math.min(timeToMinutes(start) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
-  return { startTime: start, endTime: minutesToTime(end) }
+/** チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は許容幅ぶんの長さにする */
+export function plannedRecordTimes(habit: Habit, dateKey: string): { startTime: string; endTime: string } | null {
+  const times = habitTimesOn(habit, dateKey)
+  if (!times) return null
+  if (times.endTime !== null) return { startTime: times.startTime, endTime: times.endTime }
+  const end = Math.min(timeToMinutes(times.startTime) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
+  return { startTime: times.startTime, endTime: minutesToTime(end) }
 }
