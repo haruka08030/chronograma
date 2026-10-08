@@ -793,6 +793,7 @@ export default {
     dueDateTime: 'Date and time…',
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
+    label: 'Label',
     open: 'Open details',
     doToday: 'Do today',
     toTomorrow: 'Move to tomorrow',
@@ -918,6 +919,10 @@ export default {
     scheduleSet: 'Moved {{count}} tasks to {{label}}',
     scheduleCleared: 'Removed the plan from {{count}} tasks',
     prioritySet: 'Set {{count}} tasks to {{label}} priority',
+    labelSetOne: 'Set the label of “{{title}}” to {{name}}',
+    labelSet: 'Set the label of {{count}} tasks to {{name}}',
+    labelClearedOne: 'Removed the label from “{{title}}”',
+    labelCleared: 'Removed the label from {{count}} tasks',
     button: 'Undo',
   },
   storageFull: {

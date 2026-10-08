@@ -771,6 +771,7 @@ export default {
     dueDateTime: '日時を指定…',
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
+    label: 'ラベル',
     open: '詳細を開く',
     doToday: '今日やる',
     toTomorrow: '明日へ回す',
@@ -886,6 +887,10 @@ export default {
     scheduleSet: '{{count}} 件の実行日を{{label}}にしました',
     scheduleCleared: '{{count}} 件の実行日を外しました',
     prioritySet: '{{count}} 件の優先度を「{{label}}」にしました',
+    labelSetOne: '「{{title}}」のラベルを「{{name}}」にしました',
+    labelSet: '{{count}} 件のラベルを「{{name}}」にしました',
+    labelClearedOne: '「{{title}}」のラベルを外しました',
+    labelCleared: '{{count}} 件のラベルを外しました',
     button: '元に戻す',
   },
   storageFull: {
