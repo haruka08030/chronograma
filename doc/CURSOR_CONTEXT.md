@@ -180,7 +180,7 @@
 - 1 文字ショートカットは上記。以下は修飾キー付き
 
 - **⌘/Ctrl+K**: 検索パレット（`SearchPalette`）。今の画面の上に出し、画面は切り替えない。入力中・詳細を開いていても効く。
-  打つと `searchTasks` で絞り、↑↓ で選ぶ・Enter で詳細・⌥T 今日やる / 明日へ回す（`useTodayToggle`）・⌥S 時間を決める
+  打つと `searchTasks`（To-Do・予定だけ。記録は出さない）で絞り、↑↓ で選ぶ・Enter で詳細・⌥T 今日やる / 明日へ回す（`useTodayToggle`）・⌥S 時間を決める
   （`TimeSlotMenu`。今の画面にその行があればその下）・⌥L 記録を始める（`startTimerForTask`）。使えない操作（完了済み・いつか・
   チェックリスト・時間が決まっている）は出さない。Esc・⌘K・背景で閉じ、開く前のフォーカスへ戻る
 - **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または

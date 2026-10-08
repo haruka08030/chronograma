@@ -19,6 +19,8 @@ import { META_TEXT } from './ui/textClass'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { colorVars } from '../lib/logCategoryColors'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
+import { useShowMore } from '../hooks/useShowMore'
+import { ShowMoreButton } from './ui/ShowMoreButton'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
 import { SelectionBar } from './ui/SelectionBar'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS } from './ui/rowStateClass'
@@ -97,6 +99,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   ]
 
   const df = useDateFormat()
+  const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
 
   const rows = useMemo(() => {
@@ -109,17 +112,23 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       return !(parent && flagged(parent))
     }
     const stamp = (t: Task): string => (mode === 'deleted' ? t.deletedAt : t.archivedAt) ?? t.updatedAt
+    // サブタスクの数は 1 回の走査で数える（行ごとに全件を見ると、数千行で行数 × 全件になる）
+    const childCount = new Map<string, number>()
+    for (const t of tasks) if (t.parentId) childCount.set(t.parentId, (childCount.get(t.parentId) ?? 0) + 1)
     return tasks
       .filter(isRootOfBin)
       .map((t) => ({
         task: t,
         stamp: stamp(t),
-        childCount: tasks.filter((c) => c.parentId === t.id).length,
+        childCount: childCount.get(t.id) ?? 0,
       }))
       .sort((a, b) => b.stamp.localeCompare(a.stamp))
   }, [tasks, flagged, mode])
 
-  const rowIds = useMemo(() => rows.map((r) => r.task.id), [rows])
+  // 数千行になりうるので新しい順に 100 件だけ描き、「さらに表示」・最後の行で ↓ で足す（#288）。⌘A・選択も描いている行だけ
+  const { limit, remaining, showMore } = useShowMore(rows.length, mode)
+  const shownRows = useMemo(() => rows.slice(0, limit), [rows, limit])
+  const rowIds = useMemo(() => shownRows.map((r) => r.task.id), [shownRows])
   // 完了済みと同じ選択（クリック・Shift・⌘A・↑↓）。開く詳細は無いので、行を押すと選ぶ
   const openMenu = useCallback((m: { x: number; y: number; taskIds: string[]; above?: boolean }) => setMenu(m), [])
   const removeRows = useCallback((ids: string[]) => void remove(ids), [remove])
@@ -133,6 +142,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
     removeRows,
     completeRows: noop,
     openMenu,
+    onShowMore: showMore,
     resetOn: [mode],
   })
   useEffect(() => {
@@ -175,8 +185,8 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
             title={mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
           />
         ) : (
-          rows.map(({ task, stamp, childCount }) => {
-            const list = lists.find((l) => l.id === task.listId)
+          shownRows.map(({ task, stamp, childCount }) => {
+            const list = listById.get(task.listId)
             const notePreview =
               task.description
                 .split('\n')
@@ -260,6 +270,11 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           })
         )}
       </div>
+      {showMore && (
+        <div className="px-4 pb-6">
+          <ShowMoreButton onClick={showMore} remaining={remaining} />
+        </div>
+      )}
       {/* 選んでいる間: 件数・戻す・削除（To-Do 一覧と同じバー）。「操作」はこの画面のメニュー */}
       <SelectionBar
         selectedIds={selected}

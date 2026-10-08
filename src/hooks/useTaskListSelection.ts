@@ -29,6 +29,9 @@ const MENU_ROOM = 340
  *
  * 読み上げ: 行を包む箱に `listboxProps` を付ける（listbox・複数選択）。行は option（`TaskItemSelection.optionId`・aria-selected）。
  * ↑↓ で箱にフォーカスを移し、枠の行を aria-activedescendant で伝える（キーは今までどおり window で受ける。入力中は動かさない）
+ *
+ * 長い一覧（`useShowMore` で先頭だけ描く）: rowIds は描いている行だけ（⌘A・削除も見えている行だけに効く）。
+ * `onShowMore` を渡すと、最後の行で ↓ を押したとき行を足してもらい、足された次の行へ枠を動かす
  */
 export function useTaskListSelection({
   rowIds,
@@ -40,6 +43,7 @@ export function useTaskListSelection({
   openMenu,
   todayToggleRows,
   pickTimeRow,
+  onShowMore,
   resetOn,
 }: {
   /** 上から順の、操作できる行（⌘A・↑↓・枠の対象） */
@@ -58,6 +62,8 @@ export function useTaskListSelection({
   todayToggleRows?: (ids: string[]) => void
   /** S: その行の「時間を決める」を開く（`openTimeSlotForTask`）。開けなかったら false。渡さない一覧では効かせない */
   pickTimeRow?: (id: string) => boolean
+  /** 描いていない残りの行を足す（「さらに表示」）。残りが無いときは渡さない */
+  onShowMore?: () => void
   /** これが変わったら選択と枠を外す（開いているリスト・絞り込みなど） */
   resetOn: DependencyList
 }) {
@@ -128,6 +134,7 @@ export function useTaskListSelection({
       if (cached) return cached
       const onRowClick = (e: MouseEvent) => {
         goneCursorRef.current = null
+        pendingMoreRef.current = null
         setCursorId(id)
         setCursorVisible(false)
         if (e.shiftKey && lastAnchorRef.current !== null) {
@@ -240,6 +247,37 @@ export function useTaskListSelection({
     queueMicrotask(() => setCursorId(fallback))
   }, [cursorId, rowIds])
 
+  // 最後の行で ↓（`onShowMore`）: 行が足されたら、その行の次へ枠を動かす（Shift なら選択も広げる）
+  const pendingMoreRef = useRef<{ from: string; shift: boolean } | null>(null)
+  useEffect(() => {
+    const pending = pendingMoreRef.current
+    if (!pending) return
+    const i = rowIds.indexOf(pending.from)
+    if (i >= 0 && i + 1 >= rowIds.length) return
+    pendingMoreRef.current = null
+    if (i < 0) return
+    const next = rowIds[i + 1]
+    const anchor = pending.shift ? (shiftAnchorRef.current ?? pending.from) : null
+    queueMicrotask(() => {
+      if (anchor !== null) {
+        const a = rowIds.indexOf(anchor)
+        setSelected(new Set(rowIds.slice(Math.min(a, i + 1), Math.max(a, i + 1) + 1)))
+        lastAnchorRef.current = anchor
+      }
+      setCursorId(next)
+      setCursorVisible(true)
+    })
+  }, [rowIds])
+  /** 最後の行から先へ動こうとしたら、残りを足してもらう（足せたら true） */
+  const askMoreAfter = (from: string | null, shift: boolean) => {
+    if (!onShowMore || from === null || rowIds.indexOf(from) !== rowIds.length - 1) return false
+    pendingMoreRef.current = { from, shift }
+    goneCursorRef.current = null
+    shiftAnchorRef.current = shift ? (shiftAnchorRef.current ?? from) : null
+    onShowMore()
+    return true
+  }
+
   const cursorRow = () => (cursorId && rowIds.includes(cursorId) ? cursorId : null)
   const targetRow = () => (cursorVisible ? cursorRow() : null)
   const onButton = (e: KeyboardEvent) =>
@@ -253,6 +291,8 @@ export function useTaskListSelection({
     if (box && document.activeElement !== box) box.focus({ preventScroll: true })
     const cursor = cursorRow()
     const down = e.key === 'ArrowDown'
+    pendingMoreRef.current = null
+    if (down && askMoreAfter(cursor, e.shiftKey)) return
     const i = cursor ? rowIds.indexOf(cursor) : -1
     const next =
       i < 0 ? (down ? rowIds[0] : rowIds[rowIds.length - 1]) : rowIds[Math.min(rowIds.length - 1, Math.max(0, i + (down ? 1 : -1)))]
@@ -279,9 +319,10 @@ export function useTaskListSelection({
     const box = listboxRef.current
     if (box && document.activeElement !== box) box.focus({ preventScroll: true })
     const cursor = cursorRow()
+    shiftAnchorRef.current = null
+    if (askMoreAfter(cursor, false)) return
     const i = cursor ? rowIds.indexOf(cursor) : -1
     goneCursorRef.current = null
-    shiftAnchorRef.current = null
     setCursorId(rowIds[Math.min(rowIds.length - 1, i + 1)])
     setCursorVisible(true)
   })
