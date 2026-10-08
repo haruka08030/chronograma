@@ -105,6 +105,8 @@ export default {
     syncing: 'Syncing to the cloud',
     syncingWithLast: 'Syncing to the cloud (last synced {{when}})',
     errorShort: 'Not synced',
+    outdatedShort: 'Load the new version',
+    outdated: 'Sync is paused because this version of the app is too old. Click to load the new version (your data stays on this device).',
     error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
     errorWithLast: "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
     limit:

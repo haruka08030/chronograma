@@ -5,6 +5,7 @@ import {
   decideHydrate,
   fetchExtraTimeZones,
   fetchLogLabels,
+  fetchMinSyncVersion,
   pushExtraTimeZones,
   pushListsTasksHabits,
   pushLogLabels,
@@ -12,6 +13,7 @@ import {
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
 import { clearPreviousAccount } from '../lib/accountBoundary'
 import { requestPersistentStorage } from '../lib/persistentStorage'
+import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
@@ -111,6 +113,8 @@ export function useSupabaseSync() {
     let staleRetries = 0
     /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
     let limitHit = false
+    /** アプリの版が同期の下限より古い（送らない） */
+    let outdated = false
     /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
     const pull = createPullState()
 
@@ -206,6 +210,18 @@ export function useSupabaseSync() {
     const syncOnceLocked = async (): Promise<boolean> => {
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
+      // 版の下限より古いアプリは送らない（端末の時計で書き勝たないように）。読み込み直しを促す
+      const min = await fetchMinSyncVersion(supabase)
+      if (cancelled) return true
+      if (typeof min !== 'number') {
+        console.error('[sync]', min.error)
+        reportSyncError('min-version', min.error)
+        return false
+      }
+      if (min > SYNC_PROTOCOL_VERSION) {
+        outdated = true
+        return false
+      }
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
       const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
       const pulled = await pullRemote(supabase, userId, pull, { full: !known })
@@ -323,6 +339,7 @@ export function useSupabaseSync() {
       if (res.error) {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
+        if (isAppOutdatedError(res.error)) outdated = true
         reportSyncError('push', res.error)
         // 途中まで届いた行・消えた行がある。次は全部を取り直す
         pull.forceFull = true
@@ -374,6 +391,7 @@ export function useSupabaseSync() {
       running = true
       staleRetries = 0
       limitHit = false
+      outdated = false
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
@@ -400,7 +418,7 @@ export function useSupabaseSync() {
         setSyncState('idle', new Date().toISOString())
         return
       }
-      setSyncState(limitHit ? 'limit' : 'error')
+      setSyncState(outdated ? 'outdated' : limitHit ? 'limit' : 'error')
       // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
       retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
       clearTimeout(retry)

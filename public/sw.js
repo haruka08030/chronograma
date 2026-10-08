@@ -4,6 +4,9 @@
  * - 通知（Web Push）を表示し、タップで「今日の計画」を開く。記録の確認は「予定どおり」「記録する」のボタン付き
  * Supabase や Google など別オリジンの通信には触らない（同期は常に最新が必要なため）
  */
+// ビルドごとに変わる印（vite.config.ts の swBuildStamp が置き換える）。中身が変わらないとブラウザは新しい版を見つけず、
+// 開きっぱなしのアプリ・ホーム画面のアプリが古い版のまま動き続けていた
+// build: __BUILD_VERSION__
 const CACHE = 'chronograma-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png']
 const NAV_TIMEOUT_MS = 4000

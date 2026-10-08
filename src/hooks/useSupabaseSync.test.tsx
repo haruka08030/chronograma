@@ -342,4 +342,18 @@ describe('useSupabaseSync', () => {
       expect(loadBaseline('u1')).toBeNull()
     })
   })
+
+  it('アプリの版が同期の下限より古ければ送らず、読み込み直しを促す状態にする（#259）', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.app_config = [{ user_id: '', key: 'min_sync_version', value: 99 }]
+    useTaskStore.getState().addTask('local only')
+    signIn('u1')
+    for (let i = 0; i < 50 && useTaskStore.getState().syncState !== 'outdated'; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+    }
+    expect(useTaskStore.getState().syncState).toBe('outdated')
+    expect(serverTitles('u1')).toEqual([])
+  })
 })

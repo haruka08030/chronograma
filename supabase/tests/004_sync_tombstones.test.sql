@@ -18,7 +18,7 @@ select results_eq(
   $$select table_name, row_id, deleted_at from public.sync_tombstones$$,
   $$values ('tasks'::text, 't1'::text, now())$$,
   '行を消すと印が残る（本人には見える）');
-insert into public.tasks (user_id, id, list_id) values ('00000000-0000-4000-8000-00000000000a', 't1', 'l1');
+insert into public.tasks (user_id, id, list_id, base_updated_at) values ('00000000-0000-4000-8000-00000000000a', 't1', 'l1', '-infinity');
 select is_empty($$select 1 from public.sync_tombstones where row_id = 't1'$$, '同じ id の行がまた入ると印は消える');
 
 -- 端末からは書けない（書くのはトリガーだけ）
