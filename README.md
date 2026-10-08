@@ -40,6 +40,7 @@
 | 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |
 | 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
 | エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`） | `src/lib/errorReport.ts` |
+| 数を見る | 本番の SQL Editor で流す読むだけの SQL。エラーと通知の回（`health.sql`）、同期している版（`versions.sql`）、使われ方（`usage.sql`: はじめの 3 日・2 週目・記録した日の数・機能ごとの人数・予定と記録の比・ラベルの無い記録の割合。数と日付だけで、タイトル・メモ・ラベル名は読まない）。migration には入れない | `supabase/metrics/` |
 
 **テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
 
