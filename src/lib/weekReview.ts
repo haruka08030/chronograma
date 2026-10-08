@@ -3,7 +3,7 @@ import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { habitToPlannedItem } from './habitSlots'
-import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
 import { matchPlanAndActualForDate, type MatchedPair } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
@@ -197,6 +197,32 @@ export function getReview(
 const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
+ * その日の、記録と突き合わせる予定（時刻つきの To-Do・予定（授業・バイト）・時間を決めた習慣の枠）と、その予定の色。
+ * 週に◯回の習慣は、やらなかった日の枠を入れない（やらない日の枠を「できなかった予定」にしない）。
+ * ふりかえりと記録の書き出し（元の予定の列）が同じ予定の集まりで突き合わせる
+ */
+export function plannedItemsOnDay(
+  tasks: readonly Task[],
+  habits: readonly Habit[],
+  key: string,
+  excludedListIds: ReadonlySet<string>,
+  habitRecords: HabitRecordIndex = buildHabitRecordIndex(tasks),
+): { item: PlannedItem; color: string | null }[] {
+  const out: { item: PlannedItem; color: string | null }[] = []
+  for (const t of tasks) {
+    if (taskPlacementDate(t) !== key || excludedListIds.has(t.listId)) continue
+    const item = scheduledTaskToPlannedItem(t)
+    if (item) out.push({ item, color: t.color })
+  }
+  for (const h of habits) {
+    if (h.frequency.type === 'timesPerWeek' && habitDayStatus(h, key, habitRecords) === 'missed') continue
+    const item = habitToPlannedItem(h, key)
+    if (item) out.push({ item, color: h.color })
+  }
+  return out
+}
+
+/**
  * 並べた日ごとの記録・予定・計画どおり（`getReview` の日ごとの部分）。未来の日は数えない（そこで打ち切る）。
  * 「週に◯回」の習慣の回数は週でまとめて数えるので、ここの `habitDue` / `habitDone` には入らない
  */
@@ -247,29 +273,19 @@ function collectReviewDays(
     }
     days.push(day)
 
-    const planned: PlannedItem[] = []
-    /** 予定 → その予定のラベル（その予定から作る記録のラベル。分類なし・色だけの記録として `labelOf` に渡す） */
-    const planLabel = new Map<PlannedItem, string>()
-    for (const t of tasks) {
-      if (taskPlacementDate(t) !== key || excludedListIds.has(t.listId)) continue
-      const p = scheduledTaskToPlannedItem(t)
-      if (!p) continue
-      planned.push(p)
-      planLabel.set(p, labelOf({ category: null, color: t.color }))
-    }
     for (const h of habits) {
-      const timesPerWeek = h.frequency.type === 'timesPerWeek'
       // 週に◯回の習慣は日ごとではなく週でまとめて数える（下）
-      if (!timesPerWeek && isHabitCountedOnDate(h, date, habitRecords)) {
+      if (h.frequency.type !== 'timesPerWeek' && isHabitCountedOnDate(h, date, habitRecords)) {
         habitDue++
         if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }
-      // 週に◯回の習慣は、やった日の枠だけ予定どおりかを見る（やらない日の枠を「できなかった予定」にしない）
-      if (timesPerWeek && habitDayStatus(h, key, habitRecords) === 'missed') continue
-      const p = habitToPlannedItem(h, key)
-      if (!p) continue
-      planned.push(p)
-      planLabel.set(p, labelOf({ category: null, color: h.color }))
+    }
+    const planned: PlannedItem[] = []
+    /** 予定 → その予定のラベル（その予定から作る記録のラベル。分類なし・色だけの記録として `labelOf` に渡す） */
+    const planLabel = new Map<PlannedItem, string>()
+    for (const { item, color } of plannedItemsOnDay(tasks, habits, key, excludedListIds, habitRecords)) {
+      planned.push(item)
+      planLabel.set(item, labelOf({ category: null, color }))
     }
     const logs = tasks.filter(
       (t) => isLogTask(t) && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepTask(t) && logOverlapsDateKey(t, key),

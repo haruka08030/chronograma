@@ -370,6 +370,7 @@
 - **CSV 取り込み（Web）**: `importTasksFromCsv`（`src/lib/importTasksCsv.ts`）—
   既存データに**マージ**（全置換 JSON とは別ボタン）。列: `title`
   必須、`due_date`、 `list`、`completed`、`tags`、`priority`、`description` 等
+- **記録の書き出し（CSV・ICS）**: `src/lib/recordExport.ts`（`collectExportRows` → `buildRecordsCsv` / `buildRecordsIcs`）、画面は `settings/RecordExportSettings.tsx`。元の予定の列は `plannedItemsOnDay`（`weekReview.ts`）と `matchPlanAndActualForDate`。保存は `downloadTextFile`（`src/lib/downloadFile.ts`）
 
 ## Supabase 同期（`src/hooks/useSupabaseSync.ts`）
 

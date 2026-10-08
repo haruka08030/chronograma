@@ -12,6 +12,7 @@ import { asIncomingChange } from '../../lib/changeOrigin'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { appTodayKey } from '../../lib/timeZone'
+import { downloadTextFile } from '../../lib/downloadFile'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
 
@@ -112,13 +113,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
 
     exportData: () => {
       const data = JSON.stringify(JSON.parse(get().backupJson()), null, 2)
-      const blob = new Blob([data], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `chronograma-backup-${appTodayKey()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadTextFile(data, `chronograma-backup-${appTodayKey()}.json`, 'application/json')
     },
 
     importData: (json) => {

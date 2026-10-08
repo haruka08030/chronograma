@@ -375,6 +375,8 @@ const SCREENS = [
   },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
+  // 「データ」の記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281）
+  { name: 'settings-data', view: 'settings', scrollTo: '#settings-data' },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
   { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
   // 「日付と時刻」の週の開始日（日曜を選んだところ）
