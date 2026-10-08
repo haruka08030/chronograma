@@ -3,7 +3,18 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { compareReviews, foldLabelMinutes, getPrevReview, getReview, UNPLANNED_ROWS, type LabelSource } from '../lib/weekReview'
+import {
+  compareReviews,
+  foldLabelMinutes,
+  getPrevReview,
+  getReview,
+  pickReviewInsight,
+  reviewInsightText,
+  UNPLANNED_ROWS,
+  type LabelSource,
+} from '../lib/weekReview'
+import { isLogTask, isSleepTask } from '../types/task'
+import { isActiveTask } from '../lib/taskLifecycle'
 import { reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from '../lib/reviewPeriod'
 import { ESTIMATE_ROWS, getEstimateRows } from '../lib/estimateActual'
 import { unplannedListIds } from '../lib/listKind'
@@ -36,8 +47,6 @@ const PERIOD_KEYS = {
     vsPrev: 'weekReview.loggedVsPrevWeek',
     habits: 'weekReview.habits',
     habitsCurrent: 'weekReview.habitsThisWeek',
-    insightEmpty: 'weekReview.insightEmpty',
-    insightNoBlocks: 'weekReview.insightNoBlocks',
   },
   month: {
     title: 'weekReview.monthTitle',
@@ -48,8 +57,6 @@ const PERIOD_KEYS = {
     vsPrev: 'weekReview.loggedVsPrevMonth',
     habits: 'weekReview.habitsMonth',
     habitsCurrent: 'weekReview.habitsThisMonth',
-    insightEmpty: 'weekReview.insightEmptyMonth',
-    insightNoBlocks: 'weekReview.insightNoBlocksMonth',
   },
 } as const
 
@@ -146,15 +153,17 @@ export function WeekReviewCard() {
   // ラベル別の前の月との差は月だけ（週は記録した時間の差だけで足りる）。前の月に記録が無ければ出さない
   const showLabelDiff = period === 'month' && comparison.loggedDiff != null
 
-  const insight = (() => {
-    if (review.total === 0 && review.loggedMinutes === 0) return t(keys.insightEmpty)
-    if (review.followRate != null && review.followRate >= 0.7) return t('weekReview.insightFollowHigh')
-    if (review.followRate != null && review.followRate < 0.4) return t('weekReview.insightFollowLow')
-    // 1 件も終えていない週に「進んでいます」とは言わない
-    if (review.plannedMinutes === 0) return t(review.done > 0 ? keys.insightNoBlocks : 'weekReview.insightNoBlocksNoDone')
-    if (review.done === 0 && review.total > 0) return t('weekReview.insightNoDone', { time: formatDuration(review.loggedMinutes) })
-    return t('weekReview.insightSteady')
-  })()
+  // 一言（#276）: その期間の数字から、いちばん大きいずれ 1 つ（同じ数字なら同じ文。提案はしない）。
+  // はじめの案内は、一度も記録したことが無い人にだけ
+  const everRecorded = useMemo(() => tasks.some((x) => isLogTask(x) && !isSleepTask(x) && isActiveTask(x)), [tasks])
+  const insight = reviewInsightText(pickReviewInsight(review, { loggedDiff, everRecorded, todayKey }), {
+    t,
+    period,
+    current: atCurrent,
+    duration: formatDuration,
+    label: (tag) => recordLabelKeyText(tag, labelPresets, logCategoryColors, t),
+    day: (key) => df.monthDayWeekday(fromDateKey(key)),
+  })
 
   const tiles = [
     { label: t('weekReview.done'), value: `${review.done}/${review.total}`, sub: null },

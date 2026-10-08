@@ -11,6 +11,7 @@ import { isActiveTask } from './taskLifecycle'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
 import { addDays } from 'date-fns'
+import type { TFunction } from 'i18next'
 import { fromDateKey, toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
 import { timeToMinutes } from './timeGrid'
@@ -501,3 +502,145 @@ export function recentDailyLoggedMinutes(
 
 /** `recentDailyLoggedMinutes` の期間（日） */
 export const RECENT_DAYS = 14
+
+/** 一言で名指しする差の最小（分）。これより小さい差は名指ししない */
+export const INSIGHT_MIN_MINUTES = 60
+/** ラベルの予定と記録の差が、予定に対してこれ未満なら名指ししない */
+export const INSIGHT_LABEL_GAP_RATIO = 0.25
+/** 記録した時間の前の期間との差が、前の期間に対してこれ未満なら名指ししない */
+export const INSIGHT_DIFF_RATIO = 0.2
+/** 時間を決めた予定がこれ未満の期間・日は、割合・記録の無かった日の文を出さない（少ない件数で言い切らない） */
+export const INSIGHT_MIN_PLANS = 3
+
+/**
+ * ふりかえりの一言（#276）。その期間の数字から作る、いちばん大きいずれ 1 つ。
+ * 名指しする候補（分の大きさで比べる）が無ければ、事実を並べるだけの文に下がる
+ */
+export type ReviewInsight =
+  /** ラベルの予定（時間の過ぎた分）と記録の差 */
+  | { kind: 'labelGap'; tag: string; planned: number; logged: number }
+  /** 予定に無かった記録でいちばん長いもの */
+  | { kind: 'unplanned'; tag: string; title: string; minutes: number }
+  /** 時間を決めた予定が 3 件以上あって、どれも記録・完了の無かった過ぎた日 */
+  | { kind: 'missedDay'; dateKey: string; count: number }
+  /** 記録した時間の前の期間との差 */
+  | { kind: 'loggedDiff'; diff: number }
+  // ここから下は名指しする差が無いとき
+  | { kind: 'follow'; followed: number; total: number }
+  | { kind: 'loggedTop'; logged: number; tag: string; minutes: number }
+  | { kind: 'doneOnly'; done: number }
+  | { kind: 'openOnly'; total: number }
+  /** 記録も予定も無い期間（前に記録したことがある人） */
+  | { kind: 'empty' }
+  /** 一度も記録したことが無い人 */
+  | { kind: 'firstTime' }
+
+type NamedInsight = Extract<ReviewInsight, { kind: (typeof INSIGHT_KIND_ORDER)[number] }>
+
+/** 同じ大きさの候補の並び（先のものを出す） */
+const INSIGHT_KIND_ORDER = ['missedDay', 'labelGap', 'unplanned', 'loggedDiff'] as const
+
+/**
+ * 一言を選ぶ。同じ数字なら同じ一言（並びは分の大きさ → 種類 → ラベル・日付の順で決める）。
+ * 提案・原因は言わない（事実だけ。どうするかは利用者が選ぶ）
+ */
+export function pickReviewInsight(
+  review: WeekReview,
+  opts: {
+    /** 記録した時間の前の期間との差（`compareReviews`。前の期間に記録が無ければ null） */
+    loggedDiff: number | null
+    /** 一度でも記録したことがあるか（無ければはじめの案内） */
+    everRecorded: boolean
+    todayKey: string
+  },
+): ReviewInsight {
+  const candidates: { weight: number; order: number; key: string; insight: NamedInsight }[] = []
+  const add = (weight: number, insight: NamedInsight, key: string) =>
+    candidates.push({ weight, order: INSIGHT_KIND_ORDER.indexOf(insight.kind), key, insight })
+
+  // ラベルの予定と記録の差。予定は時間の過ぎた分だけ（今日のこれからの予定で「少なかった」と言わない）
+  const loggedOf = new Map(review.labelMinutes.map((x) => [x.tag, x.minutes]))
+  for (const p of review.labelPlans) {
+    const planned = p.endedMinutes
+    if (planned < INSIGHT_MIN_MINUTES) continue
+    const logged = loggedOf.get(p.tag) ?? 0
+    const gap = Math.abs(logged - planned)
+    if (gap >= INSIGHT_MIN_MINUTES && gap >= planned * INSIGHT_LABEL_GAP_RATIO)
+      add(gap, { kind: 'labelGap', tag: p.tag, planned, logged }, p.tag)
+  }
+  // 予定に無かった記録は、予定（To-Do・習慣の枠）のある期間だけ（画面の「予定に無かった記録」と同じ）
+  const top = review.plannedMinutes > 0 ? review.unplanned[0] : undefined
+  if (top && top.minutes >= INSIGHT_MIN_MINUTES) add(top.minutes, { kind: 'unplanned', ...top }, `${top.tag}\u0000${top.title}`)
+  // 過ぎた日で、時間を決めた予定が 3 件以上あり、どれも記録・完了が無かった日（その日の予定の長さで比べる）
+  for (const d of review.days) {
+    if (d.dateKey >= opts.todayKey || d.timedPlanned < INSIGHT_MIN_PLANS || d.followed > 0) continue
+    add(d.plannedMinutes, { kind: 'missedDay', dateKey: d.dateKey, count: d.timedPlanned }, d.dateKey)
+  }
+  if (opts.loggedDiff != null) {
+    const prev = review.loggedMinutes - opts.loggedDiff
+    const diff = Math.abs(opts.loggedDiff)
+    if (diff >= INSIGHT_MIN_MINUTES && diff >= prev * INSIGHT_DIFF_RATIO) add(diff, { kind: 'loggedDiff', diff: opts.loggedDiff }, '')
+  }
+  candidates.sort((a, b) => b.weight - a.weight || a.order - b.order || compareText(a.key, b.key))
+  if (candidates[0]) return candidates[0].insight
+
+  if (review.timedPlanned >= INSIGHT_MIN_PLANS) return { kind: 'follow', followed: review.followed, total: review.timedPlanned }
+  const topLabel = review.labelMinutes[0]
+  if (review.loggedMinutes > 0 && topLabel) {
+    return { kind: 'loggedTop', logged: review.loggedMinutes, tag: topLabel.tag, minutes: topLabel.minutes }
+  }
+  if (review.done > 0) return { kind: 'doneOnly', done: review.done }
+  if (review.total > 0) return { kind: 'openOnly', total: review.total }
+  return opts.everRecorded ? { kind: 'empty' } : { kind: 'firstTime' }
+}
+
+/** 一言の文にする。ラベル名・時間・日付の書き方は画面から渡す（読み上げでもそのまま読める文。矢印は使わない） */
+export function reviewInsightText(
+  insight: ReviewInsight,
+  f: {
+    t: TFunction
+    period: ReviewPeriod
+    /** 今の期間か（前の期間の呼び方が「先週」か「前の週」か） */
+    current: boolean
+    duration: (minutes: number) => string
+    label: (tag: string) => string
+    day: (dateKey: string) => string
+  },
+): string {
+  const { t, period, duration } = f
+  switch (insight.kind) {
+    case 'labelGap':
+      return t('weekReview.insightLabelGap', {
+        label: f.label(insight.tag),
+        planned: duration(insight.planned),
+        logged: duration(insight.logged),
+      })
+    case 'unplanned':
+      return t('weekReview.insightUnplanned', { title: insight.title || f.label(insight.tag), time: duration(insight.minutes) })
+    case 'missedDay':
+      return t('weekReview.insightMissedDay', { day: f.day(insight.dateKey), count: insight.count })
+    case 'loggedDiff': {
+      const prev =
+        period === 'month'
+          ? t(f.current ? 'weekReview.insightLastMonth' : 'weekReview.insightPrevMonth')
+          : t(f.current ? 'weekReview.insightLastWeek' : 'weekReview.insightPrevWeek')
+      return t(insight.diff > 0 ? 'weekReview.insightMore' : 'weekReview.insightLess', { prev, time: duration(Math.abs(insight.diff)) })
+    }
+    case 'follow':
+      return t('weekReview.insightFollow', { followed: insight.followed, total: insight.total })
+    case 'loggedTop':
+      return t('weekReview.insightLoggedTop', {
+        time: duration(insight.logged),
+        label: f.label(insight.tag),
+        labelTime: duration(insight.minutes),
+      })
+    case 'doneOnly':
+      return t('weekReview.insightDoneOnly', { count: insight.done })
+    case 'openOnly':
+      return t('weekReview.insightOpenOnly', { count: insight.total })
+    case 'empty':
+      return t(period === 'month' ? 'weekReview.insightNothingMonth' : 'weekReview.insightNothing')
+    case 'firstTime':
+      return t(period === 'month' ? 'weekReview.insightEmptyMonth' : 'weekReview.insightEmpty')
+  }
+}

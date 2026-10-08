@@ -209,3 +209,24 @@ describe('WeekReviewCard: ラベルごとの予定と、予定に無かった記
     expect(screen.queryByText(/Planned \d/)).toBeNull()
   })
 })
+
+describe('WeekReviewCard: 一言は数字から（#276）', () => {
+  it('記録のある週は合計といちばん長いラベル。決まり文句は出さない', () => {
+    seed()
+    render(<WeekReviewCard />)
+    expect(screen.getByText(/^2h logged in total; the most was .+ at 2h\.$/)).toBeInTheDocument()
+    expect(screen.queryByText('Steady progress.')).toBeNull()
+  })
+
+  it('はじめの案内は一度も記録していない人だけ。記録したことがあれば、空の週は事実だけ', () => {
+    useTaskStore.setState({ tasks: [] })
+    const { unmount } = render(<WeekReviewCard />)
+    expect(screen.getByText(/^Nothing logged this week yet\. Block time/)).toBeInTheDocument()
+    unmount()
+
+    const old = toDateKey(shiftReviewPeriod('month', zonedNow(), -3))
+    useTaskStore.setState({ tasks: [task('old', { kind: 'log', completed: true, dueDate: old, startTime: '09:00', endTime: '10:00' })] })
+    render(<WeekReviewCard />)
+    expect(screen.getByText('Nothing logged or planned this week yet.')).toBeInTheDocument()
+  })
+})
