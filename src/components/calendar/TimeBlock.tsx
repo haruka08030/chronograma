@@ -17,6 +17,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
  * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
  * 終わった・完了した予定は灰色（`gc-missed`）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
+ * 文字はブロックの上端に寄せる（button は既定で縦中央。長いブロックに後の予定が重なっても題名・時刻が隠れないように）。
  */
 export function TimeBlock({
   task,
@@ -98,7 +99,7 @@ export function TimeBlock({
           onOpenDetail()
         }
       }}
-      className={`${variant} absolute overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
+      className={`${variant} absolute flex flex-col justify-start overflow-hidden ${bare ? 'rounded-[2px]' : 'rounded-[5px]'} ${tight ? 'py-0 leading-none' : 'py-0.5 leading-tight'} pl-1.5 ${withCheck ? 'pr-1.5 @[5.5rem]:pr-5' : 'pr-1.5'} @container text-left text-[11px]
         cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
@@ -127,17 +128,22 @@ export function TimeBlock({
           </span>
         </span>
       ) : (
-        <>
+        // 狭いカード（週表示の重なり・1 日表示の横並び）は Google と同じく「タイトル、20:00」（終了時刻は省く）。
+        // 1 行に入らなければ時刻ごと次の行へ送り、題名は 1 行で切る。時刻は折り返さない。
+        // 狭い＝「開始 – 終了」の行が入らない中身の幅 5rem 未満（ブロック自身の `@container` で測る）
+        <span className="block @max-[5rem]:flex @max-[5rem]:flex-wrap">
           <span className="block truncate font-medium">
             {dueDot}
             {moon}
             {doneMark}
             {task.title}
+            <span className="hidden @max-[5rem]:inline">{t('common.listSeparator')}</span>
           </span>
-          <span className="block text-[10px] opacity-80">
-            {task.startTime} – {task.endTime}
+          <span className="block truncate text-[10px] opacity-80 @max-[5rem]:text-[11px]">
+            {task.startTime}
+            <span className="@max-[5rem]:hidden"> – {task.endTime}</span>
           </span>
-        </>
+        </span>
       )}
     </button>
   )

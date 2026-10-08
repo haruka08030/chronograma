@@ -111,6 +111,9 @@ export function WeekDayColumn({
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'
+  // 1 日表示（今日の計画）は 予定 / 記録 の 2 列に固定。週表示は列が狭いので、記録と重なる塊だけ左右に分け、
+  // 記録の無い時間帯は予定に全幅を使う（半分＋ずらし重ねだと「E...」になって何の予定か読めない）
+  const fixedLanes = splitLanes && gridDays.length === 1
   const blockStyles = layoutPlanAndLog(
     [
       ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
@@ -129,7 +132,7 @@ export function WeekDayColumn({
     ],
     dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
     mode,
-    splitLanes,
+    fixedLanes,
   )
   const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
   const logStyle = (id: string) => blockStyles.get(`log:${id}`)
