@@ -509,6 +509,14 @@ export default {
     endTime: 'End',
     destGoogle: 'Google Calendar',
   },
+  courseTasks: {
+    heading: 'Assignments for this course',
+    pick: 'Link to an LMS course…',
+    none: 'Don’t link',
+    selectAria: 'Course linked to “{{title}}”',
+    more_one: '{{count}} more',
+    more_other: '{{count}} more',
+  },
   eventCard: {
     google: 'Google Calendar',
     colorScope: 'Apply color to',

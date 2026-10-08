@@ -9,6 +9,7 @@ import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
+import type { CourseLink } from '../lib/courseLinks'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
@@ -162,6 +163,10 @@ export interface TaskState {
   eventTemplates: EventTemplate[]
   /** よく入れる予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   eventTemplatesUpdatedAt: string | null
+  /** 授業の予定の名前と LMS の科目のつながり（#309）。予定のカードに、その科目の課題を出す */
+  courseLinks: CourseLink[]
+  /** つながりをこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  courseLinksUpdatedAt: string | null
 
   habits: Habit[]
 
@@ -335,6 +340,8 @@ export interface TaskState {
     dateKey: string,
     sessionTaskIds?: ReadonlySet<string>,
   ) => { kind: 'added' | 'removed'; taskId: string } | null
+  /** 予定の名前と科目をつなぐ（同じ名前の予定はみな同じ科目）。`course` が '' なら「つながない」 */
+  setCourseLink: (eventTitle: string, course: string) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (

@@ -496,6 +496,13 @@ export default {
     endTime: '終了',
     destGoogle: 'Google カレンダー',
   },
+  courseTasks: {
+    heading: 'この科目の課題',
+    pick: 'LMS の科目とつなぐ…',
+    none: 'つながない',
+    selectAria: '「{{title}}」とつなぐ科目',
+    more: 'ほか {{count}} 件',
+  },
   eventCard: {
     google: 'Google カレンダー',
     colorScope: '色を付ける範囲',

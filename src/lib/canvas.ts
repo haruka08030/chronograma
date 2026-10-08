@@ -4,7 +4,7 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
 import { instantFromWall, wallInZone } from './timeZone'
-import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
+import { CANVAS_LIST_ID, isCanvasListId, parseCanvasTaskId } from './canvasIds'
 import { INBOX_ID } from '../store/storeConstants'
 import { externalPatch, type PulledFields } from './externalFields'
 import { TASK_DEFAULTS } from './taskDefaults'
@@ -19,9 +19,7 @@ import { TASK_DEFAULTS } from './taskDefaults'
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
 
-export { CANVAS_LIST_ID }
-
-const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
+export { CANVAS_LIST_ID, parseCanvasTaskId }
 
 export type CanvasConnection = {
   id: string
@@ -142,11 +140,6 @@ export const markCanvasComplete = (connectionId: string, type: string, id: strin
 
 export function canvasTaskId(connectionId: string, type: string, id: string): string {
   return `canvas-${connectionId}-${type}-${id}`
-}
-
-export function parseCanvasTaskId(id: string): { connectionId: string; type: string; id: string } | null {
-  const m = TASK_ID_RE.exec(id)
-  return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
 }
 
 /** 以前の版が作っていた科目のセクションの id（`canvasCourseSectionsToTags` でタグに移す） */
