@@ -135,7 +135,11 @@ export function isOvernightTimeLog(task: Task): boolean {
  */
 export function logSegmentClockOnDay(task: Task, dateKey: string): { startTime: string; endTime: string } | null {
   const iv = taskTimedInterval(task)
-  if (!iv) return null
+  return iv ? intervalSegmentClockOnDay(iv, dateKey) : null
+}
+
+/** 区間のうち、その日にかかる部分の時刻（`HH:mm`。日の終わりまでなら終わりは '24:00'）。かからなければ null */
+export function intervalSegmentClockOnDay(iv: { start: Date; end: Date }, dateKey: string): { startTime: string; endTime: string } | null {
   const d0 = startOfDay(dateKeyToNoon(dateKey))
   const d1 = startOfDay(addDays(d0, 1))
   const segStart = max([iv.start, d0])

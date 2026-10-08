@@ -140,7 +140,12 @@ export function WeekCalendarView({
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate } = useWeekBuckets(
+    tasks,
+    lists,
+    calendarEvents,
+    days,
+  )
 
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
@@ -445,7 +450,7 @@ export function WeekCalendarView({
     onSelectDate,
     timedByDate,
     timeLogsByDate: splitLanes ? timeLogsByDate : NO_LOGS,
-    eventsByDate,
+    timedEventsByDate,
     habitIndex,
     splitLanes,
     laneAt,
