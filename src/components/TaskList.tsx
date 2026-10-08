@@ -18,6 +18,7 @@ import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskMenu } from '../lib/overlays'
+import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
 import { useLiftedRowId } from '../hooks/useTouchLift'
 import { setLiftGroupCount } from '../lib/touchLift'
@@ -209,6 +210,8 @@ export function TaskList({
     openMenu,
     // いつか・チェックリストは日に置かないので、Shift+T（今日やる ⇄ 明日へ）はタスクのリストだけ
     todayToggleRows: listKind === 'tasks' ? (ids) => todayToggle(ids).run() : undefined,
+    // S: 時間未定の行の「時間を決める」（⌘/ のメニューと同じく、やる日 → 締切の日 → 今日の空きから）
+    pickTimeRow: listKind === 'tasks' ? (id) => openTimeSlotForTask(id) : undefined,
     resetOn: [selectedListId, selectedView, filterTag, filterColor, sortMode],
   })
   // 選んだものが全部済みなら「完了」は何もしないので出さない（戻すのは「操作」のメニューから）

@@ -521,6 +521,7 @@ export default {
     resizeBlock: 'Make the focused or open timeline block end 15 minutes earlier / later',
     completeSelected: 'Toggle complete',
     todayToggle: 'Do today / move to tomorrow',
+    pickTime: 'Set a time for the selected untimed task (↑↓ free slot, ←→ length, Enter to place)',
     moveRow: 'Move between tasks (Shift to extend the selection)',
     openRow: 'Open the task',
     completeRow: 'Toggle the row complete',

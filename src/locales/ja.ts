@@ -509,6 +509,7 @@ export default {
     resizeBlock: 'タイムラインの選んだ・開いた予定や記録の終わりを 15 分ずつ伸び縮み',
     completeSelected: '完了／未完了を切り替え',
     todayToggle: '今日やる / 明日へ回す',
+    pickTime: '選んだ時間未定の To-Do の「時間を決める」を開く（↑↓ で空き、←→ で長さ、Enter で置く）',
     moveRow: 'To-Do の行を移動（Shift で選択を広げる）',
     openRow: '行の詳細を開く',
     completeRow: '行の完了／未完了を切り替え',

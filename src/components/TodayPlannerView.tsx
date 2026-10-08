@@ -21,6 +21,7 @@ import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskMenu } from '../lib/overlays'
+import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
@@ -153,6 +154,8 @@ export function TodayPlannerView() {
     completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     todayToggleRows: (ids) => todayToggle(ids).run(),
+    // S: 「時間を決める」は見ている日の空きから（候補・やり残しの行も、置くとこの日にやる行になる）
+    pickTimeRow: (id) => openTimeSlotForTask(id, dateKey),
     resetOn: [dateKey],
   })
   useEffect(() => {
