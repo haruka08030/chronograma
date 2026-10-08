@@ -90,187 +90,6 @@ interface TaskRow {
   deleted_at?: string | null
 }
 
-function isMissingEndDateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'end_date' column")
-}
-
-function stripEndDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ end_date, ...rest }) => {
-    void end_date
-    return rest
-  })
-}
-
-function isMissingCompletedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'completed_at' column")
-}
-
-function stripCompletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ completed_at, ...rest }) => {
-    void completed_at
-    return rest
-  })
-}
-
-function isMissingLocationColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'location' column")
-}
-
-function stripLocationFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ location, ...rest }) => {
-    void location
-    return rest
-  })
-}
-
-function isMissingColorColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'color' column")
-}
-
-function stripColorFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ color, ...rest }) => {
-    void color
-    return rest
-  })
-}
-
-function isMissingHabitIdColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'habit_id' column")
-}
-
-function stripHabitIdFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ habit_id, ...rest }) => {
-    void habit_id
-    return rest
-  })
-}
-
-function isMissingIsSleepColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'is_sleep' column")
-}
-
-function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ is_sleep, ...rest }) => {
-    void is_sleep
-    return rest
-  })
-}
-
-function isMissingEstimateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'estimate_minutes' column")
-}
-
-function stripEstimateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ estimate_minutes, ...rest }) => {
-    void estimate_minutes
-    return rest
-  })
-}
-
-function isMissingSourceTaskColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'source_task_id' column")
-}
-
-function stripSourceTaskFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ source_task_id, ...rest }) => {
-    void source_task_id
-    return rest
-  })
-}
-
-function isMissingIsEventColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'is_event' column")
-}
-
-function stripIsEventFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ is_event, ...rest }) => {
-    void is_event
-    return rest
-  })
-}
-
-function isMissingTimeZoneColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return /Could not find the 'time_zone(_anchor)?' column/.test(message)
-}
-
-function stripTimeZoneFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ time_zone, time_zone_anchor, ...rest }) => {
-    void time_zone
-    void time_zone_anchor
-    return rest
-  })
-}
-
-function isMissingRemindersColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'reminders' column")
-}
-
-function stripRemindersFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ reminders, ...rest }) => {
-    void reminders
-    return rest
-  })
-}
-
-function isMissingDueTimeColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'due_time' column")
-}
-
-function stripDueTimeFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ due_time, ...rest }) => {
-    void due_time
-    return rest
-  })
-}
-
-function isMissingScheduledDateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'scheduled_date' column")
-}
-
-function stripScheduledDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ scheduled_date, ...rest }) => {
-    void scheduled_date
-    return rest
-  })
-}
-
-function isMissingArchivedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'archived_at' column")
-}
-
-function stripArchivedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ archived_at, ...rest }) => {
-    void archived_at
-    return rest
-  })
-}
-
-function isMissingDeletedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'deleted_at' column")
-}
-
-function stripDeletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ deleted_at, ...rest }) => {
-    void deleted_at
-    return rest
-  })
-}
-
 interface SectionRow {
   id: string
   user_id: string
@@ -785,8 +604,8 @@ export async function pushListsTasksHabits(
         habits: new Map(remote.habits.map((x) => [x.id, x.updatedAt])),
       }
     : null
-  /** `004` を流す前の DB には base_updated_at 列が無い。この呼び出しの間は送らない（前と同じ書き込みになる） */
-  let sendBase = bases !== null
+  /** 版（`base_updated_at`）を付けて送る。本番の DB は `004` 以降なので、版の確かめを外して送り直すことはしない */
+  const sendBase = bases !== null
   const rejectKey = (table: SyncTable, id: string) => `${userId}:${table}:${id}`
   const changedOnly = <T extends { id: string }, R>(
     table: SyncTable,
@@ -851,9 +670,8 @@ export async function pushListsTasksHabits(
     return { rejected: out, written, stale, clockOffsetMs }
   }
 
-  // 主キーは (user_id, id)。主キーが id だけの古い DB には一致する一意制約が無いので id で送り直す
-  // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
-  let onConflict = 'user_id,id'
+  // 主キーは (user_id, id)
+  const onConflict = 'user_id,id'
   const send = (table: SyncTable, rows: { id: string }[]) => {
     const body = sendBase && bases ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT })) : rows
     // 受け付けた行だけが返る。返らなかった行は、取得した後に他の端末が変えていた（サーバーが断った）
@@ -861,15 +679,7 @@ export async function pushListsTasksHabits(
   }
   const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
     const startedAt = Date.now()
-    let { data, error } = await send(table, rows)
-    if (error && sendBase && /'base_updated_at'/.test(error.message)) {
-      sendBase = false
-      ;({ data, error } = await send(table, rows))
-    }
-    if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
-      onConflict = 'id'
-      ;({ data, error } = await send(table, rows))
-    }
+    const { data, error } = await send(table, rows)
     if (error) return error
     const midpoint = (startedAt + Date.now()) / 2
     const sentStamp = new Map(rows.map((r) => [r.id, Date.parse((r as { updated_at?: string }).updated_at ?? '')]))
@@ -919,18 +729,23 @@ export async function pushListsTasksHabits(
   }
   const deleteIsolating = async (table: SyncTable, ids: string[]): Promise<string | undefined> => {
     const base = bases?.[table]
-    let error: { code?: string; message: string } | null
-    if (base && ids.every((id) => base.has(id))) {
+    // 版のある行（取得した行）は版つきで、版の無い行（取得に無かった行）だけ無条件で消す。
+    // 以前は 1 行でも版の無い行が混ざると、まとめて無条件の削除になり、取得した後に他の端末が直した行も消えていた
+    const versioned = base ? ids.filter((id) => base.has(id)) : []
+    const unversioned = base ? ids.filter((id) => !base.has(id)) : ids
+    let error: { code?: string; message: string } | null = null
+    if (versioned.length > 0) {
       // 取得したときのままの行だけ消す。取得した後に他の端末が変えた行は残し、次の同期で取り込む
-      const match = ids.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base.get(id)!)})`).join(',')
+      const match = versioned.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base!.get(id)!)})`).join(',')
       const res = await supabase.from(table).delete().eq('user_id', userId).or(match).select('id')
       error = res.error
       if (!error) {
         const gone = new Set(((res.data ?? []) as { id: string }[]).map((r) => r.id))
-        for (const id of ids) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
+        for (const id of versioned) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
       }
-    } else {
-      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids))
+    }
+    if (!error && unversioned.length > 0) {
+      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', unversioned))
     }
     if (!error) return undefined
     if (!canIsolate(error.code)) return error.message
@@ -943,136 +758,17 @@ export async function pushListsTasksHabits(
     return (await deleteIsolating(table, ids.slice(0, mid))) ?? (await deleteIsolating(table, ids.slice(mid)))
   }
 
-  let e1 = await upsert('lists', listRows)
-  // 古い DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
-  if (e1 && /kind/.test(e1)) {
-    e1 = await upsert(
-      'lists',
-      listRows.map((row) => ({ ...row, kind: undefined })),
-    )
-  }
+  // 列が無い・版が通らないときは送り直さず同期の失敗にする（列を黙って落とすと、ゴミ箱・予定・アーカイブが黙って外れていた）
+  const e1 = await upsert('lists', listRows)
   if (e1) return finish(e1)
 
   const eSec = await upsert('list_sections', sectionRows)
   if (eSec) return finish(eSec)
 
-  // 列が無い古い DB 互換。フラグは「この push 呼び出し内」だけで持ち、
-  // 毎回フル列で送り直すので、後から列を追加すれば次回同期で自動復帰する
-  // （ページ再読み込み不要）。
-  let stripEndDate = false
-  let stripCompletedAt = false
-  let stripLocation = false
-  let stripColor = false
-  let stripHabitId = false
-  let stripIsSleep = false
-  let stripIsEvent = false
-  let stripEstimate = false
-  let stripSourceTask = false
-  let stripTimeZone = false
-  let stripReminders = false
-  let stripDueTime = false
-  let stripScheduledDate = false
-  let stripArchivedAt = false
-  let stripDeletedAt = false
-  const upsertTasksRows = async (): Promise<string | undefined> => {
-    let rows: TaskRow[] = taskRows
-    if (stripEndDate) rows = stripEndDateFromTaskRows(rows)
-    if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
-    if (stripLocation) rows = stripLocationFromTaskRows(rows)
-    if (stripColor) rows = stripColorFromTaskRows(rows)
-    if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
-    if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
-    if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
-    if (stripEstimate) rows = stripEstimateFromTaskRows(rows)
-    if (stripSourceTask) rows = stripSourceTaskFromTaskRows(rows)
-    if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
-    if (stripReminders) rows = stripRemindersFromTaskRows(rows)
-    if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
-    if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
-    if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
-    if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
-    return upsert('tasks', rows)
-  }
-  for (let attempt = 0; attempt < 16; attempt++) {
-    const errMsg = await upsertTasksRows()
-    if (!errMsg) break
-    if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
-      stripEndDate = true
-      continue
-    }
-    if (isMissingCompletedAtColumnError(errMsg) && !stripCompletedAt) {
-      stripCompletedAt = true
-      continue
-    }
-    if (isMissingLocationColumnError(errMsg) && !stripLocation) {
-      stripLocation = true
-      continue
-    }
-    if (isMissingColorColumnError(errMsg) && !stripColor) {
-      stripColor = true
-      continue
-    }
-    if (isMissingHabitIdColumnError(errMsg) && !stripHabitId) {
-      stripHabitId = true
-      continue
-    }
-    if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
-      stripIsSleep = true
-      continue
-    }
-    // `014` を流す前の DB。予定は To-Do として送る（列を足せば次回から予定のまま）
-    if (isMissingIsEventColumnError(errMsg) && !stripIsEvent) {
-      stripIsEvent = true
-      continue
-    }
-    // `015` を流す前の DB。見積もりは端末にだけ残る
-    if (isMissingEstimateColumnError(errMsg) && !stripEstimate) {
-      stripEstimate = true
-      continue
-    }
-    // `016` を流す前の DB。記録の元の To-Do は端末にだけ残る
-    if (isMissingSourceTaskColumnError(errMsg) && !stripSourceTask) {
-      stripSourceTask = true
-      continue
-    }
-    if (isMissingRemindersColumnError(errMsg) && !stripReminders) {
-      stripReminders = true
-      continue
-    }
-    if (isMissingTimeZoneColumnError(errMsg) && !stripTimeZone) {
-      stripTimeZone = true
-      continue
-    }
-    if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {
-      stripDueTime = true
-      continue
-    }
-    if (isMissingScheduledDateColumnError(errMsg) && !stripScheduledDate) {
-      stripScheduledDate = true
-      continue
-    }
-    if (isMissingArchivedAtColumnError(errMsg) && !stripArchivedAt) {
-      stripArchivedAt = true
-      continue
-    }
-    if (isMissingDeletedAtColumnError(errMsg) && !stripDeletedAt) {
-      stripDeletedAt = true
-      continue
-    }
-    return finish(errMsg)
-  }
+  const eT = await upsert('tasks', taskRows)
+  if (eT) return finish(eT)
 
-  let eH = await upsert('habits', habitRows)
-  // `003` を流す前の DB には archived_at が無い。アーカイブなしで送り直す（列を足せば次回から送る）
-  if (isMissingArchivedAtColumnError(eH)) {
-    eH = await upsert(
-      'habits',
-      habitRows.map(({ archived_at, ...rest }) => {
-        void archived_at
-        return rest
-      }),
-    )
-  }
+  const eH = await upsert('habits', habitRows)
   if (eH) return finish(eH)
 
   // 子 → 親の順（tasks → habits → sections → lists）
@@ -1085,7 +781,7 @@ export async function pushListsTasksHabits(
     // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
     // 版を付けて消すときは 1 件あたりの URL が長いので、もっと細かく分ける
     const base = bases?.[table]
-    const size = base && ids.every((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
+    const size = base && ids.some((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
     for (let i = 0; i < ids.length; i += size) {
       const error = await deleteIsolating(table, ids.slice(i, i + size))
       if (error) return finish(error)
@@ -1124,9 +820,8 @@ async function pushSettingRow(
       .from(table)
       .upsert(body, { onConflict: 'user_id', ignoreDuplicates: base === null })
       .select('updated_at')
-  let { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
-  // `007` を流す前の DB には base_updated_at 列が無い。付けずに送り直す（前と同じ、端末の時刻で比べる書き込み）
-  if (error && /'base_updated_at'/.test(error.message)) ({ data, error } = await send(row))
+  // 版の確かめ（`007`）を外して送り直すことはしない（端末の時計で比べる書き込みに落ちる）
+  const { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
   if (error) return { error: error.message }
   const back = ((data ?? []) as { updated_at?: unknown }[])[0]
   if (!back || back.updated_at == null) return { stale: true }
