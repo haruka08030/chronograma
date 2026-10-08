@@ -35,6 +35,9 @@ npm run shots -- --at=19:30          # 撮る時刻（既定は 13:00 に固定�
   ずれると migrate が走って構図が変わる
 - 日付は**ブラウザのタイムゾーン**（`capture.mjs` の `TIMEZONE`）で作る。
   ホストの時刻で作ると 1 日ずれて、予定・記録がタイムラインから消える
+- 完了・作成・更新の時刻（completedAt など）は**撮る瞬間**（`buildSeedState` の `instant`）で付ける。
+  日付を作る `now` は撮るタイムゾーンの壁時計なので、ISO にするとホストとのずれの分だけ先の時刻になり、
+  完了したタスクがカレンダーの明日の列に出る
 - 種は `addInitScript` でアプリが動く前に入れる。`goto` の後に
   `localStorage.setItem` しても、起動した store が作りたての state を
   先に保存して上書きしてしまう
