@@ -5,6 +5,7 @@ import {
   canvasCourseSectionsToTags,
   canvasDue,
   canvasFeedUrlProblem,
+  feedItemDue,
   canvasExpiryWarning,
   CANVAS_LIST_ID,
   mergeCanvasLists,
@@ -310,5 +311,71 @@ describe('canvasFeedUrlProblem', () => {
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/calendar#view_name=month&view_start=2026-10-02')).toBe('calendarPage')
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/courses/77')).toBe('notFeed')
     expect(canvasFeedUrlProblem('')).toBeNull()
+  })
+
+  it('Moodle の書き出しの URL も受け付け、書き出しの画面は分けて案内する（#310）', () => {
+    const token = '3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6'
+    expect(
+      canvasFeedUrlProblem(`https://moodle.example.ac.jp/calendar/export_execute.php?userid=12&authtoken=${token}&preset_what=all`),
+    ).toBeNull()
+    expect(canvasFeedUrlProblem(`lms.example.ac.jp/moodle/calendar/export_execute.php?userid=12&authtoken=${token}`)).toBeNull()
+    expect(canvasFeedUrlProblem('https://moodle.example.ac.jp/calendar/export.php?course=1')).toBe('moodlePage')
+  })
+})
+
+describe('feedItemDue（#310）', () => {
+  it('終日は日付のまま、UTC の瞬間はアプリのタイムゾーンの日時に', () => {
+    expect(feedItemDue({ dueAt: null, dueDate: '2026-10-18' }, 'America/Los_Angeles')).toEqual({ dueDate: '2026-10-18', dueTime: null })
+    expect(feedItemDue({ dueAt: '2026-10-10T14:59:00Z' }, 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-10', dueTime: '23:59' })
+  })
+
+  it('TZID 付きの壁時計は、そのタイムゾーンの瞬間としてアプリのタイムゾーンに直す', () => {
+    const wall = { date: '2026-10-15', time: '23:59', timeZone: 'Asia/Tokyo' }
+    expect(feedItemDue({ dueAt: null, dueWall: wall }, 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-15', dueTime: '23:59' })
+    // 夏時間中のロサンゼルス（UTC-7）では 10/15 7:59
+    expect(feedItemDue({ dueAt: null, dueWall: wall }, 'America/Los_Angeles')).toEqual({ dueDate: '2026-10-15', dueTime: '07:59' })
+  })
+
+  it('浮動・読めない TZID（Outlook の「Tokyo Standard Time」など）はアプリのタイムゾーンの時刻として読む', () => {
+    const floating = { date: '2026-10-16', time: '12:00', timeZone: null }
+    expect(feedItemDue({ dueAt: null, dueWall: floating }, 'America/New_York')).toEqual({ dueDate: '2026-10-16', dueTime: '12:00' })
+    const windows = { date: '2026-10-16', time: '12:00', timeZone: 'Tokyo Standard Time' }
+    expect(feedItemDue({ dueAt: null, dueWall: windows }, 'Europe/London')).toEqual({ dueDate: '2026-10-16', dueTime: '12:00' })
+  })
+
+  it('Moodle の課題を、科目のタグと締切つきの To-Do として取り込む', () => {
+    const conn = 'moodle.example.ac.jp'
+    const r = reconcileCanvasItems(
+      { sections: [], tasks: [] },
+      {
+        id: conn,
+        windowStart: '2026-10-01',
+        windowEnd: '2027-01-29',
+        readOnly: true,
+        items: [
+          {
+            type: 'assignment',
+            id: '1207',
+            title: 'Essay draft is due',
+            courseId: null,
+            courseName: 'ENG-201',
+            url: 'https://moodle.example.ac.jp/calendar/view.php?view=upcoming',
+            dueAt: null,
+            dueWall: { date: '2026-10-15', time: '23:59', timeZone: 'Asia/Tokyo' },
+            done: false,
+          },
+        ],
+      },
+      { ...opts, timeZone: 'Asia/Tokyo' },
+    )
+    expect(r.tasks).toHaveLength(1)
+    expect(r.tasks[0]).toMatchObject({
+      id: 'canvas-moodle.example.ac.jp-assignment-1207',
+      title: 'Essay draft is due',
+      tags: ['ENG-201'],
+      dueDate: '2026-10-15',
+      dueTime: '23:59',
+      kind: 'todo',
+    })
   })
 })

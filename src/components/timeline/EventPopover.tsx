@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
-import { colorVars, recordHex } from '../../lib/logCategoryColors'
+import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
+import { CourseAssignments } from './CourseAssignments'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
@@ -92,6 +93,7 @@ function EventPopoverBody({
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
@@ -215,6 +217,15 @@ function EventPopoverBody({
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
         <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} plan={!isLog} />
       </div>
+
+      {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
+      {isEvent && task.startTime && (
+        <CourseAssignments
+          title={task.title}
+          labelName={labelForHex(task.color, timeLogTagPresets, logCategoryColors)}
+          onOpenTask={onOpenDetail}
+        />
+      )}
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">

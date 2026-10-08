@@ -31,6 +31,17 @@ Some schools (e.g. UC Santa Cruz) disable personal access tokens. Those users pa
 The feed is read-only: `ical.ts` reads assignments (`event-assignment-*`, ids from the `#assignment_<id>` URL fragment so they match the token connection) due from yesterday to 120 days ahead; past assignments are not imported because the feed doesn't say whether they were submitted.
 `complete` is a no-op for these connections, and `items` marks them `readOnly`.
 
+## Moodle calendar export
+
+Moodle schools connect the same way (`kind = 'ical'`), with the URL from Calendar → "Export calendar" → "Get calendar URL"
+(`https://<school>[/<subpath>]/calendar/export_execute.php?userid=…&authtoken=…`). `feedUrl.ts` decides Canvas vs Moodle from the URL shape
+(the settings screen uses the same check) and rewrites a Moodle URL to keep only `userid` / `authtoken` with `preset_what=all&preset_time=recentupcoming`,
+so a "this week" export can't make in-window assignments look deleted. `moodle.ts` reads course events (`CATEGORIES` = course short name, used as the tag)
+with zero length (`DTEND` equal to `DTSTART` or missing; old Moodle writes them as one-day `VALUE=DATE` events, read as all-day deadlines);
+events with a duration (classes), without a course (personal/site events) or titled "… opens" / "… 開始" are skipped. The task id is the Moodle event id from `UID: <id>@<site>`.
+UTC times become `dueAt`; times with a non-UTC `TZID` or floating times come back as `dueWall: { date, time, timeZone }` and the app converts them with its time-zone helpers
+(a floating time or an unknown `TZID` is read in the app's time zone). `status` returns `lms: 'moodle'` for these connections.
+
 ## Keeping the token alive
 
 Canvas lets a user change their own token's expiry without changing the token string (`PUT /api/v1/users/self/tokens/:id`).
@@ -43,9 +54,9 @@ One connection per school; `connectionId` is the Canvas hostname (`xxx.instructu
 
 | action | body | returns |
 |--------|------|---------|
-| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, `{ "token": "…", "connectionId": "…" }` to replace only that school's token, or `{ "feedUrl": "https://…/feeds/calendars/user_….ics" }` | `{ connections }` |
-| `status` | `{}` | `{ connections: [{ id, baseUrl, userName }] }` |
-| `items` | `{}` | `{ connections: [{ id, windowStart, windowEnd, items: [{ type, id, title, courseId, courseName, url, dueAt, done }] } \| { id, error }] }` — 30 days back to 120 days ahead; a school whose token expired comes back as `{ id, error }` without blocking the others |
+| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, `{ "token": "…", "connectionId": "…" }` to replace only that school's token, or `{ "feedUrl": "https://…/feeds/calendars/user_….ics" }` / `{ "feedUrl": "https://…/calendar/export_execute.php?userid=…&authtoken=…" }` | `{ connections }` |
+| `status` | `{}` | `{ connections: [{ id, kind, lms, baseUrl, userName, expiresAt }] }` |
+| `items` | `{}` | `{ connections: [{ id, windowStart, windowEnd, items: [{ type, id, title, courseId, courseName, url, dueAt, dueDate?, dueWall?, done }] } \| { id, error }] }` — 30 days back to 120 days ahead; a school whose token expired comes back as `{ id, error }` without blocking the others |
 | `complete` | `{ "connectionId": "…", "type": "assignment", "id": "123", "complete": true }` | `{ ok: true }` |
 | `disconnect` | `{ "connectionId": "…" }` | `{ connections }` |
 

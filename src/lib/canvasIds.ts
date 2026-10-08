@@ -8,3 +8,11 @@ export const CANVAS_LIST_ID = 'canvas-list'
 export function isCanvasListId(id: string): boolean {
   return id === CANVAS_LIST_ID || id.startsWith(`${CANVAS_LIST_ID}-`)
 }
+
+const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
+
+/** LMS（Canvas・Moodle）から取り込んだタスクの id（`canvas-<接続>-<種類>-<ID>`）を分ける。違う形なら null */
+export function parseCanvasTaskId(id: string): { connectionId: string; type: string; id: string } | null {
+  const m = TASK_ID_RE.exec(id)
+  return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
+}

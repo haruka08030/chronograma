@@ -27,6 +27,7 @@
 | [`021_reminder_run_stats.sql`](021_reminder_run_stats.sql) | `reminder_runs` に最後の回の時刻 `last_run_at`・数 `last_checked` / `last_sent` / `last_removed` / `last_failed`・最後の失敗の時刻 `last_failed_at` を足す（書くのは `daily-reminders`。見る SQL は [`../metrics/health.sql`](../metrics/health.sql)） |
 | [`022_event_templates.sql`](022_event_templates.sql) | よく入れる予定 `user_event_templates`（利用者ごとに 1 行。`templates` は `{ id, title, startTime, endTime, color }` の並び。RLS は本人だけ、大きさの上限 `user_event_templates_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 | [`023_app_versions_seen.sql`](023_app_versions_seen.sql) | どの版のアプリがまだ同期しているか `app_versions_seen`（主キー `(user_id, app_version, sync_protocol_version)`・`first_seen` / `last_seen`。大きさの上限 `app_versions_seen_shape_check`）。書くのは `note_app_version(版, 取り決めの版)`（SECURITY DEFINER、`authenticated` だけ実行できる。本人の行を upsert し `last_seen` をサーバーの時刻にする。1 人 `last_seen` の新しい 20 行まで）。RLS あり・ポリシーなし、`anon` / `authenticated` の表の権限は外す（読むのは service_role。数える SQL は [`../metrics/versions.sql`](../metrics/versions.sql)） |
+| [`024_course_links.sql`](024_course_links.sql) | 授業の予定と LMS の科目のつながり `user_course_links`（利用者ごとに 1 行。`links` は `{ title, course }` の並び、`course` が空なら「つながない」。RLS は本人だけ、大きさの上限 `user_course_links_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 
 テーブル（最新の形）:
 
@@ -40,6 +41,7 @@
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
 | `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている |
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
+| `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）は `user_active_timer` の写し（`019`） |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |
 | `notion_connection` | Notion の統合トークン（暗号化して保存）と対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |

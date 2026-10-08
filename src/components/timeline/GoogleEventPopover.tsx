@@ -24,6 +24,8 @@ import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars } from '../../lib/logCategoryColors'
 import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
+import { openTaskDetail } from '../../lib/overlays'
+import { CourseAssignments } from './CourseAssignments'
 
 const WIDTH = 320
 
@@ -256,6 +258,16 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           fill
         />
       </div>
+      {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
+      {!event.isAllDay && (
+        <CourseAssignments
+          title={event.summary}
+          onOpenTask={(taskId) => {
+            onClose()
+            openTaskDetail(taskId)
+          }}
+        />
+      )}
     </div>
   )
 }

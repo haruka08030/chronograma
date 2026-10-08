@@ -10,6 +10,8 @@ import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
 import { normalizeLabelTargets } from '../lib/labelTargets'
+import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
@@ -149,6 +151,8 @@ export const useTaskStore = create<TaskState>()(
         extraTimeZonesUpdatedAt: null as string | null,
         eventTemplates: [] as EventTemplate[],
         eventTemplatesUpdatedAt: null as string | null,
+        courseLinks: [] as CourseLink[],
+        courseLinksUpdatedAt: null as string | null,
 
         habits: [],
 
@@ -166,6 +170,12 @@ export const useTaskStore = create<TaskState>()(
         ...createUiSlice(ctx),
         ...createDataSlice(ctx),
         ...createEventTemplatesSlice(ctx),
+        setCourseLink: (eventTitle: string, course: string) => {
+          const next = withCourseLink(get().courseLinks, eventTitle, course)
+          // 同じ中身なら時刻を付けない（同期で送り直さない）
+          if (sameValue(next, get().courseLinks)) return
+          set({ courseLinks: next })
+        },
         ...undo.actions,
       }
     },
@@ -197,6 +207,7 @@ export const useTaskStore = create<TaskState>()(
         merged.tasks = merged.tasks.map(withTaskDefaults)
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
+        merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
@@ -279,6 +290,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.eventTemplates === prev.eventTemplates) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ eventTemplatesUpdatedAt: new Date().toISOString() })
+})
+// 授業の予定と科目のつながり（#309）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.courseLinks === prev.courseLinks) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ courseLinksUpdatedAt: new Date().toISOString() })
 })
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {

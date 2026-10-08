@@ -1,5 +1,6 @@
 /**
  * Canvas のカレンダーフィード（.ics）から課題を読む。トークンを作れない学校向けの、読むだけの連携。
+ * .ics を読む共通の部分（`readEvents` など）は Moodle の書き出し（`moodle.ts`）でも使う。
  *
  * Canvas の書き出し（app/models/calendar_event.rb の IcalEvent#to_ics）に合わせている:
  * - 課題は UID `event-assignment-<ID>`。期限を学生ごとに上書きした課題は `event-assignment-override-<ID>` で、
@@ -19,10 +20,15 @@ export type FeedItem = {
   /** 締切（ISO 日時）。終日の課題は null で、`dueDate` に日付 */
   dueAt: string | null
   dueDate?: string
+  /**
+   * タイムゾーン付き（`TZID=Asia/Tokyo`）や浮動（Z も TZID も無い）の締切。その壁時計のまま返し、瞬間にはクライアントが
+   * アプリのタイムゾーンの道具（`instantFromWall`）で直す。`timeZone` が null（浮動）はアプリのタイムゾーンとして読む。Moodle のフィードだけ
+   */
+  dueWall?: { date: string; time: string; timeZone: string | null }
   done: false
 }
 
-type Prop = { params: Record<string, string>; value: string }
+export type Prop = { params: Record<string, string>; value: string }
 
 /** 折り返し（改行 + 空白）を戻して 1 行 1 プロパティにする */
 function unfold(text: string): string[] {
@@ -44,7 +50,7 @@ function parseLine(line: string): [string, Prop] | null {
   return [name.toUpperCase(), { params, value: line.slice(colon + 1) }]
 }
 
-function unescapeText(value: string): string {
+export function unescapeText(value: string): string {
   return value
     .replace(/\\n/gi, '\n')
     .replace(/\\([,;\\])/g, '$1')
@@ -64,17 +70,9 @@ function parseDate(prop: Prop): { dueAt: string | null; dueDate?: string } | nul
   return { dueAt: `${dt[1]}-${dt[2]}-${dt[3]}T${dt[4]}:${dt[5]}:${dt[6]}Z` }
 }
 
-/** 締切の日（UTC）。取り込む期間の判定に使う */
-function dueDay(item: { dueAt: string | null; dueDate?: string }): string | null {
-  return item.dueDate ?? item.dueAt?.slice(0, 10) ?? null
-}
-
-/**
- * フィードの課題を返す。`windowStart`〜`windowEnd`（`yyyy-MM-dd`）に締切があるものだけ。
- * フィードには学期の初めからの課題が全部入るので、済んだかどうか分からない過去の課題は取り込まない。
- */
-export function parseCanvasFeed(text: string, baseUrl: string, windowStart: string, windowEnd: string): FeedItem[] {
-  const items = new Map<string, FeedItem>()
+/** VEVENT ごとのプロパティ（同じ名前は最初のもの） */
+export function readEvents(text: string): Map<string, Prop>[] {
+  const events: Map<string, Prop>[] = []
   let event: Map<string, Prop> | null = null
   for (const line of unfold(text)) {
     if (line === 'BEGIN:VEVENT') {
@@ -82,9 +80,7 @@ export function parseCanvasFeed(text: string, baseUrl: string, windowStart: stri
       continue
     }
     if (line === 'END:VEVENT') {
-      const item = event ? toItem(event, baseUrl) : null
-      const day = item ? dueDay(item) : null
-      if (item && day && day >= windowStart && day <= windowEnd) items.set(item.id, item)
+      if (event) events.push(event)
       event = null
       continue
     }
@@ -92,7 +88,34 @@ export function parseCanvasFeed(text: string, baseUrl: string, windowStart: stri
     const parsed = parseLine(line)
     if (parsed && !event.has(parsed[0])) event.set(parsed[0], parsed[1])
   }
-  return [...items.values()]
+  return events
+}
+
+/** 締切の日（UTC。壁時計・終日はその日付）。取り込む期間の判定に使う */
+export function feedDueDay(item: { dueAt: string | null; dueDate?: string; dueWall?: { date: string } }): string | null {
+  return item.dueDate ?? item.dueWall?.date ?? item.dueAt?.slice(0, 10) ?? null
+}
+
+/** 締切が `windowStart`〜`windowEnd`（`yyyy-MM-dd`）にある課題だけを、id ごとに 1 つ */
+export function insideFeedWindow(items: (FeedItem | null)[], windowStart: string, windowEnd: string): FeedItem[] {
+  const out = new Map<string, FeedItem>()
+  for (const item of items) {
+    const day = item ? feedDueDay(item) : null
+    if (item && day && day >= windowStart && day <= windowEnd) out.set(item.id, item)
+  }
+  return [...out.values()]
+}
+
+/**
+ * フィードの課題を返す。`windowStart`〜`windowEnd`（`yyyy-MM-dd`）に締切があるものだけ。
+ * フィードには学期の初めからの課題が全部入るので、済んだかどうか分からない過去の課題は取り込まない。
+ */
+export function parseCanvasFeed(text: string, baseUrl: string, windowStart: string, windowEnd: string): FeedItem[] {
+  return insideFeedWindow(
+    readEvents(text).map((event) => toItem(event, baseUrl)),
+    windowStart,
+    windowEnd,
+  )
 }
 
 function toItem(event: Map<string, Prop>, baseUrl: string): FeedItem | null {

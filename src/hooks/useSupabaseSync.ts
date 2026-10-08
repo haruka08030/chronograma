@@ -3,10 +3,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
+  fetchCourseLinks,
   fetchEventTemplates,
   fetchExtraTimeZones,
   fetchLogLabels,
   fetchMinSyncVersion,
+  pushCourseLinks,
   pushEventTemplates,
   pushExtraTimeZones,
   pushListsTasksHabits,
@@ -43,6 +45,7 @@ import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync } from '../lib/labelSync'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
+import { planCourseLinkSync } from '../lib/courseLinks'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
@@ -74,7 +77,7 @@ export function flushPendingSync(): Promise<boolean> {
 }
 
 /**
- * ラベル表・他のタイムゾーン・よく入れる予定・タイマーの手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
+ * ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・タイマーの手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
  * （送れなかったときは記録するだけでタスクの同期は止めないので、ログアウトの前にここで確かめる）
  */
 function settingsSent(userId: string): boolean {
@@ -84,6 +87,7 @@ function settingsSent(userId: string): boolean {
     ['zones', s.extraTimeZonesUpdatedAt],
     ['timer', s.activeTimerUpdatedAt],
     ['templates', s.eventTemplatesUpdatedAt],
+    ['courses', s.courseLinksUpdatedAt],
   ]
   return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
 }
@@ -267,6 +271,22 @@ export function useSupabaseSync() {
         push: (p) => pushEventTemplates(supabase, userId, p, p.base),
       })
 
+    /** 授業の予定と科目のつながり（#309） */
+    const syncCourseLinks = () =>
+      syncSetting({
+        key: 'courses',
+        fetch: () => fetchCourseLinks(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planCourseLinkSync({ links: st.courseLinks, updatedAt: st.courseLinksUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().courseLinksUpdatedAt,
+        applyLocal: ({ links, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ courseLinks: links, courseLinksUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ courseLinksUpdatedAt: at })),
+        push: (p) => pushCourseLinks(supabase, userId, p, p.base),
+      })
+
     /** 動いているタイマー（どの端末でも同じタイマー、#301） */
     const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo)).finally(notifyActiveTimerSynced)
 
@@ -276,6 +296,7 @@ export function useSupabaseSync() {
       await syncExtraTimeZones()
       await syncActiveTimer()
       await syncEventTemplates()
+      await syncCourseLinks()
     }
 
     /**
@@ -576,7 +597,8 @@ export function useSupabaseSync() {
         state.logLabelTargets === prev.logLabelTargets &&
         state.extraTimeZones === prev.extraTimeZones &&
         state.activeTimer === prev.activeTimer &&
-        state.eventTemplates === prev.eventTemplates
+        state.eventTemplates === prev.eventTemplates &&
+        state.courseLinks === prev.courseLinks
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return
