@@ -112,17 +112,12 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
     event_reminder_minutes: eventReminderMinutes,
     due_reminders: dueReminders,
     updated_at: new Date().toISOString(),
-  }
-  // 記録の確認・止め忘れの列。古い DB では外して送り直す
-  const extra = {
+    // 記録の確認・止め忘れ（列が無いと言われても外して送り直さない。外すとこの 2 つの通知が黙って止まっていた）
     record_prompts: recordPrompts,
     timer_started_at: activeTimer?.startedAt ?? null,
     timer_title: activeTimer?.taskTitle?.slice(0, 2000) ?? null,
   }
-  let { error } = await supabase.from('push_subscriptions').upsert({ ...row, ...extra }, { onConflict: 'endpoint' })
-  if (error && /record_prompts|timer_/.test(error.message)) {
-    ;({ error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' }))
-  }
+  const { error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' })
   if (error) {
     console.error('[push] save failed', error.message)
     return

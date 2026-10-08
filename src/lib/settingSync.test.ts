@@ -208,26 +208,11 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'B の追加'])
   })
 
-  it('`007` を流す前の DB（base_updated_at 列が無い）には、前と同じ書き込みで送る', async () => {
+  it('版の列が無いと言われても、版を外して送り直さない（失敗として返す）', async () => {
     const { client, rows } = fakeSettings({ noBaseColumn: true })
-    const d = device(REAL, ['授業'])
-    d.edit(['授業', 'ジム'])
-    await sync(client, d, 'd')
-    expect(rows.get('u1')!.updated_at).toBe(d.updatedAt)
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'ジム'])
-  })
-
-  it('行が無いはずの書き込みは、行が既にあれば上書きしない（同時に初めて作るとき・前の DB でも）', async () => {
-    const { client, rows } = fakeSettings({ noBaseColumn: true })
-    await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
-    const res = await pushLogLabels(
-      client,
-      'u1',
-      { labels: [{ name: 'B', color: '' }], updatedAt: new Date(REAL + 1000).toISOString() },
-      null,
-    )
-    expect(res).toEqual({ stale: true })
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['A'])
+    const res = await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
+    expect(res).toMatchObject({ error: expect.stringContaining('base_updated_at') })
+    expect(rows.has('u1')).toBe(false)
   })
 
   it('サーバーに行が無いはずの書き込み（-infinity）は、ほかの端末が先に行を作っていれば断られる', async () => {
