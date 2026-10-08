@@ -356,6 +356,9 @@ export default {
     colBed: 'Bedtime',
     colWake: 'Wake time',
     colSleep: 'Sleep',
+    noRecord: 'No record',
+    fillAria: 'Log sleep for {{day}}',
+    editTitle: 'Morning of {{day}}',
   },
   sleep: {
     title: 'Sleep',

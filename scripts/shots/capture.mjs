@@ -270,6 +270,13 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // 統計の睡眠: 記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
+  {
+    name: 'stats-sleep-edit',
+    view: 'stats',
+    click: 'button[aria-label$="の睡眠を入れる"] >> nth=-1',
+    scrollTo: 'figure:has(button[aria-expanded="true"])',
+  },
   { name: 'settings', view: 'settings' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
