@@ -3,6 +3,7 @@
  */
 import type { SmartView } from '../store/taskStore'
 import { toSmartView } from './viewUrl'
+import { parseStartParam, type QuickStartRequest } from './quickStart'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -65,10 +66,12 @@ export interface LaunchHandlers {
   record: (launch: RecordLaunch) => void
   /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
   add: () => void
+  /** 開いてすぐ記録を始める（`?start=last`、アイコン長押しの「前回の記録を再開」。`quickStart.ts`） */
+  start: (request: QuickStartRequest) => void
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・アイコン長押しの `?add=1` / `?start=last` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -77,11 +80,14 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const asPlanned = url.searchParams.get('as') === 'planned'
   const nonce = url.searchParams.get('launch')
   const add = url.searchParams.get('add') === '1'
-  const keys = ['source', 'record', 'as', 'launch', 'add']
+  const start = parseStartParam(url.searchParams.get('start'))
+  // 読んだら URL から消す（読み込み直しで同じ操作をもう一度しない）
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'start']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (add) handlers.add()
+  if (start) handlers.start(start)
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })

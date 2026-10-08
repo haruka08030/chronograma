@@ -373,6 +373,11 @@ export default {
     switched: 'Saved “{{title}}” and switched',
     switchedUnsaved: '“{{title}}” ran under a minute, so it wasn’t saved. Switched',
   },
+  quickStart: {
+    started: 'Started logging “{{title}}”',
+    alreadyRunning: 'Already logging “{{title}}”, so nothing new was started',
+    noPrevious: 'No earlier log to resume yet. Start one here',
+  },
   checklist: {
     addPlaceholder: 'Add (e.g. milk)',
     checkedHeading: 'Checked {{count}}',

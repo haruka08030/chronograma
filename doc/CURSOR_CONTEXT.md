@@ -46,7 +46,10 @@
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
-  通知タップの `?record=` / `as` / `launch` を `consumeLaunch` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
+  通知タップの `?record=` / `as` / `launch`、アイコン長押しの `?add=1` / `?start=last` を `consumeLaunch` で読んで消す（`main.tsx`）。
+  `?start=last`（ショートカット「前回の記録を再開」）は `src/lib/quickStart.ts`: 終わりがいちばん新しい記録（睡眠を除く）の
+  題名・ラベル・色・元の To-Do で始める。計測中（どの端末でも）なら始めずに今日の計画を開くだけ、記録が無ければ知らせるだけ。
+  ログイン中は最初の同期（最大 6 秒）を待ってから決める（`useQuickStartLaunch`）。設定の `InstallAppSection` とサイドバーの
   「アプリとして使う」から案内
 - URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
   `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`

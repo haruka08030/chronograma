@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { consumeLaunch, setupPwa, type LaunchHandlers } from './lib/pwa'
 import { useTaskStore } from './store/taskStore'
+import { requestQuickStart } from './lib/quickStart'
 import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting } from './lib/errorReport'
 import { reloadForStaleChunk } from './lib/chunkLoad'
@@ -21,6 +22,8 @@ const launch: LaunchHandlers = {
     else s.openRecordPrompt(taskId)
   },
   add: () => useTaskStore.getState().requestQuickAdd(),
+  // データ（ログイン中は最初の同期）がそろってから `useQuickStartLaunch` が始める
+  start: (request) => requestQuickStart(request),
 }
 // デプロイ後に古いタブで別画面を開くと、古いファイル名がもう無くて読み込みに失敗する。
 // 1 回だけ読み込み直して新しい版にする（失敗し続けるときに再読み込みを繰り返さないよう、1 分は空ける。

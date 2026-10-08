@@ -361,6 +361,11 @@ export default {
     switched: '「{{title}}」の記録を保存して切り替えました',
     switchedUnsaved: '「{{title}}」は 1 分未満だったので記録せずに切り替えました',
   },
+  quickStart: {
+    started: '「{{title}}」の記録を始めました',
+    alreadyRunning: '「{{title}}」を記録中です（新しくは始めていません）',
+    noPrevious: '再開できる記録がまだありません。ここから記録を始められます',
+  },
   checklist: {
     addPlaceholder: '追加（例: 牛乳）',
     checkedHeading: 'チェック済み {{count}} 件',
