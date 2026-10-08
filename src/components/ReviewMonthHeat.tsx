@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isSameMonth } from 'date-fns'
 import type { WeekReviewDay } from '../lib/weekReview'
@@ -10,8 +10,8 @@ import { formatDuration, formatDurationShort } from '../lib/timeGrid'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { tip } from '../lib/tooltip'
 
-/** マスの濃さの段（記録の多い日ほど濃い）。ベタ塗りにせず、いちばん濃い段でも薄い塗り */
-const HEAT_LEVELS = [0, 9, 15, 22, 30] as const
+/** マスの色（濃さの段は `gc-heat` の `--heat` で。塗りは薄いまま、多い日ほど縁がくっきりする） */
+const HEAT_STYLE = (level: number) => ({ '--c': 'var(--color-accent-500)', '--heat': level / 4 }) as CSSProperties
 
 /** その日の記録（分）を濃さの段に。0 分は塗らない。いちばん多い日を最上段にして 4 段に分ける */
 function heatLevel(minutes: number, maxMinutes: number): number {
@@ -80,15 +80,10 @@ export function ReviewMonthHeat({
               aria-label={dayTip}
               {...(future ? {} : tip(dayTip))}
               onClick={() => onOpenDay(key)}
-              className="flex h-11 min-w-0 flex-col justify-between rounded-md border border-zinc-200 px-1 py-0.5 text-left transition-opacity enabled:hover:opacity-85 disabled:cursor-default disabled:border-dashed dark:border-zinc-700/80"
-              style={
-                level > 0
-                  ? {
-                      backgroundColor: `color-mix(in srgb, var(--color-accent-500) ${HEAT_LEVELS[level]}%, var(--gc-surface))`,
-                      borderColor: `color-mix(in srgb, var(--color-accent-500) ${HEAT_LEVELS[level] + 18}%, var(--gc-surface))`,
-                    }
-                  : undefined
-              }
+              className={`flex h-11 min-w-0 flex-col justify-between rounded-md px-1 py-0.5 text-left transition-opacity enabled:hover:opacity-85 disabled:cursor-default ${
+                level > 0 ? 'gc-heat' : 'border border-zinc-200 disabled:border-dashed dark:border-zinc-700/80'
+              }`}
+              style={level > 0 ? HEAT_STYLE(level) : undefined}
             >
               <span
                 className={`text-[10px] leading-none tabular-nums ${
