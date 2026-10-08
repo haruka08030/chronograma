@@ -41,7 +41,7 @@ export function usePlannerSuggestions({
   const shownSuggestions = useMemo(() => filterTasks(suggestions, view), [suggestions, view])
   const shownMore = useMemo(() => filterTasks(moreSuggestions, view), [moreSuggestions, view])
   const sorted = useMemo(
-    () => (view.sort === 'due' ? null : sortCandidates([...shownSuggestions, ...shownMore], view.sort)),
+    () => (view.sort === 'dueDate' ? null : sortCandidates([...shownSuggestions, ...shownMore], view.sort)),
     [view.sort, shownSuggestions, shownMore],
   )
   // 締切順は締切間近を全部出してからその先を 10 件ずつ。並べ直したときは締切間近の件数（10 件より多ければ）から

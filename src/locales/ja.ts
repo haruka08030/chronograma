@@ -190,8 +190,8 @@ export default {
       menu: '候補の並び順',
       filterMenu: '候補を絞り込む',
       sort: {
-        due: '締切順',
         priority: '優先度',
+        dueDate: '締切順',
         estimate: '見積もりが短い順',
         createdAt: '作成日',
       },

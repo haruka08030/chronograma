@@ -201,8 +201,8 @@ export default {
       menu: 'Sort candidates',
       filterMenu: 'Filter candidates',
       sort: {
-        due: 'Due date',
         priority: 'Priority',
+        dueDate: 'Due date',
         estimate: 'Shortest estimate',
         createdAt: 'Newest',
       },
