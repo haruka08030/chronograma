@@ -65,8 +65,9 @@ export function PlannerSuggestions({
 
   return (
     <div className="mt-6 px-3">
-      <div className="flex items-center gap-1">
-        <DisclosureButton open={open} onToggle={onToggle} className="min-w-0 flex-1">
+      {/* 見出しは折り返さない。並び順・絞り込みのボタンが入りきらないとき（スマホで長い並び順の名前）は次の行の右に回す */}
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        <DisclosureButton open={open} onToggle={onToggle} className="flex-1 whitespace-nowrap">
           <span className="flex-1">
             {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
           </span>

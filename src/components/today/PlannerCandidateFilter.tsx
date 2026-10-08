@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import type { ActionEntry, ActionLeaf } from '../ui/ActionMenu'
-import { SortMenuButton } from '../ui/SortMenuButton'
+import { FilterMenuButton, SortMenuButton } from '../ui/SortMenuButton'
 import { chipClass } from '../ui/chipClass'
 import { CloseIcon } from '../icons'
 import { colorLabelText } from '../../lib/todoColorLabels'
@@ -36,7 +36,7 @@ function candidateOptions(pool: readonly Task[]) {
 }
 
 /**
- * 今日やる候補の並び順と絞り込み（覚えておく）。To-Do 一覧と同じ並び順のボタンから、並び順と「リスト ›」「ラベル ›」…を選ぶ。
+ * 今日やる候補の並び順と絞り込み（覚えておく）。To-Do 一覧と同じ並び順のボタンと、隣のじょうごのボタンから「リストで絞る ›」…を選ぶ。
  * `chips` は選んでいる絞り込み（× で外す）
  */
 export function usePlannerCandidateFilter(pool: readonly Task[]) {
@@ -63,14 +63,12 @@ export function usePlannerCandidateFilter(pool: readonly Task[]) {
     key: FilterKey,
     label: string,
     values: { value: CandidateView[FilterKey]; label: string; icon?: ActionLeaf['icon'] }[],
-    divider = false,
   ): ActionEntry => {
     const current = values.find((v) => v.value === view[key])
     return {
       kind: 'sub',
       id: key,
       label,
-      divider,
       hint: current?.label,
       leaves: [
         { id: `${key}-any`, label: t('planner.candidates.any'), checked: view[key] === null, run: () => setView({ [key]: null }) },
@@ -85,14 +83,15 @@ export function usePlannerCandidateFilter(pool: readonly Task[]) {
     }
   }
 
-  const entries: ActionEntry[] = [
-    ...CANDIDATE_SORTS.map((sort): ActionEntry => ({
-      kind: 'leaf',
-      id: `sort-${sort}`,
-      label: t(`planner.candidates.sort.${sort}`),
-      checked: view.sort === sort,
-      run: () => setView({ sort }),
-    })),
+  const sortEntries: ActionEntry[] = CANDIDATE_SORTS.map((sort): ActionEntry => ({
+    kind: 'leaf',
+    id: `sort-${sort}`,
+    label: t(`planner.candidates.sort.${sort}`),
+    checked: view.sort === sort,
+    run: () => setView({ sort }),
+  }))
+
+  const filterEntries: ActionEntry[] = [
     // 選べる値が 2 つ以上あるときだけ（1 つなら絞っても変わらない）。選んでいる値は消さない
     ...(options.listIds.size > 1 || view.listId
       ? [
@@ -102,7 +101,6 @@ export function usePlannerCandidateFilter(pool: readonly Task[]) {
             lists
               .filter((l) => options.listIds.has(l.id) || l.id === view.listId)
               .map((l) => ({ value: l.id, label: displayListName(l.id, l.name) })),
-            true,
           ),
         ]
       : []),
@@ -145,8 +143,13 @@ export function usePlannerCandidateFilter(pool: readonly Task[]) {
   if (view.priority) chips.push({ key: 'priority', label: t('planner.candidates.priorityChip', { value: priorityName(view.priority) }) })
   if (view.estimate !== null) chips.push({ key: 'estimate', label: estimateName(view.estimate) })
 
+  // 並び順（今の並び順の名前）と絞り込み（じょうご。絞り込み中は濃く）を並べる
   const button = (
-    <SortMenuButton label={t(`planner.candidates.sort.${view.sort}`)} entries={entries} ariaLabel={t('planner.candidates.menu')} />
+    // 右端は上の行（「すべて今日へ」・締切）にそろえる
+    <div className="mr-3 flex shrink-0 items-center">
+      <SortMenuButton label={t(`planner.candidates.sort.${view.sort}`)} entries={sortEntries} ariaLabel={t('planner.candidates.menu')} />
+      <FilterMenuButton entries={filterEntries} ariaLabel={t('planner.candidates.filterMenu')} active={chips.length > 0} />
+    </div>
   )
 
   const chipRow =

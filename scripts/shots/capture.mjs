@@ -36,8 +36,9 @@ const OPEN_LISTS = 'button[aria-label="リストを開く"] >> visible=true'
 const LABEL_JOBHUNT = 'button:has-text("就活") >> visible=true'
 /** 見出しの並び順のボタン（種データはどこも手動） */
 const SORT_BUTTON = 'button[aria-haspopup="menu"]:has-text("手動") >> visible=true'
-/** 今日やる候補の並び順・絞り込みのボタン */
-const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順と絞り込み"] >> visible=true'
+/** 今日やる候補の並び順のボタンと、絞り込み（じょうご）のボタン */
+const CANDIDATE_BUTTON = 'button[aria-label="候補の並び順"] >> visible=true'
+const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=true'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
@@ -99,6 +100,7 @@ const SCREENS = [
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
   // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
+  { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {
     name: 'planner-candidates-sorted',
     view: 'planner',
@@ -106,7 +108,7 @@ const SCREENS = [
       OPEN_CANDIDATES,
       CANDIDATE_BUTTON,
       '[role=menu] >> text=見積もりが短い順 >> visible=true',
-      CANDIDATE_BUTTON,
+      CANDIDATE_FILTER,
       '[role=menu] >> text=優先度で絞る >> visible=true',
       '[role=menu] >> text=中以上 >> visible=true',
     ],

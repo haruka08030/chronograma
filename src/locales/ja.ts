@@ -166,7 +166,8 @@ export default {
     suggestionsHeading: '締切が近い To-Do {{count}} 件',
     suggestionsHeadingPlain: 'To-Do から追加',
     candidates: {
-      menu: '候補の並び順と絞り込み',
+      menu: '候補の並び順',
+      filterMenu: '候補を絞り込む',
       sort: {
         due: '締切順',
         priority: '優先度',
