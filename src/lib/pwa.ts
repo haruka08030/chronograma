@@ -3,6 +3,7 @@
  */
 import type { SmartView } from '../store/taskStore'
 import { toSmartView } from './viewUrl'
+import { parseStartParam, type QuickStartRequest } from './quickStart'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -78,10 +79,12 @@ export interface LaunchHandlers {
   stopTimer: (launch: TimerStopLaunch) => void
   /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
   add: () => void
+  /** 開いてすぐ記録を始める（`?start=last`、アイコン長押しの「前回の記録を再開」。`quickStart.ts`） */
+  start: (request: QuickStartRequest) => void
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`、アイコン長押しの `?add=1` / `?start=last` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -93,7 +96,9 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const task = url.searchParams.get('task')
   const date = url.searchParams.get('date')
   const stopTimer = url.searchParams.get('stop-timer')
-  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer']
+  const start = parseStartParam(url.searchParams.get('start'))
+  // 読んだら URL から消す（読み込み直しで同じ操作をもう一度しない）
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start']
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
@@ -103,6 +108,7 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   if (stopTimer) {
     void consumeLaunchMark(nonce).then((ok) => ok && handlers.stopTimer({ startedAt: stopTimer === '1' ? null : stopTimer }))
   }
+  if (start) handlers.start(start)
   if (!record) return
   if (!asPlanned) {
     handlers.record({ taskId: record, asPlanned: false })

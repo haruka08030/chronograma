@@ -21,6 +21,12 @@
       "url": "/?view=planner",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
-    { "name": "To-Do を追加", "short_name": "追加", "url": "/?add=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "To-Do を追加", "short_name": "追加", "url": "/?add=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    {
+      "name": "前回の記録を再開",
+      "short_name": "記録を再開",
+      "url": "/?start=last",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }
