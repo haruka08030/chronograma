@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next'
 import { addWeeks, format, startOfWeek } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { foldLabelMinutes, getWeekReview, loggedMinutesVsPrevWeek } from '../lib/weekReview'
+import { ESTIMATE_ROWS, getEstimateRows } from '../lib/estimateActual'
 import { unplannedListIds } from '../lib/listKind'
 import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
@@ -53,6 +54,9 @@ export function WeekReviewCard() {
     () => loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, habits, anchor, excluded),
     [review.loggedMinutes, tasks, habits, anchor, excluded],
   )
+  // 見積もりと記録（#297）: この週に終えた To-Do だけ（決めた後に見る）。大きく超えたものが先頭
+  const estimateRows = useMemo(() => getEstimateRows(tasks, anchor, excluded).slice(0, ESTIMATE_ROWS), [tasks, anchor, excluded])
+  const estimateMax = Math.max(1, ...estimateRows.map((r) => Math.max(r.estimateMinutes, r.loggedMinutes)))
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 })
 
   const pct = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`)
@@ -249,6 +253,47 @@ export function WeekReviewCard() {
           )}
         </div>
       </div>
+
+      {/* 見積もりと記録（#297）。結び付いた記録のある完了 To-Do が無い週は出さない（ごちゃつかせない）。
+          超えても色で責めない: 点線の枠が見積もり、塗りが記録（日ごとの棒の予定の枠と同じ見方） */}
+      {estimateRows.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <SectionLabel as="h3">{t('weekReview.estimateTitle')}</SectionLabel>
+            <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+              <span className={`h-2.5 w-2.5 rounded-[2px] ${PLANNED_FRAME}`} aria-hidden />
+              {t('weekReview.estimateLegend')}
+            </span>
+          </div>
+          {/* スマホは 題名・数字 の下に棒、広い画面は 題名・棒・数字 を 1 行に（棒が横いっぱいに伸びて読みにくくならないよう幅を決める）。
+              行をまたいで列をそろえる（数字の幅が違っても棒の左端・目盛りが同じ位置）ので、表全体を 1 つのグリッドにする。
+              広い画面は棒を真ん中の列に戻す（dense で同じ行の空きに詰める） */}
+          <ul className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs sm:grid-flow-row-dense sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:gap-y-2">
+            {estimateRows.map((r) => (
+              <li key={r.task.id} className="contents">
+                <span className="truncate text-zinc-700 dark:text-zinc-300">{r.task.title}</span>
+                <span className="shrink-0 text-right tabular-nums text-zinc-500 sm:col-start-3 dark:text-zinc-400">
+                  {t('weekReview.estimateRow', { estimate: formatDuration(r.estimateMinutes), logged: formatDuration(r.loggedMinutes) })}
+                </span>
+                {/* 点線の枠が見積もり、塗りが記録（いちばん長い記録のラベルの色）。日ごとの棒と同じく、塗りは枠より少し細い */}
+                <div className="relative col-span-2 mb-1.5 h-3 sm:col-span-1 sm:col-start-2 sm:mb-0" aria-hidden>
+                  <div
+                    className="gc-dot absolute inset-y-[2px] left-0 rounded-[2px]"
+                    style={{
+                      ...colorVars(recordLabelKeyHex(recordLabelKey(r.mainLog, labelPresets, logCategoryColors), logCategoryColors)),
+                      width: `${(r.loggedMinutes / estimateMax) * 100}%`,
+                    }}
+                  />
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-[3px] ${PLANNED_FRAME}`}
+                    style={{ width: `${(r.estimateMinutes / estimateMax) * 100}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }
