@@ -240,6 +240,11 @@ describe('カレンダーのセル（defaultDate＝そのセルの日）', () =>
     expect(t).toMatchObject({ title: 'ES', scheduledDate: '2026-10-05', startTime: null, estimateMinutes: 90 })
   })
 
+  it('24 時間を超える長さでも保存する見積もりは 1440 分まで（同期で弾かれない）', () => {
+    const t = added(addTaskFromQuickText('勉強 30時間', cell))
+    expect(t).toMatchObject({ title: '勉強', estimateMinutes: 1440 })
+  })
+
   it('時刻を書けばそのセルの日の予定', () => {
     const t = added(addTaskFromQuickText('15時 ES 1時間', cell))
     expect(t).toMatchObject({ title: 'ES', scheduledDate: '2026-10-05', startTime: '15:00', endTime: '16:00' })

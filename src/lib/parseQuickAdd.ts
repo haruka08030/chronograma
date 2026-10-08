@@ -2,6 +2,7 @@ import { addDays, differenceInCalendarDays, startOfDay, startOfWeek } from 'date
 import { appToday } from './timeZone'
 import { toDateKey } from './dateKey'
 import { pad2 } from './clockTime'
+import { readEstimateMinutes } from './estimate'
 import type { Recurrence } from '../types/task'
 
 /**
@@ -644,7 +645,8 @@ export function parseQuickAddTitle(
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
-    estimateMinutes: start == null && duration != null && duration > 0 ? duration : null,
+    // 見積もりは保存・同期と同じ 1〜1440 分にそろえる（「勉強 30時間」は 24 時間。上限を超えると同期で弾かれる）
+    estimateMinutes: start == null ? readEstimateMinutes(duration) : null,
     listName,
     repeat,
   }

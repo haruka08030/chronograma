@@ -139,6 +139,14 @@ describe('時刻と長さ', () => {
     expect(r.estimateMinutes).toBe(120)
   })
 
+  it('24 時間を超える長さの見積もりは 1440 分（1 日）で止める', () => {
+    expect(ja('勉強 30時間')).toMatchObject({ title: '勉強', estimateMinutes: 1440 })
+    expect(ja('ES 2000分')).toMatchObject({ title: 'ES', estimateMinutes: 1440 })
+    expect(en('read 48h')).toMatchObject({ title: 'read', estimateMinutes: 1440 })
+    expect(ja('勉強 24時間')).toMatchObject({ estimateMinutes: 1440 })
+    expect(ja('勉強 0分').estimateMinutes).toBeNull()
+  })
+
   it('素の数字だけの範囲は時刻と断定しない', () => {
     const r = en('read 3-4')
     expect(r.startTime).toBeNull()
