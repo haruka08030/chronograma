@@ -112,17 +112,25 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
       pushUndo()
       set({ filterTag: tag })
     },
-    requestQuickAdd: () => {
+    requestQuickAdd: (prefill) => {
       const s = get()
+      const quickAddPrefill = prefill ?? null
       // To-Do の一覧（すべて・今日など・いつか・買い物）ならその場で追加する（色ラベルを開いていれば、追加したタスクにその色が付く）。
       // ほかの画面からは「すべて」へ
       if (!isTodoSurfaceView(s.selectedView)) {
-        set({ selectedListId: null, selectedView: 'all', filterColor: null, quickAddSectionId: null, quickAddRequested: true })
+        set({
+          selectedListId: null,
+          selectedView: 'all',
+          filterColor: null,
+          quickAddSectionId: null,
+          quickAddRequested: true,
+          quickAddPrefill,
+        })
       } else {
-        set({ quickAddRequested: true })
+        set({ quickAddRequested: true, quickAddPrefill })
       }
     },
-    clearQuickAddRequest: () => set({ quickAddRequested: false }),
+    clearQuickAddRequest: () => set({ quickAddRequested: false, quickAddPrefill: null }),
 
     showMoveBanner: (text) => set({ moveBannerText: text }),
     clearMoveBanner: () => set({ moveBannerText: null }),

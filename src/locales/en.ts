@@ -959,6 +959,7 @@ export default {
   },
   quickAdd: {
     placeholder: 'Add a to-do',
+    sharedNote: 'The shared text goes into the note',
     chip: {
       date: 'Date',
       time: 'Time',

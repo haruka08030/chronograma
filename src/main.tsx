@@ -32,7 +32,8 @@ const launch: LaunchHandlers = {
   stopTimer: ({ startedAt }) => stopTimerFromNotification(startedAt),
   // 夜の締めは今日の計画の「1 日を締める」の所を見せる
   wrapUp: () => openWrapUpFromNotification(),
-  add: () => useTaskStore.getState().requestQuickAdd(),
+  // 共有から開いたときは中身を追加欄に入れて開く（足すのは確かめてから）
+  add: (shared) => useTaskStore.getState().requestQuickAdd(shared),
   // データ（ログイン中は最初の同期）がそろってから `useQuickStartLaunch` が始める
   start: (request) => requestQuickStart(request),
 }

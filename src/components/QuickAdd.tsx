@@ -19,9 +19,14 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
   const [value, setValue] = useState('')
   // 下のチップで選んだ値（消したら・足したら空に）
   const [picks, setPicks] = useState<QuickAddPicks>({})
+  // 共有で 1 行に収まらなかった本文（足すとメモに入る。欄を空にしたら捨てる）
+  const [note, setNote] = useState('')
   const change = (v: string) => {
     setValue(v)
-    if (!v.trim()) setPicks({})
+    if (!v.trim()) {
+      setPicks({})
+      setNote('')
+    }
   }
   const inputRef = useRef<HTMLInputElement>(null)
   const quickAddRequested = useTaskStore((s) => s.quickAddRequested)
@@ -31,13 +36,22 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
 
   useEffect(() => {
     if (!quickAddRequested) return
+    // 共有（share_target）から開いたときは中身を欄に入れておく。足すのは利用者が確かめて Enter / 追加を押してから
+    const prefill = useTaskStore.getState().quickAddPrefill
     clearQuickAddRequest()
-    queueMicrotask(() => inputRef.current?.focus())
+    queueMicrotask(() => {
+      if (prefill) {
+        setValue(prefill.text)
+        setPicks({})
+        setNote(prefill.note)
+      }
+      inputRef.current?.focus()
+    })
   }, [quickAddRequested, clearQuickAddRequest])
 
   const submit = () => {
     if (!value.trim()) return
-    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks })
+    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks, note })
     change('')
   }
 
@@ -51,6 +65,7 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
         onSubmit={submit}
         placeholder={placeholder ?? t('quickAdd.placeholder')}
       />
+      {note && value.trim() && <p className="mt-1 px-1 text-xs text-zinc-500 dark:text-zinc-400">{t('quickAdd.sharedNote')}</p>}
       {/* 入力中だけ、足したら付く日付・時間・見積もり・締切・リスト・ラベル。押して選べる */}
       <QuickAddDetails
         text={value}

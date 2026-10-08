@@ -78,6 +78,7 @@ export const TRANSIENT_KEYS = [
   'lastSyncedAt',
   'syncRejected',
   'quickAddRequested',
+  'quickAddPrefill',
   'recordPromptTaskId',
   'completePromptTaskId',
   'labelPromptLogId',
