@@ -156,3 +156,77 @@ describe('WeekReviewCard: ラベルの週の目安（#291）', () => {
     expect(screen.queryByText('ES')).toBeNull()
   })
 })
+
+describe('WeekReviewCard: ラベルごとの予定と、予定に無かった記録（#275）', () => {
+  const seedPlans = () => {
+    const today = toDateKey(zonedNow())
+    useTaskStore.setState({
+      tasks: [
+        // Study の色（sage）の To-Do 3 時間に、▶ で 1 時間だけ記録。ES の色の To-Do 1 時間は記録なし
+        task('study', { title: 'Problem set', color: '#33B679', scheduledDate: today, startTime: '00:00', endTime: '03:00' }),
+        task('es', { title: 'Write ES', color: '#D50000', scheduledDate: today, startTime: '04:00', endTime: '05:00' }),
+        task('l1', {
+          kind: 'log',
+          completed: true,
+          title: 'Problem set',
+          tags: ['Study'],
+          category: 'Study',
+          dueDate: today,
+          startTime: '00:00',
+          endTime: '01:00',
+          sourceTaskId: 'study',
+        }),
+        // どの予定とも組にならない記録
+        task('yt', { kind: 'log', completed: true, title: 'YouTube', dueDate: today, startTime: '06:00', endTime: '07:30' }),
+      ],
+      timeLogTagPresets: ['Study', 'ES'],
+      logCategoryColors: { Study: 'sage', ES: 'tomato' },
+      logLabelTargets: {},
+    })
+  }
+
+  it('ラベルの行に予定した時間を文字と点線の枠で並べ、予定だけのラベルも記録 0 で出す', () => {
+    seedPlans()
+    render(<WeekReviewCard />)
+    const study = screen.getByText('Study').closest('li')!
+    expect(study).toHaveTextContent('1h')
+    expect(study).toHaveTextContent('Planned 3h')
+    const es = screen.getByText('ES').closest('li')!
+    expect(es).toHaveTextContent('Planned 1h')
+  })
+
+  it('予定に無かった記録を出す。予定の無い週には出さない', () => {
+    seedPlans()
+    const { unmount } = render(<WeekReviewCard />)
+    const list = screen.getByRole('list', { name: 'Not in the plan' })
+    expect(list).toHaveTextContent('YouTube')
+    expect(list).toHaveTextContent('1h 30m')
+    unmount()
+
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => t.kind === 'log') })
+    render(<WeekReviewCard />)
+    expect(screen.queryByText('Not in the plan')).toBeNull()
+    expect(screen.queryByText(/Planned \d/)).toBeNull()
+  })
+})
+
+describe('WeekReviewCard: 一言は数字から（#276）', () => {
+  it('記録のある週は合計といちばん長いラベル。決まり文句は出さない', () => {
+    seed()
+    render(<WeekReviewCard />)
+    expect(screen.getByText(/^2h logged in total; the most was .+ at 2h\.$/)).toBeInTheDocument()
+    expect(screen.queryByText('Steady progress.')).toBeNull()
+  })
+
+  it('はじめの案内は一度も記録していない人だけ。記録したことがあれば、空の週は事実だけ', () => {
+    useTaskStore.setState({ tasks: [] })
+    const { unmount } = render(<WeekReviewCard />)
+    expect(screen.getByText(/^Nothing logged this week yet\. Block time/)).toBeInTheDocument()
+    unmount()
+
+    const old = toDateKey(shiftReviewPeriod('month', zonedNow(), -3))
+    useTaskStore.setState({ tasks: [task('old', { kind: 'log', completed: true, dueDate: old, startTime: '09:00', endTime: '10:00' })] })
+    render(<WeekReviewCard />)
+    expect(screen.getByText('Nothing logged or planned this week yet.')).toBeInTheDocument()
+  })
+})
