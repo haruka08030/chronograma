@@ -51,6 +51,12 @@
   題名・ラベル・色・元の To-Do で始める。計測中（どの端末でも）なら始めずに今日の計画を開くだけ、記録が無ければ知らせるだけ。
   ログイン中は最初の同期（最大 6 秒）を待ってから決める（`useQuickStartLaunch`）。設定の `InstallAppSection` とサイドバーの
   「アプリとして使う」から案内
+- 共有から To-Do: manifest の `share_target`（GET、`/?add=1&title=&text=&url=`。Android の Chrome・Edge のインストール済み PWA だけ。
+  iPhone の Safari は未対応で共有先に出ない）。`consumeLaunch` が `add=1` のときだけ `title`・`text`・`url` を読んで消し、
+  `src/lib/shareTarget.ts` の `sharedQuickAdd` で追加欄の 1 行（「タイトル URL」）と、1 行に収まらない本文（`note`）にする。
+  `requestQuickAdd(prefill)` → `QuickAdd` が欄に入れてフォーカスするだけで、足すのは利用者が Enter / 追加を押してから。
+  `url` が空でも `text` の中の URL を取り出す。クイック追加はどの欄でも URL を題名と日付の読み取りから外してメモ（`description`）へ
+  入れる（`splitUrls`、URL だけなら題名は `shortUrlLabel`）。本文はメモの先頭、URL はその下
 - URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
   `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`
   （解釈と組み立ては `src/lib/viewUrl.ts`。旧 `activity-log`→`planner`、`plan-vs-actual`→`calendar`）。起動時に URL の画面を開き、

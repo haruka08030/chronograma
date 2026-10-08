@@ -925,6 +925,7 @@ export default {
   },
   quickAdd: {
     placeholder: 'To-Do を追加',
+    sharedNote: '共有した本文はメモに入ります',
     chip: {
       date: '日付',
       time: '時間',

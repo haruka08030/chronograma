@@ -117,6 +117,7 @@ export const useTaskStore = create<TaskState>()(
         syncRejected: [],
         dataOwner: null as string | null,
         quickAddRequested: false,
+        quickAddPrefill: null,
         filterTag: null,
         filterColor: null,
         notificationsEnabled: false,

@@ -814,3 +814,21 @@ describe('英語の空白をまたぐ日付・noon・tonight（2026-10-06 火曜
     expect(en6('this Monthly report')).toMatchObject({ title: 'this Monthly report', date: null })
   })
 })
+
+describe('共有で入る就活サイトの題名（#280）', () => {
+  it('卒業年・期間の数字は日付・時刻と読まない', () => {
+    const a = ja('【2027年卒】〇〇株式会社 本選考エントリー | マイナビ2027')
+    expect(a).toMatchObject({ date: null, startTime: null, endTime: null, dateIsDeadline: false })
+    expect(a.title).toBe('【2027年卒】〇〇株式会社 本選考エントリー | マイナビ2027')
+    expect(ja('2027卒 夏インターン 8/20-8/24 募集')).toMatchObject({ date: null, startTime: null, endTime: null })
+  })
+
+  it('「説明会 10月15日(水) 19:00〜20:00 オンライン」は 10/15 の 19:00–20:00', () => {
+    expect(ja('説明会 10月15日(水) 19:00〜20:00 オンライン')).toMatchObject({
+      date: '2026-10-15',
+      startTime: '19:00',
+      endTime: '20:00',
+      dateIsDeadline: false,
+    })
+  })
+})

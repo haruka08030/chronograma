@@ -38,7 +38,40 @@ describe('consumeLaunch', () => {
     const h = handlers()
     consumeLaunch(h)
     expect(h.add).toHaveBeenCalledTimes(1)
+    expect(h.add).toHaveBeenCalledWith(null)
     expect(h.start).not.toHaveBeenCalled()
     expect(window.location.search).toBe('')
+  })
+})
+
+describe('consumeLaunch: ほかのアプリの共有（share_target、#280）', () => {
+  it('title・text・url を読んで追加欄の中身を渡し、URL から消す（画面の指定は残す）', () => {
+    const q = new URLSearchParams({ add: '1', title: '本選考エントリー', text: '', url: 'https://example.com/e' })
+    window.history.replaceState(null, '', `/?view=planner&${q}`)
+    const h = handlers()
+    consumeLaunch(h)
+    expect(h.add).toHaveBeenCalledWith({ text: '本選考エントリー https://example.com/e', note: '' })
+    expect(window.location.search).toBe('?view=planner')
+
+    // 読み込み直しても同じ共有をもう一度入れない
+    consumeLaunch(h)
+    expect(h.add).toHaveBeenCalledTimes(1)
+  })
+
+  it('URL が text に入って届いても取り出す', () => {
+    const q = new URLSearchParams({ add: '1', text: '説明会 https://example.com/s' })
+    window.history.replaceState(null, '', `/?${q}`)
+    const h = handlers()
+    consumeLaunch(h)
+    expect(h.add).toHaveBeenCalledWith({ text: '説明会 https://example.com/s', note: '' })
+    expect(window.location.search).toBe('')
+  })
+
+  it('add=1 が無ければ title などは読まず、消さない', () => {
+    window.history.replaceState(null, '', '/?title=x&text=y')
+    const h = handlers()
+    consumeLaunch(h)
+    expect(h.add).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('?title=x&text=y')
   })
 })

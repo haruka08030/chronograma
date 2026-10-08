@@ -4,6 +4,7 @@
 import type { SmartView } from '../store/taskStore'
 import { toSmartView } from './viewUrl'
 import { parseStartParam, type QuickStartRequest } from './quickStart'
+import { sharedQuickAdd, type QuickAddPrefill } from './shareTarget'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -79,14 +80,18 @@ export interface LaunchHandlers {
   stopTimer: (launch: TimerStopLaunch) => void
   /** 夜の締めの通知から: 今日の計画の「1 日を締める」の所を見せる（`?wrap-up=1`） */
   wrapUp: () => void
-  /** ホーム画面のアイコンを長押しした「追加」（`?add=1`） */
-  add: () => void
+  /**
+   * ホーム画面のアイコンを長押しした「追加」（`?add=1`）と、ほかのアプリの「共有」（`?add=1&title=…&text=…&url=…`、manifest の `share_target`）。
+   * 共有なら `shared` に追加欄へ入れる中身が来る（その場では足さない）
+   */
+  add: (shared: QuickAddPrefill | null) => void
   /** 開いてすぐ記録を始める（`?start=last`、アイコン長押しの「前回の記録を再開」。`quickStart.ts`） */
   start: (request: QuickStartRequest) => void
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`・`?wrap-up=1`、アイコン長押しの `?add=1` / `?start=last` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`・`?wrap-up=1`、アイコン長押しの `?add=1` / `?start=last`、
+ * 共有の `?add=1&title=&text=&url=` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
 export function consumeLaunch(handlers: LaunchHandlers) {
@@ -100,12 +105,16 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const stopTimer = url.searchParams.get('stop-timer')
   const start = parseStartParam(url.searchParams.get('start'))
   const wrapUp = url.searchParams.get('wrap-up') === '1'
-  // 読んだら URL から消す（読み込み直しで同じ操作をもう一度しない）
-  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start', 'wrap-up']
+  // 共有の中身。`title` などはほかで使わない名前ではないので、`add=1` のときだけ読んで消す
+  const shared = add
+    ? sharedQuickAdd({ title: url.searchParams.get('title'), text: url.searchParams.get('text'), url: url.searchParams.get('url') })
+    : null
+  // 読んだら URL から消す（読み込み直しで同じ操作・同じ共有をもう一度しない）
+  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start', 'wrap-up', ...(add ? SHARE_PARAMS : [])]
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
-  if (add) handlers.add()
+  if (add) handlers.add(shared)
   if (task && !record) handlers.openTask({ taskId: task, date: launchDate(date) })
   // 止める: 通知から開いたときだけ（ただのリンクではタイマーの見える今日の計画が開くだけ）
   if (stopTimer) {
@@ -121,6 +130,9 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   // 通知から開いたときだけ確かめずに記録する。印が無ければ（ただのリンク）時刻を直せる画面を開くだけ
   void consumeLaunchMark(nonce).then((ok) => handlers.record({ taskId: record, asPlanned: ok }))
 }
+
+/** manifest の `share_target.params` の名前 */
+const SHARE_PARAMS = ['title', 'text', 'url']
 
 /** 起動 URL・通知の日付（`YYYY-MM-DD` だけ受け取る） */
 function launchDate(raw: unknown): string | null {

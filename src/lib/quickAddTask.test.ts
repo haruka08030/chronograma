@@ -555,3 +555,48 @@ describe('追加欄の下のチップ（picks）', () => {
     expect(quickAddDraft('牛乳 @買い物')).toMatchObject({ listId: 'shop', dated: false, scheduledDate: null })
   })
 })
+
+describe('URL はメモへ（共有・貼り付け、#280）', () => {
+  it('「タイトル URL」は題名と URL に分かれ、URL はメモに入る', () => {
+    const id = addTaskFromQuickText('本選考エントリー https://example.com/entry')
+    expect(added(id)).toMatchObject({ title: '本選考エントリー', description: 'https://example.com/entry' })
+  })
+
+  it('URL の中の数字（/2026/10/15/）は日付と読まない', () => {
+    const id = addTaskFromQuickText('記事 https://example.com/2026/10/15/19:00')
+    expect(added(id)).toMatchObject({
+      title: '記事',
+      scheduledDate: null,
+      startTime: null,
+      description: 'https://example.com/2026/10/15/19:00',
+    })
+    expect(readQuickAddText('記事 https://example.com/2026/10/15/')).toBeNull()
+    expect(quickAddDraft('記事 https://example.com/2026/10/15/')).toMatchObject({ scheduledDate: null, dueDate: null })
+  })
+
+  it('URL だけなら題名は URL の短い形、メモに URL', () => {
+    const id = addTaskFromQuickText('https://www.example.com/jobs/123')
+    expect(added(id)).toMatchObject({ title: 'example.com/jobs/123', description: 'https://www.example.com/jobs/123' })
+  })
+
+  it('URL と一緒に書いた日付は読む', () => {
+    const id = addTaskFromQuickText('説明会 10月15日 19:00〜20:00 https://example.com/s')
+    expect(added(id)).toMatchObject({
+      title: '説明会',
+      scheduledDate: '2026-10-15',
+      startTime: '19:00',
+      endTime: '20:00',
+      description: 'https://example.com/s',
+    })
+  })
+
+  it('共有の本文（note）はメモの先頭、URL はその下', () => {
+    const id = addTaskFromQuickText('記事 https://example.com/a', { note: '本文の 1 行目\n2 行目' })
+    expect(added(id)).toMatchObject({ title: '記事', description: '本文の 1 行目\n2 行目\nhttps://example.com/a' })
+  })
+
+  it('URL が無ければメモは付けない', () => {
+    const id = addTaskFromQuickText('牛乳')
+    expect(added(id).description).toBeUndefined()
+  })
+})

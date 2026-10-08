@@ -15,6 +15,7 @@ import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
 import type { WeekStartDay } from '../lib/weekStart'
+import type { QuickAddPrefill } from '../lib/shareTarget'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
@@ -93,6 +94,8 @@ export interface TaskState {
    */
   recentDeletes: { ids: string[]; at: number }[]
   quickAddRequested: boolean
+  /** 共有（share_target）から開いたとき、追加欄に入れておく中身。追加欄が読んだら消す */
+  quickAddPrefill: QuickAddPrefill | null
   filterTag: string | null
   /** To‑Do を色（ラベル）で絞っているときの `#RRGGBB`（大文字）。「すべて」と組み合わせて「ラベルを開いた」状態になる */
   filterColor: string | null
@@ -245,7 +248,8 @@ export interface TaskState {
   setTodoFilter: (patch: Partial<TodoFilter>) => void
   /** 完了済みの絞り込みを変える（渡した項目だけ） */
   setCompletedFilter: (patch: Partial<CompletedFilter>) => void
-  requestQuickAdd: () => void
+  /** 追加欄を開いてフォーカスする。`prefill` があれば欄に入れておく（足すのは利用者が確かめてから） */
+  requestQuickAdd: (prefill?: QuickAddPrefill | null) => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
   /** To‑Do の色ラベルを開く（「すべて」をその色で絞る） */
