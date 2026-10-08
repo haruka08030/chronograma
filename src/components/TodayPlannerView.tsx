@@ -90,6 +90,8 @@ export function TodayPlannerView() {
     [],
   )
   const wrapUpTime = useTaskStore((s) => s.dailyReminders.wrapUpTime ?? null)
+  /** 見ている日に気分を付けたか（付けた日は締めの時刻の前でも記号の行を出しておく） */
+  const moodSet = useTaskStore((s) => s.dayMoods[dateKey] !== undefined)
 
   const date = fromDateKey(dateKey)
   const viewingToday = isAppToday(date)
@@ -225,6 +227,8 @@ export function TodayPlannerView() {
     viewingToday &&
     (wrapUpFocus > 0 ||
       (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)))
+  // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
+  const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)
 
   // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
@@ -323,6 +327,8 @@ export function TodayPlannerView() {
 
         <PlannerWrapUp
           showWrapUp={showWrapUp}
+          showMood={showMood}
+          dateKey={dateKey}
           focusKey={wrapUpFocus}
           open={open}
           untaggedLogs={untaggedLogs}

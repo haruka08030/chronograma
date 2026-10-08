@@ -42,6 +42,7 @@ export const DATA_KEYS = [
   'eventTemplatesUpdatedAt',
   'courseLinks',
   'courseLinksUpdatedAt',
+  'dayMoods',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const VIEW_KEYS = [

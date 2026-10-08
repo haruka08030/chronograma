@@ -16,6 +16,7 @@ import { useNow } from '../../hooks/useAppClock'
 import { logLimitAt } from '../../lib/timelineBlockEdit'
 import { unplannedListIds } from '../../lib/listKind'
 import { unrecordedMinutesOnDay } from '../../lib/unrecordedGaps'
+import { DayMoodBadge } from './DayMood'
 
 /** 今日の計画の上: 題名と日付・日の移動・睡眠・記録と予定の合計・記録のパネル */
 export function PlannerHeader({
@@ -71,9 +72,11 @@ export function PlannerHeader({
       {viewingToday && <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>}
       {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない。
           はじめの案内が出ている間は出さない（最初に目に入るのが睡眠だと、何をするアプリか分からない） */}
-      {onboardingDone && (
-        <div className="mt-2 md:mt-3">
-          <SleepRow key={dateKey} dateKey={dateKey} />
+      {/* 過ぎた日は、締めで付けた気分の記号を睡眠の横に小さく（今日の昼・これからの日には出さない） */}
+      {(onboardingDone || !showFree) && (
+        <div className="mt-2 flex flex-wrap items-start gap-x-2 md:mt-3">
+          {onboardingDone && <SleepRow key={dateKey} dateKey={dateKey} />}
+          {!showFree && <DayMoodBadge key={dateKey} dateKey={dateKey} />}
         </div>
       )}
       {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
