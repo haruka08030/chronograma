@@ -8,7 +8,7 @@ import { colorVars } from '../lib/logCategoryColors'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { ESTIMATE_OPTIONS } from '../lib/estimate'
 import { formatDuration } from '../lib/timeGrid'
-import { addClockMinutes, toMinutes } from '../lib/clockTime'
+import { endWithinDay, toMinutes } from '../lib/clockTime'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
@@ -173,7 +173,10 @@ export function QuickAddDetails({
       const s = toMinutes(startTime)
       const e = toMinutes(endTime)
       if (s == null) return
-      pick({ time: { startTime, endTime: e != null && e > s ? endTime : addClockMinutes(startTime, length) } }, false)
+      // 打った終わりが開始より後（または翌 0:00）ならそのまま。無ければ開始＋長さで、
+      // 日をまたぐ分はその日の終わりで止める（翌朝の時刻にするとタイムラインに出ない）
+      const typedEnd = e != null && (e > s || (e === 0 && s > 0))
+      pick({ time: { startTime, endTime: typedEnd ? endTime : endWithinDay(startTime, length) } }, false)
     }
     body = (
       <div className="flex flex-wrap items-center gap-2">
@@ -188,7 +191,7 @@ export function QuickAddDetails({
           ariaLabel={t('quickAdd.chip.end')}
           value={draft.endTime ?? ''}
           disabled={!draft.startTime}
-          pickerDefault={draft.startTime ? addClockMinutes(draft.startTime, length) : undefined}
+          pickerDefault={draft.startTime ? endWithinDay(draft.startTime, length) : undefined}
           onChange={(v) => draft.startTime && v && setTime(draft.startTime, v)}
           className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
         />
