@@ -20,6 +20,7 @@
 | [`014_task_is_event.sql`](014_task_is_event.sql) | 予定（完了の丸の無い、時刻のある予定）の印 `tasks.is_event`（既定 false = To-Do）。予定は To-Do の一覧・やり残し・完了数に入れない。列を知らない前の版のアプリでは To-Do に見える |
 | [`015_task_estimate.sql`](015_task_estimate.sql) | タスクの見積もり `tasks.estimate_minutes`（分、null は見積もりなし、1〜1440）。タイムラインに置く・時間を決めるときの長さ |
 | [`016_task_source_task.sql`](016_task_source_task.sql) | ▶ で始めた記録の元の To-Do・予定 `tasks.source_task_id`（null は元なし）。計画どおりかの突き合わせで元の予定と組にする |
+| [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは行を update）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
 
 テーブル（最新の形）:
 

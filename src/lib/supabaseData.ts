@@ -856,3 +856,11 @@ export function pushExtraTimeZones(
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_extra_time_zones', { user_id: userId, zones: value.zones, updated_at: value.updatedAt }, base)
 }
+
+/** 同期の取り決めの版の下限（`app_config.min_sync_version`、017）。読めなければエラー（黙って送らない・黙って送るのどちらにもしない） */
+export async function fetchMinSyncVersion(supabase: SupabaseClient): Promise<number | { error: string }> {
+  const { data, error } = await supabase.from('app_config').select('value').eq('key', 'min_sync_version').maybeSingle()
+  if (error) return { error: error.message }
+  const v = Number((data as { value?: unknown } | null)?.value ?? 0)
+  return Number.isFinite(v) ? v : 0
+}

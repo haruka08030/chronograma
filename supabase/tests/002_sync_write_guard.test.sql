@@ -1,7 +1,7 @@
 -- 004 の sync_write_guard: 端末が送った版（base_updated_at）がサーバーの updated_at と同じときだけ書き、updated_at はサーバーの時刻にする
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 select has_trigger('public', t, 'sync_write_guard', t || ' に sync_write_guard')
 from unnest(array['lists', 'list_sections', 'tasks', 'habits']) t;
@@ -39,12 +39,24 @@ insert into public.lists (user_id, id, name, updated_at, base_updated_at)
 values ('00000000-0000-4000-8000-00000000000a', 'l2', 'new', '1999-01-01T00:00:00Z', '-infinity');
 select is((select updated_at from public.lists where id = 'l2'), now(), '新しい行の updated_at はサーバーの時刻');
 
--- 版を送らない書き込み（前の版のアプリ）: updated_at が古ければ捨て、新しければ端末の値のまま通す
-update public.lists set name = 'legacy old', updated_at = '2010-01-01T00:00:00Z' where id = 'l2';
-select is((select name from public.lists where id = 'l2'), 'new', '版なしで古い更新は捨てる');
-update public.lists set name = 'legacy new', updated_at = '2999-01-01T00:00:00Z' where id = 'l2';
-select is((select name from public.lists where id = 'l2'), 'legacy new', '版なしで新しい更新は通す');
-select is((select updated_at from public.lists where id = 'l2'), '2999-01-01T00:00:00Z'::timestamptz, '版なしの updated_at は端末の値');
+-- 版を送らない書き込み（下限より古い版のアプリ）は断る（017）
+select throws_ok(
+  $$update public.lists set name = 'legacy', updated_at = '2999-01-01T00:00:00Z' where id = 'l2'$$,
+  'P0001', null, '版なしの更新は断る');
+select throws_ok(
+  $$insert into public.lists (user_id, id, name) values ('00000000-0000-4000-8000-00000000000a', 'l3', 'legacy')$$,
+  'P0001', null, '版なしの新しい行は断る');
+
+-- 外部キーの動作（セクションを消すと中のタスクの section_id が null）は通り、updated_at をサーバーの時刻にする
+reset role;
+insert into public.list_sections (user_id, id, list_id, name, updated_at)
+values ('00000000-0000-4000-8000-00000000000a', 's1', 'l1', 'sec', '2020-01-01T00:00:00Z');
+insert into public.tasks (user_id, id, list_id, section_id, title, updated_at)
+values ('00000000-0000-4000-8000-00000000000a', 't1', 'l1', 's1', 'in section', '2020-01-01T00:00:00Z');
+set local role authenticated;
+delete from public.list_sections where id = 's1';
+select is((select section_id from public.tasks where id = 't1'), null, '外部キーの動作の更新は通る');
+select is((select updated_at from public.tasks where id = 't1'), now(), '外部キーの動作で変わった行の updated_at はサーバーの時刻');
 reset role;
 
 select * from finish();

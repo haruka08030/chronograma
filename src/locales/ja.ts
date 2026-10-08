@@ -94,6 +94,8 @@ export default {
     syncing: 'クラウドに同期しています',
     syncingWithLast: 'クラウドに同期しています（最後の同期: {{when}}）',
     errorShort: '未同期',
+    outdatedShort: '新しい版を読み込む',
+    outdated: 'このアプリの版が古いため同期を止めています。押すと新しい版を読み込みます（データはこの端末に残っています）',
     error: 'クラウドに同期できていません。接続が戻ると自動で送信します。',
     errorWithLast: 'クラウドに同期できていません（最後の同期: {{when}}）。接続が戻ると自動で送信します。',
     limit:
