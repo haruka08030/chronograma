@@ -1,7 +1,7 @@
 {
   "name": "Chronograma",
   "short_name": "Chronograma",
-  "description": "1 日を計画して、記録して、ふりかえる。",
+  "description": "予定と実際を同じタイムラインに並べて、時間がどこに溶けたか分かる時間割。",
   "lang": "ja",
   "start_url": "/?source=pwa",
   "scope": "/",

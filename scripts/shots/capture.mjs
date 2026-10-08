@@ -83,6 +83,8 @@ const SCREENS = [
   { name: 'first-run-habits-add', fresh: true, view: 'habits', click: 'button:has-text("習慣を追加") >> visible=true' },
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
+  // ログインの欄（一文・説明・ボタン）。Supabase の設定（.env）があるビルドでだけ出る
+  { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
