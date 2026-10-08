@@ -5,7 +5,7 @@ import { isNetworkErrorMessage } from './errorMessages'
 import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
-import { pad2 } from './clockTime'
+import { minutesToTime, pad2, timeToMinutes } from './clockTime'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -328,6 +328,26 @@ export function googleEventTiming(e: CalendarEvent): GoogleEventTiming {
   }
   const end = wallInZone(new Date(e.end).getTime(), appTimeZone())
   return { date: e.date, endDate: end.date, startTime: e.startTime, endTime: e.endTime }
+}
+
+function daysBetweenYmd(from: string, to: string): number {
+  return Math.round((fromDateKey(to).getTime() - fromDateKey(from).getTime()) / 86_400_000)
+}
+
+/**
+ * 予定を別の日（時刻つきなら別の開始時刻）へ動かしたあとの日付・時刻。長さは保つ
+ * （終日は日数、時刻つきは開始から終わりまで。日をまたぐ予定も終わりの日をずらす）。`startTime` 省略時は今の開始時刻のまま
+ */
+export function movedGoogleEventTiming(e: CalendarEvent, date: string, startTime?: string | null): GoogleEventTiming {
+  const cur = googleEventTiming(e)
+  if (!cur.startTime || !cur.endTime) {
+    const span = cur.endDate ? daysBetweenYmd(cur.date, cur.endDate) : 0
+    return { date, endDate: span > 0 ? addDaysYmd(date, span) : null, startTime: null, endTime: null }
+  }
+  const length = daysBetweenYmd(cur.date, cur.endDate ?? cur.date) * 1440 + timeToMinutes(cur.endTime) - timeToMinutes(cur.startTime)
+  const start = startTime ?? cur.startTime
+  const end = timeToMinutes(start) + Math.max(0, length)
+  return { date, endDate: addDaysYmd(date, Math.floor(end / 1440)), startTime: start, endTime: minutesToTime(end % 1440) }
 }
 
 /** 楽観表示用に、Google から返る形をローカルで組み立てる */

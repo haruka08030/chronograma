@@ -18,6 +18,7 @@ import {
   moveGoogleEvent,
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
+import { movedGoogleEventTiming } from '../lib/googleCalendar'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
 import { FlagIcon } from './icons'
@@ -214,8 +215,8 @@ export function CalendarView({
                   setDragOverDate(null)
                   const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
                   if (gev) {
-                    // Google の予定は時刻を保ったまま日だけ動かす
-                    if (gev.date !== key) void moveGoogleEvent(gev, { date: key, startTime: gev.startTime, endTime: gev.endTime })
+                    // Google の予定は時刻と長さ（何日続くか）を保ったまま日だけ動かす
+                    if (gev.date !== key) void moveGoogleEvent(gev, movedGoogleEventTiming(gev, key))
                     return
                   }
                   const ids = readDraggedTaskIds(e.dataTransfer)

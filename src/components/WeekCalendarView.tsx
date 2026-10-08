@@ -22,6 +22,7 @@ import {
 } from '../lib/calendarItemDrag'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { moveGoogleEvent } from '../lib/googleEventEdit'
+import { googleEventTiming, movedGoogleEventTiming } from '../lib/googleCalendar'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { useNow } from '../hooks/useAppClock'
 import { useIsDesktop } from '../hooks/useMediaQuery'
@@ -215,9 +216,9 @@ export function WeekCalendarView({
     onMoveDone: (taskId, dateKey, startTime, endTime) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        // 元の枠に戻しただけなら Google へ書き込まない
-        const same = ev && ev.date === dateKey && ev.startTime === startTime && ev.endTime === endTime
-        if (ev && !same) void moveGoogleEvent(ev, { date: dateKey, startTime, endTime })
+        // 元の枠に戻しただけなら Google へ書き込まない。動かすときは長さ（日をまたぐ予定は終わりの日も）を保つ
+        const same = ev && ev.date === dateKey && ev.startTime === startTime
+        if (ev && !same) void moveGoogleEvent(ev, movedGoogleEventTiming(ev, dateKey, startTime))
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -237,7 +238,11 @@ export function WeekCalendarView({
     onResizeDone: (taskId, startTime, endTime, dateKey) => {
       if (taskId.startsWith('event-')) {
         const ev = googleDragRef.current
-        if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) void moveGoogleEvent(ev, { date: ev.date, startTime, endTime })
+        if (ev && (ev.startTime !== startTime || ev.endTime !== endTime)) {
+          // 上の端（開始）だけ変えたときは終わりの日を保つ（日をまたぐ予定が 1 日に縮まないように）
+          const endDate = ev.endTime === endTime ? googleEventTiming(ev).endDate : null
+          void moveGoogleEvent(ev, { date: ev.date, endDate, startTime, endTime })
+        }
         return
       }
       const prev = useTaskStore.getState().tasks.find((x) => x.id === taskId)
