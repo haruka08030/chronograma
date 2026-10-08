@@ -435,6 +435,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     setPopup(null)
   }, [])
 
+  /** 範囲を決めて作成カードを出す（記録の無い時間の枠を押したときなど、ドラッグを通さずに） */
+  const openPopup = useCallback((next: CreatePopup) => {
+    setDrag(null)
+    pointerStartRef.current = null
+    setPopup(next)
+  }, [])
+
   /** 作成カードで時刻を直したとき（仮の枠も一緒に動く） */
   const setPopupTimes = useCallback((startTime: string, endTime: string) => {
     setPopup((p) => (p ? { ...p, startTime, endTime } : p))
@@ -531,6 +538,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     handlePointerUp,
     handlePointerCancel,
     dismissPopup,
+    openPopup,
     setPopupTimes,
     shiftMoveDragDate,
     /** タッチで長押しして持ち上げている間 true（縦スクロール・スワイプを止める、端で送る） */

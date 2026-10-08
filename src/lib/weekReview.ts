@@ -14,6 +14,7 @@ import { toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
 import { timeToMinutes } from './timeGrid'
 import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
+import { unrecordedMinutesOnDay } from './unrecordedGaps'
 
 /** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
 function plannedItemMinutes(p: PlannedItem): number {
@@ -28,6 +29,8 @@ export interface WeekReviewDay {
   loggedMinutes: number
   done: number
   total: number
+  /** 記録の無い時間（起きている間の 30 分以上の抜け。タイムラインの点線の枠の合計） */
+  unrecordedMinutes: number
   /** 分類ごとの記録時間（多い順、キーは `labelOf`、タグ無しは空文字）。日ごとの棒を分類の色で積む */
   tagMinutes: { tag: string; minutes: number }[]
 }
@@ -36,6 +39,8 @@ export interface WeekReview {
   days: WeekReviewDay[]
   plannedMinutes: number
   loggedMinutes: number
+  /** 記録の無い時間の合計（今日は今まで） */
+  unrecordedMinutes: number
   done: number
   total: number
   /**
@@ -95,6 +100,8 @@ export function getReview(
 ): WeekReview {
   const todayKey = toDateKey(now)
   const nowHm = clockOf(now)
+  /** 記録に使える最後の分（今日は今、過ぎた日は制限なし）。タイムラインと同じ */
+  const logLimit = (key: string) => (key < todayKey ? null : timeToMinutes(nowHm))
   const days: WeekReviewDay[] = []
   const tagMinutes = new Map<string, number>()
   let timedPlanned = 0
@@ -111,6 +118,7 @@ export function getReview(
       dateKey: key,
       plannedMinutes: 0,
       loggedMinutes: plan.loggedMinutes,
+      unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds),
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
       tagMinutes: [],
@@ -181,6 +189,7 @@ export function getReview(
     days,
     plannedMinutes: sum((d) => d.plannedMinutes),
     loggedMinutes: sum((d) => d.loggedMinutes),
+    unrecordedMinutes: sum((d) => d.unrecordedMinutes),
     done: sum((d) => d.done),
     total: sum((d) => d.total),
     followRate: timedPlanned > 0 ? followed / timedPlanned : null,
