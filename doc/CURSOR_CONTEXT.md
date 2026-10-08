@@ -165,14 +165,17 @@
   グレー（`.gc-missed`、完了は ✓）。クリック / ドラッグで作成中の枠（`CreateGhost`）も `.gc-plan`。週・日タイムライン、終日の行、月表示（時刻つきは
   「● 15:00 タイトル」、終日は帯）で共通
 - **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
-  c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
+  c 追加 / / To-Do の検索欄（検索欄の無い画面では To-Do へ切り替える） / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
   各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）
 
 ### グローバルショートカット（`App.tsx`）
 
 - 1 文字ショートカットは上記。以下は修飾キー付き
 
-- **⌘/Ctrl+K**: 検索フォーカス
+- **⌘/Ctrl+K**: 検索パレット（`SearchPalette`）。今の画面の上に出し、画面は切り替えない。入力中・詳細を開いていても効く。
+  打つと `searchTasks` で絞り、↑↓ で選ぶ・Enter で詳細・⌥T 今日やる / 明日へ回す（`useTodayToggle`）・⌥S 時間を決める
+  （`TimeSlotMenu`。今の画面にその行があればその下）・⌥L 記録を始める（`startTimerForTask`）。使えない操作（完了済み・いつか・
+  チェックリスト・時間が決まっている）は出さない。Esc・⌘K・背景で閉じ、開く前のフォーカスへ戻る
 - **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または
   `requestQuickAdd()`）。確定は「追加」ボタン、または IME 未変換時の
   **Enter**（`isComposing` でないときのみ）

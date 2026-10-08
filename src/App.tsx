@@ -20,6 +20,7 @@ import { TimerDropZone } from './components/TimerDropZone'
 import { TooltipHost } from './components/ui/Tooltip'
 import { OverlayHost } from './components/OverlayHost'
 import { SearchBox } from './components/SearchBox'
+import { SearchPalette } from './components/SearchPalette'
 import { DragOverlayTaskRow } from './components/DragOverlayTaskRow'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
@@ -71,7 +72,9 @@ export default function App() {
   const mainRef = useRef<HTMLDivElement>(null)
   const { sensors, dragOverlayTask, dragActiveRef, handleDragStart, handleDragEnd, handleDragCancel } = useAppDnd()
 
-  useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true) })
+  // ⌘K の検索パレット（打った文字を取りこぼさないよう、別ファイルにせずすぐ出す）
+  const [showPalette, setShowPalette] = useState(false)
+  useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true), onOpenPalette: () => setShowPalette(true) })
   useShortcutsHelpRequest(() => setShowShortcuts(true))
   useReminders()
   useFollowToday()
@@ -169,6 +172,11 @@ export default function App() {
           </div>
         </div>
 
+        {showPalette && (
+          <PartBoundary name="palette" onCrash={() => setShowPalette(false)}>
+            <SearchPalette onClose={() => setShowPalette(false)} />
+          </PartBoundary>
+        )}
         {showShortcuts && (
           <PartBoundary name="shortcuts" onCrash={() => setShowShortcuts(false)}>
             <OverlaySuspense>

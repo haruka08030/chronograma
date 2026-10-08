@@ -108,6 +108,10 @@ export const SHORTCUTS = {
   createAnywhere: { hotkeys: ['mod+n'], display: [['mod', 'N']], label: 'shortcuts.createAnywhere' },
   search: { hotkeys: ['/'], display: [['/']], label: 'shortcuts.search' },
   searchAnywhere: { hotkeys: ['mod+k'], display: [['mod', 'K']], label: 'shortcuts.searchAnywhere' },
+  // 検索パレットの中（文字を打つ欄にいるので、1 文字ではなく Alt と一緒に。文字は一覧の行と同じ T・S・L）
+  paletteToday: { hotkeys: ['alt+t'], display: [['Alt', 'T']], label: 'shortcuts.paletteToday' },
+  palettePickTime: { hotkeys: ['alt+s'], display: [['Alt', 'S']], label: 'shortcuts.palettePickTime' },
+  paletteTimer: { hotkeys: ['alt+l'], display: [['Alt', 'L']], label: 'shortcuts.paletteTimer' },
   edit: { hotkeys: ['e'], display: [['E']], label: 'shortcuts.edit' },
   delete: { hotkeys: ['Delete', 'Backspace'], display: [['Delete']], label: 'shortcuts.delete' },
   nudgeBlock: {

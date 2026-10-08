@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { useIsLargeScreen } from '../hooks/useMediaQuery'
 import { isImeKeyEvent, isSubmitEnter, shortcutLabel } from '../lib/keyboard'
-import { requestListCursor } from '../lib/shortcuts'
+import { requestListCursor, SHORTCUTS } from '../lib/shortcuts'
 import { searchTasks } from '../lib/searchTasks'
 import { openTaskDetail } from '../lib/overlays'
 import { CloseIcon } from './icons'
 
-/** To-Do・検索の画面の上の検索欄。`inputRef` は / と ⌘K（`useGlobalShortcuts`）がフォーカスに使う */
+/** To-Do・検索の画面の上の検索欄。`inputRef` は /（`useGlobalShortcuts`）がフォーカスに使う。⌘K は画面を替えない検索パレット（`SearchPalette`） */
 export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement | null> }) {
   const { t } = useTranslation()
   const searchQuery = useTaskStore((s) => s.searchQuery)
@@ -59,7 +59,11 @@ export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement |
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={isLargeScreen ? t('app.searchPlaceholder', { key: shortcutLabel(['mod', 'K']) }) : t('app.searchPlaceholderTouch')}
+          placeholder={
+            isLargeScreen
+              ? t('app.searchPlaceholder', { key: shortcutLabel([...SHORTCUTS.search.display[0]]) })
+              : t('app.searchPlaceholderTouch')
+          }
           className={`w-full rounded-full border border-zinc-200/55 bg-zinc-50/60 py-2.5 pl-10 text-sm text-zinc-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none backdrop-blur-sm transition-[background-color,border-color,box-shadow,color] duration-200 placeholder:text-zinc-400 focus:border-zinc-300/70 focus:bg-white/85 focus:shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:ring-2 focus:ring-accent-500/30 dark:border-zinc-700/35 dark:bg-zinc-950/35 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-zinc-500 dark:focus:border-zinc-600/50 dark:focus:bg-zinc-900/45 dark:focus:ring-white/[0.06] ${searchQuery ? 'pr-10' : 'pr-4'}`}
         />
         {searchQuery && (
