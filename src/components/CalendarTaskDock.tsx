@@ -5,6 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { getFilteredRootTasks } from '../lib/mainListTasks'
 import { unplannedListIds } from '../lib/listKind'
 import { isActiveTask } from '../lib/taskLifecycle'
+import { compareByOrder } from '../lib/orderCompare'
 
 const UNSCHEDULED = '__unscheduled__'
 import { TaskItem } from './TaskItem'
@@ -35,7 +36,7 @@ export function CalendarTaskDock() {
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const bulk = useBulkTaskActions()
 
-  const sortedLists = useMemo(() => [...lists].sort((a, b) => a.order - b.order), [lists])
+  const sortedLists = useMemo(() => [...lists].sort(compareByOrder), [lists])
 
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const filtered = useMemo(
@@ -43,7 +44,7 @@ export function CalendarTaskDock() {
       dockListId === UNSCHEDULED
         ? tasks
             .filter((t) => !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId) && !(t.startTime && t.endTime))
-            .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || a.order - b.order)
+            .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || compareByOrder(a, b))
         : getFilteredRootTasks({
             tasks,
             selectedView: null,

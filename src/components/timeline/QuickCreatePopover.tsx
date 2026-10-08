@@ -23,6 +23,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { endKeepingLength, toMinutes } from '../../lib/clockTime'
 import { CardTimeRange } from './CardTimeRange'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
+import { compareByOrder } from '../../lib/orderCompare'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -95,7 +96,7 @@ export function QuickCreatePopover({
   const [zone, setZone] = useState<string | null>(null)
   const plannable = useMemo(() => {
     const excluded = unplannedListIds(lists)
-    return [...lists].filter((l) => !excluded.has(l.id)).sort((a, b) => a.order - b.order)
+    return [...lists].filter((l) => !excluded.has(l.id)).sort(compareByOrder)
   }, [lists])
   const [listId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
   const ref = useRef<HTMLDivElement>(null)

@@ -30,6 +30,7 @@ import { CompletedTasksSection } from './todo/CompletedTasksSection'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
+import { compareByOrder } from '../lib/orderCompare'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -121,7 +122,7 @@ export function TaskList({
       if (arr) arr.push(t)
       else m.set(t.parentId, [t])
     }
-    for (const arr of m.values()) arr.sort((a, b) => a.order - b.order)
+    for (const arr of m.values()) arr.sort(compareByOrder)
     return m
   }, [tasks])
 

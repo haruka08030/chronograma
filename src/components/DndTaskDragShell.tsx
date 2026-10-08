@@ -8,6 +8,7 @@ import { DRAGSEC_PREFIX, DROPSEC_PREFIX } from '../lib/sectionReorderDnD'
 import type { TaskList } from '../types/list'
 import { colorVars } from '../lib/logCategoryColors'
 import { useLiftHeld } from '../hooks/useTouchLift'
+import { compareByOrder } from '../lib/orderCompare'
 
 export const MOBILE_DROP_PREFIX = 'mobile-drop::'
 
@@ -35,7 +36,7 @@ function MobileListChip({ list }: { list: TaskList }) {
 /** モバイル用リストドロップ帯 + タスクドラッグ監視。DndContext の直下で使う */
 export function DndTaskDragShell() {
   const listsRaw = useTaskStore((s) => s.lists)
-  const lists = useMemo(() => [...listsRaw].sort((a, b) => a.order - b.order), [listsRaw])
+  const lists = useMemo(() => [...listsRaw].sort(compareByOrder), [listsRaw])
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
 
   const monitor = useMemo(

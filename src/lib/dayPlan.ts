@@ -4,6 +4,7 @@ import { isActiveTask } from './taskLifecycle'
 import { minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appDayKeyOf } from './timeZone'
+import { compareByOrder } from './orderCompare'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -67,7 +68,7 @@ function compareDayTasks(a: Task, b: Task): number {
   if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime)
   if (a.startTime) return -1
   if (b.startTime) return 1
-  return a.order - b.order
+  return compareByOrder(a, b)
 }
 
 const DUE_SOON_DAYS = 3
@@ -139,7 +140,7 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
     else if (!task.dueDate || task.dueDate === dateKey) placedLater.push(task)
   }
   dueLater.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-  undated.sort((a, b) => a.order - b.order)
+  undated.sort(compareByOrder)
   placedLater.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
   return [...dueLater, ...undated, ...placedLater]
 }

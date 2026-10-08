@@ -9,6 +9,7 @@ import { CANVAS_LIST_ID, isCanvasListId, parseCanvasTaskId } from './canvasIds'
 import { INBOX_ID } from '../store/storeConstants'
 import { externalPatch, type PulledFields } from './externalFields'
 import { TASK_DEFAULTS } from './taskDefaults'
+import { compareByOrder } from './orderCompare'
 
 /**
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
@@ -156,7 +157,7 @@ export function mergeCanvasLists(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
   now: string,
 ): { lists: TaskList[]; sections: ListSection[]; tasks: Task[]; mergedIds: string[] } | null {
-  const old = state.lists.filter((l) => l.id !== CANVAS_LIST_ID && isCanvasListId(l.id)).sort((a, b) => a.order - b.order)
+  const old = state.lists.filter((l) => l.id !== CANVAS_LIST_ID && isCanvasListId(l.id)).sort(compareByOrder)
   if (old.length === 0) return null
   const oldIds = new Set(old.map((l) => l.id))
   const lists = state.lists.filter((l) => !oldIds.has(l.id))
@@ -168,7 +169,7 @@ export function mergeCanvasLists(
   let nextOrder = Math.max(-1, ...state.sections.filter((s) => s.listId === CANVAS_LIST_ID).map((s) => s.order)) + 1
   const sectionOrder = new Map<string, number>()
   for (const list of old) {
-    for (const sec of state.sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)) {
+    for (const sec of state.sections.filter((s) => s.listId === list.id).sort(compareByOrder)) {
       sectionOrder.set(sec.id, nextOrder++)
     }
   }

@@ -40,6 +40,7 @@ import { colorLabelText } from '../lib/todoColorLabels'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { ColorDot } from './ui/FilterChips'
 import { ColorPalette } from './labels/ColorPalette'
+import { compareByOrder } from '../lib/orderCompare'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -155,21 +156,17 @@ export function TaskContextMenu({
     checked: sharedPriority === p,
     run: done(() => bulk.setPriority(taskIds, p)),
   }))
-  const listLeaves: ActionLeaf[] = [...lists]
-    .sort((a, b) => a.order - b.order)
-    .map((l) => ({
-      id: `list-${l.id}`,
-      label: displayListName(l.id, l.name),
-      icon: <span className="gc-dot mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={colorVars(l.color)} />,
-      checked: sharedList === l.id,
-      run: done(() => bulk.moveToList(taskIds, l.id)),
-    }))
+  const listLeaves: ActionLeaf[] = [...lists].sort(compareByOrder).map((l) => ({
+    id: `list-${l.id}`,
+    label: displayListName(l.id, l.name),
+    icon: <span className="gc-dot mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={colorVars(l.color)} />,
+    checked: sharedList === l.id,
+    run: done(() => bulk.moveToList(taskIds, l.id)),
+  }))
   // セクション: 全部が同じリストの親タスクで、そのリストにセクションがあるときだけ
   const sectionNone = t('taskDetail.sectionNone')
   const listSections =
-    sharedList && targets.every((x) => !x.parentId)
-      ? [...sections].filter((sec) => sec.listId === sharedList).sort((a, b) => a.order - b.order)
-      : []
+    sharedList && targets.every((x) => !x.parentId) ? [...sections].filter((sec) => sec.listId === sharedList).sort(compareByOrder) : []
   const sectionLeaves: ActionLeaf[] =
     listSections.length === 0
       ? []

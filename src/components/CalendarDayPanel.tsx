@@ -26,6 +26,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { META_TEXT } from './ui/textClass'
+import { compareByOrder } from '../lib/orderCompare'
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -76,7 +77,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
           if (a.startTime && b.startTime) {
             return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
           }
-          return a.order - b.order
+          return compareByOrder(a, b)
         }),
     [tasks, selectedDateKey, excludedListIds],
   )
@@ -120,7 +121,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
       tasks
         .filter((t) => !t.parentId && isLogTask(t) && isActiveTask(t) && logOverlapsDateKey(t, selectedDateKey))
         .sort((a, b) => {
-          if (!a.startTime || !b.startTime) return a.order - b.order
+          if (!a.startTime || !b.startTime) return compareByOrder(a, b)
           return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
         }),
     [tasks, selectedDateKey],
