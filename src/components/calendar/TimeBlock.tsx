@@ -127,17 +127,22 @@ export function TimeBlock({
           </span>
         </span>
       ) : (
-        <>
+        // 狭いカード（週表示の重なり・1 日表示の横並び）は Google と同じく「タイトル、20:00」（終了時刻は省く）。
+        // 1 行に入らなければ時刻ごと次の行へ送り、題名は 1 行で切る。時刻は折り返さない。
+        // 狭い＝「開始 – 終了」の行が入らない中身の幅 5rem 未満（ブロック自身の `@container` で測る）
+        <span className="block @max-[5rem]:flex @max-[5rem]:flex-wrap">
           <span className="block truncate font-medium">
             {dueDot}
             {moon}
             {doneMark}
             {task.title}
+            <span className="hidden @max-[5rem]:inline">{t('common.listSeparator')}</span>
           </span>
-          <span className="block text-[10px] opacity-80">
-            {task.startTime} – {task.endTime}
+          <span className="block truncate text-[10px] opacity-80 @max-[5rem]:text-[11px]">
+            {task.startTime}
+            <span className="@max-[5rem]:hidden"> – {task.endTime}</span>
           </span>
-        </>
+        </span>
       )}
     </button>
   )

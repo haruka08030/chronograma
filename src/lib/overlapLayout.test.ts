@@ -37,3 +37,32 @@ describe('layoutPlanAndLog', () => {
     expect(Number(styles.get('log:next')?.zIndex)).toBeGreaterThan(Number(styles.get('log:short')?.zIndex ?? 0))
   })
 })
+
+describe('layoutPlanAndLog: 予定と記録の左右分け', () => {
+  // バイト 18:00–21:00 と ES を書く 20:00–21:00（1 時間 = 60px）
+  const plans = [
+    { id: 'shift', top: 0, height: 180 },
+    { id: 'es', top: 120, height: 60 },
+  ]
+
+  it('記録の無い時間帯の予定は全幅を使い、重なりはずらし重ね', () => {
+    const styles = layoutPlanAndLog(plans, [], 'cascade')
+    expect(styles.get('plan:shift')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(100% - 4px)' })
+    expect(styles.get('plan:es')).toMatchObject({ left: 'calc(0% + 16px)', width: 'calc(100% - 18px)' })
+  })
+
+  it('記録と重なる塊だけ 予定=左半分 / 記録=右半分 に分ける', () => {
+    const styles = layoutPlanAndLog([...plans, { id: 'morning', top: 600, height: 60 }], [{ id: 'log', top: 30, height: 60 }], 'cascade')
+    expect(styles.get('plan:shift')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(50% - 4px)' })
+    expect(styles.get('plan:es')).toMatchObject({ left: 'calc(0% + 16px)', width: 'calc(50% - 18px)' })
+    expect(styles.get('log:log')).toMatchObject({ left: 'calc(50% + 2px)', width: 'calc(50% - 4px)' })
+    // 記録と重ならない予定は全幅
+    expect(styles.get('plan:morning')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(100% - 4px)' })
+  })
+
+  it('fixedLanes（今日の計画の 1 日表示）は記録が無くても 予定=左半分', () => {
+    const styles = layoutPlanAndLog(plans, [], 'columns', true)
+    expect(styles.get('plan:shift')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(25% - 4px)' })
+    expect(styles.get('plan:es')).toMatchObject({ left: 'calc(25% + 2px)', width: 'calc(25% - 4px)' })
+  })
+})
