@@ -77,7 +77,7 @@ export interface DragPreview {
  * ドラッグ作成の範囲（分）。Google カレンダーと同じく、押した 15 分枠の頭から始め、
  * 指している 15 分枠の終わりまでを覆う（四捨五入だと押した位置より下から始まってしまう）
  */
-function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: number } {
+export function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin: number } {
   const DAY = 24 * 60
   const toMin = (y: number) => (y / HOUR_HEIGHT) * 60
   const top = toMin(Math.min(drag.startY, drag.currentY))
