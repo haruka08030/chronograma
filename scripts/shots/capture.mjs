@@ -27,6 +27,10 @@ const FIRST_PORT = 5180
  */
 const TIMEZONE = 'Asia/Tokyo'
 
+/** `iosSafari` の画面で名乗る iPhone の Safari */
+const IOS_SAFARI_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
@@ -44,7 +48,7 @@ const CANDIDATE_FILTER = 'button[aria-label="候補を絞り込む"] >> visible=
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -251,6 +255,8 @@ const SCREENS = [
   { name: 'settings', view: 'settings' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
+  // iPhone の Safari（ホーム画面に未追加）の「通知」（通知は追加すると使える。手順の行へ飛ぶ 1 行）
+  { name: 'settings-ios-notifications', view: 'settings', mobileOnly: true, iosSafari: true, scrollTo: '#settings-rhythm' },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
@@ -431,7 +437,10 @@ async function main() {
             timezoneId: TIMEZONE,
             // 時刻で構図が動く画面（タイムラインの現在線）を落ち着かせる
             reducedMotion: 'reduce',
+            ...(screen.iosSafari ? { userAgent: IOS_SAFARI_UA } : {}),
           })
+          // iPhone の Safari はホーム画面に追加するまで Notification が無い
+          if (screen.iosSafari) await context.addInitScript(() => delete window.Notification)
 
           const at = screen.at ?? args.at
           const instant = at ? instantAt(at, TIMEZONE) : new Date()

@@ -630,6 +630,8 @@ export default {
     recordPrompts: 'Ask to record after plans',
     planningTitle: 'Planning',
     notificationsUnsupported: 'This browser does not support notifications.',
+    notificationsNeedInstall: 'Add to your Home Screen to use notifications',
+    notificationsNeedInstallHint: 'See how to add it',
     notificationsDenied: 'Notifications are blocked. Allow them in your browser site settings.',
     dailyCapacity: 'Hours to plan per day',
     capacityHours: '{{count}}h',
