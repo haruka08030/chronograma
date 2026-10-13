@@ -45,6 +45,22 @@ function importedLabels(parsed: BackupImportResult): Pick<TaskState, 'tasks' | '
   return { ...table, tasks: fillLabelIds(parsed.tasks.map(withTaskDefaults), labelIndex(table)) }
 }
 
+/** その時点の状態の控え（エクスポートと同じ形の JSON）。状態はあとで変わっても、渡したときのもの */
+export function backupJsonOf(s: TaskState): string {
+  const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds } = s
+  return JSON.stringify(
+    buildBackupPayload({
+      tasks,
+      lists,
+      habits,
+      sections,
+      timeLogTagPresets,
+      logCategoryColors,
+      logLabelIds,
+    }),
+  )
+}
+
 export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   const { pushUndo } = undo
   return {
@@ -100,20 +116,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       })
     },
 
-    backupJson: () => {
-      const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds } = get()
-      return JSON.stringify(
-        buildBackupPayload({
-          tasks,
-          lists,
-          habits,
-          sections,
-          timeLogTagPresets,
-          logCategoryColors,
-          logLabelIds,
-        }),
-      )
-    },
+    backupJson: () => backupJsonOf(get()),
 
     restoreMissingFromBackup: (json) => {
       const parsed = parseBackupJson(json)

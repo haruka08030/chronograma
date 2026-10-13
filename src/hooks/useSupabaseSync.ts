@@ -27,7 +27,6 @@ import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { noteAppVersion } from '../lib/versionSeen'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
-  baselineFrom,
   clearBaseline,
   DEFAULT_LIST_IDS,
   hasOtherUsersBaseline,
@@ -35,7 +34,7 @@ import {
   mergeSnapshots,
   mergeWithoutBaseline,
   withoutDuplicateDefaults,
-  saveBaseline,
+  saveSyncedBaseline,
   syncedSnapshot,
   withServerStamps,
   adoptServerStamps,
@@ -56,6 +55,7 @@ import { reportSyncError } from '../lib/errorReport'
 import { labelBaseIds, normalizeLabelBase, planLabelSync, settledLabelAdds } from '../lib/labelSync'
 import { fillLabelIds, labelIndex, relabelTasks, resolveIncomingLabels } from '../lib/labelIds'
 import { noteMergeConflicts } from '../lib/mergeConflictReport'
+import { reanchorTasks } from '../lib/taskTimeZone'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
@@ -68,6 +68,11 @@ import { storeActiveTimerIo } from './activeTimerIo'
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
 const POLL_MS = 60_000
+/**
+ * 同期で手元のタスクが減るときの控え（`beforeSync`）を取る間隔。控えは全データの文字列化と全部の控えの読み込みになるので、
+ * ほかの端末で 1 件消すたびには取らない（#257）
+ */
+const BEFORE_SYNC_BACKUP_MS = 10 * 60_000
 /** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
 const MAX_STALE_RETRIES = 3
 
@@ -147,7 +152,9 @@ function localSnapshot(): SyncSnapshot {
 function withLabelsResolved(local: SyncSnapshot, remote: SyncSnapshot): { local: SyncSnapshot; remote: SyncSnapshot } {
   const idx = labelIndex(useTaskStore.getState())
   const localTasks = fillLabelIds(local.tasks, idx)
-  const remoteTasks = resolveIncomingLabels(remote.tasks, idx)
+  // 取得した行はこの端末のタイムゾーンの書き方にもそろえる（手元の行と同じ書き方）。そろえた行を前回の内容に入れ、
+  // 書き方の印の無い行を同期のたびに写し直して全部の行を比べ直さない（#257）
+  const remoteTasks = resolveIncomingLabels(reanchorTasks(remote.tasks), idx)
   return {
     local: localTasks === local.tasks ? local : { ...local, tasks: localTasks },
     remote: remoteTasks === remote.tasks ? remote : { ...remote, tasks: remoteTasks },
@@ -194,14 +201,19 @@ export function useSupabaseSync() {
     const moodPull = createDayMoodPullState()
     /** ログインする前のデータをこのアカウントに入れてよいと答えた（送るのに失敗して回り直しても聞き直さない） */
     let mergeApproved = false
+    /** 最後に同期の直前の控えを取った時刻 */
+    let lastBeforeSyncBackup = -Infinity
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
       if (cur.lists === next.lists && cur.tasks === next.tasks && cur.habits === next.habits && cur.sections === next.sections) return
-      // 同期で手元のタスクが減るときは、減る前を控えておく（他端末での削除でも、取り違えでも戻せるように）
-      if (cur.tasks !== next.tasks) {
+      // 同期で手元のタスクが減るときは、減る前を控えておく（他端末での削除でも、取り違えでも戻せるように）。10 分に 1 回まで
+      if (cur.tasks !== next.tasks && Date.now() - lastBeforeSyncBackup >= BEFORE_SYNC_BACKUP_MS) {
         const nextIds = new Set(next.tasks.map((t) => t.id))
-        if (cur.tasks.some((t) => !nextIds.has(t.id))) backupNow('beforeSync')
+        if (cur.tasks.some((t) => !nextIds.has(t.id))) {
+          lastBeforeSyncBackup = Date.now()
+          backupNow('beforeSync')
+        }
       }
       const listIds = new Set(next.lists.map((l) => l.id))
       const sel = cur.selectedListId
@@ -440,7 +452,7 @@ export function useSupabaseSync() {
         }
       }
 
-      // ラベルを手元の表でそろえる（#365）。読み替えた取得は前回の内容にも入れる（次の同期で同じ行を読み替え直さない）
+      // ラベル（#365）とタイムゾーンの書き方を手元にそろえる。そろえた取得は前回の内容にも入れる（次の同期で同じ行をそろえ直さない）
       const labeled = withLabelsResolved(localSnapshot(), remote)
       if (labeled.remote !== remote) {
         if (pull.mirror === remote) pull.mirror = labeled.remote
@@ -475,10 +487,8 @@ export function useSupabaseSync() {
           clearBaseline(userId)
           reportSyncError('baseline', 'skipped while local storage is full')
         } else if (
-          // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
-          !saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs }, (err) =>
-            reportSyncError('baseline', err),
-          )
+          // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）。前回と同じ内容なら書かない
+          !saveSyncedBaseline(userId, synced, clockOffsetMs ?? baseline?.clockOffsetMs, (err) => reportSyncError('baseline', err))
         ) {
           reportSyncError('baseline', 'could not save the baseline')
         }

@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Habit } from '../types/habit'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Task } from '../types/task'
 import {
   baselineFrom,
+  loadBaseline,
   mergeSnapshots,
+  saveSyncedBaseline,
   mergeWithoutBaseline,
   SYNC_INBOX_LIST_ID,
   syncedSnapshot,
@@ -665,5 +667,56 @@ describe('両方で同じ項目を変えて新しいほうに任せた回数（#
       habits: [habit('h1', { completedDates: ['2026-09-03'], updatedAt: T2 })],
     })
     expect(mergeSnapshots(local, remote, baseline).conflicts).toEqual({})
+  })
+})
+
+describe('変わっていない行を比べ直さない（#257）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('同じオブジェクトの行は項目を比べず、中身も時刻も同じ別のオブジェクトなら手元の行のまま', () => {
+    const a = task('a', { tags: ['x'] })
+    const local = snapshot({ tasks: [a] })
+    const baseline = baselineFrom(local)
+    const stringify = vi.spyOn(JSON, 'stringify')
+    const same = mergeSnapshots(local, snapshot({ tasks: [a] }), baseline)
+    expect(stringify).not.toHaveBeenCalled()
+    expect(same.merged.tasks[0]).toBe(a)
+    // 取得し直した同じ中身の行（タグの配列も別）: 手元の行を使う（替えると次の同期でまた比べ直す）
+    const copy = mergeSnapshots(local, snapshot({ tasks: [{ ...a, tags: ['x'] }] }), baseline)
+    expect(copy.merged.tasks[0]).toBe(a)
+    // 時刻だけ違えばサーバーの行（サーバーの時刻にそろえる）
+    const stamped = { ...a, updatedAt: T1 }
+    expect(mergeSnapshots(local, snapshot({ tasks: [stamped] }), baseline).merged.tasks[0]).not.toBe(a)
+    expect(mergeSnapshots(local, snapshot({ tasks: [stamped] }), baseline).merged.tasks[0]!.updatedAt).toBe(T1)
+  })
+
+  it('控えは同じ内容（同じ配列）なら作り直さず書かない。置き場所の控えが消えていれば書き直す', () => {
+    const mem = new Map<string, string>()
+    const setItem = vi.fn((k: string, v: string) => void mem.set(k, v))
+    vi.stubGlobal('localStorage', { getItem: (k: string) => mem.get(k) ?? null, setItem, removeItem: (k: string) => void mem.delete(k) })
+    const synced = snapshot({ tasks: [task('a'), task('b')] })
+    expect(saveSyncedBaseline('u-257', synced, 5)).toBe(true)
+    expect(setItem).toHaveBeenCalledTimes(1)
+    const parse = vi.spyOn(JSON, 'parse')
+    expect(loadBaseline('u-257')?.clockOffsetMs).toBe(5)
+    expect(loadBaseline('u-257')?.clockOffsetMs).toBe(5)
+    // 書いたままの控えは読み直さない
+    expect(parse).not.toHaveBeenCalled()
+    expect(saveSyncedBaseline('u-257', { ...synced }, 5)).toBe(true)
+    expect(setItem).toHaveBeenCalledTimes(1)
+    // 時計のずれ・行が変われば書く
+    expect(saveSyncedBaseline('u-257', synced, 6)).toBe(true)
+    expect(setItem).toHaveBeenCalledTimes(2)
+    const next = { ...synced, tasks: [...synced.tasks, task('c')] }
+    expect(saveSyncedBaseline('u-257', next, 6)).toBe(true)
+    expect(setItem).toHaveBeenCalledTimes(3)
+    expect(Object.keys(loadBaseline('u-257')!.tasks)).toEqual(['a', 'b', 'c'])
+    // ほかのタブが消した
+    mem.clear()
+    expect(saveSyncedBaseline('u-257', next, 6)).toBe(true)
+    expect(setItem).toHaveBeenCalledTimes(4)
   })
 })

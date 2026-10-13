@@ -15,6 +15,7 @@ import {
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
+import { appTimeZone } from './timeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
@@ -672,12 +673,14 @@ export async function pushListsTasksHabits(
   ): R[] => {
     // 更新時刻は比べない（サーバーが付け直すので、中身が同じでも手元の時刻とは違う）
     const content = (x: T) => JSON.stringify({ ...toRow(normalize(x)), updated_at: undefined })
-    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, content(x)])) : null
+    const fetched = remoteItems ? new Map(remoteItems.map((x) => [x.id, x])) : null
     const rows: R[] = []
     items.forEach((item) => {
+      const got = fetched?.get(item.id)
+      // 取得した行と同じオブジェクト（送った・取り込んだまま変えていない行）は文字列にして比べない（#257）
+      if (got !== undefined && (got === item || content(got) === content(item))) return
       const row = toRow(item)
       const json = JSON.stringify(row)
-      if (sent?.get(item.id) === content(item)) return
       const known = knownRejected.get(rejectKey(table, item.id))
       if (known?.row === json) {
         rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
@@ -698,12 +701,14 @@ export async function pushListsTasksHabits(
     remote && goneSections.size > 0
       ? remote.tasks.map((t) => (t.sectionId != null && goneSections.has(t.sectionId) ? { ...t, sectionId: null } : t))
       : remote?.tasks
+  const zone = appTimeZone()
   const taskRows = changedOnly(
     'tasks',
     tasks,
     remoteTasks,
     (t) => taskToRow(userId, t),
-    (t) => reanchorTask(t),
+    // タイムゾーンは 1 回だけ読む（行ごとに読むと Intl を作り直して遅い、#257）
+    (t) => reanchorTask(t, zone),
   )
   const habitRows = changedOnly('habits', habits, remote?.habits, (h) => habitToRow(userId, h))
   let isolateRequests = 0

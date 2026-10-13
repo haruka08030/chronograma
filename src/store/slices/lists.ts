@@ -74,9 +74,10 @@ export function createListsSlice({ set, get, undo }: SliceContext): ListsActions
     reorderLists: (orderedIds) => {
       pushUndo()
       const now = new Date().toISOString()
+      const indexOf = new Map(orderedIds.map((id, i) => [id, i]))
       return set((s) => ({
         lists: s.lists.map((l) => {
-          const idx = orderedIds.indexOf(l.id)
+          const idx = indexOf.get(l.id) ?? -1
           return idx >= 0 && l.order !== idx ? { ...l, order: idx, updatedAt: now } : l
         }),
       }))

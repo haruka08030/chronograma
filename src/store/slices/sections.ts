@@ -51,10 +51,11 @@ export function createSectionsSlice({ set, get, undo }: SliceContext): SectionsA
     reorderSections: (listId, orderedIds) => {
       pushUndo()
       const now = new Date().toISOString()
+      const indexOf = new Map(orderedIds.map((id, i) => [id, i]))
       return set((s) => ({
         sections: s.sections.map((sec) => {
           if (sec.listId !== listId) return sec
-          const idx = orderedIds.indexOf(sec.id)
+          const idx = indexOf.get(sec.id) ?? -1
           return idx >= 0 && sec.order !== idx ? { ...sec, order: idx, updatedAt: now } : sec
         }),
       }))

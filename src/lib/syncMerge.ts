@@ -5,6 +5,7 @@ import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { BUILTIN_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
+import { appTimeZone } from './timeZone'
 import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
@@ -72,12 +73,24 @@ function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]
   const keys = new Set<string>()
   for (const r of rows) for (const k of Object.keys(r)) if (!NOT_MERGED.has(k)) keys.add(k)
   const order = [...keys].sort()
+  const orderKey = order.join(',')
   const out: Record<string, string> = {}
-  for (const r of rows) {
-    const rec = r as Record<string, unknown>
-    out[rec.id as string] = order.map((k) => fieldHash(rec[k])).join('.')
-  }
+  for (const r of rows) out[(r as { id: string }).id] = cachedRowHash(r, order, orderKey)
   return { order, rows: out }
+}
+
+/**
+ * 行（オブジェクト）ごとの項目ハッシュの覚え（#257）。行は直さずに作り直すので、同じオブジェクトなら中身も同じ。
+ * 1 分ごとの同期で、変わっていない行を毎回ハッシュし直さない
+ */
+const rowHashCache = new WeakMap<object, { orderKey: string; hash: string }>()
+
+function cachedRowHash(row: object, order: readonly string[], orderKey: string = order.join(',')): string {
+  const hit = rowHashCache.get(row)
+  if (hit && hit.orderKey === orderKey) return hit.hash
+  const hash = rowHash(row, order)
+  rowHashCache.set(row, { orderKey, hash })
+  return hash
 }
 
 /**
@@ -171,7 +184,7 @@ function mergeRow<T extends { id: string }>(
   let fromLocal = false
   let fromRemote = false
   for (const k of new Set([...Object.keys(lr), ...Object.keys(rr)])) {
-    if (NOT_MERGED.has(k)) continue
+    if (NOT_MERGED.has(k) || lr[k] === rr[k]) continue
     const lh = fieldHash(lr[k])
     const rh = fieldHash(rr[k])
     if (lh === rh) continue
@@ -194,6 +207,8 @@ function mergeRow<T extends { id: string }>(
     if (take === 'l') fromLocal = true
     else fromRemote = true
   }
+  // どの項目も同じで時刻も同じ: 手元の行のまま（取得し直した行に替えると、次の同期でまた全部を比べ直す、#257）
+  if (!fromLocal && !fromRemote && lr.updatedAt === rr.updatedAt) return l
   if (!fromLocal) return r
   if (!fromRemote) return l
   out.updatedAt = nowIso
@@ -252,7 +267,7 @@ function mergeKind<T extends { id: string }>(
     const hashes = baseFields?.rows[x.id]
     if (base === undefined || hashes === undefined || !baseFields) return byStamp(x)
     const n = normalize(x)
-    if (rowHash(n, baseFields.order) !== hashes) return true
+    if (cachedRowHash(n, baseFields.order) !== hashes) return true
     // 控えを取った後に増えた項目は、値が入っていれば変えたものとみなす
     const known = new Set(baseFields.order)
     return Object.entries(n).some(([k, v]) => !NOT_MERGED.has(k) && !known.has(k) && v != null)
@@ -261,9 +276,14 @@ function mergeKind<T extends { id: string }>(
   for (const l of local) {
     const r = remoteById.get(l.id)
     if (r) {
-      const hashes = baseFields?.rows[l.id]
       // 控え・サーバーの行と同じ書き方にそろえて比べる。手元のほうを丸ごと使うなら手元の行そのもの
       const ln = normalize(l)
+      // 同じオブジェクト（前回送った・取り込んだまま）なら中身も同じ。項目ごとに比べない（#257）
+      if (ln === r) {
+        merged.push(l)
+        continue
+      }
+      const hashes = baseFields?.rows[l.id]
       const row = mergeRow(
         ln,
         r,
@@ -411,14 +431,16 @@ export function mergeSnapshots(
     count('sections'),
   )
   // タスクの時刻は端末のタイムゾーンで書き方が違う。項目ごとに比べる前に、サーバーの行をこの端末の書き方にそろえる
+  // （タイムゾーンは 1 回だけ読む。端末のタイムゾーンは読むたびに Intl を作るので、行ごとに読むと 1 万行で 1 秒近くかかっていた、#257）
+  const zone = appTimeZone()
   const tasks = mergeKind(
     local.tasks,
-    remote.tasks.map((t) => reanchorTask(t)),
+    remote.tasks.map((t) => reanchorTask(t, zone)),
     baseline.tasks,
     (t) => stampMs(t.updatedAt),
     f?.tasks,
     off,
-    (t) => reanchorTask(t),
+    (t) => reanchorTask(t, zone),
     nowIso,
     count('tasks', baseline.taskTags ? 'tags' : undefined),
   )
@@ -521,6 +543,7 @@ export function withoutDuplicateDefaults(local: SyncSnapshot, remote: SyncSnapsh
 }
 
 export function baselineFrom(s: SyncSnapshot): SyncBaseline {
+  const zone = appTimeZone()
   const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) => Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
   return {
     lists: ids(s.lists, (l) => stampMs(l.updatedAt)),
@@ -534,7 +557,7 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
       lists: fieldsBaseline(s.lists),
       sections: fieldsBaseline(s.sections),
       // 控えもこの端末のタイムゾーンの書き方で（比べるときにそろえた行と同じ書き方にする）
-      tasks: fieldsBaseline(s.tasks.map((t) => reanchorTask(t))),
+      tasks: fieldsBaseline(s.tasks.map((t) => reanchorTask(t, zone))),
       habits: fieldsBaseline(s.habits),
     },
   }
@@ -608,10 +631,21 @@ export function adoptServerStamps(current: SyncSnapshot, pushed: SyncSnapshot, s
 
 const baselineKey = (userId: string) => `${BASELINE_KEY_PREFIX}${userId}`
 
+/**
+ * 最後に読んだ・書いた控え（#257）。置き場所の文字列が同じなら JSON.parse し直さない（1 回の同期で何度も読む）。
+ * 返す控えは呼ぶ側で書き換えない
+ */
+let parsedBaseline: { key: string; raw: string; value: SyncBaseline } | null = null
+
 export function loadBaseline(userId: string): SyncBaseline | null {
   try {
-    const raw = readStored(baselineKey(userId))
-    return raw ? (JSON.parse(raw) as SyncBaseline) : null
+    const key = baselineKey(userId)
+    const raw = readStored(key)
+    if (!raw) return null
+    if (parsedBaseline && parsedBaseline.key === key && parsedBaseline.raw === raw) return parsedBaseline.value
+    const value = JSON.parse(raw) as SyncBaseline
+    parsedBaseline = { key, raw, value }
+    return value
   } catch {
     return null
   }
@@ -644,7 +678,10 @@ export function clearBaseline(userId: string) {
  */
 export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFailure?: (err: unknown) => void): boolean {
   try {
-    writeStored(baselineKey(userId), JSON.stringify(baseline), {
+    const key = baselineKey(userId)
+    const raw = JSON.stringify(baseline)
+    parsedBaseline = { key, raw, value: baseline }
+    writeStored(key, raw, {
       onError: (err) => {
         console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
         clearBaseline(userId)
@@ -656,5 +693,43 @@ export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFail
     console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
     clearBaseline(userId)
     return false
+  }
+}
+
+/** 最後に控えを作った同期の内容（配列そのもの）と時計のずれ、書いた文字列 */
+let savedFrom: (SyncSnapshot & { key: string; raw: string; clockOffsetMs: number | undefined }) | null = null
+
+/**
+ * 同期し終えた内容から控えを作って保存する（`saveBaseline`）。前回控えを作った内容と同じ配列・同じ時計のずれで、
+ * 置き場所の控えも書いたままなら、作らず・書かずに true を返す（#257。何も変わらない 1 分ごとの同期で、全部の行をハッシュして書き直さない）
+ */
+export function saveSyncedBaseline(
+  userId: string,
+  synced: SyncSnapshot,
+  clockOffsetMs: number | undefined,
+  onLaterFailure?: (err: unknown) => void,
+): boolean {
+  const key = baselineKey(userId)
+  if (
+    savedFrom &&
+    savedFrom.key === key &&
+    savedFrom.lists === synced.lists &&
+    savedFrom.tasks === synced.tasks &&
+    savedFrom.habits === synced.habits &&
+    savedFrom.sections === synced.sections &&
+    savedFrom.clockOffsetMs === clockOffsetMs &&
+    readStoredSafe(key) === savedFrom.raw
+  )
+    return true
+  const ok = saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs }, onLaterFailure)
+  savedFrom = ok && parsedBaseline?.key === key ? { ...synced, key, raw: parsedBaseline.raw, clockOffsetMs } : null
+  return ok
+}
+
+function readStoredSafe(key: string): string | null {
+  try {
+    return readStored(key)
+  } catch {
+    return null
   }
 }
