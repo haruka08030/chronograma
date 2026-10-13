@@ -18,6 +18,9 @@ import { fieldClass } from './ui/fieldClass'
 import { HINT_TEXT } from './ui/textClass'
 import { endsAfter, planEndFor, TIMER_LENGTH_CHOICES } from '../lib/timerLength'
 import { primeTimerChime } from '../lib/timerEndAlert'
+import { useTextEntry } from '../hooks/useTextEntry'
+import { TITLE_MAX_LENGTH } from '../lib/textLimits'
+import { TimeLogTagField } from './TimeLogTagField'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -45,6 +48,10 @@ const STALE_TIMER_MS = 8 * 60 * 60 * 1000
  */
 const COMPLETE_PROMPT_ARM_MS = 700
 
+/** タイマーの題名の下の小さな文字のボタン（ラベル・あと何分） */
+const TIMER_TEXT_BUTTON =
+  '-mx-1 inline-flex min-h-7 items-center gap-1 rounded-md px-1 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 md:min-h-0'
+
 /** 止めた直後の「ラベルは？」に並べるラベルの数（1〜2 行に収まる数） */
 const LABEL_PROMPT_CHIPS = 5
 
@@ -62,6 +69,19 @@ export function FloatingTimer() {
   const [elapsed, setElapsed] = useState(0)
   // 「あと何分」を選ぶ並び（#290）。開いたときの予定の終わり（予定から ▶ したときだけ）も覚える
   const [lengthMenu, setLengthMenu] = useState<{ planEnd: string | null } | null>(null)
+  const editActiveTimer = useTaskStore((s) => s.editActiveTimer)
+  const colors = useTaskStore((s) => s.logCategoryColors)
+  // 題名を直している間の下書きと、ラベルを選ぶ並び
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [labelMenu, setLabelMenu] = useState(false)
+  const titleEntry = useTextEntry({
+    onSubmit: () => {
+      editActiveTimer({ taskTitle: titleDraft })
+      setEditingTitle(false)
+    },
+    onCancel: () => setEditingTitle(false),
+  })
 
   useEffect(() => {
     if (!activeTimer) {
@@ -88,7 +108,11 @@ export function FloatingTimer() {
   // 別のタイマーになった・止めたら選ぶ並びを閉じる
   const timerStartedAt = activeTimer?.startedAt
   useEffect(() => {
-    queueMicrotask(() => setLengthMenu(null))
+    queueMicrotask(() => {
+      setLengthMenu(null)
+      setLabelMenu(false)
+      setEditingTitle(false)
+    })
   }, [timerStartedAt])
 
   // 記録中はタブの題名に経過（終わりがあれば残り）を出す（PWA ではライブアクティビティを作れない代わり）。止めたら元の題名に戻す
@@ -133,9 +157,11 @@ export function FloatingTimer() {
     setLengthMenu({ planEnd: s.activeTimer ? planEndFor(s.activeTimer, s.tasks) : null })
   }
   const timeUp = remaining !== null && remaining <= 0
+  const label = activeTimer.tags[0] ?? ''
 
   return (
     <div
+      data-floating-timer
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
                     rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                     dark:border-zinc-700 dark:bg-zinc-800
@@ -145,27 +171,58 @@ export function FloatingTimer() {
       <div className="flex items-center gap-3 md:gap-4">
         <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{activeTimer.taskTitle}</p>
-          {activeTimer.tags?.length > 0 && (
-            <div className="flex gap-1 mt-0.5">
-              {activeTimer.tags.map((tag) => (
-                <span key={tag} className={chipClass({ variant: 'fill' })}>
-                  {tag}
-                </span>
-              ))}
+          {/* 題名は押すと直せる（Enter・離れたで残し、Esc で戻す） */}
+          {editingTitle ? (
+            <input
+              autoFocus
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              maxLength={TITLE_MAX_LENGTH}
+              {...titleEntry}
+              aria-label={t('floatingTimer.editTitle')}
+              className={fieldClass({ size: 'sm' }, 'w-full font-medium')}
+            />
+          ) : (
+            <div className="-mx-1 flex min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleDraft(activeTimer.taskTitle)
+                  setEditingTitle(true)
+                }}
+                {...tip(t('floatingTimer.editTitle'))}
+                className="min-w-0 truncate rounded-md px-1 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-700/60"
+              >
+                {activeTimer.taskTitle}
+              </button>
             </div>
           )}
-          {/* 「あと何分」（#290）。選ばなければ今までどおり数え上げ。目立たせず、押したときだけ長さを並べる */}
-          {remaining === null && !lengthMenu && (
-            <button
-              type="button"
-              onClick={openLengthMenu}
-              className="-mx-1 mt-0.5 inline-flex min-h-7 items-center gap-1 rounded-md px-1 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 md:min-h-0"
-            >
-              <ClockIcon className="h-3.5 w-3.5" />
-              {t('floatingTimer.setLength')}
-            </button>
-          )}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
+            {/* ラベルは押すとチップを並べて選び直す（無ければ「ラベル」） */}
+            {!labelMenu &&
+              (label ? (
+                <button
+                  type="button"
+                  onClick={() => setLabelMenu(true)}
+                  {...tip(t('floatingTimer.editLabel'))}
+                  className={chipClass({ variant: 'outline', size: 'sm', selected: true }, 'min-h-7 md:min-h-0')}
+                  style={colorVars(categoryHex(label, colors))}
+                >
+                  {label}
+                </button>
+              ) : (
+                <button type="button" onClick={() => setLabelMenu(true)} className={TIMER_TEXT_BUTTON}>
+                  {t('floatingTimer.addLabel')}
+                </button>
+              ))}
+            {/* 「あと何分」（#290）。選ばなければ今までどおり数え上げ。目立たせず、押したときだけ長さを並べる */}
+            {remaining === null && !lengthMenu && (
+              <button type="button" onClick={openLengthMenu} className={TIMER_TEXT_BUTTON}>
+                <ClockIcon className="h-3.5 w-3.5" />
+                {t('floatingTimer.setLength')}
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex flex-col items-end">
           <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
@@ -230,6 +287,19 @@ export function FloatingTimer() {
           <button
             type="button"
             onClick={() => setLengthMenu(null)}
+            aria-label={t('common.close')}
+            className="ml-auto -m-1 shrink-0 rounded-md p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {labelMenu && (
+        <div className="mt-2.5 flex items-start gap-1.5">
+          <TimeLogTagField value={label} onChange={(v) => editActiveTimer({ tags: v ? [v] : [] })} compact />
+          <button
+            type="button"
+            onClick={() => setLabelMenu(false)}
             aria-label={t('common.close')}
             className="ml-auto -m-1 shrink-0 rounded-md p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
           >

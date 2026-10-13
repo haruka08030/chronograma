@@ -100,6 +100,13 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
+  // 記録中に題名・ラベルを直す（#391）
+  {
+    name: 'timer-edit',
+    view: 'planner',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
+    click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
+  },
   // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
   {
     name: 'planner-untagged',

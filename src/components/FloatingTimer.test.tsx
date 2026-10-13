@@ -85,3 +85,38 @@ describe('浮いているタイマーの「あと何分」', () => {
     expect(screen.getByText('残り · 10:30 まで')).toBeInTheDocument()
   })
 })
+
+describe('記録中に題名・ラベルを直す（#391）', () => {
+  it('題名を押すと欄になり、Enter で直す。ラベルを押すとチップで選び直し、止めた記録に入る', () => {
+    useTaskStore.setState({ timeLogTagPresets: ['勉強', 'バイト'], tasks: [] })
+    useTaskStore.getState().startTimer('レポート', ['勉強'], null, '#ff0000')
+    render(<FloatingTimer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'レポート' }))
+    const input = screen.getByRole('textbox', { name: '題名を直す' })
+    fireEvent.change(input, { target: { value: '統計のレポート' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(useTaskStore.getState().activeTimer?.taskTitle).toBe('統計のレポート')
+    expect(screen.getByRole('button', { name: '統計のレポート' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '勉強' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
+    expect(useTaskStore.getState().activeTimer).toMatchObject({ tags: ['バイト'], color: null })
+
+    tick(5 * 60_000)
+    act(() => useTaskStore.getState().stopTimer())
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: '統計のレポート', category: 'バイト' })
+  })
+
+  it('Esc で題名を戻し、空の題名にはしない', () => {
+    useTaskStore.getState().startTimer('レポート')
+    render(<FloatingTimer />)
+    fireEvent.click(screen.getByRole('button', { name: 'レポート' }))
+    const input = screen.getByRole('textbox', { name: '題名を直す' })
+    fireEvent.change(input, { target: { value: '別' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(useTaskStore.getState().activeTimer?.taskTitle).toBe('レポート')
+    act(() => useTaskStore.getState().editActiveTimer({ taskTitle: '  ' }))
+    expect(useTaskStore.getState().activeTimer?.taskTitle).toBe('レポート')
+  })
+})
