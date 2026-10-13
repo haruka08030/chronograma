@@ -17,6 +17,7 @@ import { MenuLabel } from './ui/Menu'
 import { formatDuration } from '../lib/timeGrid'
 import { isImeKeyEvent, isTypingTarget } from '../lib/keyboard'
 import { TIME_SLOT_MENU_WIDTH } from '../lib/timeSlotTarget'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 /** 長さの選択肢。見積もり・設定の既定の長さが無ければ足す */
 const DURATIONS = [30, 60, 120]
@@ -66,6 +67,8 @@ export function TimeSlotMenu({
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
+  const panelExit = useExitGhost(panelRef)
+  const backdropExit = useExitGhost()
   const [pos, setPos] = useState({ left: x, top: y })
 
   useDismiss({ open: true, onClose, inside: [panelRef] })
@@ -174,10 +177,10 @@ export function TimeSlotMenu({
 
   return createPortal(
     <>
-      {sheet && <div className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
+      {sheet && <div ref={backdropExit} className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 中の候補・長さのボタンの矢印キーをまとめて受ける */}
       <div
-        ref={panelRef}
+        ref={panelExit}
         role="dialog"
         aria-label={t('timeSlot.title')}
         data-popover-keep

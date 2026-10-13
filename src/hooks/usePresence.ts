@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 /** 閉じる動き（`animate-*-out`、150ms）を見せ終わるまで残しておく長さ */
 export const EXIT_MS = 160
 
-function prefersReducedMotion(): boolean {
+export function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 }
 

@@ -15,6 +15,7 @@ import { iconButtonClass } from '../ui/iconButtonClass'
 import { TrashIcon } from '../icons'
 import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
 import { CATEGORY_MAX_LENGTH } from '../../lib/textLimits'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 232
 
@@ -33,6 +34,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
   const [name, setName] = useState(current ?? '')
   const [color, setColor] = useState(hex.toUpperCase())
   const ref = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(ref)
 
   // 24 色に無い色（自分で作った色）は後ろに足して、選んでいることが分かるようにする
   const swatches = useMemo(() => {
@@ -61,7 +63,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
   return createPortal(
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div
-      ref={ref}
+      ref={exitRef}
       role="dialog"
       aria-label={t('labels.editOne')}
       // ナビのドロワー（スマホ）からは「内側」（押してもドロワーを閉じない）

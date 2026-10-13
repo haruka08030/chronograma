@@ -15,6 +15,7 @@ import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { MenuLabel } from './ui/Menu'
 import { sectionLabelClass } from './ui/sectionLabelClass'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 const EDGE = 8
 const WIDTH = 288
@@ -51,6 +52,8 @@ export function DueDateTimeMenu({
   const [date, setDate] = useState<string>(() => sharedDate ?? appTodayKey())
   const [time, setTime] = useState<string>(() => (sharedDate && times.size === 1 ? ([...times][0] ?? '') : ''))
   const panelRef = useRef<HTMLDivElement>(null)
+  const panelExit = useExitGhost(panelRef)
+  const backdropExit = useExitGhost()
   const [pos, setPos] = useState({ left: x, top: y })
 
   useDismiss({ open: true, onClose, inside: [panelRef] })
@@ -75,9 +78,9 @@ export function DueDateTimeMenu({
 
   return createPortal(
     <>
-      {sheet && <div className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
+      {sheet && <div ref={backdropExit} className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
       <div
-        ref={panelRef}
+        ref={panelExit}
         role="dialog"
         aria-label={t('taskMenu.dueDateTime')}
         data-popover-keep

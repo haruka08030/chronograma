@@ -24,6 +24,7 @@ import { endKeepingLength, toMinutes } from '../../lib/clockTime'
 import { CardTimeRange } from './CardTimeRange'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 import { compareByOrder } from '../../lib/orderCompare'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -100,6 +101,7 @@ export function QuickCreatePopover({
   }, [lists])
   const [listId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
   const ref = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(ref)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useDismiss({ open: true, onClose, inside: [ref] })
@@ -156,7 +158,7 @@ export function QuickCreatePopover({
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- ダイアログの中のキー（Esc で閉じる）をまとめて受ける
     <div
-      ref={ref}
+      ref={exitRef}
       role="dialog"
       aria-label={asLog ? t('quickCreate.logAria') : t('quickCreate.aria')}
       className={`${anchoredCardClass(sheet)} p-4`}

@@ -14,6 +14,7 @@ import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleSignInButton } from './ui/GoogleSignInButton'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT, PHRASE_WRAP } from './ui/textClass'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 export function AccountMenu() {
   const { t } = useTranslation()
@@ -54,6 +55,7 @@ export function AccountMenu() {
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [])
   const wrapRef = useRef<HTMLDivElement>(null)
+  const panelExit = useExitGhost()
   useDismiss({ open, onClose: () => setOpen(false), inside: [wrapRef] })
 
   if (!isSupabaseConfigured) return null
@@ -307,6 +309,7 @@ export function AccountMenu() {
         <>
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
           <div
+            ref={panelExit}
             className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >

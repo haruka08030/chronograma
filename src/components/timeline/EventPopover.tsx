@@ -30,6 +30,7 @@ import { CardTimeRange } from './CardTimeRange'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { SeriesScopeField, SeriesSummary } from '../detail/SeriesScopeField'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 320
 
@@ -90,6 +91,7 @@ function EventPopoverBody({
   onOpenDetail: (taskId: string) => void
   cardRef: React.RefObject<HTMLDivElement | null>
 }) {
+  const exitRef = useExitGhost(ref)
   const { t } = useTranslation()
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
@@ -131,7 +133,7 @@ function EventPopoverBody({
 
   return (
     <div
-      ref={ref}
+      ref={exitRef}
       role="dialog"
       aria-label={task.title}
       tabIndex={-1}
