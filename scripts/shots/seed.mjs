@@ -51,6 +51,7 @@ function task(fields, stamp) {
     habitId: null,
     estimateMinutes: fields.estimateMinutes ?? null,
     sourceTaskId: fields.sourceTaskId ?? null,
+    ...(fields.movedPlans ? { movedPlans: fields.movedPlans } : {}),
     archivedAt: null,
     deletedAt: null,
   }
@@ -287,6 +288,19 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       instant,
     ),
     task({ id: 's54', title: 'バイト', scheduledDate: yesterday, startTime: '18:00', endTime: '21:00', order: 24 }, instant),
+    // 昨日の 10:00 に予定していて、明日へ移したレポート（過ぎた日に控えが出る、#158）
+    task(
+      {
+        id: 's56',
+        title: '統計のレポート',
+        scheduledDate: dayKey(shift(now, 1)),
+        startTime: '16:00',
+        endTime: '17:30',
+        order: 26,
+        movedPlans: [{ date: yesterday, startTime: '16:00', endTime: '17:30', to: dayKey(shift(now, 1)) }],
+      },
+      instant,
+    ),
     task(
       {
         id: 's55',

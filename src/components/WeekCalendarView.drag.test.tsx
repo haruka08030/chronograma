@@ -121,9 +121,9 @@ describe('WeekCalendarView: ドラッグ中の描き直し（#265）', () => {
     layoutCalls.byDay.clear()
     act(() => void fireEvent.pointerUp(grid, { clientX: x + COL_W, clientY: y0, pointerId: 1 }))
     expect(useTaskStore.getState().tasks.find((t) => t.id === 'p')).toMatchObject({ scheduledDate: '2026-10-08', startTime: '10:00' })
-    // 描き直すのは空になった 10/7（予定が無いので '?'）と、p が先頭に入った 10/8 だけ。
+    // 描き直すのは p を移した 10/7（過ぎた日なので移した予定の控え moved-p が残る、#158）と、p が先頭に入った 10/8 だけ。
     // 予定の変わらない日（10/5・10/6・10/9…）の列は描き直さない（変わっていない日の配列・習慣の索引を使い回す）
-    expect(rendersByColumn()).toEqual({ '?': 1, p: 1 })
+    expect(rendersByColumn()).toEqual({ 'moved-p': 1, p: 1 })
   })
 
   it('長さを変えるドラッグも、15 分の位置が同じ間は描き直さない', () => {

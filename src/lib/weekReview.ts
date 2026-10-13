@@ -7,6 +7,7 @@ import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
 import { matchPlanAndActualForDate, type MatchedPair } from './matchEvents'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
+import { movedPlanToPlannedItem, movedPlansOnDay } from './movedPlans'
 import { isActiveTask } from './taskLifecycle'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { zonedNow } from './timeZone'
@@ -213,6 +214,11 @@ export function plannedItemsOnDay(
     if (taskPlacementDate(t) !== key || excludedListIds.has(t.listId)) continue
     const item = scheduledTaskToPlannedItem(t)
     if (item) out.push({ item, color: t.color })
+  }
+  // その日から別の日へ移した予定も、その日の予定（やらなかった予定として分母に入る、#158）
+  for (const { task, plan } of movedPlansOnDay(tasks, key, excludedListIds)) {
+    const item = movedPlanToPlannedItem(task, plan)
+    if (item) out.push({ item, color: task.color })
   }
   for (const h of habits) {
     if (h.frequency.type === 'timesPerWeek' && habitDayStatus(h, key, habitRecords) === 'missed') continue

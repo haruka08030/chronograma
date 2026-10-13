@@ -31,6 +31,17 @@ export interface EventSeries {
   skipHolidays: boolean
 }
 
+/** 移した予定の控え。サーバーでは `tasks.moved_plans`（`032`） */
+export interface MovedPlan {
+  /** 元の予定日（`yyyy-MM-dd`） */
+  date: string
+  /** 元の時刻（`HH:mm`）。時刻の無い予定は null */
+  startTime: string | null
+  endTime: string | null
+  /** 移した先の日（`yyyy-MM-dd`） */
+  to: string
+}
+
 /**
  * タスクの種類。
  * - `todo`: To-Do（やること）
@@ -107,6 +118,11 @@ interface TaskBase {
    * 持たない行どうしを「変わった」と見ないよう、繰り返しのある行だけ項目を持つ
    */
   series?: EventSeries | null
+  /**
+   * 予定日を別の日へ移した To-Do の、元の予定（その日が来てから移したものだけ。`movedPlans.ts`）。
+   * 過ぎた日のタイムラインに「→10/5」の控えを出し、「計画どおり実行」の分母に入れる。移していない行は持たない（無い）
+   */
+  movedPlans?: MovedPlan[]
   /** アーカイブした瞬間の ISO 時刻。`null`/未設定はアーカイブされていない。アーカイブ済みタスクは通常のビューから除外され「アーカイブ済み」箱に入る */
   archivedAt: string | null
   /** 削除（ゴミ箱行き）した瞬間の ISO 時刻。`null`/未設定は削除されていない。ソフト削除で「削除済み」箱から復元・完全削除できる */

@@ -34,6 +34,7 @@
 | [`028_timer_ends_at.sql`](028_timer_ends_at.sql) | 動いているタイマーの「あと何分」の終わり `user_active_timer.ends_at`（null は終わりなし。始めた時刻より後で 1 日以内 `user_active_timer_ends_at_check`）。列を知らない前の版のアプリが別のタイマーを始めた・止めたときは、トリガー `user_active_timer_clear_ends_at` が null にする（始めた時刻が変わって `ends_at` がそのまま、または止まった）。`push_subscriptions` に写しの `timer_ends_at` と、時間の通知を送った終わり `timer_end_notified_for` を足し、`019` の `copy_active_timer_to_push` / `push_subscription_shared_timer` が `ends_at` も写す |
 | [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
 | [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
+| [`032_moved_plans.sql`](032_moved_plans.sql) | 移した予定の控え `tasks.moved_plans`（`[{ date, startTime, endTime, to }]`、null は移していない To-Do。配列・8KB まで `tasks_moved_plans_check`）。その日が来てから To-Do の予定日を別の日へ移したときにアプリが足す |
 
 テーブル（最新の形）:
 

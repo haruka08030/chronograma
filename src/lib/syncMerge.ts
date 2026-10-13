@@ -60,6 +60,12 @@ export function fieldHash(value: unknown): string {
 /** 比べない項目（どの行にもある識別子と時刻） */
 const NOT_MERGED = new Set(['id', 'updatedAt'])
 
+/**
+ * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え）。前回同期のときにどの行も持っていなければ控えの並びに無いが、
+ * そのときの値は「無い」と分かっているので、無い値として比べる（新しいほうに任せると、手元で足した控えが消えていた）
+ */
+const ABSENT_WHEN_EMPTY = new Set(['series', 'movedPlans'])
+
 function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]; rows: Record<string, string> } {
   const keys = new Set<string>()
   for (const r of rows) for (const k of Object.keys(r)) if (!NOT_MERGED.has(k)) keys.add(k)
@@ -167,7 +173,7 @@ function mergeRow<T extends { id: string }>(
     const lh = fieldHash(lr[k])
     const rh = fieldHash(rr[k])
     if (lh === rh) continue
-    const bh = baseByKey.get(k)
+    const bh = baseByKey.get(k) ?? (ABSENT_WHEN_EMPTY.has(k) ? fieldHash(undefined) : undefined)
     // メモを両方の端末で変えた: 新しいほうに、もう一方の版を消さずに下へ足す（書き足しどうしなら長いほう）
     if (k === 'description' && bh !== undefined && lh !== bh && rh !== bh && typeof lr[k] === 'string' && typeof rr[k] === 'string') {
       out[k] = mergeMemo(lr[k] as string, rr[k] as string, winner === r ? 'r' : 'l')

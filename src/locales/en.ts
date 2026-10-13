@@ -1318,6 +1318,8 @@ export default {
     allDayExpand: 'Show all',
     allDayCollapse: 'Collapse',
     unrecordedGap: '{{time}} unrecorded',
+    movedPlanAria: '{{title}} {{start}}–{{end}} (moved to {{date}})',
+    planTally: 'Planned {{planned}} · done {{done}} · moved {{carried}}',
     unrecordedGapAria: 'Unrecorded {{start}}–{{end}} (click to record this time)',
   },
   calendarDayPanel: {

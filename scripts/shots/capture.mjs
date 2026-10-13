@@ -217,6 +217,13 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 過ぎた日（昨日）: 移した予定の点線の枠と、予定の見出しの「予定 n・できた n・持ち越し n」（#158。1 日だけ描くのはスマホ）
+  {
+    name: 'calendar-yesterday',
+    view: 'calendar',
+    mobileOnly: true,
+    steps: [{ mobileClick: '[data-day-key="__YESTERDAY__"] >> visible=true' }],
+  },
   // 見出しの空き時間で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「空き 2h / 3h45」を締切の色で）
   { name: 'calendar-free-over', view: 'calendar', state: { dailyCapacityMinutes: 120 } },
   // 締切が先（あさって）の To-Do を今日終えたところ（完了した日＝今日の列に出る）
@@ -662,6 +669,11 @@ async function main() {
             seedInstant.setTime(seedInstant.getTime() - 24 * 60 * 60 * 1000)
           }
           const seed = buildSeedState({ theme, now: seedNow, instant: seedInstant })
+          // 手の中の `__YESTERDAY__` は種データの昨日の日付キー
+          const y = new Date(seedNow)
+          y.setDate(y.getDate() - 1)
+          const yesterdayKey = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
+          const sel = (x) => x.replace('__YESTERDAY__', yesterdayKey)
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
             seed.state.selectedView = screen.view
@@ -799,7 +811,7 @@ async function main() {
                 await page.waitForTimeout(700)
                 await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
               } else if (vp.hasTouch && step.mobileClick) {
-                await page.click(step.mobileClick)
+                await page.click(sel(step.mobileClick))
               } else if (step.rightClick && !vp.hasTouch) {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {

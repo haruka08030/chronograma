@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, isTodoTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -16,6 +16,7 @@ import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTempl
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { readEventSeries, withSeries } from './eventSeries'
+import { readMovedPlans, withMovedPlans } from './movedPlans'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -77,6 +78,8 @@ interface TaskRow {
   source_task_id?: string | null
   /** 毎週の予定の印（`027`）。古い DB には無い */
   event_series?: unknown
+  /** 移した予定の控え（`032`）。古い DB には無い */
+  moved_plans?: unknown
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -204,8 +207,9 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
-  // 毎週の印は予定の行だけ。印のある行だけ項目を持つ
-  return task.kind === 'event' ? withSeries(task, readEventSeries(row.event_series)) : task
+  // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
+  if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
+  return task.kind === 'todo' ? withMovedPlans(task, readMovedPlans(row.moved_plans)) : task
 }
 
 function rowToTaskFields(row: TaskRow): Task {
@@ -302,6 +306,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
     event_series: isEventTask(task) ? (task.series ?? null) : null,
+    moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
