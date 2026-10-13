@@ -181,6 +181,8 @@ Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIE
 
 Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy・Strict-Transport-Security などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と `wss://`）だけです。別の Supabase プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `vercel.json` の `connect-src` を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:` だけです。
 
+リンクを共有したときのプレビュー（OGP）の画像・URL は、ビルドのときに公開の URL を前に付けた絶対 URL になります。Vercel では本番ドメイン（独自ドメインを足せばそれ）が自動で入ります。ほかのホスティングでは環境変数 `SITE_URL`（例 `https://your-app.example`）を設定してください。
+
 ### Notion 連携（任意）
 
 Notion のデータベースから「要アクション」のステータスの行をタスクとして取り込み、そのタスクを完了にすると Notion 側のステータスを次へ進めます。Edge Function `notion` 経由で、統合トークンは `notion_connection` 表に保存します（ブラウザには返しません）。詳細は [`supabase/functions/notion/README.md`](supabase/functions/notion/README.md)。

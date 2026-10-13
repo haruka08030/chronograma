@@ -48,6 +48,9 @@
 
 - `public/manifest.webmanifest`（アイコンは `public/icons/`、ショートカット `/?view=planner` 等）、`index.html` の
   apple-touch-icon / theme-color
+- リンクのプレビュー（OGP）: `index.html` の `og:*` / `twitter:*`（タイトル・説明は #274 の一文）。画像 `public/og.png`（1200×630）は
+  `npm run og`（`scripts/og/render.mjs`）で作る。`og:url`・`og:image`・`twitter:image` はビルドで `SITE_URL`、無ければ Vercel の
+  `VERCEL_PROJECT_PRODUCTION_URL` を前に付けた絶対 URL になる（`src/lib/ogMeta.ts`、vite.config.ts の `ogAbsoluteUrls`）
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、

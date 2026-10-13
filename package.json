@@ -12,6 +12,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "shots": "node scripts/shots/capture.mjs",
+    "og": "node scripts/og/render.mjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "prepare": "git config core.hooksPath .githooks"
