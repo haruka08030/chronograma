@@ -177,6 +177,10 @@ export default {
     summaryPlannedFree: '予定 {{time}} / 空き {{free}}',
     summaryLogged: '記録 {{time}}',
     summaryUnrecorded: '記録なし {{time}}',
+    summaryResult: '予定 {{total}} 件中 {{done}} 件',
+    summaryResultUnplanned: '予定 {{total}} 件中 {{done}} 件・予定外 {{time}}',
+    summaryResultHint:
+      '時間に置いた予定のうち、記録と合った・✓ で終えた数（ふりかえりの「計画どおり実行」と同じ数え方）。予定外は予定に無かった記録の時間。押すと週のふりかえりを開きます',
     summaryUnrecordedHint: '起きている間（今日は今まで）で、30 分以上記録の無い時間の合計。タイムラインの点線の枠を押すと記録できます',
     minutes: '{{m}}分',
     hours: '{{h}}時間',

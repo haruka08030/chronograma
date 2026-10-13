@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { format } from 'date-fns'
+import { differenceInCalendarDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
   compareReviews,
@@ -38,6 +38,7 @@ import { ReviewShareDialog } from './ReviewShareDialog'
 /** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
+import { clearReviewDay, peekReviewDay } from '../lib/reviewFocus'
 import { useAppTodayKey } from '../hooks/useAppClock'
 
 /** 期間ごとの文言のキー（週 / 月） */
@@ -85,15 +86,27 @@ export function WeekReviewCard() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const selectView = useTaskStore((s) => s.selectView)
   const [period, setPeriod] = useState<ReviewPeriod>('week')
+  const todayKey = useAppTodayKey()
+  // 今日の計画の過ぎた日の 1 行から開いたときは、その日を含む週を開き、その日の棒に印を付ける
+  const [focusDay] = useState(() => {
+    const key = peekReviewDay()
+    return key !== null && key <= todayKey ? key : null
+  })
+  useEffect(() => clearReviewDay(), [])
   // 今の期間から何期間前か（0 = 今週 / 今月）。週 ↔ 月を切り替えたら今に戻す
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(() =>
+    focusDay === null
+      ? 0
+      : Math.round(
+          differenceInCalendarDays(reviewPeriodStart('week', fromDateKey(focusDay)), reviewPeriodStart('week', fromDateKey(todayKey))) / 7,
+        ),
+  )
   const keys = PERIOD_KEYS[period]
   const atCurrent = offset === 0
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
 
   // 週・月をまたいだら基準の期間も進める（今日の日付を依存に入れる）
-  const todayKey = useAppTodayKey()
   const anchor = useMemo(() => shiftReviewPeriod(period, fromDateKey(todayKey), offset), [period, todayKey, offset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -316,6 +329,7 @@ export function WeekReviewCard() {
                       aria-label={dayTip}
                       {...tip(dayTip)}
                       onClick={() => openDay(toDateKey(date))}
+                      aria-current={toDateKey(date) === focusDay ? 'date' : undefined}
                       // 上の余白（pt-4）は合計の数字の分。棒の高さの % はその余白を除いた高さに対して
                       className="group relative flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-end pt-4"
                     >
@@ -356,8 +370,13 @@ export function WeekReviewCard() {
                 {Array.from({ length: 7 }, (_, i) => {
                   const date = fromDateKey(toDateKey(weekStart))
                   date.setDate(date.getDate() + i)
+                  // 今日の計画から開いたその日は、曜日を濃く（色は足さない）
+                  const focused = toDateKey(date) === focusDay
                   return (
-                    <span key={i} className="flex-1 text-center text-[10px] text-zinc-400 dark:text-zinc-500">
+                    <span
+                      key={i}
+                      className={`flex-1 text-center text-[10px] ${focused ? 'font-semibold text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'}`}
+                    >
                       {format(date, 'E', { locale: dateLocale })}
                     </span>
                   )
