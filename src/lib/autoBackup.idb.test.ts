@@ -41,11 +41,16 @@ describe('毎日の控え（#257）', () => {
     expect((await listAutoBackups('u1')).map((b) => b.dateKey)).toEqual(['2026-10-14', '2026-10-13'])
   })
 
-  it('同期の直前の控えは同じ日でも取る', async () => {
-    expect(await saveAutoBackup('daily', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
-    expect(await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
-    expect(await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
-    expect((await listAutoBackups('u1')).map((b) => b.kind).sort()).toEqual(['beforeSync', 'beforeSync', 'daily'])
+  it('同期の直前の控えは同じ日でも取る（同じミリ秒に取っても上書きしない）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-13T09:00:00.000Z') })
+    try {
+      expect(await saveAutoBackup('daily', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
+      expect(await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
+      expect(await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{}', 'u1')).toBe(true)
+      expect((await listAutoBackups('u1')).map((b) => b.kind).sort()).toEqual(['beforeSync', 'beforeSync', 'daily'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('前の版の置き場所に索引を足し、前からある控えもその日の分として数える', async () => {
