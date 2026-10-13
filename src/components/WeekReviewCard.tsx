@@ -42,6 +42,7 @@ import { clearReviewDay, peekReviewDay } from '../lib/reviewFocus'
 import { mostCarriedTasks } from '../lib/carryDays'
 import { openTaskMenu } from '../lib/overlays'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { useNavShortcut } from '../lib/shortcuts'
 
 /** 期間ごとの文言のキー（週 / 月） */
 const PERIOD_KEYS = {
@@ -105,6 +106,8 @@ export function WeekReviewCard() {
   )
   const keys = PERIOD_KEYS[period]
   const atCurrent = offset === 0
+  // ほかの画面と同じく T（今週・今月）/ K・J（前・次。今より先へは進まない）
+  useNavShortcut({ today: () => setOffset(0), prev: () => setOffset((w) => w - 1), next: () => setOffset((w) => Math.min(0, w + 1)) })
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
 
@@ -244,6 +247,7 @@ export function WeekReviewCard() {
             nextLabel={t(keys.next)}
             atToday={atCurrent}
             nextDisabled={atCurrent}
+            shortcuts
           />
           {/* 見せる相手がいると記録が続く。目立たせず、切り替えの右に枠なしのアイコンだけ */}
           <button
