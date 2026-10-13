@@ -5,6 +5,8 @@ import { minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appDayKeyOf } from './timeZone'
 import { compareByOrder } from './orderCompare'
+import { planTiming } from './planTiming'
+import { clockOf } from './clockTime'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -179,6 +181,17 @@ export function groupCandidatesByDue(tasks: readonly Task[], dateKey: string): D
   if (later.length > 0) groups.push({ kind: 'later', tasks: later })
   if (none.length > 0) groups.push({ kind: 'none', tasks: none })
   return groups
+}
+
+/**
+ * スマホの今日やる行の一番上に出す 1 行: 始まっていて終わっていない予定（`now`）か、次の予定（`next`）。
+ * `timed` は時刻順の時間を決めた行。どちらも無ければ null
+ */
+export function nowOrNextTask(timed: readonly Task[], now: Date): { task: Task; kind: 'now' | 'next' } | null {
+  const nowHm = clockOf(now)
+  const task = timed.find((x) => x.startTime && x.endTime && !planTiming(x, now).ended)
+  if (!task) return null
+  return { task, kind: task.startTime! <= nowHm ? 'now' : 'next' }
 }
 
 /**

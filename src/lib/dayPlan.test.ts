@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, dueMarkDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue, showsDayResult } from './dayPlan'
+import {
+  calendarDayKey,
+  dueMarkDayKey,
+  getDayPlan,
+  getMoreSuggestions,
+  groupCandidatesByDue,
+  nowOrNextTask,
+  showsDayResult,
+} from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -229,5 +237,28 @@ describe('サブタスクの締切（#308）', () => {
 
   it('候補には日付のある子だけ（日付の無い子は親の中の手順のまま）', () => {
     expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['later', 'company'])
+  })
+})
+
+describe('nowOrNextTask', () => {
+  const at = (hm: string) => new Date(`${DAY}T${hm}:00`)
+  const timed = [
+    task('a', { scheduledDate: DAY, startTime: '09:00', endTime: '10:00' }),
+    task('b', { scheduledDate: DAY, startTime: '13:00', endTime: '14:30' }),
+    task('c', { scheduledDate: DAY, startTime: '15:00', endTime: '16:00' }),
+  ]
+
+  it('picks the plan that has started and not ended', () => {
+    expect(nowOrNextTask(timed, at('13:30'))).toMatchObject({ task: { id: 'b' }, kind: 'now' })
+  })
+
+  it('otherwise picks the next plan', () => {
+    expect(nowOrNextTask(timed, at('10:00'))).toMatchObject({ task: { id: 'b' }, kind: 'next' })
+    expect(nowOrNextTask(timed, at('14:30'))).toMatchObject({ task: { id: 'c' }, kind: 'next' })
+  })
+
+  it('is null when every plan has ended', () => {
+    expect(nowOrNextTask(timed, at('16:00'))).toBeNull()
+    expect(nowOrNextTask([], at('08:00'))).toBeNull()
   })
 })
