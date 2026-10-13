@@ -83,6 +83,11 @@ interface TaskBase {
    * 判定は `supabase/functions/daily-reminders/schedule.ts`
    */
   reminders: TaskReminder[] | null
+  /**
+   * 続けて持ち越した日数（今日かそれより前に置いて終わらず、後ろの日へ回した日の合計）。完了・実行日を外す・いつか / チェックリストへ移すと 0。
+   * 前の日に置いたままの日数は足さない（`carriedDaysOn` が見る日までの分を足す）
+   */
+  carriedDays: number
   /** 見積もり（かかりそうな時間、分）。タイムラインに置く・時間を決めるときの長さ。`null`/未設定は設定の既定の予定の長さ */
   estimateMinutes: number | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */

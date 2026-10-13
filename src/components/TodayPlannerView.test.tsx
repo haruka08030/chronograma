@@ -131,3 +131,50 @@ describe('TodayPlannerView: 過ぎた日のその日の結果（#282）', () => 
     expect(screen.getByText('1h logged')).toBeInTheDocument()
   })
 })
+
+describe('TodayPlannerView: 続けて持ち越した日数（#300）', () => {
+  const todo = (id: string, over: Partial<Task>): Task =>
+    ({
+      ...TASK_DEFAULTS,
+      id,
+      title: id,
+      description: '',
+      completed: false,
+      completedAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      order: 0,
+      listId: 'inbox',
+      sectionId: null,
+      parentId: null,
+      dueDate: null,
+      startTime: null,
+      endTime: null,
+      priority: 'none',
+      tags: [],
+      recurrence: null,
+      ...over,
+    }) as Task
+
+  it('2 日以上の行にだけ「3日目」を出す。1 日の行・締切の過ぎた行・別の日を見ているときは出さない', () => {
+    const today = toDateKey(appToday())
+    const yesterday = toDateKey(addDays(appToday(), -1))
+    useTaskStore.setState({
+      tasks: [
+        todo('ES', { scheduledDate: today, carriedDays: 2 }),
+        todo('Once', { scheduledDate: today, carriedDays: 1 }),
+        todo('Late', { scheduledDate: today, carriedDays: 4, dueDate: yesterday }),
+      ],
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    const { unmount } = render(<TodayPlannerView />)
+    const shown = [...document.querySelectorAll('[data-carry-days]')]
+    expect(shown.map((x) => x.closest('[data-task-row]')?.getAttribute('data-task-row'))).toEqual(['ES'])
+    expect(shown[0]!.textContent).toMatch(/^Day 3/)
+    unmount()
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(addDays(appToday(), 1)))
+    useTaskStore.setState({ tasks: [todo('ES', { scheduledDate: toDateKey(addDays(appToday(), 1)), carriedDays: 2 })] })
+    render(<TodayPlannerView />)
+    expect(document.querySelector('[data-carry-days]')).toBeNull()
+  })
+})

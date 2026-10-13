@@ -248,3 +248,25 @@ describe('WeekReviewCard: 今日の計画の過ぎた日から開く（#282）',
     expect(screen.getByRole('button', { name: 'Next week' })).toBeDisabled()
   })
 })
+
+describe('WeekReviewCard: 持ち越しが続いているタスク（#300）', () => {
+  it('2 日以上のタスクを並べ、押すとタスクのメニューを開く。無ければ出さない', async () => {
+    const { useOverlays } = await import('../lib/overlays')
+    const today = toDateKey(zonedNow())
+    useTaskStore.setState({
+      tasks: [
+        task('es', { title: 'Write ES', scheduledDate: today, carriedDays: 3 }),
+        task('one', { scheduledDate: today, carriedDays: 1 }),
+      ],
+    })
+    const { unmount } = render(<WeekReviewCard />)
+    expect(screen.getByText('Tasks that keep carrying over')).toBeInTheDocument()
+    expect(screen.queryByText('one')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Write ES/ }))
+    expect(useOverlays.getState().menu).toMatchObject({ kind: 'task', taskIds: ['es'] })
+    unmount()
+    useTaskStore.setState({ tasks: [task('one', { scheduledDate: today, carriedDays: 1 })] })
+    render(<WeekReviewCard />)
+    expect(screen.queryByText('Tasks that keep carrying over')).toBeNull()
+  })
+})

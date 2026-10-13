@@ -146,6 +146,8 @@ const SCREENS = [
     ],
   },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
+  // 持ち越しが続いているタスク（#300）: ふりかえりの下の段
+  { name: 'stats-carried', view: 'stats', scrollTo: '[aria-labelledby="review-carried"]' },
   // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },

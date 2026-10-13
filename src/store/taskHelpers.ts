@@ -2,11 +2,12 @@
  * ストアの操作が使う純粋な関数（localStorage・i18n を読まない）。
  * 文言（色の名前など）や「今」は呼ぶ側から渡す
  */
-import { isLogTask, type Task, type TaskKind } from '../types/task'
+import { isLogTask, isTodoTask, type Task, type TaskKind } from '../types/task'
 import { newId } from '../lib/id'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
-import { appTimeZone } from '../lib/timeZone'
+import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
+import { carriedDaysAfter } from '../lib/carryDays'
 import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
@@ -92,6 +93,11 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.startTime = null
     applied.endTime = null
   }
+  // 今日・前の日に置いて終わっていない To-Do を後ろの日へ回したら、続けて持ち越した日数を足す（完了・実行日を外すと 0）
+  if (isTodoTask(applied)) {
+    const carried = carriedDaysAfter(task, applied, appDayKeyOf(now))
+    if (carried !== task.carriedDays) applied.carriedDays = carried
+  }
   return withLogCategory(applied)
 }
 
@@ -163,6 +169,7 @@ export function makeTask(
     endTime: fields.endTime ?? null,
     location: null,
     estimateMinutes: fields.estimateMinutes ?? null,
+    carriedDays: 0,
     color: fields.color ?? null,
     priority: 'none',
     tags: fields.tags ?? [],

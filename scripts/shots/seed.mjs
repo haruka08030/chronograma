@@ -48,6 +48,7 @@ function task(fields, stamp) {
     tags: fields.tags ?? [],
     recurrence: fields.recurrence ?? null,
     kind: fields.kind ?? 'todo',
+    carriedDays: fields.carriedDays ?? 0,
     habitId: null,
     estimateMinutes: fields.estimateMinutes ?? null,
     sourceTaskId: fields.sourceTaskId ?? null,
@@ -112,7 +113,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       },
       instant,
     ),
-    task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6 }, instant),
+    task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6, carriedDays: 2 }, instant),
     // 記録（色が付く主役）。完了済みのタイムログ
     task(
       {
@@ -302,7 +303,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       instant,
     ),
     // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
-    task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, instant),
+    task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14, carriedDays: 2 }, instant),
     // 先週より前・前の月の記録（月のふりかえりの日のマスと、前の月との差が見えるように。#304）
     ...[
       [-5, '企業研究', '13:00', '15:30', '就活'],

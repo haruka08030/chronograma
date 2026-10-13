@@ -35,6 +35,7 @@
 | [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
 | [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
 | [`036_feedback.sql`](036_feedback.sql) | お問い合わせ・フィードバック `feedback`（文面 1〜2000 文字・アプリの版・ブラウザ、`feedback_size_check`）。端末は本人の行の insert だけ（読めない・変えられない・消せない。anon は送れない）。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、SECURITY DEFINER。超えたら errcode `P0001`・メッセージ `feedback_rate_limited`）。アカウントの削除で消える |
+| [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
 
 テーブル（最新の形）:
 
@@ -42,7 +43,7 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days` を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |

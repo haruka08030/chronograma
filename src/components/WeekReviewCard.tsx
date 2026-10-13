@@ -39,6 +39,8 @@ import { ReviewShareDialog } from './ReviewShareDialog'
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
 import { clearReviewDay, peekReviewDay } from '../lib/reviewFocus'
+import { mostCarriedTasks } from '../lib/carryDays'
+import { openTaskMenu } from '../lib/overlays'
 import { useAppTodayKey } from '../hooks/useAppClock'
 
 /** 期間ごとの文言のキー（週 / 月） */
@@ -132,6 +134,8 @@ export function WeekReviewCard() {
     () => getEstimateRows(tasks, anchor, excluded, undefined, period).slice(0, ESTIMATE_ROWS),
     [tasks, anchor, excluded, period],
   )
+  // 持ち越しが続いているタスク（#300）: 今の日数なので今の週・月だけ。押すと To-Do 一覧と同じメニュー（詳細で分ける・いつかへ移す・削除）
+  const carriedRows = useMemo(() => (atCurrent ? mostCarriedTasks(tasks, todayKey, excluded) : []), [atCurrent, tasks, todayKey, excluded])
   const estimateMax = Math.max(1, ...estimateRows.map((r) => Math.max(r.estimateMinutes, r.loggedMinutes)))
   const weekStart = reviewPeriodStart(period, anchor)
   const openDay = (key: string) => {
@@ -525,6 +529,36 @@ export function WeekReviewCard() {
                     style={{ width: `${(r.estimateMinutes / estimateMax) * 100}%` }}
                   />
                 </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 持ち越しが続いているタスク（#300）。無ければ出さない。日数は今日の計画の行と同じ「3日目」 */}
+      {carriedRows.length > 0 && (
+        <div className="mt-5">
+          <SectionLabel as="h3" id="review-carried" className="mb-2">
+            {t('weekReview.carriedTitle')}
+          </SectionLabel>
+          <ul aria-labelledby="review-carried" className="space-y-0.5">
+            {carriedRows.map(({ task, days }) => (
+              <li key={task.id}>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  {...tip(t('weekReview.carriedHint'))}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    openTaskMenu({ kind: 'task', x: r.left, y: r.bottom + 4, taskIds: [task.id] })
+                  }}
+                  className="-mx-1 flex w-[calc(100%+0.5rem)] cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                >
+                  <span className="truncate text-zinc-700 dark:text-zinc-300">{task.title}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">
+                    {t('planner.carryDay', { count: days + 1 })}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>

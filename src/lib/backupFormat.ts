@@ -7,6 +7,7 @@ import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
+import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
@@ -227,6 +228,7 @@ export function normalizeTaskRow(raw: unknown): Task | null {
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
+    carriedDays: readCarriedDays(row.carriedDays ?? row.carried_days),
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
