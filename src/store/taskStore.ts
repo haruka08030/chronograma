@@ -14,6 +14,8 @@ import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/co
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
+import { mergeRecoveredState } from './recoverLocal'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
@@ -38,7 +40,7 @@ import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
- * タスク・リスト・習慣・記録・設定をまとめて持つストア（localStorage に保存）。
+ * タスク・リスト・習慣・記録・設定をまとめて持つストア（`lib/dataStore.ts` に保存。IndexedDB、使えない端末は localStorage）。
  * ここは作成と保存の設定だけ。操作は `slices/*.ts`、純粋な計算は `taskHelpers.ts` ほか、保存データの移行は `migrate.ts`
  */
 
@@ -55,9 +57,9 @@ import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
 import { reportFailure } from '../lib/errorReport'
 import { flushPendingEdits } from '../lib/pendingEdits'
 
-/** Renamed app: copy persisted state once from the old localStorage key. */
+/** Renamed app: copy persisted state once from the old localStorage key（IndexedDB に移すときは `dataStore.ts` が移す） */
 function migrateLegacyPersistKey(): void {
-  if (typeof localStorage === 'undefined') return
+  if (typeof localStorage === 'undefined' || usingIndexedDb()) return
   try {
     const legacy = localStorage.getItem(LEGACY_PERSIST_STORAGE_KEY)
     if (!legacy || localStorage.getItem(PERSIST_STORAGE_KEY)) return
@@ -76,8 +78,8 @@ migrateLegacyPersistKey()
 function preserveUnreadableStorage(stage: string, error: unknown) {
   reportFailure('storage', stage, error)
   try {
-    const raw = localStorage.getItem(PERSIST_STORAGE_KEY)
-    if (raw) localStorage.setItem(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+    const raw = readStored(PERSIST_STORAGE_KEY)
+    if (raw) writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
   } catch {
     /* 写せなくても続ける */
   }
@@ -238,6 +240,48 @@ export const useTaskStore = create<TaskState>()(
     },
   ),
 )
+
+/**
+ * IndexedDB に移した後に localStorage で動いた回（開けなかった）の本体を合わせる（`dataStore.ts` の `RECOVERED_LOCAL_KEY`）。
+ * 既定値（ストアの初期状態）と比べてその回で変えた分だけを入れる（`recoverLocal.ts`）。合わせた本体と取り込んだ印を消すのは
+ * 同じトランザクション（書けなければ次に開いたときにもう一度）。ラベル表などの変えた時刻を進める購読より前に呼ぶ
+ */
+function takeInRecoveredLocal() {
+  let raw: string | null
+  try {
+    raw = readStored(RECOVERED_LOCAL_KEY)
+  } catch {
+    return
+  }
+  if (raw === null) return
+  try {
+    const local = JSON.parse(raw) as { state?: Record<string, unknown>; version?: unknown }
+    if (!local.state || typeof local.version !== 'number' || local.version > STORE_VERSION) throw new Error('unreadable recovered data')
+    const localState = (local.version < STORE_VERSION ? migrateTaskState(local.state, local.version) : local.state) as unknown as Record<
+      string,
+      unknown
+    >
+    const pick = (s: TaskState) => pickKeys(s as unknown as Record<string, unknown>, DATA_KEYS) as Record<string, unknown>
+    const { state, replaced } = mergeRecoveredState(pick(useTaskStore.getState()), localState, pick(useTaskStore.getInitialState()))
+    for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
+      const { rows } = normalizeStoredRows(key, state[key])
+      state[key] = rows ?? useTaskStore.getState()[key]
+    }
+    state.tasks = (state.tasks as TaskState['tasks']).map(withTaskDefaults)
+    if (replaced) {
+      // 別の人のデータだった: その回のほうにして、IndexedDB の本体は別のキーに残す
+      const before = readStored(PERSIST_STORAGE_KEY)
+      if (before) writeStored(`${PERSIST_STORAGE_KEY}-before-recovery-${Date.now()}`, before)
+    }
+    useTaskStore.setState(state as Partial<TaskState>)
+  } catch (err) {
+    // 読めない・新しい版の中身: 合わせずに別のキーに残す
+    reportFailure('storage', 'recovered', err)
+    writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+  }
+  writeStored(RECOVERED_LOCAL_KEY, null)
+}
+takeInRecoveredLocal()
 
 /**
  * 開いていた画面・並び順などの好み（`VIEW_KEYS`）は、データとは別の小さな保存先に置く。
@@ -429,17 +473,22 @@ export function adoptOtherTabChanges(): void {
   }
 }
 
+// 他のタブが書いた（IndexedDB では BroadcastChannel、localStorage では storage イベント）
+onOtherTabChange((keys) => {
+  if (keys.includes(PERSIST_STORAGE_KEY)) adoptOtherTabChanges()
+})
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === PERSIST_STORAGE_KEY) adoptOtherTabChanges()
-  })
-  // 戻る・進むでページごと復元されたとき・裏から戻ったときは、止まっていた間の storage イベントが届かないことがある。
+  // 戻る・進むでページごと復元されたとき・裏から戻ったときは、止まっていた間の知らせが届かないことがある。
   // 古いまま次の編集で全データを書き戻さないよう、1 回読み直す（中身が同じなら文字列を比べるだけ）
+  const readAgain = () => {
+    if (usingIndexedDb()) void refreshStored().then(adoptOtherTabChanges)
+    else adoptOtherTabChanges()
+  }
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted) adoptOtherTabChanges()
+    if (e.persisted) readAgain()
   })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') adoptOtherTabChanges()
+    if (document.visibilityState === 'visible') readAgain()
   })
 }
 

@@ -20,9 +20,14 @@
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web
   SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
   旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
-- **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`）。旧キー `tickdo-storage`
-  は初回のみ `migrateLegacyPersistKey` で移行
+- **既定の永続化**: ブラウザ **IndexedDB**（DB `chronograma-data` の `kv`。Zustand `persist`、キー
+  `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`。置き場所は `src/lib/dataStore.ts`）。
+  起動時（`main.tsx` の `openDataStore`、ストアと画面を読み込む前）に全部を読んで手元に持ち、ストアの読み込みは同期のまま。
+  同じタスクの間の書き込み（本体・前回同期の控え・本体の中の `dataOwner`）は 1 つのトランザクションで書く。
+  localStorage にあった本体と控え（旧キー `tickdo-storage` も）は初めて開いたときに 1 回だけ移し、書けたのを読み直して確かめてから localStorage から消す。移した後に localStorage で動いた回（開けなかった）があれば（移した印があるのに localStorage に本体・控えがある）、次に開けたときにその分を取り込む: その回の本体を `chronograma-storage-recovered-local` に置き、ストアを作った直後に `store/recoverLocal.ts` の `mergeRecoveredState` で合わせる。行は id ごとに両方を残して同じ id はその回のほう。行以外は IndexedDB の本体を基にし、その回の値はストアの既定値（初期状態）と違うときだけ使う（`*UpdatedAt` を持つものはその時刻が新しいときだけ、オブジェクトはキーごと、id を持つ配列・文字列の配列は両方を残す）。動いているタイマーは IndexedDB の側。持ち主が片方だけなら null、別の人どうしならその回のほうにして IndexedDB の本体を `chronograma-storage-before-recovery-{時刻}` に残す。合わせた本体と取り込みの印の削除は同じトランザクション。その回に無い人の控えは消す（`reportFailure` の `storage` / `recovered`）。
+  IndexedDB か BroadcastChannel が使えない・開けない（8 秒）・移せない端末は localStorage のまま（旧キーは `migrateLegacyPersistKey`）。
+  書き終える前にページを離れると（トランザクションが中断されることがある）、書き終えていない分を localStorage `chronograma-data-unsaved` に置き、次に開いたときに IndexedDB の書いた時刻（`meta` の `at:{キー}`）より新しければ書く。
+  他のタブの書き込みは BroadcastChannel（localStorage のときは storage イベント）で知り、IndexedDB から読み直して取り込む
 - **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
   / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ
 
@@ -46,7 +51,7 @@
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
-  通知タップの `?record=` / `as` / `launch`、アイコン長押しの `?add=1` / `?start=last` を `consumeLaunch` で読んで消す（`main.tsx`）。
+  通知タップの `?record=` / `as` / `launch`、アイコン長押しの `?add=1` / `?start=last` を `consumeLaunch` で読んで消す（`boot.tsx`）。
   `?start=last`（ショートカット「前回の記録を再開」）は `src/lib/quickStart.ts`: 終わりがいちばん新しい記録（睡眠を除く）の
   題名・ラベル・色・元の To-Do で始める。計測中（どの端末でも）なら始めずに今日の計画を開くだけ、記録が無ければ知らせるだけ。
   ログイン中は最初の同期（最大 6 秒）を待ってから決める（`useQuickStartLaunch`）。設定の `InstallAppSection` とサイドバーの
@@ -57,7 +62,7 @@
   `requestQuickAdd(prefill)` → `QuickAdd` が欄に入れてフォーカスするだけで、足すのは利用者が Enter / 追加を押してから。
   `url` が空でも `text` の中の URL を取り出す。クイック追加はどの欄でも URL を題名と日付の読み取りから外してメモ（`description`）へ
   入れる（`splitUrls`、URL だけなら題名は `shortUrlLabel`）。本文はメモの先頭、URL はその下
-- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
+- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`boot.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
   `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`
   （解釈と組み立ては `src/lib/viewUrl.ts`。旧 `activity-log`→`planner`、`plan-vs-actual`→`calendar`）。起動時に URL の画面を開き、
   画面が替わるたびに `pushState`、ブラウザ・Android の「戻る」（`popstate`）で URL の画面を開く。最初の履歴・戻る/進むで開いた画面・
@@ -68,7 +73,8 @@
 
 ## エントリ
 
-- `src/main.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
+- `src/main.tsx`: 保存データを読み終えて（`openDataStore`）から `src/boot.tsx` を読み込む（`startAfterDataLoaded`）
+- `src/boot.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
 - `src/App.tsx`: レイアウト（ルートは `h-dvh`＝iOS Safari のツールバー分の見切れ回避）、`useSupabaseSync()`、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo
   面**（リスト選択 `selectedView === null` または `all` / `today` / `upcoming` /
@@ -114,7 +120,7 @@
 - **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
 - **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
-  （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
+  （`chronograma-sync-baseline-v1:{userId}`、本体と同じ置き場所）との三方向マージ → ローカル反映 → push（削除は
   マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
 - **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
@@ -286,7 +292,7 @@
 
 ### 永続化 `partialize` で除外されるもの
 
-次は **localStorage に保存されない**（リロードで初期化）:
+次は **保存されない**（リロードで初期化）:
 
 - `searchQuery`, `deletedTasks`, `quickAddRequested`, `filterTag`
 - `calendarEvents`, `googleAccessToken`, `moveBannerText`,
@@ -485,7 +491,7 @@ DB のテストは pgTAP の `supabase/tests/*.sql`（RLS: 他人の行・anon�
 
 ### 端末のエラー（`client_errors`、`011`・種類は `020`）
 
-ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`main.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）、`reportFailure(kind, stage, error, extra?)` で送る黙って続けていた失敗（回線の失敗は送らない。`extra.stage` が段階）: `storage`（本体の保存 `save`・保存データが読めない `load`・壊れた行を外した `load-rows` / `other-tab-rows`・自動バックアップ `auto-backup`）、`integration`（`canvas` / `canvas:complete` / `notion` / `notion:advance`・Google の設定の誤り `google`）、`push`（`subscribe` / `save` / `delete` / `detach:delete` / `detach`）。前回同期の控えの保存の失敗は `sync` の `baseline`。両方の端末が同じ項目を別の値にして新しいほうに任せた回数は `sync` の `merge-conflicts`（`extra.conflicts` に `tasks.title` などの表.項目ごとの回数・`total`・`since`。端末の localStorage `chronograma-merge-conflicts-v1` にためて 1 日 1 回、`lib/mergeConflictReport.ts`）。ログインしていない間・オフラインの間は端末（localStorage `chronograma-pending-errors-v1`）に新しい 10 件までためて、ログインしたとき・回線が戻ったときに 1 回でまとめて送る（起きた時刻は `extra.occurred_at`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 時間に 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。運用で見る SQL は `supabase/metrics/health.sql`（直近 24 時間の種類・段階・版ごとの数、通知の最後の成功と最後の回の数（`reminder_runs`、`021`）、cron のジョブと失敗、pg_net の応答）。SQL Editor で見る:
+ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`boot.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）、`reportFailure(kind, stage, error, extra?)` で送る黙って続けていた失敗（回線の失敗は送らない。`extra.stage` が段階）: `storage`（本体の保存 `save`・IndexedDB を開けず localStorage で始めた `open`・その回の分を取り込んだ `recovered`・保存データが読めない `load`・壊れた行を外した `load-rows` / `other-tab-rows`・自動バックアップ `auto-backup`）、`integration`（`canvas` / `canvas:complete` / `notion` / `notion:advance`・Google の設定の誤り `google`）、`push`（`subscribe` / `save` / `delete` / `detach:delete` / `detach`）。前回同期の控えの保存の失敗は `sync` の `baseline`（IndexedDB では本体と同じトランザクションなので、本体を書けなかったときも）。両方の端末が同じ項目を別の値にして新しいほうに任せた回数は `sync` の `merge-conflicts`（`extra.conflicts` に `tasks.title` などの表.項目ごとの回数・`total`・`since`。端末の localStorage `chronograma-merge-conflicts-v1` にためて 1 日 1 回、`lib/mergeConflictReport.ts`）。ログインしていない間・オフラインの間は端末（localStorage `chronograma-pending-errors-v1`）に新しい 10 件までためて、ログインしたとき・回線が戻ったときに 1 回でまとめて送る（起きた時刻は `extra.occurred_at`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 時間に 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。運用で見る SQL は `supabase/metrics/health.sql`（直近 24 時間の種類・段階・版ごとの数、通知の最後の成功と最後の回の数（`reminder_runs`、`021`）、cron のジョブと失敗、pg_net の応答）。SQL Editor で見る:
 
 ```sql
 select created_at, kind, message, url, app_version, extra, left(stack, 400) as stack

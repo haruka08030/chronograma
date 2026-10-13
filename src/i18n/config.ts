@@ -7,7 +7,7 @@ import { setDateFnsJa } from '../lib/dateKey'
 /**
  * 言語の文言は、表示する言語の分だけ後から読む（#268。2 つで約 97 kB）。切り替えたときにもう一方を読む。
  * date-fns の日本語（曜日・月の名前）も日本語のときだけ一緒に読む。
- * 画面は読み終わってから描く（`i18nReady`、main.tsx）
+ * 画面は読み終わってから描く（`i18nReady`、boot.tsx）
  */
 function loadLocale(language: AppLanguage): Promise<ResourceKey> {
   if (language === 'ja') {

@@ -1,13 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import { savedRaw, savedState } from './savedData'
 
 /** 端末に保存したタスクの題名（zustand の persist の保存内容） */
 async function savedTitles(page: Page) {
-  return page.evaluate(() => {
-    const raw = localStorage.getItem('chronograma-storage')
-    const tasks = raw ? (JSON.parse(raw).state.tasks as { title: string }[]) : []
-    return tasks.map((t) => t.title).sort()
-  })
+  const tasks = ((await savedState(page))?.tasks ?? []) as { title: string }[]
+  return tasks.map((t) => t.title).sort()
 }
 
 async function openTodo(page: Page) {
@@ -33,7 +31,7 @@ test('2 つのタブで別々に足したタスクが、どちらのタブでも
 
   await addTodo(a, 'From tab A')
   await addTodo(b, 'From tab B')
-  // もう一方のタブにも出る（storage イベントで取り込む）
+  // もう一方のタブにも出る（BroadcastChannel の知らせで取り込む）
   await expect(a.getByRole('listbox').getByRole('option', { name: 'From tab B' })).toBeVisible()
 
   // 古いままのタブがもう一方の分を上書きしない
@@ -43,6 +41,33 @@ test('2 つのタブで別々に足したタスクが、どちらのタブでも
 
   await a.reload()
   await expect.poll(() => savedTitles(a)).toEqual(['From tab A', 'From tab A again', 'From tab B'])
+})
+
+test('前の版が localStorage に保存したデータを IndexedDB に移し、読み込み直しても残る', async ({ browser, page }) => {
+  // 前の版が localStorage に書いていたのと同じ中身（いまの版で作って取り出す）
+  await openTodo(page)
+  await addTodo(page, 'Saved by the old version')
+  await expect.poll(() => savedTitles(page)).toEqual(['Saved by the old version'])
+  const raw = (await savedRaw(page))!
+
+  const old = await browser.newContext()
+  // 最初に開く前に 1 回だけ localStorage に置く（読み込み直したときは置かない）
+  await old.addInitScript((value) => {
+    if (sessionStorage.getItem('seeded')) return
+    sessionStorage.setItem('seeded', '1')
+    localStorage.setItem('chronograma-storage', value)
+  }, raw)
+  const p = await old.newPage()
+  await openTodo(p)
+  await expect(p.getByRole('listbox').getByRole('option', { name: 'Saved by the old version' })).toBeVisible()
+  // savedTitles は localStorage に残っていたら失敗する
+  await expect.poll(() => savedTitles(p)).toEqual(['Saved by the old version'])
+  await addTodo(p, 'Added after the move')
+  await p.reload()
+  await expect.poll(() => savedTitles(p)).toEqual(['Added after the move', 'Saved by the old version'])
+  await openTodo(p)
+  await expect(p.getByRole('listbox').getByRole('option', { name: 'Added after the move' })).toBeVisible()
+  await old.close()
 })
 
 test('バックアップを取り込み、読み込み直したあとでも「取り込みの前に戻す」で元に戻る', async ({ browser, page }, testInfo) => {
@@ -87,12 +112,10 @@ test('週の表示で予定をドラッグすると 15 分単位で動き、長�
   const input = page.getByPlaceholder('Add a to-do')
   await input.fill('3pm essay 1h')
   await input.press('Enter')
-  const saved = () =>
-    page.evaluate(() => {
-      const tasks = JSON.parse(localStorage.getItem('chronograma-storage')!).state.tasks as Record<string, unknown>[]
-      const t = tasks.find((x) => x.title === 'essay')!
-      return { id: t.id as string, startTime: t.startTime, endTime: t.endTime, scheduledDate: t.scheduledDate }
-    })
+  const saved = async () => {
+    const t = (await savedState(page))!.tasks.find((x) => x.title === 'essay')!
+    return { id: t.id as string, startTime: t.startTime, endTime: t.endTime, scheduledDate: t.scheduledDate }
+  }
   await expect.poll(async () => (await saved()).startTime).toBe('15:00')
   const before = await saved()
 

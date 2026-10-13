@@ -21,7 +21,7 @@
 - **連携（任意）**: Google カレンダー・Notion・Canvas
 - **外観**: ライト／ダーク、日本語と英語の UI
 
-**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+**既定の保存先**はブラウザの **IndexedDB**（Zustand の永続化。使えないブラウザでは localStorage）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
@@ -34,7 +34,7 @@
 | 層 | しくみ | 主なファイル |
 | --- | --- | --- |
 | 状態 | Zustand のストア 1 つを役割ごとの slice（tasks・lists・sections・habits・timeLogs・settings・ui など）に分ける。行は購読する値だけを選ぶ（`memo` とセレクタ） | `src/store/taskStore.ts`、`src/store/slices/` |
-| 端末への保存 | `persist` で localStorage へ。保存する値を DATA / VIEW / TRANSIENT に分け、版番号（`STORE_VERSION`）ごとに段階的に移行する。読めない保存データは上書き前に退避する。端末の中の自動バックアップ（毎日 14 日分など） | `persistKeys.ts`、`migrate.ts`、`src/lib/autoBackup.ts` |
+| 端末への保存 | `persist` で IndexedDB へ（使えないブラウザでは localStorage。前の版の localStorage のデータは初回に 1 回だけ移す）。本体と前回同期の控えは 1 つのトランザクションで書き、他のタブには BroadcastChannel で知らせる。保存する値を DATA / VIEW / TRANSIENT に分け、版番号（`STORE_VERSION`）ごとに段階的に移行する。読めない保存データは上書き前に退避する。端末の中の自動バックアップ（毎日 14 日分など） | `src/lib/dataStore.ts`、`persistKeys.ts`、`migrate.ts`、`src/lib/autoBackup.ts` |
 | 同期 | 端末ごとの前回同期の控えとの**三方向マージ**。書き込みは「もとにしたサーバーの版」を付けて送り、サーバーのトリガーが版を確かめてサーバーの時刻を付ける（端末の時計に頼らない）。ふだんの取り込みは**差分**（`updated_at` が前回より新しい行と、削除の記録 `sync_tombstones`）。起動時・6 時間ごと・断られた後は全件 | `src/lib/syncMerge.ts`、`syncPull.ts`、`supabaseData.ts`、`src/hooks/useSupabaseSync.ts` |
 | サーバー | Supabase（Postgres + RLS で本人の行だけ）。外部サービスのトークンは Edge Function が暗号化して持ち、ブラウザには出さない。通知は pg_cron が 5 分ごとに Edge Function `daily-reminders` を呼ぶ | `supabase/migrations/`、`supabase/functions/` |
 | 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |

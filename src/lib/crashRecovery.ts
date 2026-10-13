@@ -7,12 +7,13 @@ import { appTodayKey } from './timeZone'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 import { BACKUP_SCHEMA_VERSION } from './backupFormat'
 import { AUTH_TOKEN_KEY } from './supabase'
+import { readStored } from './dataStore'
 
 /** 保存しているデータを、そのままファイルにして保存させる（取り込みで読める形） */
 export function downloadRawData(): void {
   let raw: string | null = null
   try {
-    raw = localStorage.getItem(PERSIST_STORAGE_KEY)
+    raw = readStored(PERSIST_STORAGE_KEY)
   } catch {
     /* 読めなければ空で出す */
   }
@@ -53,8 +54,7 @@ function currentViewer(): string | null {
       const id = (JSON.parse(localStorage.getItem(key) ?? 'null') as { user?: { id?: unknown } } | null)?.user?.id
       if (typeof id === 'string') return id
     }
-    const owner = (JSON.parse(localStorage.getItem(PERSIST_STORAGE_KEY) ?? 'null') as { state?: { dataOwner?: unknown } } | null)?.state
-      ?.dataOwner
+    const owner = (JSON.parse(readStored(PERSIST_STORAGE_KEY) ?? 'null') as { state?: { dataOwner?: unknown } } | null)?.state?.dataOwner
     return typeof owner === 'string' ? owner : null
   } catch {
     return null
