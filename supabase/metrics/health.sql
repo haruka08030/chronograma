@@ -4,6 +4,9 @@
 --   同じエラーは 10 分に 1 回・1 時間に 20 件まで（`src/lib/errorReport.ts`）なので、数は起きた回数より少なく出る
 -- - 4 は `reminder_runs`（`012`・最後の回の数は `021`）
 -- - 5・6 は pg_cron、7 は pg_net（どちらも Database → Extensions で有効にしてあるとき）
+-- - Edge Function（account・google-calendar・notion・canvas・daily-reminders）の中のエラーはこの表に入らない。
+--   関数の `console.error` は Supabase の Edge Functions → 関数 → Logs で見る（残る期間はプランによる）。
+--   利用者に出た連携の失敗は、端末が `integration` で送る
 -- 1 つずつ選んで流す。
 
 -- 1. 直近 24 時間のエラーを 種類・段階・版 ごとに
