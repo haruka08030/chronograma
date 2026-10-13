@@ -58,3 +58,54 @@ describe('習慣のフォームの頻度', () => {
     expect(f.timesPerWeek).toBe(EMPTY_HABIT_FORM.timesPerWeek)
   })
 })
+
+describe('曜日ごとの時間', () => {
+  const gym = form({ freq: 'weekly', weekdays: [1, 3, 6], timeMode: 'range', startTime: '18:00', endTime: '19:00' })
+
+  it('押さなければ今までどおり 1 つの時間で、曜日ごとの時間は外す', () => {
+    expect(habitFromForm(gym)).toMatchObject({ startTime: '18:00', endTime: '19:00', weekdayTimes: undefined })
+  })
+
+  it('押すと選んだ曜日ごとの時間になり、まだ入れていない曜日は上の時間。習慣の時間は最初の曜日', () => {
+    const f = {
+      ...gym,
+      perWeekday: true,
+      weekdayTimes: { 6: { startTime: '10:00', endTime: '11:00' }, 1: { startTime: '17:00', endTime: '18:30' } },
+    }
+    expect(habitFromForm(f)).toMatchObject({
+      startTime: '17:00',
+      endTime: '18:30',
+      weekdayTimes: {
+        1: { startTime: '17:00', endTime: '18:30' },
+        3: { startTime: '18:00', endTime: '19:00' },
+        6: { startTime: '10:00', endTime: '11:00' },
+      },
+    })
+    expect(canSubmitHabitForm(f)).toBe(true)
+    expect(canSubmitHabitForm({ ...f, weekdayTimes: { ...f.weekdayTimes, 6: { startTime: '11:00', endTime: '10:00' } } })).toBe(false)
+  })
+
+  it('時刻ひとつの習慣は終わりを持たず、毎日・時間なしにしたら曜日ごとの時間を外す', () => {
+    const fixed = { ...gym, timeMode: 'fixed' as const, perWeekday: true, weekdayTimes: { 6: { startTime: '10:00', endTime: '11:00' } } }
+    expect(habitFromForm(fixed).weekdayTimes).toEqual({
+      1: { startTime: '18:00', endTime: null },
+      3: { startTime: '18:00', endTime: null },
+      6: { startTime: '10:00', endTime: null },
+    })
+    expect(habitFromForm({ ...fixed, freq: 'daily' }).weekdayTimes).toBeUndefined()
+    expect(habitFromForm({ ...fixed, timeMode: 'none' }).weekdayTimes).toBeUndefined()
+  })
+
+  it('編集を始めると、曜日ごとの時間の欄が開いた状態から', () => {
+    const h = habit({
+      frequency: { type: 'weekly', weekdays: [1, 6] },
+      timeMode: 'range',
+      startTime: '18:00',
+      endTime: '19:00',
+      weekdayTimes: { 1: { startTime: '18:00', endTime: '19:00' }, 6: { startTime: '10:00', endTime: '11:00' } },
+    })
+    const f = habitFormFrom(h)
+    expect(f.perWeekday).toBe(true)
+    expect(habitFromForm(f).weekdayTimes).toEqual(h.weekdayTimes)
+  })
+})

@@ -283,8 +283,12 @@ export interface TaskState {
   setGoogleCanWrite: (canWrite: boolean) => void
 
   /** 足した習慣の id を返す */
-  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => string
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes'>) => string
+  /** `weekdayTimes: undefined` は曜日ごとの時間を外す */
+  updateHabit: (
+    id: string,
+    patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes'>>,
+  ) => void
   /**
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
    * 時刻ひとつの習慣は `endTime` を見ない
