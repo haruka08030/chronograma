@@ -8,7 +8,7 @@ import { QuickAddDetails } from '../QuickAddDetails'
 
 /**
  * 今日の計画の追加欄（並んだ行の下。見出しのすぐ下に空の欄を置かない）。
- * 足したものの「やる日」は見ている日。書き方の解釈は To-Do 画面と同じ。C / ⌘N でここにフォーカスする。
+ * 足したものの「やる日」は見ている日で、その日の行の最後に入る（欄の上に見える）。書き方の解釈は To-Do 画面と同じ。C / ⌘N でここにフォーカスする。
  * 書きかけ（`draft`）は親が持つ（はじめの案内の例を入れられるように）。何も無い日は書き方の例を薄く出す（はじめの案内を出している間は案内の方に）
  */
 export function PlannerAddInput({
@@ -34,7 +34,7 @@ export function PlannerAddInput({
 
   const submit = () => {
     if (!draft.trim()) return
-    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks })
+    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks, last: true })
     change('')
   }
 

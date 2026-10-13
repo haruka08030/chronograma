@@ -40,6 +40,11 @@ export interface QuickAddOptions {
   picks?: QuickAddPicks
   /** メモの先頭に入れる文（共有で 1 行に収まらなかった本文）。書いた URL はその下に入る */
   note?: string
+  /**
+   * 先頭ではなく最後に入れる（今日の計画の追加欄。欄は行の下にあるので、足した行が欄のすぐ上に見える）。
+   * 入った日の行とリストの行のどれよりも後ろの order にする
+   */
+  last?: boolean
 }
 
 /**
@@ -313,6 +318,20 @@ function orderAfterLastQuickAdd(tasks: readonly Task[], added: Task, now: number
   return next === null ? prev.order + 1 : (prev.order + next) / 2
 }
 
+/** 同じ所（リスト・親・セクション）の行と、同じ日に置いた行のどれよりも後ろの order */
+function orderAtEnd(tasks: readonly Task[], added: Task): number {
+  const day = added.scheduledDate
+  const last = tasks
+    .filter(
+      (t) =>
+        t.id !== added.id &&
+        ((t.listId === added.listId && t.parentId === added.parentId && t.sectionId === added.sectionId) ||
+          (day !== null && t.scheduledDate === day)),
+    )
+    .reduce<number | null>((max, t) => (max === null || t.order > max ? t.order : max), null)
+  return last === null ? added.order : last + 1
+}
+
 /**
  * クイック追加の 1 行（「15時 ES 1時間」「明日まで 課題」「@買い物 牛乳」）からタスクを作る。
  * どの入力欄（上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスク）でも
@@ -374,6 +393,14 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
+    if (opts.last) {
+      const tasks = useTaskStore.getState().tasks
+      const self = tasks.find((t) => t.id === id)
+      if (self) {
+        const order = orderAtEnd(tasks, self)
+        useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, order } : t)) }))
+      }
+    }
   })
   if (!id) return undefined
 
