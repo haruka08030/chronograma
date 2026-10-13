@@ -57,6 +57,14 @@ describe('続けて持ち越した日数（#300）', () => {
     expect(carried('report')).toBe(2)
   })
 
+  it('今日の予定を明日へ回すと、持ち越した日数と移した予定の控え（#158）が両方付く', () => {
+    useTaskStore.setState({ tasks: [todo('es', { scheduledDate: day(0), startTime: '10:00', endTime: '11:00' })] })
+    useTaskStore.getState().updateTask('es', { scheduledDate: day(1) })
+    const es = useTaskStore.getState().tasks.find((t) => t.id === 'es')!
+    expect(es.carriedDays).toBe(1)
+    expect(es.movedPlans).toEqual([expect.objectContaining({ date: day(0), startTime: '10:00', to: day(1) })])
+  })
+
   it('完了すると 0、戻しても 0 のまま', () => {
     useTaskStore.setState({ tasks: [todo('es', { scheduledDate: day(0), carriedDays: 3 })] })
     useTaskStore.getState().toggleTask('es')

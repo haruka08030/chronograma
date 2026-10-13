@@ -9,6 +9,7 @@ import { toDateKey } from '../lib/dateKey'
 import { googleEventDateKeys } from '../lib/googleEventSpan'
 import { sameRows } from './useStableRows'
 import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
+import { appTodayKey } from '../lib/timeZone'
 
 type Buckets<T> = Map<string, T[]>
 
@@ -41,8 +42,11 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
   /** 前に分けた結果と比べて、変わっていない日の配列を使い回す */
   const [stabilize] = useState(createDayArrayCache)
 
-  const { allDayByDate, timedByDate, timeLogsByDate, dueByDate } = useMemo(() => {
+  const { allDayByDate, timedByDate, timeLogsByDate, dueByDate, movedByDate } = useMemo(() => {
+    const todayKey = appTodayKey()
     const allDay = new Map<string, typeof tasks>()
+    /** 過ぎた日から別の日へ移した時刻つきの予定（その日の列に控えを出す、#158） */
+    const moved = new Map<string, typeof tasks>()
     /** 締切の日の印（実行日が別の日のもの） */
     const due = new Map<string, typeof tasks>()
     const timed = new Map<string, typeof tasks>()
@@ -59,6 +63,12 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
           logs.set(dk, arr)
         }
         continue
+      }
+      for (const plan of t.movedPlans ?? []) {
+        if (plan.date >= todayKey || !plan.startTime || !plan.endTime) continue
+        const arr = moved.get(plan.date) ?? []
+        if (!arr.includes(t)) arr.push(t)
+        moved.set(plan.date, arr)
       }
       const dueKey = dueMarkDayKey(t)
       if (dueKey) {
@@ -79,8 +89,15 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
       due: stabilize('due', due),
       timed: stabilize('timed', timed),
       logs: stabilize('logs', logs),
+      moved: stabilize('moved', moved),
     }
-    return { allDayByDate: next.allDay, timedByDate: next.timed, timeLogsByDate: next.logs, dueByDate: next.due }
+    return {
+      allDayByDate: next.allDay,
+      timedByDate: next.timed,
+      timeLogsByDate: next.logs,
+      dueByDate: next.due,
+      movedByDate: next.moved,
+    }
   }, [tasks, days, excludedListIds, stabilize])
 
   const eventsByDate = useMemo(() => {
@@ -107,5 +124,5 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
     return map
   }, [calendarEvents])
 
-  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate }
+  return { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate, movedByDate }
 }

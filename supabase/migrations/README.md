@@ -35,6 +35,7 @@
 | [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
 | [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
 | [`031_habit_rest_weekday_times_goal.sql`](031_habit_rest_weekday_times_goal.sql) | 習慣の休みの日 `habits.rest_dates`（日付の並び。予定の日に数えない）、曜日を指定した習慣の曜日ごとの時間 `habits.weekday_times`（ISO 曜日 → 開始・終了）、1 回の時間の目標 `habits.goal_minutes`（分、1〜1440）。どれも null は無し。形と大きさの上限 `habits_rest_dates_check` / `habits_weekday_times_check` / `habits_goal_minutes_check` |
+| [`032_moved_plans.sql`](032_moved_plans.sql) | 移した予定の控え `tasks.moved_plans`（`[{ date, startTime, endTime, to }]`、null は移していない To-Do。配列・8KB まで `tasks_moved_plans_check`）。その日が来てから To-Do の予定日を別の日へ移したときにアプリが足す |
 | [`036_feedback.sql`](036_feedback.sql) | お問い合わせ・フィードバック `feedback`（文面 1〜2000 文字・アプリの版・ブラウザ、`feedback_size_check`）。端末は本人の行の insert だけ（読めない・変えられない・消せない。anon は送れない）。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、SECURITY DEFINER。超えたら errcode `P0001`・メッセージ `feedback_rate_limited`）。アカウントの削除で消える |
 | [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
 

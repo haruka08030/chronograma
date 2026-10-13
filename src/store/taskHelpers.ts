@@ -8,6 +8,7 @@ import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
 import { carriedDaysAfter } from '../lib/carryDays'
+import { movedPlansAfter, withMovedPlans } from '../lib/movedPlans'
 import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
@@ -97,6 +98,10 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   if (isTodoTask(applied)) {
     const carried = carriedDaysAfter(task, applied, appDayKeyOf(now))
     if (carried !== task.carriedDays) applied.carriedDays = carried
+  }
+  // その日が来てから予定を別の日へ移したら、元の予定を控えに残す（過ぎた日に「予定どおりだったか」を見る、`movedPlans.ts`）
+  if (patch.scheduledDate !== undefined && patch.scheduledDate !== task.scheduledDate) {
+    return withLogCategory(withMovedPlans(applied, movedPlansAfter(task, patch.scheduledDate, appDayKeyOf(now))))
   }
   return withLogCategory(applied)
 }

@@ -1301,6 +1301,8 @@ export default {
     allDayExpand: 'すべて表示',
     allDayCollapse: 'たたむ',
     unrecordedGap: '記録なし {{time}}',
+    movedPlanAria: '{{title}} {{start}}–{{end}}（{{date}} に移した予定）',
+    planTally: '予定 {{planned}}・できた {{done}}・持ち越し {{carried}}',
     unrecordedGapAria: '記録なし {{start}}–{{end}}（押すとこの時間の記録を作る）',
   },
   calendarDayPanel: {

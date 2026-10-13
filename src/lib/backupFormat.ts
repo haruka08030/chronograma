@@ -16,6 +16,7 @@ import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
 import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
+import { readMovedPlans } from './movedPlans'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -214,8 +215,11 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   const createdAt = readStamp(now, row.createdAt, row.created_at)
   // 毎週の予定の印（#279）は予定の行だけ。印のある行だけ項目を持つ
   const series = kind === 'event' ? readEventSeries(row.series ?? row.event_series) : null
+  // 移した予定の控え（#158）は To-Do の行だけ。控えのある行だけ項目を持つ
+  const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
   return {
     ...(series ? { series } : {}),
+    ...(movedPlans ? { movedPlans } : {}),
     id,
     title,
     listId,
