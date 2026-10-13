@@ -7,6 +7,8 @@
  *   ただし前の版のアプリでラベルを変えて送ると目安は消える（その版は目安を持たないため）
  * - 行にはラベルの id（#365）を足す（目安と同じく追加の項目）。前の版のアプリが送った表（id が無い）は名前で手元の id に合わせる。
  *   両方で変えた表は id ごとに合わせる（片方で名前を変えたラベルが、もう一方の古い名前で戻らない）
+ * - 前回合わせた版の表にあったラベルの id を控える（`baseIds`、`settingSync.ts` の控え）。両方で変えた表を合わせるとき、
+ *   控えにあって片方に無いラベルはその端末で消したので戻さない（#357。もう一方でそのラベルを直していても消す）
  * - 取り込み（Notion のデータベース名・フォルダを畳んだラベル）で足したラベルは「無ければ足す」だけ（#357）。
  *   手元の変えた時刻は進めず、足した名前を `pendingAdds` に覚えておき、合わせた表に無ければ後ろに足して送る。
  *   取り込みで手元が新しい扱いになり、ほかの端末の名前・色・並びの編集を上書きしていた
@@ -38,6 +40,8 @@ export type LocalLabels = {
   syncedAt?: string | null
   /** 取り込みで足し、まだサーバーに届いていないラベルの名前（#357）。手元の表から消したものは足さない */
   pendingAdds?: readonly string[]
+  /** `syncedAt` の版の表にあったラベルの id（`labelBaseIds`）。無ければ前回の中身は分からない（消したラベルが戻りうる） */
+  baseIds?: readonly string[] | null
 }
 
 export type RemoteLabels = { labels: LogLabelRow[]; updatedAt: string }
@@ -133,22 +137,25 @@ function unionTables(
   first: LabelTable,
   second: LabelTable,
   target: (firstName: string | undefined, secondName: string | undefined) => number | undefined,
+  /** 前回合わせた版の表にあったラベルの id。片方にしか無ければもう一方で消した（戻さない） */
+  base?: ReadonlySet<string>,
 ): LabelTable {
   const secondNameById = new Map([...second.ids].map(([name, id]) => [id, name]))
   const firstIds = new Set(first.ids.values())
-  const presets = [...first.presets]
+  const otherOf = (n: string) => (second.presets.includes(n) ? n : secondNameById.get(first.ids.get(n)!))
+  const presets = first.presets.filter((n) => !base?.has(first.ids.get(n)!) || otherOf(n) !== undefined)
   const colors: Record<string, string> = {}
   const targets: LabelTargets = {}
-  const ids = new Map(first.ids)
-  for (const n of first.presets) {
-    const other = second.presets.includes(n) ? n : secondNameById.get(first.ids.get(n)!)
+  const ids = new Map([...first.ids].filter(([n]) => presets.includes(n)))
+  for (const n of presets) {
+    const other = otherOf(n)
     const color = first.colors[n] || (other ? second.colors[other] : undefined)
     if (color) colors[n] = color
     const t = validTargetMinutes(target(n, other))
     if (t) targets[n] = t
   }
   for (const n of second.presets) {
-    if (presets.includes(n) || firstIds.has(second.ids.get(n)!)) continue
+    if (presets.includes(n) || firstIds.has(second.ids.get(n)!) || base?.has(second.ids.get(n)!)) continue
     presets.push(n)
     ids.set(n, second.ids.get(n)!)
     if (second.colors[n]) colors[n] = second.colors[n]
@@ -229,14 +236,20 @@ function planLabelTable(local: LocalLabels, remote: RemoteLabels | null, nowIso:
   )
   if (!remote) return { push: { labels: localRows, updatedAt: local.updatedAt ?? nowIso, base: null } }
   // 両方の端末で前回合わせた後に変えていた: 丸ごと新しいほうにせず、ラベル（id、無ければ名前）ごとに合わせる（2 台で別々に足したラベルをどちらも残す）。
-  // 並びと同じラベルの名前・色・週の目安は新しいほう（目安を外したのも新しいほうに従う）。前回の中身は持たないので、片方で消したラベルはもう一方にあれば戻る
+  // 並びと同じラベルの名前・色・週の目安は新しいほう（目安を外したのも新しいほうに従う）。前回の版にあって片方で消したラベルは消す
+  // （前回の版の控えが無ければ、片方で消したラベルはもう一方にあれば戻る）
   const bothChanged =
     local.updatedAt !== null && local.syncedAt != null && local.updatedAt !== local.syncedAt && remote.updatedAt !== local.syncedAt
   if (bothChanged && (step.kind === 'push' || step.kind === 'apply')) {
     const fromRemote = rowsToLocal(remote.labels, mine.ids)
     const [first, second] = step.kind === 'push' ? [mine, fromRemote] : [fromRemote, mine]
     return mergedPlan(
-      unionTables(first, second, (a, b) => (a !== undefined ? first.targets[a] : b !== undefined ? second.targets[b] : undefined)),
+      unionTables(
+        first,
+        second,
+        (a, b) => (a !== undefined ? first.targets[a] : b !== undefined ? second.targets[b] : undefined),
+        local.baseIds ? new Set(local.baseIds) : undefined,
+      ),
       remote,
       nowIso,
     )
@@ -266,6 +279,18 @@ function planLabelTable(local: LocalLabels, remote: RemoteLabels | null, nowIso:
     default:
       return {}
   }
+}
+
+/**
+ * 合わせた版の表のラベルの id（控え）。id の無い行（前の版のアプリが送った表）は、合わせるときと同じく名前で手元の id に
+ */
+export function labelBaseIds(rows: readonly LogLabelRow[], local: Pick<LocalLabels, 'presets' | 'ids'>): string[] {
+  return [...rowsToLocal(rows, effectiveLabelIds(local.presets, local.ids ?? {})).ids.values()]
+}
+
+/** 保存されていた控え（壊れていてもよい）。id の一覧でなければ null */
+export function normalizeLabelBase(raw: unknown): string[] | null {
+  return Array.isArray(raw) && raw.every((x) => typeof x === 'string') ? (raw as string[]) : null
 }
 
 /** 合わせた表: サーバーと同じ中身なら当てるだけ、違えば当てて送る */

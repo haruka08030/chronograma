@@ -691,10 +691,17 @@ export async function pushListsTasksHabits(
   const sectionRows = changedOnly('list_sections', sections, remote?.sections, (s) => sectionToRow(userId, s))
   // 端末ごとにアプリのタイムゾーンが違うと、同じ瞬間でも列の書き方（timeZoneAnchor と時刻）が違う。
   // 両方をこの端末のタイムゾーンの書き方にそろえてから比べ、書き方の違いだけでは送らない（2 台で全件を送り合わない）
+  // 消すセクションを指しているサーバーの行は、セクションを消すと外部キー（on delete set null）が外す。
+  // 外れたものとして比べ、セクションを外しただけの行は送らない（#357。セクション 1 つで中の行を全部送らない）
+  const goneSections = new Set(deletes.sections)
+  const remoteTasks =
+    remote && goneSections.size > 0
+      ? remote.tasks.map((t) => (t.sectionId != null && goneSections.has(t.sectionId) ? { ...t, sectionId: null } : t))
+      : remote?.tasks
   const taskRows = changedOnly(
     'tasks',
     tasks,
-    remote?.tasks,
+    remoteTasks,
     (t) => taskToRow(userId, t),
     (t) => reanchorTask(t),
   )

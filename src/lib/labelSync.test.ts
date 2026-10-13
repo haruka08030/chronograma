@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pendingAddsAfterImport, planLabelSync, settledLabelAdds } from './labelSync'
+import { labelBaseIds, normalizeLabelBase, pendingAddsAfterImport, planLabelSync, settledLabelAdds } from './labelSync'
 
 const T1 = '2026-10-01T00:00:00.000Z'
 const T2 = '2026-10-02T00:00:00.000Z'
@@ -142,6 +142,53 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
     // 3 か月進んでいる端末なら、直すとサーバーのほうが新しい（サーバーの並びが先）
     const offset = Date.parse(S2) - Date.parse(FAST) - 1000
     expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['他端末', '手元'])
+  })
+
+  describe('片方で消したラベル（#357）', () => {
+    // 前回合わせた版（S1）の表は 授業・バイト・ジム
+    const synced = { presets: ['授業', 'バイト', 'ジム'], colors: { 授業: 'sage', バイト: 'peacock', ジム: 'basil' } }
+    const baseIds = labelBaseIds(
+      synced.presets.map((name) => ({ name, color: synced.colors[name as keyof typeof synced.colors] })),
+      { presets: synced.presets },
+    )
+
+    it('手元で消し、ほかの端末で別のラベルを足した: 消したラベルは戻らず、足したラベルは残る', () => {
+      const local = { presets: ['授業', 'ジム'], colors: { 授業: 'sage', ジム: 'basil' }, updatedAt: FAST, syncedAt: S1, baseIds }
+      const remote = { labels: [...synced.presets, 'ゼミ'].map((name) => ({ name, color: '' })), updatedAt: S2 }
+      expect(planLabelSync(local, remote, NOW, 0).apply?.presets).toEqual(['授業', 'ジム', 'ゼミ'])
+      // サーバーのほうが新しくても同じ
+      const offset = Date.parse(S2) - Date.parse(FAST) - 1000
+      expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['授業', 'ジム', 'ゼミ'])
+    })
+
+    it('ほかの端末で消し、手元で別のラベルを足した: 消したラベルは戻らない', () => {
+      const local = { presets: [...synced.presets, '筋トレ'], colors: synced.colors, updatedAt: FAST, syncedAt: S1, baseIds }
+      const remote = {
+        labels: [
+          { name: '授業', color: 'sage' },
+          { name: 'ジム', color: 'basil' },
+        ],
+        updatedAt: S2,
+      }
+      const plan = planLabelSync(local, remote, NOW, 0)
+      expect(plan.apply?.presets).toEqual(['授業', 'ジム', '筋トレ'])
+      expect(plan.push?.labels.map((l) => l.name)).toEqual(['授業', 'ジム', '筋トレ'])
+    })
+
+    it('控えが無ければ前と同じ（どちらにもあるものを残す）', () => {
+      const local = { presets: ['授業', 'ジム'], colors: {}, updatedAt: FAST, syncedAt: S1 }
+      const remote = { labels: [...synced.presets, 'ゼミ'].map((name) => ({ name, color: '' })), updatedAt: S2 }
+      expect(planLabelSync(local, remote, NOW, 0).apply?.presets).toEqual(['授業', 'ジム', 'バイト', 'ゼミ'])
+    })
+
+    it('控えの id は送った行の id、前の版の表（id なし）は名前で手元の id に合わせる', () => {
+      const pushed = planLabelSync({ ...synced, ids: {}, updatedAt: T1 }, null, NOW).push!
+      expect(labelBaseIds(pushed.labels, { presets: [] })).toEqual(pushed.labels.map((l) => l.id))
+      const renamed = { presets: ['講義'], ids: { 講義: pushed.labels[0]!.id! } }
+      expect(labelBaseIds([{ name: '講義', color: '' }], renamed)).toEqual([pushed.labels[0]!.id])
+      expect(normalizeLabelBase('x')).toBeNull()
+      expect(normalizeLabelBase(['a'])).toEqual(['a'])
+    })
   })
 })
 

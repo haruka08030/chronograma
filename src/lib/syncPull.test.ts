@@ -501,3 +501,68 @@ describe('missingWithoutTombstone', () => {
     ).toEqual([])
   })
 })
+
+describe('セクションを消す (#357)', () => {
+  /** 2 台が同期した状態（受信箱にセクション s、その中に a・b・c） */
+  async function setupSection() {
+    const db = fakeDb()
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.list_sections!.push({
+      id: 's',
+      user_id: 'u1',
+      list_id: '__inbox__',
+      name: 'S',
+      sort_order: 0,
+      updated_at: '2026-01-01T00:00:00.000000+00:00',
+    })
+    db.tables.tasks!.push(...['a', 'b', 'c'].map((id) => taskRow(id, { section_id: 's' })))
+    const phone = newDevice(db)
+    const pc = newDevice(db)
+    await syncDevice(db, phone)
+    await syncDevice(db, pc)
+    return { db, phone, pc }
+  }
+  /** `deleteSection` と同じ: セクションを消し、中のタスクは外すだけ（updatedAt は変えない） */
+  const deleteSection = (dev: Device, id: string) => {
+    dev.local = {
+      ...dev.local,
+      sections: dev.local.sections.filter((s) => s.id !== id),
+      tasks: dev.local.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null } : t)),
+    }
+  }
+
+  it('中のタスクは送らず、サーバーの外部キーが外す。もう 1 台にもセクションの無いタスクとして届く', async () => {
+    const { db, phone, pc } = await setupSection()
+    deleteSection(phone, 's')
+    const res = await syncDevice(db, phone)
+    expect(res.written.filter((w) => w.table === 'tasks')).toEqual([])
+    expect(db.tables.list_sections).toEqual([])
+    expect(db.tables.tasks!.map((r) => r.section_id)).toEqual([null, null, null])
+
+    tick(db, [phone, pc], 1000)
+    const other = await syncDevice(db, pc)
+    expect(other.written).toEqual([])
+    expect(pc.local.sections).toEqual([])
+    expect(pc.local.tasks.map((t) => t.sectionId)).toEqual([null, null, null])
+    // 消した端末も、外れた行を取り込んでも送り返さない
+    const again = await syncDevice(db, phone)
+    expect(again.written).toEqual([])
+    expect(phone.local.tasks.map((t) => t.sectionId)).toEqual([null, null, null])
+  })
+
+  it('もう 1 台が同じ時に中のタスクを直しても、その編集は残る', async () => {
+    const { db, phone, pc } = await setupSection()
+    tick(db, [phone, pc], 1000)
+    edit(pc, 'a', { title: 'edited' })
+    await syncDevice(db, pc)
+    deleteSection(phone, 's')
+    await syncDevice(db, phone)
+    await syncDevice(db, pc)
+    expect(serverTitles(db).a).toBe('edited')
+    expect(db.tables.tasks!.map((r) => r.section_id)).toEqual([null, null, null])
+    for (const d of [phone, pc]) {
+      expect(titles(d.local).a).toBe('edited')
+      expect(d.local.tasks.map((t) => t.sectionId)).toEqual([null, null, null])
+    }
+  })
+})
