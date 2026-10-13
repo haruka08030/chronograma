@@ -80,17 +80,123 @@ export function zonedNow(): Date {
   return toAppWall(Date.now())
 }
 
+/** 壁時計の数字 [年, 月(0〜), 日, 時, 分, 秒, ミリ秒] */
+type WallFields = [number, number, number, number, number, number, number]
+
+function localFields(d: Date): WallFields {
+  return [d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds()]
+}
+
+/**
+ * アプリのタイムゾーンの壁時計を表す Date。瞬間としての値（getTime）はふつうの Date と同じく、壁時計の数字を
+ * 端末のローカルに組んだもの（`fromDateKey` などで作った Date とそのまま比べられる）。
+ * 端末の夏時間の始まりの 1 時間は端末に存在しない時刻なので、そのときだけ壁時計の数字を別に持ち、
+ * ローカルの getter（getHours など）と setter はその数字で動く。date-fns は `new date.constructor(date)` で
+ * 写すので、写した先も同じ数字を持つ
+ */
+class AppWallDate extends Date {
+  #wall: WallFields | null = null
+
+  constructor(value: number | string | Date) {
+    super(value instanceof Date ? value.getTime() : value)
+    if (value instanceof AppWallDate) this.#wall = value.#wall
+  }
+
+  /** 壁時計の数字に合わせる。端末に存在しない時刻なら数字を別に持つ */
+  setWall(f: WallFields): this {
+    super.setTime(new Date(...f).getTime())
+    const actual = localFields(this)
+    this.#wall = actual.every((v, i) => v === f[i]) ? null : f
+    return this
+  }
+
+  /** 存在しない時刻を持っているとき、壁時計の数字の上で setter を当てる */
+  #edit(apply: (utc: Date) => void): number {
+    const utc = new Date(Date.UTC(...this.#wall!))
+    apply(utc)
+    this.setWall([
+      utc.getUTCFullYear(),
+      utc.getUTCMonth(),
+      utc.getUTCDate(),
+      utc.getUTCHours(),
+      utc.getUTCMinutes(),
+      utc.getUTCSeconds(),
+      utc.getUTCMilliseconds(),
+    ])
+    return this.getTime()
+  }
+
+  override getFullYear() {
+    return this.#wall ? this.#wall[0] : super.getFullYear()
+  }
+  override getMonth() {
+    return this.#wall ? this.#wall[1] : super.getMonth()
+  }
+  override getDate() {
+    return this.#wall ? this.#wall[2] : super.getDate()
+  }
+  override getDay() {
+    return this.#wall ? new Date(Date.UTC(...this.#wall)).getUTCDay() : super.getDay()
+  }
+  override getHours() {
+    return this.#wall ? this.#wall[3] : super.getHours()
+  }
+  override getMinutes() {
+    return this.#wall ? this.#wall[4] : super.getMinutes()
+  }
+  override getSeconds() {
+    return this.#wall ? this.#wall[5] : super.getSeconds()
+  }
+  override getMilliseconds() {
+    return this.#wall ? this.#wall[6] : super.getMilliseconds()
+  }
+
+  override setTime(time: number) {
+    this.#wall = null
+    return super.setTime(time)
+  }
+  override setFullYear(...a: Parameters<Date['setFullYear']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCFullYear(...a)) : super.setFullYear(...a)
+  }
+  override setMonth(...a: Parameters<Date['setMonth']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCMonth(...a)) : super.setMonth(...a)
+  }
+  override setDate(...a: Parameters<Date['setDate']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCDate(...a)) : super.setDate(...a)
+  }
+  override setHours(...a: Parameters<Date['setHours']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCHours(...a)) : super.setHours(...a)
+  }
+  override setMinutes(...a: Parameters<Date['setMinutes']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCMinutes(...a)) : super.setMinutes(...a)
+  }
+  override setSeconds(...a: Parameters<Date['setSeconds']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCSeconds(...a)) : super.setSeconds(...a)
+  }
+  override setMilliseconds(...a: Parameters<Date['setMilliseconds']>) {
+    return this.#wall ? this.#edit((u) => u.setUTCMilliseconds(...a)) : super.setMilliseconds(...a)
+  }
+}
+
 /**
  * 瞬間（ISO 文字列など）→ アプリのタイムゾーンの壁時計を表す Date。
  * 壁時計の数字（年月日時分秒）をそのまま端末のローカルの Date に組む。瞬間に一定の量を足す形だと、
- * 足した先で端末の夏時間が切り替わると 1 時間ずれていた（端末で存在しない時刻だけは前後に寄る）
+ * 足した先で端末の夏時間が切り替わると 1 時間ずれていた。端末で存在しない時刻は `AppWallDate` が数字を持つ
  */
 export function toAppWall(instant: Date | string | number): Date {
   const ms = typeof instant === 'number' ? instant : new Date(instant).getTime()
   if (!needsShift() || !Number.isFinite(ms)) return new Date(ms)
   const u = new Date(wallAsUtcMs(appTimeZone(), ms))
   const millis = ((ms % 1000) + 1000) % 1000
-  return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(), u.getUTCHours(), u.getUTCMinutes(), u.getUTCSeconds(), millis)
+  return new AppWallDate(0).setWall([
+    u.getUTCFullYear(),
+    u.getUTCMonth(),
+    u.getUTCDate(),
+    u.getUTCHours(),
+    u.getUTCMinutes(),
+    u.getUTCSeconds(),
+    millis,
+  ])
 }
 
 /** `toAppWall` の逆。壁時計を表す Date → 本当の瞬間 */
