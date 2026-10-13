@@ -98,7 +98,7 @@ export function HabitsView() {
 
   return (
     <div className={PAGE_SCROLL_CLASS}>
-      <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
+      <div className="px-4 pt-4 pb-3 md:max-w-3xl md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
           <button
@@ -114,7 +114,8 @@ export function HabitsView() {
         </div>
       </div>
 
-      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
+      {/* PC の広い画面でも名前と丸が離れすぎないよう、幅に上限を付ける（左寄せは他の画面と同じ） */}
+      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:max-w-3xl md:px-6 md:pb-8">
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (

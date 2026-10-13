@@ -259,6 +259,7 @@ body {
  * - gc-mark: まだ（その色の細い輪）
  * - gc-mark-done: 達成（丸と同じ薄い塗り＋その色の輪。やった印だけは塗る）
  * - gc-mark-off: 時間外（その色の点線の輪、塗らない）
+ * - gc-mark-missed: 過ぎた予定の日でやらなかった（灰の細い輪。習慣の色を外すだけで、赤や × にはしない）
  * - gc-chip-on: 選んだチップ（その色の縁と文字）
  */
 .gc-mark {
@@ -271,6 +272,9 @@ body {
 }
 .dark .gc-mark-done {
   background-color: color-mix(in srgb, var(--c) 35%, var(--gc-surface));
+}
+.gc-mark-missed {
+  border: 1.5px solid color-mix(in srgb, var(--gc-ink) 16%, var(--gc-surface));
 }
 .gc-mark-off {
   border: 1.5px dashed var(--c);
