@@ -145,7 +145,7 @@ export function TodayPlannerView() {
   const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
   const showSuggestions = suggestionsChoice ?? dueByTomorrow
   const candidateView = useTaskStore((s) => s.plannerCandidateView)
-  const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef, shownSuggestions } = usePlannerSuggestions({
+  const { moreSuggestions, candidateGroups, dueGroups, hasMoreToShow, moreSentinelRef, shownSuggestions } = usePlannerSuggestions({
     tasks,
     dateKey,
     excludedListIds,
@@ -309,6 +309,7 @@ export function TodayPlannerView() {
             addAllTargets={shownSuggestions}
             pool={candidatePool}
             candidateGroups={candidateGroups}
+            dueGroups={dueGroups}
             open={showSuggestions}
             onToggle={() => setSuggestionsChoice(!showSuggestions)}
             hasMoreToShow={hasMoreToShow}

@@ -60,14 +60,19 @@ export function usePlannerSuggestions({
     return () => observer.disconnect()
   }, [showSuggestions, hasMoreToShow, moreShown])
 
-  // 候補（締切間近 → その先 → 日付なし…）を締切の日の見出しで分ける。行に「〜まで」を並べない
+  // 候補（締切間近 → その先 → 日付なし…）を締切の日の見出しで分ける。行に「〜まで」を並べない。
+  // 並べ直したときも「入りきらない」（#332）はこの締切ごとのまとまりで数える
+  const dueGroups = useMemo(
+    () => groupCandidatesByDue([...shownSuggestions, ...shownMore.slice(0, moreShown)], dateKey),
+    [shownSuggestions, shownMore, moreShown, dateKey],
+  )
   const candidateGroups = useMemo((): CandidateGroup[] => {
     if (sorted) {
       const shown = sorted.slice(0, moreShown + sortedPage - MORE_SUGGESTIONS_PAGE)
       return shown.length > 0 ? [{ kind: 'sorted', tasks: shown }] : []
     }
-    return groupCandidatesByDue([...shownSuggestions, ...shownMore.slice(0, moreShown)], dateKey)
-  }, [sorted, sortedPage, shownSuggestions, shownMore, moreShown, dateKey])
+    return dueGroups
+  }, [sorted, sortedPage, moreShown, dueGroups])
 
-  return { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef, shownSuggestions: sorted ? [] : shownSuggestions }
+  return { moreSuggestions, candidateGroups, dueGroups, hasMoreToShow, moreSentinelRef, shownSuggestions: sorted ? [] : shownSuggestions }
 }

@@ -169,6 +169,17 @@ const SCREENS = [
     click: OPEN_CANDIDATES,
     scrollToBottom: true,
   },
+  // 既定の優先度順では見出しを足さず、入りきらない締切の行の締切を赤く（#332）
+  {
+    name: 'planner-due-fit-priority',
+    view: 'planner',
+    state: {
+      dailyCapacityMinutes: 60,
+      plannerCandidateView: { sort: 'priority', listId: null, color: null, tag: null, priority: null, estimate: null },
+    },
+    click: 'button[aria-expanded]:has-text("To-Do から追加") >> visible=true',
+    scrollToBottom: true,
+  },
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {
