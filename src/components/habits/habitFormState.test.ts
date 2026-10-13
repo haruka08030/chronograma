@@ -109,3 +109,13 @@ describe('曜日ごとの時間', () => {
     expect(habitFromForm(f).weekdayTimes).toEqual(h.weekdayTimes)
   })
 })
+
+describe('時間の目標', () => {
+  it('空なら目標なし、1〜1440 の整数なら目標、それ以外は送れない', () => {
+    expect(habitFromForm(form({})).goalMinutes).toBeUndefined()
+    expect(habitFromForm(form({ goalMinutes: '30' })).goalMinutes).toBe(30)
+    expect(canSubmitHabitForm(form({ goalMinutes: '30' }))).toBe(true)
+    for (const bad of ['0', '1441', '2.5', 'x']) expect(canSubmitHabitForm(form({ goalMinutes: bad }))).toBe(false)
+    expect(habitFormFrom(habit({ goalMinutes: 45 })).goalMinutes).toBe('45')
+  })
+})

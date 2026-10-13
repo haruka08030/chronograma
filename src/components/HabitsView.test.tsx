@@ -132,3 +132,29 @@ describe('習慣の画面: 曜日ごとの時間', () => {
     expect(screen.getByText(/^Mon, Wed 18:00 – 19:00; Sat 10:00 – 11:00$/)).toBeInTheDocument()
   })
 })
+
+describe('習慣の画面: 時間の目標', () => {
+  it('一覧の行に「Daily · 30 min」と並べる', () => {
+    useTaskStore.setState({
+      selectedCalendarDateKey: appTodayKey(),
+      habits: [
+        {
+          id: 'v',
+          title: 'Vocab',
+          color: '#33B679',
+          timeMode: 'none',
+          startTime: null,
+          endTime: null,
+          frequency: { type: 'daily' },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+          goalMinutes: 30,
+        },
+      ],
+    })
+    render(<HabitsView />)
+    expect(screen.getByText('Daily · 30 min')).toBeInTheDocument()
+  })
+})

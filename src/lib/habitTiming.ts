@@ -153,14 +153,44 @@ export function habitRecordFor(index: HabitRecordIndex, habit: Habit, dateKey: s
   return habitRecordsFor(index, habit, dateKey)[0] ?? null
 }
 
-/** その日の習慣の記録を、目標に近い順に全部（チェックを外すときにまとめて消す） */
+/**
+ * その日の習慣の記録を、目標に近い順に全部（チェックを外すときにまとめて消す）。
+ * 時間を決めていない習慣は、時間の目標があるときだけ、その日に始めた記録
+ */
 export function habitRecordsFor(index: HabitRecordIndex, habit: Habit, dateKey: string): Task[] {
-  if (!isTimedHabit(habit)) return []
+  if (!isTimedHabit(habit)) return habit.goalMinutes ? goalSpans(index, habit, dateKey).map((s) => s.record) : []
   const byDrift = (list: Span[]) => list.sort((a, b) => drift(habit, dateKey, a) - drift(habit, dateKey, b)).map((s) => s.record)
   return [
     ...byDrift(candidates(index.active, linkKey(habit.id), habit, dateKey)),
     ...byDrift(candidates(index.active, titleKey(habit.title), habit, dateKey)),
   ]
+}
+
+/**
+ * 時間の目標に数える、その日の習慣の記録。時間を決めた習慣は判定と同じ目標の時間帯の前後のもの、
+ * 時間を決めていない習慣はその日に始めた記録（習慣につながった記録と、同じ名前の記録）
+ */
+function goalSpans(index: HabitRecordIndex, habit: Habit, dateKey: string): Span[] {
+  if (isTimedHabit(habit)) {
+    return [
+      ...candidates(index.active, linkKey(habit.id), habit, dateKey),
+      ...candidates(index.active, titleKey(habit.title), habit, dateKey),
+    ]
+  }
+  const day = dayNumber(dateKey)
+  return [...(index.active.get(`${linkKey(habit.id)}|${day}`) ?? []), ...(index.active.get(`${titleKey(habit.title)}|${day}`) ?? [])]
+}
+
+/** その日の習慣の記録の合計（分）。時間の目標の判定と「12/30 分」に使う */
+export function habitMinutesOn(index: HabitRecordIndex, habit: Habit, dateKey: string): number {
+  const seen = new Set<string>()
+  let total = 0
+  for (const span of goalSpans(index, habit, dateKey)) {
+    if (seen.has(span.record.id)) continue
+    seen.add(span.record.id)
+    total += span.end - span.start
+  }
+  return total
 }
 
 /** 記録が習慣の目標時刻を守れたか。範囲は開始・終了の両方、時刻ひとつは開始だけを ±15 分で見る */
@@ -174,8 +204,18 @@ function isOnTime(habit: Habit, dateKey: string, record: Task): boolean {
   return true
 }
 
+/**
+ * その日の結果。時間の目標のある習慣は、記録の合計が届いたら（チェックしていなくても）達成、届かなければ未達成
+ * （時刻のずれは見ない）。手でチェックした日は目標の無い習慣と同じく達成（記録を消した日は外れる）
+ */
 export function habitDayStatus(habit: Habit, dateKey: string, index?: HabitRecordIndex): HabitDayStatus {
   const checked = habit.completedDates.includes(dateKey)
+  if (index && habit.goalMinutes) {
+    const minutes = habitMinutesOn(index, habit, dateKey)
+    if (minutes >= habit.goalMinutes) return 'done'
+    if (!checked) return 'missed'
+    if (minutes > 0 || !isTimedHabit(habit)) return 'done'
+  }
   if (!index || !isTimedHabit(habit)) return checked ? 'done' : 'missed'
   const record = habitRecordFor(index, habit, dateKey)
   // 記録があればチェックしていなくても判定する（チェックし忘れた日、習慣を作る前の記録）
