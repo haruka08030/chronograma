@@ -755,6 +755,8 @@ export default {
     streakCountWeek_other: '{{count}} weeks',
     statStreak: 'Streak',
     statLongest: 'Longest',
+    trendTitle: 'Last {{weeks}} weeks',
+    trendRowAria: '{{title}} (last 4 weeks {{rate}})',
     statRate: 'Last {{weeks}} weeks',
     prevWeekAria: 'Previous week',
     nextWeekAria: 'Next week',

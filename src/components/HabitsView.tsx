@@ -16,6 +16,7 @@ import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { HabitComposer } from './habits/HabitComposer'
 import { HabitWeekTable } from './habits/HabitWeekTable'
+import { HabitTrend } from './habits/HabitTrend'
 import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
@@ -25,7 +26,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { usePresence } from '../hooks/usePresence'
 
 /**
- * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ アーカイブ。
+ * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ 直近 4 週（`HabitTrend`）→ アーカイブ。
  * 表の名前を押すと右から詳細（`HabitDetailSheet`: 連続・達成率・月のカレンダー・編集）
  */
 export function HabitsView() {
@@ -149,6 +150,10 @@ export function HabitsView() {
               addedId={addedId}
             />
           </section>
+        )}
+
+        {habits.length > 0 && (
+          <HabitTrend habits={habits} todayKey={todayKey} habitRecords={habitRecords} onOpen={(h) => openDetail(h.id)} />
         )}
 
         {archivedHabits.length > 0 && (
