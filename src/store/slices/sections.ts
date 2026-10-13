@@ -41,9 +41,11 @@ export function createSectionsSlice({ set, get, undo }: SliceContext): SectionsA
     deleteSection: (id) => {
       const name = get().sections.find((sec) => sec.id === id)?.name ?? ''
       pushUndo({ key: 'undo.sectionDeleted', params: { name } })
+      // 中のタスクはセクションを外すだけで `updatedAt` は変えない（#357）。サーバーではセクションを消すと外部キー（on delete set null）が
+      // 外すので、同期はその行を送らない（`pushListsTasksHabits`）。以前は中のタスクを全部書き直して送り、ほかの端末の編集とぶつかっていた
       return set((s) => ({
         sections: s.sections.filter((sec) => sec.id !== id),
-        tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null, updatedAt: new Date().toISOString() } : t)),
+        tasks: s.tasks.map((t) => (t.sectionId === id ? { ...t, sectionId: null } : t)),
       }))
     },
     reorderSections: (listId, orderedIds) => {

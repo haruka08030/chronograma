@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchLogLabels, pushLogLabels } from './supabaseData'
-import { pendingAddsAfterImport, planLabelSync, settledLabelAdds, type LabelSyncPlan, type RemoteLabels } from './labelSync'
+import {
+  labelBaseIds,
+  normalizeLabelBase,
+  pendingAddsAfterImport,
+  planLabelSync,
+  settledLabelAdds,
+  type LabelSyncPlan,
+  type RemoteLabels,
+} from './labelSync'
 import { loadSettingSyncedAt, runSettingSync, settingSyncStep } from './settingSync'
 
 type SettingsRow = { user_id: string; log_labels: unknown; updated_at: string; base_updated_at?: string | null }
@@ -82,9 +90,9 @@ async function sync(
     {
       key: 'labels',
       fetch: () => fetchLogLabels(sb, 'u1'),
-      plan: (remote, syncedAt, offset) => {
+      plan: (remote, syncedAt, offset, base) => {
         const p = planLabelSync(
-          { presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt },
+          { presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt, baseIds: normalizeLabelBase(base) },
           remote,
           new Date(d.clock).toISOString(),
           offset,
@@ -92,6 +100,7 @@ async function sync(
         onPlan?.(p)
         return p
       },
+      baseOf: (synced) => labelBaseIds(synced.labels, { presets: d.presets }),
       localUpdatedAt: () => d.updatedAt,
       applyLocal: (a) => {
         d.presets = a.presets
@@ -246,6 +255,26 @@ describe('ラベル表を 2 台で別々に変えたとき（#261）', () => {
     expect([...phone.presets].sort()).toEqual(names)
     expect([...pc.presets].sort()).toEqual(names)
   })
+
+  it('片方で消したラベルは、もう一方が別のラベルを足して送っても戻らない（#357）', async () => {
+    const { client, rows } = fakeSettings()
+    const phone = device(REAL, ['授業', 'バイト'])
+    const pc = device(REAL, ['授業', 'バイト'])
+    phone.edit(['授業', 'バイト'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    phone.clock += 1000
+    pc.clock += 2000
+    phone.edit(['授業'])
+    pc.edit(['授業', 'バイト', 'ゼミ'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    await sync(client, phone, 'phone')
+    const names = (rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)
+    expect(names).toEqual(['授業', 'ゼミ'])
+    expect(phone.presets).toEqual(names)
+    expect(pc.presets).toEqual(names)
+  })
 })
 
 describe('settingSyncStep', () => {
@@ -290,6 +319,7 @@ describe('取り込みで足したラベルは、ほかの端末のラベルの�
           offset,
         )
       },
+      baseOf: (synced) => labelBaseIds(synced.labels, { presets: d.presets }),
       localUpdatedAt: () => d.updatedAt,
       applyLocal: (a) => {
         d.presets = a.presets

@@ -53,7 +53,7 @@ import {
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
-import { planLabelSync, settledLabelAdds } from '../lib/labelSync'
+import { labelBaseIds, normalizeLabelBase, planLabelSync, settledLabelAdds } from '../lib/labelSync'
 import { fillLabelIds, labelIndex, relabelTasks, resolveIncomingLabels } from '../lib/labelIds'
 import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
@@ -236,7 +236,7 @@ export function useSupabaseSync() {
       syncSetting({
         key: 'labels',
         fetch: () => fetchLogLabels(supabase, userId),
-        plan: (remote, syncedAt, offset) => {
+        plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
           // 取り込みで足したラベルのうち、サーバーにある・手元で消したものはもう覚えない
           const settled = settledLabelAdds(st.logLabelPendingAdds, st.timeLogTagPresets, remote)
@@ -250,11 +250,17 @@ export function useSupabaseSync() {
               updatedAt: st.logLabelsUpdatedAt,
               syncedAt,
               pendingAdds: st.logLabelPendingAdds,
+              baseIds: normalizeLabelBase(base),
             },
             remote,
             undefined,
             offset,
           )
+        },
+        // 合わせた版の表のラベルの id を控える（両方で変えたとき、片方で消したラベルを戻さない、#357）
+        baseOf: (synced) => {
+          const st = useTaskStore.getState()
+          return labelBaseIds(synced.labels, { presets: st.timeLogTagPresets, ids: st.logLabelIds })
         },
         localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
         applyLocal: ({ presets, colors, targets, ids, updatedAt }) =>
