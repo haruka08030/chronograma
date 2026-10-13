@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { feedUrlProblem, parseFeedUrl } from './feedUrl.ts'
 
-const TOKEN = '3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6d7e8f901'
+const TOKEN = 'faketoken'
 
 describe('parseFeedUrl', () => {
   it('Canvas のカレンダーフィード', () => {
