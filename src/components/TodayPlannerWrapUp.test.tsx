@@ -107,3 +107,35 @@ describe('夜の締めの通知から開いたとき', () => {
     expect(screen.getByText('Today is wrapped up.')).toBeInTheDocument()
   })
 })
+
+describe('ラベルなしの記録（#390）', () => {
+  it('押すとラベルなしの記録を行で並べ、行のチップでその場で付ける（付けた行は残る）', async () => {
+    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+    at(18)
+    const log = (id: string, startTime: string, endTime: string, over: Partial<Task> = {}) =>
+      todo(id, { kind: 'log', dueDate: DAY, scheduledDate: null, startTime, endTime, completed: true, ...over })
+    useTaskStore.setState({
+      timeLogTagPresets: ['勉強', 'バイト'],
+      tasks: [
+        todo('a'),
+        log('読書', '09:00', '10:00'),
+        log('数学', '11:00', '12:00'),
+        log('英語', '13:00', '14:00', { category: '勉強', tags: ['勉強'] }),
+      ],
+    })
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /2 records without a label/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    act(() => toggle.click())
+    const list = document.querySelector('[data-untagged-logs]') as HTMLElement
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows.map((r) => within(r).getAllByRole('button')[0]!.textContent)).toEqual(['読書09:00–10:00', '数学11:00–12:00'])
+    act(() => within(rows[0]!).getByRole('radio', { name: 'バイト' }).click())
+    expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: 'バイト' })
+    // 付けた行も残り、選んだチップが見える。件数は残りの数
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(list).getByRole('radio', { name: 'バイト', checked: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /1 record without a label/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+})

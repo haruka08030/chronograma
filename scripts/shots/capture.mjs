@@ -100,6 +100,20 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
+  // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
+  {
+    name: 'planner-untagged',
+    view: 'planner',
+    at: '19:30',
+    click: 'button:has-text("ラベルなしの記録") >> visible=true',
+    scrollTo: '[data-wrap-up]',
+  },
+  {
+    name: 'settings-untagged',
+    view: 'settings',
+    click: 'button:has-text("直近 30 日でラベルなし") >> visible=true',
+    scrollTo: '[data-untagged-logs]',
+  },
   // 見出しの「予定 / 空き」で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「（超過）」を締切の色で）
   { name: 'planner-free-over', view: 'planner', state: { dailyCapacityMinutes: 120 } },
   // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
