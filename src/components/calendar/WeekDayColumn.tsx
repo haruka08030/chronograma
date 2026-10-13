@@ -71,6 +71,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   unscheduleHover,
   openCard,
   openGoogleCard,
+  openHabitCard,
   setCreateAnchorFromEl,
 }: {
   day: Date
@@ -120,6 +121,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   unscheduleHover: boolean
   openCard: (taskId: string, el?: Element | null) => void
   openGoogleCard: (eventId: string, el?: Element | null) => void
+  /** 習慣の枠のカード */
+  openHabitCard: (slotId: string, el?: Element | null) => void
   setCreateAnchorFromEl: (el: HTMLDivElement | null) => void
 }) {
   const { t } = useTranslation()
@@ -383,7 +386,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               }
               handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
             }}
-            onOpenDetail={() => {}}
+            // 済んだ枠は動かせないので押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
+            onTap={done ? () => openHabitCard(slot.id) : undefined}
+            onOpenDetail={() => openHabitCard(slot.id)}
             withCheck={done || hasStarted(slot.startTime)}
           />
           {(done || hasStarted(slot.startTime)) && (
