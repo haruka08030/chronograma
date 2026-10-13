@@ -719,6 +719,16 @@ export default {
     listActive: '{{count}} 未完了',
     listCompleted: '{{count}} 完了',
   },
+  feedback: {
+    title: 'お問い合わせ・フィードバック',
+    placeholder: '不具合・要望・質問など',
+    send: '送る',
+    sent: '送りました。ありがとうございます',
+    signInToSend: 'ログインすると送れます（返事はアカウントのメールアドレスに届きます）',
+    network: 'サーバーに接続できませんでした。もう一度お試しください',
+    rateLimited: '今日はもう送れません。しばらくしてからお試しください',
+    failed: '送れませんでした。もう一度お試しください',
+  },
   settings: {
     eventReminder: '予定の前',
     eventReminderOff: 'オフ',

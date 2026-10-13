@@ -26,6 +26,7 @@ import { askConfirm } from '../lib/confirmDialog'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { TimetableDialog } from './calendar/TimetableDialog'
+import { FeedbackRow } from './settings/FeedbackDialog'
 
 /**
  * 設定。上から アカウント → ラベル → 通知・計画 → 時間割 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
@@ -207,8 +208,9 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           <InstallAppSection />
         </SettingsGroup>
 
-        {/* 規約は読みに行くだけのものなので、見出しを立てず一番下に小さな行で置く */}
+        {/* 規約・問い合わせはたまにしか使わないので、見出しを立てず一番下に小さな行で置く。問い合わせの送り先は Supabase なので、無ければ出さない */}
         <SettingsGroup>
+          {isSupabaseConfigured && <FeedbackRow />}
           <SettingsLinkRow label={t('settings.privacyPolicy')} href="/privacy.html" />
           <SettingsLinkRow label={t('settings.terms')} href="/terms.html" />
         </SettingsGroup>

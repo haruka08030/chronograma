@@ -508,6 +508,18 @@ order by n desc
 limit 50;
 ```
 
+### お問い合わせ・フィードバック（`feedback`、`036`）
+
+設定の一番下の「お問い合わせ・フィードバック」（`components/settings/FeedbackDialog.tsx`、Supabase の設定が無ければ出さない）から 1 つの欄に書いて送る。送るのは `lib/feedback.ts` の `sendFeedback`（文面は前後の空白を除いて 2000 文字まで、アプリの版・ブラウザを付ける）。ログインしていなければ欄を出さず「ログインすると送れます」とだけ出す（表は authenticated の insert だけ、返事はアカウントのメールアドレスへ）。送れたら閉じて画面下で知らせ、送れなければ書いたものを残して理由（回線・送りすぎ・それ以外）をダイアログに出す。表は本人の行の insert だけで端末から読めない・変えられない。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、超えたら `feedback_rate_limited`）、アカウントの削除で消える。pgTAP は `016_feedback.test.sql`。SQL Editor で見る:
+
+```sql
+select f.created_at, u.email, f.message, f.app_version, f.user_agent
+from public.feedback f
+join auth.users u on u.id = f.user_id
+order by f.created_at desc
+limit 50;
+```
+
 ## 環境変数（`.env.example`）
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase

@@ -738,6 +738,16 @@ export default {
     listActive: '{{count}} open',
     listCompleted: '{{count}} done',
   },
+  feedback: {
+    title: 'Contact & feedback',
+    placeholder: 'Bugs, requests, questions…',
+    send: 'Send',
+    sent: 'Sent. Thank you',
+    signInToSend: 'Sign in to send (replies go to your account email)',
+    network: 'Could not reach the server. Please try again',
+    rateLimited: 'You cannot send more today. Please try again later',
+    failed: 'Could not send. Please try again',
+  },
   settings: {
     eventReminder: 'Before plans',
     eventReminderOff: 'Off',
