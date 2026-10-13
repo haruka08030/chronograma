@@ -7,6 +7,7 @@ import { MenuDivider, MenuItem, MenuLabel } from './Menu'
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../icons'
 import { isCancelEscape, isImeKeyEvent, isSubmitEnter } from '../../lib/keyboard'
 import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 /** 画面の端からはみ出さないための余白 */
 const EDGE = 8
@@ -120,6 +121,10 @@ export function ActionMenu({
   const [subActive, setSubActive] = useState(-1)
   const menuRef = useRef<HTMLDivElement>(null)
   const subRef = useRef<HTMLDivElement>(null)
+  // 閉じるとき縮みながら消える（シートは下へ。背景の幕は薄れる）
+  const menuExit = useExitGhost(menuRef)
+  const subExit = useExitGhost(subRef)
+  const backdropExit = useExitGhost()
   const subTimer = useRef(0)
   useDismiss({ open: true, onClose, inside: [menuRef, subRef] })
 
@@ -239,9 +244,9 @@ export function ActionMenu({
     // スマホ: 下からのシート。中のメニューは同じシートの中に出す
     return createPortal(
       <>
-        <div className="fixed inset-0 z-[69] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />
+        <div ref={backdropExit} className="fixed inset-0 z-[69] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />
         <div
-          ref={menuRef}
+          ref={menuExit}
           role="menu"
           tabIndex={-1}
           data-popover-keep
@@ -294,7 +299,7 @@ export function ActionMenu({
   return createPortal(
     <>
       <div
-        ref={menuRef}
+        ref={menuExit}
         role="menu"
         tabIndex={-1}
         data-popover-keep
@@ -368,7 +373,7 @@ export function ActionMenu({
       </div>
       {openedSub && !q && (
         <div
-          ref={subRef}
+          ref={subExit}
           role="menu"
           tabIndex={-1}
           data-popover-keep

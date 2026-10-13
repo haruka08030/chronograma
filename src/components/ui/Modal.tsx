@@ -4,6 +4,7 @@ import { dispatchHotkey, useEscapeLayer, useHotkey } from '../../hooks/useHotkey
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { FLOATING_SURFACE } from './surface'
 import { isCancelEscape } from '../../lib/keyboard'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 /**
  * 画面の中央に出すダイアログ（ラベル・色選択・完了＋記録・ショートカット一覧）。どれも同じ見た目にする。
@@ -43,6 +44,8 @@ export function Modal({
   placement?: 'center' | 'top'
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  // 閉じるとき、背景は薄れて面は縮みながら消える（呼び出し側が外しても）
+  const exitRef = useExitGhost()
   const layer = useEscapeLayer(onClose)
   useHotkey(closeKeys ?? [], onClose, { scope: layer, enabled: Boolean(closeKeys?.length) })
   const trapTab = useFocusTrap(ref, { initialFocus })
@@ -50,6 +53,7 @@ export function Modal({
   return createPortal(
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため・ダイアログのキーをまとめて受けるため
     <div
+      ref={exitRef}
       data-popover-keep
       className={`fixed inset-0 z-[80] flex animate-fade-in justify-center bg-black/30 p-4 dark:bg-black/50 ${
         placement === 'top' ? 'items-start pt-[12vh]' : 'items-center'

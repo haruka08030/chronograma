@@ -30,6 +30,7 @@ import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { colorVars } from '../lib/logCategoryColors'
 import { NAME_MAX_LENGTH } from '../lib/textLimits'
 import { compareByOrder } from '../lib/orderCompare'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -330,11 +331,12 @@ function SubNavRow({ label, selected, onClick }: { label: string; selected: bool
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(ref)
   useDismiss({ open: true, onClose, inside: [ref] })
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
     <div
-      ref={ref}
+      ref={exitRef}
       className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
       onClick={(e) => e.stopPropagation()}
       role="dialog"

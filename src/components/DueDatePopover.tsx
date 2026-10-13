@@ -5,6 +5,7 @@ import { useDismiss } from '../hooks/useDismiss'
 import { POPOVER_PANEL } from './ui/surface'
 import { DatePickerBody } from './DatePickerBody'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 /** パネルの大きさ（位置合わせ用。`w-[272px]` と 6 週の高さ） */
 const PANEL_WIDTH = 272
@@ -52,6 +53,7 @@ export function DueDatePopover({
   // ref ではなく state で持つ（描画中に渡す toggle から読むため）
   const [wrapperEl, setWrapperEl] = useState<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(panelRef)
   const dialogId = useId()
 
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, wrapperEl] })
@@ -112,7 +114,7 @@ export function DueDatePopover({
         createPortal(
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
           <div
-            ref={panelRef}
+            ref={exitRef}
             id={dialogId}
             // 開いている予定カードなどからは「内側」（押しても閉じない）
             data-popover-keep

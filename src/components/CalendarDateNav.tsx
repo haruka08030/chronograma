@@ -9,6 +9,7 @@ import { DatePickerBody } from './DatePickerBody'
 import { fromDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import type { CalendarMode } from '../store/storeTypes'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 type CalendarDateNavProps = {
   mode: CalendarMode
@@ -37,6 +38,7 @@ export function CalendarDateNav({
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(monthCursor))
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(panelRef)
   const listId = useId()
 
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, triggerRef] })
@@ -85,7 +87,7 @@ export function CalendarDateNav({
 
         {open && (
           <div
-            ref={panelRef}
+            ref={exitRef}
             id={listId}
             role="dialog"
             aria-label={t('calendarHub.miniPickerTitle')}
