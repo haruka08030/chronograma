@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 
@@ -48,6 +48,62 @@ describe('TaskItem', () => {
 
     expect(screen.queryByRole('checkbox', { name: 'Complete “Part-time job”' })).toBeNull()
     expect(screen.getByText('Part-time job')).toBeInTheDocument()
+  })
+})
+
+describe('TaskItem: 題名を押す（#378）', () => {
+  function RowWithClick({ id, onRowClick }: { id: string; onRowClick?: () => void }) {
+    const task = useTaskStore((s) => s.tasks.find((t) => t.id === id))
+    return task ? <TaskItem task={task} onRowClick={onRowClick} /> : null
+  }
+
+  it('題名を押すと行と同じ動き（詳細）で、名前の変更には入らない', async () => {
+    const task = addTask('Write report')
+    const onRowClick = vi.fn()
+    const user = userEvent.setup()
+    render(<RowWithClick id={task.id} onRowClick={onRowClick} />)
+
+    await user.click(screen.getByRole('button', { name: 'Write report' }))
+
+    await waitFor(() => expect(onRowClick).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('textbox', { name: 'Edit title' })).toBeNull()
+  })
+
+  it('PC は題名のダブルクリックで名前の変更（詳細は開かない）', async () => {
+    const task = addTask('Write report')
+    const onRowClick = vi.fn()
+    const user = userEvent.setup()
+    render(<RowWithClick id={task.id} onRowClick={onRowClick} />)
+
+    await user.dblClick(screen.getByRole('button', { name: 'Write report' }))
+    const input = screen.getByRole('textbox', { name: 'Edit title' })
+    await user.clear(input)
+    await user.type(input, 'Write essay{Enter}')
+
+    expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.title).toBe('Write essay')
+    await new Promise((r) => setTimeout(r, 300))
+    expect(onRowClick).not.toHaveBeenCalled()
+  })
+
+  it('題名にフォーカスして F2 で名前の変更', async () => {
+    const task = addTask('Write report')
+    const user = userEvent.setup()
+    render(<RowWithClick id={task.id} onRowClick={() => {}} />)
+
+    screen.getByRole('button', { name: 'Write report' }).focus()
+    await user.keyboard('{F2}')
+
+    expect(screen.getByRole('textbox', { name: 'Edit title' })).toHaveValue('Write report')
+  })
+
+  it('行に動きが無い所（詳細のサブタスク）は題名を押すと名前の変更', async () => {
+    const task = addTask('Step 1')
+    const user = userEvent.setup()
+    render(<Row id={task.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Step 1' }))
+
+    expect(screen.getByRole('textbox', { name: 'Edit title' })).toBeInTheDocument()
   })
 })
 
