@@ -59,6 +59,13 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/** 保存データ・同期・バックアップの休みの日を読む。読めない日は捨てて並べ直し、1 日も無ければ undefined */
+export function readHabitRestDates(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const dates = [...new Set(raw.filter((d): d is string => typeof d === 'string' && OVERRIDE_DATE_RE.test(d)))].sort()
+  return dates.length > 0 ? dates : undefined
+}
+
 export interface Habit {
   id: string
   title: string
@@ -75,6 +82,16 @@ export interface Habit {
   archivedAt: string | null
   /** 日ごとの時間（タイムラインで枠を動かした日だけ）。無い日は上の時間。1 日も無ければ項目ごと無い */
   timeOverrides?: HabitTimeOverrides
+  /**
+   * 休みの日（yyyy-MM-dd、古い順）。予定の日に数えない（連続は止まらず数えもしない。達成率・週のふりかえりの分母から外れる）。
+   * 1 日も無ければ項目ごと無い
+   */
+  restDates?: string[]
+}
+
+/** その日を休みにした習慣か */
+export function isHabitRestOn(habit: Pick<Habit, 'restDates'>, dateKey: string): boolean {
+  return habit.restDates?.includes(dateKey) ?? false
 }
 
 /** 使用中か（アーカイブしていない）。古いデータで項目が無いものも使用中 */

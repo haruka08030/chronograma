@@ -27,6 +27,8 @@ export interface SyncBaseline {
    * （スマホで月曜・PC で火曜にチェックしたとき、どちらも残す）。古い控えには無い
    */
   habitDates?: Record<string, string[]>
+  /** 前回同期した時点の習慣ごとの休みの日（休みのある習慣だけ）。達成日と同じく日ごとに合わせる。古い控えには無い */
+  habitRestDates?: Record<string, string[]>
   /**
    * 前回同期した時点のタスクごとのタグ（タグのあるタスクだけ）。タグも集合として合わせる
    * （片方で足し、片方で外したとき、どちらも残す）。古い控えには無い
@@ -293,20 +295,66 @@ export function mergeHabitDates(
   baseDates: Record<string, string[]> | undefined,
   nowIso: string = new Date().toISOString(),
 ): Habit[] {
+  return mergeHabitDateSets(
+    merged,
+    local,
+    remote,
+    (h) => h.completedDates,
+    baseDates,
+    nowIso,
+    (h, completedDates) => ({ ...h, completedDates }),
+  )
+}
+
+/**
+ * 習慣の休みの日を、達成日と同じく日ごとに三方向で合わせる（スマホで試験期間・PC で帰省を休みにしたとき、どちらも残す）。
+ * 控えが無い（古い控え・前回は休みが無かった）なら両方を合わせる。1 日も残らなければ項目ごと外す
+ */
+export function mergeHabitRestDates(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  baseDates: Record<string, string[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Habit[] {
+  return mergeHabitDateSets(
+    merged,
+    local,
+    remote,
+    (h) => h.restDates ?? [],
+    baseDates,
+    nowIso,
+    (h, restDates) => {
+      const out: Habit = { ...h, restDates }
+      if (restDates.length === 0) delete out.restDates
+      return out
+    },
+  )
+}
+
+function mergeHabitDateSets(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  datesOf: (h: Habit) => readonly string[],
+  baseDates: Record<string, string[]> | undefined,
+  nowIso: string,
+  withDates: (h: Habit, dates: string[]) => Habit,
+): Habit[] {
   const localById = new Map(local.map((h) => [h.id, h]))
   const remoteById = new Map(remote.map((h) => [h.id, h]))
   return merged.map((h) => {
     const l = localById.get(h.id)
     const r = remoteById.get(h.id)
     if (!l || !r) return h
-    const ld = new Set(l.completedDates)
-    const rd = new Set(r.completedDates)
+    const ld = new Set(datesOf(l))
+    const rd = new Set(datesOf(r))
     const base = baseDates?.[h.id]
     const baseSet = base ? new Set(base) : null
     const dates = [...new Set([...ld, ...rd])].filter((d) => !(baseSet?.has(d) && (!ld.has(d) || !rd.has(d)))).sort()
-    const current = [...h.completedDates].sort()
+    const current = [...datesOf(h)].sort()
     const same = dates.length === current.length && dates.every((d, i) => d === current[i])
-    return same ? h : { ...h, completedDates: dates, updatedAt: nowIso }
+    return same ? h : { ...withDates(h, dates), updatedAt: nowIso }
   })
 }
 
@@ -325,11 +373,13 @@ export function mergeSnapshots(
   const f = baseline.fields?.tasks ? { ...baseline.fields, tasks: withTaskKindField(baseline.fields.tasks) } : baseline.fields
   const off = baseline.clockOffsetMs ?? 0
   const conflicts: MergeConflictCounts = {}
-  const count = (kind: SyncKind, skip?: string) => (field: string) => {
-    if (field === skip) return
-    const key = `${kind}.${field}`
-    conflicts[key] = (conflicts[key] ?? 0) + 1
-  }
+  const count =
+    (kind: SyncKind, ...skip: (string | undefined)[]) =>
+    (field: string) => {
+      if (skip.includes(field)) return
+      const key = `${kind}.${field}`
+      conflicts[key] = (conflicts[key] ?? 0) + 1
+    }
   const nowIso = new Date().toISOString()
   const asIs = <T>(x: T) => x
   const lists = mergeKind(
@@ -376,9 +426,10 @@ export function mergeSnapshots(
     off,
     asIs,
     nowIso,
-    count('habits', 'completedDates'),
+    count('habits', 'completedDates', 'restDates'),
   )
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
+  habits.merged = mergeHabitRestDates(habits.merged, local.habits, remote.habits, baseline.habitRestDates, nowIso)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
   const listIds = new Set(lists.merged.map((l) => l.id))
@@ -471,6 +522,7 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
     habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
+    habitRestDates: Object.fromEntries(s.habits.filter((h) => h.restDates).map((h) => [h.id, [...h.restDates!]])),
     taskTags: Object.fromEntries(s.tasks.filter((t) => t.tags.length > 0).map((t) => [t.id, [...t.tags]])),
     fields: {
       lists: fieldsBaseline(s.lists),

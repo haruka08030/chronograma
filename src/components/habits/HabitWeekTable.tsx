@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import type { Habit } from '../../types/habit'
-import { habitStreak, isHabitCountedOnDate } from '../../lib/habitStats'
-import { habitWeekDoneCount, isHabitDueOnDate } from '../../lib/habitSchedule'
+import { isHabitRestOn, type Habit } from '../../types/habit'
+import { habitLongestStreak, habitStreak, isHabitCountedOnDate } from '../../lib/habitStats'
+import { habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../lib/habitSchedule'
 import { habitDayStatus, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -107,16 +107,20 @@ function HabitWeekRow({
   const df = useDateFormat()
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const goalText = useHabitGoalText(h)
-  // 右端: 週に◯回は見ている週の回数、ほかは今の連続（0 のときは出さない）
+  // 右端: 週に◯回は見ている週の回数（休みの日を除いた日数まで。まるごと休みの週は出さない）、
+  // ほかは今の連続。途切れたら最長を残す（どちらも 0 なら出さない）
   const tail =
     h.frequency.type === 'timesPerWeek'
-      ? t('habits.weekCountValue', {
-          done: Math.min(habitWeekDoneCount(h, weekDates[0], habitRecords), h.frequency.count),
-          count: h.frequency.count,
-        })
+      ? (() => {
+          const count = habitWeekRequired(h, weekDates[0])
+          if (count === 0) return null
+          return t('habits.weekCountValue', { done: Math.min(habitWeekDoneCount(h, weekDates[0], habitRecords), count), count })
+        })()
       : (() => {
           const streak = habitStreak(h, habitRecords)
-          return streak.count > 0 ? t('habits.streakValueDay', { count: streak.count }) : null
+          if (streak.count > 0) return t('habits.streakValueDay', { count: streak.count })
+          const longest = habitLongestStreak(h, habitRecords)
+          return longest.count > 0 ? t('habits.longestValueDay', { count: longest.count }) : null
         })()
 
   return (
@@ -139,6 +143,7 @@ function HabitWeekRow({
           const status = habitDayStatus(h, key, habitRecords)
           const isDone = status === 'done'
           const isOffTime = status === 'offTime'
+          const isRest = isHabitRestOn(h, key)
           // 予定の日（作る前の日・週の回数を満たした週の残りの日は除く）だけ輪を出し、ほかは小さな点
           const isDue = isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
           const isFuture = key > todayKey
@@ -148,12 +153,15 @@ function HabitWeekRow({
             ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
             : isDone
               ? t('habits.cellDoneAria', { date: cellDate })
-              : cellDate
+              : isRest
+                ? t('habits.restDayAria', { date: cellDate })
+                : cellDate
           return (
             <button
               key={key}
               type="button"
               onClick={() => toggleHabitDate(h.id, key)}
+              data-habit-day={key}
               aria-label={cellLabel}
               aria-pressed={isDone || isOffTime}
               className="group/cell flex h-10 items-center justify-center"

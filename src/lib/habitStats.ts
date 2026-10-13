@@ -1,6 +1,6 @@
 import { addDays, addWeeks, startOfWeek, subDays, subWeeks } from 'date-fns'
-import { isHabitActive, type Habit } from '../types/habit'
-import { habitWeekDates, habitWeekDoneCount, isHabitScheduledOnDate } from './habitSchedule'
+import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
+import { habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appDayKeyOf, appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -12,6 +12,11 @@ const STREAK_MAX_WEEKS = 200
 /** 達成率・連続日数に数える日か。時間を決めた習慣は時間どおりの日だけ（`records` を渡したとき） */
 function achieved(h: Habit, key: string, records?: HabitRecordIndex): boolean {
   return habitDayStatus(h, key, records) === 'done'
+}
+
+/** 連続に数える日か。休みの日は、やっていても数えない（止めもしない） */
+function achievedForStreak(h: Habit, key: string, records?: HabitRecordIndex): boolean {
+  return !isHabitRestOn(h, key) && achieved(h, key, records)
 }
 
 const isTimesPerWeek = (h: Habit) => h.frequency.type === 'timesPerWeek'
@@ -32,7 +37,8 @@ export const HABIT_RATE_WEEKS = 4
 /**
  * 習慣ひとつの直近 `weeks` 週の達成率（%）。数える日が無ければ null（作ったばかりで今日まだなど）。
  * 毎日・曜日指定は日で数え、今日はまだ終わっていないので記録した（達成・時間外）ときだけ数える。
- * 週に◯回は週ごとに◯回のうち何回か（`timesPerWeekTally`）。作った週より前の週は、やった回が無ければ数えない
+ * 週に◯回は週ごとに◯回のうち何回か（`timesPerWeekTally`）。作った週より前の週は、やった回が無ければ数えない。
+ * 休みの日は数えない（`isHabitScheduledOnDate`）
  */
 export function habitRecentRate(h: Habit, records?: HabitRecordIndex, weeks: number = HABIT_RATE_WEEKS): number | null {
   if (!isHabitActive(h)) return null
@@ -68,7 +74,8 @@ export function habitRecentRate(h: Habit, records?: HabitRecordIndex, weeks: num
 /**
  * 週に◯回の習慣の、ある週の達成率の分子・分母（週のふりかえり）。
  * まだ終わっていない週は、残りの日（今日が未記録なら今日も）でまだ取り返せる回数を分母に入れない
- * （月曜の時点で 0/3 に見せない）。`todayKey` より後の日は数えない
+ * （月曜の時点で 0/3 に見せない）。`todayKey` より後の日は数えない。
+ * 休みの日は回数にも残りの日にも数えず、求める回数は休みを除いた日数まで（`habitWeekRequired`）
  */
 export function timesPerWeekTally(
   habit: Habit,
@@ -77,11 +84,12 @@ export function timesPerWeekTally(
   records?: HabitRecordIndex,
 ): { expected: number; completed: number } {
   if (habit.frequency.type !== 'timesPerWeek') return { expected: 0, completed: 0 }
-  const count = habit.frequency.count
+  const count = habitWeekRequired(habit, weekAnchor)
   let done = 0
   let open = 0
   for (const d of habitWeekDates(weekAnchor)) {
     const key = toDateKey(d)
+    if (isHabitRestOn(habit, key)) continue
     if (key > todayKey) open++
     else if (achieved(habit, key, records)) done++
     else if (key === todayKey && habitDayStatus(habit, key, records) === 'missed') open++
@@ -93,14 +101,25 @@ export function timesPerWeekTally(
 /** 連続の数と単位。週に◯回の習慣は「回数を満たした週」で数える */
 export type HabitStreak = { count: number; unit: 'day' | 'week' }
 
-/** 週に◯回の習慣で、回数を満たした週が続く数。今週はまだ満たしていなければ先週から数える */
+/**
+ * 週に◯回の習慣で、その週が回数を満たしたか。まるごと休みの週は null（止めも数えもしない）。
+ * 求める回数は休みを除いた日数まで（`habitWeekRequired`）
+ */
+function weekMet(h: Habit, anchor: Date, records?: HabitRecordIndex): boolean | null {
+  const required = habitWeekRequired(h, anchor)
+  if (required === 0) return null
+  return habitWeekDoneCount(h, anchor, records) >= required
+}
+
+/** 週に◯回の習慣で、回数を満たした週が続く数。今週はまだ満たしていなければ先週から数える。休みの週は飛ばす */
 function weekStreak(h: Habit, records?: HabitRecordIndex): number {
   if (h.frequency.type !== 'timesPerWeek') return 0
-  const count = h.frequency.count
-  const met = (i: number) => habitWeekDoneCount(h, subWeeks(appToday(), i), records) >= count
+  const met = (i: number) => weekMet(h, subWeeks(appToday(), i), records)
   let streak = 0
   for (let i = met(0) ? 0 : 1; i < STREAK_MAX_WEEKS; i++) {
-    if (!met(i)) break
+    const m = met(i)
+    if (m === null) continue
+    if (!m) break
     streak++
   }
   return streak
@@ -117,7 +136,7 @@ export function habitStreak(h: Habit, records?: HabitRecordIndex): HabitStreak {
 
 /**
  * いずれかの習慣で達成した日が続く日数。今日まだなら昨日から数える（今日の途中で 0 日に見せない）。
- * 毎日・曜日を指定した習慣のどれにも予定の無い日は、何も達成していなくても途切れない（数えもしない）。
+ * 毎日・曜日を指定した習慣のどれにも予定の無い日（休みの日を含む）は、何も達成していなくても途切れない（数えもしない）。
  * 週に◯回の習慣は日ごとの予定が無いので、達成した日だけ数える
  */
 export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): number {
@@ -129,7 +148,7 @@ export function currentStreakDays(habits: Habit[], records?: HabitRecordIndex): 
   for (let i = 0; i < STREAK_MAX_DAYS; i++) {
     const d = addDays(today, -i)
     const key = toDateKey(d)
-    if (habits.some((h) => achieved(h, key, records))) {
+    if (habits.some((h) => achievedForStreak(h, key, records))) {
       streak++
       continue
     }
@@ -149,7 +168,7 @@ function streakStartKey(h: Habit): string {
 
 /**
  * 習慣ひとつのいちばん長かった連続（今の連続も含む）。数え方は `habitStreak` と同じ:
- * 毎日・曜日指定は予定の日にやらなかったら途切れ（予定の無い日・今日の未記録では途切れない）、週に◯回は回数を満たした週
+ * 毎日・曜日指定は予定の日にやらなかったら途切れ（予定の無い日・休みの日・今日の未記録では途切れない）、週に◯回は回数を満たした週
  */
 export function habitLongestStreak(h: Habit, records?: HabitRecordIndex): HabitStreak {
   const today = appToday()
@@ -158,10 +177,11 @@ export function habitLongestStreak(h: Habit, records?: HabitRecordIndex): HabitS
   let run = 0
   let best = 0
   if (h.frequency.type === 'timesPerWeek') {
-    const count = h.frequency.count
     const thisWeek = toDateKey(habitWeekDates(today)[0])
     for (let w = startOfWeek(start, { weekStartsOn: 1 }); toDateKey(w) <= thisWeek; w = addWeeks(w, 1)) {
-      if (habitWeekDoneCount(h, w, records) >= count) best = Math.max(best, ++run)
+      const met = weekMet(h, w, records)
+      if (met === null) continue
+      if (met) best = Math.max(best, ++run)
       // 今週はまだ途中なので、満たしていなくても途切れさせない
       else if (toDateKey(w) !== thisWeek) run = 0
     }
@@ -169,7 +189,7 @@ export function habitLongestStreak(h: Habit, records?: HabitRecordIndex): HabitS
   }
   for (let d = start; toDateKey(d) <= todayKey; d = addDays(d, 1)) {
     const key = toDateKey(d)
-    if (achieved(h, key, records)) best = Math.max(best, ++run)
+    if (achievedForStreak(h, key, records)) best = Math.max(best, ++run)
     else if (key !== todayKey && isHabitScheduledOnDate(h, d)) run = 0
   }
   return { count: best, unit: 'day' }

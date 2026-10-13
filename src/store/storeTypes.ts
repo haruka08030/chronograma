@@ -290,6 +290,11 @@ export interface TaskState {
    * 時刻ひとつの習慣は `endTime` を見ない
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /**
+   * `from`〜`to`（yyyy-MM-dd、両端を含む）を休みにする（`rest: false` で外す）。休みの日は予定の日に数えない。
+   * 「元に戻す」付きのトースト
+   */
+  setHabitRest: (id: string, from: string, to: string, rest: boolean) => void
   deleteHabit: (id: string) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void

@@ -72,6 +72,8 @@ const SEED_CLASSES = [
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
+/** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
+const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") [data-habit-day] >> nth=2'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
@@ -386,6 +388,25 @@ const SCREENS = [
   },
   // 習慣の行を右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
   { name: 'habits-menu', view: 'habits', rightClick: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ")' },
+  // 習慣の日のマス（水曜）を右クリック（スマホは長押し）して「休む ›」を開いたところ（この日だけ・カレンダーで選んだ日まで）と、
+  // 「この日だけ」で休みにした週の表（休みの日は予定の無い日と同じ点）。
+  // スマホ幅は撮らない（撮影の指の長押しでは、指を離したときのクリックでメニューが閉じる。行の長押しも同じ）
+  {
+    name: 'habits-rest-menu',
+    view: 'habits',
+    desktopOnly: true,
+    steps: [{ rightClick: HABIT_TOMORROW }, { click: '[role=menu] [role=menuitem]:has-text("休む") >> visible=true' }],
+  },
+  {
+    name: 'habits-rest',
+    view: 'habits',
+    desktopOnly: true,
+    steps: [
+      { rightClick: HABIT_TOMORROW },
+      { click: '[role=menu] [role=menuitem]:has-text("休む") >> visible=true' },
+      { click: '[role=menuitem]:has-text("この日だけ") >> visible=true' },
+    ],
+  },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {
