@@ -1,12 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
+import { savedState } from './savedData'
 
 /** 端末に保存したタスク（zustand の persist の保存内容） */
 async function savedTasks(page: Page) {
-  return page.evaluate(() => {
-    const raw = localStorage.getItem('chronograma-storage')
-    const tasks = raw ? (JSON.parse(raw).state.tasks as { title: string; completed: boolean }[]) : []
-    return tasks.map(({ title, completed }) => ({ title, completed }))
-  })
+  const tasks = ((await savedState(page))?.tasks ?? []) as { title: string; completed: boolean }[]
+  return tasks.map(({ title, completed }) => ({ title, completed }))
 }
 
 test('To-Do でタスクを足して完了にし、読み込み直しても残っている', async ({ page }) => {

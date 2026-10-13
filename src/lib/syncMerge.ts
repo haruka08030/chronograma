@@ -5,6 +5,7 @@ import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { BUILTIN_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
+import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
 
@@ -547,25 +548,21 @@ export function adoptServerStamps(current: SyncSnapshot, pushed: SyncSnapshot, s
   return out
 }
 
-const baselineKey = (userId: string) => `chronograma-sync-baseline-v1:${userId}`
+const baselineKey = (userId: string) => `${BASELINE_KEY_PREFIX}${userId}`
 
 export function loadBaseline(userId: string): SyncBaseline | null {
   try {
-    const raw = localStorage.getItem(baselineKey(userId))
+    const raw = readStored(baselineKey(userId))
     return raw ? (JSON.parse(raw) as SyncBaseline) : null
   } catch {
     return null
   }
 }
 
-/** この端末で、ほかの人として同期したことがあるか（前回同期の控えが残っているか） */
+/** この端末で、ほかの人として同期したことがあるか（前回同期の控えが残っているか。控えと同じ置き場所を見る） */
 export function hasOtherUsersBaseline(userId: string): boolean {
   try {
-    const prefix = baselineKey('')
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(prefix) && key !== baselineKey(userId)) return true
-    }
+    return storedKeys().some((key) => key.startsWith(BASELINE_KEY_PREFIX) && key !== baselineKey(userId))
   } catch {
     /* 読めなければ、無いものとして扱う */
   }
@@ -574,7 +571,7 @@ export function hasOtherUsersBaseline(userId: string): boolean {
 
 export function clearBaseline(userId: string) {
   try {
-    localStorage.removeItem(baselineKey(userId))
+    writeStored(baselineKey(userId), null)
   } catch {
     /* ignore */
   }
@@ -583,11 +580,19 @@ export function clearBaseline(userId: string) {
 /**
  * 前回同期の控えを保存し、保存できたかを返す。保存できなければ前の控えを消す
  * （古い控えが残ると、それより後に合わせた項目を「この端末で変えた」と読み、他の端末の新しい値を上書きしていた）。
- * 控えが無ければ次の同期は初回と同じ、両方を残す合わせ方になる
+ * 控えが無ければ次の同期は初回と同じ、両方を残す合わせ方になる。
+ * IndexedDB では書けたかが後から分かる（同じタスクの間に書いた本体と 1 つのトランザクション）。そのときは true を返し、
+ * 書けなかったら控えを消して `onLaterFailure` を呼ぶ
  */
-export function saveBaseline(userId: string, baseline: SyncBaseline): boolean {
+export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFailure?: (err: unknown) => void): boolean {
   try {
-    localStorage.setItem(baselineKey(userId), JSON.stringify(baseline))
+    writeStored(baselineKey(userId), JSON.stringify(baseline), {
+      onError: (err) => {
+        console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
+        clearBaseline(userId)
+        onLaterFailure?.(err)
+      },
+    })
     return true
   } catch (err) {
     console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)

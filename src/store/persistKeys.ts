@@ -3,7 +3,7 @@ import type { TaskState } from './storeTypes'
 /**
  * ストアの値をどこに保存するか（新しい値を足したら必ずどれかに入れる。`persistKeys.test.ts` が確かめる）。
  *
- * - DATA: データと設定。localStorage の本体（`chronograma-tasks`）に保存し、他のタブとも共有する
+ * - DATA: データと設定。本体（`chronograma-storage`。IndexedDB、使えない端末は localStorage、`lib/dataStore.ts`）に保存し、他のタブとも共有する
  * - VIEW: 開いていた画面・並び順などの好み。小さな別の保存先（`chronograma-view-v1`）に。
  *   画面を切り替えるたびに全データを書き直さない・他のタブに読み直させないため
  * - TRANSIENT: 保存しない（通知・同期の状態・選んだ日など、開き直したら最初からでよいもの）

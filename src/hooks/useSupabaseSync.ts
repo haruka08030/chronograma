@@ -441,7 +441,9 @@ export function useSupabaseSync() {
           reportSyncError('baseline', 'skipped while local storage is full')
         } else if (
           // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
-          !saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
+          !saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs }, (err) =>
+            reportSyncError('baseline', err),
+          )
         ) {
           reportSyncError('baseline', 'could not save the baseline')
         }
