@@ -40,3 +40,13 @@ describe('TaskDetail（キー操作・読み上げ）', () => {
     expect(screen.getByRole('button', { name: 'Add notes…' })).toBeInTheDocument()
   })
 })
+
+describe('TaskDetail の並び（#380）', () => {
+  it('題名 → 実行日 → 締切 → 見積もり → 優先度 → 場所 → メモ', () => {
+    const { container } = renderDetail()
+    const text = container.textContent ?? ''
+    const order = ['Buy milk', 'Do date', 'Deadline', 'Estimate', 'Priority', 'Location', 'Add notes…'].map((s) => text.indexOf(s))
+    expect(order.every((i) => i >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+  })
+})
