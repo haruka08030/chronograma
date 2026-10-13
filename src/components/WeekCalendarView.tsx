@@ -203,14 +203,15 @@ export function WeekCalendarView({
   }, [])
 
   const cards = useCalendarCards(gridRef)
-  const { setEventCard, openCard, setGoogleCard, openGoogleCard, createAnchor, setCreateAnchorFromEl } = cards
+  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
 
   /**
    * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
-   * 習慣の枠なども同じ属性を持つので、メニューを出せるもの（タスク・Google の予定）のときだけ開いて true
+   * 習慣の枠は習慣の画面と同じメニュー。メニューを出せるもの（タスク・Google の予定・習慣の枠）のときだけ開いて true
    */
   const openBlockMenu = useCallback(
     (id: string, x: number, y: number): boolean => {
+      if (openHabitMenu(id, x, y)) return true
       const { tasks, calendarEvents } = useTaskStore.getState()
       const known = id.startsWith('event-')
         ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
@@ -223,7 +224,7 @@ export function WeekCalendarView({
       )
       return true
     },
-    [setEventCard, setGoogleCard],
+    [setEventCard, setGoogleCard, openHabitMenu],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -246,11 +247,11 @@ export function WeekCalendarView({
     onResizeDone,
     onBlockTap: useCallback(
       (taskId: string) => {
-        if (parseHabitSlotId(taskId)) return
-        if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
+        if (parseHabitSlotId(taskId)) openHabitCard(taskId)
+        else if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
         else openCard(taskId)
       },
-      [openCard, openGoogleCard],
+      [openCard, openGoogleCard, openHabitCard],
     ),
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
@@ -470,6 +471,7 @@ export function WeekCalendarView({
     unscheduleHover,
     openCard,
     openGoogleCard,
+    openHabitCard,
     setCreateAnchorFromEl,
   }
 

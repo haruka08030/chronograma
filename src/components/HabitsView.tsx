@@ -12,6 +12,7 @@ import { EmptyState } from './ui/EmptyState'
 import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
+import { useHabitEditRequest } from '../lib/habitEditRequest'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { HabitComposer } from './habits/HabitComposer'
@@ -54,6 +55,8 @@ export function HabitsView() {
     setDetail((prev) => ({ habitId, edit, seq: (prev?.seq ?? 0) + 1 }))
   }, [])
   const closeDetail = useCallback(() => setDetail(null), [])
+  // タイムラインの習慣のカード・メニューの「編集」
+  useHabitEditRequest((habitId) => openDetail(habitId, true))
   // 消した・アーカイブした習慣の詳細は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
   const detailHabit = detail ? (habits.find((h) => h.id === detail.habitId) ?? null) : null
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])

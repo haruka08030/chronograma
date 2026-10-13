@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -308,5 +308,49 @@ describe('WeekCalendarView: C で作成カード', () => {
   it('今日の計画（1 日表示）では登録しない（今日の追加欄へ）', () => {
     render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
     expect(hasQuickAddTarget()).toBe(false)
+  })
+})
+
+describe('WeekCalendarView: 習慣の枠', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** 今は 10/7 16:00。毎日 7:00–7:30 の Run（10/7 は始まっている） */
+  function seedHabit() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Run',
+      color: '#0B8043',
+      timeMode: 'range',
+      startTime: '07:00',
+      endTime: '07:30',
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const block = () => view.container.querySelector<HTMLElement>(`[data-datekey="2026-10-07"] [data-block-id^="habit-slot::"]`)!
+    return { id, block }
+  }
+
+  it('押すと小さなカードが開き、✓ で予定どおり達成になる', async () => {
+    const { id, block } = seedHabit()
+    fireEvent.keyDown(block(), { key: 'Enter' })
+    const card = await screen.findByRole('dialog', { name: 'Run' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Done as planned (log it)' }))
+    expect(useTaskStore.getState().tasks.some((t) => t.habitId === id && t.startTime === '07:00')).toBe(true)
+    // 済んだ枠も押すとカード（取り消しが出る）
+    fireEvent.click(block())
+    const again = await screen.findByRole('dialog', { name: 'Run' })
+    expect(within(again).getByRole('button', { name: 'Mark as not done' })).toBeInTheDocument()
+  })
+
+  it('右クリックで習慣のメニュー', () => {
+    const { block } = seedHabit()
+    fireEvent.contextMenu(block(), { clientX: 100, clientY: 100 })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 })
