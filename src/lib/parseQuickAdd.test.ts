@@ -139,6 +139,14 @@ describe('時刻と長さ', () => {
     expect(r.estimateMinutes).toBe(120)
   })
 
+  it('24 時間を超える長さの見積もりは 1440 分（1 日）で止める', () => {
+    expect(ja('勉強 30時間')).toMatchObject({ title: '勉強', estimateMinutes: 1440 })
+    expect(ja('ES 2000分')).toMatchObject({ title: 'ES', estimateMinutes: 1440 })
+    expect(en('read 48h')).toMatchObject({ title: 'read', estimateMinutes: 1440 })
+    expect(ja('勉強 24時間')).toMatchObject({ estimateMinutes: 1440 })
+    expect(ja('勉強 0分').estimateMinutes).toBeNull()
+  })
+
   it('素の数字だけの範囲は時刻と断定しない', () => {
     const r = en('read 3-4')
     expect(r.startTime).toBeNull()
@@ -649,5 +657,178 @@ describe('過ぎた月日・年・あり得ない時刻・日をまたぐ範囲�
     expect(ja6('バイト 22時-24時')).toMatchObject({ title: 'バイト', startTime: '22:00', endTime: '23:59' })
     expect(ja6('バイト 22:00-24:00')).toMatchObject({ title: 'バイト', startTime: '22:00', endTime: '23:59' })
     expect(ja6('バイト 22-24')).toMatchObject({ title: 'バイト', startTime: '22:00', endTime: '23:59' })
+  })
+})
+
+describe('英語の題名の語を曜日・月日と取り違えない（2026-10-06 火曜）', () => {
+  const OCT6 = new Date(2026, 9, 6, 10, 0, 0)
+  const en6 = (raw: string) => parseQuickAddTitle(raw, false, OCT6)
+  const ja6 = (raw: string) => parseQuickAddTitle(raw, true, OCT6)
+
+  it('曜日の略で始まるだけの語（friend・sunscreen・Wedding・Monthly・monitor・Satellite）は題名に残す', () => {
+    expect(en6('Call friend')).toMatchObject({ title: 'Call friend', date: null })
+    expect(en6('Buy sunscreen')).toMatchObject({ title: 'Buy sunscreen', date: null })
+    expect(en6('Wedding gift')).toMatchObject({ title: 'Wedding gift', date: null })
+    expect(en6('Monthly report')).toMatchObject({ title: 'Monthly report', date: null })
+    expect(en6('Fix monitor')).toMatchObject({ title: 'Fix monitor', date: null })
+    expect(en6('Satellite lab')).toMatchObject({ title: 'Satellite lab', date: null })
+    expect(ja6('Call friend')).toMatchObject({ title: 'Call friend', date: null })
+  })
+
+  it('曜日の綴り（fri / friday / fridays / thurs / Sat）は日付として読む', () => {
+    expect(en6('Call Sat')).toMatchObject({ title: 'Call', date: '2026-10-10' })
+    expect(en6('mtg fri')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg Friday')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg fridays')).toMatchObject({ title: 'mtg', date: '2026-10-09' })
+    expect(en6('mtg wednesday')).toMatchObject({ title: 'mtg', date: '2026-10-07' })
+    expect(en6('mtg thurs')).toMatchObject({ title: 'mtg', date: '2026-10-08' })
+    expect(en6('mtg fri10am')).toMatchObject({ title: 'mtg', date: '2026-10-09', startTime: '10:00' })
+  })
+
+  it('月が 1〜12 でない月日（25/10・13/1）は日付にせず題名に残す', () => {
+    expect(en6('25/10 party')).toMatchObject({ title: '25/10 party', date: null })
+    expect(ja6('13/1 レポート')).toMatchObject({ title: '13/1 レポート', date: null })
+    expect(ja6('2026/13/5 レポート')).toMatchObject({ title: '2026/13/5 レポート', date: null })
+    expect(ja6('12/1 レポート')).toMatchObject({ title: 'レポート', date: '2026-12-01' })
+  })
+})
+
+describe('英語の空白をまたぐ日付・noon・tonight（2026-10-06 火曜）', () => {
+  /** 2026-10-06 は火曜（次の月曜は 10/12、今週の日曜は 10/11、来週の日曜は 10/18） */
+  const OCT6 = new Date(2026, 9, 6, 10, 0, 0)
+  const en6 = (raw: string) => parseQuickAddTitle(raw, false, OCT6)
+  const ja6 = (raw: string) => parseQuickAddTitle(raw, true, OCT6)
+
+  it('「next fri」は来週（次の月曜から始まる週）の金曜で、「next」を題名に残さない', () => {
+    expect(en6('next fri essay')).toMatchObject({ title: 'essay', date: '2026-10-16', dateIsDeadline: false })
+    expect(en6('essay next Friday')).toMatchObject({ title: 'essay', date: '2026-10-16' })
+    expect(en6('mtg next mon 3pm')).toMatchObject({ title: 'mtg', date: '2026-10-12', startTime: '15:00' })
+    // 来週の火曜は今日から 7 日後（「来週火曜」と同じ）
+    expect(en6('next tue gym')).toMatchObject({ title: 'gym', date: '2026-10-13' })
+    // 日曜に書いた「next fri」は翌日の月曜から始まる週の金曜
+    expect(parseQuickAddTitle('next fri essay', false, new Date(2026, 9, 11, 10))).toMatchObject({ date: '2026-10-16' })
+    // 日本語表示でも読む（by / due / every と同じ）
+    expect(ja6('レポート next fri')).toMatchObject({ title: 'レポート', date: '2026-10-16' })
+  })
+
+  it('「this fri」は次に来る金曜（「fri」と同じ）', () => {
+    expect(en6('this fri party')).toMatchObject({ title: 'party', date: '2026-10-09' })
+    expect(en6('this tue party')).toMatchObject({ title: 'party', date: '2026-10-06' })
+  })
+
+  it('「this week」「next week」は今週・来週の日曜が締切（「今週中」「来週中」と同じ）', () => {
+    expect(en6('next week essay')).toMatchObject({ title: 'essay', date: '2026-10-18', dateIsDeadline: true })
+    expect(en6('essay this week')).toMatchObject({ title: 'essay', date: '2026-10-11', dateIsDeadline: true })
+  })
+
+  it('「this weekend」は今週の土曜（日曜に書けば今日）', () => {
+    expect(en6('this weekend clean')).toMatchObject({ title: 'clean', date: '2026-10-10', dateIsDeadline: false })
+    expect(parseQuickAddTitle('this weekend clean', false, new Date(2026, 9, 11, 10))).toMatchObject({ date: '2026-10-11' })
+  })
+
+  it('「in 2 days」「in 3 weeks」「in a week」は今日から数える', () => {
+    expect(en6('in 2 days essay')).toMatchObject({ title: 'essay', date: '2026-10-08', dateIsDeadline: false })
+    expect(en6('dentist in 3 weeks')).toMatchObject({ title: 'dentist', date: '2026-10-27' })
+    expect(en6('call in a week')).toMatchObject({ title: 'call', date: '2026-10-13' })
+    expect(en6('call in a day')).toMatchObject({ title: 'call', date: '2026-10-07' })
+    expect(en6('in 1 day essay')).toMatchObject({ date: '2026-10-07' })
+    expect(en6('in 2days essay')).toMatchObject({ title: 'essay', date: '2026-10-08' })
+  })
+
+  it('締切の印 by / due と組み合わせられる', () => {
+    expect(en6('essay by next fri')).toMatchObject({ title: 'essay', date: '2026-10-16', dateIsDeadline: true })
+    expect(en6('report due in 3 days')).toMatchObject({ title: 'report', date: '2026-10-09', dateIsDeadline: true })
+    expect(en6('ES by Oct 10')).toMatchObject({ title: 'ES', date: '2026-10-10', dateIsDeadline: true })
+    expect(en6('essay due this week')).toMatchObject({ title: 'essay', date: '2026-10-11', dateIsDeadline: true })
+  })
+
+  it('「Dec 5」「December 5th」「5 Dec」「Dec. 5」は月日', () => {
+    expect(en6('Dec 5 exam')).toMatchObject({ title: 'exam', date: '2026-12-05' })
+    expect(en6('Oct 10 ES')).toMatchObject({ title: 'ES', date: '2026-10-10' })
+    expect(en6('5 Dec exam')).toMatchObject({ title: 'exam', date: '2026-12-05' })
+    expect(en6('exam December 5th')).toMatchObject({ title: 'exam', date: '2026-12-05' })
+    expect(en6('exam 1st Nov')).toMatchObject({ title: 'exam', date: '2026-11-01' })
+    expect(en6('exam Dec. 5')).toMatchObject({ title: 'exam', date: '2026-12-05' })
+    expect(en6('exam Sept 3')).toMatchObject({ title: 'exam', date: '2026-09-03' })
+    expect(en6('interview Oct 8, 2pm')).toMatchObject({ title: 'interview', date: '2026-10-08', startTime: '14:00' })
+    expect(ja6('試験 Dec 5')).toMatchObject({ title: '試験', date: '2026-12-05' })
+  })
+
+  it(`月の名前の月日も、過ぎて ${QUICK_ADD_PAST_DAYS} 日以内なら今年、それより前は来年（「10/3」と同じ）`, () => {
+    expect(en6('Oct 3 essay')).toMatchObject({ date: '2026-10-03' })
+    expect(en6('Jul 5 essay')).toMatchObject({ date: '2027-07-05' })
+  })
+
+  it('月日の後ろの年はその年（今年の 5 年前〜10 年後だけ。それ以外は題名に残す）', () => {
+    expect(en6('exam Jan 15 2027')).toMatchObject({ title: 'exam', date: '2027-01-15' })
+    expect(en6('exam 15 Jan, 2027')).toMatchObject({ title: 'exam', date: '2027-01-15' })
+    expect(en6('Oct 10 2000 words')).toMatchObject({ title: '2000 words', date: '2026-10-10' })
+    // 年を書いてその年に無い日なら読まない
+    expect(en6('Feb 30 2027 exam')).toMatchObject({ title: 'Feb 30 2027 exam', date: null })
+  })
+
+  it('月の名前だけ・ありえない日・月の名前と日が並ばなければ日付にしない', () => {
+    for (const raw of ['December report', 'May I help', 'Dec 32 exam', 'Feb 30 exam', 'march band 5']) {
+      const r = en6(raw)
+      expect(r.date, raw).toBeNull()
+      expect(r.title, raw).toBe(raw)
+    }
+  })
+
+  it('next / this / in の後ろが日付の語でなければ題名のまま（「next weekend」は今週末か来週末か決められないので読まない）', () => {
+    for (const raw of [
+      'next step',
+      'plan next weekend trip',
+      'next month rent',
+      'this is it',
+      'in 0 days',
+      'in a days',
+      'log in 2 hours',
+    ]) {
+      const r = en6(raw)
+      expect(r.date, raw).toBeNull()
+      expect(r.title, raw).toBe(raw)
+    }
+    // 「in」だけ題名に残り、tomorrow は今まで通り読む
+    expect(en6('check in tomorrow')).toMatchObject({ title: 'check in', date: '2026-10-07' })
+  })
+
+  it('「noon」は 12:00（範囲の端にも書ける）', () => {
+    expect(en6('lunch noon')).toMatchObject({ title: 'lunch', startTime: '12:00', endTime: '13:00' })
+    expect(en6('lunch noon-1pm')).toMatchObject({ title: 'lunch', startTime: '12:00', endTime: '13:00' })
+    expect(en6('class 11am-noon')).toMatchObject({ title: 'class', startTime: '11:00', endTime: '12:00' })
+    expect(en6('lunch tomorrow noon')).toMatchObject({ title: 'lunch', date: '2026-10-07', startTime: '12:00' })
+    // 「afternoon」「noonday」は読まない
+    expect(en6('afternoon tea')).toMatchObject({ title: 'afternoon tea', startTime: null })
+    expect(en6('noonday walk')).toMatchObject({ title: 'noonday walk', startTime: null })
+  })
+
+  it('「tonight」は今日で、時刻は決めつけない', () => {
+    expect(en6('tonight dinner')).toMatchObject({ title: 'dinner', date: '2026-10-06', startTime: null, dateIsDeadline: false })
+    expect(en6('dinner tonight 8pm')).toMatchObject({ title: 'dinner', date: '2026-10-06', startTime: '20:00' })
+    expect(en6('essay due tonight')).toMatchObject({ title: 'essay', date: '2026-10-06', dateIsDeadline: true })
+  })
+
+  it('曜日と取り違えない語（#334）は next / this の後ろでも曜日にしない', () => {
+    expect(en6('next friend')).toMatchObject({ title: 'next friend', date: null })
+    expect(en6('this Monthly report')).toMatchObject({ title: 'this Monthly report', date: null })
+  })
+})
+
+describe('共有で入る就活サイトの題名（#280）', () => {
+  it('卒業年・期間の数字は日付・時刻と読まない', () => {
+    const a = ja('【2027年卒】〇〇株式会社 本選考エントリー | マイナビ2027')
+    expect(a).toMatchObject({ date: null, startTime: null, endTime: null, dateIsDeadline: false })
+    expect(a.title).toBe('【2027年卒】〇〇株式会社 本選考エントリー | マイナビ2027')
+    expect(ja('2027卒 夏インターン 8/20-8/24 募集')).toMatchObject({ date: null, startTime: null, endTime: null })
+  })
+
+  it('「説明会 10月15日(水) 19:00〜20:00 オンライン」は 10/15 の 19:00–20:00', () => {
+    expect(ja('説明会 10月15日(水) 19:00〜20:00 オンライン')).toMatchObject({
+      date: '2026-10-15',
+      startTime: '19:00',
+      endTime: '20:00',
+      dateIsDeadline: false,
+    })
   })
 })

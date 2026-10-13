@@ -620,3 +620,50 @@ describe('サーバーの時刻を基準にする（#77）', () => {
     expect(next.merged.tasks[0]).toMatchObject({ title: '課題（改）', completed: true })
   })
 })
+
+describe('両方で同じ項目を変えて新しいほうに任せた回数（#357）', () => {
+  it('前回の値が分かっていて両方が別の値にした項目だけ、表.項目ごとに数える', () => {
+    const base = snapshot({
+      tasks: [task('t1', { title: '課題', priority: 'none' }), task('t2', { title: 'B' }), task('t3', { title: 'C', priority: 'low' })],
+      lists: [inbox, list('l1', { name: '買い物' })],
+    })
+    const baseline = baselineFrom(base)
+    const local = snapshot({
+      tasks: [
+        task('t1', { title: 'こちら', priority: 'high', updatedAt: T1 }),
+        task('t2', { title: 'B（手元）', updatedAt: T1 }),
+        // 片方だけ変えた項目・同じ値にした項目は数えない
+        task('t3', { title: 'C', priority: 'high', updatedAt: T1 }),
+      ],
+      lists: [inbox, list('l1', { name: '買い物（手元）', updatedAt: T1 })],
+    })
+    const remote = snapshot({
+      tasks: [
+        task('t1', { title: 'あちら', priority: 'none', updatedAt: T2 }),
+        task('t2', { title: 'B（他端末）', updatedAt: T2 }),
+        task('t3', { title: 'C（改）', priority: 'high', updatedAt: T2 }),
+      ],
+      lists: [inbox, list('l1', { name: '買い物（他端末）', updatedAt: T2 })],
+    })
+    const { conflicts, merged } = mergeSnapshots(local, remote, baseline)
+    expect(merged.tasks.find((t) => t.id === 't1')).toMatchObject({ title: 'あちら', priority: 'high' })
+    expect(conflicts).toEqual({ 'tasks.title': 2, 'lists.name': 1 })
+  })
+
+  it('メモ（両方の版を残す）・控えのあるタグ・習慣の達成日（集合で合わせ直す）・前回に無い行は数えない', () => {
+    const base = snapshot({
+      tasks: [task('t1', { description: '前', tags: ['a'] })],
+      habits: [habit('h1', { completedDates: ['2026-09-01'] })],
+    })
+    const baseline = baselineFrom(base)
+    const local = snapshot({
+      tasks: [task('t1', { description: '手元', tags: ['a', 'b'], updatedAt: T1 }), task('new', { title: 'x', updatedAt: T1 })],
+      habits: [habit('h1', { completedDates: ['2026-09-01', '2026-09-02'], updatedAt: T1 })],
+    })
+    const remote = snapshot({
+      tasks: [task('t1', { description: '他端末', tags: ['c'], updatedAt: T2 }), task('new', { title: 'y', updatedAt: T2 })],
+      habits: [habit('h1', { completedDates: ['2026-09-03'], updatedAt: T2 })],
+    })
+    expect(mergeSnapshots(local, remote, baseline).conflicts).toEqual({})
+  })
+})

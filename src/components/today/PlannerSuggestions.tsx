@@ -4,7 +4,8 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import type { CandidateGroup } from './usePlannerSuggestions'
 import { usePlannerCandidateFilter } from './PlannerCandidateFilter'
-import { hasCandidateFilter } from '../../lib/plannerCandidates'
+import { hasTaskFilter } from '../../lib/taskFilter'
+import { FilterNoMatch } from '../ui/FilterChips'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
@@ -18,7 +19,6 @@ import { MoveHereButton } from './PlannerRowActions'
  */
 export function PlannerSuggestions({
   env,
-  suggestions,
   addAllTargets,
   pool,
   candidateGroups,
@@ -29,9 +29,10 @@ export function PlannerSuggestions({
   groupId,
 }: {
   env: PlannerRowEnv
-  /** 締切間近（見出しの件数） */
-  suggestions: Task[]
-  /** 「すべて追加」の対象（締切間近のうち絞り込みに合うもの。締切順以外では空） */
+  /**
+   * 「すべて追加」の対象で、見出しの「締切が近い n 件」（締切間近のうち絞り込みに合うもの）。
+   * 締切順以外は中身が締切の近いものだけではないので空（見出しは「To-Do から追加」）
+   */
   addAllTargets: Task[]
   /** 絞り込む前の候補すべて（メニューに出すリスト・ラベル・タグ） */
   pool: Task[]
@@ -51,7 +52,7 @@ export function PlannerSuggestions({
   /** 「すべて追加」（締切間近の候補）を、その最後の行があるまとまりの下に置く */
   const lastSuggestionId = addAllTargets.at(-1)?.id
   const filter = usePlannerCandidateFilter(pool)
-  const filtered = hasCandidateFilter(filter.view)
+  const filtered = hasTaskFilter(filter.view)
 
   /** 候補のまとまりの見出し（締切の日）。今日・明日は締切の色で焦らせる */
   const dueGroupHeading = (group: CandidateGroup): { text: string; tone: string } | null => {
@@ -65,10 +66,13 @@ export function PlannerSuggestions({
 
   return (
     <div className="mt-6 px-3">
-      <div className="flex items-center gap-1">
-        <DisclosureButton open={open} onToggle={onToggle} className="min-w-0 flex-1">
+      {/* 見出しは折り返さない。並び順・絞り込みのボタンが入りきらないとき（スマホで長い並び順の名前）は次の行の右に回す */}
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        <DisclosureButton open={open} onToggle={onToggle} className="flex-1 whitespace-nowrap">
           <span className="flex-1">
-            {suggestions.length > 0 ? t('planner.suggestionsHeading', { count: suggestions.length }) : t('planner.suggestionsHeadingPlain')}
+            {addAllTargets.length > 0
+              ? t('planner.suggestionsHeading', { count: addAllTargets.length })
+              : t('planner.suggestionsHeadingPlain')}
           </span>
         </DisclosureButton>
         {open && filter.button}
@@ -77,12 +81,7 @@ export function PlannerSuggestions({
         <>
           {filter.chipRow}
           {filtered && candidateGroups.length === 0 && (
-            <p className="ml-11 mt-2 text-xs text-zinc-400 dark:text-zinc-500">
-              {t('planner.candidates.noMatch')}{' '}
-              <button type="button" onClick={filter.clearFilters} className={buttonClass({ variant: 'link', size: 'xs' })}>
-                {t('planner.candidates.clearFilters')}
-              </button>
-            </p>
+            <FilterNoMatch text={t('planner.candidates.noMatch')} onClear={filter.clearFilters} className="ml-11 mt-2" />
           )}
           {candidateGroups.map((group, i) => {
             const heading = dueGroupHeading(group)

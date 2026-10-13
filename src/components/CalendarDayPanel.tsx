@@ -20,11 +20,13 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
+import { useHolidayName } from '../hooks/useHolidayName'
 import { SectionLabel } from './ui/SectionLabel'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
 import { META_TEXT } from './ui/textClass'
+import { compareByOrder } from '../lib/orderCompare'
 
 type DayPanelTab = 'planned' | 'log'
 
@@ -47,10 +49,12 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   const openDetail = openTaskDetail
   const df = useDateFormat()
 
+  const holiday = useHolidayName()(selectedDateKey)
   const date = parseISO(`${selectedDateKey}T00:00:00`)
-  const dateLabel = isAppToday(date)
-    ? `${df.monthDayWeekday(selectedDateKey)} · ${t('activityLog.today')}`
-    : df.monthDayWeekday(selectedDateKey)
+  // 「10月12日 (月) · 今日 · スポーツの日」（祝日は名前を添えるだけ）
+  const dateLabel = [df.monthDayWeekday(selectedDateKey), isAppToday(date) ? t('activityLog.today') : null, holiday]
+    .filter(Boolean)
+    .join(' · ')
 
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストは日付があってもカレンダーの予定として出さない
@@ -73,7 +77,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
           if (a.startTime && b.startTime) {
             return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
           }
-          return a.order - b.order
+          return compareByOrder(a, b)
         }),
     [tasks, selectedDateKey, excludedListIds],
   )
@@ -117,7 +121,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
       tasks
         .filter((t) => !t.parentId && isLogTask(t) && isActiveTask(t) && logOverlapsDateKey(t, selectedDateKey))
         .sort((a, b) => {
-          if (!a.startTime || !b.startTime) return a.order - b.order
+          if (!a.startTime || !b.startTime) return compareByOrder(a, b)
           return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
         }),
     [tasks, selectedDateKey],

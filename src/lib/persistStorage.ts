@@ -1,11 +1,13 @@
 /**
- * ストアの保存先（localStorage）。zustand の既定の保存先の代わりに使い、次の 2 つを足す。
+ * ストアの保存先（`dataStore.ts`。IndexedDB、使えない端末は localStorage）。zustand の既定の保存先の代わりに使い、次の 2 つを足す。
  *
  * - 他のタブが書いた内容を取り込むあいだは書き戻さない（書き戻すとタブ同士で表示中の画面を
  *   上書きし合い、storage イベントが往復し続ける）
  * - 最後に自分が書いた・取り込んだ文字列を覚えておき、他のタブの変更かどうかを見分ける
+ * - 保存する値（`partialize` の結果）がどれも前と同じ参照なら、文字列にもしない（`createPersistStorage`）
  */
-import type { StateStorage } from 'zustand/middleware'
+import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
+import { readStored, usingIndexedDb, writeStored } from './dataStore'
 
 let suppressWrites = false
 /** この端末で最後に読み書きした保存内容（他のタブの書き込みと見分けるため） */
@@ -41,7 +43,7 @@ export function readChangedRaw(key: string): string | null {
   if (writeFailed) return null
   let raw: string | null
   try {
-    raw = localStorage.getItem(key)
+    raw = readStored(key)
   } catch {
     return null
   }
@@ -56,7 +58,7 @@ export function markRawKnown(raw: string) {
 export const persistStorage: StateStorage = {
   getItem: (key) => {
     try {
-      const raw = localStorage.getItem(key)
+      const raw = readStored(key)
       lastKnownRaw = raw
       return raw
     } catch {
@@ -67,13 +69,35 @@ export const persistStorage: StateStorage = {
     if (suppressWrites) return
     // 中身が変わっていなければ書かない（画面の状態だけの変更で、全データを書き直して他のタブに読み直させない）
     if (value === lastKnownRaw && !writeFailed) return
-    const write = () => {
-      localStorage.setItem(key, value)
-      lastKnownRaw = value
+    const saved = () => {
       if (writeFailed) {
         writeFailed = false
         handlers?.onRecovered()
       }
+    }
+    if (usingIndexedDb()) {
+      // 書けたかは後から分かる。手元の写しは今の値になるので、他のタブの書き込みと見分けるのもこの値で
+      lastKnownRaw = value
+      const failed = (err: unknown) => {
+        writeFailed = true
+        handlers?.onFailed(err)
+      }
+      writeStored(key, value, {
+        onSaved: saved,
+        onError: (err) => {
+          // 容量不足など。場所を空けられたら、いまの値をもう一度だけ書く
+          if (!handlers?.freeSpace()) return failed(err)
+          const latest = readStored(key)
+          if (latest === null) return failed(err)
+          writeStored(key, latest, { onSaved: saved, onError: () => failed(err) })
+        },
+      })
+      return
+    }
+    const write = () => {
+      writeStored(key, value)
+      lastKnownRaw = value
+      saved()
     }
     try {
       write()
@@ -93,9 +117,53 @@ export const persistStorage: StateStorage = {
   },
   removeItem: (key) => {
     try {
-      localStorage.removeItem(key)
+      writeStored(key, null)
     } catch {
       /* ignore */
     }
   },
+}
+
+/** 前に書いた値と、どの項目も同じ参照か */
+function sameRefs(a: object, b: object): boolean {
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  return ka.every((k) => Object.is((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+}
+
+/**
+ * zustand の persist に渡す保存先（`createJSONStorage(() => persistStorage)` の代わり）。
+ * persist は `setState` のたびに保存先を呼ぶので、検索欄の 1 文字・ドラッグ中のリストの上を通る・同期の状態の切り替えなど
+ * 保存しない値が変わっただけでも全データを `JSON.stringify` していた（5,000 件で 1 回 約 4 ms）。
+ * 保存する値がどれも前に書いたときと同じ参照なら、文字列にせずに戻る（#266）
+ */
+export function createPersistStorage<S>(): PersistStorage<S> {
+  let lastWritten: StorageValue<S> | null = null
+  return {
+    getItem: (name) => {
+      const raw = persistStorage.getItem(name) as string | null
+      return raw === null ? null : (JSON.parse(raw) as StorageValue<S>)
+    },
+    setItem: (name, value) => {
+      if (suppressWrites) return
+      const prev = lastWritten
+      if (
+        prev &&
+        !writeFailed &&
+        prev.version === value.version &&
+        typeof prev.state === 'object' &&
+        prev.state !== null &&
+        typeof value.state === 'object' &&
+        value.state !== null &&
+        sameRefs(prev.state, value.state)
+      )
+        return
+      lastWritten = value
+      persistStorage.setItem(name, JSON.stringify(value))
+    },
+    removeItem: (name) => {
+      lastWritten = null
+      persistStorage.removeItem(name)
+    },
+  }
 }

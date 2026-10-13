@@ -1,9 +1,9 @@
 -- サーバー専用の表と関数: ブラウザ（authenticated / anon）からは読めず、書けず、呼べない。
--- public の全表で RLS が有効。client_errors は本人の insert だけで、1 人 500 件まで（011）。reminder_runs（012）。
+-- public の全表で RLS が有効。client_errors は本人の insert だけで、1 人 500 件まで（011）、種類は 020。reminder_runs（012、数の列は 021）。
 -- hit_rate_limit の search_path は空（013）
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(54);
 
 insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-00000000000a', 'server-a@example.test'),
@@ -81,6 +81,12 @@ select throws_ok($$update public.reminder_runs set last_ok_at = now()$$, '42501'
 select lives_ok(
   $$insert into public.client_errors (kind, message) values ('error', 'first')$$,
   'A は自分の client_errors を入れられる');
+select lives_ok(
+  $$insert into public.client_errors (kind, message) values ('storage', 'k1'), ('integration', 'k2'), ('push', 'k3')$$,
+  'A は保存・連携・通知の購読の失敗を入れられる（020）');
+select throws_ok(
+  $$insert into public.client_errors (kind, message) values ('bogus', 'x')$$,
+  '23514', null, '決まっていない種類は入れられない');
 select throws_ok(
   $$insert into public.client_errors (user_id, kind, message) values ('00000000-0000-4000-8000-00000000000b', 'error', 'as B')$$,
   '42501', null, 'A は B の client_errors を入れられない');
@@ -91,7 +97,7 @@ select throws_ok($$select * from public.client_errors$$, '42501', null, 'A は c
 select throws_ok($$update public.client_errors set message = 'x'$$, '42501', null, 'A は client_errors を変えられない');
 select throws_ok($$delete from public.client_errors$$, '42501', null, 'A は client_errors を消せない');
 
--- 1 人 500 件まで。first と m1〜m505 の 506 件を入れると、古い 6 件（first・m1〜m5）が消える
+-- 1 人 500 件まで。first・k1〜k3 と m1〜m505 の 509 件を入れると、古い 9 件（first・k1〜k3・m1〜m5）が消える
 select lives_ok(
   $$insert into public.client_errors (kind, message) select 'error', 'm' || g from generate_series(1, 505) g$$,
   'A は 505 件まとめて入れられる（断らない）');
@@ -115,6 +121,7 @@ select is(
   (select hits from public.edge_rate_limits where user_id = '00000000-0000-4000-8000-00000000000a' and bucket = 'notion'),
   3, 'edge_rate_limits は変わっていない');
 select is((select count(*) from public.reminder_runs where id = 1), 1::bigint, 'reminder_runs の 1 行はある');
+select has_column('public', 'reminder_runs', 'last_failed_at', 'reminder_runs に最後の回の数と失敗の時刻がある（021）');
 
 -- anon（ログインしていない）
 select set_config('request.jwt.claims', '{"role":"anon"}', true);

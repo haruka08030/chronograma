@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import '../i18n/config'
 import { formatDate, formatShortDateWeekday, formatWeekRange } from './dateFormat'
+import { useTaskStore } from '../store/taskStore'
 
 // 2026-10-03 は土曜
 const KEY = '2026-10-03'
@@ -45,6 +46,19 @@ describe('formatWeekRange', () => {
     expect(formatWeekRange(new Date(2026, 9, 7), 'en')).toBe('Oct 5 – 11, 2026')
     expect(formatWeekRange(new Date(2026, 9, 1), 'en')).toBe('Sep 28 – Oct 4, 2026')
     expect(formatWeekRange(new Date(2026, 11, 30), 'en')).toBe('Dec 28, 2026 – Jan 3, 2027')
+  })
+
+  it('週の開始日を渡すとその曜日から（日曜・土曜）', () => {
+    expect(formatWeekRange(new Date(2026, 9, 7), 'ja', 0)).toBe('10月4日〜10日、2026年')
+    expect(formatWeekRange(new Date(2026, 9, 7), 'en', 0)).toBe('Oct 4 – 10, 2026')
+    expect(formatWeekRange(new Date(2026, 9, 7), 'ja', 6)).toBe('10月3日〜9日、2026年')
+    expect(formatWeekRange(new Date(2027, 0, 2), 'en', 0)).toBe('Dec 27, 2026 – Jan 2, 2027')
+  })
+
+  it('渡さなければ設定の週の開始日（既定は月曜）', () => {
+    expect(formatWeekRange(new Date(2026, 9, 11), 'ja')).toBe('10月5日〜11日、2026年')
+    useTaskStore.getState().setWeekStartsOn(0)
+    expect(formatWeekRange(new Date(2026, 9, 11), 'ja')).toBe('10月11日〜17日、2026年')
   })
 })
 

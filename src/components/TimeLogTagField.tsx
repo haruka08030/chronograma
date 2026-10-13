@@ -6,6 +6,7 @@ import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
 import { chipClass } from './ui/chipClass'
+import { CATEGORY_MAX_LENGTH } from '../lib/textLimits'
 
 /**
  * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
@@ -103,6 +104,7 @@ export function TimeLogTagField({
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          maxLength={CATEGORY_MAX_LENGTH}
           {...draftEntry}
           placeholder={t('logCategories.newPlaceholder')}
           className={`w-28 rounded-full border border-accent-300 bg-white outline-none dark:border-accent-500/50 dark:bg-zinc-900 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}`}

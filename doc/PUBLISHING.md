@@ -22,7 +22,8 @@ for f in account canvas daily-reminders google-calendar notion; do supabase func
 | Vercel | `VITE_GOOGLE_CLIENT_ID` | Google でログイン・カレンダー連携のボタン |
 | Vercel | `VITE_VAPID_PUBLIC_KEY` | 通知の購読 |
 | Supabase secrets | `ALLOWED_ORIGINS` | Edge Function を呼べるオリジン（本番の URL） |
-| Supabase secrets | `TOKEN_ENCRYPTION_KEY` | 連携のトークンの暗号化。変えると保存済みの連携はすべてつなぎ直し |
+| Supabase secrets | `TOKEN_ENCRYPTION_KEY` | 連携のトークンの暗号化（今の鍵）。替えるときは今の鍵を `TOKEN_ENCRYPTION_PREVIOUS_KEYS` に回す（手順はルート `README.md`）。回さずに替えると保存済みの連携はすべてつなぎ直し |
+| Supabase secrets | `TOKEN_ENCRYPTION_PREVIOUS_KEYS` | 鍵の入れ替えの間だけ。前の鍵（カンマ区切り）。開くときだけ使い、全部閉じ直したら外す |
 | Supabase secrets | `GOOGLE_CLIENT_ID`・`GOOGLE_CLIENT_SECRET` | カレンダー連携（`google-calendar`） |
 | Supabase secrets | `VAPID_PUBLIC_KEY`・`VAPID_PRIVATE_KEY`・`VAPID_SUBJECT` | 通知の送信 |
 | Supabase secrets と Vault | `CRON_SECRET` / `chronograma_cron_secret` | cron から `daily-reminders` を呼ぶ |

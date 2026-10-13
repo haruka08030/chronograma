@@ -64,11 +64,14 @@ function parseOr(text: string): (r: Row) => boolean {
 
 /**
  * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）、
- * 消すと `008` の印、同じ id が入り直すと印を消す。`noTombstones` は `008` を流す前の DB。
- * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`）は `007` の settings_write_guard
+ * 消すと `008` の印、同じ id が入り直すと印を消す。
+ * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`・`user_active_timer`・`user_event_templates`・`user_course_links`・`user_timetable`）は `007` の settings_write_guard。
+ * 1 日の気分（`day_moods`）は行を `(user_id, day)` で決める（`025` の day_mood_write_guard。確かめ方は sync_write_guard と同じ）。
+ * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）
  */
-export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) {
+export function fakeDb(opts: { maxRows?: number } = {}) {
   const maxRows = opts.maxRows ?? 1000
+  const missing = new Set<string>()
   const tables: Record<string, Row[]> = { lists: [], list_sections: [], tasks: [], habits: [], sync_tombstones: [] }
   let clock = micros('2026-10-03T00:00:00.000000+00:00')
   /** サーバーの now()（呼ぶたびに 1 マイクロ秒進む。文の中では同じ） */
@@ -85,12 +88,15 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
   const untombstone = (userId: string, table: string, id: string) => {
     tables.sync_tombstones = tables.sync_tombstones!.filter((t) => !(t.user_id === userId && t.table_name === table && t.row_id === id))
   }
+  /** 行を決める列（`day_moods` は日付） */
+  const keyOf = (table: string) => (table === 'day_moods' ? 'day' : 'id')
   const write = (table: string, rows: Row[]): Row[] => {
     const all = (tables[table] ??= [])
+    const key = keyOf(table)
     const stamp = now()
     const out: Row[] = []
     for (const { base_updated_at: base, ...row } of rows) {
-      const i = all.findIndex((r) => r.user_id === row.user_id && r.id === row.id)
+      const i = all.findIndex((r) => r.user_id === row.user_id && r[key] === row[key])
       const old = i >= 0 ? all[i] : undefined
       let next: Row
       if (base === undefined) {
@@ -104,7 +110,7 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
       if (old) all[i] = next
       else {
         all.push(next)
-        untombstone(next.user_id, table, String(next.id))
+        if (key === 'id') untombstone(next.user_id, table, String(next.id))
       }
       out.push(next)
     }
@@ -144,12 +150,56 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
     for (const r of gone) tombstone(r.user_id, table, String(r.id), at)
     return gone
   }
+  /**
+   * Supabase Auth の偽物。`user` はログイン中の人、`deleted` は消されたアカウント（`deleteUser`）。
+   * 消された人の書き込みは auth.users への外部キーで断られ（23503）、`getUser` は「ユーザーがいない」を返す
+   */
+  const auth = { user: null as string | null, deleted: new Set<string>(), signOuts: 0 }
+  const fkError = (table: string) => ({
+    code: '23503',
+    message: `insert or update on table "${table}" violates foreign key constraint "${table}_user_id_fkey"`,
+  })
   /** 送信（upsert）を受ける直前に呼ぶ。テストで「取得した後に他の端末が変えた」を挟む */
   const hooks: { beforeUpsert?: (table: string) => void } = {}
   const client = {
-    /** `008` の sync_server_now()（前の DB には無い） */
-    rpc: async (name: string) => {
-      if (name !== 'sync_server_now' || opts.noTombstones) {
+    auth: {
+      getUser: async () => {
+        if (auth.user && auth.deleted.has(auth.user)) {
+          return {
+            data: { user: null },
+            error: { name: 'AuthApiError', status: 403, code: 'user_not_found', message: 'User from sub claim in JWT does not exist' },
+          }
+        }
+        if (auth.user) return { data: { user: { id: auth.user } }, error: null }
+        return { data: { user: null }, error: { name: 'AuthSessionMissingError', status: 400, message: 'Auth session missing!' } }
+      },
+      signOut: async () => {
+        auth.user = null
+        auth.signOuts++
+        return { error: null }
+      },
+    },
+    /** `008` の sync_server_now()・`023` の note_app_version()（ログイン中の人の行を upsert して last_seen を進める） */
+    rpc: async (name: string, args?: Record<string, unknown>) => {
+      if (name === 'note_app_version' && !missing.has(name)) {
+        if (!auth.user) return { data: null, error: { code: '42501', message: 'not signed in' } }
+        const all = (tables.app_versions_seen ??= [])
+        const at = now()
+        const key = (r: Row) =>
+          r.user_id === auth.user && r.app_version === args?.p_app_version && r.sync_protocol_version === args?.p_sync_protocol_version
+        const old = all.find(key)
+        if (old) old.last_seen = at
+        else
+          all.push({
+            user_id: auth.user,
+            app_version: args?.p_app_version,
+            sync_protocol_version: args?.p_sync_protocol_version,
+            first_seen: at,
+            last_seen: at,
+          })
+        return { data: null, error: null }
+      }
+      if (name !== 'sync_server_now' || missing.has(name)) {
         return {
           data: null,
           error: { code: 'PGRST202', message: `Could not find the function public.${name} without parameters in the schema cache` },
@@ -167,11 +217,11 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
           let next = false
           const run = async (from: number, to: number) => {
             if (from === 0 && !next) selects.push({ table, since })
-            if (table === 'sync_tombstones' && opts.noTombstones) {
+            if (missing.has(table)) {
               return {
                 data: null,
                 count: null,
-                error: { code: 'PGRST205', message: "Could not find the table 'public.sync_tombstones' in the schema cache" },
+                error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` },
               }
             }
             const rows = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)))
@@ -212,11 +262,13 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
         upsert: (rows: Row[] | Row, o?: { onConflict?: string; ignoreDuplicates?: boolean }) => ({
           select: async () => {
             hooks.beforeUpsert?.(table)
+            if ((Array.isArray(rows) ? rows : [rows]).some((r) => auth.deleted.has(r.user_id))) return { data: null, error: fkError(table) }
             if (!Array.isArray(rows)) {
               const done = writeSetting(table, rows, o?.ignoreDuplicates ?? false)
               return { data: done.map((r) => ({ updated_at: r.updated_at })), error: null }
             }
-            return { data: write(table, rows).map((r) => ({ id: r.id, updated_at: r.updated_at })), error: null }
+            const key = keyOf(table)
+            return { data: write(table, rows).map((r) => ({ [key]: r[key], updated_at: r.updated_at })), error: null }
           },
         }),
         delete: () => {
@@ -246,6 +298,14 @@ export function fakeDb(opts: { maxRows?: number; noTombstones?: boolean } = {}) 
     downloaded,
     selects,
     hooks,
+    /** 読めなくする表・関数の名前 */
+    missing,
+    auth,
+    /** 別の端末でアカウントを消す（その人の行は印も含めて全部消える。on delete cascade） */
+    deleteUser: (userId: string) => {
+      auth.deleted.add(userId)
+      for (const t of Object.keys(tables)) tables[t] = tables[t]!.filter((r) => r.user_id !== userId)
+    },
     /** 表を全部取った回数（差分ではなく） */
     fullFetches: () => selects.filter((x) => x.table === 'lists' && !x.since).length,
     /** サーバーの時計を進める */

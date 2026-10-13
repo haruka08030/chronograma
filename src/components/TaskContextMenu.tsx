@@ -7,7 +7,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { appToday } from '../lib/timeZone'
 import { displayListName } from '../lib/displayListName'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
-import { isEventTask, type Priority } from '../types/task'
+import { isEventTask, isLogTask, type Priority } from '../types/task'
 import { DatePickerBody } from './DatePickerBody'
 import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
@@ -25,6 +25,7 @@ import {
 } from './icons'
 import { startTimerForTask } from '../lib/timerDrop'
 import { openTaskMenu } from '../lib/overlays'
+import { canPickTime, timeSlotDateKey } from '../lib/timeSlotTarget'
 import { toDateKey } from '../lib/dateKey'
 import { useScheduleWish } from '../hooks/useScheduleWish'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -34,6 +35,12 @@ import { colorVars } from '../lib/logCategoryColors'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { MemoPreview } from './ui/MemoPreview'
 import { menuDateHint } from '../lib/menuDateHint'
+import { categoryHex } from '../lib/logCategoryColors'
+import { colorLabelText } from '../lib/todoColorLabels'
+import { NEUTRAL_HEX } from '../lib/googleColors'
+import { ColorDot } from './ui/FilterChips'
+import { ColorPalette } from './labels/ColorPalette'
+import { compareByOrder } from '../lib/orderCompare'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
@@ -69,6 +76,8 @@ export function TaskContextMenu({
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const sections = useTaskStore((s) => s.sections)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
   const bulk = useBulkTaskActions()
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
@@ -83,6 +92,7 @@ export function TaskContextMenu({
   const sharedPriority = shared((x) => x.priority)
   const sharedList = shared((x) => x.listId)
   const sharedSection = shared((x) => x.sectionId)
+  const sharedColor = shared((x) => x.color?.toUpperCase() ?? null)
   // いつか・チェックリストのタスクには締切・優先度を出さない。いつかだけ・チェックリストだけなら専用の短いメニューにする
   const kindOf = (listId: string) => lists.find((l) => l.id === listId)?.kind ?? 'tasks'
   const plannable = targets.some((x) => kindOf(x.listId) === 'tasks')
@@ -146,21 +156,17 @@ export function TaskContextMenu({
     checked: sharedPriority === p,
     run: done(() => bulk.setPriority(taskIds, p)),
   }))
-  const listLeaves: ActionLeaf[] = [...lists]
-    .sort((a, b) => a.order - b.order)
-    .map((l) => ({
-      id: `list-${l.id}`,
-      label: displayListName(l.id, l.name),
-      icon: <span className="gc-dot mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={colorVars(l.color)} />,
-      checked: sharedList === l.id,
-      run: done(() => bulk.moveToList(taskIds, l.id)),
-    }))
+  const listLeaves: ActionLeaf[] = [...lists].sort(compareByOrder).map((l) => ({
+    id: `list-${l.id}`,
+    label: displayListName(l.id, l.name),
+    icon: <span className="gc-dot mx-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-full" style={colorVars(l.color)} />,
+    checked: sharedList === l.id,
+    run: done(() => bulk.moveToList(taskIds, l.id)),
+  }))
   // セクション: 全部が同じリストの親タスクで、そのリストにセクションがあるときだけ
   const sectionNone = t('taskDetail.sectionNone')
   const listSections =
-    sharedList && targets.every((x) => !x.parentId)
-      ? [...sections].filter((sec) => sec.listId === sharedList).sort((a, b) => a.order - b.order)
-      : []
+    sharedList && targets.every((x) => !x.parentId) ? [...sections].filter((sec) => sec.listId === sharedList).sort(compareByOrder) : []
   const sectionLeaves: ActionLeaf[] =
     listSections.length === 0
       ? []
@@ -178,6 +184,52 @@ export function TaskContextMenu({
             run: done(() => bulk.moveToSection(taskIds, sec.id, sec.name)),
           })),
         ]
+
+  // ラベル（色）: 名前を付けたラベル → 「ラベルなし」、下に 24 色（詳細の「色とラベル」と同じ色の一覧）。記録には出さない
+  const labelNone = <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: NEUTRAL_HEX }} aria-hidden />
+  const labelLeaves: ActionLeaf[] = [
+    ...presets
+      .map((name) => categoryHex(name, categoryColors))
+      .filter((hex, i, arr) => arr.indexOf(hex) === i)
+      .map((hex): ActionLeaf => ({
+        id: `label-${hex}`,
+        label: colorLabelText(hex, presets, categoryColors, t),
+        icon: <ColorDot hex={hex} />,
+        checked: sharedColor === hex,
+        run: done(() => bulk.setLabel(taskIds, hex)),
+      })),
+    {
+      id: 'label-none',
+      label: t('labels.none'),
+      icon: labelNone,
+      checked: sharedColor === null,
+      run: done(() => bulk.setLabel(taskIds, null)),
+    },
+  ]
+  const labelEntry: ActionEntry[] = targets.some((x) => !isLogTask(x))
+    ? [
+        {
+          kind: 'sub',
+          id: 'label',
+          label: t('taskMenu.label'),
+          icon: sharedColor ? <ColorDot hex={sharedColor} /> : labelNone,
+          // 今のラベル。選んだタスクで違えば出さない
+          hint: sharedColor ? colorLabelText(sharedColor, presets, categoryColors, t) : undefined,
+          leaves: labelLeaves,
+          width: 'lg',
+          extra: (close) => (
+            <ColorPalette
+              bare
+              selectedHex={sharedColor ?? null}
+              onChoose={(hex) => {
+                done(() => bulk.setLabel(taskIds, hex))()
+                close()
+              }}
+            />
+          ),
+        },
+      ]
+    : []
 
   const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
   // いちばん使う日の付け替えは、サブメニューを開かずに先頭で押せるようにする（今日の行なら明日へ、それ以外は今日へ）
@@ -324,6 +376,7 @@ export function TaskContextMenu({
                 },
               ]
             : []),
+          ...labelEntry,
           ...(allEvents ? [] : [{ ...completeEntry, divider: true }]),
           ...(taskIds.length === 1
             ? [
@@ -373,7 +426,7 @@ export function TaskContextMenu({
         ]
       : []
   // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
-  const untimed = taskIds.length === 1 && plannable && targets[0] && !targets[0].completed && !targets[0].startTime ? targets[0] : null
+  const untimed = taskIds.length === 1 && targets[0] && canPickTime(targets[0], lists) ? targets[0] : null
   const setTimeEntry: ActionEntry[] = untimed
     ? [
         {
@@ -382,7 +435,7 @@ export function TaskContextMenu({
           label: t('timeSlot.title'),
           icon: <ClockIcon className={ICON} />,
           run: done(() => {
-            const dateKey = untimed.scheduledDate ?? untimed.dueDate ?? toDateKey(appToday())
+            const dateKey = timeSlotDateKey(untimed)
             queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
           }),
         },

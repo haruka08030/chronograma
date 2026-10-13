@@ -90,6 +90,21 @@ export function SyncIndicator() {
     )
   }
 
+  // アプリの版が同期の下限より古い: 送らずに止めている。押すと新しい版を読み込む
+  if (syncState === 'outdated') {
+    return (
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="flex shrink-0 items-center gap-1 rounded text-amber-600 hover:underline dark:text-amber-500"
+        {...tip(t('sync.outdated'))}
+      >
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+        <span className="truncate text-[11px]">{t('sync.outdatedShort')}</span>
+      </button>
+    )
+  }
+
   // 行数の上限に達した: 接続が戻っても送れないので、消せば送れると伝える
   const detail = syncState === 'limit' ? t('sync.limit') : when ? t('sync.errorWithLast', { when }) : t('sync.error')
 

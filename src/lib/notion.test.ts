@@ -96,6 +96,37 @@ describe('reconcileNotionPages', () => {
     expect(noDates.tasks[0].dueDate).toBe('2026-10-10')
   })
 
+  it('fills due dates of already-imported tasks once the date column is chosen later, and follows later date changes (#331)', () => {
+    const withoutDates = reconcileOnce([page(PAGE_A, 'ES を出す', { date: '2026-10-10' })], false)
+    expect(withoutDates.tasks[0].dueDate).toBeNull()
+    expect(withoutDates.pulled[withoutDates.tasks[0].id]).toMatchObject({ dueDate: null, dueTime: null })
+
+    const enabled = reconcileNotionPages(
+      withoutDates,
+      { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す', { date: '2026-10-10' })] },
+      { ...opts, pulled: withoutDates.pulled },
+    )
+    expect(enabled.tasks[0]).toMatchObject({ dueDate: '2026-10-10', dueTime: null })
+
+    const moved = reconcileNotionPages(
+      enabled,
+      { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す', { date: '2026-10-12T09:00:00.000+09:00' })] },
+      { ...opts, pulled: enabled.pulled },
+    )
+    expect(moved.tasks[0]).toMatchObject({ dueDate: '2026-10-12', dueTime: '09:00' })
+  })
+
+  it('keeps a due date the user set by hand while dates were off, after the date column is chosen', () => {
+    const withoutDates = reconcileOnce([page(PAGE_A, 'ES を出す', { date: '2026-10-10' })], false)
+    const manual = { ...withoutDates, tasks: [{ ...withoutDates.tasks[0], dueDate: '2026-10-08' }] }
+    const enabled = reconcileNotionPages(
+      manual,
+      { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す', { date: '2026-10-10' })] },
+      { ...opts, pulled: withoutDates.pulled },
+    )
+    expect(enabled.tasks[0].dueDate).toBe('2026-10-08')
+  })
+
   it('reports no change when everything already matches', () => {
     const first = reconcileOnce([page(PAGE_A, 'ES を出す')])
     const r = reconcileNotionPages(first, { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, 'ES を出す')] }, opts)

@@ -20,9 +20,14 @@
 - タスク、カレンダー表示、タイムログ、習慣トラッキング向けの **React Web
   SPA**（`src/`）。スマホ・タブレットも同じコードを **PWA**（ホーム画面に追加）で提供する。
   旧 Flutter 版（`mobile/`）は廃止（Git 履歴にのみ残る）
-- **既定の永続化**: ブラウザ **localStorage**（Zustand `persist`、キー
-  `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`）。旧キー `tickdo-storage`
-  は初回のみ `migrateLegacyPersistKey` で移行
+- **既定の永続化**: ブラウザ **IndexedDB**（DB `chronograma-data` の `kv`。Zustand `persist`、キー
+  `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`。置き場所は `src/lib/dataStore.ts`）。
+  起動時（`main.tsx` の `openDataStore`、ストアと画面を読み込む前）に全部を読んで手元に持ち、ストアの読み込みは同期のまま。
+  同じタスクの間の書き込み（本体・前回同期の控え・本体の中の `dataOwner`）は 1 つのトランザクションで書く。
+  localStorage にあった本体と控え（旧キー `tickdo-storage` も）は初めて開いたときに 1 回だけ移し、書けたのを読み直して確かめてから localStorage から消す。移した後に localStorage で動いた回（開けなかった）があれば（移した印があるのに localStorage に本体・控えがある）、次に開けたときにその分を取り込む: その回の本体を `chronograma-storage-recovered-local` に置き、ストアを作った直後に `store/recoverLocal.ts` の `mergeRecoveredState` で合わせる。行は id ごとに両方を残して同じ id はその回のほう。行以外は IndexedDB の本体を基にし、その回の値はストアの既定値（初期状態）と違うときだけ使う（`*UpdatedAt` を持つものはその時刻が新しいときだけ、オブジェクトはキーごと、id を持つ配列・文字列の配列は両方を残す）。動いているタイマーは IndexedDB の側。持ち主が片方だけなら null、別の人どうしならその回のほうにして IndexedDB の本体を `chronograma-storage-before-recovery-{時刻}` に残す。合わせた本体と取り込みの印の削除は同じトランザクション。その回に無い人の控えは消す（`reportFailure` の `storage` / `recovered`）。
+  IndexedDB か BroadcastChannel が使えない・開けない（8 秒）・移せない端末は localStorage のまま（旧キーは `migrateLegacyPersistKey`）。
+  書き終える前にページを離れると（トランザクションが中断されることがある）、書き終えていない分を localStorage `chronograma-data-unsaved` に置き、次に開いたときに IndexedDB の書いた時刻（`meta` の `at:{キー}`）より新しければ書く。
+  他のタブの書き込みは BroadcastChannel（localStorage のときは storage イベント）で知り、IndexedDB から読み直して取り込む
 - **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
   / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ
 
@@ -46,9 +51,18 @@
 - `public/sw.js`: 画面はネットワーク優先・失敗時キャッシュ、`/assets/` はキャッシュ優先。別オリジン（Supabase / Google）は触らない。
   `push` で通知表示、`notificationclick` で既存ウィンドウへ `open-view` を postMessage（無ければ新規で開く）
 - `src/lib/pwa.ts`: SW 登録（**本番ビルドのみ**）、`beforeinstallprompt` の保持と `promptInstall`、iOS 判定、
-  通知タップの `?record=` / `as` / `launch` を `consumeLaunch` で読んで消す（`main.tsx`）。設定の `InstallAppSection` とサイドバーの
+  通知タップの `?record=` / `as` / `launch`、アイコン長押しの `?add=1` / `?start=last` を `consumeLaunch` で読んで消す（`boot.tsx`）。
+  `?start=last`（ショートカット「前回の記録を再開」）は `src/lib/quickStart.ts`: 終わりがいちばん新しい記録（睡眠を除く）の
+  題名・ラベル・色・元の To-Do で始める。計測中（どの端末でも）なら始めずに今日の計画を開くだけ、記録が無ければ知らせるだけ。
+  ログイン中は最初の同期（最大 6 秒）を待ってから決める（`useQuickStartLaunch`）。設定の `InstallAppSection` とサイドバーの
   「アプリとして使う」から案内
-- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`main.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
+- 共有から To-Do: manifest の `share_target`（GET、`/?add=1&title=&text=&url=`。Android の Chrome・Edge のインストール済み PWA だけ。
+  iPhone の Safari は未対応で共有先に出ない）。`consumeLaunch` が `add=1` のときだけ `title`・`text`・`url` を読んで消し、
+  `src/lib/shareTarget.ts` の `sharedQuickAdd` で追加欄の 1 行（「タイトル URL」）と、1 行に収まらない本文（`note`）にする。
+  `requestQuickAdd(prefill)` → `QuickAdd` が欄に入れてフォーカスするだけで、足すのは利用者が Enter / 追加を押してから。
+  `url` が空でも `text` の中の URL を取り出す。クイック追加はどの欄でも URL を題名と日付の読み取りから外してメモ（`description`）へ
+  入れる（`splitUrls`、URL だけなら題名は `shortUrlLabel`）。本文はメモの先頭、URL はその下
+- URL と履歴: `src/lib/urlHistory.ts` の `setupUrlHistory()`（`boot.tsx`）。画面の状態の持ち主はストア（`selectedView`・`selectedListId`・
   `filterTag`・`filterColor`）で、URL はその写し。形は `/?view=<SmartView>` か `/?list=<リスト id>`、絞り込みがあれば `&tag=`・`&color=`
   （解釈と組み立ては `src/lib/viewUrl.ts`。旧 `activity-log`→`planner`、`plan-vs-actual`→`calendar`）。起動時に URL の画面を開き、
   画面が替わるたびに `pushState`、ブラウザ・Android の「戻る」（`popstate`）で URL の画面を開く。最初の履歴・戻る/進むで開いた画面・
@@ -59,7 +73,8 @@
 
 ## エントリ
 
-- `src/main.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
+- `src/main.tsx`: 保存データを読み終えて（`openDataStore`）から `src/boot.tsx` を読み込む（`startAfterDataLoaded`）
+- `src/boot.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
 - `src/App.tsx`: レイアウト（ルートは `h-dvh`＝iOS Safari のツールバー分の見切れ回避）、`useSupabaseSync()`、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo
   面**（リスト選択 `selectedView === null` または `all` / `today` / `upcoming` /
@@ -89,19 +104,23 @@
 - **通知**: 何をいつ出すかは `supabase/functions/daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）。
   朝のまとめ（`dailyReminders.planTime`）・予定の前（`eventReminderMinutes`）・締切の前（`notificationsEnabled`、前日 20:00 ＋ 3 時間前）・
   予定のあとの記録の確認（`recordPrompts`、通知の「予定どおり / 記録する」→ `logPlanAsPlanned` / `RecordPromptHost`）・
-  タイマーの止め忘れ（3 時間）。タスクごとの通知は `Task.reminders`（`TaskRemindersField`、null は既定）。
+  タイマーの止め忘れ（3 時間）・「あと何分」の時間（`timerEndDue`。タブを開いていれば Web Push があっても `useReminders` が終わりの時刻に `checkTimerEnd`（`src/lib/timerEndAlert.ts`）で通知と音を出し、全部の購読の `timer_end_notified_for` に印を付ける）。タスクごとの通知は `Task.reminders`（`TaskRemindersField`、null は既定）。
   Web Push 購読中は Edge Function、それ以外は `App` が 30 秒ごとに `checkLocalReminders`（`src/lib/localReminders.ts`）。
   「今日の計画」でタスクが 1 件以上あるときに一度だけおすすめの通知をまとめてオンにする案内。`dailyCapacityMinutes`（既定 8h）を
   超えて計画すると穏やかに警告。設定は `DailyRhythmSettings`。日の集計は `getDayPlan`（`src/lib/dayPlan.ts`）
 - **タスク連動タイマー**: `startTimer(title, tags, taskId)`。停止時に元タスクが未完了なら `completePromptTaskId`
-  を立てて `FloatingTimer` が「完了にしますか？」を出す。1 分未満の停止はログを作らない
+  を立てて `FloatingTimer` が「完了にしますか？」を出す。1 分未満の停止はログを作らない。動いているタイマーはアカウントで 1 つ
+  （`user_active_timer`、`lib/timerSync.ts`）。別の端末で始めたものもここで止められる。「あと何分」は `ActiveTimer.endsAt`
+  （`setTimerEnd`・`startTimer` の `{ minutes }`、選ぶ長さ・予定の終わりは `lib/timerLength.ts`）。無ければ項目ごと持たない
 - **クイック追加の日時解釈**（`parseQuickAddTitle`）: 空白区切りの語から 今日/明日/明後日/曜日/来週X曜/9/30/10月3日、
   15時/15時半/午後3時/15:00/3pm、範囲 15:00-16:30・15時〜16時半、長さ 1時間/30分/1h/45m を読む。
+  英語は today/tomorrow/tmr/tonight/曜日/noon と、空白をまたぐ next fri（来週の金曜）・this fri・this week/next week（その週の日曜締切）・
+  this weekend（土曜）・in 2 days/in 3 weeks/in a week・Dec 5/5 Dec/Dec 5 2027 も読む（表示言語を問わない。`readEnPhrase`）
   時刻があれば予定（`scheduledDate`+時間幅、長さ未指定は 60 分）、日付だけなら To‑Do では期限日・「今日の計画」では予定日
 - **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
 - **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
-  （localStorage `chronograma-sync-baseline-v1:{userId}`）との三方向マージ → ローカル反映 → push（削除は
+  （`chronograma-sync-baseline-v1:{userId}`、本体と同じ置き場所）との三方向マージ → ローカル反映 → push（削除は
   マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
 
 - **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
@@ -159,14 +178,17 @@
   グレー（`.gc-missed`、完了は ✓）。クリック / ドラッグで作成中の枠（`CreateGhost`）も `.gc-plan`。週・日タイムライン、終日の行、月表示（時刻つきは
   「● 15:00 タイトル」、終日は帯）で共通
 - **1 文字ショートカット**（`App.tsx`、`src/lib/shortcuts.ts`）: t 今日 / j・n 次 / k・p 前 / d 今日の計画 / w 週 / m 月 / l ログ /
-  c 追加 / / 検索 / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
+  c 追加 / / To-Do の検索欄（検索欄の無い画面では To-Do へ切り替える） / ? 一覧（`ShortcutsHelp`）。入力中・修飾キー・ダイアログ表示中は無視。日付移動は `dispatchNav` のイベントを
   各画面が `useNavShortcut` で受ける（今日の計画・カレンダー・ログ・予定 vs ログ・習慣）
 
 ### グローバルショートカット（`App.tsx`）
 
 - 1 文字ショートカットは上記。以下は修飾キー付き
 
-- **⌘/Ctrl+K**: 検索フォーカス
+- **⌘/Ctrl+K**: 検索パレット（`SearchPalette`）。今の画面の上に出し、画面は切り替えない。入力中・詳細を開いていても効く。
+  打つと `searchTasks`（To-Do・予定だけ。記録は出さない）で絞り、↑↓ で選ぶ・Enter で詳細・⌥T 今日やる / 明日へ回す（`useTodayToggle`）・⌥S 時間を決める
+  （`TimeSlotMenu`。今の画面にその行があればその下）・⌥L 記録を始める（`startTimerForTask`）。使えない操作（完了済み・いつか・
+  チェックリスト・時間が決まっている）は出さない。Esc・⌘K・背景で閉じ、開く前のフォーカスへ戻る
 - **⌘/Ctrl+N**: Quick Add（`[data-quickadd]` または
   `requestQuickAdd()`）。確定は「追加」ボタン、または IME 未変換時の
   **Enter**（`isComposing` でないときのみ）
@@ -270,7 +292,7 @@
 
 ### 永続化 `partialize` で除外されるもの
 
-次は **localStorage に保存されない**（リロードで初期化）:
+次は **保存されない**（リロードで初期化）:
 
 - `searchQuery`, `deletedTasks`, `quickAddRequested`, `filterTag`
 - `calendarEvents`, `googleAccessToken`, `moveBannerText`,
@@ -361,6 +383,8 @@
 - **CSV 取り込み（Web）**: `importTasksFromCsv`（`src/lib/importTasksCsv.ts`）—
   既存データに**マージ**（全置換 JSON とは別ボタン）。列: `title`
   必須、`due_date`、 `list`、`completed`、`tags`、`priority`、`description` 等
+- **記録の書き出し（CSV・ICS）**: `src/lib/recordExport.ts`（`collectExportRows` → `buildRecordsCsv` / `buildRecordsIcs`）、画面は `settings/RecordExportSettings.tsx`。元の予定の列は `plannedItemsOnDay`（`weekReview.ts`）と `matchPlanAndActualForDate`。保存は `downloadTextFile`（`src/lib/downloadFile.ts`）
+- **ふりかえりの画像（共有・保存）**: `src/lib/reviewImage.ts`（`buildReviewImageModel` → `layoutReviewImage`（描く命令、文字の幅は `measure` で）→ `drawReviewImage` / `renderReviewImage`（PNG）、`shareableInsight`・`reviewShareText`・`shareOrSaveImage`）、画面は `ReviewShareDialog.tsx`（`WeekReviewCard` の見出しのアイコンから）。保存は `downloadBlob`（`src/lib/downloadFile.ts`）
 
 ## Supabase 同期（`src/hooks/useSupabaseSync.ts`）
 
@@ -375,8 +399,8 @@
     trivial（未分類のみ・タスク・習慣・追加リストなし）かつローカルにデータ →
     **push_local**
   - それ以外 → **リモートで上書き**（選択リストが消えていれば未分類へ）
-- **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`、メモリだけ・ログインごと）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。全部を取る（`fetchListsTasksHabits`）のは: タブを開いた・ログインした最初の同期、この端末でこの人として初めて、目印が無い、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、`008` の前の DB（そのログインの間ずっと）、前回の取得から 30 日（印を残す期間、`TOMBSTONE_RETENTION_MS`）、差分で取る範囲の印がサーバーの上限で消えていた（`sync_tombstone_purges.last_deleted_at` が目印より後、`010`。`tombstonesTrimmed`）。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
-- **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除も取得した版のままの行だけ（`id` と `updated_at` の組で消す）。`base_updated_at` 列が無い DB では付けずに送り直す。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
+- **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`、メモリだけ・ログインごと）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。全部を取る（`fetchListsTasksHabits`）のは: タブを開いた・ログインした最初の同期、この端末でこの人として初めて、目印が無い、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、前回の取得から 30 日（印を残す期間、`TOMBSTONE_RETENTION_MS`）、差分で取る範囲の印がサーバーの上限で消えていた（`sync_tombstone_purges.last_deleted_at` が目印より後、`010`。`tombstonesTrimmed`）。サーバーの時刻（`sync_server_now()`）・印の表（`sync_tombstones`）・上限で消した印の表（`sync_tombstone_purges`）が読めないときは、全部の取得や「印は無い」に逃げず、同期の失敗にする。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
+- **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除は取得した行を版つき（`id` と `updated_at` の組）で、取得に無い行だけ無条件で消す。列が無い・版が通らないときは送り直さず同期の失敗にする。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
 - `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
   `scheduled_date` / `archived_at` / `deleted_at`
@@ -455,15 +479,19 @@
 **正本**: `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` /
 `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、インデックス、トリガー、関数、RLS）。
 SQL Editor で番号順に全部流す（どれも何度流しても同じ形）。変更は番号順の新しいファイルで足し、コミット済みのファイルの SQL は書き換えない。本番への適用は `supabase db push --linked`（先に `--dry-run` で確かめる）。
-利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。送らない書き込み（前の版のアプリ）はサーバーの行より `updated_at` が古ければ捨てる。`user_settings` / `user_extra_time_zones` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。印は 1 人 50,000 件まで（`010` のトリガー `trim_sync_tombstones`。超えたら古い印から消し、消した印の一番新しい時刻を `sync_tombstone_purges.last_deleted_at` に残す）、30 日より古い印は pg_cron のジョブ `purge-sync-tombstones` が毎日消す（`010`）。アカウントの削除では Edge Function `account` が `deleteUser` の前に本人の印を消す。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。`base_updated_at` 列が無い DB では付けずに送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
-service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v1:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、鍵は secret `TOKEN_ENCRYPTION_KEY`、追加データは表・列・利用者）。暗号化する前の値は読んだときに書き直す。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
-付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。送る時間は前の成功の回から今まで（上限 60 分。`reminder_runs`（`012`、1 行、service_role だけ）の `last_ok_at`。失敗が 1 つでもあった回は進めない。送った通知は購読ごとの `reminder_sent` で外す）。前の回が走っている間（`running_since`、10 分より古ければ取り直す）は次の回は何もしない。幅と記録の決め方は `daily-reminders/batch.ts` の `runWindowStart` / `runFinishPatch`。cron の `net.http_post` は `timeout_milliseconds := 60000`、`x-cron-secret` の値は Vault（`vault.decrypted_secrets` の `chronograma_cron_secret`）から読む（手順はルート `README.md` の「通知」）。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、`search_path` は空（`013`）、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
-DB のテストは pgTAP の `supabase/tests/*.sql`（RLS: 他人の行・anon、`004` / `007` の書き込みの確かめ、`008` / `010` の印と上限、`006` の行数の上限、サーバー専用の表と関数（`006_server_only.test.sql`: トークンの表・`edge_rate_limits`・`reminder_runs` はブラウザから読めず書けない、public の全表で RLS が有効、`hit_rate_limit` はブラウザから呼べず `search_path` が空、`client_errors` は本人の insert だけで `created_at` は決められず新しい 500 件だけ残る））。手元では `supabase start` → `supabase test db`（Docker が要る。本番には向けない）。CI（`.github/workflows/ci.yml`）の `database` は DB だけ起こして migration を流し、pg_cron を有効にしてもう一度全部を流し（何度流しても同じ形・`010` のジョブ）、`supabase test db`。`functions` は全 Edge Function を `deno check --config supabase/functions/deno.json --frozen`（手元でも同じコマンド）。Edge Function の Deno の設定は `supabase/functions/deno.json`（`nodeModulesDir: none`、ルートの `package.json` は読まない）と依存の版の `supabase/functions/deno.lock`。supabase-js は `npm:@supabase/supabase-js@<版>`（ルートの `package.json` と同じ版）、web-push は `npm:web-push@3.6.7`。
+<<<<<<< HEAD
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。アプリ（anon / authenticated）からの版を送らない書き込みは断る（`017`、`app_outdated`）。外部キーの動作で変わった行は通し、`updated_at` をサーバーの時刻にする。同期の取り決めの版の下限は `app_config.min_sync_version`（`017`）で、アプリの `SYNC_PROTOCOL_VERSION`（`lib/syncVersion.ts`）より大きければ送らずに読み込み直しを促す。どの版がまだ同期しているかは `app_versions_seen`（`023`）: 同期の最初（下限を読んだ直後、下限より古い版も）に `lib/versionSeen.ts` の `noteAppVersion` が `note_app_version(版, 取り決めの版)` を呼ぶ（待たない。この端末・この人・この版で 1 日 1 回、送れた日は localStorage `chronograma-version-seen-v1:{userId}`。失敗は `reportSyncError` の `version-seen` で、同期は続ける）。表は端末から読めない。版ごとの直近 7 日の人数は `supabase/metrics/versions.sql`。`user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` / `user_course_links` / `user_timetable` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。印は 1 人 50,000 件まで（`010` のトリガー `trim_sync_tombstones`。超えたら古い印から消し、消した印の一番新しい時刻を `sync_tombstone_purges.last_deleted_at` に残す）、30 日より古い印は pg_cron のジョブ `purge-sync-tombstones` が毎日消す（`010`）。アカウントの削除では Edge Function `account` が `deleteUser` の前に本人の印を消す。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。版を外して送り直すことはしない。Notion の取り込み・フォルダを畳んで作ったラベルは手元の時刻を進めず、名前を `logLabelPendingAdds` に覚えて、合わせた表に無ければ後ろに足して送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。習慣の日ごとの時間（タイムラインで枠を動かした日だけ）は `habits.time_overrides`（`018`、null は無し。`Habit.timeOverrides`、判定・枠・✓ の記録は `lib/habitTiming.ts` の `habitTimesOn`）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。よく入れる予定（月表示で選んで日を押すと同じ予定が入る）は `user_event_templates.templates`（`022`、同期は `lib/eventTemplates.ts` の `planEventTemplateSync`。ラベル表と同じ合わせ方で、この端末でまだ一度も合わせていなければ両方を残す）。授業の予定の名前と LMS の科目のつながり（予定のカードにその科目の課題を出す）は `user_course_links.links`（`024`、同期は `lib/courseLinks.ts` の `planCourseLinkSync`。よく入れる予定と同じ合わせ方）。時間割の設定（時限・学期・祝日を除くか）は `user_timetable.timetable`（`027`、同期は `lib/timetable.ts` の `planTimetableSync`。ラベル表と同じ合わせ方で、一度も変えていない既定の値は送らず、この端末でまだ合わせていなければサーバーの値にする）。毎週の予定の回は 1 回ずつの予定の行（`tasks`）で、印は `tasks.event_series`（`027`、`{ id, weekdays, until, skipHolidays }`、予定の行だけ。端末では印のある行だけ `series` を持つ。列を送らない前の版のアプリの書き込みでは残る）。1 日の気分とひとことは `day_moods`（`025`、利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、行は消さない。トリガー `day_mood_write_guard` で `sync_write_guard` と同じ確かめ。同期は `lib/dayMood.ts` の `runDayMoodSync`: 最初は全部・その後は `updated_at` が前回の目印の 5 分前より後の行だけを取り、日ごとに `settingSyncStep` で合わせる。手元は `dayMoods[日付]` に変えた時刻 `updatedAt` ともとにした版 `syncedAt` を持ち、断られた日があれば全部を取り直す）。動いているタイマーは `user_active_timer`（`019`、利用者ごとに 1 行、`started_at` が null なら止まっている。同期は `lib/timerSync.ts` の `planActiveTimerSync`、手元の時刻は `activeTimerUpdatedAt`。ラベル表と同じ合わせ方で、両方で変えていたときだけ違う: 止めた側と動いている側なら動いているほう、知らずに別々に始めていたら始めた時刻が後のほう（同じなら中身を並べて大きいほう）で、負けたほうは勝ったほうを始めた時刻までの記録にする。記録を作るのは食い違いに気づいた端末だけ（勝ったほうを送れた後・負けて合わせた後）。止めた端末が記録を作り、ほかの端末はタイマーが消えるだけ）。止め忘れの通知の列 `push_subscriptions.timer_started_at` / `timer_title` は、トリガーがこの行をその人の全部の購読に写す（`019`）。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+=======
+利用者の表は主キー `(user_id, id)`。`lists` / `list_sections` / `tasks` / `habits` は、トリガー `sync_write_guard`（`004`）で書き込みを確かめる: `base_updated_at`（端末が取得した版）を送った書き込みはサーバーの `updated_at` が同じときだけ通し、`updated_at` をサーバーの時刻にする。アプリ（anon / authenticated）からの版を送らない書き込みは断る（`017`、`app_outdated`）。外部キーの動作で変わった行は通し、`updated_at` をサーバーの時刻にする。同期の取り決めの版の下限は `app_config.min_sync_version`（`017`）で、アプリの `SYNC_PROTOCOL_VERSION`（`lib/syncVersion.ts`）より大きければ送らずに読み込み直しを促す。どの版がまだ同期しているかは `app_versions_seen`（`023`）: 同期の最初（下限を読んだ直後、下限より古い版も）に `lib/versionSeen.ts` の `noteAppVersion` が `note_app_version(版, 取り決めの版)` を呼ぶ（待たない。この端末・この人・この版で 1 日 1 回、送れた日は localStorage `chronograma-version-seen-v1:{userId}`。失敗は `reportSyncError` の `version-seen` で、同期は続ける）。表は端末から読めない。版ごとの直近 7 日の人数は `supabase/metrics/versions.sql`。`user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` / `user_course_links` はトリガー `settings_write_guard`（`007`）で同じように確かめる（行は `user_id` で 1 つ）。消えた行は `sync_tombstones`（`008`、トリガー `record_sync_tombstones` が残す・同じ id が入り直すと消す。端末は select だけ。差分の取得に使う）。印は 1 人 50,000 件まで（`010` のトリガー `trim_sync_tombstones`。超えたら古い印から消し、消した印の一番新しい時刻を `sync_tombstone_purges.last_deleted_at` に残す）、30 日より古い印は pg_cron のジョブ `purge-sync-tombstones` が毎日消す（`010`）。アカウントの削除では Edge Function `account` が `deleteUser` の前に本人の印を消す。差分の目印にするサーバーの時刻は `sync_server_now()`（`008`、`authenticated` だけ）。差分の取得の索引 `(user_id, updated_at)`（`009`）。1 人が持てる行数に上限がある（`006` のトリガー `enforce_row_limit`。`tasks` 200,000・`list_sections` 5,000・`lists` 1,000・`habits` 1,000・`push_subscriptions` 100。超えると `row_limit_exceeded` で断り、同期の表示は「未同期」＋上限の説明）。記録の分類は `tasks.category`（To-Do の `tags` とは別。更新前の端末のため、記録の `tags` にも同じ名前を 1 つ写す。`lib/taskDefaults.ts` の `withLogCategory`）。ラベル表は `user_settings.log_labels`（同期は `lib/labelSync.ts`：初めての端末は両方を合わせる。それ以外は `lib/settingSync.ts` の `settingSyncStep`: 手元は「変えた時刻」と「もとにしたサーバーの版」（localStorage `chronograma-settings-sync-v1:{userId}`）を持ち、手元だけ変えていればその版を `base_updated_at` に付けて送る、サーバーだけ変わっていれば合わせる、両方なら手元の編集時刻をサーバーの時計に直して新しいほう。送ったら返ったサーバーの `updated_at` を手元の時刻と版にする。断られたら取り直して最大 3 回合わせ直す。版を外して送り直すことはしない。Notion の取り込み・フォルダを畳んで作ったラベルは手元の時刻を進めず、名前を `logLabelPendingAdds` に覚えて、合わせた表に無ければ後ろに足して送る）。習慣のアーカイブは `habits.archived_at`（`003`、null は使用中）。習慣の日ごとの時間（タイムラインで枠を動かした日だけ）は `habits.time_overrides`（`018`、null は無し。`Habit.timeOverrides`、判定・枠・✓ の記録は `lib/habitTiming.ts` の `habitTimesOn`）。時間バーに並べる他のタイムゾーンと付けた名前は `user_extra_time_zones.zones`（`002`、同期は `lib/extraTimeZones.ts` の `planExtraTimeZoneSync`、ラベル表と同じ合わせ方）。よく入れる予定（月表示で選んで日を押すと同じ予定が入る）は `user_event_templates.templates`（`022`、同期は `lib/eventTemplates.ts` の `planEventTemplateSync`。ラベル表と同じ合わせ方で、この端末でまだ一度も合わせていなければ両方を残す）。授業の予定の名前と LMS の科目のつながり（予定のカードにその科目の課題を出す）は `user_course_links.links`（`024`、同期は `lib/courseLinks.ts` の `planCourseLinkSync`。よく入れる予定と同じ合わせ方）。1 日の気分とひとことは `day_moods`（`025`、利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、行は消さない。トリガー `day_mood_write_guard` で `sync_write_guard` と同じ確かめ。同期は `lib/dayMood.ts` の `runDayMoodSync`: 最初は全部・その後は `updated_at` が前回の目印の 5 分前より後の行だけを取り、日ごとに `settingSyncStep` で合わせる。手元は `dayMoods[日付]` に変えた時刻 `updatedAt` ともとにした版 `syncedAt` を持ち、断られた日があれば全部を取り直す）。動いているタイマーは `user_active_timer`（`019`、利用者ごとに 1 行、`started_at` が null なら止まっている。同期は `lib/timerSync.ts` の `planActiveTimerSync`、手元の時刻は `activeTimerUpdatedAt`。ラベル表と同じ合わせ方で、両方で変えていたときだけ違う: 止めた側と動いている側なら動いているほう、知らずに別々に始めていたら始めた時刻が後のほう（同じなら中身を並べて大きいほう）で、負けたほうは勝ったほうを始めた時刻までの記録にする。記録を作るのは食い違いに気づいた端末だけ（勝ったほうを送れた後・負けて合わせた後）。止めた端末が記録を作り、ほかの端末はタイマーが消えるだけ）。「あと何分」の終わりは `ends_at`（`028`、null は終わりなし。前の版のアプリが別のタイマーを始めた・止めたときはトリガー `user_active_timer_clear_ends_at` が null にする）。止め忘れの通知の列 `push_subscriptions.timer_started_at` / `timer_title` と終わりの `timer_ends_at` は、トリガーがこの行をその人の全部の購読に写す（`019` / `028`）。時間の通知を送った終わりは `timer_end_notified_for`。`google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が
+>>>>>>> e22d902 (feat(timer): a running record can get a planned length ("あと何分") and says when the time is up, without stopping, fix #290)
+service_role で読み書き）。トークンの列（`google_oauth.refresh_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v2:<鍵の名前>:` で始まる AES-GCM の暗号文（`supabase/functions/_shared/secretBox.ts`、今の鍵は secret `TOKEN_ENCRYPTION_KEY`、前の鍵は `TOKEN_ENCRYPTION_PREVIOUS_KEYS`（開くときだけ）、鍵の名前は鍵から決まる 8 桁の 16 進、追加データは表・列・利用者。前の形 `enc:v1:` は今の鍵・前の鍵の順に試す）。今の鍵の `enc:v2:` でない値は読んだときに閉じ直し、読まれない行は `daily-reminders` が回の終わりに表ごと 100 行まで閉じ直す（`_shared/tokenSweep.ts`）。平文の値は閉じ直す処理のほかでは開かない（`PlaintextSecretError`）。Web Push の送信は Edge Function `daily-reminders` を pg_cron で 5 分ごとに `x-cron-secret`
+付きで呼ぶ（各端末のタイムゾーンで 1 日 1 回、失効購読は削除）。送る時間は前の成功の回から今まで（上限 60 分。`reminder_runs`（`012`、1 行、service_role だけ）の `last_ok_at`。失敗が 1 つでもあった回は進めない。送った通知は購読ごとの `reminder_sent` で外す）。前の回が走っている間（`running_since`、10 分より古ければ取り直す）は次の回は何もしない。回の終わりに最後の回の時刻・数・最後の失敗の時刻を別の update で残す（`021`、`runStatsPatch`。書けなくても目印の外しと `last_ok_at` は止めない）。幅と記録の決め方は `daily-reminders/batch.ts` の `runWindowStart` / `runFinishPatch`。cron の `net.http_post` は `timeout_milliseconds := 60000`、`x-cron-secret` の値は Vault（`vault.decrypted_secrets` の `chronograma_cron_secret`）から読む（手順はルート `README.md` の「通知」）。購読・タスクは 1000 行ずつキーの順に、前のページの最後のキーより後ろを読む（`batch.ts` の `fetchAllAfter`。offset は使わない）。未完了のタスクは部分索引 `tasks_reminder_open_idx`（`026`）と同じ条件で読み、いつか・チェックリストのリストは回の初めに要る人の分だけ 100 人ずつまとめて読む。購読の `endpoint` はブラウザのプッシュサービスの URL だけ（`supabase/functions/_shared/pushEndpoint.ts`）。ブラウザから呼ぶ Edge Function は利用者ごとに呼び出し回数の上限がある（`hit_rate_limit`、`search_path` は空（`013`）、上限の数は `supabase/functions/_shared/rateLimit.ts` の `RATE_LIMITS`。超えると 429）。一覧の短い説明は **`supabase/migrations/README.md`**。
+DB のテストは pgTAP の `supabase/tests/*.sql`（RLS: 他人の行・anon、`004` / `007` の書き込みの確かめ、`019` の動いているタイマーと止め忘れの列の写し、`028` の「あと何分」の終わりと写し、`008` / `010` の印と上限、`006` の行数の上限、サーバー専用の表と関数（`006_server_only.test.sql`: トークンの表・`edge_rate_limits`・`reminder_runs` はブラウザから読めず書けない、public の全表で RLS が有効、`hit_rate_limit` はブラウザから呼べず `search_path` が空、`client_errors` は本人の insert だけで `created_at` は決められず新しい 500 件だけ残る）、`010_app_versions_seen.test.sql`: 版の記録は `note_app_version` からだけ書け、本人の行・サーバーの時刻・1 人 20 行まで）。手元では `supabase start` → `supabase test db`（Docker が要る。本番には向けない）。CI（`.github/workflows/ci.yml`）の `database` は DB だけ起こして migration を流し、pg_cron を有効にしてもう一度全部を流し（何度流しても同じ形・`010` のジョブ）、`supabase test db`。`functions` は全 Edge Function を `deno check --config supabase/functions/deno.json --frozen`（手元でも同じコマンド）。Edge Function の Deno の設定は `supabase/functions/deno.json`（`nodeModulesDir: none`、ルートの `package.json` は読まない）と依存の版の `supabase/functions/deno.lock`。supabase-js は `npm:@supabase/supabase-js@<版>`（ルートの `package.json` と同じ版）、web-push は `npm:web-push@3.6.7`。
 ルート `README.md` の Supabase 節は本節と `migrations/README.md` と同期させる。
 
-### 端末のエラー（`client_errors`、`011`）
+### 端末のエラー（`client_errors`、`011`・種類は `020`）
 
-ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で 1 件ずつ insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`main.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 回の起動で 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。SQL Editor で見る:
+ログイン中の端末が `src/lib/errorReport.ts` の `reportError(kind, error, extra?)` で insert する。送るもの: `ErrorBoundary` の `componentDidCatch`（`render`）、window の `error` / `unhandledrejection`（`boot.tsx` の `installGlobalErrorReporting`、1 回だけ付ける）、同期の失敗（`reportSyncError`。取得・送信の失敗、断られた行、取り直しても断られ続けた行、設定の同期。回線の失敗とオフラインは送らない）、部品の読み込みの失敗（`chunk`）、`reportFailure(kind, stage, error, extra?)` で送る黙って続けていた失敗（回線の失敗は送らない。`extra.stage` が段階）: `storage`（本体の保存 `save`・IndexedDB を開けず localStorage で始めた `open`・その回の分を取り込んだ `recovered`・保存データが読めない `load`・壊れた行を外した `load-rows` / `other-tab-rows`・自動バックアップ `auto-backup`）、`integration`（`canvas` / `canvas:complete` / `notion` / `notion:advance`・Google の設定の誤り `google`）、`push`（`subscribe` / `save` / `delete` / `detach:delete` / `detach`）。前回同期の控えの保存の失敗は `sync` の `baseline`（IndexedDB では本体と同じトランザクションなので、本体を書けなかったときも）。両方の端末が同じ項目を別の値にして新しいほうに任せた回数は `sync` の `merge-conflicts`（`extra.conflicts` に `tasks.title` などの表.項目ごとの回数・`total`・`since`。端末の localStorage `chronograma-merge-conflicts-v1` にためて 1 日 1 回、`lib/mergeConflictReport.ts`）。ログインしていない間・オフラインの間は端末（localStorage `chronograma-pending-errors-v1`）に新しい 10 件までためて、ログインしたとき・回線が戻ったときに 1 回でまとめて送る（起きた時刻は `extra.occurred_at`）。同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回、1 時間に 20 件まで、送信に失敗したら再送せず 5 分止める。場所はパスと `?view=` だけ、トークン・JWT・メールアドレスは伏せる。版 `app_version` はビルド時の `import.meta.env.VITE_APP_VERSION`（`vite.config.ts`。package.json の版 + Vercel のコミット）。表は端末から読めない。運用で見る SQL は `supabase/metrics/health.sql`（直近 24 時間の種類・段階・版ごとの数、通知の最後の成功と最後の回の数（`reminder_runs`、`021`）、cron のジョブと失敗、pg_net の応答）。SQL Editor で見る:
 
 ```sql
 select created_at, kind, message, url, app_version, extra, left(stack, 400) as stack
@@ -492,7 +520,8 @@ limit 50;
 
 - `dev` — Vite 開発サーバー
 - `build` — `tsc -b` && `vite build`
-- `lint` — ESLint（CI で必須）
+- `lint` — ESLint（CI で必須）。型を見るルール（`no-floating-promises`・`no-misused-promises`・`await-thenable`）入り: Promise を返す関数を `onClick` などに直接渡さず、`() => void fn()` で呼ぶ
+- `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとの件数で出す（テスト以外。0 件になったら `tsconfig.app.json` で有効にする）
 - `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 

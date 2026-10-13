@@ -3,14 +3,20 @@ import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } fro
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, type Habit } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
-import type { RemoteLabels } from './labelSync'
+import type { LogLabelRow, RemoteLabels } from './labelSync'
+import { validTargetMinutes } from './labelTargets'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
+import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
+import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
+import { normalizeTimetable, type RemoteTimetable } from './timetable'
+import { readEventSeries, withSeries } from './eventSeries'
+import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
 
@@ -42,6 +48,8 @@ interface HabitRow {
   updated_at: string
   /** 古い DB には無い（`003`）。無い・null は使用中 */
   archived_at?: string | null
+  /** 日ごとの時間（`018`）。古い DB には無い。無い・null は無し */
+  time_overrides?: unknown
 }
 
 interface TaskRow {
@@ -67,6 +75,8 @@ interface TaskRow {
   estimate_minutes?: number | null
   /** 古い DB には無い（`016`） */
   source_task_id?: string | null
+  /** 毎週の予定の印（`027`）。古い DB には無い */
+  event_series?: unknown
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -90,187 +100,6 @@ interface TaskRow {
   deleted_at?: string | null
 }
 
-function isMissingEndDateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'end_date' column")
-}
-
-function stripEndDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ end_date, ...rest }) => {
-    void end_date
-    return rest
-  })
-}
-
-function isMissingCompletedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'completed_at' column")
-}
-
-function stripCompletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ completed_at, ...rest }) => {
-    void completed_at
-    return rest
-  })
-}
-
-function isMissingLocationColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'location' column")
-}
-
-function stripLocationFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ location, ...rest }) => {
-    void location
-    return rest
-  })
-}
-
-function isMissingColorColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'color' column")
-}
-
-function stripColorFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ color, ...rest }) => {
-    void color
-    return rest
-  })
-}
-
-function isMissingHabitIdColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'habit_id' column")
-}
-
-function stripHabitIdFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ habit_id, ...rest }) => {
-    void habit_id
-    return rest
-  })
-}
-
-function isMissingIsSleepColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'is_sleep' column")
-}
-
-function stripIsSleepFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ is_sleep, ...rest }) => {
-    void is_sleep
-    return rest
-  })
-}
-
-function isMissingEstimateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'estimate_minutes' column")
-}
-
-function stripEstimateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ estimate_minutes, ...rest }) => {
-    void estimate_minutes
-    return rest
-  })
-}
-
-function isMissingSourceTaskColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'source_task_id' column")
-}
-
-function stripSourceTaskFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ source_task_id, ...rest }) => {
-    void source_task_id
-    return rest
-  })
-}
-
-function isMissingIsEventColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'is_event' column")
-}
-
-function stripIsEventFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ is_event, ...rest }) => {
-    void is_event
-    return rest
-  })
-}
-
-function isMissingTimeZoneColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return /Could not find the 'time_zone(_anchor)?' column/.test(message)
-}
-
-function stripTimeZoneFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ time_zone, time_zone_anchor, ...rest }) => {
-    void time_zone
-    void time_zone_anchor
-    return rest
-  })
-}
-
-function isMissingRemindersColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'reminders' column")
-}
-
-function stripRemindersFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ reminders, ...rest }) => {
-    void reminders
-    return rest
-  })
-}
-
-function isMissingDueTimeColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'due_time' column")
-}
-
-function stripDueTimeFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ due_time, ...rest }) => {
-    void due_time
-    return rest
-  })
-}
-
-function isMissingScheduledDateColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'scheduled_date' column")
-}
-
-function stripScheduledDateFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ scheduled_date, ...rest }) => {
-    void scheduled_date
-    return rest
-  })
-}
-
-function isMissingArchivedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'archived_at' column")
-}
-
-function stripArchivedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ archived_at, ...rest }) => {
-    void archived_at
-    return rest
-  })
-}
-
-function isMissingDeletedAtColumnError(message: string | undefined): boolean {
-  if (!message) return false
-  return message.includes("Could not find the 'deleted_at' column")
-}
-
-function stripDeletedAtFromTaskRows(rows: TaskRow[]): TaskRow[] {
-  return rows.map(({ deleted_at, ...rest }) => {
-    void deleted_at
-    return rest
-  })
-}
-
 interface SectionRow {
   id: string
   user_id: string
@@ -290,21 +119,12 @@ function rowToSection(row: SectionRow): ListSection {
   }
 }
 
-/**
- * DB の大きさの上限（`001_chronograma_schema.sql` の *_size_check）。超えると送るたびに失敗して同期が止まるので、送る前に切る。
- * ふつうの使い方では届かない長さ（貼り付けた巨大な文章などだけ）
- */
-const MAX_NAME = 500
-const MAX_TITLE = 2000
-const MAX_DESCRIPTION = 200_000
-const clip = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text)
-
 function sectionToRow(userId: string, sec: ListSection): SectionRow {
   return {
     id: sec.id,
     user_id: userId,
     list_id: sec.listId,
-    name: clip(sec.name, MAX_NAME),
+    name: sec.name,
     sort_order: sec.order,
     // 送った時刻にすると、手元で変えていない端末の送信が「新しい変更」に見えて他端末の変更を上書きする
     updated_at: sec.updatedAt ?? UNKNOWN_UPDATED_AT,
@@ -341,14 +161,21 @@ function rowToHabit(row: HabitRow): Habit {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
+    ...withTimeOverrides(row.time_overrides),
   }
+}
+
+/** 日ごとの時間は、1 日でもあるときだけ項目を持つ（無い行どうしを「変わった」と見ない） */
+function withTimeOverrides(raw: unknown): Pick<Habit, 'timeOverrides'> {
+  const timeOverrides = readHabitTimeOverrides(raw)
+  return timeOverrides ? { timeOverrides } : {}
 }
 
 function habitToRow(userId: string, h: Habit): HabitRow {
   return {
     id: h.id,
     user_id: userId,
-    title: clip(h.title, MAX_TITLE),
+    title: h.title,
     color: h.color,
     time_mode: h.timeMode,
     start_time: h.startTime,
@@ -358,6 +185,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     created_at: h.createdAt,
     updated_at: h.updatedAt,
     archived_at: h.archivedAt ?? null,
+    time_overrides: h.timeOverrides ?? null,
   }
 }
 
@@ -375,7 +203,9 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
-  return withLogCategory(rowToTaskFields(row))
+  const task = withLogCategory(rowToTaskFields(row))
+  // 毎週の印は予定の行だけ。印のある行だけ項目を持つ
+  return task.kind === 'event' ? withSeries(task, readEventSeries(row.event_series)) : task
 }
 
 function rowToTaskFields(row: TaskRow): Task {
@@ -432,7 +262,7 @@ function listToRow(userId: string, list: TaskList): ListRow {
   return {
     id: list.id,
     user_id: userId,
-    name: clip(list.name, MAX_NAME),
+    name: list.name,
     color: list.color,
     sort_order: list.order,
     kind: list.kind ?? 'tasks',
@@ -447,8 +277,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     list_id: task.listId,
     parent_id: task.parentId,
     section_id: task.sectionId,
-    title: clip(task.title, MAX_TITLE),
-    description: clip(task.description, MAX_DESCRIPTION),
+    title: task.title,
+    description: task.description,
     completed: task.completed,
     completed_at: task.completedAt,
     created_at: task.createdAt,
@@ -460,7 +290,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_date: task.endDate,
     start_time: task.startTime,
     end_time: task.endTime,
-    location: task.location == null ? null : clip(task.location, MAX_TITLE),
+    location: task.location ?? null,
     estimate_minutes: task.estimateMinutes,
     color: task.color,
     priority: task.priority,
@@ -471,6 +301,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
+    event_series: isEventTask(task) ? (task.series ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
@@ -560,7 +391,7 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   userId: string,
   since: string,
   keys: readonly [string, ...string[]],
-): Promise<{ rows: T[] } | { error: string; code?: string }> {
+): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
   let total: number | null = null
   for (;;) {
@@ -581,7 +412,7 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
     }
     for (const k of keys) q = q.order(k)
     const { data, count, error } = await q.limit(PAGE_SIZE)
-    if (error) return { error: error.message, code: error.code }
+    if (error) return { error: error.message }
     if (rows.length === 0) total = count ?? null
     const page = (data ?? []) as T[]
     if (page.length === 0) break
@@ -591,46 +422,25 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   return { rows }
 }
 
-/** `008` を流す前の DB（印の表が無い） */
-function isMissingTombstoneTable(e: { error: string; code?: string }): boolean {
-  return /sync_tombstones/.test(e.error) && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.error))
-}
-
-/** `010` を流す前の DB（上限で消した印の表が無い）。印は消えていないので、差分のままでよい */
-function isMissingPurgeTable(e: { message: string; code?: string }): boolean {
-  return (
-    /sync_tombstone_purges/.test(e.message) &&
-    (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find/i.test(e.message))
-  )
-}
-
 /**
  * サーバーの時刻（`008` の `sync_server_now()`）。差分の取得の目印に使う（端末の時計は使わない）。
- * `unsupported` は関数が無い DB（`008` を流す前）
+ * 取れなければ（関数が無い・PostgREST の一覧が古いときも）同期の失敗
  */
-export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string; unsupported?: boolean }> {
+export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: string } | { error: string }> {
   const { data, error } = await supabase.rpc('sync_server_now')
-  if (error) {
-    const missing =
-      /sync_server_now/.test(error.message) &&
-      (error.code === 'PGRST202' || error.code === '42883' || /could not find|does not exist/i.test(error.message))
-    return missing ? { error: error.message, unsupported: true } : { error: `sync_server_now: ${error.message}` }
-  }
+  if (error) return { error: `sync_server_now: ${error.message}` }
   const at = typeof data === 'string' ? data : null
-  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value', unsupported: true }
+  if (!at || !Number.isFinite(Date.parse(at))) return { error: 'sync_server_now: bad value' }
   return { at }
 }
 
 /**
  * 差分の取得: `since` より後に変わった行と、`since` より後に消えた行の印。
  * 行を先に、印を後に取る（印は取った時点でその行がサーバーに無いことを示すので、行より後に取れば行の取得と食い違わない）。
- * `unsupported` は差分を取れない DB（`008` を流す前）。全部を取り直す
+ * 印の表（`008`）・上限で消した印の表（`010`）が読めなければ同期の失敗（読めないのを「印は無い」とすると、
+ * ほかの端末で消した行が次の全部の取得まで手元に残る）
  */
-export async function fetchChangesSince(
-  supabase: SupabaseClient,
-  userId: string,
-  since: string,
-): Promise<SyncChanges | { error: string; unsupported?: boolean }> {
+export async function fetchChangesSince(supabase: SupabaseClient, userId: string, since: string): Promise<SyncChanges | { error: string }> {
   const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
   for (const table of SYNC_TABLES) {
     const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
@@ -642,7 +452,7 @@ export async function fetchChangesSince(
     'table_name',
     'row_id',
   ])
-  if ('error' in ts) return isMissingTombstoneTable(ts) ? { error: ts.error, unsupported: true } : { error: `sync_tombstones: ${ts.error}` }
+  if ('error' in ts) return { error: `sync_tombstones: ${ts.error}` }
   // 上限で消した印の一番新しい時刻（`010`）。印を取った後に読むので、取った印より前に消えた分は必ず見える
   const trimmed = await supabase
     .from('sync_tombstone_purges')
@@ -650,7 +460,7 @@ export async function fetchChangesSince(
     .eq('user_id', userId)
     .gt('last_deleted_at', since)
     .limit(1)
-  if (trimmed.error && !isMissingPurgeTable(trimmed.error)) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
+  if (trimmed.error) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
   return {
     lists: (got.lists as unknown as ListRow[]).map(rowToList),
     sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
@@ -785,8 +595,8 @@ export async function pushListsTasksHabits(
         habits: new Map(remote.habits.map((x) => [x.id, x.updatedAt])),
       }
     : null
-  /** `004` を流す前の DB には base_updated_at 列が無い。この呼び出しの間は送らない（前と同じ書き込みになる） */
-  let sendBase = bases !== null
+  /** 版（`base_updated_at`）を付けて送る。本番の DB は `004` 以降なので、版の確かめを外して送り直すことはしない */
+  const sendBase = bases !== null
   const rejectKey = (table: SyncTable, id: string) => `${userId}:${table}:${id}`
   const changedOnly = <T extends { id: string }, R>(
     table: SyncTable,
@@ -851,9 +661,8 @@ export async function pushListsTasksHabits(
     return { rejected: out, written, stale, clockOffsetMs }
   }
 
-  // 主キーは (user_id, id)。主キーが id だけの古い DB には一致する一意制約が無いので id で送り直す
-  // （その DB では 2 人目以降の利用者は同期できない。001 を流し直して主キーを直す）
-  let onConflict = 'user_id,id'
+  // 主キーは (user_id, id)
+  const onConflict = 'user_id,id'
   const send = (table: SyncTable, rows: { id: string }[]) => {
     const body = sendBase && bases ? rows.map((r) => ({ ...r, base_updated_at: bases[table].get(r.id) ?? BASE_ABSENT })) : rows
     // 受け付けた行だけが返る。返らなかった行は、取得した後に他の端末が変えていた（サーバーが断った）
@@ -861,15 +670,7 @@ export async function pushListsTasksHabits(
   }
   const upsertBatch = async (table: SyncTable, rows: { id: string }[]) => {
     const startedAt = Date.now()
-    let { data, error } = await send(table, rows)
-    if (error && sendBase && /'base_updated_at'/.test(error.message)) {
-      sendBase = false
-      ;({ data, error } = await send(table, rows))
-    }
-    if (error && onConflict !== 'id' && /no unique or exclusion constraint/i.test(error.message)) {
-      onConflict = 'id'
-      ;({ data, error } = await send(table, rows))
-    }
+    const { data, error } = await send(table, rows)
     if (error) return error
     const midpoint = (startedAt + Date.now()) / 2
     const sentStamp = new Map(rows.map((r) => [r.id, Date.parse((r as { updated_at?: string }).updated_at ?? '')]))
@@ -919,18 +720,23 @@ export async function pushListsTasksHabits(
   }
   const deleteIsolating = async (table: SyncTable, ids: string[]): Promise<string | undefined> => {
     const base = bases?.[table]
-    let error: { code?: string; message: string } | null
-    if (base && ids.every((id) => base.has(id))) {
+    // 版のある行（取得した行）は版つきで、版の無い行（取得に無かった行）だけ無条件で消す。
+    // 以前は 1 行でも版の無い行が混ざると、まとめて無条件の削除になり、取得した後に他の端末が直した行も消えていた
+    const versioned = base ? ids.filter((id) => base.has(id)) : []
+    const unversioned = base ? ids.filter((id) => !base.has(id)) : ids
+    let error: { code?: string; message: string } | null = null
+    if (versioned.length > 0) {
       // 取得したときのままの行だけ消す。取得した後に他の端末が変えた行は残し、次の同期で取り込む
-      const match = ids.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base.get(id)!)})`).join(',')
+      const match = versioned.map((id) => `and(id.eq.${quoteFilterValue(id)},updated_at.eq.${quoteFilterValue(base!.get(id)!)})`).join(',')
       const res = await supabase.from(table).delete().eq('user_id', userId).or(match).select('id')
       error = res.error
       if (!error) {
         const gone = new Set(((res.data ?? []) as { id: string }[]).map((r) => r.id))
-        for (const id of ids) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
+        for (const id of versioned) if (!gone.has(id)) stale.push({ table, id, op: 'delete' })
       }
-    } else {
-      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', ids))
+    }
+    if (!error && unversioned.length > 0) {
+      ;({ error } = await supabase.from(table).delete().eq('user_id', userId).in('id', unversioned))
     }
     if (!error) return undefined
     if (!canIsolate(error.code)) return error.message
@@ -943,136 +749,17 @@ export async function pushListsTasksHabits(
     return (await deleteIsolating(table, ids.slice(0, mid))) ?? (await deleteIsolating(table, ids.slice(mid)))
   }
 
-  let e1 = await upsert('lists', listRows)
-  // 古い DB では kind 列が無い。種類なしで送り直す（列を足せば次回から自動で送る）
-  if (e1 && /kind/.test(e1)) {
-    e1 = await upsert(
-      'lists',
-      listRows.map((row) => ({ ...row, kind: undefined })),
-    )
-  }
+  // 列が無い・版が通らないときは送り直さず同期の失敗にする（列を黙って落とすと、ゴミ箱・予定・アーカイブが黙って外れていた）
+  const e1 = await upsert('lists', listRows)
   if (e1) return finish(e1)
 
   const eSec = await upsert('list_sections', sectionRows)
   if (eSec) return finish(eSec)
 
-  // 列が無い古い DB 互換。フラグは「この push 呼び出し内」だけで持ち、
-  // 毎回フル列で送り直すので、後から列を追加すれば次回同期で自動復帰する
-  // （ページ再読み込み不要）。
-  let stripEndDate = false
-  let stripCompletedAt = false
-  let stripLocation = false
-  let stripColor = false
-  let stripHabitId = false
-  let stripIsSleep = false
-  let stripIsEvent = false
-  let stripEstimate = false
-  let stripSourceTask = false
-  let stripTimeZone = false
-  let stripReminders = false
-  let stripDueTime = false
-  let stripScheduledDate = false
-  let stripArchivedAt = false
-  let stripDeletedAt = false
-  const upsertTasksRows = async (): Promise<string | undefined> => {
-    let rows: TaskRow[] = taskRows
-    if (stripEndDate) rows = stripEndDateFromTaskRows(rows)
-    if (stripCompletedAt) rows = stripCompletedAtFromTaskRows(rows)
-    if (stripLocation) rows = stripLocationFromTaskRows(rows)
-    if (stripColor) rows = stripColorFromTaskRows(rows)
-    if (stripHabitId) rows = stripHabitIdFromTaskRows(rows)
-    if (stripIsSleep) rows = stripIsSleepFromTaskRows(rows)
-    if (stripIsEvent) rows = stripIsEventFromTaskRows(rows)
-    if (stripEstimate) rows = stripEstimateFromTaskRows(rows)
-    if (stripSourceTask) rows = stripSourceTaskFromTaskRows(rows)
-    if (stripTimeZone) rows = stripTimeZoneFromTaskRows(rows)
-    if (stripReminders) rows = stripRemindersFromTaskRows(rows)
-    if (stripDueTime) rows = stripDueTimeFromTaskRows(rows)
-    if (stripScheduledDate) rows = stripScheduledDateFromTaskRows(rows)
-    if (stripArchivedAt) rows = stripArchivedAtFromTaskRows(rows)
-    if (stripDeletedAt) rows = stripDeletedAtFromTaskRows(rows)
-    return upsert('tasks', rows)
-  }
-  for (let attempt = 0; attempt < 16; attempt++) {
-    const errMsg = await upsertTasksRows()
-    if (!errMsg) break
-    if (isMissingEndDateColumnError(errMsg) && !stripEndDate) {
-      stripEndDate = true
-      continue
-    }
-    if (isMissingCompletedAtColumnError(errMsg) && !stripCompletedAt) {
-      stripCompletedAt = true
-      continue
-    }
-    if (isMissingLocationColumnError(errMsg) && !stripLocation) {
-      stripLocation = true
-      continue
-    }
-    if (isMissingColorColumnError(errMsg) && !stripColor) {
-      stripColor = true
-      continue
-    }
-    if (isMissingHabitIdColumnError(errMsg) && !stripHabitId) {
-      stripHabitId = true
-      continue
-    }
-    if (isMissingIsSleepColumnError(errMsg) && !stripIsSleep) {
-      stripIsSleep = true
-      continue
-    }
-    // `014` を流す前の DB。予定は To-Do として送る（列を足せば次回から予定のまま）
-    if (isMissingIsEventColumnError(errMsg) && !stripIsEvent) {
-      stripIsEvent = true
-      continue
-    }
-    // `015` を流す前の DB。見積もりは端末にだけ残る
-    if (isMissingEstimateColumnError(errMsg) && !stripEstimate) {
-      stripEstimate = true
-      continue
-    }
-    // `016` を流す前の DB。記録の元の To-Do は端末にだけ残る
-    if (isMissingSourceTaskColumnError(errMsg) && !stripSourceTask) {
-      stripSourceTask = true
-      continue
-    }
-    if (isMissingRemindersColumnError(errMsg) && !stripReminders) {
-      stripReminders = true
-      continue
-    }
-    if (isMissingTimeZoneColumnError(errMsg) && !stripTimeZone) {
-      stripTimeZone = true
-      continue
-    }
-    if (isMissingDueTimeColumnError(errMsg) && !stripDueTime) {
-      stripDueTime = true
-      continue
-    }
-    if (isMissingScheduledDateColumnError(errMsg) && !stripScheduledDate) {
-      stripScheduledDate = true
-      continue
-    }
-    if (isMissingArchivedAtColumnError(errMsg) && !stripArchivedAt) {
-      stripArchivedAt = true
-      continue
-    }
-    if (isMissingDeletedAtColumnError(errMsg) && !stripDeletedAt) {
-      stripDeletedAt = true
-      continue
-    }
-    return finish(errMsg)
-  }
+  const eT = await upsert('tasks', taskRows)
+  if (eT) return finish(eT)
 
-  let eH = await upsert('habits', habitRows)
-  // `003` を流す前の DB には archived_at が無い。アーカイブなしで送り直す（列を足せば次回から送る）
-  if (isMissingArchivedAtColumnError(eH)) {
-    eH = await upsert(
-      'habits',
-      habitRows.map(({ archived_at, ...rest }) => {
-        void archived_at
-        return rest
-      }),
-    )
-  }
+  const eH = await upsert('habits', habitRows)
   if (eH) return finish(eH)
 
   // 子 → 親の順（tasks → habits → sections → lists）
@@ -1085,7 +772,7 @@ export async function pushListsTasksHabits(
     // id は URL に並ぶので、数百件を一度に消すと URL が長すぎて失敗し、同期が詰まり続けていた
     // 版を付けて消すときは 1 件あたりの URL が長いので、もっと細かく分ける
     const base = bases?.[table]
-    const size = base && ids.every((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
+    const size = base && ids.some((id) => base.has(id)) ? CONDITIONAL_DELETE_BATCH : DELETE_BATCH
     for (let i = 0; i < ids.length; i += size) {
       const error = await deleteIsolating(table, ids.slice(i, i + size))
       if (error) return finish(error)
@@ -1100,20 +787,24 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
   if (error) return { error: error.message }
   if (!data) return null
   const rows = Array.isArray(data.log_labels) ? (data.log_labels as unknown[]) : []
-  const labels = rows.flatMap((r) => {
-    const x = r as { name?: unknown; color?: unknown }
-    return typeof x.name === 'string' ? [{ name: x.name, color: typeof x.color === 'string' ? x.color : '' }] : []
+  const labels = rows.flatMap((r): LogLabelRow[] => {
+    const x = r as { name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
+    if (typeof x.name !== 'string') return []
+    const color = typeof x.color === 'string' ? x.color : ''
+    // 週の目安（#291）。無い・壊れた値なら目安なし
+    const target = validTargetMinutes(x.weeklyTargetMinutes)
+    return [target ? { name: x.name, color, weeklyTargetMinutes: target } : { name: x.name, color }]
   })
   return { labels, updatedAt: String(data.updated_at) }
 }
 
 /**
- * `user_settings` / `user_extra_time_zones` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
+ * `user_settings` / `user_extra_time_zones` / `user_active_timer` / `user_event_templates` / `user_course_links` / `user_timetable` の 1 行を送る。もとにした版（`base`、行が無ければ '-infinity'）を付け、
  * サーバーの行がその版のときだけ通る（`007` の settings_write_guard）。通った行の `updated_at` を返させる
  */
-async function pushSettingRow(
+export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones',
+  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable',
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
@@ -1124,9 +815,8 @@ async function pushSettingRow(
       .from(table)
       .upsert(body, { onConflict: 'user_id', ignoreDuplicates: base === null })
       .select('updated_at')
-  let { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
-  // `007` を流す前の DB には base_updated_at 列が無い。付けずに送り直す（前と同じ、端末の時刻で比べる書き込み）
-  if (error && /'base_updated_at'/.test(error.message)) ({ data, error } = await send(row))
+  // 版の確かめ（`007`）を外して送り直すことはしない（端末の時計で比べる書き込みに落ちる）
+  const { data, error } = await send({ ...row, base_updated_at: base ?? BASE_ABSENT })
   if (error) return { error: error.message }
   const back = ((data ?? []) as { updated_at?: unknown }[])[0]
   if (!back || back.updated_at == null) return { stale: true }
@@ -1160,4 +850,123 @@ export function pushExtraTimeZones(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_extra_time_zones', { user_id: userId, zones: value.zones, updated_at: value.updatedAt }, base)
+}
+
+/** よく入れる予定（`user_event_templates.templates`、`022`）。行が無ければ null */
+export async function fetchEventTemplates(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RemoteEventTemplates | null | { error: string }> {
+  const { data, error } = await supabase.from('user_event_templates').select('templates, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { templates: normalizeEventTemplates(data.templates), updatedAt: String(data.updated_at) }
+}
+
+export function pushEventTemplates(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteEventTemplates,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(
+    supabase,
+    'user_event_templates',
+    { user_id: userId, templates: value.templates, updated_at: value.updatedAt },
+    base,
+  )
+}
+
+/** 授業の予定と科目のつながり（`user_course_links.links`、`024`）。行が無ければ null */
+export async function fetchCourseLinks(supabase: SupabaseClient, userId: string): Promise<RemoteCourseLinks | null | { error: string }> {
+  const { data, error } = await supabase.from('user_course_links').select('links, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { links: normalizeCourseLinks(data.links), updatedAt: String(data.updated_at) }
+}
+
+export function pushCourseLinks(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteCourseLinks,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_course_links', { user_id: userId, links: value.links, updated_at: value.updatedAt }, base)
+}
+
+/** 時間割の設定（`user_timetable.timetable`、`027`）。行が無ければ null */
+export async function fetchTimetable(supabase: SupabaseClient, userId: string): Promise<RemoteTimetable | null | { error: string }> {
+  const { data, error } = await supabase.from('user_timetable').select('timetable, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { timetable: normalizeTimetable(data.timetable), updatedAt: String(data.updated_at) }
+}
+
+export function pushTimetable(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteTimetable,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_timetable', { user_id: userId, timetable: value.timetable, updated_at: value.updatedAt }, base)
+}
+
+/**
+ * 1 日の気分とひとこと（`day_moods`、`025`）。`since` があればそれより後に変わった行だけ。
+ * 日付の順に、続きは最後に受け取った日より後から、空のページが返るまで取る（`fetchAllRows` と同じ）
+ */
+export async function fetchDayMoods(
+  supabase: SupabaseClient,
+  userId: string,
+  since: string | null,
+): Promise<RemoteDayMood[] | { error: string }> {
+  const out: RemoteDayMood[] = []
+  for (;;) {
+    let q = supabase.from('day_moods').select('day, mood, note, updated_at').eq('user_id', userId)
+    if (since) q = q.gt('updated_at', since)
+    const last = out[out.length - 1]
+    if (last) q = q.gt('day', last.day)
+    const { data, error } = await q.order('day').limit(PAGE_SIZE)
+    if (error) return { error: `day_moods: ${error.message}` }
+    const page = (data ?? []) as { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }[]
+    if (page.length === 0) break
+    for (const r of page) {
+      out.push({
+        day: String(r.day),
+        mood: isMood(r.mood) ? r.mood : null,
+        note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
+        updatedAt: String(r.updated_at),
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * 気分の行を送る。日ごとにもとにした版（`base`、行が無いはずなら '-infinity'）を付け、サーバーの行がその版のときだけ通る
+ * （`025` の day_mood_write_guard）。通った日と付いた版を返す（返らない日は断られた）
+ */
+export async function pushDayMoods(supabase: SupabaseClient, userId: string, rows: DayMoodPush[]): Promise<DayMoodPushResult> {
+  const body = rows.map((r) => ({
+    user_id: userId,
+    day: r.day,
+    mood: r.mood,
+    note: r.note,
+    updated_at: r.updatedAt,
+    base_updated_at: r.base ?? BASE_ABSENT,
+  }))
+  const { data, error } = await supabase.from('day_moods').upsert(body, { onConflict: 'user_id,day' }).select('day, updated_at')
+  if (error) return { error: error.message }
+  const written = ((data ?? []) as { day?: unknown; updated_at?: unknown }[])
+    .filter((r) => r.day != null && r.updated_at != null)
+    .map((r) => ({ day: String(r.day), updatedAt: String(r.updated_at) }))
+  return { written }
+}
+
+/** 同期の取り決めの版の下限（`app_config.min_sync_version`、017）。読めなければエラー（黙って送らない・黙って送るのどちらにもしない） */
+export async function fetchMinSyncVersion(supabase: SupabaseClient): Promise<number | { error: string }> {
+  const { data, error } = await supabase.from('app_config').select('value').eq('key', 'min_sync_version').maybeSingle()
+  if (error) return { error: error.message }
+  const v = Number((data as { value?: unknown } | null)?.value ?? 0)
+  return Number.isFinite(v) ? v : 0
 }

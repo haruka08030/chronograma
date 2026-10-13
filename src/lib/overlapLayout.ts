@@ -96,7 +96,7 @@ export function overlapSlotStyle(
  * 予定とログを一緒に並べるときの横位置。時間が重なる塊ごとに、
  * 予定とログが混ざっていれば 予定=左半分 / ログ=右半分、片方だけなら全幅を使う
  * （1 日のどこかにログがあるだけで全体を半分にすると、空いた右半分が無駄になる）。
- * `fixedLanes` なら常に 予定=左半分 / ログ=右半分（「今日」の 2 列表示）。
+ * `fixedLanes` なら常に 予定=左半分 / ログ=右半分（「今日の計画」の 1 日表示の 2 列）。
  */
 export function layoutPlanAndLog(
   plans: readonly OverlapInput[],

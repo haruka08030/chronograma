@@ -6,9 +6,11 @@ import { isLogTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { unplannedListIds } from '../lib/listKind'
+import type { TaskFilter } from '../lib/taskFilter'
 import { getFilteredRootTasks, getOrderedActiveRootTasksForDnD } from '../lib/mainListTasks'
 import { groupsBySection, isTodoSurfaceView } from '../lib/todoSurfaceView'
 import { displayListName } from '../lib/displayListName'
+import { compareByOrder } from '../lib/orderCompare'
 
 export type SectionBlockRow = {
   listId: string
@@ -31,6 +33,7 @@ export function useTaskListRows({
   sectionGrouping,
   filterTag,
   filterColor,
+  taskFilter,
 }: {
   tasks: Task[]
   lists: TaskList[]
@@ -41,6 +44,7 @@ export function useTaskListRows({
   sectionGrouping: SectionGrouping
   filterTag: string | null
   filterColor: string | null
+  taskFilter?: Partial<TaskFilter>
 }) {
   const { t } = useTranslation()
   const listOrderById = useMemo(() => {
@@ -61,13 +65,14 @@ export function useTaskListRows({
         filterColor,
         sections,
         excludedListIds,
+        taskFilter,
       }),
-    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds],
+    [tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, sections, excludedListIds, taskFilter],
   )
 
   const listSectionsOrdered = useMemo(() => {
     if (!selectedListId) return []
-    return sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
+    return sections.filter((s) => s.listId === selectedListId).sort(compareByOrder)
   }, [sections, selectedListId])
 
   // リスト選択時はそのリストのセクション。スマートビューでは、表示対象タスクが属する
@@ -104,6 +109,7 @@ export function useTaskListRows({
       sections,
       listOrderById,
       excludedListIds,
+      taskFilter,
     })
   }, [
     filtered,
@@ -117,6 +123,7 @@ export function useTaskListRows({
     sections,
     listOrderById,
     excludedListIds,
+    taskFilter,
   ])
 
   const sectionBlocks = useMemo((): SectionBlockRow[] | null => {
@@ -156,7 +163,7 @@ export function useTaskListRows({
     }
 
     // スマートビュー: リスト order 順に、セクションがあるリストはセクション分割、無いリストはフラット
-    const sortedLists = [...lists].sort((a, b) => a.order - b.order)
+    const sortedLists = [...lists].sort(compareByOrder)
     const activeByList = new Map<string, typeof active>()
     for (const t of active) {
       const arr = activeByList.get(t.listId)
@@ -169,7 +176,7 @@ export function useTaskListRows({
       const listTasks = activeByList.get(list.id)
       if (!listTasks || listTasks.length === 0) continue
 
-      const listSecs = sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)
+      const listSecs = sections.filter((s) => s.listId === list.id).sort(compareByOrder)
       const listLabel = displayListName(list.id, list.name)
 
       if (listSecs.length === 0) {

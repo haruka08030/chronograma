@@ -85,6 +85,22 @@ describe('matchesHotkey', () => {
     expect(matchesHotkey(key('Enter', { metaKey: true }), 'Enter')).toBe(false)
   })
 
+  it('Alt+矢印（Mac の Option でも key は矢印のまま）。Alt を書いていなければ合わない', () => {
+    expect(matchesHotkey(key('ArrowUp', { altKey: true }), 'alt+ArrowUp')).toBe(true)
+    expect(matchesHotkey(key('ArrowDown', { altKey: true, shiftKey: true }), 'alt+shift+ArrowDown')).toBe(true)
+    expect(matchesHotkey(key('ArrowDown', { altKey: true, shiftKey: true }), 'alt+ArrowDown')).toBe(false)
+    expect(matchesHotkey(key('ArrowDown', { altKey: true }), 'ArrowDown')).toBe(false)
+    expect(matchesHotkey(key('ArrowDown', { altKey: true }), 'shift+ArrowDown')).toBe(false)
+    expect(matchesHotkey(key('ArrowDown'), 'alt+ArrowDown')).toBe(false)
+  })
+
+  it('Alt+文字はキーの位置（code）で見る（Mac の ⌥E は key が「´」）', () => {
+    expect(matchesHotkey({ ...key('´', { altKey: true }), code: 'KeyE' }, 'alt+e')).toBe(true)
+    expect(matchesHotkey({ ...key('¡', { altKey: true }), code: 'Digit1' }, 'alt+1')).toBe(true)
+    expect(matchesHotkey({ ...key('´', { altKey: true }), code: 'KeyE' }, 'alt+r')).toBe(false)
+    expect(matchesHotkey({ ...key('´', { altKey: true }), code: 'KeyE' }, 'e')).toBe(false)
+  })
+
   it('空の書き方には何も合わない', () => {
     expect(matchesHotkey(key(''), '')).toBe(false)
   })

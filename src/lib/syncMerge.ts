@@ -3,9 +3,9 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
-import jaLocale from '../locales/ja'
-import enLocale from '../locales/en'
+import { BUILTIN_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
+import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
 
@@ -27,6 +27,11 @@ export interface SyncBaseline {
    * （スマホで月曜・PC で火曜にチェックしたとき、どちらも残す）。古い控えには無い
    */
   habitDates?: Record<string, string[]>
+  /**
+   * 前回同期した時点のタスクごとのタグ（タグのあるタスクだけ）。タグも集合として合わせる
+   * （片方で足し、片方で外したとき、どちらも残す）。古い控えには無い
+   */
+  taskTags?: Record<string, string[]>
   /**
    * 前回同期した時点の、行ごと・項目ごとの値の短いハッシュ（値そのものは持たない。容量を食うため）。
    * 両方の端末で同じ行を変えたとき、変えた項目どうしなら両方を残すのに使う（スマホでタイトル・PC で完了）。古い控えには無い
@@ -94,12 +99,51 @@ function rowHash(row: object, order: readonly string[]): string {
   return order.map((k) => fieldHash(rec[k])).join('.')
 }
 
+/** 両方の端末で別々に直したメモの区切り（下が負けたほうの版） */
+export const MEMO_CONFLICT_SEPARATOR = '\n\n―― ―― ――\n'
+
+/** 両方が変えたメモ。一方がもう一方を含む（書き足した）なら長いほう、違えば新しいほうの下に古いほうを残す */
+export function mergeMemo(l: string, r: string, winner: 'l' | 'r'): string {
+  if (l.includes(r)) return l
+  if (r.includes(l)) return r
+  const [win, lose] = winner === 'r' ? [r, l] : [l, r]
+  return `${win}${MEMO_CONFLICT_SEPARATOR}${lose}`
+}
+
+/**
+ * タスクのタグを集合として合わせる（`mergeHabitDates` と同じ）。前回同期にあって片方で外したタグは外し、
+ * 片方で足したタグは残す。並びは手元の並びのあとにサーバーにしか無いものを足す。控えにタグの記録が無ければ（古い控え）何もしない
+ */
+export function mergeTaskTags(
+  merged: Task[],
+  local: readonly Task[],
+  remote: readonly Task[],
+  baseTags: Record<string, string[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Task[] {
+  if (!baseTags) return merged
+  const localById = new Map(local.map((t) => [t.id, t]))
+  const remoteById = new Map(remote.map((t) => [t.id, t]))
+  return merged.map((t) => {
+    const l = localById.get(t.id)
+    const r = remoteById.get(t.id)
+    if (!l || !r) return t
+    const base = new Set(baseTags[t.id] ?? [])
+    const ls = new Set(l.tags)
+    const rs = new Set(r.tags)
+    const tags = [...l.tags, ...r.tags.filter((x) => !ls.has(x))].filter((x) => !(base.has(x) && (!ls.has(x) || !rs.has(x))))
+    const same = tags.length === t.tags.length && tags.every((x, i) => x === t.tags[i])
+    return same ? t : { ...t, tags, updatedAt: nowIso }
+  })
+}
+
 /**
  * 両方の端末で変わった 1 行を項目ごとに合わせる。前回同期から片方だけが変えた項目はその側の値、
  * 両方が変えた項目（と前回の値が分からない項目）は新しいほうの値。
  * どちらが新しいかは、手元の編集時刻をサーバーの時計に直して（`clockOffsetMs`）サーバーの updatedAt と比べる。
  * 全部の項目がサーバー側なら行をそのまま（updatedAt もサーバーの値）、全部が手元側なら手元の行。
- * 両方から取ったときは updatedAt を今にする（送るとサーバーが時刻を付け直す）
+ * 両方から取ったときは updatedAt を今にする（送るとサーバーが時刻を付け直す）。
+ * 前回の値が分かっていて両方が別の値に変えた項目を新しいほうにしたとき（片方の編集を捨てた）は `onConflict` に項目名を渡す（#357）
  */
 function mergeRow<T extends { id: string }>(
   l: T,
@@ -108,6 +152,7 @@ function mergeRow<T extends { id: string }>(
   stamp: (x: T) => number,
   nowIso: string,
   clockOffsetMs: number,
+  onConflict?: (field: string) => void,
 ): T {
   if (!base) return stamp(r) > stamp(l) ? r : l
   const winner = stamp(r) > stamp(l) + clockOffsetMs ? r : l
@@ -123,10 +168,20 @@ function mergeRow<T extends { id: string }>(
     const rh = fieldHash(rr[k])
     if (lh === rh) continue
     const bh = baseByKey.get(k)
+    // メモを両方の端末で変えた: 新しいほうに、もう一方の版を消さずに下へ足す（書き足しどうしなら長いほう）
+    if (k === 'description' && bh !== undefined && lh !== bh && rh !== bh && typeof lr[k] === 'string' && typeof rr[k] === 'string') {
+      out[k] = mergeMemo(lr[k] as string, rr[k] as string, winner === r ? 'r' : 'l')
+      fromLocal = true
+      fromRemote = true
+      continue
+    }
     let take: 'l' | 'r' | null = null
     if (bh !== undefined && lh === bh) take = 'r'
     else if (bh !== undefined && rh === bh) take = 'l'
-    if (!take) take = winner === r ? 'r' : 'l'
+    if (!take) {
+      take = winner === r ? 'r' : 'l'
+      if (bh !== undefined) onConflict?.(k)
+    }
     out[k] = take === 'r' ? rr[k] : lr[k]
     if (take === 'l') fromLocal = true
     else fromRemote = true
@@ -175,6 +230,7 @@ function mergeKind<T extends { id: string }>(
   /** 中身を控えと比べる前にそろえる（タスクはこの端末のタイムゾーンの書き方に。控えも同じ書き方） */
   normalize: (x: T) => T = (x) => x,
   nowIso: string = new Date().toISOString(),
+  onConflict?: (field: string) => void,
 ): MergeResult<T> {
   const remoteById = new Map(remote.map((r) => [r.id, r]))
   const localIds = new Set(local.map((l) => l.id))
@@ -207,6 +263,7 @@ function mergeKind<T extends { id: string }>(
         stamp,
         nowIso,
         clockOffsetMs,
+        onConflict,
       )
       merged.push(row === ln ? l : row)
       continue
@@ -253,16 +310,50 @@ export function mergeHabitDates(
   })
 }
 
+/**
+ * 両方の端末が同じ項目を別の値に変え、新しいほうに任せた（片方の編集を捨てた）回数。キーは `表.項目`（例 `tasks.title`）。
+ * 値そのものは入れない。あとで集合として合わせ直す項目（控えのあるタスクのタグ・習慣の達成日）は捨てていないので数えない
+ */
+export type MergeConflictCounts = Record<string, number>
+
 /** ローカル・サーバー・前回同期の 3 点から、両端末の変更を取りこぼさない状態を作る */
 export function mergeSnapshots(
   local: SyncSnapshot,
   remote: SyncSnapshot,
   baseline: SyncBaseline,
-): { merged: SyncSnapshot; deletes: SyncDeletes } {
+): { merged: SyncSnapshot; deletes: SyncDeletes; conflicts: MergeConflictCounts } {
   const f = baseline.fields?.tasks ? { ...baseline.fields, tasks: withTaskKindField(baseline.fields.tasks) } : baseline.fields
   const off = baseline.clockOffsetMs ?? 0
-  const lists = mergeKind(local.lists, remote.lists, baseline.lists, (l) => stampMs(l.updatedAt), f?.lists, off)
-  const sections = mergeKind(local.sections, remote.sections, baseline.sections, (s) => stampMs(s.updatedAt), f?.sections, off)
+  const conflicts: MergeConflictCounts = {}
+  const count = (kind: SyncKind, skip?: string) => (field: string) => {
+    if (field === skip) return
+    const key = `${kind}.${field}`
+    conflicts[key] = (conflicts[key] ?? 0) + 1
+  }
+  const nowIso = new Date().toISOString()
+  const asIs = <T>(x: T) => x
+  const lists = mergeKind(
+    local.lists,
+    remote.lists,
+    baseline.lists,
+    (l) => stampMs(l.updatedAt),
+    f?.lists,
+    off,
+    asIs,
+    nowIso,
+    count('lists'),
+  )
+  const sections = mergeKind(
+    local.sections,
+    remote.sections,
+    baseline.sections,
+    (s) => stampMs(s.updatedAt),
+    f?.sections,
+    off,
+    asIs,
+    nowIso,
+    count('sections'),
+  )
   // タスクの時刻は端末のタイムゾーンで書き方が違う。項目ごとに比べる前に、サーバーの行をこの端末の書き方にそろえる
   const tasks = mergeKind(
     local.tasks,
@@ -272,8 +363,21 @@ export function mergeSnapshots(
     f?.tasks,
     off,
     (t) => reanchorTask(t),
+    nowIso,
+    count('tasks', baseline.taskTags ? 'tags' : undefined),
   )
-  const habits = mergeKind(local.habits, remote.habits, baseline.habits, (h) => stampMs(h.updatedAt), f?.habits, off)
+  tasks.merged = mergeTaskTags(tasks.merged, local.tasks, remote.tasks, baseline.taskTags)
+  const habits = mergeKind(
+    local.habits,
+    remote.habits,
+    baseline.habits,
+    (h) => stampMs(h.updatedAt),
+    f?.habits,
+    off,
+    asIs,
+    nowIso,
+    count('habits', 'completedDates'),
+  )
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
@@ -319,6 +423,7 @@ export function mergeSnapshots(
       tasks: tasks.deleteRemote,
       habits: habits.deleteRemote,
     },
+    conflicts,
   }
 }
 
@@ -339,12 +444,7 @@ export const DEFAULT_LIST_IDS = { someday: 'default-someday', checklist: 'defaul
  * 前の版の初期リストの名前（どの言語で作られたか分からないので、全部の言語の名前）。
  * 前の版は初期リストを言語ごとの名前・ばらばらの id で作っていた
  */
-const LEGACY_DEFAULT_NAMES = new Set<string>([
-  jaLocale.lists.defaultSomeday,
-  jaLocale.lists.defaultShopping,
-  enLocale.lists.defaultSomeday,
-  enLocale.lists.defaultShopping,
-])
+const LEGACY_DEFAULT_NAMES = new Set<string>(Object.values(BUILTIN_NAMES).flatMap((n) => [n.someday, n.shopping]))
 
 /**
  * ログインせずに使っていた端末の初回同期で、最初から作られる「いつか」「買い物」が
@@ -371,6 +471,7 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
     habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
+    taskTags: Object.fromEntries(s.tasks.filter((t) => t.tags.length > 0).map((t) => [t.id, [...t.tags]])),
     fields: {
       lists: fieldsBaseline(s.lists),
       sections: fieldsBaseline(s.sections),
@@ -447,25 +548,21 @@ export function adoptServerStamps(current: SyncSnapshot, pushed: SyncSnapshot, s
   return out
 }
 
-const baselineKey = (userId: string) => `chronograma-sync-baseline-v1:${userId}`
+const baselineKey = (userId: string) => `${BASELINE_KEY_PREFIX}${userId}`
 
 export function loadBaseline(userId: string): SyncBaseline | null {
   try {
-    const raw = localStorage.getItem(baselineKey(userId))
+    const raw = readStored(baselineKey(userId))
     return raw ? (JSON.parse(raw) as SyncBaseline) : null
   } catch {
     return null
   }
 }
 
-/** この端末で、ほかの人として同期したことがあるか（前回同期の控えが残っているか） */
+/** この端末で、ほかの人として同期したことがあるか（前回同期の控えが残っているか。控えと同じ置き場所を見る） */
 export function hasOtherUsersBaseline(userId: string): boolean {
   try {
-    const prefix = baselineKey('')
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(prefix) && key !== baselineKey(userId)) return true
-    }
+    return storedKeys().some((key) => key.startsWith(BASELINE_KEY_PREFIX) && key !== baselineKey(userId))
   } catch {
     /* 読めなければ、無いものとして扱う */
   }
@@ -474,16 +571,32 @@ export function hasOtherUsersBaseline(userId: string): boolean {
 
 export function clearBaseline(userId: string) {
   try {
-    localStorage.removeItem(baselineKey(userId))
+    writeStored(baselineKey(userId), null)
   } catch {
     /* ignore */
   }
 }
 
-export function saveBaseline(userId: string, baseline: SyncBaseline) {
+/**
+ * 前回同期の控えを保存し、保存できたかを返す。保存できなければ前の控えを消す
+ * （古い控えが残ると、それより後に合わせた項目を「この端末で変えた」と読み、他の端末の新しい値を上書きしていた）。
+ * 控えが無ければ次の同期は初回と同じ、両方を残す合わせ方になる。
+ * IndexedDB では書けたかが後から分かる（同じタスクの間に書いた本体と 1 つのトランザクション）。そのときは true を返し、
+ * 書けなかったら控えを消して `onLaterFailure` を呼ぶ
+ */
+export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFailure?: (err: unknown) => void): boolean {
   try {
-    localStorage.setItem(baselineKey(userId), JSON.stringify(baseline))
-  } catch {
-    /* 保存できなければ次回は初回同期扱い（両方を残すマージ）になるだけ */
+    writeStored(baselineKey(userId), JSON.stringify(baseline), {
+      onError: (err) => {
+        console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
+        clearBaseline(userId)
+        onLaterFailure?.(err)
+      },
+    })
+    return true
+  } catch (err) {
+    console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
+    clearBaseline(userId)
+    return false
   }
 }

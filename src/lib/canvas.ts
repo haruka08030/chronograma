@@ -3,30 +3,33 @@ import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { getSupabase } from './supabase'
-import { wallInZone } from './timeZone'
-import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
+import { instantFromWall, isValidTimeZone, wallInZone } from './timeZone'
+import { feedUrlProblem } from '../../supabase/functions/canvas/feedUrl.ts'
+import { CANVAS_LIST_ID, isCanvasListId, parseCanvasTaskId } from './canvasIds'
 import { INBOX_ID } from '../store/storeConstants'
 import { externalPatch, type PulledFields } from './externalFields'
 import { TASK_DEFAULTS } from './taskDefaults'
+import { compareByOrder } from './orderCompare'
 
 /**
  * Canvas LMS 連携のクライアント側。Canvas API はブラウザから直接呼べない（CORS・トークン秘匿）ので、
  * すべて Edge Function `canvas` 経由にする。
  *
+ * Moodle の学校も、カレンダーの書き出しの URL で同じように読むだけでつなぐ（接続・タスクの id の形は Canvas と同じ）。
  * 学校（ホスト名）ごとに 1 つつなぐ。課題はほかの To-Do と同じところ（未分類）に入れ、科目名のタグを付ける（ラベルは付けない）。
  * （以前の版は「Canvas」リスト `canvas-list` に入れていた。残っていれば `foldTaskFolders` で畳む）。
  * タスクの id は接続 ID（ホスト名）を入れて決め打ちする: `canvas-<接続>-<種類>-<ID>`。
  * 列を足さずに Canvas の課題と結び付けられ、別の端末で取り込んでも同じ行になる。
  */
 
-export { CANVAS_LIST_ID }
-
-const TASK_ID_RE = /^canvas-([a-z0-9.-]+)-(assignment|quiz|discussion_topic|wiki_page|planner_note)-(\d+)$/
+export { CANVAS_LIST_ID, parseCanvasTaskId }
 
 export type CanvasConnection = {
   id: string
   /** 'token': アクセストークンで読み書き / 'ical': カレンダーフィードを読むだけ（完了は書き戻せない） */
   kind?: 'token' | 'ical'
+  /** フィードでつないだ学校の LMS。古い関数は返さない（Canvas） */
+  lms?: 'canvas' | 'moodle'
   baseUrl: string
   userName: string | null
   /** トークンの期限（ISO）。null は期限なしか、分からない。サーバーが近づくたびに延ばす */
@@ -56,6 +59,10 @@ export type CanvasItem = {
   dueAt: string | null
   /** 終日の締切（`yyyy-MM-dd`）。カレンダーフィードの課題だけ。あれば `dueAt` より優先する */
   dueDate?: string
+  /**
+   * タイムゾーン付き・浮動の締切の壁時計（Moodle の書き出しだけ）。`timeZone` が null か読めない名前なら、アプリのタイムゾーンとして読む
+   */
+  dueWall?: { date: string; time: string; timeZone: string | null }
   /** 提出済み・採点済み・免除・Canvas で完了にした */
   done: boolean
 }
@@ -114,20 +121,13 @@ export const fetchCanvasStatus = () => invokeConnections<CanvasStatus>({ action:
 /** 新しくつなぐ（同じ学校ならつなぎ直し） */
 export const connectCanvas = (token: string, baseUrl: string) => invokeConnections<CanvasStatus>({ action: 'connect', token, baseUrl })
 /**
- * 貼られた URL がカレンダーフィード（`https://<学校>/feeds/calendars/….ics`）か。違えば理由を返す。
- * カレンダー画面そのもの（`/calendar#view_name=…`）を貼る間違いが多いので、それは分けて案内する
+ * 貼られた URL がカレンダーフィード（Canvas の `https://<学校>/feeds/calendars/….ics`、Moodle の
+ * `https://<学校>/calendar/export_execute.php?userid=…&authtoken=…`）か。違えば理由を返す。
+ * カレンダー画面そのもの（Canvas の `/calendar#view_name=…`・Moodle の書き出しの画面）を貼る間違いが多いので、それは分けて案内する。
+ * 判定はサーバーと同じもの（`supabase/functions/canvas/feedUrl.ts`）
  */
-export function canvasFeedUrlProblem(input: string): 'calendarPage' | 'notFeed' | null {
-  const raw = input.trim()
-  if (!raw) return null
-  let url: URL
-  try {
-    url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
-  } catch {
-    return 'notFeed'
-  }
-  if (/^\/feeds\/calendars\/[\w.-]+\.ics$/.test(url.pathname)) return null
-  return url.pathname.startsWith('/calendar') ? 'calendarPage' : 'notFeed'
+export function canvasFeedUrlProblem(input: string): 'calendarPage' | 'moodlePage' | 'notFeed' | null {
+  return feedUrlProblem(input)
 }
 
 /** トークンを作れない学校は、カレンダーフィードの URL でつなぐ */
@@ -144,11 +144,6 @@ export function canvasTaskId(connectionId: string, type: string, id: string): st
   return `canvas-${connectionId}-${type}-${id}`
 }
 
-export function parseCanvasTaskId(id: string): { connectionId: string; type: string; id: string } | null {
-  const m = TASK_ID_RE.exec(id)
-  return m ? { connectionId: m[1], type: m[2], id: m[3] } : null
-}
-
 /** 以前の版が作っていた科目のセクションの id（`canvasCourseSectionsToTags` でタグに移す） */
 export function canvasSectionId(connectionId: string, courseId: string): string {
   return `canvas-course-${connectionId}-${courseId}`
@@ -162,7 +157,7 @@ export function mergeCanvasLists(
   state: { lists: TaskList[]; sections: ListSection[]; tasks: Task[] },
   now: string,
 ): { lists: TaskList[]; sections: ListSection[]; tasks: Task[]; mergedIds: string[] } | null {
-  const old = state.lists.filter((l) => l.id !== CANVAS_LIST_ID && isCanvasListId(l.id)).sort((a, b) => a.order - b.order)
+  const old = state.lists.filter((l) => l.id !== CANVAS_LIST_ID && isCanvasListId(l.id)).sort(compareByOrder)
   if (old.length === 0) return null
   const oldIds = new Set(old.map((l) => l.id))
   const lists = state.lists.filter((l) => !oldIds.has(l.id))
@@ -174,7 +169,7 @@ export function mergeCanvasLists(
   let nextOrder = Math.max(-1, ...state.sections.filter((s) => s.listId === CANVAS_LIST_ID).map((s) => s.order)) + 1
   const sectionOrder = new Map<string, number>()
   for (const list of old) {
-    for (const sec of state.sections.filter((s) => s.listId === list.id).sort((a, b) => a.order - b.order)) {
+    for (const sec of state.sections.filter((s) => s.listId === list.id).sort(compareByOrder)) {
       sectionOrder.set(sec.id, nextOrder++)
     }
   }
@@ -191,6 +186,41 @@ export function canvasDue(dueAt: string | null, timeZone: string): { dueDate: st
   if (Number.isNaN(at)) return { dueDate: null, dueTime: null }
   const wall = wallInZone(at, timeZone)
   return { dueDate: wall.date, dueTime: wall.time }
+}
+
+/**
+ * フィードの締切を、アプリのタイムゾーンの期限日と締め切り時刻に。終日はその日付のまま、
+ * 壁時計（Moodle の `TZID=…` 付き・浮動）はそのタイムゾーンの瞬間に戻してから（浮動・読めない名前はアプリのタイムゾーン）
+ */
+export function feedItemDue(
+  item: Pick<CanvasItem, 'dueAt' | 'dueDate' | 'dueWall'>,
+  timeZone: string,
+): { dueDate: string | null; dueTime: string | null } {
+  if (item.dueDate) return { dueDate: item.dueDate, dueTime: null }
+  if (item.dueWall) {
+    const { date, time, timeZone: zone } = item.dueWall
+    const from = zone && isValidTimeZone(zone) ? zone : timeZone
+    const wall = wallInZone(instantFromWall(date, time, from), timeZone)
+    return { dueDate: wall.date, dueTime: wall.time }
+  }
+  return canvasDue(item.dueAt, timeZone)
+}
+
+/**
+ * 締切が、サーバーが取り込んだ期間（`windowStart`〜`windowEnd`）の確かに内側か。「期間の中なのに返ってこない＝消えた」の判定に使う。
+ * - 期間は UTC の日付で決まる（サーバー）。手元の期限はアプリのタイムゾーンの日付・時刻なので、瞬間に戻して UTC の日付で比べる。
+ *   日本時間の朝（0〜9 時）締切は UTC では前日になり、アプリの日付のまま比べると期間の初日に入って見える（#329）
+ * - 端の日は内側に数えない。Canvas のプランナーは期間の日付を学校のタイムゾーンで読むので、端の日の課題は返ってこないことがある
+ * - 終日の締切（時刻なし）は日付のまま比べる（フィードの終日の課題も日付のまま絞られる）
+ */
+export function insideCanvasWindow(
+  due: { dueDate: string | null; dueTime: string | null },
+  window: { windowStart: string; windowEnd: string },
+  timeZone: string,
+): boolean {
+  if (!due.dueDate) return false
+  const day = due.dueTime ? wallInZone(instantFromWall(due.dueDate, due.dueTime, timeZone), 'UTC').date : due.dueDate
+  return day > window.windowStart && day < window.windowEnd
 }
 
 /** 科目のセクションの id（学校名入りと、最初の版の `canvas-course-<ID>` の両方） */
@@ -279,7 +309,7 @@ export function reconcileCanvasItems(
     }
 
     const title = item.title || opts.untitled
-    const { dueDate, dueTime } = item.dueDate ? { dueDate: item.dueDate, dueTime: null } : canvasDue(item.dueAt, opts.timeZone)
+    const { dueDate, dueTime } = feedItemDue(item, opts.timeZone)
 
     if (!existing) {
       pulled[id] = { title, dueDate, dueTime }
@@ -325,7 +355,7 @@ export function reconcileCanvasItems(
     if (t.completed || t.archivedAt || t.deletedAt || seen.has(t.id) || skip.has(t.id)) continue
     if (parseCanvasTaskId(t.id)?.connectionId !== conn) continue
     // 期間の外に出ただけのもの（出し忘れたまま 30 日たった課題など）は残す
-    if (!t.dueDate || t.dueDate < payload.windowStart || t.dueDate > payload.windowEnd) continue
+    if (!insideCanvasWindow(opts.pulled?.[t.id] ?? t, payload, opts.timeZone)) continue
     complete(t)
   }
 

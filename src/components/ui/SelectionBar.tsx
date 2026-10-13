@@ -16,7 +16,7 @@ export interface SelectionAction {
 }
 
 /**
- * 行を選んでいる間だけ下に浮かぶバー（To-Do 一覧・今日の計画で共通）。
+ * 行を選んでいる間だけ下に浮かぶバー（To-Do 一覧・今日の計画・アーカイブ・ゴミ箱で共通）。
  * 何件選んでいるかと、その画面でよく使う操作を並べ、残りは「操作」でタスクのメニューを開く。
  * 操作したら選択を外す
  */
@@ -24,10 +24,13 @@ export function SelectionBar({
   selectedIds,
   actions = [],
   onClear,
+  onOpenMenu,
 }: {
   selectedIds: ReadonlySet<string>
   actions?: SelectionAction[]
   onClear: () => void
+  /** 「操作」で開くメニュー（(x, y) の上に出す）。省略するとタスクの右クリックメニュー */
+  onOpenMenu?: (x: number, y: number) => void
 }) {
   const { t } = useTranslation()
   const timerOpen = useTaskStore((s) => s.activeTimer !== null)
@@ -70,6 +73,10 @@ export function SelectionBar({
           className={button}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
+            if (onOpenMenu) {
+              onOpenMenu(r.left, r.top)
+              return
+            }
             openTaskMenu({ kind: 'task', x: r.left, y: r.top, taskIds: [...selectedIds], above: true, onDone: onClear })
           }}
         >

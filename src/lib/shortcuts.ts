@@ -92,7 +92,7 @@ export function useListCursorRequest(handler: () => void) {
  * ショートカットの表（1 つだけ）。処理の登録（`useHotkey(SHORTCUTS.x.hotkeys, …)`）・「?」の一覧・ボタンのヒント（`shortcutTip`）を
  * ここから作る。別々に書くと、一覧に載っているのに効かない・ヒントのキーが違う、がおきる。
  * - hotkeys: `useHotkey` に渡すキー（'mod' は ⌘ / Ctrl）
- * - display: 一覧とヒントに出すキー。外側の並びは「どれか」（J / N）、内側は「同時に」（⌘ + A）。'mod' は ⌘ / Ctrl
+ * - display: 一覧とヒントに出すキー。外側の並びは「どれか」（J / N）、内側は「同時に」（⌘ + A）。'mod' は ⌘ / Ctrl、'Alt' は Mac で ⌥
  * - label: 説明の i18n キー
  */
 export const SHORTCUTS = {
@@ -108,8 +108,28 @@ export const SHORTCUTS = {
   createAnywhere: { hotkeys: ['mod+n'], display: [['mod', 'N']], label: 'shortcuts.createAnywhere' },
   search: { hotkeys: ['/'], display: [['/']], label: 'shortcuts.search' },
   searchAnywhere: { hotkeys: ['mod+k'], display: [['mod', 'K']], label: 'shortcuts.searchAnywhere' },
+  // 検索パレットの中（文字を打つ欄にいるので、1 文字ではなく Alt と一緒に。文字は一覧の行と同じ T・S・L）
+  paletteToday: { hotkeys: ['alt+t'], display: [['Alt', 'T']], label: 'shortcuts.paletteToday' },
+  palettePickTime: { hotkeys: ['alt+s'], display: [['Alt', 'S']], label: 'shortcuts.palettePickTime' },
+  paletteTimer: { hotkeys: ['alt+l'], display: [['Alt', 'L']], label: 'shortcuts.paletteTimer' },
   edit: { hotkeys: ['e'], display: [['E']], label: 'shortcuts.edit' },
   delete: { hotkeys: ['Delete', 'Backspace'], display: [['Delete']], label: 'shortcuts.delete' },
+  nudgeBlock: {
+    hotkeys: ['alt+ArrowUp', 'alt+ArrowDown'],
+    display: [
+      ['Alt', '↑'],
+      ['Alt', '↓'],
+    ],
+    label: 'shortcuts.nudgeBlock',
+  },
+  resizeBlock: {
+    hotkeys: ['alt+shift+ArrowUp', 'alt+shift+ArrowDown'],
+    display: [
+      ['Alt', 'Shift', '↑'],
+      ['Alt', 'Shift', '↓'],
+    ],
+    label: 'shortcuts.resizeBlock',
+  },
   moveRow: { hotkeys: ['ArrowDown', 'ArrowUp', 'shift+ArrowDown', 'shift+ArrowUp'], display: [['↑'], ['↓']], label: 'shortcuts.moveRow' },
   openRow: { hotkeys: ['Enter'], display: [['Enter']], label: 'shortcuts.openRow' },
   completeRow: { hotkeys: ['Space'], display: [['Space']], label: 'shortcuts.completeRow' },
@@ -117,6 +137,7 @@ export const SHORTCUTS = {
   openMenu: { hotkeys: ['mod+/', 'ContextMenu', 'shift+F10'], display: [['mod', '/']], label: 'shortcuts.openMenu' },
   completeSelected: { hotkeys: ['mod+Enter'], display: [['mod', 'Enter']], label: 'shortcuts.completeSelected' },
   todayToggle: { hotkeys: ['shift+t'], display: [['Shift', 'T']], label: 'shortcuts.todayToggle' },
+  pickTime: { hotkeys: ['s'], display: [['S']], label: 'shortcuts.pickTime' },
   close: { hotkeys: ['Escape'], display: [['Esc']], label: 'shortcuts.close' },
   undo: { hotkeys: ['mod+z'], display: [['mod', 'Z']], label: 'shortcuts.undo' },
   redo: { hotkeys: ['mod+shift+z'], display: [['mod', 'Shift', 'Z']], label: 'shortcuts.redo' },

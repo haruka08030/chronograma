@@ -6,14 +6,14 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../lib/authLinkError'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { isSupabaseConfigured, loadSupabase } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
 import { isGoogleAvailable } from '../lib/googleCalendar'
-import { GoogleLogo } from './ui/GoogleLogo'
-import { ERROR_TEXT, HINT_TEXT, META_TEXT } from './ui/textClass'
+import { GoogleSignInButton } from './ui/GoogleSignInButton'
+import { ERROR_TEXT, HINT_TEXT, META_TEXT, PHRASE_WRAP } from './ui/textClass'
 
 export function AccountMenu() {
   const { t } = useTranslation()
@@ -40,6 +40,11 @@ export function AccountMenu() {
     return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
+  // ログインの欄を開いたら、押す前に Supabase を読んでおく（ログインしない人は起動時に読まない、#268）
+  const signedOut = !user && !loading
+  useEffect(() => {
+    if (signedOut && isSupabaseConfigured) void loadSupabase().catch(() => {})
+  }, [signedOut])
   // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
@@ -221,13 +226,18 @@ export function AccountMenu() {
         <span className="max-w-full truncate text-xs text-zinc-600 sm:max-w-md dark:text-zinc-300" title={label}>
           {label}
         </span>
-        <button type="button" onClick={handleSignOut} disabled={pending} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          disabled={pending}
+          className={buttonClass({ variant: 'secondary', size: 'sm' })}
+        >
           {t('account.signOut')}
         </button>
         <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
           <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
           {reauth && user.email ? (
-            <form onSubmit={confirmReauth} className="flex max-w-sm flex-col gap-2">
+            <form onSubmit={(e) => void confirmReauth(e)} className="flex max-w-sm flex-col gap-2">
               <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
               {reauth === 'codeSent' && (
                 <input
@@ -300,23 +310,16 @@ export function AccountMenu() {
             className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
+            <p className={`mb-1 text-sm font-medium ${PHRASE_WRAP}`}>{t('account.tagline')}</p>
             <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
             {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
             {!codeSentTo && googleSignIn && (
-              <button
-                type="button"
-                onClick={() => void handleGoogle()}
-                disabled={pending || redirecting}
-                className={buttonClass({ variant: 'primary', size: 'lg' }, 'w-full')}
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white" aria-hidden>
-                  <GoogleLogo className="h-3.5 w-3.5" />
-                </span>
+              <GoogleSignInButton onClick={() => void handleGoogle()} disabled={pending || redirecting} className="w-full">
                 {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
-              </button>
+              </GoogleSignInButton>
             )}
             {codeSentTo ? (
-              <form onSubmit={handleVerify} className="flex flex-col gap-2">
+              <form onSubmit={(e) => void handleVerify(e)} className="flex flex-col gap-2">
                 <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
                 <input
                   type="text"
@@ -340,7 +343,7 @@ export function AccountMenu() {
               </form>
             ) : emailOpen ? (
               <form
-                onSubmit={handleSubmit}
+                onSubmit={(e) => void handleSubmit(e)}
                 className={`flex flex-col gap-2${googleSignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
               >
                 <input

@@ -1,22 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
+import { useAuth } from '../../contexts/AuthContext'
+import { useCanSuggestSignIn, useOnboardingNudge } from '../../hooks/useOnboardingNudge'
 import { requestPermission } from '../../lib/notifications'
+import { isGoogleAvailable } from '../../lib/googleCalendar'
 import { buttonClass } from '../ui/buttonClass'
+import { GoogleSignInButton } from '../ui/GoogleSignInButton'
 import { tip } from '../../lib/tooltip'
 import { CloseIcon } from '../icons'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { HINT_TEXT, PHRASE_WRAP } from '../ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, PHRASE_WRAP } from '../ui/textClass'
 
 /**
  * はじめの 3 ステップを終えた直後に 1 回だけ出す誘い（今日の画面の追加欄の下、案内のあった場所）。
- * × で閉じたら二度と出さない（端末に保存）。iPhone の Safari ではホーム画面への追加、ほかは予定のあとの確認の通知
+ * × で閉じたら二度と出さない（端末に保存）。iPhone の Safari ではホーム画面への追加、ほかはログイン（していなければ）→
+ * 予定のあとの確認の通知の順に 1 つずつ
  */
 export function OnboardingNudges() {
   const { t } = useTranslation()
   const nudge = useOnboardingNudge()
+  const canSignIn = useCanSuggestSignIn()
   const dismissInstallNudge = useTaskStore((s) => s.dismissInstallNudge)
+  const dismissSignInNudge = useTaskStore((s) => s.dismissSignInNudge)
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const setRecordPrompts = useTaskStore((s) => s.setRecordPrompts)
   const [asking, setAsking] = useState(false)
@@ -36,6 +42,21 @@ export function OnboardingNudges() {
     return (
       <NudgeCard title={t('onboardingNudge.installTitle')} onClose={dismissInstallNudge}>
         <p className={`mt-0.5 ${HINT_TEXT} ${PHRASE_WRAP}`}>{t('onboardingNudge.installSteps')}</p>
+        {/* ホーム画面のアプリは保存先が別で空で開く。先にログインしていれば同じデータが出る */}
+        {canSignIn && (
+          <>
+            <p className={`mt-1.5 ${HINT_TEXT} ${PHRASE_WRAP}`}>{t('onboardingNudge.installSignIn')}</p>
+            <SignInAction />
+          </>
+        )}
+      </NudgeCard>
+    )
+  }
+  if (nudge === 'signIn') {
+    return (
+      <NudgeCard title={t('onboardingNudge.signInTitle')} onClose={dismissSignInNudge}>
+        <p className={`mt-0.5 ${HINT_TEXT} ${PHRASE_WRAP}`}>{t('onboardingNudge.signInBody')}</p>
+        <SignInAction />
       </NudgeCard>
     )
   }
@@ -54,6 +75,57 @@ export function OnboardingNudges() {
     )
   }
   return null
+}
+
+/**
+ * ログインに進むボタン。Google が使えればそのまま Google の画面へ（1 タップ）、使えなければ設定のログインを開く。
+ * 押しただけでは閉じた扱いにしない（ログインし終えれば消える。途中でやめて戻ってきたら、まだ出ている）
+ */
+function SignInAction() {
+  const { t } = useTranslation()
+  const { signInWithGoogle } = useAuth()
+  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
+  const [redirecting, setRedirecting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Google の画面から戻るボタンで戻ると、移動中のまま押せない画面が復元される
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setRedirecting(false)
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
+  if (!isGoogleAvailable()) {
+    return (
+      <button
+        type="button"
+        onClick={() => openSettingsWithScroll('account')}
+        className={buttonClass({ variant: 'primary', size: 'sm' }, 'mt-2')}
+      >
+        {t('onboardingNudge.signIn')}
+      </button>
+    )
+  }
+
+  const handleGoogle = async () => {
+    setError(null)
+    setRedirecting(true)
+    const res = await signInWithGoogle()
+    if (res.error) {
+      setError(res.error)
+      setRedirecting(false)
+    }
+  }
+
+  return (
+    <>
+      <GoogleSignInButton size="sm" onClick={() => void handleGoogle()} disabled={redirecting} className="mt-2">
+        {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
+      </GoogleSignInButton>
+      {error && <p className={`mt-1.5 ${ERROR_TEXT}`}>{error}</p>}
+    </>
+  )
 }
 
 function NudgeCard({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

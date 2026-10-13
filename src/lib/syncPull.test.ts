@@ -340,18 +340,37 @@ describe('差分の取得 (#194)', () => {
     expect(titles(tabA.local)).toEqual({ a: 'v3', b: 'b' })
     expect(serverTitles(db)).toEqual({ a: 'v3', b: 'b' })
   })
+})
 
-  it('`008` を流す前の DB（印の表が無い）では、毎回全部を取って前と同じに動く', async () => {
-    const { db, phone, pc } = await setup({ noTombstones: true })
-    tick(db, [phone, pc], 60_000)
-    removeTask(pc, 'b')
-    await syncDevice(db, pc)
-    tick(db, [phone, pc], 60_000)
-    await syncDevice(db, phone)
-    await syncDevice(db, phone)
-    expect(phone.pull.deltaUnsupported).toBe(true)
-    expect(phone.deltaPulls).toBe(0)
-    expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+describe('表・関数が読めないとき (#355)', () => {
+  for (const name of ['sync_server_now', 'sync_tombstones', 'sync_tombstone_purges']) {
+    it(`${name} が読めなければ、全部の取得や「印は無い」に逃げずに失敗として返し、前回の内容を変えない`, async () => {
+      const { db, phone, pc } = await setup()
+      tick(db, [phone, pc], 60_000)
+      removeTask(pc, 'b')
+      await syncDevice(db, pc)
+      tick(db, [phone, pc], 60_000)
+      const before = { ...phone.pull }
+      const fullBefore = db.fullFetches()
+      db.missing.add(name)
+      const res = await pullRemote(db.client, 'u1', phone.pull)
+      expect(res).toEqual({ error: expect.stringContaining(name) })
+      expect(phone.pull).toEqual(before)
+      expect(db.fullFetches()).toBe(fullBefore)
+      // 読めるようになれば差分で b が消える
+      db.missing.delete(name)
+      await syncDevice(db, phone)
+      expect([phone.fullPulls, phone.deltaPulls]).toEqual([0, 1])
+      expect(titles(phone.local)).toEqual({ a: 'a', c: 'c' })
+    })
+  }
+
+  it('全部を取るときも、サーバーの時刻が取れなければ失敗', async () => {
+    const db = fakeDb()
+    db.missing.add('sync_server_now')
+    const res = await pullRemote(db.client, 'u1', createPullState(), { full: true })
+    expect(res).toEqual({ error: expect.stringContaining('sync_server_now') })
+    expect(db.fullFetches()).toBe(0)
   })
 })
 
@@ -366,11 +385,10 @@ describe('needsFullFetch', () => {
   it('前回の内容と目印があり、6 時間たっていなければ差分', () => {
     expect(needsFullFetch(ready(), 1_000_000 + 60_000)).toBe(false)
   })
-  it('前回の内容・目印が無い、取り直しの指示、差分を取れない DB、6 時間たったときは全部（時刻はサーバーの時計）', () => {
+  it('前回の内容・目印が無い、取り直しの指示、6 時間たったときは全部（時刻はサーバーの時計）', () => {
     expect(needsFullFetch(createPullState(), 0)).toBe(true)
     expect(needsFullFetch({ ...ready(), cursor: null }, 1_000_001)).toBe(true)
     expect(needsFullFetch({ ...ready(), forceFull: true }, 1_000_001)).toBe(true)
-    expect(needsFullFetch({ ...ready(), deltaUnsupported: true }, 1_000_001)).toBe(true)
     expect(needsFullFetch(ready(), 1_000_000 + FULL_FETCH_INTERVAL_MS)).toBe(true)
   })
   it('前回の取得が印を残す 30 日（からさかのぼる 5 分を引いた分）より前なら全部', () => {

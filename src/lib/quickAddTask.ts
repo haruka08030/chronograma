@@ -9,6 +9,8 @@ import { displayListName } from './displayListName'
 import { appTodayKey } from './timeZone'
 import { formatDate } from './dateFormat'
 import { isoWeekday } from './recurrence'
+import { shortUrlLabel } from './linkify'
+import { splitUrls } from './shareTarget'
 
 export interface QuickAddOptions {
   /** リストを書かなかったときに入れるリスト。省略すると選んでいるリスト（無ければ未分類） */
@@ -36,6 +38,17 @@ export interface QuickAddOptions {
   kind?: 'event'
   /** 追加欄の下のチップで選んだ値（書いた文より勝つ） */
   picks?: QuickAddPicks
+  /** メモの先頭に入れる文（共有で 1 行に収まらなかった本文）。書いた URL はその下に入る */
+  note?: string
+}
+
+/**
+ * 追加欄の 1 行を、日時などを読む文と URL に分ける。URL は題名にも日付の読み取りにも使わず、足すときにメモへ入れる
+ * （URL の `/2026/10/15/` を日付と読まない。共有でも、URL を貼っただけでも同じ）
+ */
+function quickAddParts(raw: string): { text: string; urls: string[] } {
+  const { rest, urls } = splitUrls(raw.trim())
+  return { text: rest.replace(/\n/g, ' '), urls }
 }
 
 /**
@@ -209,7 +222,7 @@ export function readQuickAddText(
   const trimmed = raw.trim()
   if (!trimmed) return null
   const state = useTaskStore.getState()
-  const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
+  const parsed = parseQuickAddTitle(quickAddParts(trimmed).text, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     lists: opts.parentId == null,
     blockMinutes: state.defaultBlockMinutes,
   })
@@ -251,7 +264,7 @@ export function quickAddDraft(
   opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'picks'> = {},
 ): QuickAddDraft {
   const state = useTaskStore.getState()
-  const parsed = parseQuickAddTitle(raw.trim(), Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
+  const parsed = parseQuickAddTitle(quickAddParts(raw).text, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     blockMinutes: state.defaultBlockMinutes,
   })
   const picks = opts.picks ?? {}
@@ -306,16 +319,21 @@ function orderAfterLastQuickAdd(tasks: readonly Task[], added: Task, now: number
  * 同じ書き方なら同じ結果になるよう、解釈はここ 1 か所で行う。
  * 欄ごとの違いは「書かなかったときの既定値」（`defaultDate` / `defaultTime` / `defaultListId` / `parentId`）だけ。
  * - いつか・チェックリストのリストには日付を付けない
+ * - 書いた URL は題名から外してメモへ（`quickAddParts`）
  */
 export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): string | undefined {
   const trimmed = raw.trim()
   if (!trimmed) return undefined
   const state = useTaskStore.getState()
   const isSubtask = opts.parentId != null
-  const parsed = parseQuickAddTitle(trimmed, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
+  const { text, urls } = quickAddParts(trimmed)
+  const parsed = parseQuickAddTitle(text, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
     lists: !isSubtask,
     blockMinutes: state.defaultBlockMinutes,
   })
+  // URL だけ（と日付など）を書いたときの題名は URL の短い形。URL そのものはメモに入る
+  const title = parsed.title || (urls[0] ? shortUrlLabel(urls[0]) : '')
+  const description = [opts.note?.trim() ?? '', ...urls].filter(Boolean).join('\n')
   const picks = isSubtask ? {} : (opts.picks ?? {})
   const named = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
   // チップで選んだリストが書いた @リスト より勝つ
@@ -325,7 +343,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
   // 作成と日付付けは 1 回の取り消しで戻す（呼び出し側の asOneUndo の中でもよい）
   state.asOneUndo(() => {
     // サブタスクのリストは addTask が親のリストにそろえる
-    id = state.addTask(parsed.title, listId, opts.parentId)
+    id = state.addTask(title, listId, opts.parentId)
     if (!id) return
     // 続けて足したものは足した順に（前に足した行のすぐ下）
     const now = Date.now()
@@ -339,8 +357,10 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
-    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes'>> = {}
+    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes' | 'description'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
+    // メモが URL 1 つだけなら、行にリンクのアイコンが出る（`sourceLinkOf`）
+    if (description) patch.description = description
     if (opts.color) patch.color = opts.color
     if (picks.color !== undefined) patch.color = picks.color
     // いつか・チェックリストには日付も繰り返しも付けない（付けると期限のビューに戻ってきてしまう）

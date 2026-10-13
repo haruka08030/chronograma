@@ -14,9 +14,15 @@ export function isHabitScheduledOnDate(habit: Habit, date: Date): boolean {
   return habit.frequency.weekdays.includes(weekday)
 }
 
+/**
+ * 習慣の「週に◯回」・週のふりかえりの週は月曜はじまり（設定の週の開始日には従わない。
+ * 変えても過去の週の回数・連続が変わらないように。カレンダーの並びは lib/weekStart.ts）
+ */
+export const HABIT_WEEK_STARTS_ON = 1 as const
+
 /** その日を含む週（月曜始まり。習慣画面の週・週のふりかえりと同じ）の 7 日 */
 export function habitWeekDates(date: Date): Date[] {
-  const start = startOfWeek(date, { weekStartsOn: 1 })
+  const start = startOfWeek(date, { weekStartsOn: HABIT_WEEK_STARTS_ON })
   return Array.from({ length: 7 }, (_, i) => addDays(start, i))
 }
 

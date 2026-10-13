@@ -15,6 +15,7 @@ import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { TaskRecurrenceField } from './TaskRecurrenceField'
 import { useTaskTimes } from './useTaskTimes'
 import { TaskEstimateField } from './TaskEstimateField'
+import { EventRepeatField } from './EventRepeatField'
 
 const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
@@ -33,7 +34,8 @@ export function TaskPlanFields({ task }: { task: Task }) {
   const isEvent = isEventTask(task)
   return (
     <>
-      {!task.parentId && !hasChildren && (
+      {/* 毎週の予定の回は予定のまま（To-Do にすると回の並びから外れる。やめるのは「繰り返さない」） */}
+      {!task.parentId && !hasChildren && !(isEvent && task.series) && (
         <PillToggle
           ariaLabel={t('quickCreate.kind')}
           options={[
@@ -152,6 +154,8 @@ export function TaskPlanFields({ task }: { task: Task }) {
         )}
         {tzOnScheduled && <TaskTimeZoneNote task={task} />}
       </div>
+      {/* 予定の繰り返し（毎週・終わりの日つき、#279）。To-Do の繰り返しは締切の欄 */}
+      {isEvent && task.scheduledDate && <EventRepeatField task={task} date={task.scheduledDate} />}
       {/* 予定は時刻で長さが決まっているので、見積もりは To-Do だけ */}
       {!isEvent && <TaskEstimateField task={task} />}
       {tzLoose && (

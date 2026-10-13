@@ -5,11 +5,13 @@ import {
   canvasCourseSectionsToTags,
   canvasDue,
   canvasFeedUrlProblem,
+  feedItemDue,
   canvasExpiryWarning,
   CANVAS_LIST_ID,
   mergeCanvasLists,
   canvasSectionId,
   canvasTaskId,
+  insideCanvasWindow,
   parseCanvasTaskId,
   reconcileCanvasItems,
   withConnections,
@@ -149,6 +151,38 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks.find((t) => t.id === canvasTaskId(CONN, 'assignment', '2'))?.completed).toBe(false)
   })
 
+  it('does not complete a feed assignment due early morning Japan time just because its deadline passed (#329)', () => {
+    // 今 = 2026-10-06T10:00Z。フィードは前日（UTC）から取るので windowStart は 10/5
+    const feed = { id: CONN, windowStart: '2026-10-05', windowEnd: '2027-02-03', readOnly: true }
+    // 日本時間 10/5 8:00 締切（UTC では 10/4 23:00）。フィードの期間の外なので返ってこない
+    const tasks = reconcileCanvasItems(
+      { sections: [], tasks: [] },
+      { ...WINDOW, items: [item('11', { dueAt: '2026-10-04T23:00:00Z' })] },
+      opts,
+    ).tasks
+    expect(tasks[0]).toMatchObject({ dueDate: '2026-10-05', dueTime: '08:00' })
+    const r = reconcileCanvasItems({ sections: [], tasks }, { ...feed, items: [] }, { ...opts, pulled: {} })
+    expect(r.autoCompletedIds).toEqual([])
+    expect(r.tasks[0].completed).toBe(false)
+  })
+
+  it('still completes a feed assignment that vanished while clearly inside the window', () => {
+    const feed = { id: CONN, windowStart: '2026-10-05', windowEnd: '2027-02-03', readOnly: true }
+    // 日本時間 10/7 8:00 締切（UTC 10/6 23:00）
+    const tasks = reconcile([], [item('12', { dueAt: '2026-10-06T23:00:00Z' })]).tasks
+    const r = reconcileCanvasItems({ sections: [], tasks }, { ...feed, items: [] }, opts)
+    expect(r.autoCompletedIds).toEqual([canvasTaskId(CONN, 'assignment', '12')])
+  })
+
+  it('judges the window with the deadline Canvas gave, not one the user moved', () => {
+    const feed = { id: CONN, windowStart: '2026-10-05', windowEnd: '2027-02-03', readOnly: true }
+    const first = reconcile([], [item('13', { dueAt: '2026-10-01T14:59:59Z' })], { pulled: {} })
+    // ユーザーが期限を先へずらした。Canvas の締切は期間の前なので、返ってこなくても消えたとは限らない
+    const moved = first.tasks.map((t) => ({ ...t, dueDate: '2026-10-20' }))
+    const r = reconcileCanvasItems({ sections: [], tasks: moved }, { ...feed, items: [] }, { ...opts, pulled: first.pulled })
+    expect(r.autoCompletedIds).toEqual([])
+  })
+
   it('one school never completes the other’s tasks', () => {
     const OTHER = 'other.instructure.com'
     const a = reconcile([], [item('1')])
@@ -167,6 +201,25 @@ describe('reconcileCanvasItems', () => {
     // 1 校目が空で返っても、2 校目のタスクは完了にしない
     const c = reconcileCanvasItems({ sections: b.sections, tasks: b.tasks }, { ...WINDOW, items: [] }, opts)
     expect(c.tasks.map((t) => t.completed)).toEqual([true, false])
+  })
+})
+
+describe('insideCanvasWindow', () => {
+  const window = { windowStart: '2026-10-05', windowEnd: '2026-10-10' }
+
+  it('compares the deadline as a UTC day, like the server window', () => {
+    // 日本時間 10/6 8:00 は UTC 10/5 23:00 → 端の日なので内側に数えない
+    expect(insideCanvasWindow({ dueDate: '2026-10-06', dueTime: '08:00' }, window, 'Asia/Tokyo')).toBe(false)
+    // 日本時間 10/6 9:00 は UTC 10/6 0:00
+    expect(insideCanvasWindow({ dueDate: '2026-10-06', dueTime: '09:00' }, window, 'Asia/Tokyo')).toBe(true)
+    // ニューヨーク 10/9 21:00 は UTC 10/10 1:00 → 端の日
+    expect(insideCanvasWindow({ dueDate: '2026-10-09', dueTime: '21:00' }, window, 'America/New_York')).toBe(false)
+  })
+
+  it('compares all-day deadlines as dates and leaves tasks without a deadline out', () => {
+    expect(insideCanvasWindow({ dueDate: '2026-10-06', dueTime: null }, window, 'Asia/Tokyo')).toBe(true)
+    expect(insideCanvasWindow({ dueDate: '2026-10-05', dueTime: null }, window, 'Asia/Tokyo')).toBe(false)
+    expect(insideCanvasWindow({ dueDate: null, dueTime: null }, window, 'Asia/Tokyo')).toBe(false)
   })
 })
 
@@ -258,5 +311,71 @@ describe('canvasFeedUrlProblem', () => {
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/calendar#view_name=month&view_start=2026-10-02')).toBe('calendarPage')
     expect(canvasFeedUrlProblem('https://canvas.ucsc.edu/courses/77')).toBe('notFeed')
     expect(canvasFeedUrlProblem('')).toBeNull()
+  })
+
+  it('Moodle の書き出しの URL も受け付け、書き出しの画面は分けて案内する（#310）', () => {
+    const token = '3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6'
+    expect(
+      canvasFeedUrlProblem(`https://moodle.example.ac.jp/calendar/export_execute.php?userid=12&authtoken=${token}&preset_what=all`),
+    ).toBeNull()
+    expect(canvasFeedUrlProblem(`lms.example.ac.jp/moodle/calendar/export_execute.php?userid=12&authtoken=${token}`)).toBeNull()
+    expect(canvasFeedUrlProblem('https://moodle.example.ac.jp/calendar/export.php?course=1')).toBe('moodlePage')
+  })
+})
+
+describe('feedItemDue（#310）', () => {
+  it('終日は日付のまま、UTC の瞬間はアプリのタイムゾーンの日時に', () => {
+    expect(feedItemDue({ dueAt: null, dueDate: '2026-10-18' }, 'America/Los_Angeles')).toEqual({ dueDate: '2026-10-18', dueTime: null })
+    expect(feedItemDue({ dueAt: '2026-10-10T14:59:00Z' }, 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-10', dueTime: '23:59' })
+  })
+
+  it('TZID 付きの壁時計は、そのタイムゾーンの瞬間としてアプリのタイムゾーンに直す', () => {
+    const wall = { date: '2026-10-15', time: '23:59', timeZone: 'Asia/Tokyo' }
+    expect(feedItemDue({ dueAt: null, dueWall: wall }, 'Asia/Tokyo')).toEqual({ dueDate: '2026-10-15', dueTime: '23:59' })
+    // 夏時間中のロサンゼルス（UTC-7）では 10/15 7:59
+    expect(feedItemDue({ dueAt: null, dueWall: wall }, 'America/Los_Angeles')).toEqual({ dueDate: '2026-10-15', dueTime: '07:59' })
+  })
+
+  it('浮動・読めない TZID（Outlook の「Tokyo Standard Time」など）はアプリのタイムゾーンの時刻として読む', () => {
+    const floating = { date: '2026-10-16', time: '12:00', timeZone: null }
+    expect(feedItemDue({ dueAt: null, dueWall: floating }, 'America/New_York')).toEqual({ dueDate: '2026-10-16', dueTime: '12:00' })
+    const windows = { date: '2026-10-16', time: '12:00', timeZone: 'Tokyo Standard Time' }
+    expect(feedItemDue({ dueAt: null, dueWall: windows }, 'Europe/London')).toEqual({ dueDate: '2026-10-16', dueTime: '12:00' })
+  })
+
+  it('Moodle の課題を、科目のタグと締切つきの To-Do として取り込む', () => {
+    const conn = 'moodle.example.ac.jp'
+    const r = reconcileCanvasItems(
+      { sections: [], tasks: [] },
+      {
+        id: conn,
+        windowStart: '2026-10-01',
+        windowEnd: '2027-01-29',
+        readOnly: true,
+        items: [
+          {
+            type: 'assignment',
+            id: '1207',
+            title: 'Essay draft is due',
+            courseId: null,
+            courseName: 'ENG-201',
+            url: 'https://moodle.example.ac.jp/calendar/view.php?view=upcoming',
+            dueAt: null,
+            dueWall: { date: '2026-10-15', time: '23:59', timeZone: 'Asia/Tokyo' },
+            done: false,
+          },
+        ],
+      },
+      { ...opts, timeZone: 'Asia/Tokyo' },
+    )
+    expect(r.tasks).toHaveLength(1)
+    expect(r.tasks[0]).toMatchObject({
+      id: 'canvas-moodle.example.ac.jp-assignment-1207',
+      title: 'Essay draft is due',
+      tags: ['ENG-201'],
+      dueDate: '2026-10-15',
+      dueTime: '23:59',
+      kind: 'todo',
+    })
   })
 })

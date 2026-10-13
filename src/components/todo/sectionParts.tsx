@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { sectionDropId } from '../../lib/mainListTasks'
 import { SECTION_HEADING_TEXT } from '../ListSectionHeading'
 import { useTextEntry } from '../../hooks/useTextEntry'
+import { NAME_MAX_LENGTH } from '../../lib/textLimits'
 
 /** セクションの末尾の落とし先。`empty` は中にタスクが無いとき（落とせる場所が分かるよう、点線の枠で大きく出す） */
 export function SectionDropZone({ listId, sectionId, empty = false }: { listId: string; sectionId: string | null; empty?: boolean }) {
@@ -36,6 +37,7 @@ export function SectionNameInput({
       value={value}
       placeholder={t('sections.defaultName')}
       onChange={(e) => onChange(e.target.value)}
+      maxLength={NAME_MAX_LENGTH}
       onClick={(e) => e.stopPropagation()}
       {...entry}
       className={`w-full rounded bg-transparent text-left ${SECTION_HEADING_TEXT} focus:outline-none focus:ring-1 focus:ring-accent-400/50`}

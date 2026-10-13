@@ -1,8 +1,8 @@
 import { useEffect, type RefObject } from 'react'
-import { startOfWeek } from 'date-fns'
 import { HOUR_HEIGHT } from '../lib/timeGrid'
 import { zonedNow, isNowOnDay } from '../lib/timeZone'
 import { toDateKey } from '../lib/dateKey'
+import { calendarWeekStart } from '../lib/weekStart'
 
 /** 週タイムラインを開いた・表示する週が変わったときの縦スクロールの位置（今・朝） */
 export function useWeekScrollPosition({
@@ -23,7 +23,7 @@ export function useWeekScrollPosition({
    * 日を押すと親が anchor を作り直すので、anchor そのものではなく「表示している週（1 日表示なら日）」が
    * 変わったときだけスクロールを合わせる。でないと朝や夜で押した瞬間に今の時刻へ戻されてしまう
    */
-  const scrollKey = toDateKey(singleDay ? anchor : startOfWeek(anchor, { weekStartsOn: 1 }))
+  const scrollKey = toDateKey(singleDay ? anchor : calendarWeekStart(anchor))
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return

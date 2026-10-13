@@ -1,10 +1,10 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive } from '../types/habit'
-import { habitWeekDates } from '../lib/habitSchedule'
+import { HABIT_WEEK_STARTS_ON, habitWeekDates } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
@@ -63,6 +63,9 @@ export function HabitsView() {
     setShowComposer(false)
   }, [patchNewForm])
 
+  /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
+  const [addedId, setAddedId] = useState<string | null>(null)
+
   const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
   const weekDates = useMemo(() => habitWeekDates(focusDate), [focusDate])
   const atThisWeek = weekDates.some((d) => toDateKey(d) === todayKey)
@@ -76,6 +79,21 @@ export function HabitsView() {
   const goToday = useCallback(() => {
     setSelectedCalendarDateKey(todayKey)
   }, [setSelectedCalendarDateKey, todayKey])
+  const onAdded = useCallback(
+    (habitId: string) => {
+      closeComposer()
+      goToday()
+      setAddedId(habitId)
+    },
+    [closeComposer, goToday],
+  )
+  useEffect(() => {
+    if (!addedId) return
+    const id = requestAnimationFrame(() => {
+      document.querySelector(`[data-habit-row="${addedId}"]`)?.scrollIntoView({ block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [addedId])
   useNavShortcut({ today: goToday, prev: () => shiftWeek(-1), next: () => shiftWeek(1) })
 
   return (
@@ -97,14 +115,19 @@ export function HabitsView() {
       </div>
 
       <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
-        {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} /> : null}
+        {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
-          <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          // フォームを開いている間は「右上の＋習慣を追加」の案内を出さない（ボタンは「閉じる」になっている）
+          showComposer ? null : (
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+          )
         ) : (
           <section className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{df.weekRange(focusDate)}</h2>
+              <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {df.weekRange(focusDate, HABIT_WEEK_STARTS_ON)}
+              </h2>
               <DayNav
                 onToday={goToday}
                 onPrev={() => shiftWeek(-1)}
@@ -122,6 +145,7 @@ export function HabitsView() {
               habitRecords={habitRecords}
               menuProps={menuProps}
               onOpen={(h) => openDetail(h.id)}
+              addedId={addedId}
             />
           </section>
         )}

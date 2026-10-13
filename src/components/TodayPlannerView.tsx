@@ -7,7 +7,10 @@ import { getDayPlan } from '../lib/dayPlan'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
+import { onWrapUpRequest } from '../lib/notificationLaunch'
+import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { unplannedListIds } from '../lib/listKind'
+import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
 import { isLogTask, isSleepTask } from '../types/task'
@@ -21,6 +24,7 @@ import { DisclosureButton } from './ui/Disclosure'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskMenu } from '../lib/overlays'
+import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
@@ -35,7 +39,7 @@ import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
 
-/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない） */
+/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
 /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
@@ -75,6 +79,19 @@ export function TodayPlannerView() {
   const [showLeftOver, setShowLeftOver] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
+  /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
+  const [wrapUpFocus, setWrapUpFocus] = useState(0)
+  useEffect(
+    () =>
+      onWrapUpRequest(() => {
+        setMobilePane('list')
+        setWrapUpFocus((n) => n + 1)
+      }),
+    [],
+  )
+  const wrapUpTime = useTaskStore((s) => s.dailyReminders.wrapUpTime ?? null)
+  /** 見ている日に気分を付けたか（付けた日は締めの時刻の前でも記号の行を出しておく） */
+  const moodSet = useTaskStore((s) => s.dayMoods[dateKey] !== undefined)
 
   const date = fromDateKey(dateKey)
   const viewingToday = isAppToday(date)
@@ -99,9 +116,10 @@ export function TodayPlannerView() {
     dueSoon,
     open,
     done,
-    plannedMinutes,
     loggedMinutes,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
+  /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
+  const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
   const timedOpen = useMemo(() => open.filter((x) => x.startTime && x.endTime), [open])
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
@@ -135,10 +153,14 @@ export function TodayPlannerView() {
   // 対象は開いている未完了の行を上から順に
   const rowIds = useMemo(
     () =>
-      [...overdue, ...(showLeftOver ? leftOver : []), ...open, ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : [])].map(
-        (x) => x.id,
-      ),
-    [showLeftOver, leftOver, overdue, open, showSuggestions, candidateGroups],
+      [
+        ...overdue,
+        ...(showLeftOver ? leftOver : []),
+        ...untimedOpen,
+        ...timedOpen,
+        ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
+      ].map((x) => x.id),
+    [showLeftOver, leftOver, overdue, untimedOpen, timedOpen, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
@@ -149,6 +171,8 @@ export function TodayPlannerView() {
     completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
     todayToggleRows: (ids) => todayToggle(ids).run(),
+    // S: 「時間を決める」は見ている日の空きから（候補・やり残しの行も、置くとこの日にやる行になる）
+    pickTimeRow: (id) => openTimeSlotForTask(id, dateKey),
     resetOn: [dateKey],
   })
   useEffect(() => {
@@ -198,7 +222,13 @@ export function TodayPlannerView() {
   })()
 
   const totalCount = open.length + done.length
-  const showWrapUp = viewingToday && totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() >= WRAP_UP_FROM_HOUR)
+  const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
+  const showWrapUp =
+    viewingToday &&
+    (wrapUpFocus > 0 ||
+      (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)))
+  // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
+  const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)
 
   // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
@@ -243,7 +273,7 @@ export function TodayPlannerView() {
           dateKey={dateKey}
           viewingToday={viewingToday}
           dayNav={dayNav}
-          plannedMinutes={plannedMinutes}
+          load={dayLoad}
           loggedMinutes={loggedMinutes}
         />
 
@@ -265,7 +295,6 @@ export function TodayPlannerView() {
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <PlannerSuggestions
             env={rowEnv}
-            suggestions={suggestions}
             addAllTargets={shownSuggestions}
             pool={candidatePool}
             candidateGroups={candidateGroups}
@@ -298,6 +327,9 @@ export function TodayPlannerView() {
 
         <PlannerWrapUp
           showWrapUp={showWrapUp}
+          showMood={showMood}
+          dateKey={dateKey}
+          focusKey={wrapUpFocus}
           open={open}
           untaggedLogs={untaggedLogs}
           totalCount={totalCount}

@@ -16,3 +16,17 @@ describe('0:00 に終わるブロック', () => {
     expect(minutesOfLogOnCalendarDay(log as Task, '2026-10-03')).toBe(60)
   })
 })
+
+describe('日をまたぐ Google の予定のブロック', () => {
+  const night = { id: 'g', title: '', startTime: '22:00', endTime: '02:00', completed: false }
+  it('始まった日の区間 22:00–24:00 は 2 時間の高さ', () => {
+    const g = blockGeometry({ ...night, segment: { startTime: '22:00', endTime: '24:00' } }, '2026-10-06', false)
+    expect(g.top).toBe(22 * HOUR_HEIGHT)
+    expect(g.height).toBe(2 * HOUR_HEIGHT)
+  })
+  it('翌日の区間 0:00–2:00 は 0 時から 2 時間', () => {
+    const g = blockGeometry({ ...night, segment: { startTime: '00:00', endTime: '02:00' } }, '2026-10-07', false)
+    expect(g.top).toBe(0)
+    expect(g.height).toBe(2 * HOUR_HEIGHT)
+  })
+})

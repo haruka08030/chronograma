@@ -1,16 +1,14 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
-import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
-import { appTodayKey, isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
-import { dueToneOf } from '../lib/dueTone'
+import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
+import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
 import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
 import { planHex } from '../lib/planVisual'
@@ -34,29 +32,13 @@ import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { colorVars } from '../lib/logCategoryColors'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
+import { TITLE_MAX_LENGTH } from '../lib/textLimits'
+import { dueDateLabel } from './ui/dueDateLabel'
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
   if (isAppTomorrow(d)) return 'tomorrow'
   return isAppPast(d) ? 'overdue' : 'future'
-}
-
-/** 締切が近いと言う日数（この日数以内は「あと ◯ 日」で明日と同じ色） */
-const DUE_SOON_DAYS = 3
-
-/**
- * 締切の日付を、色が見分けにくくても分かる言葉で: 「10/8 (木)まで・あと 2 日」「10/5 (月)まで・1日遅れ」。
- * 「まで」が付くので、時計の実行日とも文字で分かれる
- */
-function dueDateLabel(iso: string, time: string | null, t: TFunction, language: string | undefined): { text: string; tone: DateTone } {
-  const d = parseISO(iso)
-  const tone = dueToneOf(iso, time, appTodayKey())
-  const days = differenceInCalendarDays(d, fromDateKey(appTodayKey()))
-  const date = isAppToday(d) ? t('common.today') : isAppTomorrow(d) ? t('common.tomorrow') : formatShortDateWeekday(d, language)
-  const by = time ? t('taskItem.dueByTime', { date, time }) : t('taskItem.dueBy', { date })
-  if (days < 0) return { text: t('taskItem.dueLate', { by, count: -days }), tone }
-  if (days >= 2 && days <= DUE_SOON_DAYS) return { text: t('taskItem.dueSoon', { by, count: days }), tone: 'tomorrow' }
-  return { text: by, tone }
 }
 
 export type TaskItemSelection = {
@@ -359,29 +341,7 @@ export const TaskItem = memo(function TaskItem({
         ) : null}
 
         {selection ? (
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={selection.selected}
-            aria-label={t('taskItem.bulkSelectAria')}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation()
-              selection.onToggle(e)
-            }}
-            className={`flex-shrink-0 rounded border flex items-center justify-center transition-[opacity,background-color,border-color] touch-manipulation
-            ${isSubtask ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
-            ${selection.reveal || selection.selected ? 'opacity-100' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100'}
-            ${
-              selection.selected
-                ? 'border-accent-500 bg-accent-500 text-on-accent'
-                : 'border-zinc-300 dark:border-zinc-600 bg-transparent hover:border-zinc-400 dark:hover:border-zinc-500'
-            }`}
-          >
-            {selection.selected && (
-              <CheckIcon className={isSubtask ? 'w-2.5 h-2.5 md:w-2 md:h-2' : 'w-3 h-3 md:w-2.5 md:h-2.5'} strokeWidth={3} />
-            )}
-          </button>
+          <RowSelectCheckbox selected={selection.selected} reveal={selection.reveal} onToggle={selection.onToggle} small={isSubtask} />
         ) : null}
 
         {/* 予定（バイト・授業）には完了の丸を出さない */}
@@ -416,6 +376,7 @@ export const TaskItem = memo(function TaskItem({
               aria-label={t('taskDetail.titleEditAria')}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
+              maxLength={TITLE_MAX_LENGTH}
               {...titleEntryWithSibling}
               onClick={(e) => e.stopPropagation()}
               // 下線と余白（3px）は負のマージンで行の高さに数えない。押して編集に入っても行が動かない

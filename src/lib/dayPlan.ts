@@ -1,9 +1,10 @@
 import { addDays } from 'date-fns'
 import { isEventTask, isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
-import { durationMinutesForTaskSlot, minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
+import { minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
 import { appDayKeyOf } from './timeZone'
+import { compareByOrder } from './orderCompare'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -14,7 +15,6 @@ export interface DayPlan {
   dueSoon: Task[]
   open: Task[]
   done: Task[]
-  plannedMinutes: number
   loggedMinutes: number
 }
 
@@ -68,7 +68,7 @@ function compareDayTasks(a: Task, b: Task): number {
   if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime)
   if (a.startTime) return -1
   if (b.startTime) return 1
-  return a.order - b.order
+  return compareByOrder(a, b)
 }
 
 const DUE_SOON_DAYS = 3
@@ -86,7 +86,6 @@ export function getDayPlan(
   const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const open: Task[] = []
   const done: Task[] = []
-  let plannedMinutes = 0
   let loggedMinutes = 0
   for (const task of tasks) {
     if (!isActiveTask(task)) continue
@@ -95,10 +94,10 @@ export function getDayPlan(
       if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
-    // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了・予定の時間）。カレンダーで見る
+    // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了）。カレンダーで見る。
+    // 「予定 / 空き」の時間は週の見出しと同じ dayLoad.ts で数える
     if (task.parentId || excludedListIds.has(task.listId) || isEventTask(task)) continue
     const placed = taskPlacementDate(task)
-    if (placed === dateKey && task.startTime && task.endTime) plannedMinutes += durationMinutesForTaskSlot(task) ?? 0
     if (task.completed) {
       // やった日が優先: 置いた日・締切ではなく、完了した日の「完了」に出す
       if (completionDayKey(task) === dateKey) done.push(task)
@@ -117,7 +116,7 @@ export function getDayPlan(
   overdue.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
   carryOver.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
   dueSoon.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-  return { overdue, carryOver, dueSoon, open, done, plannedMinutes, loggedMinutes }
+  return { overdue, carryOver, dueSoon, open, done, loggedMinutes }
 }
 
 /**
@@ -141,7 +140,7 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
     else if (!task.dueDate || task.dueDate === dateKey) placedLater.push(task)
   }
   dueLater.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-  undated.sort((a, b) => a.order - b.order)
+  undated.sort(compareByOrder)
   placedLater.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
   return [...dueLater, ...undated, ...placedLater]
 }

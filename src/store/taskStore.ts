@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import { assignColorsInOrder } from '../lib/logCategoryColors'
@@ -8,7 +8,14 @@ import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
-import { markRawKnown, persistStorage, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
+import { normalizeLabelTargets } from '../lib/labelTargets'
+import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { sameValue } from '../lib/sameValue'
+import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
+import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
+import { mergeRecoveredState } from './recoverLocal'
 import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
@@ -25,10 +32,15 @@ import { createGoogleSlice } from './slices/google'
 import { createSettingsSlice } from './slices/settings'
 import { createUiSlice } from './slices/ui'
 import { createDataSlice } from './slices/data'
+import { createEventTemplatesSlice } from './slices/eventTemplates'
+import { createDayMoodsSlice } from './slices/dayMoods'
+import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
+import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
 /*
- * タスク・リスト・習慣・記録・設定をまとめて持つストア（localStorage に保存）。
+ * タスク・リスト・習慣・記録・設定をまとめて持つストア（`lib/dataStore.ts` に保存。IndexedDB、使えない端末は localStorage）。
  * ここは作成と保存の設定だけ。操作は `slices/*.ts`、純粋な計算は `taskHelpers.ts` ほか、保存データの移行は `migrate.ts`
  */
 
@@ -36,14 +48,18 @@ export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeC
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
 import { withTaskDefaults } from '../lib/taskDefaults'
-import { isIncomingChange } from '../lib/changeOrigin'
+import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
+import { pendingAddsAfterImport } from '../lib/labelSync'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
+import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
+import { reportFailure } from '../lib/errorReport'
+import { flushPendingEdits } from '../lib/pendingEdits'
 
-/** Renamed app: copy persisted state once from the old localStorage key. */
+/** Renamed app: copy persisted state once from the old localStorage key（IndexedDB に移すときは `dataStore.ts` が移す） */
 function migrateLegacyPersistKey(): void {
-  if (typeof localStorage === 'undefined') return
+  if (typeof localStorage === 'undefined' || usingIndexedDb()) return
   try {
     const legacy = localStorage.getItem(LEGACY_PERSIST_STORAGE_KEY)
     if (!legacy || localStorage.getItem(PERSIST_STORAGE_KEY)) return
@@ -55,11 +71,15 @@ function migrateLegacyPersistKey(): void {
 }
 migrateLegacyPersistKey()
 
-/** 読めなかった保存データを、上書きされる前に別のキーへ写す */
-function preserveUnreadableStorage() {
+/**
+ * 読めなかった保存データを、上書きされる前に別のキーへ写す。
+ * 記録に残すのは どこで読めなかったか（`stage`）とエラーのメッセージだけ（中身は送らない）
+ */
+function preserveUnreadableStorage(stage: string, error: unknown) {
+  reportFailure('storage', stage, error)
   try {
-    const raw = localStorage.getItem(PERSIST_STORAGE_KEY)
-    if (raw) localStorage.setItem(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+    const raw = readStored(PERSIST_STORAGE_KEY)
+    if (raw) writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
   } catch {
     /* 写せなくても続ける */
   }
@@ -90,6 +110,8 @@ export const useTaskStore = create<TaskState>()(
         sortByKey: {} as Record<string, SortMode>,
         sectionGrouping: { lists: true, dueViews: false } as SectionGrouping,
         plannerCandidateView: DEFAULT_CANDIDATE_VIEW,
+        todoFilter: NO_TODO_FILTER,
+        completedFilter: NO_COMPLETED_FILTER,
         recentDeletes: [],
         moveBannerText: null as string | null,
         undoBanner: null as { text: string; at: number } | null,
@@ -100,6 +122,7 @@ export const useTaskStore = create<TaskState>()(
         syncRejected: [],
         dataOwner: null as string | null,
         quickAddRequested: false,
+        quickAddPrefill: null,
         filterTag: null,
         filterColor: null,
         notificationsEnabled: false,
@@ -108,7 +131,9 @@ export const useTaskStore = create<TaskState>()(
         // 新規ユーザーは分類の候補が空だと記録がほぼ「未分類」になるので、よく使う分類を最初から置く
         timeLogTagPresets: defaultLogCategories(),
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),
+        logLabelTargets: {},
         logLabelsUpdatedAt: null,
+        logLabelPendingAdds: [],
 
         calendarEvents: [],
         googleEventColors: {},
@@ -117,20 +142,31 @@ export const useTaskStore = create<TaskState>()(
         googleConnectionError: null,
         googleCanWrite: false,
         activeTimer: null,
+        activeTimerUpdatedAt: null as string | null,
         completePromptTaskId: null as string | null,
         labelPromptLogId: null as string | null,
-        dailyReminders: { planTime: null } as DailyReminders,
+        dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
         reminderPromptDismissed: false,
         googleConnectLineDismissed: false,
         onboardingDone: false,
         onboardingCompleted: false,
         installNudgeDismissed: false,
+        signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,
         defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,
+        weekStartsOn: DEFAULT_WEEK_STARTS_ON as WeekStartDay,
         extraTimeZones: [] as ExtraTimeZone[],
         extraTimeZonesUpdatedAt: null as string | null,
+        eventTemplates: [] as EventTemplate[],
+        eventTemplatesUpdatedAt: null as string | null,
+        courseLinks: [] as CourseLink[],
+        courseLinksUpdatedAt: null as string | null,
+        dayMoods: {} as DayMoods,
+        timetable: DEFAULT_TIMETABLE as Timetable,
+        timetableUpdatedAt: null as string | null,
+        seriesEditScope: null,
 
         habits: [],
 
@@ -147,19 +183,28 @@ export const useTaskStore = create<TaskState>()(
         ...createSettingsSlice(ctx),
         ...createUiSlice(ctx),
         ...createDataSlice(ctx),
+        ...createEventTemplatesSlice(ctx),
+        setCourseLink: (eventTitle: string, course: string) => {
+          const next = withCourseLink(get().courseLinks, eventTitle, course)
+          // 同じ中身なら時刻を付けない（同期で送り直さない）
+          if (sameValue(next, get().courseLinks)) return
+          set({ courseLinks: next })
+        },
+        ...createDayMoodsSlice(ctx),
+        ...createEventSeriesSlice(ctx),
         ...undo.actions,
       }
     },
     {
       name: PERSIST_STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => persistStorage),
+      storage: createPersistStorage<TaskState>(),
       // 読み込み（migrate）に失敗すると初期状態のまま動き、次の保存で元のデータを上書きしていた。
       // 上書きされる前に、保存されていた中身を別のキーへ写しておく（設定 → データ の書き出しとは別に残る）
       onRehydrateStorage: () => (_state, error) => {
         if (!error) return
         console.error('[storage] could not load saved data', error)
-        preserveUnreadableStorage()
+        preserveUnreadableStorage('load', error)
       },
       // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
       // 読める行だけ使い、元の中身は別のキーに写しておく
@@ -177,7 +222,16 @@ export const useTaskStore = create<TaskState>()(
         // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
         merged.tasks = merged.tasks.map(withTaskDefaults)
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
-        if (broken) preserveUnreadableStorage()
+        merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
+        merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
+        merged.dayMoods = normalizeDayMoods(merged.dayMoods)
+        merged.timetable = normalizeTimetable(merged.timetable)
+        merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
+        merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
+        merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
+          ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
+          : []
+        if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
         return merged
       },
       migrate: migrateTaskState,
@@ -186,6 +240,48 @@ export const useTaskStore = create<TaskState>()(
     },
   ),
 )
+
+/**
+ * IndexedDB に移した後に localStorage で動いた回（開けなかった）の本体を合わせる（`dataStore.ts` の `RECOVERED_LOCAL_KEY`）。
+ * 既定値（ストアの初期状態）と比べてその回で変えた分だけを入れる（`recoverLocal.ts`）。合わせた本体と取り込んだ印を消すのは
+ * 同じトランザクション（書けなければ次に開いたときにもう一度）。ラベル表などの変えた時刻を進める購読より前に呼ぶ
+ */
+function takeInRecoveredLocal() {
+  let raw: string | null
+  try {
+    raw = readStored(RECOVERED_LOCAL_KEY)
+  } catch {
+    return
+  }
+  if (raw === null) return
+  try {
+    const local = JSON.parse(raw) as { state?: Record<string, unknown>; version?: unknown }
+    if (!local.state || typeof local.version !== 'number' || local.version > STORE_VERSION) throw new Error('unreadable recovered data')
+    const localState = (local.version < STORE_VERSION ? migrateTaskState(local.state, local.version) : local.state) as unknown as Record<
+      string,
+      unknown
+    >
+    const pick = (s: TaskState) => pickKeys(s as unknown as Record<string, unknown>, DATA_KEYS) as Record<string, unknown>
+    const { state, replaced } = mergeRecoveredState(pick(useTaskStore.getState()), localState, pick(useTaskStore.getInitialState()))
+    for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
+      const { rows } = normalizeStoredRows(key, state[key])
+      state[key] = rows ?? useTaskStore.getState()[key]
+    }
+    state.tasks = (state.tasks as TaskState['tasks']).map(withTaskDefaults)
+    if (replaced) {
+      // 別の人のデータだった: その回のほうにして、IndexedDB の本体は別のキーに残す
+      const before = readStored(PERSIST_STORAGE_KEY)
+      if (before) writeStored(`${PERSIST_STORAGE_KEY}-before-recovery-${Date.now()}`, before)
+    }
+    useTaskStore.setState(state as Partial<TaskState>)
+  } catch (err) {
+    // 読めない・新しい版の中身: 合わせずに別のキーに残す
+    reportFailure('storage', 'recovered', err)
+    writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+  }
+  writeStored(RECOVERED_LOCAL_KEY, null)
+}
+takeInRecoveredLocal()
 
 /**
  * 開いていた画面・並び順などの好み（`VIEW_KEYS`）は、データとは別の小さな保存先に置く。
@@ -229,18 +325,74 @@ function applyTimeZoneState() {
 }
 restoreViewState()
 applyTimeZoneState()
+// 週の開始日も、React の外（`appWeekStartsOn()`）から読めるように合わせておく（読み込み直後・設定・他のタブ）
+setAppWeekStartSetting(useTaskStore.getState().weekStartsOn)
+useTaskStore.subscribe((s, prev) => {
+  if (s.weekStartsOn !== prev.weekStartsOn) setAppWeekStartSetting(s.weekStartsOn)
+})
 
 // ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
 useTaskStore.subscribe((s, prev) => {
-  if (s.timeLogTagPresets === prev.timeLogTagPresets && s.logCategoryColors === prev.logCategoryColors) return
+  if (
+    s.timeLogTagPresets === prev.timeLogTagPresets &&
+    s.logCategoryColors === prev.logCategoryColors &&
+    s.logLabelTargets === prev.logLabelTargets
+  )
+    return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
 })
+
+/**
+ * 取り込み（Notion・フォルダを畳む）でラベル表を変えた結果を当てる（#357）。ラベル表の変えた時刻は進めず、足した名前を覚えておき、
+ * 次の同期で「無ければ足す」だけ送る（`labelSync.ts`）。時刻を進めると手元が新しい扱いになり、ほかの端末の編集を上書きしていた
+ */
+export function setStateWithImportedLabels(patch: Partial<TaskState>): void {
+  const s = useTaskStore.getState()
+  const pending = patch.timeLogTagPresets
+    ? pendingAddsAfterImport(s.logLabelPendingAdds, s.timeLogTagPresets, patch.timeLogTagPresets)
+    : s.logLabelPendingAdds
+  asIncomingChange(() =>
+    useTaskStore.setState(pending.length === s.logLabelPendingAdds.length ? patch : { ...patch, logLabelPendingAdds: pending }),
+  )
+}
+
+/** 覚えておいた取り込みのラベルから外す（サーバーに届いた・手元で消した） */
+export function dropPendingLabelAdds(names: readonly string[]): void {
+  const s = useTaskStore.getState()
+  const next = s.logLabelPendingAdds.filter((n) => !names.includes(n))
+  if (next.length !== s.logLabelPendingAdds.length) useTaskStore.setState({ logLabelPendingAdds: next })
+}
+
 // 他のタイムゾーン（並び・名前）を変えたときも同じ
 useTaskStore.subscribe((s, prev) => {
   if (s.extraTimeZones === prev.extraTimeZones) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
+})
+// よく入れる予定（登録・名前・時刻・ラベル）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.eventTemplates === prev.eventTemplates) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ eventTemplatesUpdatedAt: new Date().toISOString() })
+})
+// 授業の予定と科目のつながり（#309）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.courseLinks === prev.courseLinks) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ courseLinksUpdatedAt: new Date().toISOString() })
+})
+// 時間割の設定（時限・学期、#279）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.timetable === prev.timetable) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ timetableUpdatedAt: new Date().toISOString() })
+})
+// 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
+useTaskStore.subscribe((s, prev) => {
+  if (s.activeTimer === prev.activeTimer) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ activeTimerUpdatedAt: new Date().toISOString() })
 })
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
@@ -249,12 +401,14 @@ useTaskStore.subscribe((s, prev) => {
 /**
  * To-Do のリスト（フォルダ）はラベルに畳む（`foldTaskFolders`）。前の版のデータ・前の版の端末から同期で届いたフォルダ・
  * 取り込んだバックアップのどれもここで畳む。同期で届いた変更の中でも、畳んだ結果はこの端末の変更として送る（`queueMicrotask` で同期の取り込みの外に出す）。
+ * 畳んで作ったラベルはラベル表の変えた時刻を進めず、取り込みと同じく「無ければ足す」だけ送る（#357）。
  * 他のタブから取り込んだものは、そのタブが畳んで送る
  */
 function foldFolders() {
   const s = useTaskStore.getState()
   const folded = foldTaskFolders(s, new Date().toISOString())
-  if (folded) useTaskStore.setState(folded)
+  // 畳んで作ったラベルは「無ければ足す」だけ送る（タスクの変更は届いた変更の扱いでも同期で送る）
+  if (folded) setStateWithImportedLabels(folded)
 }
 /** To-Do はリストを開かず「すべて」で見る。未分類・消えたリストを開いていたら「すべて」へ */
 function settleTodoView() {
@@ -285,7 +439,11 @@ export function adoptOtherTabChanges(): void {
   markRawKnown(raw)
   if (parsed.version !== STORE_VERSION) {
     // 新しい版のアプリを開いたタブが書いた。古いコードで読むと壊すので、このタブも新しい版で開き直す
-    if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) window.location.reload()
+    // 打っている途中のメモ・場所は先にストアに入れて保存する（読み込み直すと手元の書きかけは消える）
+    if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) {
+      flushPendingEdits()
+      window.location.reload()
+    }
     return
   }
   const incoming: Record<string, unknown> = { ...parsed.state }
@@ -300,10 +458,11 @@ export function adoptOtherTabChanges(): void {
     if (rows) incoming[key] = rows
     else delete incoming[key]
   }
-  if (broken) preserveUnreadableStorage()
+  if (broken) preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
+  // 打っている途中のメモ・場所（`pendingEdits.ts`）はここでは入れない。止まったときに取り込んだ後のタスクへ 1 項目だけ当たる
   adoptingFromOtherTab = true
   try {
     // 保存し直さない（同じ内容を書くだけで、表示の状態だけが違う書き込みがタブ間を往復する）
@@ -314,17 +473,22 @@ export function adoptOtherTabChanges(): void {
   }
 }
 
+// 他のタブが書いた（IndexedDB では BroadcastChannel、localStorage では storage イベント）
+onOtherTabChange((keys) => {
+  if (keys.includes(PERSIST_STORAGE_KEY)) adoptOtherTabChanges()
+})
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === PERSIST_STORAGE_KEY) adoptOtherTabChanges()
-  })
-  // 戻る・進むでページごと復元されたとき・裏から戻ったときは、止まっていた間の storage イベントが届かないことがある。
+  // 戻る・進むでページごと復元されたとき・裏から戻ったときは、止まっていた間の知らせが届かないことがある。
   // 古いまま次の編集で全データを書き戻さないよう、1 回読み直す（中身が同じなら文字列を比べるだけ）
+  const readAgain = () => {
+    if (usingIndexedDb()) void refreshStored().then(adoptOtherTabChanges)
+    else adoptOtherTabChanges()
+  }
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted) adoptOtherTabChanges()
+    if (e.persisted) readAgain()
   })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') adoptOtherTabChanges()
+    if (document.visibilityState === 'visible') readAgain()
   })
 }
 
@@ -341,6 +505,7 @@ setPersistWriteHandlers({
   },
   onFailed: (err) => {
     console.error('[storage] save failed', err)
+    reportFailure('storage', 'save', err)
     // 保存の途中なので、知らせるのは今の更新が終わってから（保存し直すとまた失敗するので保存しない）
     queueMicrotask(() => {
       if (!useTaskStore.getState().storageFull) withoutPersisting(() => useTaskStore.setState({ storageFull: true }))

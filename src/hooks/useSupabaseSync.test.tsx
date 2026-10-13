@@ -1,10 +1,16 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
-import { loadBaseline } from '../lib/syncMerge'
+import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
-import { clearLocalAccountState } from '../lib/accountBoundary'
+import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
+import { backupNow } from './useAutoBackup'
+import i18n from '../i18n/config'
 import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
+import { reportSyncError } from '../lib/errorReport'
+import { SYNC_PROTOCOL_VERSION } from '../lib/syncVersion'
+import { resetVersionSeenForTests } from '../lib/versionSeen'
+import { MERGE_CONFLICTS_KEY, resetMergeConflictReportForTests } from '../lib/mergeConflictReport'
 
 /**
  * 同期のフックを、本物のストアと PostgREST・DB の偽物（`fakeSupabaseDb`、サーバーのトリガーと印を真似る）で回す。
@@ -40,6 +46,10 @@ vi.mock('../lib/webPush', async (importOriginal) => ({
   resyncWebPush: push.resync,
 }))
 
+// ログインする前のデータをアカウントに入れるかの確認（既定は「入れる」）
+const confirm = vi.hoisted(() => ({ ask: vi.fn<(o: { message: string; confirmLabel?: string }) => Promise<boolean>>(async () => true) }))
+vi.mock('../lib/confirmDialog', () => ({ askConfirm: confirm.ask }))
+
 let db: ReturnType<typeof fakeDb>
 
 beforeEach(() => {
@@ -50,6 +60,9 @@ beforeEach(() => {
   env.user = null
   push.detach.mockClear()
   push.resync.mockClear()
+  confirm.ask.mockReset()
+  confirm.ask.mockResolvedValue(true)
+  vi.mocked(backupNow).mockClear()
 })
 
 afterEach(() => {
@@ -81,6 +94,7 @@ const serverTitles = (userId: string) =>
 
 function signIn(userId: string) {
   env.user = { id: userId }
+  db.auth.user = userId
   return renderHook(() => useSupabaseSync())
 }
 
@@ -95,6 +109,9 @@ describe('useSupabaseSync', () => {
     signIn('u1')
     await untilSynced()
 
+    // アカウントにもデータがあるので、送る前に確かめた
+    expect(confirm.ask).toHaveBeenCalledTimes(1)
+    expect(confirm.ask.mock.calls[0]![0].confirmLabel).toBe(i18n.t('sync.mergeLocalConfirm', { count: 1 }))
     expect(storeTitles()).toEqual(['from account', 'made offline'])
     expect(serverTitles('u1')).toEqual(['from account', 'made offline'])
     const s = useTaskStore.getState()
@@ -105,6 +122,148 @@ describe('useSupabaseSync', () => {
     // 受信箱は重ねて作らない
     expect(s.lists.filter((l) => l.id === '__inbox__')).toHaveLength(1)
     expect(db.tables.lists!.filter((r) => r.user_id === 'u1' && r.id === '__inbox__')).toHaveLength(1)
+  })
+
+  describe('ログインする前のデータ（#341）', () => {
+    it('入れないと答えたら、アカウントに送らず控えに残し、手元はアカウントの内容だけにする', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('someone else offline')
+      useTaskStore.setState({ timeLogTagPresets: ['A社 面接'] })
+      confirm.ask.mockResolvedValue(false)
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(storeTitles()).toEqual(['from account'])
+      expect(serverTitles('u1')).toEqual(['from account'])
+      // 持ち主のいない控え（ログアウトすると自動バックアップに出る）
+      expect(backupNow).toHaveBeenCalledWith('beforeSignIn', null)
+      expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
+      expect(useTaskStore.getState().dataOwner).toBe('u1')
+      expect(Object.keys(loadBaseline('u1')!.tasks)).toEqual(['r1'])
+
+      // 次の同期でも聞き直さず、送らない
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(serverTitles('u1')).toEqual(['from account'])
+      expect((db.tables.user_settings ?? []).flatMap((r) => (r.log_labels as { name: string }[]).map((l) => l.name))).not.toContain(
+        'A社 面接',
+      )
+    })
+
+    it('アカウントが空なら聞かずに送る', async () => {
+      useTaskStore.getState().addTask('made offline')
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(['made offline'])
+    })
+
+    it('この人のデータ（前回同期の控えが無いだけ）なら聞かない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('mine')
+      useTaskStore.getState().setDataOwner('u1')
+
+      signIn('u1')
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(['from account', 'mine'])
+    })
+  })
+
+  describe('別の端末でアカウントが消されたとき（#341）', () => {
+    const beforeSignOutBackups = () => vi.mocked(backupNow).mock.calls.filter(([kind]) => kind !== 'daily')
+
+    it('送った行が外部キーで断られたら、アカウントが無いと確かめて控えを取らずに消し、「送れません」を出さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const hook = signIn('u1')
+      await untilSynced()
+      expect(storeTitles()).toEqual(['a'])
+
+      db.deleteUser('u1')
+      useTaskStore.getState().addTask('new here')
+      for (let i = 0; i < 100 && db.auth.signOuts === 0; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(100)
+        })
+      }
+
+      expect(db.auth.signOuts).toBe(1)
+      const s = useTaskStore.getState()
+      expect(s.tasks).toEqual([])
+      expect(s.syncRejected).toEqual([])
+      expect(s.dataOwner).toBeNull()
+      expect(loadBaseline('u1')).toBeNull()
+      expect(beforeSignOutBackups()).toEqual([])
+
+      // この後の SIGNED_OUT の片付けでも控えを取らない
+      env.user = null
+      hook.rerender()
+      useTaskStore.getState().addTask('left over')
+      clearLocalAccountState('u1')
+      expect(useTaskStore.getState().tasks).toEqual([])
+      expect(beforeSignOutBackups()).toEqual([])
+    })
+
+    it('開き直したときにサーバーが空なら確かめ、アカウントが無ければ合わせずに消す（同期の直前の控えも取らない）', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const first = signIn('u1')
+      await untilSynced()
+      first.unmount()
+
+      db.deleteUser('u1')
+      signIn('u1')
+      for (let i = 0; i < 100 && db.auth.signOuts === 0; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+        })
+      }
+
+      expect(db.auth.signOuts).toBe(1)
+      expect(useTaskStore.getState().tasks).toEqual([])
+      expect(loadBaseline('u1')).toBeNull()
+      expect(beforeSignOutBackups()).toEqual([])
+    })
+
+    it('アカウントがあれば、サーバーが空でも消さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+      const first = signIn('u1')
+      await untilSynced()
+      first.unmount()
+
+      // 他の端末が全部消した（アカウントは残っている）
+      await db.client.from('tasks').delete().eq('user_id', 'u1').in('id', ['a'])
+      await db.client.from('lists').delete().eq('user_id', 'u1').in('id', ['__inbox__'])
+      signIn('u1')
+      await untilSynced()
+
+      expect(db.auth.signOuts).toBe(0)
+      expect(useTaskStore.getState().dataOwner).toBe('u1')
+    })
+
+    it('isAccountGone は「ユーザーがいない」のときだけ true。答えが無ければ false', async () => {
+      db.auth.user = 'u1'
+      expect(await isAccountGone(db.client)).toBe(false)
+      db.deleteUser('u1')
+      expect(await isAccountGone(db.client)).toBe(true)
+      const hanging = { auth: { getUser: () => new Promise(() => {}) } } as unknown as typeof db.client
+      const answer = isAccountGone(hanging)
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(await answer).toBe(false)
+    })
   })
 
   it('アカウントにデータがあれば、初めての同期ではじめの案内を終わらせる', async () => {
@@ -182,6 +341,33 @@ describe('useSupabaseSync', () => {
     expect(serverTitles('u1')).toEqual(['keep'])
   })
 
+  it('上限で消した印の表が読めなければ、差分のまま進めずに同期の失敗として出し、読めるようになったら消えた行を外す（#355）', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('a', { title: 'keep' }), taskRow('b', { title: 'gone elsewhere' }))
+    signIn('u1')
+    await untilSynced()
+    const { reportSyncError } = await import('../lib/errorReport')
+    vi.mocked(reportSyncError).mockClear()
+
+    await db.client.from('tasks').delete().eq('user_id', 'u1').in('id', ['b'])
+    db.missing.add('sync_tombstone_purges')
+    window.dispatchEvent(new Event('online'))
+    for (let i = 0; i < 200 && useTaskStore.getState().syncState !== 'error'; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+    }
+
+    expect(useTaskStore.getState().syncState).toBe('error')
+    expect(reportSyncError).toHaveBeenCalledWith('pull', expect.stringContaining('sync_tombstone_purges'))
+    expect(storeTitles()).toEqual(['gone elsewhere', 'keep'])
+
+    db.missing.delete('sync_tombstone_purges')
+    window.dispatchEvent(new Event('online'))
+    await untilSynced()
+    expect(storeTitles()).toEqual(['keep'])
+  })
+
   it('編集は待ち時間の後に送る。取得の後に他の端末が変えて断られたら、次は全部を取り直して合わせる', async () => {
     db.tables.lists!.push({ ...inboxRow })
     db.tables.tasks!.push(taskRow('a', { title: 'a' }), taskRow('b', { title: 'b' }))
@@ -224,6 +410,42 @@ describe('useSupabaseSync', () => {
     const s = useTaskStore.getState()
     expect(s.tasks.find((t) => t.id === 'a')).toMatchObject({ title: 'a edited here', priority: 'high' })
     expect(s.syncRejected).toEqual([])
+  })
+
+  it('2 台で同じ項目を変えて新しいほうに任せたら、表・項目の名前と回数だけを記録に送る（#357）', async () => {
+    localStorage.removeItem(MERGE_CONFLICTS_KEY)
+    resetMergeConflictReportForTests()
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('a', { title: 'a' }))
+    signIn('u1')
+    await untilSynced()
+    vi.mocked(reportSyncError).mockClear()
+
+    useTaskStore.getState().updateTask('a', { title: 'a edited here' })
+    // 送る前に、もう一方の端末も同じタスクの題名を変える（サーバーの時計で後に書かれたあちらが新しいので、こちらの題名を捨てる）
+    let interfered = false
+    db.hooks.beforeUpsert = (table) => {
+      if (table !== 'tasks' || interfered) return
+      interfered = true
+      db.oldClientWrite('tasks', {
+        ...db.tables.tasks!.find((r) => r.id === 'a')!,
+        title: 'a edited on phone',
+        updated_at: '2026-10-03T08:59:00.000000+00:00',
+      })
+    }
+    const before = useTaskStore.getState().lastSyncedAt
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    await untilSynced(before)
+
+    expect(interfered).toBe(true)
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'a')!.title).toBe('a edited on phone')
+    const calls = vi.mocked(reportSyncError).mock.calls.filter((c) => c[0] === 'merge-conflicts')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]![2]).toEqual({ conflicts: { 'tasks.title': 1 }, total: 1, since: expect.any(String) })
+    // 題名などの中身は送らない
+    expect(JSON.stringify(calls[0])).not.toMatch(/edited here|on phone/)
   })
 
   describe('アカウントの境目のラベル表と購読（#286）', () => {
@@ -305,6 +527,110 @@ describe('useSupabaseSync', () => {
         synced = await flushPendingSync()
       })
       expect(synced).toBe(false)
+    })
+  })
+
+  describe('前回同期の控えを保存できないとき（#255）', () => {
+    it('保存に失敗したら前の控えを消す（古い控えのまま次の同期で合わせない）', () => {
+      saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)
+      expect(loadBaseline('u1')).not.toBeNull()
+      const real = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key.startsWith('chronograma-sync-baseline')) throw new DOMException('full', 'QuotaExceededError')
+        return real.call(this, key, value)
+      }
+      try {
+        expect(saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)).toBe(false)
+      } finally {
+        Storage.prototype.setItem = real
+      }
+      expect(loadBaseline('u1')).toBeNull()
+    })
+
+    it('本体を保存できていない間（容量不足）は、同期しても控えを書かずに消す', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      signIn('u1')
+      await untilSynced()
+      expect(loadBaseline('u1')).not.toBeNull()
+
+      useTaskStore.setState({ storageFull: true })
+      const before = useTaskStore.getState().lastSyncedAt
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+        await flushPendingSync()
+      })
+      expect(useTaskStore.getState().lastSyncedAt).not.toBe(before)
+      expect(loadBaseline('u1')).toBeNull()
+    })
+  })
+
+  it('アプリの版が同期の下限より古ければ送らず、読み込み直しを促す状態にする（#259）', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.app_config = [{ user_id: '', key: 'min_sync_version', value: 99 }]
+    useTaskStore.getState().addTask('local only')
+    signIn('u1')
+    for (let i = 0; i < 50 && useTaskStore.getState().syncState !== 'outdated'; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+    }
+    expect(useTaskStore.getState().syncState).toBe('outdated')
+    expect(serverTitles('u1')).toEqual([])
+  })
+
+  describe('どの版が同期しているかの記録（#360）', () => {
+    beforeEach(() => {
+      resetVersionSeenForTests()
+      vi.mocked(reportSyncError).mockClear()
+    })
+    const seen = () => db.tables.app_versions_seen ?? []
+
+    it('同期の最初に 1 日 1 回だけ版を書く。同じ日の次の同期・開き直しでは書かず、次の日にまた書く', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      const view = signIn('u1')
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]).toMatchObject({ user_id: 'u1', sync_protocol_version: SYNC_PROTOCOL_VERSION })
+      expect(typeof seen()[0]!.app_version).toBe('string')
+      const first = seen()[0]!.last_seen
+
+      // 同じ日の次の同期（回線が戻ったとき）
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      // 開き直し（このページの印は消えるが、端末に送れた日が残っている）
+      view.unmount()
+      resetVersionSeenForTests()
+      const again = signIn('u1')
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]!.last_seen).toBe(first)
+
+      // 次の日
+      vi.setSystemTime(new Date('2026-10-04T09:00:00.000Z'))
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      expect(seen()).toHaveLength(1)
+      expect(seen()[0]!.last_seen).not.toBe(first)
+      again.unmount()
+    })
+
+    it('書けなくても（関数がまだ無い）同期は続け、同期の失敗として残す。同じ日には呼び直さない', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.missing.add('note_app_version')
+      useTaskStore.getState().addTask('still sent')
+      signIn('u1')
+      await untilSynced()
+      expect(useTaskStore.getState().syncState).toBe('idle')
+      expect(serverTitles('u1')).toEqual(['still sent'])
+      expect(seen()).toHaveLength(0)
+      const calls = () => vi.mocked(reportSyncError).mock.calls.filter((c) => c[0] === 'version-seen')
+      expect(calls()).toHaveLength(1)
+      expect(String(calls()[0]![1])).toContain('note_app_version')
+
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+      expect(calls()).toHaveLength(1)
     })
   })
 })

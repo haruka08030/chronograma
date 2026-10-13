@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { DEFAULT_CANDIDATE_VIEW, filterCandidates, readCandidateView, sortCandidates } from './plannerCandidates'
+import { DEFAULT_CANDIDATE_VIEW, readCandidateView, sortCandidates } from './plannerCandidates'
+import { filterTasks as filterCandidates } from './taskFilter'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task =>
@@ -60,7 +61,7 @@ describe('今日やる候補の絞り込み', () => {
 describe('今日やる候補の並び順', () => {
   it('締切順は渡した順のまま', () => {
     const pool = [task('x', { dueDate: '2026-10-09' }), task('y', { dueDate: '2026-10-08' })]
-    expect(ids(sortCandidates(pool, 'due'))).toEqual(['x', 'y'])
+    expect(ids(sortCandidates(pool, 'dueDate'))).toEqual(['x', 'y'])
   })
 
   it('優先度の高い順、同じなら締切の近い順（締切なしは後ろ）', () => {
@@ -85,6 +86,12 @@ describe('今日やる候補の並び順', () => {
 })
 
 describe('保存した並び順・絞り込みを読む', () => {
+  it('既定は優先度順。以前の既定だった締切順（due）も優先度順に戻す', () => {
+    expect(DEFAULT_CANDIDATE_VIEW.sort).toBe('priority')
+    expect(readCandidateView({ sort: 'due' })?.sort).toBe('priority')
+    expect(readCandidateView({ sort: 'dueDate' })?.sort).toBe('dueDate')
+  })
+
   it('合わない値は既定に戻し、形が違えば読まない', () => {
     expect(readCandidateView(null)).toBeNull()
     expect(readCandidateView({ sort: 'title', listId: 3, color: '#33b679', priority: 'low', estimate: 45 })).toEqual({

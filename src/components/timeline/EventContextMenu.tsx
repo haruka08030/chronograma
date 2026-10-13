@@ -11,6 +11,7 @@ import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
 import { CheckIcon, ClockIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
+import { deleteTaskAsking } from '../../lib/seriesScope'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -58,7 +59,6 @@ function TaskEventMenuBody({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
-  const deleteTask = useTaskStore((s) => s.deleteTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const isLog = isLogTask(task)
   const isEvent = isEventTask(task)
@@ -154,7 +154,8 @@ function TaskEventMenuBody({
       label: t('common.delete'),
       icon: <TrashIcon className={ICON} />,
       danger: true,
-      run: () => deleteTask(task.id),
+      // 毎週の予定は範囲を聞いてから
+      run: () => void deleteTaskAsking(task.id),
     },
   ]
   return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={entries} onClose={onClose} searchable={false} />

@@ -1,6 +1,7 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react'
 import { PlusIcon } from '../icons'
 import { useTextEntry } from '../../hooks/useTextEntry'
+import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 /**
  * 一覧の上・カレンダーの中・サブタスクの「追加」欄（どこでも同じ見た目と動き）。
@@ -43,6 +44,7 @@ export const InlineAddInput = forwardRef<
       ref={ref}
       value={value}
       onChange={(e) => onValueChange(e.target.value)}
+      maxLength={TITLE_MAX_LENGTH}
       onKeyDown={entry.onKeyDown}
       onBlur={(e) => {
         entry.onBlur()

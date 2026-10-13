@@ -29,12 +29,11 @@ export function StatsView() {
         <WeekReviewCard />
         <SleepStatsCard />
 
-        {/* タスク: ふりかえりと重複しない数字だけを 1 行に */}
+        {/* タスク: ふりかえりと重複しない数字だけを 1 行に（今月の完了は月のふりかえりの「完了したタスク」で見る） */}
         <section>
           <h2 className={`mb-2 px-1 ${CARD_TITLE_CLASS}`}>{t('stats.tasksTitle')}</h2>
-          <dl className="grid grid-cols-2 divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 sm:divide-x">
+          <dl className="grid grid-cols-3 divide-x divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {[
-              { label: t('stats.completedThisMonth'), value: stats.completedThisMonth },
               { label: t('stats.activeLabel'), value: stats.totalActive },
               { label: t('stats.overdueLabel'), value: stats.overdue, warn: stats.overdue > 0 },
               { label: t('stats.streakLabel'), value: stats.streak, suffix: t('stats.daySuffix') },

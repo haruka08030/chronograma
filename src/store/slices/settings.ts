@@ -5,10 +5,17 @@ import { hexForGoogleKey } from '../../lib/googleColors'
 import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
 import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
+import { normalizeWeekStart } from '../../lib/weekStart'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 import { withLogCategory } from '../../lib/taskDefaults'
 import { isLogTask } from '../../types/task'
+import { validTargetMinutes } from '../../lib/labelTargets'
+
+const sameTargets = (a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>) => {
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
+}
 
 type SettingsActions = Pick<
   TaskState,
@@ -23,9 +30,11 @@ type SettingsActions = Pick<
   | 'finishOnboarding'
   | 'completeOnboarding'
   | 'dismissInstallNudge'
+  | 'dismissSignInNudge'
   | 'setDailyCapacityMinutes'
   | 'setDefaultBlockMinutes'
   | 'setAppTimeZone'
+  | 'setWeekStartsOn'
   | 'setExtraTimeZones'
   | 'setExtraTimeZoneLabel'
   | 'setEventReminderMinutes'
@@ -80,6 +89,8 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       set((s) => {
         const presets: string[] = []
         const colors: Record<string, string> = {}
+        // 週の目安（#291）: 行に書いてあればそれ（null は外す）、無ければ元のラベルの目安を名前の変更についていかせる。消したラベルの目安は残さない
+        const targets: Record<string, number> = {}
         const rename = new Map<string, string>()
         for (const row of rows) {
           const name = row.name.trim()
@@ -88,6 +99,11 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
           if (presets.includes(name)) continue
           presets.push(name)
           colors[name] = row.color
+          const target =
+            row.weeklyTargetMinutes !== undefined
+              ? validTargetMinutes(row.weeklyTargetMinutes)
+              : validTargetMinutes(s.logLabelTargets[row.from ?? name])
+          if (target) targets[name] = target
         }
         // 予定・タスクは色（hex）だけ持つので、ラベルの色を変えたら同じ色の予定・タスクも新しい色へ
         const recolor = new Map<string, string>()
@@ -131,7 +147,14 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
         })
         // To‑Do をその色で絞っていたら、新しい色で絞り直す
         const filterColor = s.filterColor ? (recolor.get(s.filterColor.toUpperCase()) ?? s.filterColor) : s.filterColor
-        return { timeLogTagPresets: presets, logCategoryColors: { ...s.logCategoryColors, ...colors }, tasks, filterColor }
+        return {
+          timeLogTagPresets: presets,
+          logCategoryColors: { ...s.logCategoryColors, ...colors },
+          // 中身が同じなら前の値のまま（目安を扱わない保存で「ラベル表を変えた」扱いを増やさない）
+          logLabelTargets: sameTargets(targets, s.logLabelTargets) ? s.logLabelTargets : targets,
+          tasks,
+          filterColor,
+        }
       })
     },
 
@@ -141,6 +164,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     finishOnboarding: () => set({ onboardingDone: true }),
     completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true }),
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
+    dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setDefaultBlockMinutes: (minutes) => set({ defaultBlockMinutes: Math.min(24 * 60, Math.max(15, Math.round(minutes))) }),
     setAppTimeZone: (tz) => {
@@ -149,6 +173,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
       // 時刻のある予定・記録は、すべて同じ瞬間のまま新しいタイムゾーンの時刻に（Google と同じ）
       set((s) => ({ appTimeZone: next, tasks: reanchorTasks(s.tasks) }))
     },
+    setWeekStartsOn: (day) => set({ weekStartsOn: normalizeWeekStart(day) }),
     setExtraTimeZones: (zones) => set({ extraTimeZones: normalizeExtraTimeZones(zones) }),
     setExtraTimeZoneLabel: (tz, label) =>
       set((s) => {
@@ -161,7 +186,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setRecordPrompts: (on) => set({ recordPrompts: on }),
     enableRecommendedNotifications: () =>
       set((s) => ({
-        dailyReminders: { planTime: s.dailyReminders.planTime ?? '08:00' },
+        dailyReminders: { ...s.dailyReminders, planTime: s.dailyReminders.planTime ?? '08:00' },
         eventReminderMinutes: s.eventReminderMinutes ?? 10,
         notificationsEnabled: true,
         recordPrompts: true,

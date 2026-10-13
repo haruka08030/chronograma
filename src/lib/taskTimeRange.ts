@@ -135,7 +135,11 @@ export function isOvernightTimeLog(task: Task): boolean {
  */
 export function logSegmentClockOnDay(task: Task, dateKey: string): { startTime: string; endTime: string } | null {
   const iv = taskTimedInterval(task)
-  if (!iv) return null
+  return iv ? intervalSegmentClockOnDay(iv, dateKey) : null
+}
+
+/** 区間のうち、その日にかかる部分の時刻（`HH:mm`。日の終わりまでなら終わりは '24:00'）。かからなければ null */
+export function intervalSegmentClockOnDay(iv: { start: Date; end: Date }, dateKey: string): { startTime: string; endTime: string } | null {
   const d0 = startOfDay(dateKeyToNoon(dateKey))
   const d1 = startOfDay(addDays(d0, 1))
   const segStart = max([iv.start, d0])
@@ -163,8 +167,15 @@ export function patchAfterLogResize(
   const start = startTime !== seg.startTime ? at(startTime) : iv.start
   const end = endTime !== seg.endTime ? at(endTime) : iv.end
   if (end <= start) return null
+  return logPatchForInterval(start, end)
+}
+
+/**
+ * 記録の開始・終わり（壁時計の Date）を、記録の日付と時刻に直す。日をまたがなければ `endDate` は付けない
+ * （翌日の 0:00 ちょうどに終わるときも付けない。終わりが開始以前の記録は翌日まで、で読める）
+ */
+export function logPatchForInterval(start: Date, end: Date): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> {
   const dueDate = toDateKey(start)
-  // 翌日の 0:00 ちょうどに終わるなら endDate は付けない（終わりが開始以前の記録は翌日まで、で読める）
   const endsAtNextMidnight = clockOf(end) === '00:00' && differenceInCalendarDays(end, start) === 1
   const endKey = toDateKey(end)
   return {

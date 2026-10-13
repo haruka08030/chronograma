@@ -1,19 +1,35 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { getSupabase } from '../lib/supabase'
+import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
+  fetchCourseLinks,
+  fetchDayMoods,
+  fetchEventTemplates,
   fetchExtraTimeZones,
   fetchLogLabels,
+  fetchMinSyncVersion,
+  fetchTimetable,
+  pushCourseLinks,
+  pushDayMoods,
+  pushEventTemplates,
   pushExtraTimeZones,
   pushListsTasksHabits,
   pushLogLabels,
+  pushTimetable,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
-import { clearPreviousAccount } from '../lib/accountBoundary'
+import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
+import { askConfirm } from '../lib/confirmDialog'
+import i18n from '../i18n/config'
+import { requestPersistentStorage } from '../lib/persistentStorage'
+import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
+import { noteAppVersion } from '../lib/versionSeen'
 import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
 import {
   baselineFrom,
+  clearBaseline,
+  DEFAULT_LIST_IDS,
   hasOtherUsersBaseline,
   loadBaseline,
   mergeSnapshots,
@@ -23,15 +39,30 @@ import {
   syncedSnapshot,
   withServerStamps,
   adoptServerStamps,
+  type SyncBaseline,
   type SyncSnapshot,
 } from '../lib/syncMerge'
-import { useTaskStore, INBOX_LIST_ID, LEGACY_DATA_OWNER, adoptOtherTabChanges, isAdoptingFromOtherTab } from '../store/taskStore'
+import {
+  useTaskStore,
+  INBOX_LIST_ID,
+  LEGACY_DATA_OWNER,
+  adoptOtherTabChanges,
+  dropPendingLabelAdds,
+  isAdoptingFromOtherTab,
+} from '../store/taskStore'
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
-import { planLabelSync } from '../lib/labelSync'
+import { planLabelSync, settledLabelAdds } from '../lib/labelSync'
+import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
+import { planEventTemplateSync } from '../lib/eventTemplates'
+import { planCourseLinkSync } from '../lib/courseLinks'
+import { planTimetableSync } from '../lib/timetable'
+import { createDayMoodPullState, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
+import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
+import { storeActiveTimerIo } from './activeTimerIo'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -60,7 +91,7 @@ export function flushPendingSync(): Promise<boolean> {
 }
 
 /**
- * ラベル表・他のタイムゾーンの手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
+ * ラベル表・他のタイムゾーン・よく入れる予定・授業と科目のつながり・タイマー・1 日の気分の手元の変更を送れているか。送れたら手元の時刻はサーバーの版と同じになる
  * （送れなかったときは記録するだけでタスクの同期は止めないので、ログアウトの前にここで確かめる）
  */
 function settingsSent(userId: string): boolean {
@@ -68,8 +99,38 @@ function settingsSent(userId: string): boolean {
   const local: [SettingKey, string | null][] = [
     ['labels', s.logLabelsUpdatedAt],
     ['zones', s.extraTimeZonesUpdatedAt],
+    ['timer', s.activeTimerUpdatedAt],
+    ['templates', s.eventTemplatesUpdatedAt],
+    ['courses', s.courseLinksUpdatedAt],
+    ['timetable', s.timetableUpdatedAt],
   ]
-  return local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key))
+  return (
+    local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
+    Object.values(s.dayMoods).every((m) => m.updatedAt === m.syncedAt)
+  )
+}
+
+/** サーバーに何も無い */
+const isEmptySnapshot = (s: SyncSnapshot) => s.lists.length + s.tasks.length + s.habits.length + s.sections.length === 0
+/** 前回同期の控えに行がある */
+const baselineHasRows = (b: SyncBaseline) =>
+  Object.keys(b.lists).length + Object.keys(b.tasks).length + Object.keys(b.habits).length + Object.keys(b.sections).length > 0
+
+/** 最初から作られるリスト（受信箱・いつか・買い物）。利用者が作ったものではないので数えない */
+const INITIAL_LIST_IDS = new Set<string>([INBOX_LIST_ID, ...Object.values(DEFAULT_LIST_IDS)])
+
+/** 手元にあってサーバーに無い行の数（最初から作られるリストは数えない）。ログインする前のデータをアカウントに入れる前に見せる */
+function countLocalOnly(local: SyncSnapshot, remote: SyncSnapshot): number {
+  const count = <T extends { id: string }>(mine: T[], theirs: T[], skip?: (x: T) => boolean) => {
+    const ids = new Set(theirs.map((x) => x.id))
+    return mine.filter((x) => !ids.has(x.id) && !skip?.(x)).length
+  }
+  return (
+    count(local.lists, remote.lists, (l) => INITIAL_LIST_IDS.has(l.id)) +
+    count(local.sections, remote.sections) +
+    count(local.tasks, remote.tasks) +
+    count(local.habits, remote.habits)
+  )
 }
 
 function localSnapshot(): SyncSnapshot {
@@ -109,8 +170,14 @@ export function useSupabaseSync() {
     let staleRetries = 0
     /** 直前の送信が行数の上限（`row_limit_exceeded`）で断られたか */
     let limitHit = false
+    /** アプリの版が同期の下限より古い（送らない） */
+    let outdated = false
     /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
     const pull = createPullState()
+    /** 1 日の気分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
+    const moodPull = createDayMoodPullState()
+    /** ログインする前のデータをこのアカウントに入れてよいと答えた（送るのに失敗して回り直しても聞き直さない） */
+    let mergeApproved = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -148,27 +215,44 @@ export function useSupabaseSync() {
         maxStaleRetries: MAX_STALE_RETRIES,
       })
 
-    /** ラベル表（名前・並び・色） */
+    /** ラベル表（名前・並び・色・週の目安） */
     const syncLabels = () =>
       syncSetting({
         key: 'labels',
         fetch: () => fetchLogLabels(supabase, userId),
         plan: (remote, syncedAt, offset) => {
           const st = useTaskStore.getState()
+          // 取り込みで足したラベルのうち、サーバーにある・手元で消したものはもう覚えない
+          const settled = settledLabelAdds(st.logLabelPendingAdds, st.timeLogTagPresets, remote)
+          if (settled.length > 0) dropPendingLabelAdds(settled)
           return planLabelSync(
-            { presets: st.timeLogTagPresets, colors: st.logCategoryColors, updatedAt: st.logLabelsUpdatedAt, syncedAt },
+            {
+              presets: st.timeLogTagPresets,
+              colors: st.logCategoryColors,
+              targets: st.logLabelTargets,
+              updatedAt: st.logLabelsUpdatedAt,
+              syncedAt,
+              pendingAdds: st.logLabelPendingAdds,
+            },
             remote,
             undefined,
             offset,
           )
         },
         localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
-        applyLocal: ({ presets, colors, updatedAt }) =>
+        applyLocal: ({ presets, colors, targets, updatedAt }) =>
           asIncomingChange(() =>
-            useTaskStore.setState({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelsUpdatedAt: updatedAt }),
+            useTaskStore.setState({
+              timeLogTagPresets: presets,
+              logCategoryColors: colors,
+              logLabelTargets: targets ?? {},
+              logLabelsUpdatedAt: updatedAt,
+            }),
           ),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
         push: (p) => pushLogLabels(supabase, userId, p, p.base),
+        // 送れた表に入った取り込みのラベルは、もう覚えない
+        onPushed: (p) => dropPendingLabelAdds(p.labels.map((l) => l.name)),
       })
 
     /** 他のタイムゾーン（並び・名前） */
@@ -192,10 +276,95 @@ export function useSupabaseSync() {
         push: (p) => pushExtraTimeZones(supabase, userId, p, p.base),
       })
 
-    /** ラベル表と他のタイムゾーン（タスクとは別に、まとめて 1 つの値として合わせる設定） */
+    /** よく入れる予定（バイトのシフトなど、#311） */
+    const syncEventTemplates = () =>
+      syncSetting({
+        key: 'templates',
+        fetch: () => fetchEventTemplates(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planEventTemplateSync(
+            { templates: st.eventTemplates, updatedAt: st.eventTemplatesUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+          )
+        },
+        localUpdatedAt: () => useTaskStore.getState().eventTemplatesUpdatedAt,
+        applyLocal: ({ templates, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ eventTemplates: templates, eventTemplatesUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ eventTemplatesUpdatedAt: at })),
+        push: (p) => pushEventTemplates(supabase, userId, p, p.base),
+      })
+
+    /** 授業の予定と科目のつながり（#309） */
+    const syncCourseLinks = () =>
+      syncSetting({
+        key: 'courses',
+        fetch: () => fetchCourseLinks(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planCourseLinkSync({ links: st.courseLinks, updatedAt: st.courseLinksUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().courseLinksUpdatedAt,
+        applyLocal: ({ links, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ courseLinks: links, courseLinksUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ courseLinksUpdatedAt: at })),
+        push: (p) => pushCourseLinks(supabase, userId, p, p.base),
+      })
+    /** 時間割の設定（時限・学期、#279） */
+    const syncTimetable = () =>
+      syncSetting({
+        key: 'timetable',
+        fetch: () => fetchTimetable(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planTimetableSync({ timetable: st.timetable, updatedAt: st.timetableUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().timetableUpdatedAt,
+        applyLocal: ({ timetable, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ timetable, timetableUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ timetableUpdatedAt: at })),
+        push: (p) => pushTimetable(supabase, userId, p, p.base),
+      })
+    /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
+    const syncDayMoods = () =>
+      runDayMoodSync(
+        {
+          fetch: (since) => fetchDayMoods(supabase, userId, since),
+          push: (rows) => pushDayMoods(supabase, userId, rows),
+          get: () => useTaskStore.getState().dayMoods,
+          set: (dayMoods) => asIncomingChange(() => useTaskStore.setState({ dayMoods })),
+        },
+        moodPull,
+        { isCancelled: () => cancelled, clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0, maxStaleRetries: MAX_STALE_RETRIES },
+      )
+
+    /** 動いているタイマー（どの端末でも同じタイマー、#301） */
+    const syncActiveTimer = () => syncSetting(activeTimerSyncDeps(supabase, userId, storeActiveTimerIo)).finally(notifyActiveTimerSynced)
+
+    /** ラベル表・他のタイムゾーン・動いているタイマー・よく入れる予定（タスクとは別に、まとめて 1 つの値として合わせる設定）と 1 日の気分（日ごと） */
     const syncSettings = async () => {
       await syncLabels()
       await syncExtraTimeZones()
+      await syncActiveTimer()
+      await syncEventTemplates()
+      await syncCourseLinks()
+      await syncTimetable()
+      await syncDayMoods()
+    }
+
+    /**
+     * アカウントがもう無ければ（別の端末で消された）、控えを取らずに手元から消してこの端末をログアウトする。消したら true。
+     * 消えた人の行は外部キーで 1 行ずつ断られ、「n 件を送れません」と出ていた。ログアウトの控えにも消した人の写しが残っていた
+     */
+    const leaveIfAccountGone = async (): Promise<boolean> => {
+      if (!(await isAccountGone(supabase))) return false
+      if (cancelled) return true
+      await clearDeletedAccount(userId)
+      useTaskStore.getState().setSyncRejected([])
+      await signOutThisDevice(supabase)
+      return true
     }
 
     /** 1 往復ぶん。成功したか（= これ以上送るものが無いか）を返す */
@@ -204,6 +373,20 @@ export function useSupabaseSync() {
     const syncOnceLocked = async (): Promise<boolean> => {
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
+      // 版の下限より古いアプリは送らない（端末の時計で書き勝たないように）。読み込み直しを促す
+      const min = await fetchMinSyncVersion(supabase)
+      if (cancelled) return true
+      if (typeof min !== 'number') {
+        console.error('[sync]', min.error)
+        reportSyncError('min-version', min.error)
+        return false
+      }
+      // どの版がまだ同期しているかを 1 日 1 回残す（#360。下限より古い版も数える）。待たない・失敗しても同期は続ける
+      void noteAppVersion(supabase, userId)
+      if (min > SYNC_PROTOCOL_VERSION) {
+        outdated = true
+        return false
+      }
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
       const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
       const pulled = await pullRemote(supabase, userId, pull, { full: !known })
@@ -230,6 +413,11 @@ export function useSupabaseSync() {
         }
       }
 
+      // 前回同期したのにサーバーが空: 別の端末でアカウントごと消されたかもしれない。合わせる前に確かめる
+      // （そのまま合わせると「他の端末で消された」として手元も消し、その前の控えに消した人のデータが残る）
+      if (known && isEmptySnapshot(remote) && baselineHasRows(known) && (await leaveIfAccountGone())) return true
+      if (cancelled) return true
+
       const owner = useTaskStore.getState().dataOwner
       // 持ち主の記録が無い古い版のデータ（*legacy*）は、この人として同期したことがあればこの人のもの。
       // この人としては無く、ほかの人として同期した控えがあれば、その人のもの（混ぜずに外す）
@@ -246,16 +434,30 @@ export function useSupabaseSync() {
       let toPush: SyncSnapshot
       let deletes: Parameters<typeof pushListsTasksHabits>[6] = { lists: [], tasks: [], habits: [], sections: [] }
       const done = (synced: SyncSnapshot, clockOffsetMs?: number) => {
-        // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
-        saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs })
+        // 本体を保存できていない間（容量不足）は控えも書かずに消す。再読み込みで本体だけ古い中身に戻ると、
+        // 控えにだけある行（他の端末から取り込んだ行）を「この端末で消した」と読み、サーバーから消していた
+        if (useTaskStore.getState().storageFull) {
+          clearBaseline(userId)
+          reportSyncError('baseline', 'skipped while local storage is full')
+        } else if (
+          // 時計のずれは測れたときだけ替える（何も送らなかった同期では前の値のまま）
+          !saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs: clockOffsetMs ?? baseline?.clockOffsetMs }, (err) =>
+            reportSyncError('baseline', err),
+          )
+        ) {
+          reportSyncError('baseline', 'could not save the baseline')
+        }
         useTaskStore.getState().setDataOwner(userId)
+        void requestPersistentStorage()
       }
 
       if (!baseline) {
         // この端末で初めての同期
         // アカウントにもうデータがある人（別の端末で使っていた人）には、はじめの案内を出さない
         if (hasExistingData(remote) && !useTaskStore.getState().onboardingDone) useTaskStore.getState().finishOnboarding()
-        const local = withoutDuplicateDefaults(localSnapshot(), remote)
+        // ログインする前に作ったデータ（持ち主がまだいない）。アカウントにもデータがあれば、送る前に入れてよいか確かめる
+        const madeBeforeSignIn = useTaskStore.getState().dataOwner === null
+        let local = withoutDuplicateDefaults(localSnapshot(), remote)
         const decision = decideHydrate(
           remote.lists,
           remote.tasks,
@@ -272,7 +474,34 @@ export function useSupabaseSync() {
           local.habits.length === 0 &&
           local.sections.length === 0 &&
           local.lists.every((l) => l.id === INBOX_LIST_ID || remoteListIds.has(l.id))
-        if (decision.kind === 'use_remote' && onlyInitial) {
+        let declined = false
+        const localOnly = countLocalOnly(local, remote)
+        if (decision.kind === 'use_remote' && !onlyInitial && madeBeforeSignIn && !mergeApproved && localOnly > 0) {
+          // 共用の端末などで、ほかの人がログインせずに作ったデータがこのアカウントに入っていた
+          const ok = await askConfirm({
+            title: i18n.t('sync.mergeLocalTitle'),
+            message: i18n.t('sync.mergeLocal', { count: localOnly }),
+            confirmLabel: i18n.t('sync.mergeLocalConfirm', { count: localOnly }),
+          })
+          if (cancelled) return true
+          if (ok) {
+            mergeApproved = true
+            // 聞いている間の手元の変更も入れる
+            local = withoutDuplicateDefaults(localSnapshot(), remote)
+          } else {
+            // 入れない: アカウントには送らず、持ち主のいない控え（ログアウトすると自動バックアップに出る）に残して、
+            // 手元はアカウントの内容だけにする。ラベル表・他のタイムゾーン・取り消しの履歴もログインする前のものなので初期に戻す
+            backupNow('beforeSignIn', null)
+            applyingRef.current = true
+            try {
+              clearAccountData(null, { backup: false })
+            } finally {
+              applyingRef.current = false
+            }
+            declined = true
+          }
+        }
+        if (decision.kind === 'use_remote' && (onlyInitial || declined)) {
           // 手元は初期リストだけ: サーバーをそのまま使う（初期リストを重複して上げない）。
           // 以前はタスクが無ければこちらに来て、手元で作った空のリストやセクションが消えていた
           apply({ lists: decision.lists, tasks: decision.tasks, habits: decision.habits, sections: decision.sections })
@@ -293,6 +522,8 @@ export function useSupabaseSync() {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
         const local = localSnapshot()
         const result = mergeSnapshots(local, remote, baseline)
+        // 両方の端末で同じ項目を変えて片方を捨てた回数（表・項目の名前と回数だけ。1 日 1 回まとめて送る）
+        noteMergeConflicts(result.conflicts)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
         const same = <T>(a: T[], b: T[]) => a.length === b.length && a.every((x, i) => x === b[i])
         const merged: SyncSnapshot = {
@@ -308,9 +539,14 @@ export function useSupabaseSync() {
 
       const res = await pushListsTasksHabits(supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote)
       if (cancelled) return true
+      // 外部キーで断られた: アカウントが消されていれば行の問題ではない（「送れません」と出さずに片付ける）
+      const fkRejected = (res.error ?? '').includes('foreign key') || res.rejected.some((r) => r.message.includes('foreign key'))
+      if (fkRejected && (await leaveIfAccountGone())) return true
+      if (cancelled) return true
       if (res.error) {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
+        if (isAppOutdatedError(res.error)) outdated = true
         reportSyncError('push', res.error)
         // 途中まで届いた行・消えた行がある。次は全部を取り直す
         pull.forceFull = true
@@ -362,6 +598,7 @@ export function useSupabaseSync() {
       running = true
       staleRetries = 0
       limitHit = false
+      outdated = false
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
@@ -388,7 +625,7 @@ export function useSupabaseSync() {
         setSyncState('idle', new Date().toISOString())
         return
       }
-      setSyncState(limitHit ? 'limit' : 'error')
+      setSyncState(outdated ? 'outdated' : limitHit ? 'limit' : 'error')
       // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
       retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
       clearTimeout(retry)
@@ -416,7 +653,13 @@ export function useSupabaseSync() {
         state.sections === prev.sections &&
         state.timeLogTagPresets === prev.timeLogTagPresets &&
         state.logCategoryColors === prev.logCategoryColors &&
-        state.extraTimeZones === prev.extraTimeZones
+        state.logLabelTargets === prev.logLabelTargets &&
+        state.extraTimeZones === prev.extraTimeZones &&
+        state.activeTimer === prev.activeTimer &&
+        state.eventTemplates === prev.eventTemplates &&
+        state.courseLinks === prev.courseLinks &&
+        state.timetable === prev.timetable &&
+        state.dayMoods === prev.dayMoods
       )
         return
       if (applyingRef.current || isAdoptingFromOtherTab()) return

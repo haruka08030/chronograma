@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchListsTasksHabits, pushListsTasksHabits } from './supabaseData'
+import { fetchChangesSince, fetchListsTasksHabits, fetchServerNow, pushListsTasksHabits } from './supabaseData'
 import type { TaskList } from '../types/list'
 import type { Task } from '../types/task'
 import type { Habit } from '../types/habit'
@@ -14,6 +14,7 @@ import {
   type SyncBaseline,
   type SyncSnapshot,
 } from './syncMerge'
+import { fakeDb } from '../test/fakeSupabaseDb'
 
 type Row = { id: string; user_id: string } & Record<string, unknown>
 
@@ -339,11 +340,11 @@ describe('pushListsTasksHabits', () => {
     expect(upserts[0].rows[0]).toMatchObject({ id: '__inbox__', user_id: 'u2' })
   })
 
-  it('falls back to id when migration 012 is not applied yet', async () => {
+  it('does not retry on id alone when the (user_id, id) key is missing; it reports the failure', async () => {
     const { client, upserts } = fakeSupabase({}, { uniqueOn: 'id' })
     const res = await pushListsTasksHabits(client, 'u1', [inbox], [], [], [], noDeletes)
-    expect(res.error).toBeUndefined()
-    expect(upserts.every((u) => u.onConflict === 'id')).toBe(true)
+    expect(res.error).toMatch(/unique or exclusion constraint/)
+    expect(upserts).toEqual([])
   })
 
   it('deletes only what the merge decided, never rows missing from the local snapshot', async () => {
@@ -383,6 +384,33 @@ describe('pushListsTasksHabits', () => {
       { lists: [], tasks: [], habits: [], sections: [] },
     )
     expect(deletes.map((d) => d.ids.length)).toEqual([100, 100, 50])
+  })
+
+  it('sends titles, memos, places and names as they are (no silent truncation; the server rejects rows over its limits) (#355)', async () => {
+    const { client, upserts } = fakeSupabase({})
+    const long = (n: number) => 'あ'.repeat(n)
+    const [t] = fetchedTasks(['long'])
+    const local = [{ ...t!, title: long(2001), description: long(200_001), location: long(2001) }]
+    const habit: Habit = {
+      id: 'h1',
+      title: long(2001),
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      completedDates: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      archivedAt: null,
+    }
+    const section = { id: 's1', listId: '__inbox__', name: long(501), order: 0 }
+    await pushListsTasksHabits(client, 'u1', [{ ...inbox, name: long(501) }], local, [habit], [section], noDeletes)
+    const sent = (table: string) => upserts.find((u) => u.table === table)!.rows[0]!
+    expect((sent('lists').name as string).length).toBe(501)
+    expect((sent('list_sections').name as string).length).toBe(501)
+    expect((sent('habits').title as string).length).toBe(2001)
+    expect(sent('tasks')).toMatchObject({ title: long(2001), description: long(200_001), location: long(2001) })
   })
 
   it('sends the other rows when the server rejects one, and reports the rejected one', async () => {
@@ -481,7 +509,7 @@ describe('habits.archived_at', () => {
     ])
   })
 
-  it('sends archived_at, and resends without it when the DB has no column yet', async () => {
+  it('sends archived_at, and fails instead of dropping it when the DB has no column', async () => {
     const h: Habit = {
       id: 'h',
       title: 'h',
@@ -499,13 +527,12 @@ describe('habits.archived_at', () => {
     await pushListsTasksHabits(ok.client, 'u-arch', [], [], [h], [], noDeletes)
     expect(ok.upserts.find((u) => u.table === 'habits')?.rows[0]).toMatchObject({ archived_at: '2026-10-02T00:00:00.000Z' })
 
+    // 列が無いと言われても、列を落として送り直さない（落とすとアーカイブが黙って外れる）
     const missing = { code: 'PGRST204', message: "Could not find the 'archived_at' column of 'habits' in the schema cache" }
     const old = fakeSupabase({}, { rejectRow: (table, r) => (table === 'habits' && 'archived_at' in r ? missing : null) })
     const res = await pushListsTasksHabits(old.client, 'u-arch-old', [], [], [h], [], noDeletes)
-    expect(res.error).toBeUndefined()
-    const sent = old.upserts.find((u) => u.table === 'habits')?.rows[0]
-    expect(sent).toMatchObject({ id: 'h' })
-    expect(sent && 'archived_at' in sent).toBe(false)
+    expect(res.error).toMatch(/archived_at/)
+    expect(old.upserts.find((u) => u.table === 'habits')).toBeUndefined()
   })
 })
 
@@ -619,7 +646,7 @@ describe('server time and stale writes (#77)', () => {
     expect(upserts).toEqual([])
   })
 
-  it('falls back to the old write on a DB without 004 (no base column)', async () => {
+  it('does not drop the version and resend when the server says the base column is missing (#260)', async () => {
     const { client, upserts, tables } = fakeSupabase(fresh(), { noBaseColumn: true })
     const remote = await fetchAll(client)
     const a = remote.tasks.find((t) => t.id === 'a')!
@@ -633,11 +660,22 @@ describe('server time and stale writes (#77)', () => {
       noDeletes,
       remote,
     )
+    expect(res.error).toMatch(/base_updated_at/)
+    expect(upserts).toEqual([])
+    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'a' })
+  })
+
+  it('deletes rows it read with their version even when rows it did not read are deleted in the same batch (#260)', async () => {
+    const { client, tables, deletes } = fakeSupabase(fresh())
+    const remote = await fetchAll(client)
+    // 取得の後に他の端末が a を直した
+    await pushListsTasksHabits(client, 'u1', [], [{ ...remote.tasks[0]!, title: 'edited elsewhere' }], [], [], noDeletes, remote)
+    const res = await pushListsTasksHabits(client, 'u1', [], [], [], [], { ...noDeletes, tasks: ['a', 'b', 'never-fetched'] }, remote)
     expect(res.error).toBeUndefined()
-    expect(upserts.at(-1)!.rows.every((r) => !('base_updated_at' in r))).toBe(true)
-    expect(tables.tasks!.find((r) => r.id === 'a')).toMatchObject({ title: 'edited', updated_at: '2026-01-02T00:00:00.000Z' })
-    // 時刻はこの端末のもののままなので、時計のずれは測らない
-    expect(res.clockOffsetMs).toBeUndefined()
+    // a は版が合わないので残る（無条件の削除にまとめない）
+    expect(tables.tasks!.map((r) => r.id)).toEqual(['a'])
+    expect(res.stale).toEqual([{ table: 'tasks', id: 'a', op: 'delete' }])
+    expect(deletes.at(-1)).toEqual({ table: 'tasks', ids: ['never-fetched'] })
   })
 
   it('an old app (no base) still writes, and still cannot overwrite with an older time', async () => {
@@ -731,6 +769,34 @@ describe('two devices editing the same task (#77)', () => {
     expect(pc.local.tasks[0]).toMatchObject({ title: 'phone title', completed: true })
   })
 
+  it('tags added on one device and removed on the other both survive (#261)', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { tags: ['a', 'b'] }, '2026-10-03T00:00:05.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    edit(phone, 't', { tags: ['a', 'b', 'c'] }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { tags: ['b'] }, '2026-10-03T00:00:20.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    await syncDevice(client, phone)
+    expect(stored(tables).tags).toEqual(['b', 'c'])
+    expect(phone.local.tasks[0]!.tags).toEqual(['b', 'c'])
+    expect(pc.local.tasks[0]!.tags).toEqual(['b', 'c'])
+  })
+
+  it('memos edited on both devices keep both versions (#261)', async () => {
+    const { client, tables, phone, pc } = await setup()
+    edit(phone, 't', { description: 'phone note' }, '2026-10-03T00:00:10.000Z')
+    edit(pc, 't', { description: 'pc note' }, '2026-10-03T00:00:20.000Z')
+    await syncDevice(client, phone)
+    await syncDevice(client, pc)
+    await syncDevice(client, phone)
+    const memo = String(stored(tables).description)
+    expect(memo).toContain('phone note')
+    expect(memo).toContain('pc note')
+    expect(phone.local.tasks[0]!.description).toBe(memo)
+  })
+
   it('a device whose clock is far ahead does not wipe the other device’s field', async () => {
     const { client, tables, phone, pc } = await setup()
     // PC の時計は 1 年進んでいる。スマホの変更は PC より後でも、時刻では古く見える
@@ -784,4 +850,64 @@ describe('two devices editing the same task (#77)', () => {
     expect(stored(tables)).toMatchObject({ title: 'edited' })
     expect(phone.local.tasks.map((t) => t.title)).toEqual(['edited'])
   })
+})
+
+describe('habits.time_overrides', () => {
+  it('reads the per-day times, and leaves the field out when there are none (no column, null, or nothing readable)', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [
+        habitRow('a', { time_overrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' }, bad: { startTime: '19:00' } } }),
+        habitRow('b'),
+        habitRow('c', { time_overrides: null }),
+        habitRow('d', { time_overrides: { '2026-10-08': { startTime: '25:00' } } }),
+      ],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.timeOverrides).toEqual({ '2026-10-08': { startTime: '19:00', endTime: '20:00' } })
+    for (const id of ['b', 'c', 'd']) expect(byId.get(id)).not.toHaveProperty('timeOverrides')
+  })
+
+  it('sends the per-day times, and null when there are none', async () => {
+    const base: Habit = {
+      id: 'h',
+      title: 'h',
+      color: '#33B679',
+      timeMode: 'range',
+      startTime: '18:00',
+      endTime: '19:00',
+      frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      completedDates: [],
+      archivedAt: null,
+    }
+    const withDay = { ...base, id: 'h2', timeOverrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' } } }
+    const { client, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(client, 'u-ovr', [], [], [base, withDay], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'h')).toMatchObject({ time_overrides: null })
+    expect(rows.find((r) => r.id === 'h2')).toMatchObject({ time_overrides: { '2026-10-08': { startTime: '19:00', endTime: '20:00' } } })
+  })
+})
+
+describe('reading the server time and changes (#355)', () => {
+  it('reports a missing sync_server_now as an error (no fallback to a full fetch)', async () => {
+    const db = fakeDb()
+    db.missing.add('sync_server_now')
+    expect(await fetchServerNow(db.client)).toEqual({ error: expect.stringContaining('sync_server_now') })
+  })
+
+  for (const table of ['sync_tombstones', 'sync_tombstone_purges']) {
+    it(`reports an unreadable ${table} as an error instead of treating it as empty`, async () => {
+      const db = fakeDb()
+      db.missing.add(table)
+      const res = await fetchChangesSince(db.client, 'u1', '2026-01-01T00:00:00.000000+00:00')
+      expect(res).toEqual({ error: expect.stringContaining(table) })
+    })
+  }
 })

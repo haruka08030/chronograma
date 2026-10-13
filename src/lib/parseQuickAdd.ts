@@ -2,6 +2,7 @@ import { addDays, differenceInCalendarDays, startOfDay, startOfWeek } from 'date
 import { appToday } from './timeZone'
 import { toDateKey } from './dateKey'
 import { pad2 } from './clockTime'
+import { readEstimateMinutes } from './estimate'
 import type { Recurrence } from '../types/task'
 
 /**
@@ -47,6 +48,15 @@ const hm = (min: number) => `${pad2(Math.floor(min / 60) % 24)}:${pad2(min % 60)
 function nextWeekday(today: Date, dow: number): Date {
   return addDays(today, (dow - today.getDay() + 7) % 7)
 }
+
+/** 来週 = 次の月曜から始まる週。その週のその曜日（「来週金曜」「next fri」） */
+function weekdayOfNextWeek(today: Date, dow: number): Date {
+  const nextMonday = addDays(today, (8 - today.getDay()) % 7 || 7)
+  return addDays(nextMonday, (dow + 6) % 7)
+}
+
+/** 今週（月曜はじまり。カレンダーと同じ）の日曜。来週なら 7 日先（「今週中」「来週中」「this week」「next week」） */
+const sundayOfWeek = (today: Date, next: boolean) => addDays(startOfWeek(today, { weekStartsOn: 1 }), next ? 13 : 6)
 
 const repeatOf = (
   type: Recurrence['type'],
@@ -104,7 +114,11 @@ function readJaRepeat(s: string): { repeat: QuickAddRepeat; rest: string } | nul
 }
 
 const EN_REPEAT_UNITS: Record<string, Recurrence['type']> = { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' }
-const EN_WEEKDAY_WORD = /^(sun|mon|tue|wed|thu|fri|sat)(?:day|s|nesday|sday|rsday|r|rs|urday)?$/
+/** 英語の曜日の綴り（fri / friday / fridays / tues / thurs）。「friend」「Monthly」のような語は曜日にしない */
+const EN_WEEKDAY_SPELLING = '(sun|mon|tue|wed|thu|fri|sat)(?:(?:day|nesday|sday|rsday|urday)s?|s|r|rs)?'
+const EN_WEEKDAY_WORD = new RegExp(`^${EN_WEEKDAY_SPELLING}$`)
+/** 語の頭の曜日。後ろに英字が続けば曜日ではない（「fri10am」の「fri」は読む） */
+const EN_WEEKDAY_HEAD = new RegExp(`^${EN_WEEKDAY_SPELLING}(?![a-z])`)
 
 /** 「mon」「wed,」「mon/wed/fri」のように曜日だけでできた語なら、その曜日（0=日）。違えば null */
 function readEnWeekdayWord(word: string): number[] | null {
@@ -193,6 +207,8 @@ function clockMinutes(h: number, m: number, meridiem?: string): number | null {
  */
 function readClock(s: string, localeJa: boolean): { min: number; rest: string; explicit: boolean } | null {
   let m: RegExpMatchArray | null
+  // 英語の「noon」は 12:00（「lunch noon」「11am-noon」）。「afternoon」は語の頭が違うので読まない
+  if ((m = s.match(/^noon(?![a-z])/i))) return { min: 12 * 60, rest: s.slice(m[0].length), explicit: true }
   // 「時間」は長さなので時刻として読まない
   if (localeJa && (m = s.match(/^(午前|午後)?(\d{1,2})時(?!間)(?:(\d{1,2})分|(半))?/))) {
     const min = clockMinutes(Number(m[2]), m[4] ? 30 : Number(m[3] ?? 0), m[1])
@@ -218,6 +234,9 @@ const DEADLINE_SUFFIX = /^(.+?)(?:期限|締め?切り?|〆切り?)$/
  * これより前に過ぎた日は来年として読む（年を書けば必ずその年）
  */
 export const QUICK_ADD_PAST_DAYS = 60
+
+/** 書いた月（1〜12）として読める数か */
+const isMonth = (n: number) => n >= 1 && n <= 12
 
 /** その年の月日。無い日（2/29 のうるう年以外など）は null */
 function dateOf(year: number, month: number, day: number): Date | null {
@@ -273,6 +292,8 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
     ['today', 0],
     ['tomorrow', 1],
     ['tmr', 1],
+    // 「tonight」は今日。夜の時刻は決めつけない（「tonight 8pm」のように書けば予定）
+    ['tonight', 0],
   ]
   if (localeJa) words.push(['明後日', 2], ['あさって', 2], ['明日', 1], ['あした', 1], ['今日', 0], ['きょう', 0])
   for (const [w, offset] of words) {
@@ -282,27 +303,27 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   let m: RegExpMatchArray | null
   // 今週中・今週まで → 今週の日曜が締切。来週中 → 来週の日曜（週は月曜はじまり。カレンダーと同じ）
   if (localeJa && (m = s.match(/^(今|来)週(?:中|いっぱい|(?=までに?))/))) {
-    const sunday = addDays(startOfWeek(today, { weekStartsOn: 1 }), m[1] === '来' ? 13 : 6)
-    return { piece: { kind: 'due', date: sunday }, rest: s.slice(m[0].length) }
+    return { piece: { kind: 'due', date: sundayOfWeek(today, m[1] === '来') }, rest: s.slice(m[0].length) }
   }
   if (localeJa && (m = s.match(/^(?:来週の?)?([日月火水木金土])曜(?:日)?/))) {
     const dow = JA_WEEKDAYS.indexOf(m[1]!)
-    // 来週 = 次の月曜から始まる週
-    const nextMonday = addDays(today, (8 - today.getDay()) % 7 || 7)
-    const target = s.startsWith('来週') ? addDays(nextMonday, (dow + 6) % 7) : nextWeekday(today, dow)
+    const target = s.startsWith('来週') ? weekdayOfNextWeek(today, dow) : nextWeekday(today, dow)
     return { piece: { kind: 'date', date: target }, rest: s.slice(m[0].length) }
   }
-  if ((m = low.match(/^(sun|mon|tue|wed|thu|fri|sat)[a-z]*/))) {
+  if ((m = low.match(EN_WEEKDAY_HEAD))) {
     return { piece: { kind: 'date', date: nextWeekday(today, EN_WEEKDAYS.indexOf(m[1]!)) }, rest: s.slice(m[0].length) }
   }
   // 年を書いた日付（2026-10-03 / 2027/1/15 / 2026-1-5 / 2027年1月15日）はその年
   if ((m = s.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{4})(年)(\d{1,2})月(\d{1,2})日/)))) {
+    if (!isMonth(Number(m[3]))) return null
     const d = dateOf(Number(m[1]), Number(m[3]) - 1, Number(m[4]))
     if (d) return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
     return null
   }
   // 9/30, 10月3日（過ぎて QUICK_ADD_PAST_DAYS 日を超えていれば来年）
+  // 月が 1〜12 でなければ日付にしない（日/月の書き方の「25/10」を 2 年後の 1 月として読まない）
   if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?![\d:])/)) || (localeJa && (m = s.match(/^(\d{1,2})月(\d{1,2})日/)))) {
+    if (!isMonth(Number(m[1]))) return null
     const d = monthDayDate(today, Number(m[1]) - 1, Number(m[2]))
     if (!d) return null
     return { piece: { kind: 'date', date: d }, rest: skipWeekdayNote(s.slice(m[0].length)) }
@@ -357,6 +378,91 @@ function readPiece(s: string, today: Date, localeJa: boolean): { piece: Piece; r
   // つなぎ語（「15時から1時間」「明日の」）
   if (localeJa && (m = s.match(/^(から|の|に)/))) return { piece: { kind: 'filler' }, rest: s.slice(m[0].length) }
   return null
+}
+
+/** 英語の月の名前（Dec / Dec. / December / Sept）→ 0=1 月 */
+const EN_MONTHS: Record<string, number> = Object.fromEntries(
+  [
+    ['jan', 'january'],
+    ['feb', 'february'],
+    ['mar', 'march'],
+    ['apr', 'april'],
+    ['may', 'may'],
+    ['jun', 'june'],
+    ['jul', 'july'],
+    ['aug', 'august'],
+    ['sep', 'september', 'sept'],
+    ['oct', 'october'],
+    ['nov', 'november'],
+    ['dec', 'december'],
+  ].flatMap((names, month) => names.map((n) => [n, month] as const)),
+)
+const enMonth = (w: string | undefined) => (w == null ? null : (EN_MONTHS[w.replace(/\.$/, '')] ?? null))
+/** 月の名前と並べる日（5 / 5th / 1st）。1〜31 でなければ null */
+const enDay = (w: string | undefined) => {
+  const m = w?.match(/^(\d{1,2})(?:st|nd|rd|th)?$/)
+  const day = m ? Number(m[1]) : 0
+  return day >= 1 && day <= 31 ? day : null
+}
+/**
+ * 月の名前の日付の後ろの年（「Dec 5 2027」）。今年の 5 年前〜10 年後だけ年として読む
+ * （「Oct 10 2000 words」の 2000 は題名に残す）
+ */
+const enYear = (w: string | undefined, today: Date) => {
+  const y = w && /^\d{4}$/.test(w) ? Number(w) : 0
+  return y >= today.getFullYear() - 5 && y <= today.getFullYear() + 10 ? y : null
+}
+
+/**
+ * 空白をまたぐ英語の日付の言い方を `tokens[i]` から読む。`used` は使った語の数（2 以上）。読めなければ null。
+ * 取り違えより題名に残すほうを選ぶ（語の並びが下のどれかに丸ごと合うときだけ読む）。
+ * - next fri / next friday: 来週（次の月曜から始まる週）のその曜日。「来週金曜」と同じ
+ * - this fri: 次に来るその曜日（「fri」と同じ）
+ * - this week / next week: 今週・来週の日曜が締切（「今週中」「来週中」と同じ）
+ * - this weekend: 今週の土曜（日曜に書けば今日）。「next weekend」は今週末か来週末か決められないので読まない
+ * - in 2 days / in 3 weeks / in a week / in 2days: 今日から数える（「3日後」「1週間後」と同じ）。0 は読まない
+ * - Dec 5 / December 5th / 5 Dec / Dec 5 2027: 月日。年が無ければ過ぎた日の扱いは「12/5」と同じ（`monthDayDate`）
+ * 2 語目から後ろの語の終わりの「,」（「Dec 5, 3pm」「15 Jan, 2027」）は読み飛ばす
+ */
+function readEnPhrase(tokens: string[], i: number, today: Date): { pieces: Piece[]; used: number } | null {
+  const w = (k: number) => {
+    const t = tokens[i + k]?.normalize('NFKC').toLowerCase()
+    return k === 0 ? t : t?.replace(/,$/, '')
+  }
+  const w0 = w(0)
+  const w1 = w(1)
+  if (!w0 || !w1) return null
+  const date = (d: Date | null, used: number) => (d ? { pieces: [{ kind: 'date', date: d } as Piece], used } : null)
+  let m: RegExpMatchArray | null
+  if (w0 === 'next' || w0 === 'this') {
+    const next = w0 === 'next'
+    if ((m = w1.match(EN_WEEKDAY_WORD))) {
+      const dow = EN_WEEKDAYS.indexOf(m[1]!)
+      return date(next ? weekdayOfNextWeek(today, dow) : nextWeekday(today, dow), 2)
+    }
+    if (w1 === 'week') return { pieces: [{ kind: 'due', date: sundayOfWeek(today, next) }], used: 2 }
+    if (w1 === 'weekend' && !next) {
+      const saturday = addDays(startOfWeek(today, { weekStartsOn: 1 }), 5)
+      return date(today > saturday ? today : saturday, 2)
+    }
+    return null
+  }
+  if (w0 === 'in') {
+    const days = (n: number, unit: string) => (n >= 1 ? addDays(today, n * (unit.startsWith('week') ? 7 : 1)) : null)
+    if ((m = w1.match(/^(\d{1,3})(days?|weeks?)$/))) return date(days(Number(m[1]), m[2]!), 2)
+    // 「a」は単数の day / week とだけ並べる（「in a days」は読まない）。数字なら単数・複数を問わない
+    const n = w1 === 'a' ? 1 : /^\d{1,3}$/.test(w1) ? Number(w1) : 0
+    const unit = w(2)
+    if (unit && (w1 === 'a' ? /^(day|week)$/ : /^(days?|weeks?)$/).test(unit)) return date(days(n, unit), 3)
+    return null
+  }
+  // Dec 5 / 5 Dec（後ろに年があればその年）
+  const month = enMonth(w0) ?? enMonth(w1)
+  const day = enMonth(w0) != null ? enDay(w1) : enDay(w0)
+  if (month == null || day == null || (enMonth(w0) != null) === (enMonth(w1) != null)) return null
+  const year = enYear(w(2), today)
+  if (year != null) return date(dateOf(year, month, day), 3)
+  return date(monthDayDate(today, month, day), 2)
 }
 
 type ReadToken = { pieces: Piece[]; tailAt: number | null }
@@ -466,7 +572,9 @@ function splitAttachedRange(text: string, today: Date, localeJa: boolean): { at:
  * 日だけの「10日まで」（今月か来月の、今日に近いほうのその日。締切の印が付いたときだけ）、「3日後」「1週間後」も読む。
  * 締切の印と時刻を書いたら、時刻は締切の時刻（`dueTime`）で予定にはしない。
  * 繰り返しは「毎日」「毎週金」「毎週月水」「平日」「毎月15日」「every fri」「every mon wed」「every weekday」「every 2 weeks」
- * （最初の回の決め方は `quickAddTask.ts`）
+ * （最初の回の決め方は `quickAddTask.ts`）。
+ * 英語は today / tomorrow / tmr / tonight / 曜日 / noon と、空白をまたぐ next fri・this week・this weekend・in 2 days・Dec 5
+ * （`readEnPhrase`）も読む
  */
 export function parseQuickAddTitle(
   raw: string,
@@ -496,6 +604,25 @@ export function parseQuickAddTitle(
    * - timeOnly: 時刻だけの語。予定にできなかった（23:59 で頭打ちになり長さが 0）なら戻す
    */
   const titleParts: { text: string; kind: 'title' | 'duration' | 'deadlineWord' | 'deadlineSuffix' | 'timeOnly'; stem?: string }[] = []
+  const applyPieces = (pieces: Piece[]) => {
+    for (const p of pieces) {
+      if (p.kind === 'repeat') repeat = p.repeat
+      else if (p.kind === 'date') date = p.date
+      else if (p.kind === 'due') {
+        date = p.date
+        deadline = true
+      } else if (p.kind === 'time') {
+        start = p.min
+        end = null
+        isRange = false
+      } else if (p.kind === 'range') {
+        start = p.start
+        end = p.end
+        isRange = true
+      } else if (p.kind === 'duration') duration = p.min
+      else if (p.kind === 'deadline') deadline = true
+    }
+  }
 
   // 「10日 締切」のように日だけの指定と締切の印を空白で離して書いても、くっつけた「10日締切」と同じに読む
   // （日だけの「10日」は、取り違えを避けて締切の印が直後にあるときしか読まないため）
@@ -503,10 +630,12 @@ export function parseQuickAddTitle(
   const tokens = joined.trim().split(/\s+/).filter(Boolean)
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!
+    // 空白をまたぐ英語の日付（next fri / in 2 days / Dec 5）。表示言語を問わず読む
+    const phrase = readEnPhrase(tokens, i, today)
     if (pendingDeadlineWord !== null) {
       const word = pendingDeadlineWord
       pendingDeadlineWord = null
-      const next = readToken(token.normalize('NFKC'), today, localeJa)
+      const next = phrase ?? readToken(token.normalize('NFKC'), today, localeJa)
       if (next?.pieces.some((p) => p.kind === 'date' || p.kind === 'due')) deadline = true
       else titleParts.push({ text: word, kind: 'title' })
     }
@@ -523,6 +652,11 @@ export function parseQuickAddTitle(
         i += r.used
         continue
       }
+    }
+    if (phrase) {
+      applyPieces(phrase.pieces)
+      i += phrase.used - 1
+      continue
     }
     if (opts.lists !== false && (token.startsWith('@') || token.startsWith('＠')) && token.length > 1) {
       listName = token.slice(1).trim()
@@ -567,23 +701,7 @@ export function parseQuickAddTitle(
     if (before || after) titleParts.push({ text: before + after, kind: 'title' })
     else if (pieces.every((p) => p.kind === 'duration' || p.kind === 'filler')) titleParts.push({ text: token, kind: 'duration' })
     else if (pieces.every((p) => p.kind === 'time' || p.kind === 'filler')) titleParts.push({ text: token, kind: 'timeOnly' })
-    for (const p of pieces) {
-      if (p.kind === 'repeat') repeat = p.repeat
-      else if (p.kind === 'date') date = p.date
-      else if (p.kind === 'due') {
-        date = p.date
-        deadline = true
-      } else if (p.kind === 'time') {
-        start = p.min
-        end = null
-        isRange = false
-      } else if (p.kind === 'range') {
-        start = p.start
-        end = p.end
-        isRange = true
-      } else if (p.kind === 'duration') duration = p.min
-      else if (p.kind === 'deadline') deadline = true
-    }
+    applyPieces(pieces)
   }
   if (pendingDeadlineWord !== null) titleParts.push({ text: pendingDeadlineWord, kind: 'title' })
 
@@ -634,7 +752,8 @@ export function parseQuickAddTitle(
     tags,
     startTime: start != null ? hm(start) : null,
     endTime: end != null ? hm(end) : null,
-    estimateMinutes: start == null && duration != null && duration > 0 ? duration : null,
+    // 見積もりは保存・同期と同じ 1〜1440 分にそろえる（「勉強 30時間」は 24 時間。上限を超えると同期で弾かれる）
+    estimateMinutes: start == null ? readEstimateMinutes(duration) : null,
     listName,
     repeat,
   }

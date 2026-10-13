@@ -61,8 +61,9 @@ describe('To-Do のフォルダを畳む（ストア）', () => {
     expect(s.lists.map((l) => l.id)).toEqual([INBOX_ID])
     expect(s.tasks[0]).toMatchObject({ listId: INBOX_ID, color: '#33B679' })
     expect(s.timeLogTagPresets).toEqual(['ゼミ'])
-    // 畳んだのはこの端末の変更なので、ラベル表に時刻が付く（ほかの端末へ送る）
-    expect(s.logLabelsUpdatedAt).not.toBeNull()
+    // 畳んで作ったラベルは「無ければ足す」だけ送る。ラベル表の時刻は進めない（ほかの端末のラベルの編集を上書きしない、#357）
+    expect(s.logLabelsUpdatedAt).toBeNull()
+    expect(s.logLabelPendingAdds).toEqual(['ゼミ'])
     expect(s).toMatchObject({ selectedView: 'all', selectedListId: null })
   })
 })

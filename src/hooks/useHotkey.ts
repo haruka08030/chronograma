@@ -43,6 +43,8 @@ const entries: Entry[] = []
 
 /** Esc は先回り（capture）して一番上の層だけを閉じ、下の層や画面全体の Esc（選択の解除など）には渡さない */
 function onEscapeCapture(e: KeyboardEvent) {
+  // document の KeyboardEvent（React の nativeEvent が無い）なので isCancelEscape は使えない。変換中の Esc は同じ行の isImeKeyEvent で除く
+  // eslint-disable-next-line no-restricted-syntax
   if (e.key !== 'Escape' || isImeKeyEvent(e) || e.defaultPrevented) return
   // 入力欄の Esc は欄のほうで扱う（元に戻す・クリアする）。閉じるのはその次の Esc
   if (isTypingTarget(e.target)) return

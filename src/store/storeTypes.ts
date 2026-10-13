@@ -8,8 +8,16 @@ import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { EventTemplate } from '../lib/eventTemplates'
+import type { CourseLink } from '../lib/courseLinks'
+import type { Timetable } from '../lib/timetable'
+import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
+import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
+import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
 import type { SyncState } from '../types/sync'
+import type { WeekStartDay } from '../lib/weekStart'
+import type { QuickAddPrefill } from '../lib/shareTarget'
 
 /**
  * トーストに出す文。ストアの中では文言を作らず、訳す鍵と値（`{ key, params }`）を渡す（言語は画面で決める）。
@@ -47,11 +55,19 @@ export interface ActiveTimer {
   taskId?: string | null
   /** 元タスクの名前の無い色。記録にそのまま付ける */
   color?: string | null
+  /**
+   * 「あと何分」の終わりの時刻（ISO、#290）。無い・null は終わりなし（数え上げ）。時間になっても記録は止めない。
+   * 端末間で同じになる（`user_active_timer.ends_at`）
+   */
+  endsAt?: string | null
 }
 
-/** 朝のまとめの通知時刻（`HH:mm`）。null はオフ */
+/** 毎日 1 回の通知の時刻（`HH:mm`）。null はオフ */
 export interface DailyReminders {
+  /** 朝のまとめ */
   planTime: string | null
+  /** 夜の締め（その日の数字つきで「1 日を締める」へ誘う、#299）。無い（前の版の保存）は null と同じ */
+  wrapUpTime?: string | null
 }
 
 export interface TaskState {
@@ -75,12 +91,18 @@ export interface TaskState {
   sectionGrouping: SectionGrouping
   /** 今日の計画の「今日やる候補」の並び順・絞り込み */
   plannerCandidateView: CandidateView
+  /** To-Do 一覧の絞り込み（優先度・見積もり。リスト・ビューをまたいで同じ） */
+  todoFilter: TodoFilter
+  /** 完了済みの絞り込み（リスト・ラベル・期間） */
+  completedFilter: CompletedFilter
   /**
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
    */
   recentDeletes: { ids: string[]; at: number }[]
   quickAddRequested: boolean
+  /** 共有（share_target）から開いたとき、追加欄に入れておく中身。追加欄が読んだら消す */
+  quickAddPrefill: QuickAddPrefill | null
   filterTag: string | null
   /** To‑Do を色（ラベル）で絞っているときの `#RRGGBB`（大文字）。「すべて」と組み合わせて「ラベルを開いた」状態になる */
   filterColor: string | null
@@ -94,8 +116,12 @@ export interface TaskState {
   timeLogTagPresets: string[]
   /** 分類名 → 色キー（`logCategoryColors.ts`）。並べ替えても色が変わらないように保存する */
   logCategoryColors: Record<string, string>
-  /** この端末でラベル表（timeLogTagPresets・logCategoryColors）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  /** 分類名 → 週の目安（分、#291）。目安の無い分類は入れない（`labelTargets.ts`） */
+  logLabelTargets: Record<string, number>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
   logLabelsUpdatedAt: string | null
+  /** 取り込み（Notion・フォルダを畳む）で足し、まだサーバーに届いていないラベルの名前。手元の変えた時刻は進めず「無ければ足す」で送る（`labelSync.ts`、#357） */
+  logLabelPendingAdds: string[]
 
   calendarEvents: CalendarEvent[]
   /** Google の予定にアプリで付けた色（`googleEventColors.ts`）。API に出ない新しい色（アボカドなど）の代わり */
@@ -107,6 +133,8 @@ export interface TaskState {
   googleCanWrite: boolean
 
   activeTimer: ActiveTimer | null
+  /** 手元でタイマーを始めた・止めた時刻（端末間でどちらに合わせるかを比べる、`timerSync.ts`）。同期で届いた変更では付けない */
+  activeTimerUpdatedAt: string | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
   completePromptTaskId: string | null
   /** タイマー停止後に「ラベルは？」を出す記録（ラベルなしで止めたとき。永続化しない） */
@@ -128,6 +156,8 @@ export interface TaskState {
   onboardingCompleted: boolean
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
+  /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
+  signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
   /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
@@ -136,10 +166,31 @@ export interface TaskState {
   eventReminderMinutes: number | null
   /** アプリのタイムゾーン（IANA 名）。null は端末に合わせる */
   appTimeZone: string | null
+  /** 週の開始日（0 = 日曜、1 = 月曜、6 = 土曜）。カレンダーの週・月表示と日付ピッカーが従う（lib/weekStart.ts） */
+  weekStartsOn: WeekStartDay
   /** タイムラインの時間バーに並べて出す別のタイムゾーン（Google カレンダーの「他のタイムゾーンを表示」） */
   extraTimeZones: ExtraTimeZone[]
   /** 他のタイムゾーン（並び・名前）をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   extraTimeZonesUpdatedAt: string | null
+  /** よく入れる予定（バイトのシフトなど、#311）。月表示で選んでから日を押すと、その日に同じ予定が入る */
+  eventTemplates: EventTemplate[]
+  /** よく入れる予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  eventTemplatesUpdatedAt: string | null
+  /** 授業の予定の名前と LMS の科目のつながり（#309）。予定のカードに、その科目の課題を出す */
+  courseLinks: CourseLink[]
+  /** つながりをこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  courseLinksUpdatedAt: string | null
+  /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
+  dayMoods: DayMoods
+  /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
+  timetable: Timetable
+  /** 時間割の設定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null（一度も変えていない既定の値） */
+  timetableUpdatedAt: string | null
+  /**
+   * 毎週の予定のカード・詳細で選んでいる直す範囲（その予定の id と範囲）。null・ほかの予定は「この予定のみ」。
+   * `updateTask` はこの範囲のほかの回にも同じ項目を写す（`SERIES_SHARED_FIELDS`）。カード・詳細を閉じたら null
+   */
+  seriesEditScope: { taskId: string; scope: SeriesScope } | null
 
   habits: Habit[]
 
@@ -184,7 +235,13 @@ export interface TaskState {
    * - 分類の無い記録は、同じ色のラベルがあればその分類になる
    * - `fromHex` は名前の無かった色（To‑Do ナビの色ラベル）。色を変えたらその色の予定・タスクも新しい色へ（名前が空なら色だけ変える）
    */
-  saveLogLabels: (rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string }>) => void
+  /**
+   * ラベル表をまとめて保存する。`weeklyTargetMinutes` は週の目安（分）: 数なら付ける、null なら外す、
+   * 項目が無ければ元のラベル（`from`）の目安のまま（色ラベルのカードなど目安を扱わない画面）
+   */
+  saveLogLabels: (
+    rows: ReadonlyArray<{ from: string | null; name: string; color: string; fromHex?: string; weeklyTargetMinutes?: number | null }>,
+  ) => void
 
   selectList: (id: string) => void
   selectView: (view: SmartView) => void
@@ -203,7 +260,12 @@ export interface TaskState {
   setSectionGrouping: (scope: SectionGroupingScope, on: boolean) => void
   /** 今日やる候補の並び順・絞り込みを変える（渡した項目だけ） */
   setPlannerCandidateView: (patch: Partial<CandidateView>) => void
-  requestQuickAdd: () => void
+  /** To-Do 一覧の絞り込みを変える（渡した項目だけ） */
+  setTodoFilter: (patch: Partial<TodoFilter>) => void
+  /** 完了済みの絞り込みを変える（渡した項目だけ） */
+  setCompletedFilter: (patch: Partial<CompletedFilter>) => void
+  /** 追加欄を開いてフォーカスする。`prefill` があれば欄に入れておく（足すのは利用者が確かめてから） */
+  requestQuickAdd: (prefill?: QuickAddPrefill | null) => void
   clearQuickAddRequest: () => void
   setFilterTag: (tag: string | null) => void
   /** To‑Do の色ラベルを開く（「すべて」をその色で絞る） */
@@ -220,8 +282,14 @@ export interface TaskState {
   setGoogleConnectionError: (error: string | null) => void
   setGoogleCanWrite: (canWrite: boolean) => void
 
-  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => void
+  /** 足した習慣の id を返す */
+  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => string
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  /**
+   * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
+   * 時刻ひとつの習慣は `endTime` を見ない
+   */
+  setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
   deleteHabit: (id: string) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
@@ -260,7 +328,9 @@ export interface TaskState {
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
-  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null) => void
+  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
+  /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
+  setTimerEnd: (endsAt: string | null) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -277,13 +347,47 @@ export interface TaskState {
   /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
   completeOnboarding: () => void
   dismissInstallNudge: () => void
+  dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
+  setWeekStartsOn: (day: WeekStartDay) => void
   setExtraTimeZones: (zones: ExtraTimeZone[]) => void
   /** 他のタイムゾーンに名前を付ける（空にすると外す） */
   setExtraTimeZoneLabel: (tz: string, label: string) => void
+  /** よく入れる予定をまとめて置き換える（登録の画面の「保存」）。名前が空・時刻が使えない行は外す */
+  saveEventTemplates: (templates: EventTemplate[]) => void
+  /** その日の気分・ひとことを変える（`mood: null` で記号を外す、`note: ''` で一言を消す） */
+  setDayMood: (dateKey: string, patch: { mood?: Mood | null; note?: string }) => void
+  /**
+   * よく入れる予定をその日に入れる・外す（月表示で日を押したとき）。同じ予定（名前・時刻）が入っていれば外し、無ければ入れる。
+   * 外すとき、`sessionTaskIds` にある予定（この続けて押している間に入れたもの）はそのまま消し、それ以外はゴミ箱へ
+   */
+  toggleEventTemplateDay: (
+    templateId: string,
+    dateKey: string,
+    sessionTaskIds?: ReadonlySet<string>,
+  ) => { kind: 'added' | 'removed'; taskId: string } | null
+  /** 予定の名前と科目をつなぐ（同じ名前の予定はみな同じ科目）。`course` が '' なら「つながない」 */
+  setCourseLink: (eventTitle: string, course: string) => void
+  /**
+   * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
+   * 変わったら true
+   */
+  setEventRepeat: (taskId: string, rule: SeriesRule | null) => boolean
+  /** カード・詳細で直す範囲を選ぶ（null は選んでいない＝この予定のみ） */
+  setSeriesEditScope: (taskId: string, scope: SeriesScope | null) => void
+  /** 毎週の予定をゴミ箱へ（この予定のみ / 以降すべて / すべて）。消した数を返す */
+  deleteEventSeries: (taskId: string, scope: SeriesScope) => number
+  /** 時間割の設定を保存する（同じ中身なら何もしない） */
+  saveTimetable: (timetable: Timetable) => void
+  /**
+   * 時間割のマスに授業を入れる。学期の間（今日より前は作らない）の、その曜日の毎週の予定を作る。作った回の数を返す
+   */
+  addTimetableClass: (cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null }) => number
+  /** 時間割の授業（その回から後）の名前・ラベルを直す */
+  updateTimetableClass: (firstTaskId: string, patch: { title?: string; color?: string | null }) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (
@@ -338,8 +442,12 @@ export interface TaskState {
   promoteToPlanned: (id: string, dateKey: string) => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
+  /** ゴミ箱からまとめて復元（2 件以上なら件数のトースト）。Undo は 1 段 */
+  restoreDeletedTasks: (ids: string[]) => void
   /** ゴミ箱から完全に削除（対象と全子孫をストアから除去） */
   permanentlyDeleteTask: (id: string) => void
+  /** ゴミ箱からまとめて完全に削除（対象と全子孫）。Undo は 1 段 */
+  permanentlyDeleteTasks: (ids: string[]) => void
   /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
   emptyDeleted: () => void
   /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
@@ -350,10 +458,17 @@ export interface TaskState {
   archiveTasks: (ids: string[]) => void
   /** アーカイブから戻す（対象と全子孫の archivedAt をクリア） */
   unarchiveTask: (id: string) => void
+  /** アーカイブからまとめて戻す（2 件以上なら件数のトースト）。Undo は 1 段 */
+  unarchiveTasks: (ids: string[]) => void
   undoDelete: () => void
   /** 直前のデータ変更を 1 段階戻す（⌘Z）。成功時 true */
   /** 中の操作をまとめて 1 回の取り消しで戻せるようにする */
   asOneUndo: (fn: () => void) => void
+  /**
+   * 続けて行う操作（月表示で日を続けて押す）を 1 回の取り消しで戻せるようにする。直前の取り消しが同じ `key` の回なら、
+   * 中の操作をそこへ足す（間にほかの操作をしたら新しい回）
+   */
+  asUndoSession: (key: string, fn: () => void) => void
   undoLastOperation: () => boolean
   /** ⌘Z で戻した変更をやり直す（⌘⇧Z）。成功時 true */
   redoLastOperation: () => boolean

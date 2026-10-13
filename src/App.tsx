@@ -1,5 +1,6 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
+import { usePersistLocalData } from './hooks/usePersistLocalData'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
 import { Suspense, useState, useRef } from 'react'
@@ -19,6 +20,7 @@ import { TimerDropZone } from './components/TimerDropZone'
 import { TooltipHost } from './components/ui/Tooltip'
 import { OverlayHost } from './components/OverlayHost'
 import { SearchBox } from './components/SearchBox'
+import { SearchPalette } from './components/SearchPalette'
 import { DragOverlayTaskRow } from './components/DragOverlayTaskRow'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
@@ -32,6 +34,7 @@ import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useReminders } from './hooks/useReminders'
 import { useFollowToday } from './hooks/useFollowToday'
+import { useQuickStartLaunch } from './hooks/useQuickStartLaunch'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
@@ -52,6 +55,7 @@ export default function App() {
   // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
   useAutoBackup()
   useSupabaseSync()
+  usePersistLocalData()
   useNotionSync()
   useCanvasSync()
   useAppTheme()
@@ -68,10 +72,13 @@ export default function App() {
   const mainRef = useRef<HTMLDivElement>(null)
   const { sensors, dragOverlayTask, dragActiveRef, handleDragStart, handleDragEnd, handleDragCancel } = useAppDnd()
 
-  useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true) })
+  // ⌘K の検索パレット（打った文字を取りこぼさないよう、別ファイルにせずすぐ出す）
+  const [showPalette, setShowPalette] = useState(false)
+  useGlobalShortcuts({ searchRef, onShowHelp: () => setShowShortcuts(true), onOpenPalette: () => setShowPalette(true) })
   useShortcutsHelpRequest(() => setShowShortcuts(true))
   useReminders()
   useFollowToday()
+  useQuickStartLaunch()
 
   const isTodoSurface = isTodoSurfaceView(selectedView)
   const hideGlobalHeader = !isTodoSurface && !searchQuery.trim()
@@ -165,6 +172,11 @@ export default function App() {
           </div>
         </div>
 
+        {showPalette && (
+          <PartBoundary name="palette" onCrash={() => setShowPalette(false)}>
+            <SearchPalette onClose={() => setShowPalette(false)} />
+          </PartBoundary>
+        )}
         {showShortcuts && (
           <PartBoundary name="shortcuts" onCrash={() => setShowShortcuts(false)}>
             <OverlaySuspense>

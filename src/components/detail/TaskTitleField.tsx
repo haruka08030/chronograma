@@ -5,6 +5,7 @@ import type { Task } from '../../types/task'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { useFocusBackOnClose } from '../../hooks/useFocusBackOnClose'
 import { CloseIcon } from '../icons'
+import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 /** タスク詳細の題名（押すと書き換え。Enter で確定・Esc で取り消し）と、PC の閉じるボタン */
 export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => void }) {
@@ -53,6 +54,7 @@ export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => v
             ref={titleInputRef}
             value={titleValue}
             onChange={(e) => setTitleValue(e.target.value)}
+            maxLength={TITLE_MAX_LENGTH}
             {...titleEntry}
             aria-label={t('taskDetail.titleEditAria')}
             className="w-full text-lg font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent outline-none

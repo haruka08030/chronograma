@@ -31,7 +31,7 @@
 | ボタン | `buttonClass({ variant, size })`。variant: primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link。size: xs〜lg。形は角丸の四角（xs は 6px、ほかは 8px）。ピルはチップ（`chipClass`）だけ | `components/ui/buttonClass.ts` |
 | アイコン | `CheckIcon` などの部品と、パスの定義 `ICON_PATHS`。コンポーネントに `<path` を直書きしない。画面ごとに切り替わる path は `PathIcon`。意味を伝えるアイコンは `label` | `components/icons.tsx`・`lib/iconPaths.ts`・`components/PathIcon.tsx` |
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
-| モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`） | `components/ui/Modal.tsx` |
+| モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`）。検索パレット（⌘K）は上寄り（`placement="top"`）・広め（`width="lg"`） | `components/ui/Modal.tsx` |
 | 重ねる面のフォーカス | 開いたら面にフォーカス、Tab / Shift+Tab は面の中だけを巡回、閉じたら（閉じる動きの始まりで）元の場所へ戻す。戻す先が BODY なら `returnFocus`（タスク詳細は開いた行の題名）。`Modal`・タスク詳細・スマホのドロワー（`role="dialog"`・`aria-modal`） | `hooks/useFocusTrap.ts` |
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
@@ -47,6 +47,7 @@
 | チップ | `chipClass({ variant, size })`。形はピル。見るだけのもの（To-Do 行のタグ・絞り込み・タイマーのタグ）は `fill`（藍の薄い塗り）、押して選ぶもの（記録のラベル・最近の記録）は `outline`（細い枠、選んだら色の塗り）、足すもの（＋）は `add`（点線の枠） | `components/ui/chipClass.ts` |
 | 開閉する見出し | `DisclosureButton`。小さな ＞ が開くと下を向く。色は見出しの役割で `alert`（やり残し＝赤）/ `default`（候補）/ `muted`（完了）。今日の計画と To-Do の「完了」 | `components/ui/Disclosure.tsx` |
 | 空状態 | `EmptyState`。線のアイコン＋中央。画面（To-Do・ゴミ箱・検索・いつか・習慣）は `lg`、パネルの中（日パネル・時間未定のタスク）は `sm`。一覧の途中の一言（「この日の予定はなし」・メニューの「見つかりません」）は文字だけ | `components/ui/EmptyState.tsx` |
+| さらに表示 | `ShowMoreButton`（`remaining` で残りの件数を添える）。長い一覧の終わりに置き、一覧（listbox）の外。行の数は `useShowMore`（始め 100 行・100 行ずつ）。検索・完了済み・アーカイブ・ゴミ箱・カレンダーのスケジュール | `components/ui/ShowMoreButton.tsx` |
 | アイコンボタン | `iconButtonClass(extra)`。丸・枠なし・乗せたときだけ薄い地。削除も赤くしない。予定カードの右上（詳細・削除・閉じる・Google で開く）・ラベル編集の行の削除・習慣の編集カードの削除・ゴミ箱/アーカイブの行の削除・セクションの見出しの名前変更と削除。行の右端の操作は枠ありの `RowActionButton` | `components/ui/iconButtonClass.ts` |
 | ピル選択 | `PillToggle`。形はピル、選択中は墨の塗り（`buttonClass` の primary と同じ）、それ以外は細い枠（`chipClass` の outline と同じ）。`value`/`onChange` は 1 つ選ぶ（radiogroup）、`values`/`onToggle` は複数選ぶ（aria-pressed）。予定カードの「予定 / タスク」・繰り返し予定の範囲・習慣の曜日・繰り返しタスクの曜日 | `components/ui/PillToggle.tsx` |
 | 小見出し | `SectionLabel`（`as`・`level`）と `sectionLabelClass(level)`。2 段で、どちらも text-xs・font-medium。`section`（zinc-400）は画面・パネル・カードの中のまとまりの見出し、`field`（zinc-500）はフォームの欄の名前。画面の題・今日の計画の区切りの見出し（太い黒）・カードの題・開閉する見出し・メニューの区切り・リストのセクション名には使わない | `components/ui/SectionLabel.tsx`・`components/ui/sectionLabelClass.ts` |
@@ -78,7 +79,8 @@
 | 浮く面の閉じ方 | 外側を押す・Esc は一番上だけ・`data-popover-keep` の要素は内側扱い。返す層を `useHotkey` の scope に使う。外を押したら保存・Esc は取り消しの面（ナビの色ラベルのカード）は `onEscape` | `hooks/useDismiss.ts` |
 | Esc で閉じる層 | 一番上の層だけ閉じる（タスク詳細・完了＋記録・日付ピッカー・ミニカレンダー・予定カード・ラベルのダイアログ・ナビの色ラベルのカード・ショートカット一覧）。モーダルは Esc 以外の閉じるキーを `closeKeys` で足す | `hooks/useHotkey.ts` `useEscapeLayer`・`components/ui/Modal.tsx` |
 | ショートカット | `useHotkey(キー, 処理, { scope, allowInInputs, enabled })`。scope: `'global'`（層が開いていないときだけ）/ `'always'`（⌘Z・⌘K・⌘N・⌘A）/ 層（`useEscapeLayer`・`useDismiss` の戻り値。その層が一番上のときだけ）。入力中・変換中・部品が先に使ったキーでは動かない。false を返すと次に回す。To-Do 一覧の `e` はカーソルの行の詳細、Delete は削除 | `hooks/useHotkey.ts` |
-| キーの書き方 | `'e'`・`'Delete'`・`'mod+Enter'`・`'shift+ArrowDown'`・`'?'`・`'Space'`。修飾キーは書いたものだけ。? / は Shift を見ない | `lib/keyboard.ts` `matchesHotkey` |
+| キーの書き方 | `'e'`・`'Delete'`・`'mod+Enter'`・`'shift+ArrowDown'`・`'alt+ArrowUp'`・`'?'`・`'Space'`。修飾キーは書いたものだけ。? / は Shift を見ない。alt 付きの文字・数字はキーの位置（`code`）で見る（Mac の Option は `key` を別の文字にする）。一覧の 'Alt' は Mac で ⌥ | `lib/keyboard.ts` `matchesHotkey`・`keyCapLabel` |
+| タイムラインのブロックの時刻 | ドラッグもキー（フォーカスしたブロック・開いたカードで Alt+↑↓ は 15 分ずつ動かす、Alt+Shift+↑↓ は終わりを伸び縮み）も `applyBlockMove` / `applyBlockResize` を通る。記録は今より先にしない（伸ばすときは今で止める）、日をまたぐ記録は日付ごと動く、済んだ習慣の枠・書き換えられない Google の予定・日をまたぐ Google の予定は動かさない。動かすたびに元に戻すトースト、新しい時刻は読み上げにも伝える（`announce`） | `lib/timelineBlockEdit.ts`・`lib/announce.ts` |
 | 入力中か・変換中か | 入力中＝テキスト欄・選択・contenteditable（ショートカットも ⌘Z もこれで見る）。`isComposing` または keyCode 229 のキーではショートカット・Esc を動かさない | `lib/keyboard.ts` `isTypingTarget`・`isImeKeyEvent` |
 | Enter で確定 | 変換確定の Enter では送らない | `lib/keyboard.ts` `isSubmitEnter` |
 | 複数行の入力欄 | `useTextAreaEntry`: Enter で改行、⌘/Ctrl+Enter で確定して欄を離れる、Esc で欄を離れる（書いた分は捨てない・親のダイアログは閉じない）、外したら保存。変換中の Enter / Esc は何もしない。タスク詳細のメモと完了＋記録のメモ | `hooks/useTextEntry.ts` `useTextAreaEntry`・`lib/keyboard.ts` `textAreaKeyAction` |

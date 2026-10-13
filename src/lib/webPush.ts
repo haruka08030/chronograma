@@ -7,6 +7,7 @@
 import type { ActiveTimer, DailyReminders } from '../store/taskStore'
 import { getSupabase } from './supabase'
 import { appTimeZone } from './timeZone'
+import { reportFailure } from './errorReport'
 
 const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim()
 
@@ -74,13 +75,20 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
   if (!reg) return
 
   const wantsAny = Boolean(
-    reminders.planTime || eventReminderMinutes != null || dueReminders || recordPrompts || hasTaskReminders || activeTimer,
+    reminders.planTime ||
+    reminders.wrapUpTime ||
+    eventReminderMinutes != null ||
+    dueReminders ||
+    recordPrompts ||
+    hasTaskReminders ||
+    activeTimer,
   )
   let sub = await reg.pushManager.getSubscription()
 
   if (!wantsAny) {
     if (sub) {
-      await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      if (error) reportFailure('push', 'delete', error.message)
       await sub.unsubscribe()
     }
     return
@@ -94,6 +102,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
       })
     } catch (err) {
       console.error('[push] subscribe failed', err)
+      reportFailure('push', 'subscribe', err)
       return
     }
   }
@@ -108,23 +117,20 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
     timezone: appTimeZone(),
     lang: lang.startsWith('ja') ? 'ja' : 'en',
     plan_time: reminders.planTime,
-    wrap_up_time: null,
+    wrap_up_time: reminders.wrapUpTime ?? null,
     event_reminder_minutes: eventReminderMinutes,
     due_reminders: dueReminders,
     updated_at: new Date().toISOString(),
-  }
-  // 記録の確認・止め忘れの列。古い DB では外して送り直す
-  const extra = {
+    // 記録の確認・止め忘れ（列が無いと言われても外して送り直さない。外すとこの 2 つの通知が黙って止まっていた）。
+    // 止め忘れの 2 列は、共有のタイマー（`user_active_timer`）の行があればサーバーがその値にする（`019`。全部の購読に同じタイマー）
     record_prompts: recordPrompts,
     timer_started_at: activeTimer?.startedAt ?? null,
     timer_title: activeTimer?.taskTitle?.slice(0, 2000) ?? null,
   }
-  let { error } = await supabase.from('push_subscriptions').upsert({ ...row, ...extra }, { onConflict: 'endpoint' })
-  if (error && /record_prompts|timer_/.test(error.message)) {
-    ;({ error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' }))
-  }
+  const { error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' })
   if (error) {
     console.error('[push] save failed', error.message)
+    reportFailure('push', 'save', error.message, { code: error.code ?? null })
     return
   }
   pushActive = true
@@ -145,10 +151,14 @@ export async function detachWebPush(): Promise<void> {
     const supabase = getSupabase()
     if (supabase) {
       const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-      if (error) console.error('[push] delete on sign-out failed', error.message)
+      if (error) {
+        console.error('[push] delete on sign-out failed', error.message)
+        reportFailure('push', 'detach:delete', error.message)
+      }
     }
     await sub.unsubscribe()
   } catch (err) {
     console.error('[push] detach failed', err)
+    reportFailure('push', 'detach', err)
   }
 }

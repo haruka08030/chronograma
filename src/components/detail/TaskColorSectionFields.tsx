@@ -5,6 +5,7 @@ import type { Task } from '../../types/task'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
+import { compareByOrder } from '../../lib/orderCompare'
 
 /**
  * タスク詳細の色（＝ラベル）・セクション（ルートのタスクで、リストにセクションがあるときだけ）。
@@ -14,10 +15,7 @@ export function TaskColorSectionFields({ task }: { task: Task }) {
   const { t } = useTranslation()
   const updateTask = useTaskStore((s) => s.updateTask)
   const sections = useTaskStore((s) => s.sections)
-  const sectionsForTaskList = useMemo(
-    () => sections.filter((s) => s.listId === task.listId).sort((a, b) => a.order - b.order),
-    [sections, task.listId],
-  )
+  const sectionsForTaskList = useMemo(() => sections.filter((s) => s.listId === task.listId).sort(compareByOrder), [sections, task.listId])
   return (
     <div>
       {/* 色＝ラベル（記録と同じ）。カレンダーの色と To‑Do の色ラベルに使う。既定はリストの色。

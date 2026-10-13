@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   dailyDue,
   effectiveReminders,
+  localNow,
   minutesOfClock,
   morningDigest,
   remindersInWindow,
   staleTimerDue,
+  timerEndDue,
+  TIMER_END_LATE_MS,
   wallMs,
+  wrapUpDue,
   type ReminderSettings,
   type ReminderTask,
 } from './schedule'
@@ -100,5 +104,57 @@ describe('dailyDue / staleTimerDue', () => {
     expect(staleTimerDue(start, at(2.9), null)).toBe(false)
     expect(staleTimerDue(start, at(3), null)).toBe(true)
     expect(staleTimerDue(start, at(5), start)).toBe(false)
+  })
+})
+
+describe('「あと何分」の時間（timerEndDue、#290）', () => {
+  const end = '2026-10-08T00:25:00.000Z'
+  const at = (min: number) => Date.parse(end) + min * 60_000
+
+  it('終わりの時刻を過ぎた回に 1 回だけ（5 分ごとの回なので遅れて送ることがある）', () => {
+    expect(timerEndDue(end, at(-0.1), null)).toBe(false)
+    expect(timerEndDue(end, at(0), null)).toBe(true)
+    expect(timerEndDue(end, at(4.9), null)).toBe(true)
+    // 送った印は DB の書き方（+00:00）で返ってくる
+    expect(timerEndDue(end, at(5), '2026-10-08 00:25:00+00')).toBe(false)
+    expect(timerEndDue(end, at(5), '2026-10-08T00:25:00+00:00')).toBe(false)
+  })
+
+  it('終わりを選び直したら新しい終わりでもう 1 回。古すぎる知らせ・終わりなしは送らない', () => {
+    expect(timerEndDue('2026-10-08T00:50:00.000Z', Date.parse('2026-10-08T00:51:00.000Z'), end)).toBe(true)
+    expect(timerEndDue(end, Date.parse(end) + TIMER_END_LATE_MS, null)).toBe(false)
+    expect(timerEndDue(null, at(1), null)).toBe(false)
+    expect(timerEndDue('bad', at(1), null)).toBe(false)
+  })
+})
+
+describe('夜の締め（wrapUpDue）', () => {
+  it('利用者のタイムゾーンで決めた時刻から 60 分の間に 1 回だけ', () => {
+    // 13:00 UTC は東京の 22:00、ニューヨークの 9:00
+    const now = new Date('2026-10-08T13:00:00Z')
+    const tokyo = localNow('Asia/Tokyo', now)
+    expect(tokyo).toEqual({ date: '2026-10-08', minutes: 22 * 60 })
+    expect(wrapUpDue('22:00', null, tokyo.date, tokyo.minutes, 30)).toBe(true)
+    const ny = localNow('America/New_York', now)
+    expect(ny).toEqual({ date: '2026-10-08', minutes: 9 * 60 })
+    expect(wrapUpDue('22:00', null, ny.date, ny.minutes, 30)).toBe(false)
+    // 59 分後まで。60 分を過ぎたらその日は出さない
+    expect(wrapUpDue('22:00', null, '2026-10-08', 22 * 60 + 59, 30)).toBe(true)
+    expect(wrapUpDue('22:00', null, '2026-10-08', 23 * 60, 30)).toBe(false)
+    expect(wrapUpDue('22:00', null, '2026-10-08', 21 * 60 + 59, 30)).toBe(false)
+  })
+
+  it('その日にもう送ったら出さない。オフ（null）なら出さない', () => {
+    expect(wrapUpDue('22:00', '2026-10-08', '2026-10-08', 22 * 60, 30)).toBe(false)
+    expect(wrapUpDue('22:00', '2026-10-07', '2026-10-08', 22 * 60, 30)).toBe(true)
+    expect(wrapUpDue(null, null, '2026-10-08', 22 * 60, 30)).toBe(false)
+  })
+
+  it('その日の記録が 0 なら出さない（使っていない日に責めない）', () => {
+    expect(wrapUpDue('22:00', null, '2026-10-08', 22 * 60, 0)).toBe(false)
+  })
+
+  it('読めないタイムゾーンは UTC で数える', () => {
+    expect(localNow('Not/AZone', new Date('2026-10-08T22:05:00Z'))).toEqual({ date: '2026-10-08', minutes: 22 * 60 + 5 })
   })
 })

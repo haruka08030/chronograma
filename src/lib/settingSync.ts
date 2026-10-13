@@ -1,5 +1,6 @@
 /**
- * 利用者ごとに 1 行の設定（ラベル表 `user_settings`・他のタイムゾーン `user_extra_time_zones`）の同期で、
+ * 利用者ごとに 1 行の設定（ラベル表 `user_settings`・他のタイムゾーン `user_extra_time_zones`・動いているタイマー `user_active_timer`・
+ * よく入れる予定 `user_event_templates`・授業と科目のつながり `user_course_links`・時間割 `user_timetable`）の同期で、
  * どちらに合わせるかを決める共通の部分。
  *
  * サーバーの `updated_at` はサーバーの時計で付く（`007`）。端末の時計どうしを比べないように、
@@ -51,7 +52,8 @@ export function settingSyncStep(
   return { kind: 'apply' }
 }
 
-export type SettingKey = 'labels' | 'zones'
+/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`） */
+export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable'
 
 const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
 
@@ -106,6 +108,8 @@ export interface SettingSyncDeps<
   applyLocal: (apply: A) => void
   setLocalUpdatedAt: (at: string) => void
   push: (p: P) => Promise<SettingPushResult>
+  /** 送ったものがサーバーに通ったあと（断られた・失敗したときは呼ばない）。通ったときだけしてよいこと（記録を足すなど）に使う */
+  onPushed?: (p: P) => void
 }
 
 /**
@@ -155,6 +159,7 @@ export async function runSettingSync<
     // 送っている間に手元で変えていたら、手元の時刻はそのまま（次の同期でこの版をもとに送る）
     if (s.localUpdatedAt() === pushedAt) s.setLocalUpdatedAt(res.updatedAt)
     saveSettingSyncedAt(userId, s.key, res.updatedAt)
+    s.onPushed?.(plan.push)
     return
   }
   // 取り直しても毎回断られた

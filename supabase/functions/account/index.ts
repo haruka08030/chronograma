@@ -3,6 +3,7 @@ import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { openSecret, secretContext } from '../_shared/secretBox.ts'
+import { pinnedFetch } from '../_shared/pinnedFetch.ts'
 import { decodeJwtPayload, isRecentSignIn, signedInAt } from './reauth.ts'
 
 /**
@@ -12,6 +13,9 @@ import { decodeJwtPayload, isRecentSignIn, signedInAt } from './reauth.ts'
  * auth.admin は service_role が要るので Edge Function で行う。
  * 10 分より前にログインしたセッションからは消さず、403 `reauth_required` を返す（クライアントはログインし直してから送り直す）。
  */
+
+/** 連携のトークンの取り消しを待つ上限 */
+const REVOKE_TIMEOUT_MS = 5000
 
 Deno.serve(
   withCors(async (req) => {
@@ -54,11 +58,14 @@ Deno.serve(
       if (google?.refresh_token) {
         try {
           const token = await openSecret(google.refresh_token as string, secretContext.google(user.id))
-          await fetch('https://oauth2.googleapis.com/revoke', {
+          // 待つ上限を付ける（Google が応答しないと関数の時間切れまで待ち、アカウントを消せなくなる）
+          const res = await fetch('https://oauth2.googleapis.com/revoke', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ token }),
+            signal: AbortSignal.timeout(REVOKE_TIMEOUT_MS),
           })
+          await res.body?.cancel()
         } catch (err) {
           console.error('[account] google revoke failed', err)
         }
@@ -72,15 +79,15 @@ Deno.serve(
         .eq('kind', 'token')
       await Promise.allSettled(
         ((canvasRows ?? []) as { id: string; base_url: string; token: string | null }[]).map(async (r) => {
-          // 保存時に確かめた https のドメイン名だけ。それ以外の宛先へはトークンを送らない
+          // 保存時に確かめた https のドメイン名だけ。それ以外の宛先へはトークンを送らない。
+          // 名前は引き直して内部を指していないか確かめ、確かめたアドレスにつなぐ（`pinnedFetch.ts`、Canvas の関数と同じ）
           if (!r.token || !/^https:\/\/[a-z0-9.-]+$/i.test(r.base_url)) return
           try {
             const token = await openSecret(r.token, secretContext.canvasToken(user.id, r.id))
-            const res = await fetch(`${r.base_url}/login/oauth2/token`, {
+            const res = await pinnedFetch(`${r.base_url}/login/oauth2/token`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` },
-              redirect: 'manual',
-              signal: AbortSignal.timeout(5000),
+              timeoutMs: REVOKE_TIMEOUT_MS,
             })
             await res.body?.cancel()
           } catch (err) {

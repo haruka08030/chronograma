@@ -1,4 +1,4 @@
-import { startOfMonth, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
 import { isTodoTask, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import { completionDayKey } from './dayPlan'
@@ -8,7 +8,6 @@ import { isActiveTask } from './taskLifecycle'
 
 export interface TaskStats {
   totalActive: number
-  completedThisMonth: number
   overdue: number
   /** 今日からさかのぼって、1 件以上完了した日が続いた日数 */
   streak: number
@@ -28,8 +27,6 @@ export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskLis
   const completedDays = new Set(completed.map(completionDayKey))
 
   const today = fromDateKey(todayKey)
-  const monthStartKey = toDateKey(startOfMonth(today))
-  const completedThisMonth = completed.filter((t) => completionDayKey(t) >= monthStartKey).length
 
   // 想定ユーザーはリストよりタグ（授業・就活・バイト）で分けるので、タグごとに数える。
   // 複数タグのタスクはそれぞれに数え、タグ無しは最後に 1 行
@@ -55,5 +52,5 @@ export function computeTaskStats(tasks: readonly Task[], lists: readonly TaskLis
     else break
   }
 
-  return { totalActive: active.length, completedThisMonth, overdue, streak, byTag }
+  return { totalActive: active.length, overdue, streak, byTag }
 }

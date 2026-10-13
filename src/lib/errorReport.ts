@@ -1,7 +1,9 @@
 /**
  * 端末で起きたエラーを Supabase の表 `client_errors`（`011_client_errors.sql`）に送る。外部のサービスは使わない。
- * - 送るのはログイン中で Supabase の設定があるときだけ（`setErrorReportUser` は AuthProvider が呼ぶ）
- * - 同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回まで、1 回の起動で 20 件まで
+ * - 送るのはログイン中で Supabase の設定があるときだけ（`setErrorReportUser` は AuthProvider が呼ぶ）。
+ *   ログインしていない間の失敗は端末に新しい 10 件までためておき（中身は送るときと同じく伏せた形）、ログインしたら送る
+ * - 同じエラー（種類・メッセージ・スタックの先頭の行）は 10 分に 1 回まで、1 時間に 20 件まで
+ *   （ホーム画面のアプリは何日も開いたままなので、起動ごとに数えると最初の 20 件のあとが残らない）
  * - 大きさは DB の上限（`LIMITS`）に切り詰め、URL・トークンらしきものは伏せる。場所はパスと `?view=` だけ
  * - 送れなかったら捨てる（再送しない）。失敗が続くときに送り続けないよう、失敗したら 5 分は送らない
  * - どこから呼んでも例外を投げない
@@ -9,13 +11,19 @@
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 
-export type ErrorKind = 'render' | 'error' | 'unhandledrejection' | 'sync' | 'chunk'
+/** `client_errors_kind_check`（`011`・`020`）と同じ。`storage` / `integration` / `push` は `reportFailure` から */
+export type ErrorKind = 'render' | 'error' | 'unhandledrejection' | 'sync' | 'chunk' | 'storage' | 'integration' | 'push'
 
 /** `client_errors_size_check` と同じ上限（文字数。`extra` は JSON のバイト数） */
 export const LIMITS = { message: 2000, stack: 8000, url: 500, appVersion: 100, userAgent: 500, extra: 4000 } as const
 
-/** 1 回の起動で送る数の上限 */
-export const MAX_REPORTS_PER_SESSION = 20
+/** 1 時間（`REPORT_WINDOW_MS`）に送る数の上限 */
+export const MAX_REPORTS_PER_HOUR = 20
+export const REPORT_WINDOW_MS = 60 * 60_000
+/** ログインしていない間にためておく数（新しいものから） */
+export const MAX_PENDING_REPORTS = 10
+/** ためておく場所（localStorage） */
+export const PENDING_REPORTS_KEY = 'chronograma-pending-errors-v1'
 /** 同じエラーを送り直すまでの間 */
 export const SAME_ERROR_INTERVAL_MS = 10 * 60_000
 /** 送信に失敗したら、この間は送らない */
@@ -25,21 +33,28 @@ const MAX_QUEUED = 5
 
 let userId: string | null = null
 let sentCount = 0
+let windowStart = 0
 let pausedUntil = 0
 let queued = 0
 let chain: Promise<void> = Promise.resolve()
 const lastSent = new Map<string, number>()
+type ReportRow = ReturnType<typeof buildReport>
+/** ログインしていない間の失敗（null = まだ localStorage から読んでいない） */
+let pending: ReportRow[] | null = null
 
-/** ログイン中の人（null = ログアウト）。ログインしていなければ送らない */
+/** ログイン中の人（null = ログアウト）。ログインしていなければ送らない（ためておき、ログインしたら送る） */
 export function setErrorReportUser(id: string | null): void {
   userId = id
+  if (id) sendPending()
 }
 
 /** テスト用: 起動直後の状態に戻す */
 export function resetErrorReportForTests(): void {
   userId = null
   sentCount = 0
+  windowStart = 0
   pausedUntil = 0
+  pending = null
   queued = 0
   chain = Promise.resolve()
   lastSent.clear()
@@ -138,32 +153,124 @@ export function buildReport(kind: ErrorKind, error: unknown, extra?: Record<stri
 /** エラーを送る（送れなくても何もしない）。送るかどうかはここで決める */
 export function reportError(kind: ErrorKind, error: unknown, extra?: Record<string, unknown>): void {
   try {
-    if (!userId || !isSupabaseConfigured) return
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+    if (!isSupabaseConfigured) return
     const now = Date.now()
-    if (now < pausedUntil || sentCount >= MAX_REPORTS_PER_SESSION || queued >= MAX_QUEUED) return
     const { message, stack } = describe(error)
     const key = `${kind}|${message}|${topFrame(stack)}`
     const last = lastSent.get(key)
     if (last !== undefined && now - last < SAME_ERROR_INTERVAL_MS) return
+    // ログインしていない・オフラインの間はためておき、ログインしたとき・回線が戻ったときに送る
+    if (!userId || isOffline()) {
+      lastSent.set(key, now)
+      keepPending(buildReport(kind, error, extra), now)
+      return
+    }
+    if (now < pausedUntil || queued >= MAX_QUEUED) return
     const sb = getSupabase()
-    if (!sb) return
-    const row = buildReport(kind, error, extra)
+    if (!sb || !takeBudget(1, now)) return
     lastSent.set(key, now)
-    sentCount++
-    queued++
-    chain = chain.then(async () => {
-      try {
-        const { error: insertError } = await sb.from('client_errors').insert(row)
-        if (insertError) pausedUntil = Date.now() + PAUSE_AFTER_FAILURE_MS
-      } catch {
-        pausedUntil = Date.now() + PAUSE_AFTER_FAILURE_MS
-      } finally {
-        queued--
-      }
-    })
+    send(sb, buildReport(kind, error, extra))
   } catch {
     // 報告の失敗で画面や同期を止めない
+  }
+}
+
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+/** 1 時間の枠に n 件の空きがあれば数えて true（枠が過ぎていたら数え直す） */
+function takeBudget(n: number, now: number): boolean {
+  if (now - windowStart >= REPORT_WINDOW_MS) {
+    windowStart = now
+    sentCount = 0
+  }
+  if (sentCount + n > MAX_REPORTS_PER_HOUR) return false
+  sentCount += n
+  return true
+}
+
+function send(sb: NonNullable<ReturnType<typeof getSupabase>>, rows: ReportRow | ReportRow[]): void {
+  queued++
+  chain = chain.then(async () => {
+    try {
+      const { error: insertError } = await sb.from('client_errors').insert(rows)
+      if (insertError) pausedUntil = Date.now() + PAUSE_AFTER_FAILURE_MS
+    } catch {
+      pausedUntil = Date.now() + PAUSE_AFTER_FAILURE_MS
+    } finally {
+      queued--
+    }
+  })
+}
+
+function loadPending(): ReportRow[] {
+  if (pending) return pending
+  pending = []
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(PENDING_REPORTS_KEY) : null
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    if (Array.isArray(parsed)) pending = (parsed as ReportRow[]).slice(-MAX_PENDING_REPORTS)
+  } catch {
+    // 読めなければ無いものとして扱う
+  }
+  return pending
+}
+
+function savePending(rows: ReportRow[]): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    if (rows.length === 0) localStorage.removeItem(PENDING_REPORTS_KEY)
+    else localStorage.setItem(PENDING_REPORTS_KEY, JSON.stringify(rows))
+  } catch {
+    // 容量不足でも、この起動の間は手元に持っておく
+  }
+}
+
+/** ログインしていない間の 1 件をためる。起きた時刻は `extra.occurred_at`（`created_at` は送った時刻になる） */
+function keepPending(row: ReportRow, now: number): void {
+  const rows = [...loadPending(), { ...row, extra: { ...row.extra, occurred_at: new Date(now).toISOString() } }]
+  pending = rows.slice(-MAX_PENDING_REPORTS)
+  savePending(pending)
+}
+
+/** ためておいた失敗をまとめて 1 回で送る（1 時間の上限に数える。入りきらない古い分は捨てる） */
+function sendPending(): void {
+  try {
+    if (!userId || !isSupabaseConfigured || isOffline()) return
+    const rows = loadPending()
+    if (rows.length === 0) return
+    const now = Date.now()
+    if (now < pausedUntil || queued >= MAX_QUEUED) return
+    takeBudget(0, now)
+    const toSend = rows.slice(-Math.max(0, MAX_REPORTS_PER_HOUR - sentCount))
+    const sb = getSupabase()
+    if (!sb || toSend.length === 0 || !takeBudget(toSend.length, now)) return
+    pending = []
+    savePending(pending)
+    send(sb, toSend)
+  } catch {
+    // 同上
+  }
+}
+
+/**
+ * 黙って続けていた失敗（端末の保存・連携の取り込み・通知の購読）を送る。回線の失敗は送らない（直ればそのまま動くので）。
+ * `stage` は どこで失敗したか（save / load / auto-backup / canvas / notion:advance / subscribe など）。
+ * 利用者の中身（タイトル・メモ・URL）は渡さない（段階・表や項目の名前・数・エラーのメッセージだけ）
+ */
+export function reportFailure(
+  kind: 'storage' | 'integration' | 'push',
+  stage: string,
+  error: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  try {
+    const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+    if (isNetworkErrorMessage(message)) return
+    reportError(kind, typeof error === 'string' ? `${stage}: ${error}` : error, { stage, ...extra })
+  } catch {
+    // 同上
   }
 }
 
@@ -205,6 +312,8 @@ export function installGlobalErrorReporting(): void {
       col: event.colno || undefined,
     })
   })
+  // オフラインの間にためた失敗を、回線が戻ったら送る
+  window.addEventListener('online', () => sendPending())
   window.addEventListener('unhandledrejection', (event) => {
     const reason: unknown = event.reason
     const message = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''

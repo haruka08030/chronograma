@@ -1,20 +1,27 @@
 # Chronograma
 
+予定と実際を同じタイムラインに並べて、時間がどこに溶けたか分かる時間割。
+
 ## プロジェクト概要
 
-**Chronograma** は、**タスク（To‑Do）**・**カレンダー**・**タイムログ**・**習慣トラッキング**をまとめて扱う **React** のシングルページアプリです。ローカルの作業フォルダ名が `jikanwari` のままの場合があります。
+**Chronograma** は学生向けの **React** のシングルページアプリ（PWA）です。1 日を計画して、記録して、ふりかえります。ローカルの作業フォルダ名が `jikanwari` のままの場合があります。
 
-主な機能のイメージは次のとおりです。
+### 主役: 計画 → 記録 → ふりかえり
 
-- **今日の計画**（既定の画面）: やり残しの持ち越し・今日やること・習慣を左に、1 日のタイムラインを右に置き、ドラッグや「15時 企画書 1時間」のような入力で時間を確保。夕方に「残りを明日へ」で 1 日を締める
-- **リストの種類**: 「やること」「いつか（Wish）」「チェックリスト（買い物など）」。Wish や買い物は今日の計画・期限・統計・通知に混ざらない。クイック追加で `@買い物 牛乳` のように追加先を指定
-- **To‑Do**: リストとセクション、期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替えとリスト間の移動、複数選択と一括操作、直近削除の Undo
-- **カレンダー**: 月表示／週タイムライン、（任意で）Google カレンダー連携、日付パネルでその日の予定・ログを確認
-- **予定 vs 実績**・**活動ログ**・**統計**（通常タスク中心の集計）
+- **今日の計画**（既定の画面）: 今日のやり残し・今日やること・習慣を左に、1 日のタイムラインを右に置き、ドラッグや「15時 レポート 1時間」のような入力で時間に置く。1 日の区切りは 0 時で、前の日に終わらなかった予定は今日のやり残しに繰り越す
+- **記録**: 行の ▶ で記録を始めると、タイムラインの予定の横に実際の記録が並び、予定とのずれが見える
+- **ふりかえり**: 予定 vs 実績・活動ログ・統計（日・週・月）、夜の締め（その日の数字）
+
+### その他にできること
+
+- **To‑Do**: ラベル（記録・カレンダーと共通の色の名前）で分ける。期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替え、複数選択と一括操作、直近削除の Undo
+- **いつか・チェックリスト**: ラベルとは別のリスト（チェックリストは買い物など）。今日の計画・期限・統計・通知に混ざらない。クイック追加で `@買い物 牛乳` のように追加先を指定
+- **カレンダー**: 月／週／3 日／スケジュール表示、時間割（授業を学期の間の毎週の予定に）、よく入れる予定、日付パネルでその日の予定・記録を確認
 - **習慣**: ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
+- **連携（任意）**: Google カレンダー・Notion・Canvas
 - **外観**: ライト／ダーク、日本語と英語の UI
 
-**既定の保存先**はブラウザの **localStorage**（Zustand の永続化）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+**既定の保存先**はブラウザの **IndexedDB**（Zustand の永続化。使えないブラウザでは localStorage）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメールの **マジックリンク** でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
 
 **スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
@@ -27,12 +34,13 @@
 | 層 | しくみ | 主なファイル |
 | --- | --- | --- |
 | 状態 | Zustand のストア 1 つを役割ごとの slice（tasks・lists・sections・habits・timeLogs・settings・ui など）に分ける。行は購読する値だけを選ぶ（`memo` とセレクタ） | `src/store/taskStore.ts`、`src/store/slices/` |
-| 端末への保存 | `persist` で localStorage へ。保存する値を DATA / VIEW / TRANSIENT に分け、版番号（`STORE_VERSION`）ごとに段階的に移行する。読めない保存データは上書き前に退避する。端末の中の自動バックアップ（毎日 14 日分など） | `persistKeys.ts`、`migrate.ts`、`src/lib/autoBackup.ts` |
+| 端末への保存 | `persist` で IndexedDB へ（使えないブラウザでは localStorage。前の版の localStorage のデータは初回に 1 回だけ移す）。本体と前回同期の控えは 1 つのトランザクションで書き、他のタブには BroadcastChannel で知らせる。保存する値を DATA / VIEW / TRANSIENT に分け、版番号（`STORE_VERSION`）ごとに段階的に移行する。読めない保存データは上書き前に退避する。端末の中の自動バックアップ（毎日 14 日分など） | `src/lib/dataStore.ts`、`persistKeys.ts`、`migrate.ts`、`src/lib/autoBackup.ts` |
 | 同期 | 端末ごとの前回同期の控えとの**三方向マージ**。書き込みは「もとにしたサーバーの版」を付けて送り、サーバーのトリガーが版を確かめてサーバーの時刻を付ける（端末の時計に頼らない）。ふだんの取り込みは**差分**（`updated_at` が前回より新しい行と、削除の記録 `sync_tombstones`）。起動時・6 時間ごと・断られた後は全件 | `src/lib/syncMerge.ts`、`syncPull.ts`、`supabaseData.ts`、`src/hooks/useSupabaseSync.ts` |
 | サーバー | Supabase（Postgres + RLS で本人の行だけ）。外部サービスのトークンは Edge Function が暗号化して持ち、ブラウザには出さない。通知は pg_cron が 5 分ごとに Edge Function `daily-reminders` を呼ぶ | `supabase/migrations/`、`supabase/functions/` |
 | 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |
 | 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
-| エラー | 画面・同期のエラーは、ログイン中なら Supabase の `client_errors` に送る（同じエラーはまとめ、トークンやメールは伏せる。30 日で消える） | `src/lib/errorReport.ts` |
+| エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`） | `src/lib/errorReport.ts` |
+| 数を見る | 本番の SQL Editor で流す読むだけの SQL。エラーと通知の回（`health.sql`）、同期している版（`versions.sql`）、使われ方（`usage.sql`: はじめの 3 日・2 週目・記録した日の数・機能ごとの人数・予定と記録の比・ラベルの無い記録の割合。数と日付だけで、タイトル・メモ・ラベル名は読まない）。migration には入れない | `supabase/metrics/` |
 
 **テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
 
@@ -72,7 +80,13 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
-   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークンは、次に使われたときに暗号化し直されます。**鍵を変えたり消したりすると、保存済みの連携はすべてつなぎ直しになります**（鍵が無い間は連携の保存を断り、500 を返します）。
+   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークン（平文）は、`daily-reminders` が 5 分ごとに少しずつ暗号化し直します（それまでの間、平文のトークンは使わずにエラーにします）。鍵が無い間は連携の保存を断り、500 を返します。
+   **鍵の入れ替え**（漏れたときや定期的に）は、連携を切らずにできます:
+   1. 今の鍵を前の鍵に回し、新しい鍵を入れる（2 つを 1 回で）: `supabase secrets set TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵> TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。前の鍵がすでにあるなら、カンマ区切りで並べる（`TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵>,<その前の鍵>`）。secret は次の呼び出しから効き、デプロイし直しは要りません
+   2. 連携の関数は前の鍵でも開け、読んだついでに新しい鍵で閉じ直します。使われていない連携の行も `daily-reminders` が 5 分ごとに（表ごと 100 行まで）閉じ直します
+   3. 全部閉じ直されたか SQL Editor で確かめる（新しい鍵の名前は暗号文の `enc:v2:` の次の 8 文字。新しく保存された行で分かる）: `select count(*) from google_oauth where refresh_token not like 'enc:v2:<新しい鍵の名前>:%'`（`notion_connection.token`・`canvas_connection.token` / `feed_url` も同じ）が 0 になったら
+   4. 前の鍵を外す: `supabase secrets unset TOKEN_ENCRYPTION_PREVIOUS_KEYS`（漏れた鍵はこれで使えなくなる）。0 にならない行は、どの鍵でも開けない壊れた値です（`daily-reminders` のログに `token sweep: unreadable values`）。その連携はつなぎ直しになります
+   **鍵を消したり、前の鍵に回さずに替えたりすると、保存済みの連携はすべてつなぎ直しになります**。
    ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
 4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
 5. プロジェクトルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
@@ -86,7 +100,7 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 
 ### 通知（Web Push、任意）
 
-アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・タイマーの止め忘れを届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・夜の締め（その日の数字つき）・タイマーの止め忘れ・「あと何分」の時間（最大 5 分ほど遅れます。アプリを開いていればちょうどの時刻）を届けます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
 1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定

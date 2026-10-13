@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { planKindOf, taskKindFlags, taskKindFromFlags, type Task } from '../types/task'
 import { getDayPlan, getMoreSuggestions } from './dayPlan'
+import { plannedTodoMinutes } from './dayLoad'
 import { getFilteredRootTasks } from './mainListTasks'
 import { computeTaskStats } from './taskStats'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
@@ -65,7 +66,7 @@ describe('予定は To-Do として数えない', () => {
     const plan = getDayPlan(tasks, DAY)
     expect(plan.open.map((t) => t.id)).toEqual(['report'])
     expect(plan.carryOver).toEqual([])
-    expect(plan.plannedMinutes).toBe(60)
+    expect(plannedTodoMinutes(tasks, DAY)).toBe(60)
     expect(getMoreSuggestions([task('later', { kind: 'event', scheduledDate: '2026-10-09' })], DAY)).toEqual([])
   })
 

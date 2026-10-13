@@ -1,7 +1,7 @@
 {
   "name": "Chronograma",
   "short_name": "Chronograma",
-  "description": "1 日を計画して、記録して、ふりかえる。",
+  "description": "予定と実際を同じタイムラインに並べて、時間がどこに溶けたか分かる時間割。",
   "lang": "ja",
   "start_url": "/?source=pwa",
   "scope": "/",
@@ -14,6 +14,11 @@
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
+  "share_target": {
+    "action": "/?add=1",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "shortcuts": [
     {
       "name": "今日の計画",
@@ -21,6 +26,12 @@
       "url": "/?view=planner",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
-    { "name": "To-Do を追加", "short_name": "追加", "url": "/?add=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "To-Do を追加", "short_name": "追加", "url": "/?add=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    {
+      "name": "前回の記録を再開",
+      "short_name": "記録を再開",
+      "url": "/?start=last",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

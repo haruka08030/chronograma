@@ -84,6 +84,8 @@ export function reanchorTask(task: Task, zone: string = appTimeZone()): Task {
 
 /** 必要なものだけ書き直す。何も変わらなければ同じ配列 */
 export function reanchorTasks(tasks: Task[], zone: string = appTimeZone()): Task[] {
+  // タスクが変わるたびに呼ばれる（メモの保存なども）。ふだんは全行がいまのタイムゾーンなので、配列を作らずに戻る
+  if (tasks.every((t) => t.timeZoneAnchor === zone)) return tasks
   let changed = false
   const next = tasks.map((t) => {
     const r = reanchorTask(t, zone)

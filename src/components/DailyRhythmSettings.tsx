@@ -1,19 +1,26 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
-import { SettingsGroup, SettingsRow, Switch } from './settings/SettingsPrimitives'
+import { isIosBrowserNotInstalled } from '../lib/onboardingNudge'
+import { SettingsGroup, SettingsLinkRow, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
 import { formatDuration } from '../lib/timeGrid'
 import { DEFAULT_BLOCK_OPTIONS } from '../lib/defaultBlock'
+import { recentDailyLoggedMinutes } from '../lib/weekReview'
+import { unplannedListIds } from '../lib/listKind'
+import { useAppTodayKey } from '../hooks/useAppClock'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
+/** 夜の締めをオンにしたときの時刻 */
+const DEFAULT_WRAP_UP_TIME = '22:00'
 
 const selectClass = fieldClass({ size: 'sm' })
 
 /**
  * 設定「通知」: 放っておくと逃すことを、手を打てるときだけ知らせる。
- * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認（タイマーの止め忘れは常に）。
+ * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め（タイマーの止め忘れは常に）。
  * 1 日に計画する時間の目安・既定の予定の長さは通知ではないので別のまとまり（計画）。
  */
 export function DailyRhythmSettings() {
@@ -22,6 +29,17 @@ export function DailyRhythmSettings() {
   const setDailyReminders = useTaskStore((s) => s.setDailyReminders)
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const setDailyCapacityMinutes = useTaskStore((s) => s.setDailyCapacityMinutes)
+  const tasks = useTaskStore((s) => s.tasks)
+  const habits = useTaskStore((s) => s.habits)
+  const lists = useTaskStore((s) => s.lists)
+  const todayKey = useAppTodayKey()
+  // 目安を決める材料に、直近 2 週（昨日まで）の記録のある日の平均（#275）。記録が無ければ出さない
+  const recent = useMemo(
+    () => recentDailyLoggedMinutes(tasks, habits, unplannedListIds(lists)),
+    // 日が変わったら数え直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, habits, lists, todayKey],
+  )
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const setDefaultBlockMinutes = useTaskStore((s) => s.setDefaultBlockMinutes)
   const notificationsEnabled = useTaskStore((s) => s.notificationsEnabled)
@@ -33,6 +51,8 @@ export function DailyRhythmSettings() {
   const unsupported = typeof window === 'undefined' || !('Notification' in window)
   const denied = !unsupported && Notification.permission === 'denied'
   const off = unsupported || denied
+  // iPhone / iPad の Safari は、ホーム画面に追加して開くと通知が使える（「対応していません」ではない）
+  const needsInstall = unsupported && isIosBrowserNotInstalled()
 
   /** オンにするときだけ通知の許可を聞く */
   const turnOn = async (apply: () => void) => {
@@ -44,8 +64,23 @@ export function DailyRhythmSettings() {
       <SettingsGroup
         id="settings-rhythm"
         title={t('settings.notificationsTitle')}
-        description={unsupported ? t('settings.notificationsUnsupported') : denied ? t('settings.notificationsDenied') : undefined}
+        description={
+          needsInstall
+            ? undefined
+            : unsupported
+              ? t('settings.notificationsUnsupported')
+              : denied
+                ? t('settings.notificationsDenied')
+                : undefined
+        }
       >
+        {needsInstall && (
+          <SettingsLinkRow
+            label={t('settings.notificationsNeedInstall')}
+            hint={t('settings.notificationsNeedInstallHint')}
+            onClick={() => document.getElementById('settings-app')?.scrollIntoView({ block: 'start' })}
+          />
+        )}
         <SettingsRow label={t('settings.morningSummary')}>
           {dailyReminders.planTime && (
             <input
@@ -99,10 +134,33 @@ export function DailyRhythmSettings() {
             label={t('settings.recordPrompts')}
           />
         </SettingsRow>
+        <SettingsRow label={t('settings.wrapUpReminder')}>
+          {dailyReminders.wrapUpTime && (
+            <input
+              type="time"
+              value={dailyReminders.wrapUpTime}
+              onChange={(e) => e.target.value && setDailyReminders({ wrapUpTime: e.target.value })}
+              aria-label={t('settings.wrapUpReminder')}
+              className={selectClass}
+            />
+          )}
+          <Switch
+            checked={Boolean(dailyReminders.wrapUpTime)}
+            disabled={off}
+            onChange={(on) =>
+              on ? void turnOn(() => setDailyReminders({ wrapUpTime: DEFAULT_WRAP_UP_TIME })) : setDailyReminders({ wrapUpTime: null })
+            }
+            label={t('settings.wrapUpReminder')}
+          />
+        </SettingsRow>
       </SettingsGroup>
 
       <SettingsGroup id="settings-planning" title={t('settings.planningTitle')}>
-        <SettingsRow label={t('settings.dailyCapacity')} htmlFor="daily-capacity">
+        <SettingsRow
+          label={t('settings.dailyCapacity')}
+          htmlFor="daily-capacity"
+          help={recent ? t('settings.dailyCapacityRecent', { time: formatDuration(recent.average), count: recent.days }) : undefined}
+        >
           <select
             id="daily-capacity"
             value={Math.round(dailyCapacityMinutes / 60)}

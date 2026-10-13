@@ -2,9 +2,10 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { displayListName } from '../lib/displayListName'
-import type { Priority, Task } from '../types/task'
+import { isLogTask, type Priority, type Task } from '../types/task'
 import { toastTitle } from '../lib/undoWindow'
 import { UNSCHEDULE_PATCH } from '../lib/calendarItemDrag'
+import { colorLabelText } from '../lib/todoColorLabels'
 
 /**
  * タスクをまとめて操作する（右クリックメニュー・キー操作・選択中の操作で共通）。
@@ -59,6 +60,26 @@ export function useBulkTaskActions() {
       setPriority: (all: string[], priority: Priority) => {
         const ids = changing(all, (x) => x.priority !== priority)
         bulkUpdateTasks(ids, { priority }, many(ids, t('undo.prioritySet', { count: ids.length, label: t(`common.${priority}`) })))
+      },
+      /**
+       * 色ラベルを付け替える（ナビの色ラベルに落としたときと同じく色だけ。null はラベルを外す）。記録は対象外。
+       * ラベルで絞った一覧では行が消えるので 1 件でも出す
+       */
+      setLabel: (all: string[], hex: string | null) => {
+        const h = hex?.toUpperCase() ?? null
+        const ids = changing(all, (x) => !isLogTask(x) && (x.color?.toUpperCase() ?? null) !== h)
+        if (ids.length === 0) return
+        const { tasks, timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
+        const title = toastTitle(tasks.find((x) => x.id === ids[0])?.title ?? '')
+        const name = h ? colorLabelText(h, timeLogTagPresets, logCategoryColors, t) : ''
+        const label = h
+          ? ids.length === 1
+            ? t('undo.labelSetOne', { title, name })
+            : t('undo.labelSet', { count: ids.length, name })
+          : ids.length === 1
+            ? t('undo.labelClearedOne', { title })
+            : t('undo.labelCleared', { count: ids.length })
+        bulkUpdateTasks(ids, { color: h }, label)
       },
       moveToSection: (all: string[], sectionId: string | null, name: string) => {
         const ids = changing(all, (x) => (x.sectionId ?? null) !== sectionId)

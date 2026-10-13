@@ -12,6 +12,8 @@ import { LogTimeFields } from './detail/LogTimeFields'
 import { TaskTagsField } from './detail/TaskTagsField'
 import { TaskColorSectionFields } from './detail/TaskColorSectionFields'
 import { SubtasksField } from './detail/SubtasksField'
+import { SeriesScopeField } from './detail/SeriesScopeField'
+import { deleteTaskAsking } from '../lib/seriesScope'
 
 /**
  * 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる）。
@@ -30,20 +32,20 @@ export function TaskDetail({
 }) {
   const { t } = useTranslation()
   const isLog = isLogTask(task)
-  const deleteTask = useTaskStore((s) => s.deleteTask)
   const lists = useTaskStore((s) => s.lists)
   // いつか・チェックリストには締切や予定を付けない（付けると期限のビューに戻ってきてしまう）
   const listKind = lists.find((l) => l.id === task.listId)?.kind ?? 'tasks'
   const plannable = listKind === 'tasks'
 
-  // ゴミ箱行き + ⌘Z で戻せるので、一覧の削除と同じく確認は出さない（記録も同じ）
+  // ゴミ箱行き + ⌘Z で戻せるので、一覧の削除と同じく確認は出さない（記録も同じ）。毎週の予定だけは範囲を聞く
   const handleDelete = () => {
-    deleteTask(task.id)
-    onClose()
+    void deleteTaskAsking(task.id).then((ok) => ok && onClose())
   }
 
   const detailBody = (
     <div className="p-6 space-y-6">
+      {/* 毎週の予定: ここで選んだ範囲（この予定のみ / 以降すべて / すべて）に、下の欄の変更を当てる */}
+      <SeriesScopeField task={task} />
       <TaskTitleField task={task} onClose={onClose} />
       <TaskMemoField task={task} isLog={isLog} />
       <TaskLocationField task={task} />

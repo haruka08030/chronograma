@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js'
 import {
   handleGoogleOAuthCallback,
   hasGoogleOAuthCallbackInUrl,
@@ -10,13 +10,18 @@ import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
-import { getSupabase, isSupabaseConfigured, signOutThisDevice } from '../lib/supabase'
+import {
+  AUTH_TOKEN_KEY,
+  getSupabase,
+  isSupabaseConfigured,
+  loadSupabase,
+  needsSupabaseAtStart,
+  onSupabaseLoaded,
+  signOutThisDevice,
+} from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { clearLocalAccountState } from '../lib/accountBoundary'
-import { clearAutoBackups } from '../lib/autoBackup'
+import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
-import { clearBaseline } from '../lib/syncMerge'
-import { clearSettingSyncedAt } from '../lib/settingSync'
 import { detachWebPush } from '../lib/webPush'
 
 export type AuthContextValue = {
@@ -100,10 +105,44 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
 
 /** 最後にログインしていた人。SIGNED_OUT のときはもうセッションが無いので、控えの持ち主はここから取る */
 let lastUserId: string | null = null
+/** 最後のアクセストークン。SIGNED_OUT の後に、アカウントがまだあるかをこれで聞く */
+let lastAccessToken: string | null = null
+/** セッションのあるイベントの数。アカウントがあるかを聞いている間にログインし直したら、前の片付けはしない */
+let sessionSeq = 0
+
+/**
+ * ログアウトした（他のタブ・期限切れを含む）ときの片付け。別の端末でアカウントを消されると、この端末はトークンを更新できず
+ * ここに来る。そのときは最後のアクセストークン（更新の少し前なのでまだ使える）で聞き、アカウントがもう無ければ控えを取らずに消す
+ */
+async function onSignedOut(sb: SupabaseClient): Promise<void> {
+  const userId = lastUserId
+  const token = lastAccessToken
+  const seq = sessionSeq
+  // 聞くのは 1 回だけ。ログアウトした後のトークンで聞くと auth-js がもう一度 SIGNED_OUT を出すことがあり、繰り返さないように
+  lastAccessToken = null
+  if (userId && token && (await isAccountGone(sb, token))) {
+    if (seq !== sessionSeq) return
+    await clearDeletedAccount(userId)
+  }
+  if (seq !== sessionSeq) return
+  clearLocalAccountState(userId)
+}
+
+/** ログインを始めるときに Supabase を読む。読めなければ（オフラインなど）画面に出すエラー */
+async function loadClient(): Promise<SupabaseClient | { error: string }> {
+  try {
+    const sb = getSupabase() ?? (await loadSupabase())
+    return sb ?? { error: 'Supabase が設定されていません' }
+  } catch (err) {
+    console.error('Failed to load Supabase:', err)
+    return { error: i18n.t('account.networkError') }
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(isSupabaseConfigured)
+  // ログインしていない（セッションが保存されていない）人は Supabase を読まないので、待つものも無い
+  const [loading, setLoading] = useState(() => getSupabase() !== null || needsSupabaseAtStart())
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -111,36 +150,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ログイン用リンクが使えなかった（期限切れ・使用済み）。理由はアカウント欄に出す
     if (pendingAuthLinkError()) useTaskStore.getState().openSettingsWithScroll('account')
 
-    const sb = getSupabase()
-    if (!sb) return
+    let unsubscribe: (() => void) | null = null
+    /** 読み込んだクライアントのセッションを読み、変化を受ける（起動時・ログインを始めたとき・ほかのタブでログインしたとき） */
+    const attach = (sb: SupabaseClient) => {
+      if (unsubscribe) return
+      sb.auth
+        .getSession()
+        .then(({ data: { session: s } }) => {
+          if (s) {
+            lastUserId = s.user.id
+            lastAccessToken = s.access_token
+            sessionSeq++
+          }
+          setSession(s)
+          if (s) {
+            enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to get session:', err)
+        })
+        .finally(() => {
+          setLoading(false)
+        })
 
-    sb.auth
-      .getSession()
-      .then(({ data: { session: s } }) => {
-        if (s) lastUserId = s.user.id
+      const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
         setSession(s)
         if (s) {
-          enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
+          lastUserId = s.user.id
+          lastAccessToken = s.access_token
+          sessionSeq++
         }
+
+        if (s && GOOGLE_AUTH_EVENTS.has(event)) {
+          enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
+        }
+
+        if (event === 'SIGNED_OUT') void onSignedOut(sb)
       })
-      .catch((err) => {
-        console.error('Failed to get session:', err)
-      })
-      .finally(() => {
+      unsubscribe = () => sub.subscription.unsubscribe()
+    }
+
+    const sb = getSupabase()
+    const stopListening = onSupabaseLoaded(attach)
+    if (!sb && needsSupabaseAtStart()) {
+      loadSupabase().catch((err: unknown) => {
+        console.error('Failed to load Supabase:', err)
         setLoading(false)
       })
-
-    const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
-      setSession(s)
-      if (s) lastUserId = s.user.id
-
-      if (s && GOOGLE_AUTH_EVENTS.has(event)) {
-        enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
-      }
-
-      if (event === 'SIGNED_OUT') clearLocalAccountState(lastUserId)
-    })
-    return () => sub.subscription.unsubscribe()
+    } else if (sb) attach(sb)
+    // ほかのタブでログインした（まだ Supabase を読んでいないこのタブにはイベントが届かない）。読んで同じセッションに入る
+    const onStorage = (e: StorageEvent) => {
+      if (e.key && e.newValue && AUTH_TOKEN_KEY.test(e.key)) void loadSupabase().catch(() => {})
+    }
+    window.addEventListener('storage', onStorage)
+    return () => {
+      stopListening()
+      window.removeEventListener('storage', onStorage)
+      unsubscribe?.()
+    }
   }, [])
 
   // エラーの報告はログイン中の人として送る（ログアウトしたら送らない）
@@ -153,8 +221,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       loading,
       signInWithOtp: async (email: string) => {
-        const sb = getSupabase()
-        if (!sb) return { error: 'Supabase が設定されていません' }
+        const sb = await loadClient()
+        if ('error' in sb) return sb
         try {
           const { error } = await sb.auth.signInWithOtp({
             email: email.trim(),
@@ -181,8 +249,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ホーム画面に追加した PWA ではメールのリンクが Safari 側で開き、
       // セッションが PWA に渡らない。メール内のコードをアプリ内で入力して検証する。
       verifyEmailOtp: async (email: string, token: string) => {
-        const sb = getSupabase()
-        if (!sb) return { error: 'Supabase が設定されていません' }
+        const sb = await loadClient()
+        if ('error' in sb) return sb
         try {
           const { error } = await sb.auth.verifyOtp({
             email: email.trim(),
@@ -199,8 +267,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       signInWithGoogle: async () => {
-        const sb = getSupabase()
-        if (!sb) return { error: 'Supabase が設定されていません' }
+        const sb = await loadClient()
+        if ('error' in sb) return sb
         // 戻りが失敗（キャンセルなど）だったとき、メールのリンクの失敗と区別して出すため
         markOAuthSignInStarted()
         const { error } = await sb.auth.signInWithOAuth({
@@ -244,11 +312,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const message = err instanceof Error ? err.message : ''
           return { error: i18n.t(isNetworkErrorMessage(message) ? 'account.networkError' : 'account.deleteFailed') }
         }
-        // 消したデータの控えは残さない（clearLocalAccountState より先に空にする）
-        useTaskStore.getState().resetLocalData()
-        clearBaseline(userId)
-        clearSettingSyncedAt(userId)
-        await clearAutoBackups(userId)
+        // 消したデータの控えは残さない（clearLocalAccountState より先に空にする。別の端末で消されたときと同じ片付け）
+        await clearDeletedAccount(userId)
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)
         setSession(null)

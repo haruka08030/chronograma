@@ -39,9 +39,10 @@ select is(
   (select zones from public.user_extra_time_zones), '[{"tz":"Europe/London","label":""}]'::jsonb,
   '行があるのに -infinity をもとにした書き込みは捨てる');
 
--- 版を送らない古い書き込み（前の版のアプリ）は捨てる
-update public.user_settings set log_labels = '[]', updated_at = '2010-01-01T00:00:00Z';
-select is((select log_labels from public.user_settings), '[{"name":"v1"}]'::jsonb, '版なしで古い書き込みは捨てる');
+-- 版を送らない書き込み（下限より古い版のアプリ）は断る（017）
+select throws_ok(
+  $$update public.user_settings set log_labels = '[]', updated_at = '2999-01-01T00:00:00Z'$$,
+  'P0001', null, '版なしの書き込みは断る');
 reset role;
 
 select * from finish();

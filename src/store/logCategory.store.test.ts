@@ -105,6 +105,41 @@ describe('記録の分類（category）', () => {
   })
 })
 
+describe('ラベルの週の目安（#291）', () => {
+  const reset = () =>
+    useTaskStore.setState({
+      tasks: [],
+      timeLogTagPresets: ['勉強', 'ES'],
+      logCategoryColors: { 勉強: 'sage', ES: 'tomato' },
+      logLabelTargets: {},
+      logLabelsUpdatedAt: null,
+    })
+
+  it('付ける・外すとラベル表の時刻が付き、⌘Z で戻る', () => {
+    reset()
+    useTaskStore.getState().saveLogLabels([
+      { from: '勉強', name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
+      { from: 'ES', name: 'ES', color: 'tomato', weeklyTargetMinutes: null },
+    ])
+    expect(useTaskStore.getState().logLabelTargets).toEqual({ 勉強: 900 })
+    expect(useTaskStore.getState().logLabelsUpdatedAt).not.toBeNull()
+    useTaskStore.getState().saveLogLabels([
+      { from: '勉強', name: '勉強', color: 'sage', weeklyTargetMinutes: null },
+      { from: 'ES', name: 'ES', color: 'tomato', weeklyTargetMinutes: 300 },
+    ])
+    expect(useTaskStore.getState().logLabelTargets).toEqual({ ES: 300 })
+    useTaskStore.getState().undoLastOperation()
+    expect(useTaskStore.getState().logLabelTargets).toEqual({ 勉強: 900 })
+  })
+
+  it('目安を扱わない保存（色ラベルのカード）では、名前を変えても目安がついていき、消したラベルの目安は残らない', () => {
+    reset()
+    useTaskStore.setState({ logLabelTargets: { 勉強: 900, ES: 300 } })
+    useTaskStore.getState().saveLogLabels([{ from: '勉強', name: 'Study', color: 'sage' }])
+    expect(useTaskStore.getState().logLabelTargets).toEqual({ Study: 900 })
+  })
+})
+
 describe('止めた直後の「ラベルは？」', () => {
   const stopAfter = (title: string, tags: string[]) => {
     useTaskStore.setState({ tasks: [], activeTimer: null, labelPromptLogId: null, completePromptTaskId: null })

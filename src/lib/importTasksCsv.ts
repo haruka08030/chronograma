@@ -27,6 +27,7 @@ const HEADER_ALIASES: Record<string, keyof CsvTaskDraft | 'ignore'> = {
   duedate: 'dueDate',
   date: 'dueDate',
   期限: 'dueDate',
+  日付: 'dueDate',
   締切: 'dueDate',
   期日: 'dueDate',
   list: 'listName',

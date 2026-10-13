@@ -27,16 +27,16 @@ select is((select count(*) from public.user_settings), 0::bigint, 'A は B の u
 select is((select count(*) from public.sync_tombstones), 0::bigint, 'A は B の sync_tombstones を読めない');
 
 select throws_ok(
-  $$insert into public.lists (user_id, id, name) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by A')$$,
+  $$insert into public.lists (user_id, id, name, base_updated_at) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by A', '-infinity')$$,
   '42501', null, 'A は B の lists に入れられない');
 select throws_ok(
-  $$insert into public.tasks (user_id, id, list_id, title) values ('00000000-0000-4000-8000-00000000000b', 'x', 'l1', 'by A')$$,
+  $$insert into public.tasks (user_id, id, list_id, title, base_updated_at) values ('00000000-0000-4000-8000-00000000000b', 'x', 'l1', 'by A', '-infinity')$$,
   '42501', null, 'A は B の tasks に入れられない');
 select throws_ok(
-  $$insert into public.habits (user_id, id, title) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by A')$$,
+  $$insert into public.habits (user_id, id, title, base_updated_at) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by A', '-infinity')$$,
   '42501', null, 'A は B の habits に入れられない');
 select throws_ok(
-  $$insert into public.user_settings (user_id) values ('00000000-0000-4000-8000-00000000000b')$$,
+  $$insert into public.user_settings (user_id, base_updated_at) values ('00000000-0000-4000-8000-00000000000b', '-infinity')$$,
   '42501', null, 'A は B の user_settings に入れられない');
 
 -- 見えない行の更新・削除は 0 行（エラーにはならない）。後で B の行が変わっていないことを確かめる
@@ -50,7 +50,7 @@ select lives_ok($$delete from public.user_settings where user_id = '00000000-000
 
 -- 本人の行は書ける・読める
 select lives_ok(
-  $$insert into public.lists (user_id, id, name) values ('00000000-0000-4000-8000-00000000000a', 'l1', 'A list')$$,
+  $$insert into public.lists (user_id, id, name, base_updated_at) values ('00000000-0000-4000-8000-00000000000a', 'l1', 'A list', '-infinity')$$,
   'A は自分の lists に入れられる');
 select is((select name from public.lists), 'A list', 'A に見えるのは自分の行だけ');
 
@@ -70,7 +70,7 @@ select is((select count(*) from public.habits), 0::bigint, 'anon は habits を�
 select is((select count(*) from public.user_settings), 0::bigint, 'anon は user_settings を読めない');
 select is((select count(*) from public.sync_tombstones), 0::bigint, 'anon は sync_tombstones を読めない');
 select throws_ok(
-  $$insert into public.lists (user_id, id, name) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by anon')$$,
+  $$insert into public.lists (user_id, id, name, base_updated_at) values ('00000000-0000-4000-8000-00000000000b', 'x', 'by anon', '-infinity')$$,
   '42501', null, 'anon は lists に入れられない');
 reset role;
 

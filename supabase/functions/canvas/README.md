@@ -17,12 +17,14 @@ Several schools can be connected; all their assignments go into one "Canvas" lis
 
 ## Which hosts it will call
 
-The token is sent only to the school's own origin, so the function refuses internal destinations (`host.ts`):
+The token is sent only to the school's own origin, so the function refuses internal destinations (`host.ts`, `../_shared/pinnedFetch.ts`):
 
 - `parseBaseUrl` accepts only `https://` domain names: no IPs, ports, user info, or internal names (`localhost`, `.local`, `.internal`, single-label names…).
-- Before every request, `assertPublicHost` resolves the name (A / AAAA) and refuses loopback, private, link-local (cloud metadata), CGNAT, multicast and other reserved addresses, including IPv4 written inside IPv6 (`::ffff:`, NAT64, 6to4). Results are cached for 30 seconds only, so pointing the name at an internal address later doesn't slip through for long.
+- Every request goes through `pinnedFetch` (`../_shared/pinnedFetch.ts`). It resolves the name (A / AAAA) once, refuses the host if any address is loopback, private, link-local (cloud metadata), CGNAT, multicast or otherwise reserved, including IPv4 written inside IPv6 (`::ffff:`, NAT64, 6to4) (`../_shared/address.ts`), and then connects to that checked address itself (`Deno.connect`), opening TLS with the school's name (`Deno.startTls`, so the certificate is still checked) and sending one HTTP/1.1 request (`Connection: close`). Nothing is cached and `fetch` is not used, so pointing the name at an internal address after the check (DNS rebinding) can't redirect the connection. (`Deno.createHttpClient` with a `tcp` proxy can pin the address too, but it sends plain HTTP without TLS.)
 - If the runtime has no `Deno.resolveDns`, no school site is called (`canvas_api`, logged as `Deno.resolveDns is unavailable`).
-- Redirects are not followed automatically; a feed follows at most 3 hops, each checked the same way.
+- Redirects are never followed by `pinnedFetch`; a feed follows at most 3 hops itself, each one an `https://` domain name (`parseBaseUrl`) that is resolved, checked and pinned the same way.
+- Each request has a 30-second limit (connect, send and read the body); revoking a token on disconnect has 5 seconds.
+- The account deletion function (`../account`) revokes Canvas tokens through the same `pinnedFetch`.
 
 ## Calendar feed (schools that don't allow tokens)
 
@@ -30,6 +32,17 @@ Some schools (e.g. UC Santa Cruz) disable personal access tokens. Those users pa
 (Canvas → Calendar → "Calendar Feed", `https://<school>/feeds/calendars/user_….ics`), stored as `kind = 'ical'` in `feed_url`.
 The feed is read-only: `ical.ts` reads assignments (`event-assignment-*`, ids from the `#assignment_<id>` URL fragment so they match the token connection) due from yesterday to 120 days ahead; past assignments are not imported because the feed doesn't say whether they were submitted.
 `complete` is a no-op for these connections, and `items` marks them `readOnly`.
+
+## Moodle calendar export
+
+Moodle schools connect the same way (`kind = 'ical'`), with the URL from Calendar → "Export calendar" → "Get calendar URL"
+(`https://<school>[/<subpath>]/calendar/export_execute.php?userid=…&authtoken=…`). `feedUrl.ts` decides Canvas vs Moodle from the URL shape
+(the settings screen uses the same check) and rewrites a Moodle URL to keep only `userid` / `authtoken` with `preset_what=all&preset_time=recentupcoming`,
+so a "this week" export can't make in-window assignments look deleted. `moodle.ts` reads course events (`CATEGORIES` = course short name, used as the tag)
+with zero length (`DTEND` equal to `DTSTART` or missing; old Moodle writes them as one-day `VALUE=DATE` events, read as all-day deadlines);
+events with a duration (classes), without a course (personal/site events) or titled "… opens" / "… 開始" are skipped. The task id is the Moodle event id from `UID: <id>@<site>`.
+UTC times become `dueAt`; times with a non-UTC `TZID` or floating times come back as `dueWall: { date, time, timeZone }` and the app converts them with its time-zone helpers
+(a floating time or an unknown `TZID` is read in the app's time zone). `status` returns `lms: 'moodle'` for these connections.
 
 ## Keeping the token alive
 
@@ -43,9 +56,9 @@ One connection per school; `connectionId` is the Canvas hostname (`xxx.instructu
 
 | action | body | returns |
 |--------|------|---------|
-| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, `{ "token": "…", "connectionId": "…" }` to replace only that school's token, or `{ "feedUrl": "https://…/feeds/calendars/user_….ics" }` | `{ connections }` |
-| `status` | `{}` | `{ connections: [{ id, baseUrl, userName }] }` |
-| `items` | `{}` | `{ connections: [{ id, windowStart, windowEnd, items: [{ type, id, title, courseId, courseName, url, dueAt, done }] } \| { id, error }] }` — 30 days back to 120 days ahead; a school whose token expired comes back as `{ id, error }` without blocking the others |
+| `connect` | `{ "token": "…", "baseUrl": "xxx.instructure.com" }`, `{ "token": "…", "connectionId": "…" }` to replace only that school's token, or `{ "feedUrl": "https://…/feeds/calendars/user_….ics" }` / `{ "feedUrl": "https://…/calendar/export_execute.php?userid=…&authtoken=…" }` | `{ connections }` |
+| `status` | `{}` | `{ connections: [{ id, kind, lms, baseUrl, userName, expiresAt }] }` |
+| `items` | `{}` | `{ connections: [{ id, windowStart, windowEnd, items: [{ type, id, title, courseId, courseName, url, dueAt, dueDate?, dueWall?, done }] } \| { id, error }] }` — 30 days back to 120 days ahead; a school whose token expired comes back as `{ id, error }` without blocking the others |
 | `complete` | `{ "connectionId": "…", "type": "assignment", "id": "123", "complete": true }` | `{ ok: true }` |
 | `disconnect` | `{ "connectionId": "…" }` | `{ connections }` |
 

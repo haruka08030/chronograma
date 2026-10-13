@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
-import { colorVars, recordHex } from '../../lib/logCategoryColors'
+import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
+import { CourseAssignments } from './CourseAssignments'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
@@ -26,13 +27,16 @@ import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
 import { CardTimeRange } from './CardTimeRange'
+import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
+import { deleteTaskAsking } from '../../lib/seriesScope'
+import { SeriesScopeField, SeriesSummary } from '../detail/SeriesScopeField'
 
 const WIDTH = 320
 
 /**
  * タイムラインの予定・記録を押したときの小さなカード（Google カレンダーのイベントカード相当）。
  * よく使う操作（完了・記録開始・削除）はここで済ませ、細かい編集だけ「詳細」へ。予定（完了の無いもの）には完了を出さない。
- * キー: Esc 閉じる / e 詳細 / Delete・Backspace 削除
+ * キー: Esc 閉じる / e 詳細 / Delete・Backspace 削除 / Alt+↑↓ 15 分ずつ動かす / Alt+Shift+↑↓ 終わりを伸び縮み
  */
 export function EventPopover({
   taskId,
@@ -46,7 +50,6 @@ export function EventPopover({
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId) ?? null)
-  const deleteTask = useTaskStore((s) => s.deleteTask)
   const ref = useRef<HTMLDivElement>(null)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
@@ -55,11 +58,16 @@ export function EventPopover({
   useHotkey(
     SHORTCUTS.delete.hotkeys,
     () => {
-      deleteTask(taskId)
-      onClose()
+      // 毎週の予定は範囲を聞いてから（取消ならカードは開いたまま）
+      void deleteTaskAsking(taskId).then((ok) => ok && onClose())
     },
     { scope: layer },
   )
+
+  // カードを開いたまま Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（時刻の欄で打ち直さずに）
+  useHotkey([...SHORTCUTS.nudgeBlock.hotkeys, ...SHORTCUTS.resizeBlock.hotkeys], (e) => void nudgeBlockByKey(taskId, e), {
+    scope: layer,
+  })
 
   useEffect(() => {
     ref.current?.focus()
@@ -86,9 +94,9 @@ function EventPopoverBody({
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
-  const deleteTask = useTaskStore((s) => s.deleteTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
   const { tv, updateTimes } = useTaskTimes(task)
@@ -145,10 +153,7 @@ function EventPopoverBody({
         </button>
         <button
           type="button"
-          onClick={() => {
-            deleteTask(task.id)
-            onClose()
-          }}
+          onClick={() => void deleteTaskAsking(task.id).then((ok) => ok && onClose())}
           className={iconButtonClass()}
           aria-label={t('common.delete')}
           {...shortcutTip(t('common.delete'), 'delete')}
@@ -195,6 +200,12 @@ function EventPopoverBody({
             </p>
           )}
         </div>
+        {isEvent && task.series && (
+          <>
+            <span />
+            <SeriesSummary series={task.series} />
+          </>
+        )}
         <span />
         <p className={META_TEXT}>{isLog ? t('eventCard.log') : list ? displayListName(list.id, list.name) : ''}</p>
         {memo && (
@@ -205,10 +216,20 @@ function EventPopoverBody({
         )}
       </div>
 
-      {/* 記録は色＝分類、予定は色だけ（既定はリストの色） */}
-      <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+      {/* 記録は色＝分類、予定は色だけ（既定はリストの色）。毎週の予定は、時刻・色を直す範囲をここで選ぶ */}
+      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+        <SeriesScopeField task={task} />
         <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} plan={!isLog} />
       </div>
+
+      {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
+      {isEvent && task.startTime && (
+        <CourseAssignments
+          title={task.title}
+          labelName={labelForHex(task.color, timeLogTagPresets, logCategoryColors)}
+          onOpenTask={onOpenDetail}
+        />
+      )}
 
       {!isLog && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">

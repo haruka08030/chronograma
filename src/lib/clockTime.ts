@@ -39,6 +39,17 @@ export function endKeepingLength(startTime: string, endTime: string, nextStart: 
   return minutesToTime(Math.min(n + dur, 1439))
 }
 
+/**
+ * 開始から長さぶん後の終わり（予定は日をまたげないので、越える分は 23:59 で止める）。
+ * 開始が 23:59 なら翌 0:00（予定は 0:00 終わりだけ翌日まで続く）。不正なら空文字
+ */
+export function endWithinDay(startTime: string, lengthMinutes: number): string {
+  const s = toMinutes(startTime)
+  if (s === null) return ''
+  if (s >= 1439) return '00:00'
+  return minutesToTime(Math.min(s + Math.max(lengthMinutes, 1), 1439))
+}
+
 /** `HH:MM` に分を足した `HH:MM`（24h で折り返し）。不正なら空文字。 */
 export function addClockMinutes(hhmm: string, deltaMinutes: number): string {
   const base = toMinutes(hhmm)

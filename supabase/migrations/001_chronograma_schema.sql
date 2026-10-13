@@ -186,9 +186,10 @@ create table if not exists public.push_subscriptions (
   timer_title            text,
   timer_notified_for     timestamptz,
 
-  -- 使わなくなった列（夕方の締め・前の版の送った印）。古い版のアプリが送っても失敗しないよう残す
+  -- 夜の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回）
   wrap_up_time           text check (wrap_up_time is null or wrap_up_time ~ '^\d{2}:\d{2}$'),
   last_wrap_up_sent      date,
+  -- 使わなくなった列（前の版の送った印）。古い版のアプリが送っても失敗しないよう残す
   event_notified         jsonb,
   due_notified           jsonb,
 

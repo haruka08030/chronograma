@@ -1,4 +1,5 @@
 import { isLogTask, type Task } from '../types/task'
+import { compareByOrder } from './orderCompare'
 
 /** ルートタスクを深さ 0 とする。子は +1（最大チェーンは 5 レベル = 深さ 0..4） */
 export const MAX_TASK_TREE_DEPTH = 4
@@ -51,7 +52,7 @@ export function getIndentTargetId(tasks: Task[], taskId: string): string | null 
       ? tasks.filter((t) => t.parentId == null && t.listId === task.listId && t.sectionId === task.sectionId && isVisibleForIndent(t))
       : tasks.filter((t) => t.parentId === task.parentId && isVisibleForIndent(t))
 
-  const ordered = siblings.sort((a, b) => a.order - b.order).map((t) => t.id)
+  const ordered = siblings.sort(compareByOrder).map((t) => t.id)
   const idx = ordered.indexOf(taskId)
   if (idx <= 0) return null
   const prevId = ordered[idx - 1]

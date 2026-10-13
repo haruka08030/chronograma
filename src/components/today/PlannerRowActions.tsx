@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
-import { openTaskMenu } from '../../lib/overlays'
+import { openTimeSlotUnderRow } from '../../lib/timeSlotTarget'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { ArrowRightIcon, CalendarArrowIcon, ClockIcon, PlayIcon } from '../icons'
 import { RowActionButton } from '../ui/RowActionButton'
@@ -10,15 +10,7 @@ import { RowActionButton } from '../ui/RowActionButton'
 export function SetTimeButton({ task, dateKey }: { task: Task; dateKey: string }) {
   const { t } = useTranslation()
   return (
-    <RowActionButton
-      label={t('timeSlot.title')}
-      onClick={() => {
-        const r = document.querySelector(`[data-task-row="${CSS.escape(task.id)}"]`)?.getBoundingClientRect()
-        openTaskMenu({ kind: 'timeSlot', x: r ? r.right - 288 : 0, y: r ? r.bottom + 4 : 0, taskId: task.id, dateKey })
-      }}
-      collapse
-      mouseOnly
-    >
+    <RowActionButton label={t('timeSlot.title')} onClick={() => openTimeSlotUnderRow(task.id, dateKey)} collapse mouseOnly>
       <ClockIcon className="h-3.5 w-3.5" />
     </RowActionButton>
   )

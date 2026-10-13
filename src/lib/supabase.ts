@@ -1,4 +1,10 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/*
+ * Supabase のつなぎ口。`@supabase/supabase-js`（約 186 kB）はログインしている人・ログインしようとしている人の分だけ
+ * `loadSupabase()` で後から読む（#268）。端末だけに保存する人は読まない。
+ * 読むのは: ログインのセッションが保存されている・ログインの戻り（URL のハッシュ）・ログインを始めた・ほかのタブでログインした とき
+ */
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -6,19 +12,73 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 export const isSupabaseConfigured = Boolean(url && anonKey)
 
 let client: SupabaseClient | null = null
+let loading: Promise<SupabaseClient | null> | null = null
+const loadedListeners = new Set<(sb: SupabaseClient) => void>()
 
+/** 読み込み済みのクライアント。まだ読んでいない（ログインしていない）・設定が無いときは null */
 export function getSupabase(): SupabaseClient | null {
-  if (!isSupabaseConfigured || !url || !anonKey) return null
-  if (!client) {
-    client = createClient(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  }
   return client
+}
+
+/** クライアントを読み込む（読み込み済みならそれ）。設定が無ければ null */
+export function loadSupabase(): Promise<SupabaseClient | null> {
+  if (!isSupabaseConfigured || !url || !anonKey) return Promise.resolve(null)
+  if (client) return Promise.resolve(client)
+  loading ??= import('@supabase/supabase-js').then(
+    ({ createClient }) => {
+      client ??= createClient(url, anonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+      for (const cb of [...loadedListeners]) cb(client)
+      return client
+    },
+    (err: unknown) => {
+      // 読み込めなかった（オフラインなど）。次に呼ばれたときに読み直す
+      loading = null
+      throw err
+    },
+  )
+  return loading
+}
+
+/** クライアントを読み込んだら呼ぶ（読み込み済みならすぐ）。返した関数でやめる */
+export function onSupabaseLoaded(cb: (sb: SupabaseClient) => void): () => void {
+  if (client) cb(client)
+  loadedListeners.add(cb)
+  return () => {
+    loadedListeners.delete(cb)
+  }
+}
+
+/** Supabase がログインのセッションを保存する localStorage のキー（`sb-<ref>-auth-token`） */
+export const AUTH_TOKEN_KEY = /^sb-.+-auth-token$/
+
+/** この端末にログインのセッションが保存されているか（Supabase を読まずに見る） */
+export function hasStoredSession(): boolean {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && AUTH_TOKEN_KEY.test(key)) return true
+    }
+  } catch {
+    /* 保存領域が使えなければセッションも無い */
+  }
+  return false
+}
+
+/** ログイン（メールのリンク・Google）から戻ってきた URL か。Supabase がハッシュからセッションを読む */
+export function isAuthRedirect(hash: string = typeof window === 'undefined' ? '' : window.location.hash): boolean {
+  const params = new URLSearchParams(hash.replace(/^#/, ''))
+  return params.has('access_token') || params.has('refresh_token')
+}
+
+/** 起動したときに Supabase を読むか（ログインしている・ログインから戻ってきた） */
+export function needsSupabaseAtStart(): boolean {
+  return isSupabaseConfigured && (hasStoredSession() || isAuthRedirect())
 }
 
 /**

@@ -1,19 +1,25 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { requestPermission } from '../../lib/notifications'
 import { buttonClass } from '../ui/buttonClass'
 import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
+import { DayMoodPicker } from './DayMood'
 
 /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
 const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
 const textButton = buttonClass({ variant: 'link', size: 'xs' })
 
 /**
- * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける）と、通知をすすめる 1 行
+ * 今日の計画の下: 「1 日を締める」（残りを明日へ・ラベルなしの記録に分類を付ける・その日の気分とひとこと）と、通知をすすめる 1 行。
+ * 夜の締めの通知から開いたとき（`focusKey` が 1 以上）はここまでスクロールし、することが無ければそう書く
  */
 export function PlannerWrapUp({
   showWrapUp,
+  showMood = false,
+  dateKey,
+  focusKey = 0,
   open,
   untaggedLogs,
   totalCount,
@@ -21,6 +27,12 @@ export function PlannerWrapUp({
   openDetail,
 }: {
   showWrapUp: boolean
+  /** 気分の記号の行を出すか（今日の締めの時刻から。残りが無い日も出す） */
+  showMood?: boolean
+  /** 見ている日（気分を付ける日） */
+  dateKey: string
+  /** 夜の締めの通知から開いた回数（増えるたびにここまでスクロールする） */
+  focusKey?: number
   open: Task[]
   untaggedLogs: Task[]
   totalCount: number
@@ -32,18 +44,28 @@ export function PlannerWrapUp({
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const enableRecommendedNotifications = useTaskStore((s) => s.enableRecommendedNotifications)
   const anyNotification = useTaskStore(
-    (s) => Boolean(s.dailyReminders.planTime) || s.eventReminderMinutes != null || s.notificationsEnabled || s.recordPrompts,
+    (s) =>
+      Boolean(s.dailyReminders.planTime || s.dailyReminders.wrapUpTime) ||
+      s.eventReminderMinutes != null ||
+      s.notificationsEnabled ||
+      s.recordPrompts,
   )
   const dismissReminderPrompt = useTaskStore((s) => s.dismissReminderPrompt)
   const onboardingNudge = useOnboardingNudge()
   const showReminderPrompt =
     totalCount > 0 &&
-    onboardingNudge !== 'recordPrompts' &&
+    // 案内のあとのカード（ログイン・通知など）を出している間は出さない（一度に 1 つだけ聞く）
+    onboardingNudge == null &&
     !reminderPromptDismissed &&
     !anyNotification &&
     typeof window !== 'undefined' &&
     'Notification' in window &&
     Notification.permission !== 'denied'
+
+  const footerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (focusKey > 0) footerRef.current?.scrollIntoView?.({ block: 'end' })
+  }, [focusKey])
 
   const enableReminders = async () => {
     const granted = await requestPermission()
@@ -52,7 +74,7 @@ export function PlannerWrapUp({
   }
 
   return (
-    <footer className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
+    <footer ref={footerRef} data-wrap-up className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
       {showWrapUp && (open.length > 0 || untaggedLogs.length > 0) && (
         <div className="space-y-2">
           {open.length > 0 && <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpRemaining', { count: open.length })}</p>}
@@ -79,6 +101,10 @@ export function PlannerWrapUp({
           </div>
         </div>
       )}
+      {showWrapUp && focusKey > 0 && open.length === 0 && untaggedLogs.length === 0 && (
+        <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpAllSet')}</p>
+      )}
+      {showMood && <DayMoodPicker dateKey={dateKey} />}
       {showReminderPrompt && (
         <p className="text-zinc-400 dark:text-zinc-500">
           {t('planner.reminderPromptShort')}{' '}

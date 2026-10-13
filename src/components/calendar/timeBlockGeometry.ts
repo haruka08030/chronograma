@@ -14,6 +14,8 @@ export type TimeBlockTask = {
   endDate?: string | null
   kind?: TaskKind
   parentId?: string | null
+  /** 日をまたぐ Google の予定の、その日の列に描く区間（'24:00' は日の終わり）。表示する時刻は予定全体のまま */
+  segment?: { startTime: string; endTime: string } | null
 }
 
 /** ごく短いブロックが見えなくならないための下限（px）。それ以上は実際の分数どおり */
@@ -29,9 +31,10 @@ export function blockGeometry(
   isLog: boolean,
 ): { top: number; height: number; span: number } {
   const seg = isLog && dayKey ? timeLogSegmentLayoutForDay(task as Task, dayKey) : null
-  const top = seg?.top ?? timeToY(task.startTime)
+  const clock = task.segment ?? task
+  const top = seg?.top ?? timeToY(clock.startTime)
   // 0:00 に終わる予定（23:00–0:00 など）はその日の終わりまで
-  const endY = task.endTime === '00:00' ? 24 * HOUR_HEIGHT : timeToY(task.endTime)
+  const endY = clock.endTime === '00:00' ? 24 * HOUR_HEIGHT : timeToY(clock.endTime)
   const span = seg?.span ?? Math.max(endY - top, 0)
   return { top, height: Math.max(span, MIN_BLOCK_PX), span }
 }

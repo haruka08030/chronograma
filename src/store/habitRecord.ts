@@ -22,7 +22,7 @@ export function completeHabitAsPlannedPatch(
   const habit = s.habits.find((h) => h.id === habitId)
   if (!habit) return null
   const index = buildHabitRecordIndex(s.tasks)
-  const times = plannedRecordTimes(habit)
+  const times = plannedRecordTimes(habit, dateKey)
   // その日に同じ名前の記録があれば（タイマーや手入力で記録済み）、それで判定するので新しく作らない
   const needsRecord = times !== null && !habitRecordFor(index, habit, dateKey)
   const alreadyChecked = habit.completedDates.includes(dateKey)

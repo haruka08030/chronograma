@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchLogLabels, pushLogLabels } from './supabaseData'
-import { planLabelSync, type LabelSyncPlan, type RemoteLabels } from './labelSync'
+import { pendingAddsAfterImport, planLabelSync, settledLabelAdds, type LabelSyncPlan, type RemoteLabels } from './labelSync'
 import { loadSettingSyncedAt, runSettingSync, settingSyncStep } from './settingSync'
 
 type SettingsRow = { user_id: string; log_labels: unknown; updated_at: string; base_updated_at?: string | null }
@@ -185,11 +185,12 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     // 1 回目は古い版をもとにしていて断られ、取り直した 2 回目は b の版をもとに送る（a の編集のほうが新しい）
     expect(plans).toHaveLength(2)
     expect(plans[1].push?.base).toBe(b.updatedAt)
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'A の追加'])
+    // 両方が足したラベルは名前ごとに合わせて両方残す（並びは新しいほう＝a が先）
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'A の追加', 'B の追加'])
     expect(a.updatedAt).toBe(rows.get('u1')!.updated_at)
   })
 
-  it('両方で変えて、ほかの端末の編集のほうが新しければ、断られた後にそちらに合わせる', async () => {
+  it('両方で変えて、ほかの端末の編集のほうが新しければ、断られた後にそちらの並びで両方のラベルを残す', async () => {
     const { client, rows } = fakeSettings()
     const a = device(REAL - 60_000, ['授業'])
     a.edit(['授業'])
@@ -204,30 +205,16 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
       interleaved = true
       await sync(client, b, 'b')
     })
-    expect(a.presets).toEqual(['授業', 'B の追加'])
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'B の追加'])
+    // 名前ごとに合わせて両方残す（並びは新しいほう＝b が先）
+    expect(a.presets).toEqual(['授業', 'B の追加', 'A の追加'])
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'B の追加', 'A の追加'])
   })
 
-  it('`007` を流す前の DB（base_updated_at 列が無い）には、前と同じ書き込みで送る', async () => {
+  it('版の列が無いと言われても、版を外して送り直さない（失敗として返す）', async () => {
     const { client, rows } = fakeSettings({ noBaseColumn: true })
-    const d = device(REAL, ['授業'])
-    d.edit(['授業', 'ジム'])
-    await sync(client, d, 'd')
-    expect(rows.get('u1')!.updated_at).toBe(d.updatedAt)
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['授業', 'ジム'])
-  })
-
-  it('行が無いはずの書き込みは、行が既にあれば上書きしない（同時に初めて作るとき・前の DB でも）', async () => {
-    const { client, rows } = fakeSettings({ noBaseColumn: true })
-    await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
-    const res = await pushLogLabels(
-      client,
-      'u1',
-      { labels: [{ name: 'B', color: '' }], updatedAt: new Date(REAL + 1000).toISOString() },
-      null,
-    )
-    expect(res).toEqual({ stale: true })
-    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(['A'])
+    const res = await pushLogLabels(client, 'u1', { labels: [{ name: 'A', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
+    expect(res).toMatchObject({ error: expect.stringContaining('base_updated_at') })
+    expect(rows.has('u1')).toBe(false)
   })
 
   it('サーバーに行が無いはずの書き込み（-infinity）は、ほかの端末が先に行を作っていれば断られる', async () => {
@@ -236,6 +223,28 @@ describe('設定（1 行）の同期: サーバーの時計で版を付ける (#
     expect('updatedAt' in res1).toBe(true)
     const res2 = await pushLogLabels(client, 'u1', { labels: [{ name: 'x', color: '' }], updatedAt: new Date(REAL).toISOString() }, null)
     expect(res2).toEqual({ stale: true })
+  })
+})
+
+describe('ラベル表を 2 台で別々に変えたとき（#261）', () => {
+  it('2 台で別々に足したラベルはどちらも残る', async () => {
+    const { client, rows } = fakeSettings()
+    const phone = device(REAL, ['授業'])
+    const pc = device(REAL, ['授業'])
+    phone.edit(['授業'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    phone.clock += 1000
+    pc.clock += 2000
+    phone.edit(['授業', 'ゼミ'])
+    pc.edit(['授業', 'バイト'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    await sync(client, phone, 'phone')
+    const names = (rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)
+    expect(names.sort()).toEqual(['ゼミ', 'バイト', '授業'].sort())
+    expect([...phone.presets].sort()).toEqual(names)
+    expect([...pc.presets].sort()).toEqual(names)
   })
 })
 
@@ -257,5 +266,83 @@ describe('settingSyncStep', () => {
   })
   it('サーバーに行が無ければ送る', () => {
     expect(settingSyncStep({ updatedAt: null, syncedAt: null }, null, false)).toEqual({ kind: 'push', base: null })
+  })
+})
+
+describe('取り込みで足したラベルは、ほかの端末のラベルの編集を上書きしない（#357）', () => {
+  /** 手元の表・取り込みで足した名前を持つ端末（useSupabaseSync と同じつなぎ方） */
+  function labelDevice(presets: string[]) {
+    return { presets, colors: {} as Record<string, string>, updatedAt: null as string | null, pending: [] as string[] }
+  }
+  type LabelDevice = ReturnType<typeof labelDevice>
+
+  async function syncLabels(sb: SupabaseClient, d: LabelDevice, deviceId: string) {
+    await runSettingSync<RemoteLabels, NonNullable<LabelSyncPlan['apply']>, NonNullable<LabelSyncPlan['push']>>(deviceId, {
+      key: 'labels',
+      fetch: () => fetchLogLabels(sb, 'u1'),
+      plan: (remote, syncedAt, offset) => {
+        const settled = settledLabelAdds(d.pending, d.presets, remote)
+        d.pending = d.pending.filter((n) => !settled.includes(n))
+        return planLabelSync(
+          { presets: d.presets, colors: d.colors, updatedAt: d.updatedAt, syncedAt, pendingAdds: d.pending },
+          remote,
+          new Date(REAL).toISOString(),
+          offset,
+        )
+      },
+      localUpdatedAt: () => d.updatedAt,
+      applyLocal: (a) => {
+        d.presets = a.presets
+        d.colors = a.colors
+        d.updatedAt = a.updatedAt
+      },
+      setLocalUpdatedAt: (at) => {
+        d.updatedAt = at
+      },
+      push: (p) => pushLogLabels(sb, 'u1', p, p.base),
+      onPushed: (p) => {
+        d.pending = d.pending.filter((n) => !p.labels.some((l) => l.name === n))
+      },
+    })
+  }
+
+  it('PC で名前・色を変えたあと、スマホで Notion がラベルを足しても PC の編集が残る', async () => {
+    const { client, rows } = fakeSettings()
+    const pc = labelDevice(['授業', 'バイト'])
+    const phone = labelDevice(['授業', 'バイト'])
+    pc.colors = { 授業: 'sage', バイト: 'peacock' }
+    phone.colors = { 授業: 'sage', バイト: 'peacock' }
+    pc.updatedAt = new Date(REAL).toISOString()
+    await syncLabels(client, pc, 'pc')
+    await syncLabels(client, phone, 'phone')
+    expect(phone.presets).toEqual(['授業', 'バイト'])
+
+    // PC: バイト → アルバイト、授業の色を変えて先頭へ
+    pc.presets = ['アルバイト', '授業']
+    pc.colors = { アルバイト: 'peacock', 授業: 'tomato' }
+    pc.updatedAt = new Date(REAL + 60_000).toISOString()
+    await syncLabels(client, pc, 'pc')
+
+    // スマホ: まだ PC の変更を受け取る前に、取り込みで「経済学」を足す（変えた時刻は進めない）
+    const before = phone.presets
+    phone.presets = [...phone.presets, '経済学']
+    phone.colors = { ...phone.colors, 経済学: 'grape' }
+    phone.pending = pendingAddsAfterImport(phone.pending, before, phone.presets)
+    await syncLabels(client, phone, 'phone')
+
+    const expected = ['アルバイト', '授業', '経済学']
+    expect(phone.presets).toEqual(expected)
+    expect(phone.colors).toEqual({ アルバイト: 'peacock', 授業: 'tomato', 経済学: 'grape' })
+    expect(phone.pending).toEqual([])
+    expect((rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)).toEqual(expected)
+
+    // PC は送られた表に合わせるだけ（何も送り返さない）
+    const version = rows.get('u1')!.updated_at
+    await syncLabels(client, pc, 'pc')
+    expect(pc.presets).toEqual(expected)
+    expect(rows.get('u1')!.updated_at).toBe(version)
+    // スマホももう何も送らない
+    await syncLabels(client, phone, 'phone')
+    expect(rows.get('u1')!.updated_at).toBe(version)
   })
 })

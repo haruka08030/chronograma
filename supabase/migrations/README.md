@@ -20,6 +20,20 @@
 | [`014_task_is_event.sql`](014_task_is_event.sql) | 予定（完了の丸の無い、時刻のある予定）の印 `tasks.is_event`（既定 false = To-Do）。予定は To-Do の一覧・やり残し・完了数に入れない。列を知らない前の版のアプリでは To-Do に見える |
 | [`015_task_estimate.sql`](015_task_estimate.sql) | タスクの見積もり `tasks.estimate_minutes`（分、null は見積もりなし、1〜1440）。タイムラインに置く・時間を決めるときの長さ |
 | [`016_task_source_task.sql`](016_task_source_task.sql) | ▶ で始めた記録の元の To-Do・予定 `tasks.source_task_id`（null は元なし）。計画どおりかの突き合わせで元の予定と組にする |
+| [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは SQL Editor から行を update、端末からは書けない `029`）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
+| [`018_habit_time_overrides.sql`](018_habit_time_overrides.sql) | 習慣の日ごとの時間 `habits.time_overrides`（日付 → 開始・終了。タイムラインで枠を動かした日だけ。null は無し）。大きさの上限 256KB |
+| [`019_shared_active_timer.sql`](019_shared_active_timer.sql) | 動いているタイマー `user_active_timer`（利用者ごとに 1 行。`started_at` / `task_title` / `tags` / `task_id` / `color`、`started_at` が null なら止まっている。RLS は本人だけ、大きさの上限 `user_active_timer_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる。行が替わるとトリガー `copy_active_timer_to_push` がその人の全部の `push_subscriptions` の `timer_started_at` / `timer_title`（止め忘れの通知）に写し、購読を書くときもトリガー `push_subscription_shared_timer` がこの行の値にする（行が無い利用者は端末が送った値のまま） |
+| [`020_client_error_kinds.sql`](020_client_error_kinds.sql) | `client_errors` の種類に `storage`（端末の保存・読み込み・自動バックアップ）・`integration`（Canvas・Notion・Google カレンダー）・`push`（Web Push の購読・保存・削除）を足す（`client_errors_kind_check` の置き換え） |
+| [`021_reminder_run_stats.sql`](021_reminder_run_stats.sql) | `reminder_runs` に最後の回の時刻 `last_run_at`・数 `last_checked` / `last_sent` / `last_removed` / `last_failed`・最後の失敗の時刻 `last_failed_at` を足す（書くのは `daily-reminders`。見る SQL は [`../metrics/health.sql`](../metrics/health.sql)） |
+| [`022_event_templates.sql`](022_event_templates.sql) | よく入れる予定 `user_event_templates`（利用者ごとに 1 行。`templates` は `{ id, title, startTime, endTime, color }` の並び。RLS は本人だけ、大きさの上限 `user_event_templates_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
+| [`023_app_versions_seen.sql`](023_app_versions_seen.sql) | どの版のアプリがまだ同期しているか `app_versions_seen`（主キー `(user_id, app_version, sync_protocol_version)`・`first_seen` / `last_seen`。大きさの上限 `app_versions_seen_shape_check`）。書くのは `note_app_version(版, 取り決めの版)`（SECURITY DEFINER、`authenticated` だけ実行できる。本人の行を upsert し `last_seen` をサーバーの時刻にする。1 人 `last_seen` の新しい 20 行まで）。RLS あり・ポリシーなし、`anon` / `authenticated` の表の権限は外す（読むのは service_role。数える SQL は [`../metrics/versions.sql`](../metrics/versions.sql)） |
+| [`024_course_links.sql`](024_course_links.sql) | 授業の予定と LMS の科目のつながり `user_course_links`（利用者ごとに 1 行。`links` は `{ title, course }` の並び、`course` が空なら「つながない」。RLS は本人だけ、大きさの上限 `user_course_links_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
+| [`025_day_moods.sql`](025_day_moods.sql) | 1 日の気分とひとこと `day_moods`（利用者ごと・日ごとに 1 行、主キー `(user_id, day)`。`mood` は 1〜5 か null、`note` は 500 字まで、`day` は 2000〜2100 年。RLS は本人だけ）。書き込みはトリガー `day_mood_write_guard`（`017` の `sync_write_guard` と同じ確かめを `(user_id, day)` で）。行は消さない（外すのは null / '' の更新）。索引 `(user_id, updated_at)`、行数の上限 40,000（`006` の `enforce_row_limit`） |
+| [`026_reminder_open_tasks_index.sql`](026_reminder_open_tasks_index.sql) | 通知の送信（`daily-reminders`）が読む未完了のタスクの部分索引 `tasks_reminder_open_idx`（`(user_id, id)`、`completed is false and is_time_log is false and parent_id is null and deleted_at is null and archived_at is null and (scheduled_date is not null or due_date is not null)`）。関数の問い合わせと同じ形の条件（`is false`）で、完了・削除・記録の行をなめずに読む |
+| [`027_event_series.sql`](027_event_series.sql) | 毎週の予定の印 `tasks.event_series`（`{ id, weekdays, until, skipHolidays }`、null は繰り返さない。id のある object・2KB まで `tasks_event_series_check`）。回は 1 回ずつの予定の行で、同じ繰り返しの回は id が同じ。時間割の設定 `user_timetable`（利用者ごとに 1 行。`timetable` は `{ periods: [{ start, end }], termStart, termEnd, skipHolidays }`。RLS は本人だけ、大きさの上限 `user_timetable_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
+| [`028_timer_ends_at.sql`](028_timer_ends_at.sql) | 動いているタイマーの「あと何分」の終わり `user_active_timer.ends_at`（null は終わりなし。始めた時刻より後で 1 日以内 `user_active_timer_ends_at_check`）。列を知らない前の版のアプリが別のタイマーを始めた・止めたときは、トリガー `user_active_timer_clear_ends_at` が null にする（始めた時刻が変わって `ends_at` がそのまま、または止まった）。`push_subscriptions` に写しの `timer_ends_at` と、時間の通知を送った終わり `timer_end_notified_for` を足し、`019` の `copy_active_timer_to_push` / `push_subscription_shared_timer` が `ends_at` も写す |
+| [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
+| [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
 
 テーブル（最新の形）:
 
@@ -27,19 +41,25 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id` を含む |
-| `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中） |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series` を含む |
+| `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
-| `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders` |
+| `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり（null は終わりなし） |
+| `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
+| `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
+| `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
+| `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
+| `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）と「あと何分」の終わり（`timer_ends_at`）は `user_active_timer` の写し（`019` / `028`）。`timer_end_notified_for` は時間の通知を送った終わり |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |
 | `notion_connection` | Notion の統合トークン（暗号化して保存）と対象データベース。クライアント向けポリシーなし（Edge Function `notion` が service_role で読み書き） |
 | `edge_rate_limits` | Edge Function の呼び出し回数（利用者ごと・機能ごとの固定の時間枠）。クライアント向けポリシーなし。数えるのは `hit_rate_limit`（service_role だけが呼べる） |
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
-| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「端末のエラーを見る」） |
-| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`。読み書きは Edge Function `daily-reminders`（service_role）だけ |
+| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
+| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
+| `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 
 **メモ**
 

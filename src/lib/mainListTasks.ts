@@ -7,7 +7,8 @@ import { DROPSEC_PREFIX, parseSectionReorderId } from './sectionReorderDnD'
 import { isAppToday, appToday } from './timeZone'
 import { NO_LABEL } from './todoColorLabels'
 
-export const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 }
+import { hasTaskFilter, matchesTaskFilter, PRIORITY_ORDER, type TaskFilter } from './taskFilter'
+import { compareByOrder } from './orderCompare'
 
 export interface MainListTasksInput {
   tasks: Task[]
@@ -22,20 +23,22 @@ export interface MainListTasksInput {
   listOrderById?: Map<string, number>
   /** いつか / チェックリストのリスト ID。スマートビュー（今日・近日中・期限切れ・すべて）から外す */
   excludedListIds?: ReadonlySet<string>
+  /** 優先度・見積もりなどの絞り込み（To-Do 一覧のじょうご） */
+  taskFilter?: Partial<TaskFilter>
 }
 
 /** 締切の近い順。締切なしは後ろ、同じなら手動の順 */
 function byDue(a: Task, b: Task): number {
-  if (!a.dueDate && !b.dueDate) return a.order - b.order
+  if (!a.dueDate && !b.dueDate) return compareByOrder(a, b)
   if (!a.dueDate) return 1
   if (!b.dueDate) return -1
   // 同じ日なら締め切り時刻で（時刻なしはその日の終わり扱い）。課題は同じ日に何本も締切がある
-  return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || a.order - b.order
+  return a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '24:00').localeCompare(b.dueTime ?? '24:00') || compareByOrder(a, b)
 }
 
 /** TaskList と同じ条件でルートタスクを絞り・ソート（子タスクは含まない） */
 export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
-  const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds } = input
+  const { tasks, selectedView, selectedListId, sortMode, filterTag, filterColor, excludedListIds, taskFilter } = input
   // 予定（完了の丸の無いもの）は To-Do の一覧に出さない（カレンダーで見る）
   let result = tasks.filter((t) => t.parentId === null && isActiveTask(t) && !isEventTask(t))
   // Wish や買い物は期限・予定のビューに混ぜない（そのリストを開けば見える）
@@ -73,6 +76,10 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     result = result.filter((t) => t.tags?.includes(filterTag))
   }
 
+  if (taskFilter && hasTaskFilter(taskFilter)) {
+    result = result.filter((t) => matchesTaskFilter(t, taskFilter))
+  }
+
   if (filterColor === NO_LABEL) {
     result = result.filter((t) => !t.color)
   } else if (filterColor) {
@@ -90,7 +97,7 @@ export function getFilteredRootTasks(input: MainListTasksInput): Task[] {
     case 'createdAt':
       return [...result].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     default:
-      return [...result].sort((a, b) => a.order - b.order)
+      return [...result].sort(compareByOrder)
   }
 }
 
@@ -110,7 +117,7 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
   }
 
   if (selectedListId) {
-    const listSections = sections.filter((s) => s.listId === selectedListId).sort((a, b) => a.order - b.order)
+    const listSections = sections.filter((s) => s.listId === selectedListId).sort(compareByOrder)
     if (listSections.length === 0) return active
 
     const sectionRank = (sectionId: string | null): number => {
@@ -123,7 +130,7 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
       const ra = sectionRank(a.sectionId ?? null)
       const rb = sectionRank(b.sectionId ?? null)
       if (ra !== rb) return ra - rb
-      return a.order - b.order
+      return compareByOrder(a, b)
     })
   }
 
@@ -139,7 +146,7 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
     if (arr) arr.push(s)
     else sectionsByList.set(s.listId, [s])
   }
-  for (const arr of sectionsByList.values()) arr.sort((a, b) => a.order - b.order)
+  for (const arr of sectionsByList.values()) arr.sort(compareByOrder)
 
   const listRank = (listId: string) => input.listOrderById?.get(listId) ?? Number.MAX_SAFE_INTEGER
 
@@ -159,7 +166,7 @@ export function getOrderedActiveRootTasksForDnD(input: MainListTasksInput): Task
     const ra = sectionRankInList(a.listId, a.sectionId ?? null)
     const rb = sectionRankInList(b.listId, b.sectionId ?? null)
     if (ra !== rb) return ra - rb
-    return a.order - b.order
+    return compareByOrder(a, b)
   })
 }
 
@@ -289,7 +296,7 @@ export function buildReorderedActiveRootIdsForGroup(
   const orderedGroup = rootIdsOrdered.filter((id) => sel.has(id))
   if (orderedGroup.length === 0 || !orderedGroup.includes(activeRootId)) return null
 
-  const sectionsForList = (listId: string) => sections.filter((s) => s.listId === listId).sort((a, b) => a.order - b.order)
+  const sectionsForList = (listId: string) => sections.filter((s) => s.listId === listId).sort(compareByOrder)
 
   const headerDrop = parseSectionReorderId(overId, DROPSEC_PREFIX)
   if (headerDrop?.sectionId) {

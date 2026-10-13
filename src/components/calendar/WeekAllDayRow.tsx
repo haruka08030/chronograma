@@ -27,6 +27,7 @@ import { tip } from '../../lib/tooltip'
 import { ChevronDownIcon, ChevronUpIcon, FlagIcon } from '../icons'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { dueToneOf } from '../../lib/dueTone'
+import { HolidayLabel } from './HolidayLabel'
 
 /** たたんだときに 1 日に出す行数（超える日は 1 行減らして「他 N 件」） */
 const COLLAPSED_ROWS = 3
@@ -40,6 +41,7 @@ export function WeekAllDayRow({
   allDayByDate,
   dueByDate,
   eventsByDate,
+  holidayName,
   allDayDragOver,
   setAllDayDragOver,
   allDayMoveKey,
@@ -55,6 +57,8 @@ export function WeekAllDayRow({
   /** 締切の日の印（実行日が別の日のもの） */
   dueByDate: Map<string, Task[]>
   eventsByDate: Map<string, CalendarEvent[]>
+  /** その日の祝日の名前（無ければ null）。行の先頭に灰色の文字だけで出す */
+  holidayName: (dateKey: string) => string | null
   allDayDragOver: string | null
   setAllDayDragOver: Dispatch<SetStateAction<string | null>>
   allDayMoveKey: string | null
@@ -73,6 +77,7 @@ export function WeekAllDayRow({
   /** 件数の多い日もすべて出すか（たたむと 1 日 3 行まで。Google カレンダーと同じ） */
   const [expanded, setExpanded] = useState(false)
   const dayItems = (key: string) => ({
+    holiday: holidayName(key),
     events: (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay),
     // 終えたもの（✓）は後ろへ。たたんだときに残るのはまだやるもの
     tasks: singleDay ? [] : [...(allDayByDate.get(key) ?? [])].sort((a, b) => Number(a.completed) - Number(b.completed)),
@@ -80,7 +85,7 @@ export function WeekAllDayRow({
   })
   const overflows = gridDays.some((day) => {
     const d = dayItems(toDateKey(day))
-    return d.events.length + d.tasks.length + d.due.length > COLLAPSED_ROWS
+    return Number(d.holiday !== null) + d.events.length + d.tasks.length + d.due.length > COLLAPSED_ROWS
   })
   const collapsed = overflows && !expanded
   return (
@@ -105,8 +110,9 @@ export function WeekAllDayRow({
       <div className={`flex-1 grid ${gridColsClass}`}>
         {gridDays.map((day) => {
           const key = toDateKey(day)
-          const { events: dayAllDayEvents, tasks: dayAllDay, due: dayDue } = dayItems(key)
+          const { holiday, events: dayAllDayEvents, tasks: dayAllDay, due: dayDue } = dayItems(key)
           const items: ReactNode[] = [
+            ...(holiday ? [<HolidayLabel key="holiday" name={holiday} className="px-1.5 py-0.5" />] : []),
             ...dayAllDayEvents.map((e) => (
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道
               <div
