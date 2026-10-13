@@ -82,6 +82,8 @@ async function pollNow() {
 
 function signIn(userId: string) {
   env.user = { id: userId }
+  // sync_changes_since（`035`）はログイン中の人の行を返す
+  db.auth.user = userId
   return renderHook(() => useSupabaseSync())
 }
 
@@ -169,6 +171,7 @@ describe('1 日の気分の同期（#324）', () => {
     env.user = null
     hook.rerender()
     env.user = { id: 'u2' }
+    db.auth.user = 'u2'
     hook.rerender()
     await untilSynced(before)
     await act(async () => {

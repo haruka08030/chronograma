@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { pushListsTasksHabits, type SyncChanges } from './supabaseData'
 import {
   applyChanges,
   afterPush,
+  clearPullState,
   createPullState,
+  loadPullState,
+  savePullState,
   DELTA_OVERLAP_MS,
   FULL_FETCH_INTERVAL_MS,
   missingWithoutTombstone,
@@ -23,6 +26,7 @@ import {
 } from './syncMerge'
 import type { Task } from '../types/task'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
+import { PULL_STATE_KEY_PREFIX } from './dataStore'
 
 const noDeletes = { lists: [], tasks: [], habits: [], sections: [] }
 const emptySnap = (): SyncSnapshot => ({ lists: [], tasks: [], habits: [], sections: [] })
@@ -343,9 +347,15 @@ describe('差分の取得 (#194)', () => {
 })
 
 describe('表・関数が読めないとき (#355)', () => {
-  for (const name of ['sync_server_now', 'sync_tombstones', 'sync_tombstone_purges']) {
-    it(`${name} が読めなければ、全部の取得や「印は無い」に逃げずに失敗として返し、前回の内容を変えない`, async () => {
+  // sync_changes_since（`035`）で 1 回に取るときと、関数の無い DB で 1 つずつ取るとき
+  const cases = [
+    ...['sync_tombstones', 'sync_tombstone_purges'].map((name) => ({ name, separately: false })),
+    ...['sync_server_now', 'sync_tombstones', 'sync_tombstone_purges'].map((name) => ({ name, separately: true })),
+  ]
+  for (const { name, separately } of cases) {
+    it(`${name} が読めなければ、全部の取得や「印は無い」に逃げずに失敗として返し、前回の内容を変えない${separately ? '（1 つずつ取る DB）' : ''}`, async () => {
       const { db, phone, pc } = await setup()
+      if (separately) db.missing.add('sync_changes_since')
       tick(db, [phone, pc], 60_000)
       removeTask(pc, 'b')
       await syncDevice(db, pc)
@@ -365,8 +375,9 @@ describe('表・関数が読めないとき (#355)', () => {
     })
   }
 
-  it('全部を取るときも、サーバーの時刻が取れなければ失敗', async () => {
+  it('全部を取るときも、サーバーの時刻が取れなければ失敗（1 つずつ取る DB）', async () => {
     const db = fakeDb()
+    db.missing.add('sync_changes_since')
     db.missing.add('sync_server_now')
     const res = await pullRemote(db.client, 'u1', createPullState(), { full: true })
     expect(res).toEqual({ error: expect.stringContaining('sync_server_now') })
@@ -564,5 +575,58 @@ describe('セクションを消す (#357)', () => {
       expect(titles(d.local).a).toBe('edited')
       expect(d.local.tasks.map((t) => t.sectionId)).toEqual([null, null, null])
     }
+  })
+})
+
+describe('前回取得した内容を残す（#258）', () => {
+  const stubStorage = () => {
+    const mem = new Map<string, string>()
+    const setItem = vi.fn((k: string, v: string) => void mem.set(k, v))
+    vi.stubGlobal('localStorage', {
+      get length() {
+        return mem.size
+      },
+      key: (i: number) => [...mem.keys()][i] ?? null,
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem,
+      removeItem: (k: string) => void mem.delete(k),
+    })
+    return { mem, setItem }
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('残した内容と目印から始め、前回の内容が変わっていなければ書き直さない', async () => {
+    const { setItem } = stubStorage()
+    const { db, phone } = await setup()
+    savePullState('u1', phone.pull)
+    expect(setItem).toHaveBeenCalledTimes(1)
+    // 目印だけ進んだ（何も変わっていない差分）: 書かない
+    tick(db, [phone], 60_000)
+    await syncDevice(db, phone)
+    savePullState('u1', phone.pull)
+    expect(setItem).toHaveBeenCalledTimes(1)
+    const loaded = loadPullState('u1')
+    expect(loaded.lastFullAt).toBe(phone.pull.lastFullAt)
+    expect(titles(loaded.mirror!)).toEqual(titles(phone.pull.mirror!))
+    // 開き直した端末は差分で取る
+    const reopened: Device = { ...newDevice(db), local: phone.local, baseline: phone.baseline, pull: loadPullState('u1') }
+    await syncDevice(db, reopened)
+    expect([reopened.fullPulls, reopened.deltaPulls]).toEqual([0, 1])
+  })
+
+  it('ほかの人の・壊れた内容は使わない。消すと次は全部を取る', async () => {
+    const { mem } = stubStorage()
+    const { phone } = await setup()
+    savePullState('u1', phone.pull)
+    expect(loadPullState('u2').mirror).toBeNull()
+    const key = [...mem.keys()].find((k) => k.startsWith(PULL_STATE_KEY_PREFIX))!
+    mem.set(`${PULL_STATE_KEY_PREFIX}u2`, mem.get(key)!)
+    // 持ち主が違う（u1 の内容を u2 のキーに写した）
+    expect(loadPullState('u2').mirror).toBeNull()
+    mem.set(key, '{broken')
+    expect(loadPullState('u1').mirror).toBeNull()
+    savePullState('u1', phone.pull)
+    expect(clearPullState('u1')).toBe(true)
+    expect(loadPullState('u1').mirror).toBeNull()
   })
 })

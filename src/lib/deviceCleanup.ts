@@ -8,8 +8,9 @@
  *   （ログインし直した人は、前回の値が分からない＝手元の値を上書きしない扱いから始まるだけ）
  * - 前回同期の控えは、ログアウトした人の分の中身を消して印だけ残す（`hasOtherUsersBaseline` が見るのはキーがあるかだけ。
  *   データを空にした後は控えを使わない）
+ * - 前回取得したサーバーの内容（`syncPull.ts` の `savePullState`）は、ログアウトでは誰の分も消す。容量が足りないときも手放す（次は全部を取るだけ）
  */
-import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
+import { BASELINE_KEY_PREFIX, PULL_STATE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 import { CANVAS_PULLED_PREFIX, NOTION_PULLED_PREFIX } from './externalFields'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
@@ -146,9 +147,17 @@ export function shrinkBaselines(keep: string | null): boolean {
   return shrunk
 }
 
-/** ログアウトしたときの片付け。前の人の写し・連携の控え・前回同期の控えの中身を端末に残さない */
+/** 前回取得したサーバーの内容を、誰の分も消す。消したら true */
+export function clearSyncMirrors(): boolean {
+  let cleared = false
+  for (const key of dataStoreKeys()) if (key.startsWith(PULL_STATE_KEY_PREFIX) && removeStored(key)) cleared = true
+  return cleared
+}
+
+/** ログアウトしたときの片付け。前の人の写し・連携の控え・前回同期の控えの中身・前回取得したサーバーの内容を端末に残さない */
 export function clearSignedOutLeftovers(): void {
   clearStorageCopies()
   clearIntegrationMemos()
   shrinkBaselines(null)
+  clearSyncMirrors()
 }

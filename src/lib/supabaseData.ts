@@ -448,7 +448,8 @@ const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'h
 /**
  * `since` より後の行を、`keys` の順（先頭は時刻の列）に全部取る。続きは最後の行より後（keyset）から取るので、
  * 取っている間に行が消えたり変わったりしても飛ばさない（変わった行は後ろへ回り、続きか次の取得で届く）。
- * 件数は最初の 1 回だけ数える（`since` より後だけなので、索引で軽い）
+ * 空のページが返るまで取る（件数は数えない、#258。サーバーの上限がページの大きさより小さくても取りこぼさない）。
+ * ふだんの差分は `sync_changes_since` の 1 往復で、これを使うのは 1 回の上限を超えたときだけ
  */
 async function fetchRowsSince<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
@@ -458,13 +459,8 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   keys: readonly [string, ...string[]],
 ): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
-  let total: number | null = null
   for (;;) {
-    let q = supabase
-      .from(table)
-      .select('*', rows.length === 0 ? { count: 'exact' } : undefined)
-      .eq('user_id', userId)
-      .gt(keys[0], since)
+    let q = supabase.from(table).select('*').eq('user_id', userId).gt(keys[0], since)
     const last = rows[rows.length - 1]
     if (last) {
       // (k1, k2, …) > (最後の行の値): k1 > v1 か、k1 = v1 で k2 > v2 か …
@@ -476,13 +472,11 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
       q = q.or(parts.join(','))
     }
     for (const k of keys) q = q.order(k)
-    const { data, count, error } = await q.limit(PAGE_SIZE)
+    const { data, error } = await q.limit(PAGE_SIZE)
     if (error) return { error: error.message }
-    if (rows.length === 0) total = count ?? null
     const page = (data ?? []) as T[]
     if (page.length === 0) break
     rows.push(...page)
-    if (total !== null && rows.length >= total) break
   }
   return { rows }
 }
@@ -526,15 +520,94 @@ export async function fetchChangesSince(supabase: SupabaseClient, userId: string
     .gt('last_deleted_at', since)
     .limit(1)
   if (trimmed.error) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
+  return changesFromRows(got, ts.rows, (trimmed.data ?? []).length > 0)
+}
+
+function changesFromRows(
+  got: Partial<Record<SyncTable, Record<string, unknown>[]>>,
+  tombstones: readonly { table_name: string; row_id: string; deleted_at: string }[],
+  trimmed: boolean,
+): SyncChanges {
   return {
-    lists: (got.lists as unknown as ListRow[]).map(rowToList),
-    sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
-    tasks: (got.tasks as unknown as TaskRow[]).map(rowToTask),
-    habits: (got.habits as unknown as HabitRow[]).map(rowToHabit),
-    tombstones: ts.rows
+    lists: ((got.lists ?? []) as unknown as ListRow[]).map(rowToList),
+    sections: ((got.list_sections ?? []) as unknown as SectionRow[]).map(rowToSection),
+    tasks: ((got.tasks ?? []) as unknown as TaskRow[]).map(rowToTask),
+    habits: ((got.habits ?? []) as unknown as HabitRow[]).map(rowToHabit),
+    tombstones: tombstones
       .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
       .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
-    tombstonesTrimmed: (trimmed.data ?? []).length > 0,
+    tombstonesTrimmed: trimmed,
+  }
+}
+
+/** 利用者ごとに 1 行の設定の表 */
+export type SettingTable =
+  'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable'
+const SETTING_TABLES: readonly SettingTable[] = [
+  'user_settings',
+  'user_extra_time_zones',
+  'user_active_timer',
+  'user_event_templates',
+  'user_course_links',
+  'user_timetable',
+]
+
+/** `sync_changes_since`（`035`）の 1 回の答え */
+export interface SyncRound {
+  /** サーバーの時刻（次の差分の目印） */
+  now: string
+  /** 同期の取り決めの版の下限（`app_config.min_sync_version`） */
+  minSyncVersion: number
+  /** `since` より後の変わった行と印。どれかの表が 1 回の上限を超えたら null（ページに分けて取り直す） */
+  changes: SyncChanges | null
+  /** 設定の表ごとのサーバーの版（行が無ければ null） */
+  settingVersions: Record<SettingTable, string | null>
+  /** `moodSince` より後に変わった 1 日の気分。`moodSince` を渡さなかった・上限を超えたら null */
+  dayMoods: RemoteDayMood[] | null
+  /** 4 表のどれかにこの人の行があるか（アカウントごと消されると印も消えるので、差分では分からない） */
+  hasRows: boolean
+}
+
+/** 1 回の答えに入れる行の上限（表ごと）。超えたらページに分けて取る */
+export const SYNC_ROUND_LIMIT = 1000
+
+/**
+ * 差分・消えた行の印・設定の版・版の下限・1 日の気分を 1 回で取る（`035` の sync_changes_since、#258）。
+ * 前は 1 分ごとの同期で 9 往復以上を 1 つずつ待っていた。関数がまだ無い DB では `missing`（前の取り方に戻る）
+ */
+export async function fetchSyncRound(
+  supabase: SupabaseClient,
+  since: string,
+  moodSince: string | null,
+): Promise<SyncRound | { missing: true } | { error: string }> {
+  const { data, error } = await supabase.rpc('sync_changes_since', { p_since: since, p_mood_since: moodSince, p_limit: SYNC_ROUND_LIMIT })
+  if (error) {
+    // 関数が無い（`035` を流す前の DB・PostgREST の一覧が古い）
+    if (error.code === 'PGRST202' || error.code === '42883') return { missing: true }
+    return { error: `sync_changes_since: ${error.message}` }
+  }
+  const r = (data ?? {}) as Record<string, unknown>
+  const now = typeof r.now === 'string' ? r.now : null
+  if (!now || !Number.isFinite(Date.parse(now))) return { error: 'sync_changes_since: bad value' }
+  const list = (k: string) => (Array.isArray(r[k]) ? (r[k] as Record<string, unknown>[]) : [])
+  const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
+  for (const table of SYNC_TABLES) got[table] = list(table)
+  const tombstones = list('tombstones') as unknown as { table_name: string; row_id: string; deleted_at: string }[]
+  const over = [...SYNC_TABLES.map((t) => got[t]!), tombstones].some((rows) => rows.length > SYNC_ROUND_LIMIT)
+  const settings = (r.settings ?? {}) as Record<string, unknown>
+  const settingVersions = Object.fromEntries(SETTING_TABLES.map((t) => [t, settings[t] == null ? null : String(settings[t])])) as Record<
+    SettingTable,
+    string | null
+  >
+  const moods = Array.isArray(r.day_moods) ? (r.day_moods as Record<string, unknown>[]) : null
+  const min = Number(r.min_sync_version ?? 0)
+  return {
+    now,
+    minSyncVersion: Number.isFinite(min) ? min : 0,
+    changes: over ? null : changesFromRows(got, tombstones, r.tombstones_trimmed === true),
+    settingVersions,
+    dayMoods: moods && moods.length <= SYNC_ROUND_LIMIT ? moods.map(dayMoodFromRow) : null,
+    hasRows: r.has_rows !== false,
   }
 }
 
@@ -612,6 +685,11 @@ export interface SyncPushResult {
   stale: SyncStaleRow[]
   /** サーバーの時計 − この端末の時計（ms）。サーバーが時刻を付けた行があったときだけ */
   clockOffsetMs?: number
+  /**
+   * 取得した行と中身も時刻も同じだが別のオブジェクトだった行（開き直して読み込んだ前回の内容など）。
+   * 前回の内容をこの行（手元のオブジェクト）に替えると、次からは同じオブジェクトとして比べずに済む（#258）
+   */
+  unchanged?: { table: SyncTable; id: string }[]
 }
 
 /** 取得に無かった行を送るときの「もとにした版」。サーバーに同じ id の行ができていたら断られる */
@@ -647,6 +725,7 @@ export async function pushListsTasksHabits(
   const rejected = new Map<string, SyncRejectedRow>()
   const written: SyncWrittenRow[] = []
   const stale: SyncStaleRow[] = []
+  const unchanged: { table: SyncTable; id: string }[] = []
   let clockOffsetMs: number | undefined
   /**
    * 行ごとの「もとにした版」＝取得したときのサーバーの updated_at（文字列のまま。マイクロ秒まで一致させる）。
@@ -678,7 +757,11 @@ export async function pushListsTasksHabits(
     items.forEach((item) => {
       const got = fetched?.get(item.id)
       // 取得した行と同じオブジェクト（送った・取り込んだまま変えていない行）は文字列にして比べない（#257）
-      if (got !== undefined && (got === item || content(got) === content(item))) return
+      if (got === item) return
+      if (got !== undefined && content(got) === content(item)) {
+        if ((got as { updatedAt?: string }).updatedAt === (item as { updatedAt?: string }).updatedAt) unchanged.push({ table, id: item.id })
+        return
+      }
       const row = toRow(item)
       const json = JSON.stringify(row)
       const known = knownRejected.get(rejectKey(table, item.id))
@@ -717,7 +800,7 @@ export async function pushListsTasksHabits(
     isRowLevelError(code) && rejected.size < MAX_REJECTED && isolateRequests < MAX_ISOLATE_REQUESTS
   const finish = (error?: string): SyncPushResult => {
     const out = [...rejected.values()]
-    if (error) return { error, rejected: out, written, stale, clockOffsetMs }
+    if (error) return { error, rejected: out, written, stale, clockOffsetMs, unchanged }
     // 送れた行は覚えを消し、拒否された行は送った内容を覚える
     const sentRows: [SyncTable, { id: string }[]][] = [
       ['lists', listRows],
@@ -734,7 +817,7 @@ export async function pushListsTasksHabits(
         else knownRejected.delete(rejectKey(table, row.id))
       }
     }
-    return { rejected: out, written, stale, clockOffsetMs }
+    return { rejected: out, written, stale, clockOffsetMs, unchanged }
   }
 
   // 主キーは (user_id, id)
@@ -1008,16 +1091,18 @@ export async function fetchDayMoods(
     if (error) return { error: `day_moods: ${error.message}` }
     const page = (data ?? []) as { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }[]
     if (page.length === 0) break
-    for (const r of page) {
-      out.push({
-        day: String(r.day),
-        mood: isMood(r.mood) ? r.mood : null,
-        note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
-        updatedAt: String(r.updated_at),
-      })
-    }
+    for (const r of page) out.push(dayMoodFromRow(r))
   }
   return out
+}
+
+function dayMoodFromRow(r: { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }): RemoteDayMood {
+  return {
+    day: String(r.day),
+    mood: isMood(r.mood) ? r.mood : null,
+    note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
+    updatedAt: String(r.updated_at),
+  }
 }
 
 /**

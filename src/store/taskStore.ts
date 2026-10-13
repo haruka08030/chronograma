@@ -24,6 +24,7 @@ import {
   keepStorageCopy,
   pruneStorageCopies,
   shrinkBaselines,
+  clearSyncMirrors,
 } from '../lib/deviceCleanup'
 import {
   INBOX_ID,
@@ -527,6 +528,8 @@ setPersistWriteHandlers({
       freed = true
     }
     if (clearStorageCopies()) freed = true
+    // 前回取得したサーバーの内容（次に開いたときに全部を取るだけ）
+    if (clearSyncMirrors()) freed = true
     // 持ち主の分からない（*legacy*）・まだ同期していないデータは、ログイン中の人の控えがあるかで誰のものかを決めるので触らない
     const owner = useTaskStore.getState().dataOwner
     if (owner !== null && owner !== LEGACY_DATA_OWNER && shrinkBaselines(owner)) freed = true
