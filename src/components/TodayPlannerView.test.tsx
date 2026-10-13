@@ -299,3 +299,24 @@ describe('TodayPlannerView: 締切切れの行の「今日やる」（#373）', 
     expect(useTaskStore.getState().tasks.find((x) => x.id === id)!.scheduledDate).toBe(today)
   })
 })
+
+describe('TodayPlannerView: 候補の「すべて追加」（#375）', () => {
+  it('件数と「元に戻す」を出す', async () => {
+    const today = toDateKey(appToday())
+    const inTwo = toDateKey(addDays(appToday(), 2))
+    const inThree = toDateKey(addDays(appToday(), 3))
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    useTaskStore.setState({ plannerCandidateView: { ...store.plannerCandidateView, sort: 'dueDate' } })
+    for (const title of ['Slides', 'Essay']) {
+      const id = useTaskStore.getState().addTask(title)!
+      useTaskStore.getState().updateTask(id, { scheduledDate: inThree, dueDate: inTwo })
+    }
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Do these 2 today' }))
+    expect(useTaskStore.getState().undoBanner?.text).toBe('Moved 2 to today')
+  })
+})
