@@ -51,7 +51,7 @@ export function PlannerTodoSection({
   totalCount: number
   /** 行を包む listbox（`useTaskListSelection`）。↑↓ の枠を aria-activedescendant で伝える */
   listboxProps: HTMLAttributes<HTMLDivElement> & { ref: Ref<HTMLDivElement> }
-  /** 追加欄より下にある候補の行のまとまり（aria-owns でこの listbox に入れる） */
+  /** 追加欄より下にある候補・完了の行のまとまり（aria-owns でこの listbox に入れる） */
   ownedGroupIds: string[]
 }) {
   const ids = useId()
