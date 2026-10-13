@@ -92,7 +92,7 @@ describe('plannedTodoMinutes', () => {
     expect(plannedTodoMinutes(tasks, DAY)).toBe(240 + 90 + 30)
   })
 
-  it('leaves out events, logs, subtasks, deleted, other days and someday / checklist lists', () => {
+  it('leaves out events, logs, deleted, other days and someday / checklist lists; a subtask placed on the day counts (#308)', () => {
     const tasks = [
       task('class', { kind: 'event', scheduledDate: DAY, startTime: '09:00', endTime: '12:00' }),
       task('log', { kind: 'log', dueDate: DAY, startTime: '13:00', endTime: '14:00' }),
@@ -101,7 +101,7 @@ describe('plannedTodoMinutes', () => {
       task('later', { scheduledDate: '2026-10-13', estimateMinutes: 60 }),
       task('someday', { scheduledDate: DAY, estimateMinutes: 60, listId: 'someday' }),
     ]
-    expect(plannedTodoMinutes(tasks, DAY, new Set(['someday']))).toBe(0)
+    expect(plannedTodoMinutes(tasks, DAY, new Set(['someday']))).toBe(60)
   })
 })
 

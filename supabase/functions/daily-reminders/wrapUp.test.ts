@@ -85,20 +85,22 @@ describe('zonedDateKey', () => {
 })
 
 describe('wrapUpDigest', () => {
-  it('予定 n 件中 m 件・記録・残りを数える（予定・サブタスク・いつかのリスト・睡眠・消したものは入れない）', () => {
+  it('予定 n 件中 m 件・記録・残りを数える（予定・日付の無いサブタスク・いつかのリスト・睡眠・消したものは入れない）', () => {
     const rows: WrapUpRow[] = [
       { id: 'open', list_id: 'inbox', scheduled_date: DAY },
       { id: 'openByDue', list_id: 'inbox', due_date: DAY },
       { id: 'done', list_id: 'inbox', completed: true, completed_at: '2026-10-08T03:00:00Z', scheduled_date: '2026-10-01' },
       { id: 'doneYesterday', list_id: 'inbox', completed: true, completed_at: '2026-10-07T03:00:00Z', scheduled_date: DAY },
       { id: 'event', list_id: 'inbox', is_event: true, scheduled_date: DAY, start_time: '13:00', end_time: '15:00' },
+      // 日付のあるサブタスクは 1 件、日付の無いサブタスクは入れない（#308）
       { id: 'sub', list_id: 'inbox', parent_id: 'open', scheduled_date: DAY },
+      { id: 'subUndated', list_id: 'inbox', parent_id: 'open', completed: true, completed_at: '2026-10-08T03:00:00Z' },
       { id: 'someday', list_id: 'someday-list', scheduled_date: DAY },
       { id: 'trash', list_id: 'inbox', scheduled_date: DAY, deleted_at: '2026-10-08T01:00:00Z' },
       { id: 'log', list_id: 'inbox', is_time_log: true, due_date: DAY, start_time: '10:00', end_time: '12:30' },
       { id: 'sleep', list_id: 'inbox', is_time_log: true, is_sleep: true, due_date: DAY, start_time: '00:00', end_time: '07:00' },
     ]
-    expect(wrapUpDigest(rows, DAY, TZ, new Set(['someday-list']))).toEqual({ done: 1, total: 3, open: 2, loggedMinutes: 150 })
+    expect(wrapUpDigest(rows, DAY, TZ, new Set(['someday-list']))).toEqual({ done: 1, total: 4, open: 3, loggedMinutes: 150 })
   })
 
   it('完了時刻の無い古い行は最後に変えた日で数える', () => {
@@ -139,8 +141,8 @@ describe('wrapUpDigest', () => {
       open: plan.open.length,
       loggedMinutes: plan.loggedMinutes,
     })
-    // 念のため中身も: 完了 2（doneLate・doneToday）、残り 3（a・b・c）、記録 75 + 45 + 60 分
-    expect(digest).toEqual({ done: 2, total: 5, open: 3, loggedMinutes: 180 })
+    // 念のため中身も: 完了 2（doneLate・doneToday）、残り 4（a・b・c・日付のあるサブタスク sub）、記録 75 + 45 + 60 分
+    expect(digest).toEqual({ done: 2, total: 6, open: 4, loggedMinutes: 180 })
   })
 })
 

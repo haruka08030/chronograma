@@ -907,6 +907,7 @@ export default {
     dueByTime: '{{date}} {{time}} まで',
     dueLate: '{{by}}・{{count}}日遅れ',
     dueSoon: '{{by}}・あと {{count}} 日',
+    nextChildDueHint: 'サブタスク「{{title}}」の締切（まだ終わっていない中でいちばん近いもの）',
     dueDateAria: '締切を設定',
     archive: 'アーカイブ',
     archiveAria: 'アーカイブ',

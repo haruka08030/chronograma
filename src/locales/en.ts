@@ -934,6 +934,7 @@ export default {
     dueByTime: 'Due {{date}} {{time}}',
     dueLate: '{{by}} · {{count}}d late',
     dueSoon: '{{by}} · {{count}}d left',
+    nextChildDueHint: 'Due date of the subtask “{{title}}” (the nearest one not done yet)',
     dueDateAria: 'Set due date',
     archive: 'Archive',
     archiveAria: 'Archive',

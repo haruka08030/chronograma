@@ -16,13 +16,13 @@ export interface DayLoad {
 
 /**
  * その日（`yyyy-MM-dd`）に置いた To-Do の時間。今日の計画の「予定」と同じものを数える:
- * 記録・予定（授業・バイト）・サブタスク・いつか / チェックリストのリストは入れない
+ * 記録・予定（授業・バイト）・いつか / チェックリストのリストは入れない（サブタスクはその日に置いたものだけ、`isDayPlanTask`）
  */
 export function plannedTodoMinutes(tasks: readonly Task[], dateKey: string, excludedListIds: ReadonlySet<string> = new Set()): number {
   let total = 0
   for (const task of tasks) {
     if (!isActiveTask(task) || isLogTask(task) || isEventTask(task)) continue
-    if (task.parentId || excludedListIds.has(task.listId)) continue
+    if (excludedListIds.has(task.listId)) continue
     if (taskPlacementDate(task) !== dateKey) continue
     total += (task.startTime && task.endTime ? durationMinutesForTaskSlot(task) : task.estimateMinutes) ?? 0
   }

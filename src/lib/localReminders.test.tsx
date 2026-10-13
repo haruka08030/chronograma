@@ -234,8 +234,8 @@ describe('朝のまとめの「昨日」（#278）', () => {
       total: review!.total,
       loggedMinutes: review!.loggedMinutes,
     })
-    // 中身も: 完了 3（doneJustAfterMidnight・doneLate・doneOld）、残り 2（a・b）、記録 75 + 45 + 60 + 60 分
-    expect(local).toEqual({ done: 3, total: 5, open: 2, loggedMinutes: 240 })
+    // 中身も: 完了 3（doneJustAfterMidnight・doneLate・doneOld。日付の無い subDone は入れない）、残り 3（a・b・日付のある sub）、記録 75 + 45 + 60 + 60 分
+    expect(local).toEqual({ done: 3, total: 6, open: 3, loggedMinutes: 240 })
   })
 
   it('タブの朝のまとめは、サーバーの朝のまとめと同じ本文（1 行目が今日、2 行目が昨日）', () => {
@@ -256,7 +256,7 @@ describe('朝のまとめの「昨日」（#278）', () => {
     expect(FakeNotification.shown).toHaveLength(1)
     const server = morningPayload(MESSAGES.en, morningDigest(reminderCandidates(tasks, excluded), TODAY), serverYesterday(tasks))
     expect(FakeNotification.shown[0]!.options.body).toBe(server.body)
-    expect(server.body).toBe('1 overdue\nYesterday: 3 of 5 done · 4h logged')
+    expect(server.body).toBe('1 overdue\nYesterday: 3 of 6 done · 4h logged')
   })
 
   it('昨日に To-Do も記録も無ければ昨日の行を出さない', () => {
