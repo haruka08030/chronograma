@@ -98,6 +98,43 @@ describe('起動（保存データを読み終えてから始める）', () => {
   })
 })
 
+describe('移した後に localStorage で動いた回', () => {
+  it('その回の変更は、次に IndexedDB で開いたときに残る（前の本体の行も残り、取り込んだことを記録する）', async () => {
+    const first = await openTab()
+    first.useTaskStore.getState().addTask('in IndexedDB')
+    first.sync.saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)
+    await settle()
+    first.data.closeDataStore()
+
+    // IndexedDB を開けなかった回（localStorage は移した後で空なので、空から始まる）
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('blocked', 'InvalidStateError')
+    })
+    const fallback = await openTab()
+    expect(fallback.mode).toBe('localStorage')
+    expect(titles(fallback)).toEqual([])
+    fallback.useTaskStore.getState().addTask('while on localStorage')
+    expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toContain('while on localStorage')
+    open.mockRestore()
+
+    const again = await openTab()
+    expect(again.mode).toBe('indexeddb')
+    expect(again.data.dataStoreRecoveredFromLocalStorage()).toBe(true)
+    expect(titles(again).sort()).toEqual(['in IndexedDB', 'while on localStorage'])
+    expect(await diskTitles()).toEqual(['in IndexedDB', 'while on localStorage'])
+    expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBeNull()
+    // 取り込む前の本体は別のキーに残り、本体と食い違う控えは消える（次の同期は両方を残す合わせ方）
+    expect(again.data.storedKeys().some((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-before-recovery-`))).toBe(true)
+    expect(again.sync.loadBaseline('u1')).toBeNull()
+    again.data.closeDataStore()
+
+    // 取り込むのは 1 回だけ
+    const later = await openTab()
+    expect(later.data.dataStoreRecoveredFromLocalStorage()).toBe(false)
+    expect(titles(later).sort()).toEqual(['in IndexedDB', 'while on localStorage'])
+  })
+})
+
 describe('他のタブ（BroadcastChannel）', () => {
   it('2 つのタブで別々に足したタスクが、どちらのタブにも保存にも両方残る', async () => {
     const a = await openTab()

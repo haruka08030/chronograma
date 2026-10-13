@@ -57,14 +57,23 @@ describe('localStorage からの移し替え', () => {
     expect(localStorage.getItem('chronograma-view-v1')).toBe('{}')
   })
 
-  it('移すのは 1 回だけ（後から localStorage に残っていても読まない）', async () => {
+  it('移すのは 1 回だけ。その後に localStorage で動いた回の分は、新しいものとして取り込んで記録する', async () => {
     localStorage.setItem(PERSIST_STORAGE_KEY, 'first')
     await (await openTab()).openDataStore()
-    localStorage.setItem(PERSIST_STORAGE_KEY, 'stale')
+    const reopened = await openTab()
+    await reopened.openDataStore()
+    expect(reopened.readStored(PERSIST_STORAGE_KEY)).toBe('first')
+    expect(reopened.dataStoreRecoveredFromLocalStorage()).toBe(false)
+
+    localStorage.setItem(PERSIST_STORAGE_KEY, 'written while on localStorage')
     const again = await openTab()
     expect(await again.openDataStore()).toBe('indexeddb')
-    expect(again.readStored(PERSIST_STORAGE_KEY)).toBe('first')
-    expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBe('stale')
+    // 読めない本体どうしは合わせず、localStorage の回のほう。前の本体は別のキーに残す
+    expect(again.readStored(PERSIST_STORAGE_KEY)).toBe('written while on localStorage')
+    expect(again.dataStoreRecoveredFromLocalStorage()).toBe(true)
+    const kept = again.storedKeys().find((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-before-recovery-`))!
+    expect(again.readStored(kept)).toBe('first')
+    expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBeNull()
   })
 
   it('名前を変える前のキーしか無ければ、それを本体として移す', async () => {
@@ -109,6 +118,27 @@ describe('localStorage からの移し替え', () => {
     vi.spyOn(indexedDB, 'open').mockReturnValue({} as IDBOpenDBRequest)
     const m = await openTab()
     expect(await m.openDataStore({ timeoutMs: 10 })).toBe('localStorage')
+  })
+})
+
+describe('移した後に localStorage で動いた回の本体を合わせる（mergeRecoveredMain）', () => {
+  const saved = (owner: string | null, ids: string[], version = 1) =>
+    JSON.stringify({ state: { dataOwner: owner, theme: 'x', tasks: ids.map((id) => ({ id, title: id })) }, version })
+  const ids = (raw: string) => (JSON.parse(raw) as { state: { tasks: { id: string }[] } }).state.tasks.map((t) => t.id)
+
+  it('行は id ごとに両方を残し、同じ id は localStorage の回のほう', async () => {
+    const m = await openTab()
+    const out = m.mergeRecoveredMain(saved('u1', ['a', 'b']), saved('u1', ['b', 'c']))
+    expect(ids(out)).toEqual(['a', 'b', 'c'])
+    expect(JSON.parse(out).state.dataOwner).toBe('u1')
+  })
+
+  it('持ち主が片方だけなら null（アカウントに入れる前に確かめる）、別の人どうし・版違いは localStorage の回のほうだけ', async () => {
+    const m = await openTab()
+    expect(JSON.parse(m.mergeRecoveredMain(saved('u1', ['a']), saved(null, ['b']))).state.dataOwner).toBeNull()
+    expect(ids(m.mergeRecoveredMain(saved('u1', ['a']), saved('u2', ['b'])))).toEqual(['b'])
+    expect(ids(m.mergeRecoveredMain(saved('u1', ['a'], 1), saved('u1', ['b'], 2)))).toEqual(['b'])
+    expect(m.mergeRecoveredMain('{broken', saved('u1', ['b']))).toBe(saved('u1', ['b']))
   })
 })
 

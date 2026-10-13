@@ -12,7 +12,7 @@ import { useTaskStore } from './store/taskStore'
 import { requestQuickStart } from './lib/quickStart'
 import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting, reportFailure } from './lib/errorReport'
-import { dataStoreOpenError } from './lib/dataStore'
+import { dataStoreOpenError, dataStoreRecoveredFromLocalStorage } from './lib/dataStore'
 import { openTaskFromNotification, openWrapUpFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
 import { closeTaskNotifications, installNotificationCleanup } from './lib/notificationCleanup'
 
@@ -48,6 +48,9 @@ for (const type of ['gesturestart', 'gesturechange'] as const) {
 installGlobalErrorReporting()
 // IndexedDB を開けず localStorage のまま始めた（`main.tsx` の `openDataStore`）
 if (dataStoreOpenError()) reportFailure('storage', 'open', dataStoreOpenError())
+// 移した後に localStorage で動いた回があり、その分を IndexedDB に取り込んだ
+if (dataStoreRecoveredFromLocalStorage())
+  reportFailure('storage', 'recovered', 'took in data saved to localStorage while IndexedDB could not be opened')
 // 済んだ件（完了・記録・削除、別の端末の完了も）の通知を通知センターから閉じる
 installNotificationCleanup()
 setupPwa(launch)
