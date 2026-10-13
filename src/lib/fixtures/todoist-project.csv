@@ -1,0 +1,8 @@
+﻿TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG
+task,レポートを出す @大学 @提出,"第 3 章まで, 図つき",1,1,Haruka (12345678),,2026-10-20 17:00,ja,Asia/Tokyo,60,minute,,
+note,先生のメール [[file https://example.com/a.pdf "a.pdf"]],,,,Haruka (12345678),,2026-10-01 09:00,,,,,,
+task,洗濯,,4,1,Haruka (12345678),,every day,en,Asia/Tokyo,,,,
+,,,,,,,,,,,,,
+section,来週,,,,,,,,,,,,
+task,面接の準備,,2,1,Haruka (12345678),,2026-10-22,ja,Asia/Tokyo,,,,
+task,企業研究,,3,2,Haruka (12345678),,,,,,,2026-10-24,ja

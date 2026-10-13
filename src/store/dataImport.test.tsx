@@ -3,6 +3,8 @@ import { useTaskStore } from './taskStore'
 import { INBOX_ID } from './storeConstants'
 import { IMPORT_ROLLBACK_KEEP_DAYS, clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { buildBackupPayload } from '../lib/backupFormat'
+import { categoryHex } from '../lib/logCategoryColors'
+import todoistProject from '../lib/fixtures/todoist-project.csv?raw'
 
 const st = () => useTaskStore.getState()
 const titles = () => st().tasks.map((t) => t.title)
@@ -166,5 +168,44 @@ describe('CSV の取り込み', () => {
     expect(titles()).toEqual(['今の 1', '今の 2', 'X', 'Y'])
     st().undoLastOperation()
     expect(titles()).toEqual(['今の 1', '今の 2'])
+  })
+
+  it('リスト名が同じ名前のラベルならその色を付け、Inbox はラベルなし。知らない名前は選んだときだけラベルを作る', () => {
+    seedCurrent()
+    const csv = 'title,list\nA,勉強\nB,Inbox\nC,趣味\nD,趣味\n'
+    st().importTasksFromCsv(csv)
+    const byTitle = (t: string) =>
+      st()
+        .tasks.filter((x) => x.title === t)
+        .at(-1)!
+    expect(byTitle('A')).toMatchObject({ listId: INBOX_ID, color: categoryHex('勉強', st().logCategoryColors) })
+    expect(byTitle('B')).toMatchObject({ listId: INBOX_ID, color: null })
+    // 選ばなければラベルは作らない
+    expect(byTitle('C').color).toBeNull()
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
+
+    st().importTasksFromCsv(csv, { unknownLists: 'label' })
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事', '趣味'])
+    const hobby = categoryHex('趣味', st().logCategoryColors)
+    expect(byTitle('C').color).toBe(hobby)
+    expect(byTitle('D').color).toBe(hobby)
+    // 作ったラベルも ⌘Z 1 回で消える
+    st().undoLastOperation()
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
+  })
+
+  it('Todoist の CSV はファイル名をラベルにし、締切の時刻も入れる', () => {
+    seedCurrent()
+    const r = st().importTasksFromCsv(todoistProject, { fileName: 'ゼミ.csv', unknownLists: 'label' })
+    expect(r).toEqual({ imported: 4, skipped: 0, errors: [] })
+    const report = st().tasks.find((t) => t.title === 'レポートを出す')!
+    expect(report).toMatchObject({
+      dueDate: '2026-10-20',
+      dueTime: '17:00',
+      priority: 'high',
+      tags: ['大学', '提出'],
+      color: categoryHex('ゼミ', st().logCategoryColors),
+    })
+    expect(st().timeLogTagPresets).toContain('ゼミ')
   })
 })

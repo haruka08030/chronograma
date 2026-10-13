@@ -1,0 +1,14 @@
+﻿"Date: 2026-10-13+0000"
+"Version: 7.1"
+"Status: 
+0 Normal
+1 Completed
+2 Archived"
+"Folder Name","List Name","Title","Kind","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating","Column Name","Column Order","View Mode","taskId","parentId"
+"大学","ゼミ","発表スライドを作る","TEXT","研究, 締切","先生に見せる前に
+図を 3 枚入れる","N","2026-10-20T00:00:00+0000","2026-10-20T08:30:00+0000","","","5","0","2026-10-01T03:12:45+0000","","-1099511627776","Asia/Tokyo","false","false",,,"list","1",""
+"大学","ゼミ","参考文献を読む","TEXT","","","N","2026-10-21T15:00:00+0000","2026-10-21T15:00:00+0000","","","3","0","2026-10-01T03:13:02+0000","","0","Asia/Tokyo","true","false",,,"list","2",""
+"","Inbox","牛乳を買う","TEXT","","","N","","","","","1","2","2026-10-02T09:00:00+0000","2026-10-03T10:39:31+0000","-2748779069440","Asia/Tokyo","false","false",,,"list","3",""
+"就活","ES","A 社の ES を出す","TEXT","就活","","N","","2026-10-25 14:59:00","","","0","1","2026-10-04 08:00:00","2026-10-05 01:45:30","0","Asia/Tokyo","false","false",,,"list","4",""
+"","Inbox","持ち物","CHECKLIST","","▫財布
+▪鍵","Y","","","","","0","0","2026-10-02T09:00:00+0000","","2199023255552","",,"false",,,"list","5",""

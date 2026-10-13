@@ -3,7 +3,8 @@ import type { Task } from '../../types/task'
 import { newId } from '../../lib/id'
 import { assignColorsInOrder } from '../../lib/logCategoryColors'
 import { buildBackupPayload, parseBackupJson, withFreshStamps } from '../../lib/backupFormat'
-import { parseTasksCsv } from '../../lib/importTasksCsv'
+import { csvListTarget, parseTasksCsv } from '../../lib/importTasksCsv'
+import { ensureLabel, type LabelTable } from '../../lib/foldTaskFolders'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../../lib/importRollback'
 import { restoreMissing } from '../../lib/autoBackup'
 import { INBOX_ID } from '../storeConstants'
@@ -178,41 +179,50 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       clearImportRollback()
       return true
     },
-    importTasksFromCsv: (csv) => {
-      const { rows, skipped, errors } = parseTasksCsv(csv)
+    importTasksFromCsv: (csv, options = {}) => {
+      const { rows, skipped, errors } = parseTasksCsv(csv, { fileName: options.fileName })
       if (errors.length > 0 || rows.length === 0) {
         return { imported: 0, skipped, errors }
       }
       const s = get()
-      const listByName = new Map(s.lists.map((l) => [l.name.trim().toLowerCase(), l.id]))
-      const resolveListId = (name: string | null): string => {
-        if (!name?.trim()) return INBOX_ID
-        return listByName.get(name.trim().toLowerCase()) ?? INBOX_ID
+      // リスト名は、同じ名前のリスト → 同じ名前のラベル（色）→ 選んだときだけラベルを作る → To-Do（ラベルなし）
+      let labels: LabelTable = { timeLogTagPresets: s.timeLogTagPresets, logCategoryColors: s.logCategoryColors }
+      const placeOf = (name: string | null): { listId: string; color: string | null } => {
+        const target = csvListTarget(name, s.lists, labels.timeLogTagPresets)
+        if (target.kind === 'list') return { listId: target.id, color: null }
+        if (target.kind === 'label' || (target.kind === 'unknown' && options.unknownLists === 'label')) {
+          const r = ensureLabel(labels, target.name)
+          labels = r.table
+          return { listId: INBOX_ID, color: r.hex }
+        }
+        return { listId: INBOX_ID, color: null }
       }
       let baseOrder = Math.max(0, ...s.tasks.map((t) => t.order))
       const now = new Date().toISOString()
       const newTasks: Task[] = rows.map((row) => {
         baseOrder += 1
+        const place = placeOf(row.listName)
         return {
           ...TASK_DEFAULTS,
           id: newId(),
           title: row.title,
           description: row.description,
           completed: row.completed,
-          completedAt: row.completed ? now : null,
+          completedAt: row.completed ? (row.completedAt ?? now) : null,
           createdAt: now,
           updatedAt: now,
           order: baseOrder,
-          listId: resolveListId(row.listName),
+          listId: place.listId,
           sectionId: null,
           parentId: null,
           dueDate: row.dueDate,
-          dueTime: null,
+          dueTime: row.dueDate ? row.dueTime : null,
           scheduledDate: null,
           endDate: null,
           startTime: null,
           endTime: null,
           location: null,
+          color: place.color,
           priority: row.priority,
           tags: row.tags,
           recurrence: null,
@@ -223,7 +233,10 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       })
       // 結果は「元に戻す」付きの通知で知らせる（JSON の取り込みと同じ）
       pushUndo({ key: 'alert.csvImported', params: { count: newTasks.length, skipped } })
-      set((st) => ({ tasks: [...st.tasks, ...newTasks] }))
+      set((st) => ({
+        tasks: [...st.tasks, ...newTasks],
+        ...(labels.timeLogTagPresets === s.timeLogTagPresets ? {} : labels),
+      }))
       return { imported: newTasks.length, skipped, errors: [] }
     },
   }

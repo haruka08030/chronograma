@@ -19,3 +19,20 @@ export function askConfirm(options: ConfirmOptions): Promise<boolean> {
     root.render(<ConfirmDialog options={options} onResult={done} />)
   })
 }
+
+/**
+ * 2 つの選び方と取消のダイアログ。実行のボタンなら 'confirm'、`secondaryLabel` のボタンなら 'secondary'、取消・Esc・背景なら null
+ */
+export function askChoice(options: ConfirmOptions & { secondaryLabel: string }): Promise<'confirm' | 'secondary' | null> {
+  return new Promise((resolve) => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const done = (result: 'confirm' | 'secondary' | null) => {
+      root.unmount()
+      host.remove()
+      resolve(result)
+    }
+    root.render(<ConfirmDialog options={options} onResult={(ok) => done(ok ? 'confirm' : null)} onSecondary={() => done('secondary')} />)
+  })
+}

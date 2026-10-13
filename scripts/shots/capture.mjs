@@ -480,6 +480,21 @@ const SCREENS = [
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 「データ」の記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281）
   { name: 'settings-data', view: 'settings', scrollTo: '#settings-data' },
+  {
+    // TickTick の CSV を選んで、ラベルの無いリスト名をどうするかを聞くところ（#306）
+    name: 'settings-csv-import',
+    view: 'settings',
+    scrollTo: '#settings-data',
+    steps: [
+      {
+        upload: {
+          selector: 'input[type="file"][accept=".csv,text/csv"]',
+          name: 'TickTick-backup.csv',
+          text: '"Date: 2026-10-13+0000"\n"Version: 7.1"\n"Folder Name","List Name","Title","Priority","Status"\n"","ゼミ","発表","5","0"\n"","サークル","合宿の準備","0","0"\n"","サークル","会計","0","0"\n',
+        },
+      },
+    ],
+  },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
   { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
   // 「日付と時刻」の週の開始日（日曜を選んだところ）
@@ -882,6 +897,10 @@ async function main() {
                 await page.mouse.down()
                 await page.mouse.move(x, box.y + y(step.dragTime.to) * hourPx - 2, { steps: 8 })
                 await page.mouse.up()
+              } else if (step.upload) {
+                // ファイルを選んだことにする（隠れた input に直接渡す）
+                const { selector, name, text } = step.upload
+                await page.setInputFiles(selector, { name, mimeType: 'text/csv', buffer: Buffer.from(text) })
               }
               await page.waitForTimeout(300)
             }

@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parseCsvRows, parseTasksCsv } from './importTasksCsv'
+import { setAppTimeZoneSetting } from './timeZone'
+// TickTick（設定 › バックアップ）と Todoist（プロジェクトを CSV で書き出す）の書き出しと同じ形の見本
+import tickTickBackup from './fixtures/ticktick-backup.csv?raw'
+import todoistProject from './fixtures/todoist-project.csv?raw'
 
 describe('parseCsvRows', () => {
   it('引用符の中のカンマ・改行・二重引用符をそのまま読む', () => {
@@ -31,8 +35,10 @@ describe('parseTasksCsv', () => {
       {
         title: '企画書',
         dueDate: '2026-01-05',
+        dueTime: null,
         listName: '仕事',
         completed: true,
+        completedAt: null,
         priority: 'high',
         tags: ['a', 'b'],
         description: '下書き',
@@ -63,5 +69,77 @@ describe('parseTasksCsv', () => {
     expect(rows[0]).toMatchObject({ dueDate: null, priority: 'none' })
     expect(rows[1]!.priority).toBe('low')
     expect(rows[1]!.dueDate === null || /^\d{4}-\d{2}-\d{2}$/.test(rows[1]!.dueDate)).toBe(true)
+  })
+})
+
+describe('ほかのアプリの書き出し', () => {
+  beforeEach(() => setAppTimeZoneSetting('Asia/Tokyo'))
+  afterEach(() => setAppTimeZoneSetting(null))
+
+  it('TickTick のバックアップ: 先頭の説明行を飛ばして見出しを探し、題名・メモ・締切（時刻つき）・優先度・完了・タグ・リストを読む', () => {
+    const { rows, skipped, errors } = parseTasksCsv(tickTickBackup)
+    expect(errors).toEqual([])
+    expect(skipped).toBe(0)
+    expect(rows.map((r) => r.title)).toEqual(['発表スライドを作る', '参考文献を読む', '牛乳を買う', 'A 社の ES を出す', '持ち物'])
+    expect(rows[0]).toEqual({
+      title: '発表スライドを作る',
+      // UTC の 08:30 → アプリのタイムゾーン（東京）の 17:30
+      dueDate: '2026-10-20',
+      dueTime: '17:30',
+      listName: 'ゼミ',
+      completed: false,
+      completedAt: null,
+      priority: 'high',
+      tags: ['研究', '締切'],
+      description: '先生に見せる前に\n図を 3 枚入れる',
+    })
+    // 終日は行のタイムゾーンの日付（UTC では前の日の 15:00）
+    expect(rows[1]).toMatchObject({ dueDate: '2026-10-22', dueTime: null, priority: 'medium' })
+    // Status 2（完了してアーカイブ）も完了。完了した時刻はそのまま
+    expect(rows[2]).toMatchObject({ completed: true, completedAt: '2026-10-03T10:39:31.000Z', priority: 'low', listName: 'Inbox' })
+    // 時差の無い日時（空白区切り）は UTC
+    expect(rows[3]).toMatchObject({
+      dueDate: '2026-10-25',
+      dueTime: '23:59',
+      completed: true,
+      completedAt: '2026-10-05T01:45:30.000Z',
+      priority: 'none',
+      tags: ['就活'],
+    })
+    expect(rows[4]).toMatchObject({ dueDate: null, description: '▫財布\n▪鍵' })
+  })
+
+  it('Todoist のプロジェクト: task の行だけを読み、CONTENT を題名・@ラベルをタグ・ファイル名をリストにする', () => {
+    const { rows, skipped, errors } = parseTasksCsv(todoistProject, { fileName: 'ゼミ [2203306141].csv' })
+    expect(errors).toEqual([])
+    // section・note・区切りの空行は To-Do にも「飛ばした行」にもしない
+    expect(skipped).toBe(0)
+    expect(rows.map((r) => r.title)).toEqual(['レポートを出す', '洗濯', '面接の準備', '企業研究'])
+    expect(rows[0]).toEqual({
+      title: 'レポートを出す',
+      dueDate: '2026-10-20',
+      dueTime: '17:00',
+      listName: 'ゼミ',
+      completed: false,
+      completedAt: null,
+      priority: 'high',
+      tags: ['大学', '提出'],
+      description: '第 3 章まで, 図つき',
+    })
+    // p4 は優先度なし。「every day」のような言葉の日付は入れない
+    expect(rows[1]).toMatchObject({ priority: 'none', dueDate: null, dueTime: null })
+    expect(rows[2]).toMatchObject({ priority: 'medium', dueDate: '2026-10-22', dueTime: null })
+    // 日付が無ければ締切（DEADLINE）
+    expect(rows[3]).toMatchObject({ priority: 'low', dueDate: '2026-10-24' })
+  })
+
+  it('Todoist でファイル名が分からなければリストは空', () => {
+    expect(parseTasksCsv(todoistProject).rows[0]!.listName).toBeNull()
+    expect(parseTasksCsv(todoistProject, { fileName: '仕事.csv' }).rows[0]!.listName).toBe('仕事')
+  })
+
+  it('見出しの上の行が説明でも、ふつうの CSV の数字の優先度は読まない', () => {
+    const { rows } = parseTasksCsv('書き出した日: 2026-10-13\ntitle,due,priority\nA,2026-10-20 9:05,1')
+    expect(rows).toEqual([expect.objectContaining({ title: 'A', dueDate: '2026-10-20', dueTime: '09:05', priority: 'none' })])
   })
 })

@@ -70,12 +70,15 @@ export default {
   confirm: {
     importOverwriteCounts:
       '取り込むと、いまのデータはすべて置き換わります。\n\nタスク: {{currentTasks}} 件 → {{nextTasks}} 件\nリスト: {{currentLists}} 件 → {{nextLists}} 件\n\n取り込んだ直後なら ⌘Z（Ctrl+Z）で元に戻せます。続けますか？',
+    csvUnknownLists: '同じ名前のラベルが無いリストが {{labels}} つあります（{{count}} 件）: {{names}}\n\nラベルとして作りますか？',
+    csvMakeLabels: 'ラベルを作る',
+    csvNoLabels: 'ラベルなしで入れる',
     restoreBeforeImport: '取り込み前（タスク {{count}} 件）に戻しますか？いまのデータは置き換わります。',
   },
   alert: {
     importFileTooLarge: 'ファイルが大きすぎます（{{mb}} MB まで）',
     invalidImportFile: '無効なファイルです',
-    invalidCsvFile: 'CSV の形式が不正です（1 行目に title 列が必要です）',
+    invalidCsvFile: 'CSV の形式が不正です（題名の列が見つかりません）',
     csvNoRows: '取り込める行がありませんでした',
     csvImported: '{{count}} 件のタスクを追加しました（スキップ {{skipped}} 行）',
     endAfterStart: '終了時刻は開始時刻より後にしてください',
@@ -766,7 +769,7 @@ export default {
     backupTitle: 'バックアップ',
     restoreImportTitle: '取り込む前に戻す',
     restoreImportAction: '取り込み前に戻す',
-    csvTitle: 'CSV から To-Do を追加',
+    csvTitle: 'ほかのアプリから取り込む（TickTick・Todoist・CSV）',
     notificationsTitle: '通知',
     morningSummary: '朝のまとめ',
     recordPrompts: '予定のあとに記録を確認',
