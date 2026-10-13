@@ -26,13 +26,14 @@ import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
-import { appTodayKey } from '../lib/timeZone'
+import { appTodayKey, zonedNow } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
 import { shortDate } from '../lib/moveToast'
-import { minutesToTime } from '../lib/clockTime'
+import { endWithinDay, minutesToTime } from '../lib/clockTime'
+import { useQuickAddAction } from '../lib/quickAddFocus'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
@@ -405,6 +406,23 @@ export function WeekCalendarView({
     [addTimeLog, updateTask],
   )
   const timelineDrop = useTimelineDrop({ getRelativeY, getTaskDuration, onDrop })
+
+  // C / ⌘N: 選んでいる日（表示に無ければ最初の日）の次の正時で作成カードを開く（Google カレンダーと同じ。今日の計画へは移らない）
+  useQuickAddAction(
+    singleDay
+      ? null
+      : () => {
+          if (timelineDrag.popup) return
+          const dateKey = gridDays.some((d) => toDateKey(d) === focusKey) ? focusKey : gridKey0
+          const startMin = Math.min(zonedNow().getHours() + 1, 23) * 60
+          const startTime = minutesToTime(startMin)
+          timelineDrag.openPopup({ dateKey, startTime, endTime: endWithinDay(startTime, defaultBlockMinutes), intent: 'schedule' })
+          // 見えていない時間なら、作る枠が見える所まで送る
+          const el = scrollRef.current
+          const y = (startMin / 60) * hourHeight
+          if (el && (y < el.scrollTop || y + hourHeight > el.scrollTop + el.clientHeight)) el.scrollTop = Math.max(0, y - hourHeight)
+        },
+  )
 
   /** 祝日の名前は終日の行に出す（今日の計画は自分の見出しがあるので出さない） */
   const holidayNameOf = useHolidayName()
