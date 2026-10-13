@@ -2,7 +2,14 @@
 import { somedayTierOf, withSomedayTier } from '../../lib/somedayTier'
 import { isEventTask, type Task } from '../../types/task'
 import { INBOX_ID, TRASH_KEEP_DAYS } from '../storeConstants'
-import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
+import {
+  applyTaskPatch,
+  duplicateTaskTrees,
+  expandDescendantIds,
+  makeTask,
+  orderForNewSiblingAtFront,
+  patchChangesTask,
+} from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
 import type { TaskState } from '../storeTypes'
@@ -21,6 +28,7 @@ type TasksActions = Pick<
   | 'rescheduleTasks'
   | 'bulkUpdateTasks'
   | 'completeTasks'
+  | 'duplicateTasks'
   | 'deleteTask'
   | 'uncheckTasks'
   | 'promoteToPlanned'
@@ -195,6 +203,18 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
           s.tasks,
         ),
       }))
+    },
+    duplicateTasks: (ids) => {
+      const { added, copyIds } = duplicateTaskTrees(get().tasks, ids)
+      if (copyIds.length === 0) return []
+      const first = added[0]
+      pushUndo(
+        copyIds.length > 1
+          ? { key: 'undo.tasksDuplicated', params: { count: copyIds.length } }
+          : { key: 'undo.taskDuplicated', params: { title: first?.title ?? '' } },
+      )
+      set((s) => ({ tasks: [...s.tasks, ...added] }))
+      return copyIds
     },
     bulkUpdateTasks: (ids, patch, label) => {
       if (ids.length === 0) return
