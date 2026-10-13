@@ -16,7 +16,11 @@ import { CompletionCircle } from '../ui/CompletionCircle'
 import { HIDE_ON_ROW_HOVER } from '../ui/revealClass'
 import { ROW_CURSOR_CLASS, ROW_PRESS_CLASS, ROW_SELECTED_CLASS } from '../ui/rowStateClass'
 import { chipClass } from '../ui/chipClass'
+import { ChildDueChip } from '../ui/ChildDueChip'
+import { useChildDue } from '../../hooks/useChildDue'
 import { META_TONE_CLASS, rowMeta, type DueMode, type PlannerDay } from './plannerRowMeta'
+
+const URGENT_TONES = ['overdue', 'today'] as const
 
 type Selection = ReturnType<typeof useTaskListSelection>
 
@@ -58,7 +62,10 @@ export function PlannerTaskRow({
   const meta = rowMeta(task, dueMode, day)
   // サブタスク（企業の下の ES 締切など）は親の名前を題名の下に小さく添える
   const parentTitle = useTaskStore((s) => (task.parentId ? (s.tasks.find((x) => x.id === task.parentId)?.title ?? null) : null))
-  const hasRowExtras = !task.completed && (task.tags.length > 0 || !!parentTitle)
+  // 親の行（企業など）は子の行が下に並ばないので、まだ終わっていない子のいちばん近い締切を添える（To-Do 一覧と違い子が見えない）。
+  // 今日やると決めた行は過ぎた・今日の締切だけ（行の締切と同じ）
+  const childDue = useChildDue(task, true, dueMode === 'urgent' ? URGENT_TONES : undefined)
+  const hasRowExtras = !task.completed && (task.tags.length > 0 || !!parentTitle || !!childDue)
   // 続けて持ち越した日数（今日を見ているときの、やり残し・今日やる行だけ）。2 日以上で「3日目」。
   // 締切が過ぎた行は「2日遅れ」が出ているので重ねない
   const carried = viewingToday && (dueMode === 'all' || dueMode === 'urgent') ? carriedDaysOn(task, day.dateKey) : 0
@@ -143,6 +150,7 @@ export function PlannerTaskRow({
                 {parentTitle}
               </span>
             )}
+            {childDue && <ChildDueChip due={childDue} />}
             {task.tags.map((tag) => (
               <span key={tag} className={chipClass({ variant: 'fill' })}>
                 {tag}
