@@ -532,6 +532,7 @@ const SCREENS = [
   { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
+  { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
   { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
   { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
