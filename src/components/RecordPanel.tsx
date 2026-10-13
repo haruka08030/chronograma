@@ -10,7 +10,7 @@ import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
-import { TimeInput } from './TimeInput'
+import { LogTimeRow } from './LogTimeRow'
 import { zonedNow } from '../lib/timeZone'
 import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -18,7 +18,6 @@ import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
-import { fieldClass } from './ui/fieldClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
@@ -219,21 +218,13 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
           {mode === 'manual' && (
-            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <TimeInput value={start} onChange={setStart} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
-              <span aria-hidden>–</span>
-              <TimeInput
-                value={end}
-                onChange={setEnd}
-                pickerDefault={start ? addClockMinutes(start, 60) : undefined}
-                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
-              />
+            <LogTimeRow start={start} end={end} onStartChange={setStart} onEndChange={setEnd}>
               {inFuture ? (
                 <span className={ERROR_TEXT}>{t('records.noFuture')}</span>
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}
-            </div>
+            </LogTimeRow>
           )}
           {/* 今日は「今まで◯分」で入れられる。日付をまたぐ長さ（0 時台の 2 時間など）は出さない */}
           {mode === 'manual' && viewingToday && (

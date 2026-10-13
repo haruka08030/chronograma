@@ -428,6 +428,7 @@ export default {
     breakdownMore: 'ほか',
     laterPlaceholder: '何をした？（空欄ならラベル名で記録）',
     nextDay: '翌日まで',
+    untilDate: '{{date}} まで',
     noFuture: '今より先は記録できません',
     save: '記録する',
   },
@@ -833,14 +834,9 @@ export default {
   task: {
     completeModal: {
       title: '完了を記録',
-      body: '記録を作ってから、予定タスクを完了にします。',
-      startDate: '開始日',
-      endDate: '終了日',
       memo: 'メモ（任意）',
-      memoPlaceholder: '実行内容のメモを入力',
       saveComplete: '記録して完了',
       eventTitle: '記録にする',
-      eventBody: 'この予定の時間を記録にします。',
       saveRecord: '記録する',
     },
   },

@@ -444,6 +444,7 @@ export default {
     breakdownMore: 'and more',
     laterPlaceholder: 'What did you do? (optional)',
     nextDay: 'until next day',
+    untilDate: 'until {{date}}',
     noFuture: 'Can’t log future time',
     save: 'Log',
   },
@@ -857,14 +858,9 @@ export default {
   task: {
     completeModal: {
       title: 'Log completion',
-      body: 'Create a time log, then mark the planned task complete.',
-      startDate: 'Start date',
-      endDate: 'End date',
       memo: 'Notes (optional)',
-      memoPlaceholder: 'What you did',
       saveComplete: 'Log and complete',
       eventTitle: 'Log it',
-      eventBody: 'Turn the time of this event into a record.',
       saveRecord: 'Log',
     },
   },

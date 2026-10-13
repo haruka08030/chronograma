@@ -77,7 +77,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -100,6 +100,8 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
+  // 通知の「記録する」（#392）。記録パネルの「後から記録」と同じフォーム
+  { name: 'record-prompt', view: 'planner', query: '?record=s6' },
   // 記録中に題名・ラベルを直す（#391）
   {
     name: 'timer-edit',
@@ -858,7 +860,7 @@ async function main() {
           page.on('pageerror', (e) => consoleErrors.push(String(e.message ?? e)))
 
           try {
-            await page.goto(server.baseUrl, { waitUntil: 'networkidle' })
+            await page.goto(server.baseUrl + (screen.query ?? ''), { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
             if (screen.mobileClick && vp.hasTouch) {
