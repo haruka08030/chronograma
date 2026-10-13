@@ -354,3 +354,20 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 })
+
+describe('WeekCalendarView: 終日の行をたたんでも締切は出す', () => {
+  it('置いた To-Do が多い日も、締切の旗は「他 N 件」に入れずに出す', () => {
+    const at = (title: string, order: number, extra: object = {}) => ({
+      ...makeTask({ title, listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', ...extra }, order),
+      id: title,
+    })
+    useTaskStore.setState({
+      tasks: [at('A', 0), at('B', 1), at('C', 2), at('D', 3), at('Report', 4, { scheduledDate: '2026-10-06', dueDate: '2026-10-07' })],
+    })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-06')} selectedDateKey="2026-10-06" threeDay />)
+    // 10/6 の置いた日のチップと、10/7 の締切の旗
+    expect(screen.getAllByText('Report')).toHaveLength(2)
+    expect(screen.getByText('+2 more')).toBeInTheDocument()
+    expect(screen.queryByText('C')).toBeNull()
+  })
+})
