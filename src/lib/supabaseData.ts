@@ -19,6 +19,7 @@ import { readEventSeries, withSeries } from './eventSeries'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
+import { readCarriedDays } from './carryDays'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -73,6 +74,8 @@ interface TaskRow {
   location?: string | null
   /** 古い DB には無い（`015`） */
   estimate_minutes?: number | null
+  /** 続けて持ち越した日数（`029`）。古い DB には無い */
+  carried_days?: number | null
   /** 古い DB には無い（`016`） */
   source_task_id?: string | null
   /** 毎週の予定の印（`027`）。古い DB には無い */
@@ -242,6 +245,7 @@ function rowToTaskFields(row: TaskRow): Task {
     endTime: row.end_time,
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimate_minutes),
+    carriedDays: readCarriedDays(row.carried_days),
     color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
@@ -292,6 +296,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_time: task.endTime,
     location: task.location ?? null,
     estimate_minutes: task.estimateMinutes,
+    carried_days: task.carriedDays,
     color: task.color,
     priority: task.priority,
     tags: task.tags,

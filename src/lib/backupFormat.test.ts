@@ -144,6 +144,7 @@ describe('unknown fields', () => {
     expect(Object.keys(t).sort()).toEqual(
       [
         'archivedAt',
+        'carriedDays',
         'category',
         'color',
         'completed',

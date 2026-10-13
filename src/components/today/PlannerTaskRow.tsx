@@ -5,6 +5,8 @@ import type { Task } from '../../types/task'
 import { startTaskDrag } from '../../lib/taskDrag'
 import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { openTaskMenu } from '../../lib/overlays'
+import { tip } from '../../lib/tooltip'
+import { CARRY_SHOW_DAYS, carriedDaysOn } from '../../lib/carryDays'
 import type { RowSwipeAction } from '../../hooks/useRowSwipe'
 import type { useTaskListSelection } from '../../hooks/useTaskListSelection'
 import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
@@ -55,6 +57,10 @@ export function PlannerTaskRow({
   const metaHide = hoverActions ? HIDE_ON_ROW_HOVER : ''
   const meta = rowMeta(task, dueMode, day)
   const hasRowExtras = !task.completed && task.tags.length > 0
+  // 続けて持ち越した日数（今日を見ているときの、やり残し・今日やる行だけ）。2 日以上で「3日目」。
+  // 締切が過ぎた行は「2日遅れ」が出ているので重ねない
+  const carried = viewingToday && (dueMode === 'all' || dueMode === 'urgent') ? carriedDaysOn(task, day.dateKey) : 0
+  const showCarry = carried >= CARRY_SHOW_DAYS && meta.due?.tone !== 'overdue'
   const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
   // 選べる行は listbox の option（名前は題名、選んでいるかは aria-selected）
   const optionId = sel?.optionId
@@ -138,6 +144,16 @@ export function PlannerTaskRow({
           </div>
         )}
       </div>
+      {showCarry && (
+        <span
+          data-carry-days={carried}
+          {...tip(t('planner.carryDaysHint', { count: carried }))}
+          className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted} ${metaHide}`}
+        >
+          {t('planner.carryDay', { count: carried + 1 })}
+          <span className="sr-only"> {t('planner.carryDaysHint', { count: carried })}</span>
+        </span>
+      )}
       {meta.due && !task.completed && (
         <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]} ${metaHide}`}>{meta.due.text}</span>
       )}

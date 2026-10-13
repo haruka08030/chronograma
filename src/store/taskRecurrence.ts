@@ -82,6 +82,8 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
           completed: willComplete,
           updatedAt: now,
           completedAt: willComplete ? now : null,
+          // 終えたら続けて持ち越した日数は 0 から（戻しても数え直さない）
+          ...(willComplete && t.carriedDays !== 0 ? { carriedDays: 0 } : {}),
         }
       : t,
   )
@@ -96,6 +98,7 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
           id: nextId,
           completed: false,
           completedAt: null,
+          carriedDays: 0,
           dueDate: nextDue,
           // 元の日（31 日・2/29）を覚えて、短い月を通っても戻れるようにする
           recurrence:
