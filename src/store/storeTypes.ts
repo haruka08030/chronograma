@@ -86,7 +86,7 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動（近日中・締切切れは締切順、`sortModeOf`） */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
   /** 今日の計画の「今日やる候補」の並び順・絞り込み */

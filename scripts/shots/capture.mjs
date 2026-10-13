@@ -230,6 +230,8 @@ const SCREENS = [
   { name: 'todo-label', view: 'all', mobileClick: OPEN_LISTS, click: LABEL_JOBHUNT },
   // 見出しの並び順のメニュー（スマホは下から出すシート）。色ラベル・いつかでも同じメニュー
   { name: 'todo-sort-menu', view: 'all', click: SORT_BUTTON },
+  // 締切で集めるビューは、選んだことが無ければ締切順
+  { name: 'todo-upcoming', view: 'upcoming' },
   // To-Do 一覧の絞り込み（じょうご）と、優先度で絞ったところ（チップ・件数）
   { name: 'todo-filter-menu', view: 'all', click: [TODO_FILTER, '[role=menu] >> text=優先度で絞る >> visible=true'] },
   {
