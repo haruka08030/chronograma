@@ -37,6 +37,9 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
 
+/** PC で題名を 1 回押してから詳細を開くまで（2 回目が来たら名前の変更） */
+const DOUBLE_CLICK_MS = 250
+
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
   if (isAppTomorrow(d)) return 'tomorrow'
@@ -243,21 +246,45 @@ export const TaskItem = memo(function TaskItem({
   const lift = !!liftListeners && !editing
   const longPress = useRowLift(task.id, !!selection && !editing && !liftListeners)
 
-  const beginTitleInteraction = useCallback(
+  const beginRename = useCallback(() => {
+    setEditValue(task.title)
+    setEditing(true)
+  }, [task.title])
+  // 題名を押したときも行と同じ（PC は詳細、指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
+  // 行に動きが無い所（詳細のサブタスク）は押すと名前の変更
+  const hasRowAction = !!onRowClick || !!onClick
+  const singleClickRef = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(singleClickRef.current), [])
+  const isCoarse = useIsCoarsePointer()
+
+  const handleTitleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (!hasRowAction) {
+        e.stopPropagation()
+        beginRename()
+        return
+      }
+      // 指・キー（detail 0）・修飾キー・選択中はそのまま行へ
+      if (isCoarse || e.detail === 0 || e.shiftKey || isModKey(e) || selection?.reveal) return
+      // PC: ダブルクリックの 2 回目より先に詳細が開いて背景を押さないよう、1 回目は少し待ってから行へ
       e.stopPropagation()
-      if (e.shiftKey || isModKey(e)) {
-        onRowClick?.(e)
-        return
-      }
-      if (selection?.reveal && onRowClick) {
-        onRowClick(e)
-        return
-      }
-      setEditValue(task.title)
-      setEditing(true)
+      window.clearTimeout(singleClickRef.current)
+      if (e.detail > 1) return
+      singleClickRef.current = window.setTimeout(() => {
+        if (onRowClick) onRowClick(e)
+        else onClick?.()
+      }, DOUBLE_CLICK_MS)
     },
-    [onRowClick, selection?.reveal, task.title],
+    [hasRowAction, isCoarse, selection?.reveal, onRowClick, onClick, beginRename],
+  )
+  const handleTitleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (isCoarse || !hasRowAction || selection?.reveal) return
+      e.stopPropagation()
+      window.clearTimeout(singleClickRef.current)
+      beginRename()
+    },
+    [isCoarse, hasRowAction, selection?.reveal, beginRename],
   )
 
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
@@ -273,7 +300,6 @@ export const TaskItem = memo(function TaskItem({
   }, [selection?.cursor])
 
   // スマホ: 右へ払うと完了、左へ払うと今日やる ⇄ 明日へ（タスクのリストの親タスクだけ）。今日の計画の行と同じ
-  const isCoarse = useIsCoarsePointer()
   const todayToggle = useTodayToggle()
   const swipe = useRowSwipe(
     rowRef,
@@ -404,8 +430,15 @@ export const TaskItem = memo(function TaskItem({
               type="button"
               id={optionId ? `${optionId}-title` : undefined}
               data-task-title
-              onClick={beginTitleInteraction}
-              className={`block w-full truncate text-left cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
+              onClick={handleTitleClick}
+              onDoubleClick={handleTitleDoubleClick}
+              onKeyDown={(e) => {
+                if (e.key !== 'F2') return
+                e.preventDefault()
+                e.stopPropagation()
+                beginRename()
+              }}
+              className={`block w-full truncate text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
             >

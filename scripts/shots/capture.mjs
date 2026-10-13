@@ -368,8 +368,8 @@ const SCREENS = [
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
-  // タイトルを押すと編集になるので、行の左の余白を押して開く
-  { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
+  // 題名を押して開く（行と同じ。スマホは短いシート）
+  { name: 'task-detail', view: 'all', click: 'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true' },
   // 曜日つきの毎週（繰り返しの下に曜日のピル）
   // メモを押して編集に入った状態（中身に合わせて欄が伸びる）
   {
@@ -850,7 +850,8 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
-                await page.waitForTimeout(300)
+                // PC で題名を押すと、ダブルクリックを待ってから詳細が開く（TaskItem の DOUBLE_CLICK_MS）
+                await page.waitForTimeout(600)
               }
             }
             if (screen.typeInto) {
