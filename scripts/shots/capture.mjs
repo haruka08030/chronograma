@@ -151,6 +151,13 @@ const SCREENS = [
   // 持ち越しが続いているタスク（#300）: ふりかえりの下の段
   { name: 'stats-carried', view: 'stats', scrollTo: '[aria-labelledby="review-carried"]' },
   // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
+  // 締切の近い候補を開いたところ（子の締切は親の名前つき、#308）
+  {
+    name: 'planner-candidates-open',
+    view: 'planner',
+    click: 'button[aria-expanded]:has-text("To-Do から追加") >> visible=true',
+    scrollToBottom: true,
+  },
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {

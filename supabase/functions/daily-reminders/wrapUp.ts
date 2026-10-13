@@ -92,7 +92,8 @@ export function wrapUpDigest(
       if (!row.is_sleep) loggedMinutes += logMinutesOnDay(row, today)
       continue
     }
-    if (row.parent_id || excludedListIds.has(row.list_id) || row.is_event) continue
+    // サブタスクは実行日か締切のあるものだけ 1 件に数える（アプリの `isDayPlanTask` と同じ）
+    if ((row.parent_id && !row.scheduled_date && !row.due_date) || excludedListIds.has(row.list_id) || row.is_event) continue
     if (row.completed) {
       // やった日が優先（完了した日。古い保存で完了時刻が無ければ最後に変えた日）
       const at = row.completed_at ?? row.updated_at

@@ -227,6 +227,10 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     task({ id: 's60', title: '確率論の課題', completed: true, dueDate: today, estimateMinutes: 60, order: 17 }, instant),
     task({ id: 's11', title: '履修登録', completed: true, dueDate: yesterday, order: 10 }, instant),
     task({ id: 's12', title: '健康診断の予約', completed: true, dueDate: yesterday, order: 11 }, instant),
+    // 企業を親にして、選考の締切を子に置く（#308: 今日の計画の締切間近に親の名前つきで出て、親の行に次の締切）
+    task({ id: 's90', title: 'B 商事', order: 12 }, instant),
+    task({ id: 's91', title: 'ES 提出', parentId: 's90', dueDate: inTwoDays, order: 0 }, instant),
+    task({ id: 's92', title: '一次面接', parentId: 's90', scheduledDate: inTwoDays, dueDate: dayKey(shift(now, 6)), order: 1 }, instant),
     // いつか（Wish）と買い物（チェックリスト）は別リスト
     task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, order: 0 }, instant),
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, instant),

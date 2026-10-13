@@ -208,3 +208,26 @@ describe('showsDayResult（今日の計画の見出しのその日の結果）',
     expect(showsDayResult('2026-10-14', '2026-10-13', 23 * 60, evening)).toBe(false)
   })
 })
+
+describe('サブタスクの締切（#308）', () => {
+  const tasks = [
+    task('company', { title: 'A 社' }),
+    task('es', { parentId: 'company', scheduledDate: '2026-09-28', dueDate: '2026-10-02' }),
+    task('late', { parentId: 'company', dueDate: '2026-09-29' }),
+    task('today', { parentId: 'company', scheduledDate: DAY }),
+    task('step', { parentId: 'company' }),
+    task('later', { parentId: 'company', scheduledDate: '2026-10-05', dueDate: '2026-10-20' }),
+  ]
+
+  it('日付のある子は 1 件の To-Do として締切間近・期限切れ・今日やるに出る。日付の無い子は出ない', () => {
+    const plan = getDayPlan([...tasks, task('esFuture', { parentId: 'company', scheduledDate: '2026-10-01', dueDate: '2026-10-02' })], DAY)
+    expect(plan.overdue.map((x) => x.id)).toEqual(['late'])
+    expect(plan.open.map((x) => x.id)).toEqual(['today'])
+    expect(plan.carryOver.map((x) => x.id)).toEqual(['es'])
+    expect(plan.dueSoon.map((x) => x.id)).toEqual(['esFuture'])
+  })
+
+  it('候補には日付のある子だけ（日付の無い子は親の中の手順のまま）', () => {
+    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['later', 'company'])
+  })
+})

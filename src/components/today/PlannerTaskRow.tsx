@@ -56,7 +56,9 @@ export function PlannerTaskRow({
   const { day, viewingToday, rowIds, selectedCount, makeSelection, makeRowClick, openDetail, deferredComplete, isCoarse } = env
   const metaHide = hoverActions ? HIDE_ON_ROW_HOVER : ''
   const meta = rowMeta(task, dueMode, day)
-  const hasRowExtras = !task.completed && task.tags.length > 0
+  // サブタスク（企業の下の ES 締切など）は親の名前を題名の下に小さく添える
+  const parentTitle = useTaskStore((s) => (task.parentId ? (s.tasks.find((x) => x.id === task.parentId)?.title ?? null) : null))
+  const hasRowExtras = !task.completed && (task.tags.length > 0 || !!parentTitle)
   // 続けて持ち越した日数（今日を見ているときの、やり残し・今日やる行だけ）。2 日以上で「3日目」。
   // 締切が過ぎた行は「2日遅れ」が出ているので重ねない
   const carried = viewingToday && (dueMode === 'all' || dueMode === 'urgent') ? carriedDaysOn(task, day.dateKey) : 0
@@ -135,7 +137,12 @@ export function PlannerTaskRow({
         </button>
         {/* タイトルの下にタグ。リンクの「開く」は幅が狭いので出さない（タイムラインのカード・詳細から開く） */}
         {hasRowExtras && (
-          <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-1 pb-2 pt-0.5">
+            {parentTitle && (
+              <span data-parent-title className="max-w-full truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {parentTitle}
+              </span>
+            )}
             {task.tags.map((tag) => (
               <span key={tag} className={chipClass({ variant: 'fill' })}>
                 {tag}

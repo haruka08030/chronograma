@@ -178,3 +178,19 @@ describe('TodayPlannerView: 続けて持ち越した日数（#300）', () => {
     expect(document.querySelector('[data-carry-days]')).toBeNull()
   })
 })
+
+describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
+  it('期限切れの子を親の名前つきで出す', () => {
+    const today = toDateKey(appToday())
+    const yesterday = toDateKey(addDays(appToday(), -1))
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const parent = store.addTask('A Inc.')!
+    const child = useTaskStore.getState().addTask('Web test', undefined, parent)!
+    useTaskStore.getState().updateTask(child, { dueDate: yesterday })
+    render(<TodayPlannerView />)
+    const row = document.querySelector(`[data-task-row="${child}"]`)!
+    expect(row).not.toBeNull()
+    expect(row.querySelector('[data-parent-title]')!.textContent).toBe('A Inc.')
+  })
+})

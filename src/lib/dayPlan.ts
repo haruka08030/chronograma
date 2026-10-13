@@ -73,6 +73,15 @@ function compareDayTasks(a: Task, b: Task): number {
 
 const DUE_SOON_DAYS = 3
 
+/**
+ * 今日の計画（やる・やり残し・期限切れ・締切間近・候補・完了の数）に 1 件の To-Do として入れるか。
+ * ルートは全部、サブタスクは実行日か締切のあるものだけ（企業の下の ES 締切・面接など。日付の無い子は親の中の手順のまま）。
+ * 夜の締め・朝のまとめのサーバー側（`wrapUp.ts`）も同じ決まり
+ */
+export function isDayPlanTask(task: Pick<Task, 'parentId' | 'scheduledDate' | 'dueDate'>): boolean {
+  return !task.parentId || task.scheduledDate !== null || task.dueDate !== null
+}
+
 /** 「今日の計画」と日次リマインダーで共通の、その日（`yyyy-MM-dd`）の集計 */
 export function getDayPlan(
   tasks: readonly Task[],
@@ -96,7 +105,7 @@ export function getDayPlan(
     }
     // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了）。カレンダーで見る。
     // 「予定 / 空き」の時間は週の見出しと同じ dayLoad.ts で数える
-    if (task.parentId || excludedListIds.has(task.listId) || isEventTask(task)) continue
+    if (!isDayPlanTask(task) || excludedListIds.has(task.listId) || isEventTask(task)) continue
     const placed = taskPlacementDate(task)
     if (task.completed) {
       // やった日が優先: 置いた日・締切ではなく、完了した日の「完了」に出す
@@ -130,7 +139,7 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
   const placedLater: Task[] = []
   for (const task of tasks) {
     if (!isActiveTask(task) || task.completed || !isTodoTask(task)) continue
-    if (task.parentId || excludedListIds.has(task.listId)) continue
+    if (!isDayPlanTask(task) || excludedListIds.has(task.listId)) continue
     const placed = taskPlacementDate(task)
     if (placed === null) undated.push(task)
     else if (placed <= dateKey) continue
