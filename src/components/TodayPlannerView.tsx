@@ -155,12 +155,17 @@ export function TodayPlannerView() {
   const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
   const showSuggestions = suggestionsChoice ?? dueByTomorrow
   const candidateView = useTaskStore((s) => s.plannerCandidateView)
-  const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef, shownSuggestions } = usePlannerSuggestions({
+  const {
+    moreSuggestions,
+    candidateGroups,
+    remaining: moreRemaining,
+    showMore,
+    shownSuggestions,
+  } = usePlannerSuggestions({
     tasks,
     dateKey,
     excludedListIds,
     suggestions,
-    showSuggestions,
     view: candidateView,
   })
   const candidatePool = useMemo(() => [...suggestions, ...moreSuggestions], [suggestions, moreSuggestions])
@@ -196,6 +201,8 @@ export function TodayPlannerView() {
     todayToggleRows: (ids) => todayToggle(ids).run(),
     // S: 「時間を決める」は見ている日の空きから（候補・やり残しの行も、置くとこの日にやる行になる）
     pickTimeRow: (id) => openTimeSlotForTask(id, dateKey),
+    // 候補の最後の行で ↓ を押すと「さらに表示」と同じく足す
+    onShowMore: showSuggestions && moreRemaining > 0 ? showMore : undefined,
     resetOn: [dateKey],
   })
   useEffect(() => {
@@ -323,8 +330,8 @@ export function TodayPlannerView() {
             candidateGroups={candidateGroups}
             open={showSuggestions}
             onToggle={() => setSuggestionsChoice(!showSuggestions)}
-            hasMoreToShow={hasMoreToShow}
-            moreSentinelRef={moreSentinelRef}
+            remaining={moreRemaining}
+            onShowMore={showMore}
             groupId={suggestionGroupId}
           />
         )}

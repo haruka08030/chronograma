@@ -242,3 +242,44 @@ describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332
     expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
   })
 })
+
+describe('TodayPlannerView: 候補は「さらに表示」で足す（#372）', () => {
+  it('10 件ずつ出し、残りの件数のボタンで足す', async () => {
+    const today = toDateKey(appToday())
+    useTaskStore.setState({
+      plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'dueDate' },
+      tasks: Array.from(
+        { length: 13 },
+        (_, i) =>
+          ({
+            ...TASK_DEFAULTS,
+            id: `u${i}`,
+            title: `Undated ${i}`,
+            description: '',
+            completed: false,
+            completedAt: null,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            order: i,
+            listId: 'inbox',
+            sectionId: null,
+            parentId: null,
+            dueDate: null,
+            startTime: null,
+            endTime: null,
+            priority: 'none',
+            tags: [],
+            recurrence: null,
+          }) as Task,
+      ),
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    await user.click(screen.getByRole('button', { name: /Add from to-dos/ }))
+    expect(document.querySelectorAll('[data-task-row^="u"]')).toHaveLength(10)
+    await user.click(screen.getByRole('button', { name: 'Show more (3 left)' }))
+    expect(document.querySelectorAll('[data-task-row^="u"]')).toHaveLength(13)
+    expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull()
+  })
+})

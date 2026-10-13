@@ -1,4 +1,4 @@
-import { useMemo, type RefObject } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -18,6 +18,7 @@ import { useAppTodayKey } from '../../hooks/useAppClock'
 import { formatDuration } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { ShowMoreButton } from '../ui/ShowMoreButton'
 
 /**
  * 今日の計画の候補（締切間近・その先・日付なし）。畳んだ 1 行で、開くと締切の日ごとのまとまり。
@@ -30,8 +31,8 @@ export function PlannerSuggestions({
   candidateGroups,
   open,
   onToggle,
-  hasMoreToShow,
-  moreSentinelRef,
+  remaining,
+  onShowMore,
   groupId,
 }: {
   env: PlannerRowEnv
@@ -45,8 +46,9 @@ export function PlannerSuggestions({
   candidateGroups: CandidateGroup[]
   open: boolean
   onToggle: () => void
-  hasMoreToShow: boolean
-  moreSentinelRef: RefObject<HTMLDivElement | null>
+  /** まだ出していない候補の数（「さらに表示（残り N 件）」） */
+  remaining: number
+  onShowMore: () => void
   /** まとまりの id（今日の計画の listbox が aria-owns で自分の中に入れる） */
   groupId: (group: CandidateGroup) => string
 }) {
@@ -152,7 +154,7 @@ export function PlannerSuggestions({
               </div>
             )
           })}
-          {hasMoreToShow && <div ref={moreSentinelRef} aria-hidden className="h-px" />}
+          {remaining > 0 && <ShowMoreButton onClick={onShowMore} remaining={remaining} />}
         </>
       )}
     </div>
