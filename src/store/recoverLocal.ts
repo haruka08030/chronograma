@@ -18,7 +18,7 @@ type State = Record<string, unknown>
 const ROW_KEYS = ['tasks', 'lists', 'habits', 'sections'] as const
 /** 変えた時刻と、その時刻で比べる値 */
 const STAMPED: Record<string, readonly string[]> = {
-  logLabelsUpdatedAt: ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets'],
+  logLabelsUpdatedAt: ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets', 'logLabelIds'],
   extraTimeZonesUpdatedAt: ['extraTimeZones'],
   eventTemplatesUpdatedAt: ['eventTemplates'],
   courseLinksUpdatedAt: ['courseLinks'],

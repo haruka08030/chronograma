@@ -118,7 +118,12 @@ export interface TaskState {
   logCategoryColors: Record<string, string>
   /** 分類名 → 週の目安（分、#291）。目安の無い分類は入れない（`labelTargets.ts`） */
   logLabelTargets: Record<string, number>
-  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  /**
+   * 分類名 → ラベルの id（#365、`labelIds.ts`）。無い名前の id は名前から決まる（`legacyLabelId`）。
+   * 名前を変えたラベルは元の id をここに持ち、記録・To-Do は id で指したまま（行を書き直さない）
+   */
+  logLabelIds: Record<string, string>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets・logLabelIds）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
   logLabelsUpdatedAt: string | null
   /** 取り込み（Notion・フォルダを畳む）で足し、まだサーバーに届いていないラベルの名前。手元の変えた時刻は進めず「無ければ足す」で送る（`labelSync.ts`、#357） */
   logLabelPendingAdds: string[]

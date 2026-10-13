@@ -54,6 +54,7 @@ import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
 import { planLabelSync, settledLabelAdds } from '../lib/labelSync'
+import { fillLabelIds, labelIndex, relabelTasks, resolveIncomingLabels } from '../lib/labelIds'
 import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
@@ -136,6 +137,21 @@ function countLocalOnly(local: SyncSnapshot, remote: SyncSnapshot): number {
 function localSnapshot(): SyncSnapshot {
   const s = useTaskStore.getState()
   return { lists: s.lists, tasks: s.tasks, habits: s.habits, sections: s.sections }
+}
+
+/**
+ * 手元と取得した行のラベルを同じ表でそろえる（#365）。手元はラベルの id の付け忘れを名前・色から付け、
+ * 取得した行は id から今の名前・色にする（名前・色を変えても行は書き直さないので、サーバーの行は古い名前・色のことがある）。
+ * そろえないと、名前・色を変えたあとの比べ合わせで全部の行が違って見え、送り直していた
+ */
+function withLabelsResolved(local: SyncSnapshot, remote: SyncSnapshot): { local: SyncSnapshot; remote: SyncSnapshot } {
+  const idx = labelIndex(useTaskStore.getState())
+  const localTasks = fillLabelIds(local.tasks, idx)
+  const remoteTasks = resolveIncomingLabels(remote.tasks, idx)
+  return {
+    local: localTasks === local.tasks ? local : { ...local, tasks: localTasks },
+    remote: remoteTasks === remote.tasks ? remote : { ...remote, tasks: remoteTasks },
+  }
 }
 
 /**
@@ -230,6 +246,7 @@ export function useSupabaseSync() {
               presets: st.timeLogTagPresets,
               colors: st.logCategoryColors,
               targets: st.logLabelTargets,
+              ids: st.logLabelIds,
               updatedAt: st.logLabelsUpdatedAt,
               syncedAt,
               pendingAdds: st.logLabelPendingAdds,
@@ -240,13 +257,17 @@ export function useSupabaseSync() {
           )
         },
         localUpdatedAt: () => useTaskStore.getState().logLabelsUpdatedAt,
-        applyLocal: ({ presets, colors, targets, updatedAt }) =>
+        applyLocal: ({ presets, colors, targets, ids, updatedAt }) =>
           asIncomingChange(() =>
-            useTaskStore.setState({
-              timeLogTagPresets: presets,
-              logCategoryColors: colors,
-              logLabelTargets: targets ?? {},
-              logLabelsUpdatedAt: updatedAt,
+            useTaskStore.setState((s) => {
+              const table = { timeLogTagPresets: presets, logCategoryColors: colors, logLabelIds: ids ?? {} }
+              return {
+                ...table,
+                logLabelTargets: targets ?? {},
+                logLabelsUpdatedAt: updatedAt,
+                // 行の名前・色を届いた表で読み替える（端末の中だけ。行は送らない、#365）
+                tasks: relabelTasks(s.tasks, labelIndex(s), labelIndex(table)),
+              }
             }),
           ),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ logLabelsUpdatedAt: at })),
@@ -412,6 +433,14 @@ export function useSupabaseSync() {
           remote = again.snapshot
         }
       }
+
+      // ラベルを手元の表でそろえる（#365）。読み替えた取得は前回の内容にも入れる（次の同期で同じ行を読み替え直さない）
+      const labeled = withLabelsResolved(localSnapshot(), remote)
+      if (labeled.remote !== remote) {
+        if (pull.mirror === remote) pull.mirror = labeled.remote
+        remote = labeled.remote
+      }
+      if (labeled.local.tasks !== useTaskStore.getState().tasks) apply(labeled.local)
 
       // 前回同期したのにサーバーが空: 別の端末でアカウントごと消されたかもしれない。合わせる前に確かめる
       // （そのまま合わせると「他の端末で消された」として手元も消し、その前の控えに消した人のデータが残る）
@@ -654,6 +683,7 @@ export function useSupabaseSync() {
         state.timeLogTagPresets === prev.timeLogTagPresets &&
         state.logCategoryColors === prev.logCategoryColors &&
         state.logLabelTargets === prev.logLabelTargets &&
+        state.logLabelIds === prev.logLabelIds &&
         state.extraTimeZones === prev.extraTimeZones &&
         state.activeTimer === prev.activeTimer &&
         state.eventTemplates === prev.eventTemplates &&

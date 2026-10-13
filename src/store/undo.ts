@@ -8,6 +8,9 @@
  */
 import type { TaskState, ToastText } from './storeTypes'
 import type { StoreGet, StoreSet } from './slices/sliceTypes'
+import type { Task } from '../types/task'
+import { labelIndex, relabelTasks } from '../lib/labelIds'
+import { sameValue } from '../lib/sameValue'
 
 const MAX_UNDO = 50
 
@@ -15,7 +18,7 @@ const MAX_UNDO = 50
 const COLLECTIONS = ['tasks', 'lists', 'sections', 'habits'] as const
 type CollectionKey = (typeof COLLECTIONS)[number]
 /** ⌘Z で戻す端末の設定（行ではなく値ごと） */
-const SETTINGS = ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets'] as const
+const SETTINGS = ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets', 'logLabelIds'] as const
 type SettingKey = (typeof SETTINGS)[number]
 
 type Row = { id: string; updatedAt?: string }
@@ -59,12 +62,16 @@ function dataView(s: TaskState): DataView {
     timeLogTagPresets: s.timeLogTagPresets,
     logCategoryColors: s.logCategoryColors,
     logLabelTargets: s.logLabelTargets,
+    logLabelIds: s.logLabelIds,
   }
 }
 
 /** 操作の前と後を比べて、変わった行の前の姿だけを残す */
 export function diffEntry(before: DataView, after: DataView): UndoEntry {
   const entry: UndoEntry = { rows: {}, settings: {} }
+  // ラベルの名前・色を変えたときに端末の中で読み替えただけの行（updatedAt が同じ）は覚えない。
+  // 取り消しでは表を戻して読み替え直す（`applyEntry`）。覚えて戻すと、その行を全部書き直して送っていた（#365）
+  const relabeled = labelTableChanged(before, after)
   for (const key of COLLECTIONS) {
     const prev = before[key] as Row[]
     const next = after[key] as Row[]
@@ -74,7 +81,7 @@ export function diffEntry(before: DataView, after: DataView): UndoEntry {
     for (const r of next) {
       const old = prevById.get(r.id)
       if (old === undefined) changed.set(r.id, null)
-      else if (old !== r) changed.set(r.id, old)
+      else if (old !== r && !(relabeled && key === 'tasks' && onlyRelabeled(old as Task, r as Task))) changed.set(r.id, old)
       prevById.delete(r.id)
     }
     // 操作で消えた行（物理的に消す操作）は、前の姿に戻す
@@ -139,7 +146,27 @@ export function applyEntry(state: DataView, entry: UndoEntry, nowIso: string): {
     ;(inverse.settings as Record<string, unknown>)[key] = state[key]
     ;(next as Record<string, unknown>)[key] = entry.settings[key]
   }
+  // ラベル表を戻したら、行の名前・色も戻した表で読み替える（updatedAt は変えない）
+  const after = { ...state, ...next } as DataView
+  if (labelTableChanged(state, after)) next.tasks = relabelTasks(after.tasks, labelIndex(state), labelIndex(after))
   return { next, inverse }
+}
+
+const LABEL_SETTINGS = ['timeLogTagPresets', 'logCategoryColors', 'logLabelIds'] as const
+
+function labelTableChanged(a: DataView, b: DataView): boolean {
+  return LABEL_SETTINGS.some((k) => a[k] !== b[k])
+}
+
+/** ラベルの読み替えだけで変わった行か（名前・色・ラベルの id だけが違い、updatedAt は同じ） */
+function onlyRelabeled(a: Task, b: Task): boolean {
+  if (a.updatedAt !== b.updatedAt) return false
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const k of keys) {
+    if (k === 'category' || k === 'tags' || k === 'color' || k === 'labelId') continue
+    if (!sameValue((a as unknown as Record<string, unknown>)[k], (b as unknown as Record<string, unknown>)[k])) return false
+  }
+  return true
 }
 
 export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
