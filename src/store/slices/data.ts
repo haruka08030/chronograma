@@ -2,9 +2,10 @@
 import type { Task } from '../../types/task'
 import { newId } from '../../lib/id'
 import { assignColorsInOrder } from '../../lib/logCategoryColors'
-import { buildBackupPayload, parseBackupJson, withFreshStamps } from '../../lib/backupFormat'
+import { buildBackupPayload, parseBackupJson, withFreshStamps, type BackupImportResult } from '../../lib/backupFormat'
 import { csvListTarget, parseTasksCsv } from '../../lib/importTasksCsv'
 import { ensureLabel, type LabelTable } from '../../lib/foldTaskFolders'
+import { fillLabelIds, labelIndex } from '../../lib/labelIds'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../../lib/importRollback'
 import { restoreMissing } from '../../lib/autoBackup'
 import { INBOX_ID } from '../storeConstants'
@@ -32,6 +33,18 @@ type DataActions = Pick<
   | 'importTasksFromCsv'
 >
 
+/**
+ * 取り込んだバックアップのタスクとラベル表。前の版のバックアップ（ラベルの id が無い）は、行の名前・色から id を付ける（#365）
+ */
+function importedLabels(parsed: BackupImportResult): Pick<TaskState, 'tasks' | 'timeLogTagPresets' | 'logCategoryColors' | 'logLabelIds'> {
+  const table = {
+    timeLogTagPresets: parsed.timeLogTagPresets ?? [],
+    logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
+    logLabelIds: parsed.logLabelIds,
+  }
+  return { ...table, tasks: fillLabelIds(parsed.tasks.map(withTaskDefaults), labelIndex(table)) }
+}
+
 export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   const { pushUndo } = undo
   return {
@@ -52,6 +65,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           timeLogTagPresets: defaultLogCategories(),
           logCategoryColors: assignColorsInOrder(defaultLogCategories()),
           logLabelTargets: {},
+          logLabelIds: {},
           logLabelsUpdatedAt: null,
           logLabelPendingAdds: [],
           extraTimeZones: [],
@@ -87,7 +101,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
     },
 
     backupJson: () => {
-      const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors } = get()
+      const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds } = get()
       return JSON.stringify(
         buildBackupPayload({
           tasks,
@@ -96,6 +110,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           sections,
           timeLogTagPresets,
           logCategoryColors,
+          logLabelIds,
         }),
       )
     },
@@ -135,6 +150,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
             sections: before.sections,
             timeLogTagPresets: before.timeLogTagPresets,
             logCategoryColors: before.logCategoryColors,
+            logLabelIds: before.logLabelIds,
           }),
         ),
         savedAt: new Date().toISOString(),
@@ -144,12 +160,10 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       // 取り込みは全置換なので、戻せることを画面に出す
       pushUndo({ key: 'undo.imported', params: { count: parsed.tasks.length } })
       set({
-        tasks: parsed.tasks.map(withTaskDefaults),
+        ...importedLabels(parsed),
         lists: parsed.lists,
         habits: parsed.habits,
         sections: parsed.sections,
-        timeLogTagPresets: parsed.timeLogTagPresets ?? [],
-        logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
         quickAddSectionId: null,
         // バックアップを持っている人には、はじめの案内を出さない
         onboardingDone: before.onboardingDone || hasExistingData(parsed),
@@ -168,12 +182,10 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       const parsed = withFreshStamps(read)
       pushUndo()
       set({
-        tasks: parsed.tasks.map(withTaskDefaults),
+        ...importedLabels(parsed),
         lists: parsed.lists,
         habits: parsed.habits,
         sections: parsed.sections,
-        timeLogTagPresets: parsed.timeLogTagPresets ?? [],
-        logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
         quickAddSectionId: null,
       })
       clearImportRollback()

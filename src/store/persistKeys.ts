@@ -20,6 +20,7 @@ export const DATA_KEYS = [
   'timeLogTagPresets',
   'logCategoryColors',
   'logLabelTargets',
+  'logLabelIds',
   'logLabelsUpdatedAt',
   'logLabelPendingAdds',
   'googleEventColors',

@@ -63,7 +63,7 @@ function parseOr(text: string): (r: Row) => boolean {
 }
 
 /**
- * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）、
+ * PostgREST と DB の偽物。書き込みは `004` の sync_write_guard（文ごとに 1 つのサーバーの時刻）と `033` の tasks_label_id_guard、
  * 消すと `008` の印、同じ id が入り直すと印を消す。
  * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`・`user_active_timer`・`user_event_templates`・`user_course_links`・`user_timetable`）は `007` の settings_write_guard。
  * 1 日の気分（`day_moods`）は行を `(user_id, day)` で決める（`025` の day_mood_write_guard。確かめ方は sync_write_guard と同じ）。
@@ -95,7 +95,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
     const key = keyOf(table)
     const stamp = now()
     const out: Row[] = []
-    for (const { base_updated_at: base, ...row } of rows) {
+    for (const { base_updated_at: base, label_id_sent: labelIdSent, ...row } of rows) {
       const i = all.findIndex((r) => r.user_id === row.user_id && r[key] === row[key])
       const old = i >= 0 ? all[i] : undefined
       let next: Row
@@ -106,6 +106,10 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
         if (old && base !== old.updated_at) continue
         const at = old && micros(old.updated_at) >= micros(stamp) ? fromMicros(micros(old.updated_at) + 1) : stamp
         next = { ...old, ...row, updated_at: at } as Row
+      }
+      // `033` の tasks_label_id_guard: label_id を送らない書き込み（前の版のアプリ）が名前・色を変えたら label_id を外す
+      if (table === 'tasks' && labelIdSent !== true && old && (next.category !== old.category || next.color !== old.color)) {
+        next.label_id = null
       }
       if (old) all[i] = next
       else {

@@ -19,6 +19,7 @@ import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
 import { readSomedayTier } from './somedayTier'
+import { isLabelId, normalizeLabelIds } from './labelIds'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -41,6 +42,8 @@ export interface BackupExportInput {
   sections: ListSection[]
   timeLogTagPresets: string[]
   logCategoryColors: Record<string, string>
+  /** ラベルの id（#365）。名前を変えたラベルだけ */
+  logLabelIds?: Record<string, string>
 }
 
 export interface BackupImportResult {
@@ -51,6 +54,8 @@ export interface BackupImportResult {
   timeLogTagPresets: string[] | null
   /** 旧バックアップには無い */
   logCategoryColors: Record<string, string> | null
+  /** ラベルの id（#365）。旧バックアップには無い（名前から決まる id になり、行は名前・色から付け直す） */
+  logLabelIds: Record<string, string>
 }
 
 /** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
@@ -239,6 +244,8 @@ export function normalizeTaskRow(raw: unknown): Task | null {
     endTime: readTime(row.endTime, row.end_time),
     tags: readStringArray(row.tags),
     category: typeof row.category === 'string' ? row.category : null,
+    // 指しているラベル（#365）。前の版の保存・バックアップには無い（名前・色から付け直す）
+    ...(isLabelId(row.labelId ?? row.label_id) ? { labelId: String(row.labelId ?? row.label_id).toLowerCase() } : {}),
     recurrence: readRecurrence(row.recurrence),
     reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
@@ -349,6 +356,7 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     listSections: input.sections,
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
+    logLabelIds: input.logLabelIds ?? {},
   }
 }
 
@@ -397,6 +405,8 @@ export function readBackupJson(json: string): BackupReadResult {
         )
       : null
 
+  const logLabelIds = normalizeLabelIds(data.logLabelIds)
+
   // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
   const duplicateLists = findDuplicateIds(lists, (l) => l.name)
   if (duplicateLists) return { ok: false, problem: { kind: 'duplicateIds', item: 'list', ...duplicateLists } }
@@ -443,6 +453,7 @@ export function readBackupJson(json: string): BackupReadResult {
       sections,
       timeLogTagPresets,
       logCategoryColors,
+      logLabelIds,
     },
   }
 }

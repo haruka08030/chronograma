@@ -10,6 +10,7 @@ import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
 import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
 import { normalizeLabelTargets } from '../lib/labelTargets'
+import { normalizeLabelIds } from '../lib/labelIds'
 import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
@@ -147,6 +148,7 @@ export const useTaskStore = create<TaskState>()(
         timeLogTagPresets: defaultLogCategories(),
         logCategoryColors: assignColorsInOrder(defaultLogCategories()),
         logLabelTargets: {},
+        logLabelIds: {},
         logLabelsUpdatedAt: null,
         logLabelPendingAdds: [],
 
@@ -243,6 +245,7 @@ export const useTaskStore = create<TaskState>()(
         merged.timetable = normalizeTimetable(merged.timetable)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
+        merged.logLabelIds = normalizeLabelIds(merged.logLabelIds)
         merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
           ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
           : []
@@ -354,7 +357,8 @@ useTaskStore.subscribe((s, prev) => {
   if (
     s.timeLogTagPresets === prev.timeLogTagPresets &&
     s.logCategoryColors === prev.logCategoryColors &&
-    s.logLabelTargets === prev.logLabelTargets
+    s.logLabelTargets === prev.logLabelTargets &&
+    s.logLabelIds === prev.logLabelIds
   )
     return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return

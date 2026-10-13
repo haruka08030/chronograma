@@ -5,10 +5,15 @@ const T1 = '2026-10-01T00:00:00.000Z'
 const T2 = '2026-10-02T00:00:00.000Z'
 const NOW = '2026-10-03T00:00:00.000Z'
 
+/** 送る行から id（#365。名前から決まる値は labelIds.test.ts で確かめる）を外して比べる */
+const noIds = <T extends { labels: { id?: string }[] }>(p: T | undefined) =>
+  p && { ...p, labels: p.labels.map(({ id: _id, ...r }) => (void _id, r)) }
+
 describe('ラベル表の同期', () => {
   it('サーバーに無ければ手元を送る', () => {
     const plan = planLabelSync({ presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1 }, null, NOW)
-    expect(plan).toEqual({ push: { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1, base: null } })
+    expect(noIds(plan.push)).toEqual({ labels: [{ name: '授業', color: 'sage' }], updatedAt: T1, base: null })
+    expect(Object.keys(plan)).toEqual(['push'])
   })
 
   it('サーバーが新しければ、ほかの端末で変えた名前・色に合わせる（PC で名前を変えたらスマホも）', () => {
@@ -97,7 +102,7 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
       { labels: [{ name: '授業', color: '' }], updatedAt: S1 },
       NOW,
     )
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: '授業', color: '' },
         { name: 'ジム', color: '' },
@@ -151,7 +156,7 @@ describe('ラベルの週の目安の同期（#291）', () => {
       null,
       NOW,
     )
-    expect(plan.push?.labels).toEqual([
+    expect(noIds(plan.push)?.labels).toEqual([
       { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
       { name: 'バイト', color: 'peacock' },
     ])
@@ -199,7 +204,7 @@ describe('ラベルの週の目安の同期（#291）', () => {
     )
     expect(plan.apply?.presets).toEqual(['勉強', 'ES', 'ゼミ'])
     expect(plan.apply?.targets).toEqual({ 勉強: 900, ゼミ: 180 })
-    expect(plan.push?.labels).toEqual([
+    expect(noIds(plan.push)?.labels).toEqual([
       { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
       { name: 'ES', color: 'tomato' },
       { name: 'ゼミ', color: 'grape', weeklyTargetMinutes: 180 },
@@ -285,7 +290,7 @@ describe('取り込みで足したラベルは「無ければ足す」だけ（#
       targets: { 授業: 600 },
       updatedAt: NOW,
     })
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: 'アルバイト', color: 'tomato' },
         { name: '授業', color: 'basil', weeklyTargetMinutes: 600 },
@@ -302,7 +307,7 @@ describe('取り込みで足したラベルは「無ければ足す」だけ（#
       { labels: [{ name: '授業', color: 'sage' }], updatedAt: S1 },
       NOW,
     )
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: '授業', color: 'sage' },
         { name: '経済学', color: 'grape' },

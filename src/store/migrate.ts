@@ -17,6 +17,7 @@ import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
 import { appTodayKey } from '../lib/timeZone'
 import { withDreamsFromSteps } from '../lib/somedayTier'
+import { fillLabelIds, labelIndex, normalizeLabelIds } from '../lib/labelIds'
 
 /** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
 type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
@@ -322,6 +323,18 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     const lists = (state.lists as TaskList[] | undefined) ?? []
     const somedayIds = new Set(lists.filter((l) => l.kind === 'someday').map((l) => l.id))
     state.tasks = withDreamsFromSteps((state.tasks as Task[] | undefined) ?? [], somedayIds)
+  }
+  if (version < 42) {
+    // ラベルに id（#365）: 記録は名前、To-Do・予定は色から、指しているラベルの id を付ける（id は名前から決まる。
+    // どの端末もサーバーの埋め戻し `033` も同じ値なので、付けただけでは送らない）。updatedAt は変えない（v30 と同じ理由）
+    const presets = Array.isArray(state.timeLogTagPresets) ? (state.timeLogTagPresets as string[]) : []
+    const colors = (state.logCategoryColors as Record<string, string> | undefined) ?? {}
+    state.logLabelIds = normalizeLabelIds(state.logLabelIds)
+    const tasks = Array.isArray(state.tasks) ? (state.tasks as Task[]) : []
+    state.tasks = fillLabelIds(
+      tasks,
+      labelIndex({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelIds: state.logLabelIds as Record<string, string> }),
+    )
   }
   return state as unknown as TaskState
 }

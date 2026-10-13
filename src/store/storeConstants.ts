@@ -16,7 +16,7 @@ export const TRASH_KEEP_DAYS = 30
 
 export const PERSIST_STORAGE_KEY = 'chronograma-storage'
 /** 保存形式の版。上げたら migrate に手順を足す */
-export const STORE_VERSION = 41
+export const STORE_VERSION = 42
 export const LEGACY_PERSIST_STORAGE_KEY = 'tickdo-storage'
 
 /**

@@ -4,6 +4,7 @@ import { INBOX_ID } from './storeConstants'
 import { IMPORT_ROLLBACK_KEEP_DAYS, clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { buildBackupPayload } from '../lib/backupFormat'
 import { categoryHex } from '../lib/logCategoryColors'
+import { legacyLabelId } from '../lib/labelIds'
 import todoistProject from '../lib/fixtures/todoist-project.csv?raw'
 
 const st = () => useTaskStore.getState()
@@ -105,6 +106,50 @@ describe('バックアップの取り込みと「取り込み前に戻す」', (
     st().resetLocalData()
     expect(loadImportRollback()).toBeNull()
     expect(st().restoreBeforeImport()).toBe(false)
+  })
+})
+
+describe('バックアップのラベルの id（#365）', () => {
+  const rec = (id: string, category: string, over: Record<string, unknown> = {}) => ({
+    id,
+    title: id,
+    listId: INBOX_ID,
+    kind: 'log',
+    category,
+    tags: [category],
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...over,
+  })
+
+  it('書き出し → 取り込みで、名前を変えたラベルの id と行の id がそのまま残る', () => {
+    const math = legacyLabelId('数学')
+    const json = JSON.stringify(
+      buildBackupPayload({
+        tasks: [rec('r1', '数学II', { labelId: math }) as never],
+        lists: [{ id: INBOX_ID, name: 'Inbox', color: '#7986CB', order: 0 }],
+        habits: [],
+        sections: [],
+        timeLogTagPresets: ['数学II'],
+        logCategoryColors: { 数学II: 'tomato' },
+        logLabelIds: { 数学II: math },
+      }),
+    )
+    expect(st().importData(json)).toBe(true)
+    expect(st().logLabelIds).toEqual({ 数学II: math })
+    expect(st().tasks[0]).toMatchObject({ category: '数学II', labelId: math })
+    expect(JSON.parse(st().backupJson()).logLabelIds).toEqual({ 数学II: math })
+  })
+
+  it('前の版のバックアップ（id が無い）は、記録は分類名・To-Do は色から id を付ける', () => {
+    const json = JSON.stringify({
+      tasks: [rec('r1', '英語'), { id: 't1', title: 't1', listId: INBOX_ID, color: categoryHex('英語', { 英語: 'sage' }) }],
+      lists: [{ id: INBOX_ID, name: 'Inbox', color: '#7986CB', order: 0 }],
+      timeLogTagPresets: ['英語'],
+      logCategoryColors: { 英語: 'sage' },
+    })
+    expect(st().importData(json)).toBe(true)
+    expect(st().logLabelIds).toEqual({})
+    expect(st().tasks.map((t) => t.labelId)).toEqual([legacyLabelId('英語'), legacyLabelId('英語')])
   })
 })
 

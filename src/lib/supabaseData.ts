@@ -18,6 +18,7 @@ import { reanchorTask } from './taskTimeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
+import { isLabelId } from './labelIds'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
@@ -116,6 +117,13 @@ interface TaskRow {
   priority: string
   tags: unknown
   category?: string | null
+  /** 指しているラベル（`033`、#365）。古い DB には無い */
+  label_id?: string | null
+  /**
+   * この版のアプリが `label_id` を送った印（`033`。行には残らない）。印の無い書き込み（前の版のアプリ）が名前・色を変えたら、
+   * サーバーが `label_id` を外す（id と名前・色が食い違わない）
+   */
+  label_id_sent?: boolean | null
   recurrence: unknown
   is_time_log: boolean
   completed_at?: string | null
@@ -296,6 +304,7 @@ function rowToTaskFields(row: TaskRow): Task {
     priority,
     tags,
     category: typeof row.category === 'string' ? row.category : null,
+    ...(isLabelId(row.label_id) ? { labelId: row.label_id.toLowerCase() } : {}),
     recurrence,
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
@@ -347,6 +356,8 @@ function taskToRow(userId: string, task: Task): TaskRow {
     priority: task.priority,
     tags: task.tags,
     category: isLogTask(task) ? task.category : null,
+    label_id: task.labelId ?? null,
+    label_id_sent: true,
     recurrence: task.recurrence,
     // 種類はサーバーでは印の列（記録か・睡眠か・予定か）。前の版の端末も同じ列を読む（予定の印を読まない版では To-Do）
     is_time_log: isLogTask(task),
@@ -841,12 +852,14 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
   if (!data) return null
   const rows = Array.isArray(data.log_labels) ? (data.log_labels as unknown[]) : []
   const labels = rows.flatMap((r): LogLabelRow[] => {
-    const x = r as { name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
+    const x = r as { id?: unknown; name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
     if (typeof x.name !== 'string') return []
     const color = typeof x.color === 'string' ? x.color : ''
     // 週の目安（#291）。無い・壊れた値なら目安なし
     const target = validTargetMinutes(x.weeklyTargetMinutes)
-    return [target ? { name: x.name, color, weeklyTargetMinutes: target } : { name: x.name, color }]
+    // id（#365）。前の版のアプリが送った表には無い（名前で手元の id に合わせる、`labelSync.ts`）
+    const id = isLabelId(x.id) ? { id: x.id.toLowerCase() } : {}
+    return [target ? { ...id, name: x.name, color, weeklyTargetMinutes: target } : { ...id, name: x.name, color }]
   })
   return { labels, updatedAt: String(data.updated_at) }
 }

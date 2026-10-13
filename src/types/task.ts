@@ -110,6 +110,12 @@ interface TaskBase {
   tags: string[]
   /** 記録の分類（ラベル）名。null はラベルなし。To-Do では使わない（null） */
   category: string | null
+  /**
+   * 指しているラベルの id（#365、`lib/labelIds.ts`）。無ければラベルなし（か、まだ名前・色から付けていない）。
+   * 名前（記録の `category`）・色（To-Do・予定の `color`）はいつもこのラベルの今の名前・色で、前の版の端末はそれを読む。
+   * サーバーでは `tasks.label_id`（`033`）
+   */
+  labelId?: string
   recurrence: Recurrence | null
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */
   habitId: string | null
