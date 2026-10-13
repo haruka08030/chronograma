@@ -20,7 +20,7 @@
 | [`014_task_is_event.sql`](014_task_is_event.sql) | 予定（完了の丸の無い、時刻のある予定）の印 `tasks.is_event`（既定 false = To-Do）。予定は To-Do の一覧・やり残し・完了数に入れない。列を知らない前の版のアプリでは To-Do に見える |
 | [`015_task_estimate.sql`](015_task_estimate.sql) | タスクの見積もり `tasks.estimate_minutes`（分、null は見積もりなし、1〜1440）。タイムラインに置く・時間を決めるときの長さ |
 | [`016_task_source_task.sql`](016_task_source_task.sql) | ▶ で始めた記録の元の To-Do・予定 `tasks.source_task_id`（null は元なし）。計画どおりかの突き合わせで元の予定と組にする |
-| [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは行を update）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
+| [`017_min_sync_version.sql`](017_min_sync_version.sql) | 同期の取り決めの版の下限 `app_config.min_sync_version`（アプリの `SYNC_PROTOCOL_VERSION` より大きいと送らずに読み込み直しを促す。上げるときは SQL Editor から行を update、端末からは書けない `029`）。アプリ（anon / authenticated）からの版（`base_updated_at`）なしの書き込みを断り、外部キーの動作で変わった行の `updated_at` をサーバーの時刻にする |
 | [`018_habit_time_overrides.sql`](018_habit_time_overrides.sql) | 習慣の日ごとの時間 `habits.time_overrides`（日付 → 開始・終了。タイムラインで枠を動かした日だけ。null は無し）。大きさの上限 256KB |
 | [`019_shared_active_timer.sql`](019_shared_active_timer.sql) | 動いているタイマー `user_active_timer`（利用者ごとに 1 行。`started_at` / `task_title` / `tags` / `task_id` / `color`、`started_at` が null なら止まっている。RLS は本人だけ、大きさの上限 `user_active_timer_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる。行が替わるとトリガー `copy_active_timer_to_push` がその人の全部の `push_subscriptions` の `timer_started_at` / `timer_title`（止め忘れの通知）に写し、購読を書くときもトリガー `push_subscription_shared_timer` がこの行の値にする（行が無い利用者は端末が送った値のまま） |
 | [`020_client_error_kinds.sql`](020_client_error_kinds.sql) | `client_errors` の種類に `storage`（端末の保存・読み込み・自動バックアップ）・`integration`（Canvas・Notion・Google カレンダー）・`push`（Web Push の購読・保存・削除）を足す（`client_errors_kind_check` の置き換え） |
@@ -32,6 +32,8 @@
 | [`026_reminder_open_tasks_index.sql`](026_reminder_open_tasks_index.sql) | 通知の送信（`daily-reminders`）が読む未完了のタスクの部分索引 `tasks_reminder_open_idx`（`(user_id, id)`、`completed is false and is_time_log is false and parent_id is null and deleted_at is null and archived_at is null and (scheduled_date is not null or due_date is not null)`）。関数の問い合わせと同じ形の条件（`is false`）で、完了・削除・記録の行をなめずに読む |
 | [`027_event_series.sql`](027_event_series.sql) | 毎週の予定の印 `tasks.event_series`（`{ id, weekdays, until, skipHolidays }`、null は繰り返さない。id のある object・2KB まで `tasks_event_series_check`）。回は 1 回ずつの予定の行で、同じ繰り返しの回は id が同じ。時間割の設定 `user_timetable`（利用者ごとに 1 行。`timetable` は `{ periods: [{ start, end }], termStart, termEnd, skipHolidays }`。RLS は本人だけ、大きさの上限 `user_timetable_size_check`）。書き込みは `007` / `017` の `settings_write_guard` で確かめる |
 | [`028_timer_ends_at.sql`](028_timer_ends_at.sql) | 動いているタイマーの「あと何分」の終わり `user_active_timer.ends_at`（null は終わりなし。始めた時刻より後で 1 日以内 `user_active_timer_ends_at_check`）。列を知らない前の版のアプリが別のタイマーを始めた・止めたときは、トリガー `user_active_timer_clear_ends_at` が null にする（始めた時刻が変わって `ends_at` がそのまま、または止まった）。`push_subscriptions` に写しの `timer_ends_at` と、時間の通知を送った終わり `timer_end_notified_for` を足し、`019` の `copy_active_timer_to_push` / `push_subscription_shared_timer` が `ends_at` も写す |
+| [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
+| [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
 
 テーブル（最新の形）:
 
