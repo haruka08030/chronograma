@@ -208,6 +208,7 @@ export default {
     nowRow: '今',
     nextRow: '次',
     nowNextAria: '今・次の予定',
+    moreOverdue: '他 {{count}} 件',
     allDone: '予定していたことはすべて終わりました。',
     suggestionsHeading: '締切が近い To-Do {{count}} 件',
     suggestionsHeadingPlain: 'To-Do から追加',

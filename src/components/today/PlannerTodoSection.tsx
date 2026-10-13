@@ -24,6 +24,8 @@ export function PlannerTodoSection({
   env,
   headingClass,
   overdue,
+  overdueShown,
+  onShowAllOverdue,
   leftOver,
   showLeftOver,
   onToggleLeftOver,
@@ -37,6 +39,9 @@ export function PlannerTodoSection({
   env: PlannerRowEnv
   headingClass: string
   overdue: Task[]
+  /** 出している締切切れの行（スマホ幅は先頭の 2 行。残りは「他 N 件」で開く） */
+  overdueShown: Task[]
+  onShowAllOverdue: () => void
   leftOver: Task[]
   showLeftOver: boolean
   onToggleLeftOver: () => void
@@ -93,10 +98,19 @@ export function PlannerTodoSection({
               {t('planner.overdueHeading', { count: overdue.length })}
             </p>
             <ul role="group" aria-labelledby={`${ids}overdue`}>
-              {overdue.map((task) => (
+              {overdueShown.map((task) => (
                 <PlannerTaskRow key={task.id} task={task} env={env} action={<TimerButton task={task} />} dueMode="all" hoverActions />
               ))}
             </ul>
+            {overdueShown.length < overdue.length && (
+              <button
+                type="button"
+                onClick={onShowAllOverdue}
+                className={`ml-11 ${buttonClass({ variant: 'link', size: 'xs' }, 'pointer-coarse:min-h-9')}`}
+              >
+                {t('planner.moreOverdue', { count: overdue.length - overdueShown.length })}
+              </button>
+            )}
           </div>
         )}
 
