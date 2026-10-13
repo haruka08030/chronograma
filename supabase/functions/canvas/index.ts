@@ -36,7 +36,7 @@ type PlannerItem = {
   course_id?: number | null
   context_name?: string | null
   html_url?: string | null
-  submissions?: false | { submitted?: boolean; excused?: boolean; graded?: boolean }
+  submissions?: false | { submitted?: boolean; excused?: boolean; graded?: boolean; redo_request?: boolean }
   planner_override?: { id: number; marked_complete?: boolean } | null
 }
 
@@ -181,9 +181,19 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * 済んだ課題。提出しただけ（途中保存・下書き・1 回目の提出でも立つ）は済んだことにしない。
+ * 採点済みでも、先生がやり直しを頼んでいれば済んでいない
+ */
 function isDone(item: PlannerItem): boolean {
   const s = item.submissions
-  return Boolean(item.planner_override?.marked_complete || (s && (s.submitted || s.excused || s.graded)))
+  return Boolean(item.planner_override?.marked_complete || (s && (s.excused || (s.graded && !s.redo_request))))
+}
+
+/** 提出はしたが済んではいない課題（自分で終わったか決める） */
+function isSubmitted(item: PlannerItem): boolean {
+  const s = item.submissions
+  return Boolean(s && s.submitted && !s.redo_request && !isDone(item))
 }
 
 async function plannerItems(baseUrl: string, token: string) {
@@ -215,6 +225,7 @@ async function plannerItems(baseUrl: string, token: string) {
       url: i.html_url ? new URL(i.html_url, baseUrl).toString() : baseUrl,
       dueAt: i.plannable?.due_at ?? i.plannable?.todo_date ?? i.plannable_date ?? null,
       done: isDone(i),
+      submitted: isSubmitted(i),
     }))
   return { windowStart, windowEnd, items }
 }
