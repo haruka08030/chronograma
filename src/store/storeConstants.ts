@@ -8,6 +8,12 @@ export const INBOX_LIST_ID = INBOX_ID
 /** 時間バーに並べられる別のタイムゾーンの数（多いとタイムラインが狭くなる） */
 export const MAX_EXTRA_TIME_ZONES = 2
 
+/**
+ * ゴミ箱に置いておく日数。過ぎたら起動時に完全に削除する（Google カレンダーのゴミ箱と同じ 30 日。
+ * サーバーの削除の印 `TOMBSTONE_RETENTION_MS` も 30 日）
+ */
+export const TRASH_KEEP_DAYS = 30
+
 export const PERSIST_STORAGE_KEY = 'chronograma-storage'
 /** 保存形式の版。上げたら migrate に手順を足す */
 export const STORE_VERSION = 40

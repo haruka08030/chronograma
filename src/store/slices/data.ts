@@ -138,6 +138,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         ),
         savedAt: new Date().toISOString(),
         taskCount: before.tasks.length,
+        owner: before.dataOwner,
       })
       // 取り込みは全置換なので、戻せることを画面に出す
       pushUndo({ key: 'undo.imported', params: { count: parsed.tasks.length } })

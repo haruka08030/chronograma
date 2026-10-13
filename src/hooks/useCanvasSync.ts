@@ -18,7 +18,7 @@ import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
-import { loadPulled, savePulled } from '../lib/externalFields'
+import { CANVAS_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
 import type { SyncStatus } from '../types/sync'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
@@ -64,7 +64,7 @@ export function requestCanvasSync() {
 }
 
 /** 前回 Canvas から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
-const pulledKey = (userId: string) => `chronograma-canvas-pulled-v1:${userId}`
+const pulledKey = (userId: string) => `${CANVAS_PULLED_PREFIX}${userId}`
 
 export function useCanvasSyncState(): CanvasSyncState {
   return useSyncExternalStore(

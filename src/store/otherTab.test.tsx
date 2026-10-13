@@ -145,7 +145,7 @@ describe('保存領域がいっぱいのとき', () => {
 
   it('取り込み前の控えを手放して書き直す（控えを消せば入るなら、編集は失わない）', async () => {
     useTaskStore.getState().addTask('A')
-    saveImportRollback({ json: '{}', savedAt: '2026-10-01T00:00:00.000Z', taskCount: 0 })
+    saveImportRollback({ json: '{}', savedAt: new Date().toISOString(), taskCount: 0 })
     const real = Storage.prototype.setItem
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
       // 控えが残っている間だけいっぱい

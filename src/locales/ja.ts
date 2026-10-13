@@ -914,6 +914,7 @@ export default {
   },
   taskBin: {
     count: '{{count}} 件',
+    autoPurge: '{{days}} 日後に自動で削除',
     subtaskCount: 'サブタスク {{count}} 件',
     restore: '戻す',
     unarchive: '戻す',

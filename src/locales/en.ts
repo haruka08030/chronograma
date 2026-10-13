@@ -943,6 +943,7 @@ export default {
   taskBin: {
     count: '{{count}} items',
     count_one: '{{count}} item',
+    autoPurge: 'deleted automatically after {{days}} days',
     subtaskCount: '{{count}} subtasks',
     subtaskCount_one: '{{count}} subtask',
     restore: 'Restore',

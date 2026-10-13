@@ -87,6 +87,21 @@ describe('idsToPrune', () => {
     ]
     expect(idsToPrune(all)).toEqual(['beforeSignOut-1'])
   })
+
+  it('いま使っている人以外の控えは 30 日で外す（持ち主の分からない控え・本人の控えは数だけ）', () => {
+    const now = Date.parse('2026-11-05T00:00:00.000Z')
+    const all = [
+      { ...meta('beforeSignOut', 1), id: 'other-old', owner: 'b' },
+      { ...meta('beforeSignOut', 10), id: 'other-recent', owner: 'b' },
+      { ...meta('daily', 1), id: 'anon-old', owner: null },
+      { ...meta('daily', 1), id: 'mine-old', owner: 'a' },
+      { ...meta('daily', 1), id: 'unknown-old' },
+      { ...meta('daily', 2), id: 'legacy-old', owner: '*legacy*' },
+    ]
+    expect(idsToPrune(all, { owner: 'a', now }).sort()).toEqual(['anon-old', 'other-old'])
+    // ログインしていない人が使っているときは、ログインしていた人の古い控えを外す
+    expect(idsToPrune(all, { owner: null, now }).sort()).toEqual(['mine-old', 'other-old'])
+  })
 })
 
 describe('canViewBackup', () => {

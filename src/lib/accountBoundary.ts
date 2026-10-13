@@ -9,6 +9,7 @@ import { detachWebPush, resyncWebPush } from './webPush'
 import { clearBaseline } from './syncMerge'
 import { clearSettingSyncedAt } from './settingSync'
 import { clearAutoBackups } from './autoBackup'
+import { clearSignedOutLeftovers } from './deviceCleanup'
 
 /** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
 const goneAccounts = new Set<string>()
@@ -66,6 +67,7 @@ export function clearAccountData(owner: string | null, opts: { backup?: boolean 
 
 /**
  * ログアウトした（他のタブ・期限切れを含む）。Google の表示を外し、通知の購読を外し、データを空にする。
+ * 保存データの写し・連携の前回取り込んだ値（題名）・前回同期の控えの中身も消す（`deviceCleanup.ts`。共用の端末で次の人の手元に残さない）。
  * Google の連携はサーバー側のアカウントに付いているので切らない（1 台でログアウトすると全端末の連携が外れた）
  */
 export function clearLocalAccountState(userId: string | null): void {
@@ -79,6 +81,7 @@ export function clearLocalAccountState(userId: string | null): void {
   // 消えたアカウントのデータは控えない（消した人の写しを端末に残さない）
   const gone = userId !== null && goneAccounts.delete(userId)
   clearAccountData(userId, { backup: !gone })
+  clearSignedOutLeftovers()
 }
 
 /**

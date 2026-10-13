@@ -1,6 +1,6 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
 import { isEventTask, type Task } from '../../types/task'
-import { INBOX_ID } from '../storeConstants'
+import { INBOX_ID, TRASH_KEEP_DAYS } from '../storeConstants'
 import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
@@ -30,6 +30,7 @@ type TasksActions = Pick<
   | 'permanentlyDeleteTasks'
   | 'discardBlankTask'
   | 'emptyDeleted'
+  | 'purgeExpiredDeleted'
   | 'archiveTask'
   | 'archiveTasks'
   | 'unarchiveTask'
@@ -327,6 +328,22 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.filter((t) => !t.deletedAt),
         recentDeletes: [],
       }))
+    },
+    purgeExpiredDeleted: (now = Date.now()) => {
+      const cutoff = now - TRASH_KEEP_DAYS * 24 * 60 * 60_000
+      // 時刻が読めないものは消さない
+      const expired = new Set(
+        get()
+          .tasks.filter((t) => t.deletedAt && Date.parse(t.deletedAt) < cutoff)
+          .map((t) => t.id),
+      )
+      if (expired.size === 0) return 0
+      // 自動の片付けなので ⌘Z の履歴には積まない
+      set((s) => ({
+        tasks: s.tasks.filter((t) => !expired.has(t.id)),
+        recentDeletes: withoutIds(s.recentDeletes, expired),
+      }))
+      return expired.size
     },
     archiveTask: (id) => {
       get().archiveTasks([id])

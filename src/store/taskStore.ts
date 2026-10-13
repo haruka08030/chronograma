@@ -16,7 +16,22 @@ import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, typ
 import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
 import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
 import { mergeRecoveredState } from './recoverLocal'
-import { INBOX_ID, INBOX_LIST_ID, LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
+import {
+  BEFORE_RECOVERY_COPY_PREFIX,
+  UNREADABLE_COPY_PREFIX,
+  clearStorageCopies,
+  keepStorageCopy,
+  pruneStorageCopies,
+  shrinkBaselines,
+} from '../lib/deviceCleanup'
+import {
+  INBOX_ID,
+  INBOX_LIST_ID,
+  LEGACY_DATA_OWNER,
+  LEGACY_PERSIST_STORAGE_KEY,
+  PERSIST_STORAGE_KEY,
+  STORE_VERSION,
+} from './storeConstants'
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
@@ -72,14 +87,14 @@ function migrateLegacyPersistKey(): void {
 migrateLegacyPersistKey()
 
 /**
- * 読めなかった保存データを、上書きされる前に別のキーへ写す。
+ * 読めなかった保存データを、上書きされる前に別のキーへ写す（写しは新しい 1 つだけ。`deviceCleanup.ts`）。
  * 記録に残すのは どこで読めなかったか（`stage`）とエラーのメッセージだけ（中身は送らない）
  */
 function preserveUnreadableStorage(stage: string, error: unknown) {
   reportFailure('storage', stage, error)
   try {
     const raw = readStored(PERSIST_STORAGE_KEY)
-    if (raw) writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+    if (raw) keepStorageCopy(UNREADABLE_COPY_PREFIX, raw)
   } catch {
     /* 写せなくても続ける */
   }
@@ -271,17 +286,20 @@ function takeInRecoveredLocal() {
     if (replaced) {
       // 別の人のデータだった: その回のほうにして、IndexedDB の本体は別のキーに残す
       const before = readStored(PERSIST_STORAGE_KEY)
-      if (before) writeStored(`${PERSIST_STORAGE_KEY}-before-recovery-${Date.now()}`, before)
+      if (before) keepStorageCopy(BEFORE_RECOVERY_COPY_PREFIX, before)
     }
     useTaskStore.setState(state as Partial<TaskState>)
   } catch (err) {
     // 読めない・新しい版の中身: 合わせずに別のキーに残す
     reportFailure('storage', 'recovered', err)
-    writeStored(`${PERSIST_STORAGE_KEY}-unreadable-${Date.now()}`, raw)
+    keepStorageCopy(UNREADABLE_COPY_PREFIX, raw)
   }
   writeStored(RECOVERED_LOCAL_KEY, null)
 }
 takeInRecoveredLocal()
+// 前の版で溜まった写しは、新しい 1 つだけ残す。取り込み前の控えは期限を過ぎていれば読んだときに捨てる
+pruneStorageCopies()
+loadImportRollback()
 
 /**
  * 開いていた画面・並び順などの好み（`VIEW_KEYS`）は、データとは別の小さな保存先に置く。
@@ -497,11 +515,18 @@ if (typeof window !== 'undefined') {
  * 再読み込みすると、いっぱいになってからの編集がすべて消えていた
  */
 setPersistWriteHandlers({
-  // 取り込み前の控え（全データの写し）がいちばん大きい。先に手放してもう一度書く
+  // 取り込み前の控え・保存データの写し（どれも全データの写し）と、ログイン中の人以外の前回同期の控えの中身を手放してもう一度書く
   freeSpace: () => {
-    if (loadImportRollback() === null) return false
-    clearImportRollback()
-    return true
+    let freed = false
+    if (loadImportRollback() !== null) {
+      clearImportRollback()
+      freed = true
+    }
+    if (clearStorageCopies()) freed = true
+    // 持ち主の分からない（*legacy*）・まだ同期していないデータは、ログイン中の人の控えがあるかで誰のものかを決めるので触らない
+    const owner = useTaskStore.getState().dataOwner
+    if (owner !== null && owner !== LEGACY_DATA_OWNER && shrinkBaselines(owner)) freed = true
+    return freed
   },
   onFailed: (err) => {
     console.error('[storage] save failed', err)
@@ -519,6 +544,8 @@ setPersistWriteHandlers({
 // 他のタブからの取り込み（`isAdoptingFromOtherTab`）を見るので、それより後で
 foldFolders()
 settleTodoView()
+// ゴミ箱に入れて 30 日たったものを消す（同期でサーバーからも消える。ほかの端末でその後に戻していれば、同期で戻る）
+useTaskStore.getState().purgeExpiredDeleted()
 useTaskStore.subscribe((s, prev) => {
   if (s.selectedListId !== prev.selectedListId || s.selectedView !== prev.selectedView || s.lists !== prev.lists) settleTodoView()
   if (s.lists === prev.lists && s.sections === prev.sections) return
