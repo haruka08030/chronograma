@@ -21,7 +21,10 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT, META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
-import { colorVars } from '../../lib/logCategoryColors'
+import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
+import { CardActions } from './CardActions'
+import { useNow } from '../../hooks/useAppClock'
+import { googleRecordPromptId } from '../../hooks/useCompleteWithLog'
 import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
 import { openTaskDetail } from '../../lib/overlays'
@@ -41,6 +44,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
   const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
+  const activeTimer = useTaskStore((s) => s.activeTimer)
+  const now = useNow()
+  const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   // 入力中に外側を押して閉じても、書いたタイトルは保存する
   const pendingTitleRef = useRef<string | null>(null)
@@ -91,8 +97,21 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const editable = canEditGoogleEvent(event, googleCanWrite)
   // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
   const memo = event.description ? htmlToPlainText(event.description) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + memoHeightEstimate(memo))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + 44 + memoHeightEstimate(memo))
   const smallField = fieldClass({ size: 'sm' })
+  const nowMs = now.getTime()
+  const started = new Date(event.start).getTime() <= nowMs
+  const ended = new Date(event.end).getTime() <= nowMs
+  const recordEvent = () => {
+    openRecordPrompt(googleRecordPromptId(event.id))
+    onClose()
+  }
+  const startEvent = () => {
+    const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()
+    const label = logLabelFromTask(event, timeLogTagPresets, logCategoryColors)
+    startTimer(event.summary, label.tags, null, label.color)
+    onClose()
+  }
 
   const commitTitle = () => {
     if (titleDraft !== null) void renameGoogleEvent(event, titleDraft)
@@ -212,6 +231,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               {event.startTime && event.endTime && ` · ${event.startTime} – ${event.endTime}`}
             </p>
           )}
+          {/* 操作は題名・時刻のすぐ下（アプリの予定のカードと同じ行）。始まった予定は記録にし、終わるまでは ▶ で記録を始められる */}
+          <CardActions
+            record={started && !event.isAllDay ? { label: t('eventCard.toRecord'), onClick: recordEvent } : undefined}
+            onStart={ended ? undefined : startEvent}
+            startDisabled={!!activeTimer && !activeTimer.taskId && activeTimer.taskTitle === event.summary}
+          />
           <p className={`mt-1 ${META_TEXT}`}>
             {t('eventCard.google')}
             {editable && recurring && ` · ${t('googleEdit.thisEventOnly')}`}
