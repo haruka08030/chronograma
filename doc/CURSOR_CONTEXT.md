@@ -382,7 +382,10 @@
   は適用しない。ダウンロード名 `chronograma-backup-YYYY-MM-DD.json`
 - **CSV 取り込み（Web）**: `importTasksFromCsv`（`src/lib/importTasksCsv.ts`）—
   既存データに**マージ**（全置換 JSON とは別ボタン）。列: `title`
-  必須、`due_date`、 `list`、`completed`、`tags`、`priority`、`description` 等
+  必須、`due_date`、 `list`、`completed`、`tags`、`priority`、`description` 等。
+  見出しは先頭 10 行から探す。TickTick のバックアップ（`Folder Name`・`List Name` の見出し）と
+  Todoist のプロジェクトの CSV（`TYPE`・`CONTENT`）は値の読み方を切り替える（見本は `src/lib/fixtures/`）。
+  リスト名の行き先は `csvListTarget`、ラベルを作るかの確認は `unknownCsvListNames` と `askChoice`
 - **記録の書き出し（CSV・ICS）**: `src/lib/recordExport.ts`（`collectExportRows` → `buildRecordsCsv` / `buildRecordsIcs`）、画面は `settings/RecordExportSettings.tsx`。元の予定の列は `plannedItemsOnDay`（`weekReview.ts`）と `matchPlanAndActualForDate`。保存は `downloadTextFile`（`src/lib/downloadFile.ts`）
 - **ふりかえりの画像（共有・保存）**: `src/lib/reviewImage.ts`（`buildReviewImageModel` → `layoutReviewImage`（描く命令、文字の幅は `measure` で）→ `drawReviewImage` / `renderReviewImage`（PNG）、`shareableInsight`・`reviewShareText`・`shareOrSaveImage`）、画面は `ReviewShareDialog.tsx`（`WeekReviewCard` の見出しのアイコンから）。保存は `downloadBlob`（`src/lib/downloadFile.ts`）
 

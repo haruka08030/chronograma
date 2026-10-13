@@ -16,6 +16,8 @@ export type ConfirmOptions = {
   danger?: boolean
   /** 押し間違いで実行されないよう、この文字を打つまで実行できない（大文字小文字は区別しない） */
   requireText?: { label: string; expected: string }
+  /** 実行の左に並べる、もう 1 つの選び方のボタン（`askChoice()` から） */
+  secondaryLabel?: string
 }
 
 /**
@@ -24,7 +26,15 @@ export type ConfirmOptions = {
  * （Enter の押し間違いで重い操作をしない）。文字の入力が要るときは入力欄で、打ち終えて Enter で実行
  * 呼ぶのは `askConfirm()`（lib/confirmDialog）から
  */
-export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; onResult: (ok: boolean) => void }) {
+export function ConfirmDialog({
+  options,
+  onResult,
+  onSecondary,
+}: {
+  options: ConfirmOptions
+  onResult: (ok: boolean) => void
+  onSecondary?: () => void
+}) {
   const { t } = useTranslation()
   const titleId = useId()
   const [typed, setTyped] = useState('')
@@ -40,7 +50,7 @@ export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; 
       initialFocus={initialFocus}
       labelledBy={options.title ? titleId : undefined}
       label={options.title ? undefined : options.message}
-      width="sm"
+      width={options.secondaryLabel ? 'md' : 'sm'}
       className="p-5"
     >
       {options.title && <ModalTitle id={titleId}>{options.title}</ModalTitle>}
@@ -62,10 +72,16 @@ export function ConfirmDialog({ options, onResult }: { options: ConfirmOptions; 
           />
         </label>
       )}
-      <div className="mt-5 flex justify-end gap-2">
+      {/* 3 つ並べるときは折り返さない文字で、入らなければ行ごと折り返す */}
+      <div className={`mt-5 flex justify-end gap-2 ${options.secondaryLabel ? 'flex-wrap [&>button]:whitespace-nowrap' : ''}`}>
         <button ref={cancelRef} type="button" onClick={() => onResult(false)} className={buttonClass({ variant: 'ghost', size: 'md' })}>
           {t('common.cancel')}
         </button>
+        {options.secondaryLabel && onSecondary && (
+          <button type="button" onClick={onSecondary} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+            {options.secondaryLabel}
+          </button>
+        )}
         <button
           ref={confirmRef}
           type="button"

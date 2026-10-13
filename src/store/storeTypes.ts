@@ -538,6 +538,12 @@ export interface TaskState {
   backupJson: () => string
   /** 自動バックアップにあって今は無いものだけを戻す。戻したタスク数（読めなければ null） */
   restoreMissingFromBackup: (json: string) => number | null
-  /** CSV からタスクを追加（既存データは保持） */
-  importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
+  /**
+   * CSV からタスクを追加（既存データは保持）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
+   * 一致するリスト・ラベルの無いリスト名は、`unknownLists: 'label'` ならその名前のラベルを作って付け、`'inbox'`（既定）ならラベルなし
+   */
+  importTasksFromCsv: (
+    csv: string,
+    options?: { fileName?: string; unknownLists?: 'label' | 'inbox' },
+  ) => { imported: number; skipped: number; errors: string[] }
 }

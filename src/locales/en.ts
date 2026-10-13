@@ -70,13 +70,16 @@ export default {
   confirm: {
     importOverwriteCounts:
       'Importing replaces everything you have now.\n\nTasks: {{currentTasks}} → {{nextTasks}}\nLists: {{currentLists}} → {{nextLists}}\n\nYou can undo with Ctrl+Z (⌘Z) right after. Continue?',
+    csvUnknownLists: '{{labels}} list(s) have no label with the same name ({{count}} tasks): {{names}}\n\nCreate them as labels?',
+    csvMakeLabels: 'Create labels',
+    csvNoLabels: 'Import without labels',
     restoreBeforeImport: 'Go back to before the import ({{count}} tasks)? This replaces what you have now.',
     restoreBeforeImport_one: 'Go back to before the import ({{count}} task)? This replaces what you have now.',
   },
   alert: {
     importFileTooLarge: 'The file is too large (up to {{mb}} MB).',
     invalidImportFile: 'Invalid file.',
-    invalidCsvFile: 'Invalid CSV (first row needs a title column).',
+    invalidCsvFile: 'Invalid CSV (no title column found).',
     csvNoRows: 'No rows to import.',
     csvImported: 'Added {{count}} tasks (skipped {{skipped}} rows).',
     csvImported_one: 'Added {{count}} task (skipped {{skipped}} rows).',
@@ -756,7 +759,7 @@ export default {
     backupTitle: 'Backup',
     restoreImportTitle: 'Undo the last import',
     restoreImportAction: 'Restore',
-    csvTitle: 'Add To-Dos from CSV',
+    csvTitle: 'Import from other apps (TickTick, Todoist, CSV)',
     notificationsTitle: 'Notifications',
     morningSummary: 'Morning summary',
     recordPrompts: 'Ask to record after plans',

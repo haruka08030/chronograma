@@ -37,4 +37,4 @@ Wish や買い物が「やるべきこと」の横に並ぶと選択肢が多す
 ## その他
 
 - ストア配布が必要になったら Capacitor で同じ Web アプリを包む
-- CSV の列の対応づけ UI（TickTick・Todoist の CSV は #306）
+- CSV の列の対応づけ UI
