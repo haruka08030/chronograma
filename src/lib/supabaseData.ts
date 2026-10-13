@@ -3,7 +3,14 @@ import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } fro
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, readHabitRestDates, readHabitTimeOverrides, type Habit } from '../types/habit'
+import {
+  inferHabitTimeMode,
+  readHabitFrequency,
+  readHabitRestDates,
+  readHabitTimeOverrides,
+  readHabitWeekdayTimes,
+  type Habit,
+} from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
@@ -53,6 +60,8 @@ interface HabitRow {
   time_overrides?: unknown
   /** 休みの日（`031`）。古い DB には無い。無い・null は無し */
   rest_dates?: unknown
+  /** 曜日ごとの時間（`031`）。古い DB には無い。無い・null は無し */
+  weekday_times?: unknown
 }
 
 interface TaskRow {
@@ -168,6 +177,7 @@ function rowToHabit(row: HabitRow): Habit {
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     ...withTimeOverrides(row.time_overrides),
     ...withRestDates(row.rest_dates),
+    ...withWeekdayTimes(row.weekday_times),
   }
 }
 
@@ -181,6 +191,12 @@ function withTimeOverrides(raw: unknown): Pick<Habit, 'timeOverrides'> {
 function withRestDates(raw: unknown): Pick<Habit, 'restDates'> {
   const restDates = readHabitRestDates(raw)
   return restDates ? { restDates } : {}
+}
+
+/** 曜日ごとの時間も、1 つでもあるときだけ項目を持つ */
+function withWeekdayTimes(raw: unknown): Pick<Habit, 'weekdayTimes'> {
+  const weekdayTimes = readHabitWeekdayTimes(raw)
+  return weekdayTimes ? { weekdayTimes } : {}
 }
 
 function habitToRow(userId: string, h: Habit): HabitRow {
@@ -199,6 +215,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     archived_at: h.archivedAt ?? null,
     time_overrides: h.timeOverrides ?? null,
     rest_dates: h.restDates ?? null,
+    weekday_times: h.weekdayTimes ?? null,
   }
 }
 

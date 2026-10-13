@@ -59,6 +59,23 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/** 曜日（1=月）→ その曜日の時間。曜日を指定した習慣で「曜日ごとに時間を変える」ときだけ */
+export type HabitWeekdayTimes = Partial<Record<HabitWeekday, HabitTimeOverride>>
+
+/** 保存データ・同期・バックアップの曜日ごとの時間を読む。読めない曜日は捨て、1 つも無ければ undefined */
+export function readHabitWeekdayTimes(raw: unknown): HabitWeekdayTimes | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const out: HabitWeekdayTimes = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const day = Number(k)
+    if (!Number.isInteger(day) || day < 1 || day > 7 || typeof v !== 'object' || v === null) continue
+    const { startTime, endTime } = v as Record<string, unknown>
+    if (typeof startTime !== 'string' || !OVERRIDE_TIME_RE.test(startTime)) continue
+    out[day as HabitWeekday] = { startTime, endTime: typeof endTime === 'string' && OVERRIDE_TIME_RE.test(endTime) ? endTime : null }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 /** 保存データ・同期・バックアップの休みの日を読む。読めない日は捨てて並べ直し、1 日も無ければ undefined */
 export function readHabitRestDates(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined
@@ -87,6 +104,11 @@ export interface Habit {
    * 1 日も無ければ項目ごと無い
    */
   restDates?: string[]
+  /**
+   * 曜日を指定した習慣の曜日ごとの時間（「曜日ごとに時間を変える」）。無い曜日・ほかの頻度は上の時間。
+   * その日だけの時間（`timeOverrides`）がさらに優先。使わなければ項目ごと無い
+   */
+  weekdayTimes?: HabitWeekdayTimes
 }
 
 /** その日を休みにした習慣か */

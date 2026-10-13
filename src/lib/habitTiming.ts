@@ -1,4 +1,4 @@
-import type { Habit } from '../types/habit'
+import type { Habit, HabitWeekday } from '../types/habit'
 import { isLogTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { minutesToTime, timeToMinutes } from './clockTime'
@@ -82,17 +82,35 @@ export function isTimedHabit(habit: Habit): boolean {
 }
 
 /**
- * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければ習慣の時間。
- * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、習慣の長さのまま開始をずらす
+ * その曜日のいつもの時間（時間を決めた習慣だけ。その日だけの時間は見ない）。
+ * 曜日を指定した習慣で曜日ごとの時間があればそれ、無ければ習慣の時間
+ */
+export function habitUsualTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
+  if (!isTimedHabit(habit)) return null
+  const w = habit.frequency.type === 'weekly' ? habit.weekdayTimes?.[isoWeekdayOf(dateKey)] : undefined
+  const startTime = w?.startTime ?? habit.startTime!
+  if (habit.timeMode !== 'range') return { startTime, endTime: null }
+  return { startTime, endTime: w?.endTime ?? habit.endTime! }
+}
+
+/** yyyy-MM-dd の ISO 曜日（1=月） */
+function isoWeekdayOf(dateKey: string): HabitWeekday {
+  return (((((dayNumber(dateKey) + 3) % 7) + 7) % 7) + 1) as HabitWeekday
+}
+
+/**
+ * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければその曜日のいつもの時間（`habitUsualTimesOn`）。
+ * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす
  */
 export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
-  if (!isTimedHabit(habit)) return null
+  const usual = habitUsualTimesOn(habit, dateKey)
+  if (!usual) return null
   const o = habit.timeOverrides?.[dateKey]
-  const startTime = o?.startTime ?? habit.startTime!
-  if (habit.timeMode !== 'range') return { startTime, endTime: null }
-  if (!o) return { startTime, endTime: habit.endTime! }
+  if (!o) return usual
+  const startTime = o.startTime
+  if (usual.endTime === null) return { startTime, endTime: null }
   if (o.endTime) return { startTime, endTime: o.endTime }
-  const length = (timeToMinutes(habit.endTime!) - timeToMinutes(habit.startTime!) + 1440) % 1440
+  const length = (timeToMinutes(usual.endTime) - timeToMinutes(usual.startTime) + 1440) % 1440
   return { startTime, endTime: minutesToTime((timeToMinutes(startTime) + length) % 1440) }
 }
 

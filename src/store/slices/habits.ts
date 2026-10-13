@@ -3,7 +3,7 @@ import { addDays } from 'date-fns'
 import type { Habit, HabitTimeOverrides } from '../../types/habit'
 import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { newId } from '../../lib/id'
-import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
@@ -44,6 +44,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         updatedAt: now,
         completedDates: [],
         archivedAt: null,
+        ...(fields.weekdayTimes ? { weekdayTimes: fields.weekdayTimes } : {}),
       }
       set((s) => ({ habits: [...s.habits, habit] }))
       return habit.id
@@ -51,10 +52,18 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     updateHabit: (id, patch) => {
       // 同じ値なら何もしない（取り消しの履歴を積まない）
       const habit = get().habits.find((h) => h.id === id)
-      if (habit && !patchChanges(habit, patch)) return
+      // patchChanges は undefined の項目を見ないので、曜日ごとの時間を外すのは別に見る
+      const dropsWeekdayTimes = 'weekdayTimes' in patch && !patch.weekdayTimes && !!habit?.weekdayTimes
+      if (habit && !patchChanges(habit, patch) && !dropsWeekdayTimes) return
       pushUndo()
       return set((s) => ({
-        habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h)),
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          const updated: Habit = { ...h, ...patch, updatedAt: new Date().toISOString() }
+          // 曜日ごとの時間を外したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          if (!updated.weekdayTimes) delete updated.weekdayTimes
+          return updated
+        }),
       }))
     },
     setHabitDayTime: (id, dateKey, startTime, endTime, label) => {
@@ -63,8 +72,9 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       if (!habit || !current) return
       const next = { startTime, endTime: current.endTime === null ? null : endTime }
       if (next.startTime === current.startTime && next.endTime === current.endTime) return
-      // 習慣の時間に戻したら、その日だけの時間は消す
-      const usual = next.startTime === habit.startTime && (next.endTime === null || next.endTime === habit.endTime)
+      // その曜日のいつもの時間に戻したら、その日だけの時間は消す
+      const base = habitUsualTimesOn(habit, dateKey)!
+      const usual = next.startTime === base.startTime && (next.endTime === null || next.endTime === base.endTime)
       const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
       if (usual) delete overrides[dateKey]
       else overrides[dateKey] = next

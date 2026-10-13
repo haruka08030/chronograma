@@ -936,6 +936,31 @@ describe('habits.rest_dates', () => {
   })
 })
 
+describe('habits.weekday_times', () => {
+  it('reads the per-weekday times, and sends them (null when there are none)', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [
+        habitRow('a', { weekday_times: { '6': { startTime: '10:00', endTime: '11:00' }, '9': { startTime: '10:00' } } }),
+        habitRow('b'),
+      ],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.weekdayTimes).toEqual({ 6: { startTime: '10:00', endTime: '11:00' } })
+    expect(byId.get('b')).not.toHaveProperty('weekdayTimes')
+
+    const { client: push, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(push, 'u-wd', [], [], [byId.get('a')!, byId.get('b')!], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({ weekday_times: { 6: { startTime: '10:00', endTime: '11:00' } } })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({ weekday_times: null })
+  })
+})
+
 describe('reading the server time and changes (#355)', () => {
   it('reports a missing sync_server_now as an error (no fallback to a full fetch)', async () => {
     const db = fakeDb()

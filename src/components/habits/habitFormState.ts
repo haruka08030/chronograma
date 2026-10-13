@@ -1,7 +1,7 @@
 import { useReducer } from 'react'
 import { hexForGoogleKey } from '../../lib/googleColors'
 import { canSubmitHabitDraft, habitFrequencyFromDraft, type HabitDraftFields } from '../../lib/habitDraft'
-import type { Habit, HabitFrequencyType, HabitTimeMode, HabitWeekday } from '../../types/habit'
+import type { Habit, HabitFrequencyType, HabitTimeMode, HabitWeekday, HabitWeekdayTimes } from '../../types/habit'
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 /** 週に◯回を選んだときの最初の回数 */
@@ -21,6 +21,10 @@ export type HabitFormState = {
   timeMode: HabitTimeMode
   startTime: string
   endTime: string
+  /** 曜日を指定した習慣で「曜日ごとに時間を変える」を押した */
+  perWeekday: boolean
+  /** 曜日ごとの時間（入れた曜日だけ。無い曜日は上の時間から始める。曜日を外しても残す） */
+  weekdayTimes: Partial<Record<HabitWeekday, { startTime: string; endTime: string }>>
   color: string
 }
 
@@ -32,6 +36,8 @@ export const EMPTY_HABIT_FORM: HabitFormState = {
   timeMode: 'range',
   startTime: '09:00',
   endTime: '10:00',
+  perWeekday: false,
+  weekdayTimes: {},
   color: DEFAULT_HABIT_COLOR,
 }
 
@@ -45,36 +51,67 @@ export function habitFormFrom(h: Habit): HabitFormState {
     timeMode: h.timeMode,
     startTime: h.startTime ?? '09:00',
     endTime: h.endTime ?? '10:00',
+    perWeekday: h.frequency.type === 'weekly' && !!h.weekdayTimes,
+    weekdayTimes: Object.fromEntries(
+      Object.entries(h.weekdayTimes ?? {}).map(([d, v]) => [d, { startTime: v.startTime, endTime: v.endTime ?? h.endTime ?? '10:00' }]),
+    ),
     color: h.color,
   }
 }
 
+/** 曜日ごとの時間の欄を使うか（曜日を指定・時間あり・「曜日ごとに時間を変える」を押した） */
+export function usesWeekdayTimes(f: HabitFormState): boolean {
+  return f.perWeekday && f.freq === 'weekly' && f.timeMode !== 'none'
+}
+
+/** その曜日の欄の時間。まだ入れていない曜日は上の時間 */
+export function formWeekdayTime(f: HabitFormState, d: HabitWeekday): { startTime: string; endTime: string } {
+  return f.weekdayTimes[d] ?? { startTime: f.startTime, endTime: f.endTime }
+}
+
 /** 使わない時刻は空にして判定する（時刻なしなら開始・終了とも、決まった時刻なら終了を見ない） */
-function draftFields(f: HabitFormState): HabitDraftFields {
+function draftFields(f: HabitFormState, times: { startTime: string; endTime: string } = f): HabitDraftFields {
   return {
     title: f.title,
     freq: f.freq,
     weekdays: f.weekdays,
     timesPerWeek: f.timesPerWeek,
     timeMode: f.timeMode,
-    startTime: f.timeMode === 'none' ? '' : f.startTime,
-    endTime: f.timeMode === 'range' ? f.endTime : '',
+    startTime: f.timeMode === 'none' ? '' : times.startTime,
+    endTime: f.timeMode === 'range' ? times.endTime : '',
   }
 }
 
+/** 曜日ごとの時間なら、選んだ曜日の欄が全部そろっていること */
 export function canSubmitHabitForm(f: HabitFormState): boolean {
-  return canSubmitHabitDraft(draftFields(f))
+  if (!usesWeekdayTimes(f)) return canSubmitHabitDraft(draftFields(f))
+  return f.weekdays.length > 0 && f.weekdays.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
 }
 
-/** ストアの addHabit / updateHabit に渡す値 */
+/**
+ * ストアの addHabit / updateHabit に渡す値。曜日ごとの時間なら、選んだ曜日の時間を `weekdayTimes` に入れ、
+ * 習慣の時間は最初の曜日の時間にする（使わなければ `weekdayTimes: undefined` で外す）
+ */
 export function habitFromForm(f: HabitFormState) {
+  const perWeekday = usesWeekdayTimes(f)
+  const weekdays = [...f.weekdays].sort((a, b) => a - b)
+  const base = perWeekday && weekdays.length > 0 ? formWeekdayTime(f, weekdays[0]) : f
+  let weekdayTimes: HabitWeekdayTimes | undefined
+  if (perWeekday) {
+    weekdayTimes = {}
+    for (const d of weekdays) {
+      const w = formWeekdayTime(f, d)
+      weekdayTimes[d] = { startTime: w.startTime, endTime: f.timeMode === 'range' ? w.endTime : null }
+    }
+  }
   return {
     title: f.title.trim(),
     color: f.color,
     timeMode: f.timeMode,
-    startTime: f.timeMode === 'none' ? null : f.startTime,
-    endTime: f.timeMode === 'range' ? f.endTime : null,
+    startTime: f.timeMode === 'none' ? null : base.startTime,
+    endTime: f.timeMode === 'range' ? base.endTime : null,
     frequency: habitFrequencyFromDraft(f.freq, f.weekdays, f.timesPerWeek),
+    weekdayTimes,
   }
 }
 
