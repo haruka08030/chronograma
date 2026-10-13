@@ -44,15 +44,26 @@ export interface AutoBackup extends AutoBackupMeta {
 
 export const DAILY_KEEP = 14
 export const BEFORE_SYNC_KEEP = 5
+/**
+ * いま使っている人以外の控えを残す日数。数えるのは持ち主ごとなので、共用の端末でログアウトした人の控えは、
+ * その人がこの端末でまた使わない限り消えなかった（ゴミ箱と同じ 30 日）
+ */
+export const OTHER_OWNER_KEEP_DAYS = 30
 
 const DB_NAME = 'chronograma-backups'
 const STORE = 'snapshots'
 
+/** 日付の索引（その日の毎日の控えがもうあるかを、全部の控えの中身を読まずに確かめる、#257） */
+const BY_DATE = 'dateKey'
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1)
+    const req = indexedDB.open(DB_NAME, 2)
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE, { keyPath: 'id' })
+      const store = req.result.objectStoreNames.contains(STORE)
+        ? req.transaction!.objectStore(STORE)
+        : req.result.createObjectStore(STORE, { keyPath: 'id' })
+      if (!store.indexNames.contains(BY_DATE)) store.createIndex(BY_DATE, BY_DATE)
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -111,8 +122,12 @@ export async function loadAutoBackup(id: string, viewer: string | null): Promise
   }
 }
 
-/** 残す数を超えた古いものの id。数えるのは持ち主ごと（ほかの人の控えに押し出されないように） */
-export function idsToPrune(all: readonly AutoBackupMeta[]): string[] {
+/**
+ * 残す数を超えた古いものの id。数えるのは持ち主ごと（ほかの人の控えに押し出されないように）。
+ * `owner`（いま使っている人）を渡すと、ほかの人の控えで `OTHER_OWNER_KEEP_DAYS` 日より前のものも外す。
+ * 持ち主の分からない控え（古い版のデータ・持ち主を付ける前）は、ログインしている人の分かもしれないので数だけで外す
+ */
+export function idsToPrune(all: readonly AutoBackupMeta[], current?: { owner: string | null; now: number }): string[] {
   const sorted = [...all].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
   const groups = new Map<string, AutoBackupMeta[]>()
   for (const b of sorted) {
@@ -125,6 +140,13 @@ export function idsToPrune(all: readonly AutoBackupMeta[]): string[] {
   for (const group of groups.values()) {
     const keep = group[0].kind === 'daily' ? DAILY_KEEP : BEFORE_SYNC_KEEP
     out.push(...group.slice(keep).map((b) => b.id))
+  }
+  if (current) {
+    const cutoff = current.now - OTHER_OWNER_KEEP_DAYS * 24 * 60 * 60_000
+    for (const b of sorted) {
+      if (b.owner === undefined || b.owner === LEGACY_DATA_OWNER || b.owner === current.owner) continue
+      if (Date.parse(b.savedAt) < cutoff && !out.includes(b.id)) out.push(b.id)
+    }
   }
   return out
 }
@@ -142,22 +164,35 @@ export function countTasks(tasks: readonly Task[]): { todoCount: number; logCoun
 
 /**
  * 控えを 1 つ足す。毎日の控えはその日にまだ無いときだけ。
+ * その日の分があるかは日付の索引で、その日の控えだけを見て確かめる。中身（`json`）は足すと決まってから作る（関数で渡したとき）。
+ * 以前は確かめるたびに（画面に戻るたび・30 分ごと）全データを文字列にし、全部の控えを中身ごと読んでいた（#257）。
  * 書き込みに失敗しても（容量・プライベートモード）アプリは止めない
  */
 export async function saveAutoBackup(
   kind: AutoBackupKind,
   dateKey: string,
   tasks: readonly Task[],
-  json: string,
+  json: string | (() => string),
   owner: string | null,
 ): Promise<boolean> {
   if (tasks.length === 0) return false
   try {
+    if (kind === 'daily') {
+      const sameDay = (await withStore<AutoBackup[]>('readonly', (s) => s.index(BY_DATE).getAll(dateKey))) ?? []
+      if (sameDay.some((b) => b.kind === 'daily' && (b.owner ?? null) === owner)) return false
+    }
     const all = await getAll()
-    if (kind === 'daily' && all.some((b) => b.kind === 'daily' && b.dateKey === dateKey && (b.owner ?? null) === owner)) return false
     const savedAt = new Date().toISOString()
-    const entry: AutoBackup = { id: `${kind}-${savedAt}`, kind, savedAt, dateKey, ...countTasks(tasks), owner, json }
-    const prune = idsToPrune([entry, ...all])
+    const entry: AutoBackup = {
+      id: `${kind}-${savedAt}`,
+      kind,
+      savedAt,
+      dateKey,
+      ...countTasks(tasks),
+      owner,
+      json: typeof json === 'string' ? json : json(),
+    }
+    const prune = idsToPrune([entry, ...all], { owner, now: Date.parse(savedAt) })
     await withStore('readwrite', (s) => {
       s.put(entry)
       for (const id of prune) s.delete(id)

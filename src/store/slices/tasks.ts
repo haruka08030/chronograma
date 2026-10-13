@@ -1,6 +1,7 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
+import { somedayTierOf, withSomedayTier } from '../../lib/somedayTier'
 import { isEventTask, type Task } from '../../types/task'
-import { INBOX_ID } from '../storeConstants'
+import { INBOX_ID, TRASH_KEEP_DAYS } from '../storeConstants'
 import { applyTaskPatch, expandDescendantIds, makeTask, orderForNewSiblingAtFront, patchChangesTask } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
@@ -23,6 +24,7 @@ type TasksActions = Pick<
   | 'deleteTask'
   | 'uncheckTasks'
   | 'promoteToPlanned'
+  | 'setSomedayTier'
   | 'deleteTasks'
   | 'restoreDeletedTask'
   | 'restoreDeletedTasks'
@@ -30,6 +32,7 @@ type TasksActions = Pick<
   | 'permanentlyDeleteTasks'
   | 'discardBlankTask'
   | 'emptyDeleted'
+  | 'purgeExpiredDeleted'
   | 'archiveTask'
   | 'archiveTasks'
   | 'unarchiveTask'
@@ -254,20 +257,33 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
             if (!family.has(t.id)) return t
             if (t.id === id) {
               // 「中国語」の下の「HSK 合格」だけを予定にしたら、未分類では 1 件のタスクとして出す
-              return {
-                ...t,
-                listId: INBOX_ID,
-                sectionId: null,
-                parentId: null,
-                order: maxOrder + 1,
-                scheduledDate: dateKey,
-                updatedAt: now,
-              }
+              // To-Do になったら、いつかの段（夢）は外す
+              return withSomedayTier(
+                {
+                  ...t,
+                  listId: INBOX_ID,
+                  sectionId: null,
+                  parentId: null,
+                  order: maxOrder + 1,
+                  scheduledDate: dateKey,
+                  updatedAt: now,
+                },
+                null,
+              )
             }
             return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }
           }),
         }
       })
+    },
+    setSomedayTier: (ids, tier) => {
+      const want = new Set(ids)
+      const targets = get().tasks.filter((t) => want.has(t.id) && !t.parentId && somedayTierOf(t) !== tier)
+      if (targets.length === 0) return
+      pushUndo()
+      const now = new Date().toISOString()
+      const hit = new Set(targets.map((t) => t.id))
+      set((s) => ({ tasks: s.tasks.map((t) => (hit.has(t.id) ? { ...withSomedayTier(t, tier), updatedAt: now } : t)) }))
     },
     deleteTasks: (ids) => {
       if (ids.length === 0) return
@@ -327,6 +343,22 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.filter((t) => !t.deletedAt),
         recentDeletes: [],
       }))
+    },
+    purgeExpiredDeleted: (now = Date.now()) => {
+      const cutoff = now - TRASH_KEEP_DAYS * 24 * 60 * 60_000
+      // 時刻が読めないものは消さない
+      const expired = new Set(
+        get()
+          .tasks.filter((t) => t.deletedAt && Date.parse(t.deletedAt) < cutoff)
+          .map((t) => t.id),
+      )
+      if (expired.size === 0) return 0
+      // 自動の片付けなので ⌘Z の履歴には積まない
+      set((s) => ({
+        tasks: s.tasks.filter((t) => !expired.has(t.id)),
+        recentDeletes: withoutIds(s.recentDeletes, expired),
+      }))
+      return expired.size
     },
     archiveTask: (id) => {
       get().archiveTasks([id])

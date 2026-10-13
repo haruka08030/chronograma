@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
-import { buildHabitRecordIndex, habitDayStatus, habitRecordFor, isTimedHabit } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitMinutesOn, habitRecordFor, isTimedHabit } from '../../lib/habitTiming'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_OFF_TIME_TEXT, HABIT_PENDING } from '../../lib/habitMark'
 import { isHabitWeekGoalMetOnDate } from '../../lib/habitSchedule'
@@ -48,6 +48,8 @@ export function PlannerHabits({
         {rows.map(({ h, weekMet }) => {
           const status = habitDayStatus(h, dateKey, habitRecords)
           const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
+          // 時間の目標に届いていない日は、何分やったかを小さく出す
+          const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, dateKey) : 0
           const canTime = viewingToday && status === 'missed' && !weekMet && activeTimer?.taskTitle !== h.title
           return (
             <li key={h.id} className="relative flex w-24 flex-col items-center gap-1.5" style={colorVars(h.color)}>
@@ -73,8 +75,8 @@ export function PlannerHabits({
                   onClick={() => {
                     const label = logLabelFromTask(h, labelPresets, logCategoryColors)
                     startTimer(h.title, label.tags, null, label.color)
-                    // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする
-                    if (!isTimedHabit(h)) toggleHabitDate(h.id, dateKey)
+                    // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする（時間の目標があれば記録の合計で決まる）
+                    if (!isTimedHabit(h) && !h.goalMinutes) toggleHabitDate(h.id, dateKey)
                   }}
                   {...tip(t('quickLog.resume', { title: h.title }), { name: true })}
                   // リングの右下の外に置く（重ねると、リングの右下を押したときにタイマーが始まる）
@@ -92,6 +94,11 @@ export function PlannerHabits({
                 {h.title}
               </span>
               {record && <span className={`-mt-1 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>}
+              {minutes > 0 && (
+                <span className={`-mt-1 text-[10px] tabular-nums ${HABIT_OFF_TIME_TEXT}`}>
+                  {t('habits.goalProgress', { done: minutes, goal: h.goalMinutes })}
+                </span>
+              )}
               {weekMet && <span className={`-mt-1 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('habits.weekGoalMet')}</span>}
             </li>
           )

@@ -38,6 +38,8 @@ import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
+import { dayPlanTally } from '../lib/movedPlans'
+import { unplannedListIds } from '../lib/listKind'
 import { useStableRows } from '../hooks/useStableRows'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
@@ -151,12 +153,18 @@ export function WeekCalendarView({
   // eslint-disable-next-line react-hooks/refs -- ドラッグの終わりで今の制限を読むため、描画のたびに入れ替える
   logLimitRef.current = logLimitMin
 
-  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate } = useWeekBuckets(
+  const { allDayByDate, timedByDate, timeLogsByDate, eventsByDate, timedEventsByDate, dueByDate, movedByDate } = useWeekBuckets(
     tasks,
     lists,
     calendarEvents,
     days,
   )
+  /** 1 日だけ描く過ぎた日の「予定 n・できた n・持ち越し n」。予定の無い日は出さない */
+  const planTally = useMemo(() => {
+    if (gridDays.length !== 1 || gridKey0 >= todayKey) return null
+    const tally = dayPlanTally(tasks, gridKey0, unplannedListIds(lists))
+    return tally.planned > 0 ? tally : null
+  }, [gridDays.length, gridKey0, todayKey, tasks, lists])
 
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
@@ -479,6 +487,7 @@ export function WeekCalendarView({
             onSelectDate={onSelectDate}
             setAllDayAddDate={setAllDayAddDate}
             dayLoads={dayLoads}
+            planTally={planTally}
           />
         </div>
 
@@ -546,6 +555,7 @@ export function WeekCalendarView({
                         {...columnProps}
                         dayTimed={timedByDate.get(key) ?? NO_TASKS}
                         dayLogs={splitLanes ? (timeLogsByDate.get(key) ?? NO_TASKS) : NO_TASKS}
+                        dayMoved={movedByDate.get(key) ?? NO_TASKS}
                         timedEvents={timedEventsByDate.get(key) ?? NO_EVENTS}
                         movingTaskId={movingIn(key)}
                         dragPreview={dragPreview?.dateKey === key ? dragPreview : null}

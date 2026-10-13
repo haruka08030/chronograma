@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchLogLabels, pushLogLabels } from './supabaseData'
-import { pendingAddsAfterImport, planLabelSync, settledLabelAdds, type LabelSyncPlan, type RemoteLabels } from './labelSync'
-import { loadSettingSyncedAt, runSettingSync, settingSyncStep } from './settingSync'
+import {
+  labelBaseIds,
+  normalizeLabelBase,
+  pendingAddsAfterImport,
+  planLabelSync,
+  settledLabelAdds,
+  type LabelSyncPlan,
+  type RemoteLabels,
+} from './labelSync'
+import { loadSettingSyncedAt, runSettingSync, saveSettingSyncedAt, settingSyncStep } from './settingSync'
 
 type SettingsRow = { user_id: string; log_labels: unknown; updated_at: string; base_updated_at?: string | null }
 
@@ -82,9 +90,9 @@ async function sync(
     {
       key: 'labels',
       fetch: () => fetchLogLabels(sb, 'u1'),
-      plan: (remote, syncedAt, offset) => {
+      plan: (remote, syncedAt, offset, base) => {
         const p = planLabelSync(
-          { presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt },
+          { presets: d.presets, colors: {}, updatedAt: d.updatedAt, syncedAt, baseIds: normalizeLabelBase(base) },
           remote,
           new Date(d.clock).toISOString(),
           offset,
@@ -92,6 +100,7 @@ async function sync(
         onPlan?.(p)
         return p
       },
+      baseOf: (synced) => labelBaseIds(synced.labels, { presets: d.presets }),
       localUpdatedAt: () => d.updatedAt,
       applyLocal: (a) => {
         d.presets = a.presets
@@ -246,6 +255,26 @@ describe('ラベル表を 2 台で別々に変えたとき（#261）', () => {
     expect([...phone.presets].sort()).toEqual(names)
     expect([...pc.presets].sort()).toEqual(names)
   })
+
+  it('片方で消したラベルは、もう一方が別のラベルを足して送っても戻らない（#357）', async () => {
+    const { client, rows } = fakeSettings()
+    const phone = device(REAL, ['授業', 'バイト'])
+    const pc = device(REAL, ['授業', 'バイト'])
+    phone.edit(['授業', 'バイト'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    phone.clock += 1000
+    pc.clock += 2000
+    phone.edit(['授業'])
+    pc.edit(['授業', 'バイト', 'ゼミ'])
+    await sync(client, phone, 'phone')
+    await sync(client, pc, 'pc')
+    await sync(client, phone, 'phone')
+    const names = (rows.get('u1')!.log_labels as { name: string }[]).map((l) => l.name)
+    expect(names).toEqual(['授業', 'ゼミ'])
+    expect(phone.presets).toEqual(names)
+    expect(pc.presets).toEqual(names)
+  })
 })
 
 describe('settingSyncStep', () => {
@@ -290,6 +319,7 @@ describe('取り込みで足したラベルは、ほかの端末のラベルの�
           offset,
         )
       },
+      baseOf: (synced) => labelBaseIds(synced.labels, { presets: d.presets }),
       localUpdatedAt: () => d.updatedAt,
       applyLocal: (a) => {
         d.presets = a.presets
@@ -344,5 +374,46 @@ describe('取り込みで足したラベルは、ほかの端末のラベルの�
     // スマホももう何も送らない
     await syncLabels(client, phone, 'phone')
     expect(rows.get('u1')!.updated_at).toBe(version)
+  })
+})
+
+describe('同じ 1 往復で分かった版で、取りに行くかを決める（#258）', () => {
+  const run = (
+    remoteVersion: string | null | undefined,
+    local: { updatedAt: string | null },
+    extra: { idle?: boolean; emptyWhenUnset?: boolean } = {},
+  ) => {
+    const fetch = vi.fn(async () => null)
+    return runSettingSync<RemoteLabels, NonNullable<LabelSyncPlan['apply']>, NonNullable<LabelSyncPlan['push']>>(
+      'u-ver',
+      {
+        key: 'labels',
+        fetch,
+        plan: () => ({}),
+        localUpdatedAt: () => local.updatedAt,
+        applyLocal: () => {},
+        setLocalUpdatedAt: () => {},
+        push: async () => ({ updatedAt: 'x' }),
+        idle: () => extra.idle ?? true,
+        emptyWhenUnset: extra.emptyWhenUnset,
+      },
+      { remoteVersion },
+    ).then(() => fetch.mock.calls.length)
+  }
+
+  it('サーバーの版がもとにした版と同じで、手元でも変えていなければ取りに行かない', async () => {
+    saveSettingSyncedAt('u-ver', 'labels', 'V1')
+    expect(await run('V1', { updatedAt: 'V1' })).toBe(0)
+    // サーバーで変わった・手元で変えた・送るものが残っている・版が分からない
+    expect(await run('V2', { updatedAt: 'V1' })).toBe(1)
+    expect(await run('V1', { updatedAt: '2026-10-03T00:00:00.000Z' })).toBe(1)
+    expect(await run('V1', { updatedAt: 'V1' }, { idle: false })).toBe(1)
+    expect(await run(undefined, { updatedAt: 'V1' })).toBe(1)
+  })
+
+  it('サーバーに行が無いときは、既定の値を送らない設定で手元も変えていなければ取りに行かない', async () => {
+    expect(await run(null, { updatedAt: null }, { emptyWhenUnset: true })).toBe(0)
+    expect(await run(null, { updatedAt: null })).toBe(1)
+    expect(await run(null, { updatedAt: '2026-10-03T00:00:00.000Z' }, { emptyWhenUnset: true })).toBe(1)
   })
 })

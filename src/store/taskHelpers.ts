@@ -2,11 +2,13 @@
  * ストアの操作が使う純粋な関数（localStorage・i18n を読まない）。
  * 文言（色の名前など）や「今」は呼ぶ側から渡す
  */
-import { isLogTask, type Task, type TaskKind } from '../types/task'
+import { isLogTask, isTodoTask, type Task, type TaskKind } from '../types/task'
 import { newId } from '../lib/id'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
-import { appTimeZone } from '../lib/timeZone'
+import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
+import { carriedDaysAfter } from '../lib/carryDays'
+import { movedPlansAfter, withMovedPlans } from '../lib/movedPlans'
 import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
@@ -69,6 +71,8 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   }
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
+    // いつかの段（夢）はそのいつかの中だけのもの。ほかのリストへ移したら外す
+    if ('somedayTier' in applied) delete applied.somedayTier
   }
   // 毎週の印は予定だけ。To-Do にしたらその回は繰り返しから外れる
   if (patch.kind !== undefined && patch.kind !== 'event' && 'series' in applied) delete applied.series
@@ -92,7 +96,22 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     applied.startTime = null
     applied.endTime = null
   }
-  return withLogCategory(applied)
+  // 今日・前の日に置いて終わっていない To-Do を後ろの日へ回したら、続けて持ち越した日数を足す（完了・実行日を外すと 0）
+  if (isTodoTask(applied)) {
+    const carried = carriedDaysAfter(task, applied, appDayKeyOf(now))
+    if (carried !== task.carriedDays) applied.carriedDays = carried
+  }
+  // その日が来てから予定を別の日へ移したら、元の予定を控えに残す（過ぎた日に「予定どおりだったか」を見る、`movedPlans.ts`）
+  const moved =
+    patch.scheduledDate !== undefined && patch.scheduledDate !== task.scheduledDate
+      ? withMovedPlans(applied, movedPlansAfter(task, patch.scheduledDate, appDayKeyOf(now)))
+      : applied
+  const out = withLogCategory(moved)
+  // ラベルは名前・色が正。名前・色・種類が変わったら id を外し、名前・色から付け直す（`labelIds.ts` の `fillLabelIds`）
+  if (out.labelId !== undefined && (out.category !== task.category || out.color !== task.color || out.kind !== task.kind)) {
+    delete out.labelId
+  }
+  return out
 }
 
 /**
@@ -163,6 +182,7 @@ export function makeTask(
     endTime: fields.endTime ?? null,
     location: null,
     estimateMinutes: fields.estimateMinutes ?? null,
+    carriedDays: 0,
     color: fields.color ?? null,
     priority: 'none',
     tags: fields.tags ?? [],

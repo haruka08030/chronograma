@@ -50,3 +50,23 @@ describe('TaskItem', () => {
     expect(screen.getByText('Part-time job')).toBeInTheDocument()
   })
 })
+
+describe('TaskItem: 親の行の次の締切（#308）', () => {
+  it('まだ終わっていない子のいちばん近い締切を出し、全部済めば出さない', () => {
+    const parent = addTask('A Inc.')
+    const store = useTaskStore.getState()
+    const es = store.addTask('ES', undefined, parent.id)!
+    const interview = store.addTask('Interview', undefined, parent.id)!
+    useTaskStore.getState().updateTask(es, { dueDate: '2099-10-15' })
+    useTaskStore.getState().updateTask(interview, { dueDate: '2099-10-20' })
+    const { unmount } = render(<Row id={parent.id} />)
+    const chip = document.querySelector('[data-child-due]')!
+    expect(chip.getAttribute('data-child-due')).toBe(es)
+    expect(chip.textContent).toContain('ES')
+    unmount()
+    useTaskStore.getState().toggleTask(es)
+    useTaskStore.getState().toggleTask(interview)
+    render(<Row id={parent.id} />)
+    expect(document.querySelector('[data-child-due]')).toBeNull()
+  })
+})

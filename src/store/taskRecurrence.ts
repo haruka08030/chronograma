@@ -6,6 +6,7 @@ import { addDays, addWeeks, differenceInCalendarDays, getDaysInMonth } from 'dat
 import type { Task } from '../types/task'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { isoWeekday, readRecurrenceWeekdays } from '../lib/recurrence'
+import { withMovedPlans } from '../lib/movedPlans'
 
 /** 繰り返しの次回の id。元が次回（`…@日付`）でも、いちばん元の id に次の期限を付ける */
 export function recurrenceNextId(id: string, nextDue: string): string {
@@ -82,6 +83,8 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
           completed: willComplete,
           updatedAt: now,
           completedAt: willComplete ? now : null,
+          // 終えたら続けて持ち越した日数は 0 から（戻しても数え直さない）
+          ...(willComplete && t.carriedDays !== 0 ? { carriedDays: 0 } : {}),
         }
       : t,
   )
@@ -91,23 +94,27 @@ export function toggleTaskCompletion(tasks: Task[], id: string, now: string): Ta
     if (willComplete) {
       // 次回の id を「元の id + 次の期限」で決める。完了 → 戻す → 完了や、2 台で同じ回を完了しても次回は 1 つ
       if (!newTasks.some((t) => t.id === nextId)) {
-        const next: Task = {
-          ...tsk,
-          id: nextId,
-          completed: false,
-          completedAt: null,
-          dueDate: nextDue,
-          // 元の日（31 日・2/29）を覚えて、短い月を通っても戻れるようにする
-          recurrence:
-            tsk.recurrence.type === 'monthly' || tsk.recurrence.type === 'yearly'
-              ? { ...tsk.recurrence, monthDay: recurrenceMonthDay(fromDateKey(tsk.dueDate), tsk.recurrence) }
-              : tsk.recurrence,
-          scheduledDate: tsk.scheduledDate
-            ? nextScheduledDate(tsk.scheduledDate, tsk.dueDate, nextDue, tsk.recurrence)
-            : (tsk.scheduledDate ?? null),
-          createdAt: now,
-          updatedAt: now,
-        }
+        const next: Task = withMovedPlans(
+          {
+            ...tsk,
+            id: nextId,
+            completed: false,
+            completedAt: null,
+            carriedDays: 0,
+            dueDate: nextDue,
+            // 元の日（31 日・2/29）を覚えて、短い月を通っても戻れるようにする
+            recurrence:
+              tsk.recurrence.type === 'monthly' || tsk.recurrence.type === 'yearly'
+                ? { ...tsk.recurrence, monthDay: recurrenceMonthDay(fromDateKey(tsk.dueDate), tsk.recurrence) }
+                : tsk.recurrence,
+            scheduledDate: tsk.scheduledDate
+              ? nextScheduledDate(tsk.scheduledDate, tsk.dueDate, nextDue, tsk.recurrence)
+              : (tsk.scheduledDate ?? null),
+            createdAt: now,
+            updatedAt: now,
+          },
+          null,
+        )
         newTasks = [...newTasks, next]
       }
     } else {

@@ -31,6 +31,9 @@ const TIMEZONE = 'Asia/Tokyo'
 const IOS_SAFARI_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 
+/** ローカル時刻として読む Date の日付（`yyyy-MM-dd`） */
+const dayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
@@ -69,10 +72,12 @@ const SEED_CLASSES = [
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
+/** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
+const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") [data-habit-day] >> nth=2'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -143,7 +148,27 @@ const SCREENS = [
     ],
   },
   { name: 'planner-left-over', view: 'planner', click: 'button[aria-expanded]:has-text("やり残し")' },
+  // 持ち越しが続いているタスク（#300）: ふりかえりの下の段
+  { name: 'stats-carried', view: 'stats', scrollTo: '[aria-labelledby="review-carried"]' },
   // 今日やる候補の並び順・絞り込み（To-Do 一覧と同じボタン）と、見積もり順＋優先度で絞ったところ
+  // 締切の近い候補を開いたところ（子の締切は親の名前つき、#308）
+  {
+    name: 'planner-candidates-open',
+    view: 'planner',
+    click: 'button[aria-expanded]:has-text("To-Do から追加") >> visible=true',
+    scrollToBottom: true,
+  },
+  // 締切順の候補で、見積もりが締切までの空きに入りきらない見出しに「入りきらない」（#332）
+  {
+    name: 'planner-due-fit',
+    view: 'planner',
+    state: {
+      dailyCapacityMinutes: 60,
+      plannerCandidateView: { sort: 'dueDate', listId: null, color: null, tag: null, priority: null, estimate: null },
+    },
+    click: OPEN_CANDIDATES,
+    scrollToBottom: true,
+  },
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {
@@ -179,6 +204,13 @@ const SCREENS = [
     name: 'planner-mood-past',
     view: 'planner',
     click: ['button[aria-label="前の日"] >> visible=true', 'button[aria-label="気分: 良い"] >> visible=true'],
+  },
+  // 過ぎた日の見出しの右のその日の結果（#282）と、押して開いた週のふりかえり
+  { name: 'planner-past-result', view: 'planner', click: 'button[aria-label="前の日"] >> visible=true' },
+  {
+    name: 'planner-past-result-review',
+    view: 'planner',
+    click: ['button[aria-label="前の日"] >> visible=true', '[data-day-result] >> visible=true'],
   },
   // 見出しの期間を押したときの月のカレンダー（期限のカレンダーと同じ DatePickerBody）
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
@@ -217,6 +249,13 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 過ぎた日（昨日）: 移した予定の点線の枠と、予定の見出しの「予定 n・できた n・持ち越し n」（#158。1 日だけ描くのはスマホ）
+  {
+    name: 'calendar-yesterday',
+    view: 'calendar',
+    mobileOnly: true,
+    steps: [{ mobileClick: '[data-day-key="__YESTERDAY__"] >> visible=true' }],
+  },
   // 見出しの空き時間で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「空き 2h / 3h45」を締切の色で）
   { name: 'calendar-free-over', view: 'calendar', state: { dailyCapacityMinutes: 120 } },
   // 締切が先（あさって）の To-Do を今日終えたところ（完了した日＝今日の列に出る）
@@ -287,6 +326,13 @@ const SCREENS = [
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
   { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // 空きをドラッグした作成カード: 見積もりの合う To-Do（TOEIC 申し込み 45 分）を置く 1 行（#333）
+  {
+    name: 'calendar-quick-create-fit',
+    view: 'calendar',
+    estimates: { s4: 45 },
+    steps: [{ dragTime: { from: '17:30', to: '18:30' } }],
+  },
   // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
   // 撮る日（2026/10）の次の週の 10/12 スポーツの日。スマホは月のマスの祝日を押してその日の 1 日表示へ
   { name: 'calendar-holiday', view: 'calendar', desktopOnly: true, click: 'button[aria-label="次の週"] >> visible=true' },
@@ -351,6 +397,13 @@ const SCREENS = [
     click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")'],
     scrollToBottom: true,
   },
+  // 「曜日を指定」で「曜日ごとに時間を変える」を押した状態（選んだ曜日ごとの時間の行）
+  {
+    name: 'habits-new-weekday-times',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")', 'button:has-text("曜日ごとに時間を変える")'],
+    scrollToBottom: true,
+  },
   // 「回数を指定」（週に◯回）を選んだ状態（回数のピル）
   {
     name: 'habits-new-times',
@@ -367,6 +420,25 @@ const SCREENS = [
   },
   // 習慣の行を右クリックしたメニュー（編集・今日の記録・アーカイブ・削除）
   { name: 'habits-menu', view: 'habits', rightClick: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ")' },
+  // 習慣の日のマス（水曜）を右クリック（スマホは長押し）して「休む ›」を開いたところ（この日だけ・カレンダーで選んだ日まで）と、
+  // 「この日だけ」で休みにした週の表（休みの日は予定の無い日と同じ点）。
+  // スマホ幅は撮らない（撮影の指の長押しでは、指を離したときのクリックでメニューが閉じる。行の長押しも同じ）
+  {
+    name: 'habits-rest-menu',
+    view: 'habits',
+    desktopOnly: true,
+    steps: [{ rightClick: HABIT_TOMORROW }, { click: '[role=menu] [role=menuitem]:has-text("休む") >> visible=true' }],
+  },
+  {
+    name: 'habits-rest',
+    view: 'habits',
+    desktopOnly: true,
+    steps: [
+      { rightClick: HABIT_TOMORROW },
+      { click: '[role=menu] [role=menuitem]:has-text("休む") >> visible=true' },
+      { click: '[role=menuitem]:has-text("この日だけ") >> visible=true' },
+    ],
+  },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {
@@ -412,6 +484,8 @@ const SCREENS = [
   // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
   { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
   { name: 'settings', view: 'settings' },
+  // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
+  { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
   // iPhone の Safari（ホーム画面に未追加）の「通知」（通知は追加すると使える。手順の行へ飛ぶ 1 行）
@@ -431,6 +505,21 @@ const SCREENS = [
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
   // 「データ」の記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281）
   { name: 'settings-data', view: 'settings', scrollTo: '#settings-data' },
+  {
+    // TickTick の CSV を選んで、ラベルの無いリスト名をどうするかを聞くところ（#306）
+    name: 'settings-csv-import',
+    view: 'settings',
+    scrollTo: '#settings-data',
+    steps: [
+      {
+        upload: {
+          selector: 'input[type="file"][accept=".csv,text/csv"]',
+          name: 'TickTick-backup.csv',
+          text: '"Date: 2026-10-13+0000"\n"Version: 7.1"\n"Folder Name","List Name","Title","Priority","Status"\n"","ゼミ","発表","5","0"\n"","サークル","合宿の準備","0","0"\n"","サークル","会計","0","0"\n',
+        },
+      },
+    ],
+  },
   // 他のタイムゾーン: 名前を付けた行・付けていない行（設定）と、時間バーの見出し（長い名前は切ってヒントに全体）
   { name: 'settings-time-zones', view: 'settings', extraTimeZones: true, scrollTo: '#settings-time-zone' },
   // 「日付と時刻」の週の開始日（日曜を選んだところ）
@@ -662,6 +751,11 @@ async function main() {
             seedInstant.setTime(seedInstant.getTime() - 24 * 60 * 60 * 1000)
           }
           const seed = buildSeedState({ theme, now: seedNow, instant: seedInstant })
+          // 手の中の `__YESTERDAY__` は種データの昨日の日付キー
+          const y = new Date(seedNow)
+          y.setDate(y.getDate() - 1)
+          const yesterdayKey = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
+          const sel = (x) => x.replace('__YESTERDAY__', yesterdayKey)
           // selectView と同じく、ビューを開くときはリストの選択を外す
           if (screen.view) {
             seed.state.selectedView = screen.view
@@ -702,6 +796,7 @@ async function main() {
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
+            if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()
@@ -799,7 +894,7 @@ async function main() {
                 await page.waitForTimeout(700)
                 await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
               } else if (vp.hasTouch && step.mobileClick) {
-                await page.click(step.mobileClick)
+                await page.click(sel(step.mobileClick))
               } else if (step.rightClick && !vp.hasTouch) {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
@@ -809,6 +904,33 @@ async function main() {
                 await page.keyboard.press(step.press)
               } else if (step.fill) {
                 await page.locator(step.fill.selector).first().fill(step.fill.text)
+              } else if (step.dragTime) {
+                // 今日の列の空きを時刻でドラッグする（左の予定の側。`from` / `to` は 'HH:MM'）
+                const col = page.locator(`[data-datekey="${dayKeyOf(seedNow)}"] >> visible=true`).first()
+                const y = (hm) => (Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3))) / 60
+                const hourPx = (await col.evaluate((el) => el.clientHeight)) / 24
+                await col.evaluate(
+                  (el, top) => {
+                    for (let p = el.parentElement; p; p = p.parentElement) {
+                      if (p.scrollHeight > p.clientHeight + 1 && getComputedStyle(p).overflowY !== 'visible') {
+                        p.scrollTop = top
+                        return
+                      }
+                    }
+                  },
+                  y(step.dragTime.from) * hourPx - 160,
+                )
+                await page.waitForTimeout(200)
+                const box = await col.boundingBox()
+                const x = box.x + box.width / 4
+                await page.mouse.move(x, box.y + y(step.dragTime.from) * hourPx + 2)
+                await page.mouse.down()
+                await page.mouse.move(x, box.y + y(step.dragTime.to) * hourPx - 2, { steps: 8 })
+                await page.mouse.up()
+              } else if (step.upload) {
+                // ファイルを選んだことにする（隠れた input に直接渡す）
+                const { selector, name, text } = step.upload
+                await page.setInputFiles(selector, { name, mimeType: 'text/csv', buffer: Buffer.from(text) })
               }
               await page.waitForTimeout(300)
             }

@@ -1,4 +1,5 @@
 import type { ReactNode, MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -8,7 +9,7 @@ import { SectionHeaderDnD } from '../SectionHeaderDnD'
 import { SECTION_HEADING_TEXT } from '../ListSectionHeading'
 import { TaskItem, type TaskItemSelection } from '../TaskItem'
 import { DnDSubtreeRows, StaticSubtreeRows } from './subtaskRows'
-import { SectionDropZone } from './sectionParts'
+import { SectionDropZone, SomedayTierHeading } from './sectionParts'
 
 /** 読み上げ: セクションの塊は listbox の中の group。名前はリスト名とセクション名 */
 const groupLabel = (block: SectionBlockRow) => (block.listTitle ? `${block.listTitle} ${block.title}` : block.title)
@@ -37,6 +38,7 @@ export function TaskListActiveContent({
   incompleteSubtasks,
   subtaskNestWithDrag,
   subtaskNestNoDrag,
+  tiers = null,
 }: {
   canDrag: boolean
   flatManualSortableIds: string[]
@@ -57,9 +59,79 @@ export function TaskListActiveContent({
   incompleteSubtasks: (parentId: string) => Task[]
   subtaskNestWithDrag: string
   subtaskNestNoDrag: string
+  /** いつかのリストの 2 段（#221）。あれば「夢」「やりたい」の見出しの下に分けて出す（セクションの塊の代わり） */
+  tiers?: { dream: Task[]; wish: Task[] } | null
 }) {
+  const { t } = useTranslation()
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
   const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
+  const sortableRows = (rows: Task[]) =>
+    rows.flatMap((t) => [
+      <SortableTaskItem
+        key={t.id}
+        task={t}
+        dragGroupRootIds={getDragGroupRootIds(t.id)}
+        onRowClick={makeRowClick(t.id)}
+        onEnterCreateSibling={handleEnterCreateSibling}
+        selection={makeSelection(t.id)}
+        autoEdit={pendingAutoEditTaskId === t.id}
+        showNestGuide={t.id === previewParentId}
+      />,
+      ...DnDSubtreeRows({
+        parentId: t.id,
+        depth: 0,
+        incompleteSubtasks,
+        makeRowClick,
+        makeSelection,
+        onEnterCreateSibling: handleEnterCreateSibling,
+        pendingAutoEditTaskId,
+        subtaskNestWithDrag,
+        nestPreviewParentId: previewParentId,
+      }),
+    ])
+  const staticRows = (rows: Task[]) =>
+    rows.map((t) => (
+      <div key={t.id}>
+        <TaskItem
+          task={t}
+          onRowClick={makeRowClick(t.id)}
+          onEnterCreateSibling={handleEnterCreateSibling}
+          selection={makeSelection(t.id)}
+          autoEdit={pendingAutoEditTaskId === t.id}
+          dragGroupIds={getDragGroupRootIds(t.id)}
+          sectionLabel={sectionLabelFor(t)}
+          keepHandleSpace
+        />
+        {StaticSubtreeRows({
+          parentId: t.id,
+          depth: 0,
+          incompleteSubtasks,
+          makeRowClick,
+          makeSelection,
+          onEnterCreateSibling: handleEnterCreateSibling,
+          pendingAutoEditTaskId,
+          subtaskNestNoDrag,
+        })}
+      </div>
+    ))
+  if (tiers) {
+    // 夢（上）・やりたい（下）。空の段は、ドラッグ中（落とし先）だけ見出しを出す
+    return (
+      <SortableContext items={canDrag ? flatManualSortableIds : []} strategy={verticalListSortingStrategy}>
+        {(['dream', 'wish'] as const).map((tier) => {
+          const rows = tiers[tier]
+          if (rows.length === 0 && !(canDrag && taskDragging)) return null
+          const title = t(tier === 'dream' ? 'someday.tierDream' : 'someday.tierWish')
+          return (
+            <div key={tier} role="group" aria-label={title} className="relative pt-3 first:pt-1">
+              <SomedayTierHeading tier={tier} title={title} dropTarget={canDrag} />
+              {canDrag ? sortableRows(rows) : staticRows(rows)}
+            </div>
+          )
+        })}
+      </SortableContext>
+    )
+  }
   return canDrag ? (
     <SortableContext items={flatManualSortableIds} strategy={verticalListSortingStrategy}>
       {showSectionBlocks && sectionBlocks

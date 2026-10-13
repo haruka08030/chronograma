@@ -5,6 +5,7 @@ import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { BUILTIN_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
+import { appTimeZone } from './timeZone'
 import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 
 export const SYNC_INBOX_LIST_ID = '__inbox__'
@@ -27,6 +28,8 @@ export interface SyncBaseline {
    * （スマホで月曜・PC で火曜にチェックしたとき、どちらも残す）。古い控えには無い
    */
   habitDates?: Record<string, string[]>
+  /** 前回同期した時点の習慣ごとの休みの日（休みのある習慣だけ）。達成日と同じく日ごとに合わせる。古い控えには無い */
+  habitRestDates?: Record<string, string[]>
   /**
    * 前回同期した時点のタスクごとのタグ（タグのあるタスクだけ）。タグも集合として合わせる
    * （片方で足し、片方で外したとき、どちらも残す）。古い控えには無い
@@ -60,16 +63,34 @@ export function fieldHash(value: unknown): string {
 /** 比べない項目（どの行にもある識別子と時刻） */
 const NOT_MERGED = new Set(['id', 'updatedAt'])
 
+/**
+ * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え・習慣の曜日ごとの時間と時間の目標・いつかの夢の段・ラベルの id）。前回同期のときにどの行も持っていなければ
+ * 控えの並びに無いが、そのときの値は「無い」と分かっているので、無い値として比べる（新しいほうに任せると、手元で足した控えが消えていた）
+ */
+const ABSENT_WHEN_EMPTY = new Set(['series', 'movedPlans', 'weekdayTimes', 'goalMinutes', 'somedayTier', 'labelId'])
+
 function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]; rows: Record<string, string> } {
   const keys = new Set<string>()
   for (const r of rows) for (const k of Object.keys(r)) if (!NOT_MERGED.has(k)) keys.add(k)
   const order = [...keys].sort()
+  const orderKey = order.join(',')
   const out: Record<string, string> = {}
-  for (const r of rows) {
-    const rec = r as Record<string, unknown>
-    out[rec.id as string] = order.map((k) => fieldHash(rec[k])).join('.')
-  }
+  for (const r of rows) out[(r as { id: string }).id] = cachedRowHash(r, order, orderKey)
   return { order, rows: out }
+}
+
+/**
+ * 行（オブジェクト）ごとの項目ハッシュの覚え（#257）。行は直さずに作り直すので、同じオブジェクトなら中身も同じ。
+ * 1 分ごとの同期で、変わっていない行を毎回ハッシュし直さない
+ */
+const rowHashCache = new WeakMap<object, { orderKey: string; hash: string }>()
+
+function cachedRowHash(row: object, order: readonly string[], orderKey: string = order.join(',')): string {
+  const hit = rowHashCache.get(row)
+  if (hit && hit.orderKey === orderKey) return hit.hash
+  const hash = rowHash(row, order)
+  rowHashCache.set(row, { orderKey, hash })
+  return hash
 }
 
 /**
@@ -163,11 +184,11 @@ function mergeRow<T extends { id: string }>(
   let fromLocal = false
   let fromRemote = false
   for (const k of new Set([...Object.keys(lr), ...Object.keys(rr)])) {
-    if (NOT_MERGED.has(k)) continue
+    if (NOT_MERGED.has(k) || lr[k] === rr[k]) continue
     const lh = fieldHash(lr[k])
     const rh = fieldHash(rr[k])
     if (lh === rh) continue
-    const bh = baseByKey.get(k)
+    const bh = baseByKey.get(k) ?? (ABSENT_WHEN_EMPTY.has(k) ? fieldHash(undefined) : undefined)
     // メモを両方の端末で変えた: 新しいほうに、もう一方の版を消さずに下へ足す（書き足しどうしなら長いほう）
     if (k === 'description' && bh !== undefined && lh !== bh && rh !== bh && typeof lr[k] === 'string' && typeof rr[k] === 'string') {
       out[k] = mergeMemo(lr[k] as string, rr[k] as string, winner === r ? 'r' : 'l')
@@ -186,6 +207,8 @@ function mergeRow<T extends { id: string }>(
     if (take === 'l') fromLocal = true
     else fromRemote = true
   }
+  // どの項目も同じで時刻も同じ: 手元の行のまま（取得し直した行に替えると、次の同期でまた全部を比べ直す、#257）
+  if (!fromLocal && !fromRemote && lr.updatedAt === rr.updatedAt) return l
   if (!fromLocal) return r
   if (!fromRemote) return l
   out.updatedAt = nowIso
@@ -244,7 +267,7 @@ function mergeKind<T extends { id: string }>(
     const hashes = baseFields?.rows[x.id]
     if (base === undefined || hashes === undefined || !baseFields) return byStamp(x)
     const n = normalize(x)
-    if (rowHash(n, baseFields.order) !== hashes) return true
+    if (cachedRowHash(n, baseFields.order) !== hashes) return true
     // 控えを取った後に増えた項目は、値が入っていれば変えたものとみなす
     const known = new Set(baseFields.order)
     return Object.entries(n).some(([k, v]) => !NOT_MERGED.has(k) && !known.has(k) && v != null)
@@ -253,9 +276,14 @@ function mergeKind<T extends { id: string }>(
   for (const l of local) {
     const r = remoteById.get(l.id)
     if (r) {
-      const hashes = baseFields?.rows[l.id]
       // 控え・サーバーの行と同じ書き方にそろえて比べる。手元のほうを丸ごと使うなら手元の行そのもの
       const ln = normalize(l)
+      // 同じオブジェクト（前回送った・取り込んだまま）なら中身も同じ。項目ごとに比べない（#257）
+      if (ln === r) {
+        merged.push(l)
+        continue
+      }
+      const hashes = baseFields?.rows[l.id]
       const row = mergeRow(
         ln,
         r,
@@ -293,20 +321,66 @@ export function mergeHabitDates(
   baseDates: Record<string, string[]> | undefined,
   nowIso: string = new Date().toISOString(),
 ): Habit[] {
+  return mergeHabitDateSets(
+    merged,
+    local,
+    remote,
+    (h) => h.completedDates,
+    baseDates,
+    nowIso,
+    (h, completedDates) => ({ ...h, completedDates }),
+  )
+}
+
+/**
+ * 習慣の休みの日を、達成日と同じく日ごとに三方向で合わせる（スマホで試験期間・PC で帰省を休みにしたとき、どちらも残す）。
+ * 控えが無い（古い控え・前回は休みが無かった）なら両方を合わせる。1 日も残らなければ項目ごと外す
+ */
+export function mergeHabitRestDates(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  baseDates: Record<string, string[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Habit[] {
+  return mergeHabitDateSets(
+    merged,
+    local,
+    remote,
+    (h) => h.restDates ?? [],
+    baseDates,
+    nowIso,
+    (h, restDates) => {
+      const out: Habit = { ...h, restDates }
+      if (restDates.length === 0) delete out.restDates
+      return out
+    },
+  )
+}
+
+function mergeHabitDateSets(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  datesOf: (h: Habit) => readonly string[],
+  baseDates: Record<string, string[]> | undefined,
+  nowIso: string,
+  withDates: (h: Habit, dates: string[]) => Habit,
+): Habit[] {
   const localById = new Map(local.map((h) => [h.id, h]))
   const remoteById = new Map(remote.map((h) => [h.id, h]))
   return merged.map((h) => {
     const l = localById.get(h.id)
     const r = remoteById.get(h.id)
     if (!l || !r) return h
-    const ld = new Set(l.completedDates)
-    const rd = new Set(r.completedDates)
+    const ld = new Set(datesOf(l))
+    const rd = new Set(datesOf(r))
     const base = baseDates?.[h.id]
     const baseSet = base ? new Set(base) : null
     const dates = [...new Set([...ld, ...rd])].filter((d) => !(baseSet?.has(d) && (!ld.has(d) || !rd.has(d)))).sort()
-    const current = [...h.completedDates].sort()
+    const current = [...datesOf(h)].sort()
     const same = dates.length === current.length && dates.every((d, i) => d === current[i])
-    return same ? h : { ...h, completedDates: dates, updatedAt: nowIso }
+    return same ? h : { ...withDates(h, dates), updatedAt: nowIso }
   })
 }
 
@@ -325,11 +399,13 @@ export function mergeSnapshots(
   const f = baseline.fields?.tasks ? { ...baseline.fields, tasks: withTaskKindField(baseline.fields.tasks) } : baseline.fields
   const off = baseline.clockOffsetMs ?? 0
   const conflicts: MergeConflictCounts = {}
-  const count = (kind: SyncKind, skip?: string) => (field: string) => {
-    if (field === skip) return
-    const key = `${kind}.${field}`
-    conflicts[key] = (conflicts[key] ?? 0) + 1
-  }
+  const count =
+    (kind: SyncKind, ...skip: (string | undefined)[]) =>
+    (field: string) => {
+      if (skip.includes(field)) return
+      const key = `${kind}.${field}`
+      conflicts[key] = (conflicts[key] ?? 0) + 1
+    }
   const nowIso = new Date().toISOString()
   const asIs = <T>(x: T) => x
   const lists = mergeKind(
@@ -355,14 +431,16 @@ export function mergeSnapshots(
     count('sections'),
   )
   // タスクの時刻は端末のタイムゾーンで書き方が違う。項目ごとに比べる前に、サーバーの行をこの端末の書き方にそろえる
+  // （タイムゾーンは 1 回だけ読む。端末のタイムゾーンは読むたびに Intl を作るので、行ごとに読むと 1 万行で 1 秒近くかかっていた、#257）
+  const zone = appTimeZone()
   const tasks = mergeKind(
     local.tasks,
-    remote.tasks.map((t) => reanchorTask(t)),
+    remote.tasks.map((t) => reanchorTask(t, zone)),
     baseline.tasks,
     (t) => stampMs(t.updatedAt),
     f?.tasks,
     off,
-    (t) => reanchorTask(t),
+    (t) => reanchorTask(t, zone),
     nowIso,
     count('tasks', baseline.taskTags ? 'tags' : undefined),
   )
@@ -376,9 +454,10 @@ export function mergeSnapshots(
     off,
     asIs,
     nowIso,
-    count('habits', 'completedDates'),
+    count('habits', 'completedDates', 'restDates'),
   )
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
+  habits.merged = mergeHabitRestDates(habits.merged, local.habits, remote.habits, baseline.habitRestDates, nowIso)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
   const listIds = new Set(lists.merged.map((l) => l.id))
@@ -464,6 +543,7 @@ export function withoutDuplicateDefaults(local: SyncSnapshot, remote: SyncSnapsh
 }
 
 export function baselineFrom(s: SyncSnapshot): SyncBaseline {
+  const zone = appTimeZone()
   const ids = <T extends { id: string }>(xs: readonly T[], stamp: (x: T) => number) => Object.fromEntries(xs.map((x) => [x.id, stamp(x)]))
   return {
     lists: ids(s.lists, (l) => stampMs(l.updatedAt)),
@@ -471,12 +551,13 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     tasks: ids(s.tasks, (t) => stampMs(t.updatedAt)),
     habits: ids(s.habits, (h) => stampMs(h.updatedAt)),
     habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
+    habitRestDates: Object.fromEntries(s.habits.filter((h) => h.restDates).map((h) => [h.id, [...h.restDates!]])),
     taskTags: Object.fromEntries(s.tasks.filter((t) => t.tags.length > 0).map((t) => [t.id, [...t.tags]])),
     fields: {
       lists: fieldsBaseline(s.lists),
       sections: fieldsBaseline(s.sections),
       // 控えもこの端末のタイムゾーンの書き方で（比べるときにそろえた行と同じ書き方にする）
-      tasks: fieldsBaseline(s.tasks.map((t) => reanchorTask(t))),
+      tasks: fieldsBaseline(s.tasks.map((t) => reanchorTask(t, zone))),
       habits: fieldsBaseline(s.habits),
     },
   }
@@ -550,10 +631,21 @@ export function adoptServerStamps(current: SyncSnapshot, pushed: SyncSnapshot, s
 
 const baselineKey = (userId: string) => `${BASELINE_KEY_PREFIX}${userId}`
 
+/**
+ * 最後に読んだ・書いた控え（#257）。置き場所の文字列が同じなら JSON.parse し直さない（1 回の同期で何度も読む）。
+ * 返す控えは呼ぶ側で書き換えない
+ */
+let parsedBaseline: { key: string; raw: string; value: SyncBaseline } | null = null
+
 export function loadBaseline(userId: string): SyncBaseline | null {
   try {
-    const raw = readStored(baselineKey(userId))
-    return raw ? (JSON.parse(raw) as SyncBaseline) : null
+    const key = baselineKey(userId)
+    const raw = readStored(key)
+    if (!raw) return null
+    if (parsedBaseline && parsedBaseline.key === key && parsedBaseline.raw === raw) return parsedBaseline.value
+    const value = JSON.parse(raw) as SyncBaseline
+    parsedBaseline = { key, raw, value }
+    return value
   } catch {
     return null
   }
@@ -586,7 +678,10 @@ export function clearBaseline(userId: string) {
  */
 export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFailure?: (err: unknown) => void): boolean {
   try {
-    writeStored(baselineKey(userId), JSON.stringify(baseline), {
+    const key = baselineKey(userId)
+    const raw = JSON.stringify(baseline)
+    parsedBaseline = { key, raw, value: baseline }
+    writeStored(key, raw, {
       onError: (err) => {
         console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
         clearBaseline(userId)
@@ -598,5 +693,43 @@ export function saveBaseline(userId: string, baseline: SyncBaseline, onLaterFail
     console.error('[sync] could not save the baseline; falling back to a first-sync merge next time', err)
     clearBaseline(userId)
     return false
+  }
+}
+
+/** 最後に控えを作った同期の内容（配列そのもの）と時計のずれ、書いた文字列 */
+let savedFrom: (SyncSnapshot & { key: string; raw: string; clockOffsetMs: number | undefined }) | null = null
+
+/**
+ * 同期し終えた内容から控えを作って保存する（`saveBaseline`）。前回控えを作った内容と同じ配列・同じ時計のずれで、
+ * 置き場所の控えも書いたままなら、作らず・書かずに true を返す（#257。何も変わらない 1 分ごとの同期で、全部の行をハッシュして書き直さない）
+ */
+export function saveSyncedBaseline(
+  userId: string,
+  synced: SyncSnapshot,
+  clockOffsetMs: number | undefined,
+  onLaterFailure?: (err: unknown) => void,
+): boolean {
+  const key = baselineKey(userId)
+  if (
+    savedFrom &&
+    savedFrom.key === key &&
+    savedFrom.lists === synced.lists &&
+    savedFrom.tasks === synced.tasks &&
+    savedFrom.habits === synced.habits &&
+    savedFrom.sections === synced.sections &&
+    savedFrom.clockOffsetMs === clockOffsetMs &&
+    readStoredSafe(key) === savedFrom.raw
+  )
+    return true
+  const ok = saveBaseline(userId, { ...baselineFrom(synced), clockOffsetMs }, onLaterFailure)
+  savedFrom = ok && parsedBaseline?.key === key ? { ...synced, key, raw: parsedBaseline.raw, clockOffsetMs } : null
+  return ok
+}
+
+function readStoredSafe(key: string): string | null {
+  try {
+    return readStored(key)
+  } catch {
+    return null
   }
 }

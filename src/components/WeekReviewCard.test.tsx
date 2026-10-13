@@ -8,6 +8,7 @@ import { periodTargetMinutes } from '../lib/labelTargets'
 import { zonedNow } from '../lib/timeZone'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
+import { openReviewDay } from '../lib/reviewFocus'
 import { TaskEstimateField } from './detail/TaskEstimateField'
 
 const task = (id: string, over: Partial<Task> = {}): Task =>
@@ -228,5 +229,44 @@ describe('WeekReviewCard: 一言は数字から（#276）', () => {
     useTaskStore.setState({ tasks: [task('old', { kind: 'log', completed: true, dueDate: old, startTime: '09:00', endTime: '10:00' })] })
     render(<WeekReviewCard />)
     expect(screen.getByText('Nothing logged or planned this week yet.')).toBeInTheDocument()
+  })
+})
+
+describe('WeekReviewCard: 今日の計画の過ぎた日から開く（#282）', () => {
+  it('その日を含む週を開き、その日の棒に印を付ける。次に開いたときは今週', () => {
+    useTaskStore.setState({ tasks: [] })
+    const day = toDateKey(shiftReviewPeriod('week', zonedNow(), -2))
+    openReviewDay(day)
+    expect(useTaskStore.getState().selectedView).toBe('stats')
+    const { unmount } = render(<WeekReviewCard />)
+    const current = document.querySelectorAll('[aria-current="date"]')
+    expect(current).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Next week' })).toBeEnabled()
+    unmount()
+    render(<WeekReviewCard />)
+    expect(document.querySelectorAll('[aria-current="date"]')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Next week' })).toBeDisabled()
+  })
+})
+
+describe('WeekReviewCard: 持ち越しが続いているタスク（#300）', () => {
+  it('2 日以上のタスクを並べ、押すとタスクのメニューを開く。無ければ出さない', async () => {
+    const { useOverlays } = await import('../lib/overlays')
+    const today = toDateKey(zonedNow())
+    useTaskStore.setState({
+      tasks: [
+        task('es', { title: 'Write ES', scheduledDate: today, carriedDays: 3 }),
+        task('one', { scheduledDate: today, carriedDays: 1 }),
+      ],
+    })
+    const { unmount } = render(<WeekReviewCard />)
+    expect(screen.getByText('Tasks that keep carrying over')).toBeInTheDocument()
+    expect(screen.queryByText('one')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Write ES/ }))
+    expect(useOverlays.getState().menu).toMatchObject({ kind: 'task', taskIds: ['es'] })
+    unmount()
+    useTaskStore.setState({ tasks: [task('one', { scheduledDate: today, carriedDays: 1 })] })
+    render(<WeekReviewCard />)
+    expect(screen.queryByText('Tasks that keep carrying over')).toBeNull()
   })
 })

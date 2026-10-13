@@ -33,6 +33,7 @@
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
 | モーダル | `Modal`・`ModalTitle`。背景・角（rounded-2xl）・枠・ダーク（zinc-900）・アニメーション・見出しの大きさ・Esc（一番上だけ）・背景で閉じる・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`）。検索パレット（⌘K）は上寄り（`placement="top"`）・広め（`width="lg"`） | `components/ui/Modal.tsx` |
 | 重ねる面のフォーカス | 開いたら面にフォーカス、Tab / Shift+Tab は面の中だけを巡回、閉じたら（閉じる動きの始まりで）元の場所へ戻す。戻す先が BODY なら `returnFocus`（タスク詳細は開いた行の題名）。`Modal`・タスク詳細・スマホのドロワー（`role="dialog"`・`aria-modal`） | `hooks/useFocusTrap.ts` |
+| 重ねる面の閉じる動き | 閉じるときは 150ms で消える: 背景の幕は `animate-fade-out`、ダイアログ・メニュー・ポップオーバー・予定カードは縮みながら（`animate-pop-out`）、下からのシートは下へ（`animate-sheet-out`）。呼び出し側が外す面は、一番外の要素に `useExitGhost` の ref を付けると写しが動いてから消える（写しは `inert`）。タスク詳細・スマホのドロワー・トーストは `usePresence`（`animate-*-out`）。動きを減らす設定ではすぐ消える | `hooks/useExitGhost.ts`・`hooks/usePresence.ts` |
 | 確認 | `askConfirm({ message, confirmLabel, danger, requireText })` → `Promise<boolean>`。`window.confirm` / `window.prompt` は使わない。重い操作は赤いボタンで、開いたときは取消にフォーカス。取り消せないものだけ聞く | `lib/confirmDialog.tsx`・`components/ui/ConfirmDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・右端の補足/キー/チェック・赤・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
 | 右クリックのメニュー | `ActionMenu`（項目・中のメニュー・検索・↑↓→←Enter Esc・はみ出さない位置）。どの右クリックもこれの上に作る。色を選ぶ中のメニューは `ColorPalette`（`bare`）か `ColorSwatches` を入れる | `components/ui/ActionMenu.tsx` |

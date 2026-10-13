@@ -242,4 +242,42 @@ describe('読めない保存データ', () => {
     expect(copies).toHaveLength(1)
     expect(tab.data.readStored(copies[0]!)).toContain('broken')
   })
+
+  it('読めないことが続いても写しは 1 つまで。localStorage で動いた回の写しも起動時に片付ける（#256）', async () => {
+    // IndexedDB を開けなかった回に localStorage に写した分（IndexedDB には移さない）
+    localStorage.setItem(`${PERSIST_STORAGE_KEY}-unreadable-1`, 'old copy')
+    for (let i = 0; i < 2; i++) {
+      const tab = await openTab()
+      if (i === 0) tab.useTaskStore.getState().addTask('ok')
+      await settle()
+      const saved = JSON.parse((await readDisk(PERSIST_STORAGE_KEY))!) as { state: { tasks: unknown[] } }
+      saved.state.tasks.push({ id: `broken-${i}`, title: 42 })
+      tab.data.writeStored(PERSIST_STORAGE_KEY, JSON.stringify(saved))
+      await settle()
+      tab.data.closeDataStore()
+      await new Promise((r) => setTimeout(r, 2))
+    }
+    const tab = await openTab()
+    await settle()
+    const copies = tab.data.storedKeys().filter((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-unreadable-`))
+    expect(copies).toHaveLength(1)
+    expect(tab.data.readStored(copies[0]!)).toContain('broken-1')
+    expect(Object.keys(localStorage).filter((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-unreadable-`))).toEqual([])
+  })
+})
+
+describe('ログアウトの片付け（#256）', () => {
+  it('写しは消え、前回同期の控えは中身を消して印だけ IndexedDB に残す', async () => {
+    const tab = await openTab()
+    const cleanup = await import('../lib/deviceCleanup')
+    tab.sync.saveBaseline('u1', { lists: {}, tasks: { t1: 1 }, habits: {}, sections: {} } as never)
+    cleanup.keepStorageCopy(cleanup.UNREADABLE_COPY_PREFIX, '{"title":"前の人"}')
+    await settle()
+    cleanup.clearSignedOutLeftovers()
+    await settle()
+    expect(await readDisk('chronograma-sync-baseline-v1:u1')).toBe('null')
+    expect(tab.sync.loadBaseline('u1')).toBeNull()
+    expect(tab.sync.hasOtherUsersBaseline('u2')).toBe(true)
+    expect(tab.data.storedKeys().filter((k) => k.includes('-unreadable-'))).toEqual([])
+  })
 })

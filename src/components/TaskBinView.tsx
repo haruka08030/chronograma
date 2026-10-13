@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { TRASH_KEEP_DAYS } from '../store/storeConstants'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import { isLogTask, type Task } from '../types/task'
@@ -158,7 +159,13 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
           {/* 空なら下の「ありません」で分かるので件数は出さない */}
-          {rows.length > 0 && <p className={`mt-1 ${META_TEXT}`}>{t('taskBin.count', { count: rows.length })}</p>}
+          {/* ゴミ箱は日数で消える（Google カレンダーのゴミ箱と同じく、件数の横に添える） */}
+          {rows.length > 0 && (
+            <p className={`mt-1 ${META_TEXT}`}>
+              {t('taskBin.count', { count: rows.length })}
+              {mode === 'deleted' && ` · ${t('taskBin.autoPurge', { days: TRASH_KEEP_DAYS })}`}
+            </p>
+          )}
         </div>
         {mode === 'deleted' && rows.length > 0 && (
           <button

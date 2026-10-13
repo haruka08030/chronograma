@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { getDayPlan } from '../lib/dayPlan'
+import { getDayPlan, showsDayResult } from '../lib/dayPlan'
+import { getDayReviews } from '../lib/weekReview'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -118,6 +119,18 @@ export function TodayPlannerView() {
     done,
     loggedMinutes,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
+  // 過ぎた日（と今日の締めの時刻から）は、見出しの予定の代わりにその日の結果（ふりかえりの 1 日分と同じ数え方）
+  const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const showResult = showsDayResult(dateKey, toDateKey(appToday()), nowMinutes, wrapUpFrom)
+  // 今日は時間が進むと終わった予定が増えるので、今日を見ている間は分ごとに数え直す
+  const resultMinute = viewingToday ? nowMinutes : 0
+  const dayResult = useMemo(
+    () => (showResult ? (getDayReviews(tasks, habits, [fromDateKey(dateKey)], excludedListIds)[0] ?? null) : null),
+    // resultMinute は数え直す合図（getDayReviews は今の時刻を自分で読む）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showResult, tasks, habits, dateKey, excludedListIds, resultMinute],
+  )
   /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
   const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
@@ -222,13 +235,10 @@ export function TodayPlannerView() {
   })()
 
   const totalCount = open.length + done.length
-  const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
   const showWrapUp =
-    viewingToday &&
-    (wrapUpFocus > 0 ||
-      (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)))
+    viewingToday && (wrapUpFocus > 0 || (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || nowMinutes >= wrapUpFrom)))
   // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
-  const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || now.getHours() * 60 + now.getMinutes() >= wrapUpFrom)
+  const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || nowMinutes >= wrapUpFrom)
 
   // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
@@ -275,6 +285,7 @@ export function TodayPlannerView() {
           dayNav={dayNav}
           load={dayLoad}
           loggedMinutes={loggedMinutes}
+          dayResult={dayResult}
         />
 
         <PlannerTodoSection

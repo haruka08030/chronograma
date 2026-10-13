@@ -22,6 +22,12 @@ type TaskTreeActions = Pick<
   | 'moveTasksToList'
 >
 
+/** いつか・チェックリストへ移したら、続けて持ち越した日数は 0 から（日に置かない場所なので） */
+function carryResetFor(lists: TaskState['lists'], listId: string): { carriedDays?: 0 } {
+  const kind = lists.find((l) => l.id === listId)?.kind ?? 'tasks'
+  return kind === 'tasks' ? {} : { carriedDays: 0 }
+}
+
 export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeActions {
   const { pushUndo } = undo
   return {
@@ -35,9 +41,11 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       // 2 台で並べ替えると行ごとに混ざっていた。絞り込んだ画面では見えていない行の順番ともぶつかっていた）
       const byId = new Map(get().tasks.map((t) => [t.id, t]))
       const nextOrder = minimalReorder(orderedTaskIds.map((id) => byId.get(id)?.order ?? 0))
+      // 行ごとに indexOf で探すと行数 × 並べた数になる（#257）
+      const indexOf = new Map(orderedTaskIds.map((id, i) => [id, i]))
       set((s) => ({
         tasks: s.tasks.map((t) => {
-          const idx = orderedTaskIds.indexOf(t.id)
+          const idx = indexOf.get(t.id) ?? -1
           const inSectionPatch = Boolean(sectionSet?.has(t.id))
           const inDescendantListMove = Boolean(descendantsForListMove?.has(t.id) && targetListId && t.listId !== targetListId)
           if (idx < 0 && !inDescendantListMove) return t
@@ -254,9 +262,10 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
     reorderTasks: (orderedIds) => {
       pushUndo()
       const now = new Date().toISOString()
+      const indexOf = new Map(orderedIds.map((id, i) => [id, i]))
       return set((s) => ({
         tasks: s.tasks.map((t) => {
-          const idx = orderedIds.indexOf(t.id)
+          const idx = indexOf.get(t.id) ?? -1
           return idx >= 0 && t.order !== idx ? { ...t, order: idx, updatedAt: now } : t
         }),
       }))
@@ -268,6 +277,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       if (!task || task.listId === listId) return { moved: false }
       const listName = s.lists.find((l) => l.id === listId)?.name ?? i18n.t('lists.unnamedList')
       const descendants = expandDescendantIds([taskId], s.tasks)
+      const carryReset = carryResetFor(s.lists, listId)
       pushUndo()
       set((state) => {
         const maxOrder = Math.max(
@@ -281,8 +291,8 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
         return {
           tasks: state.tasks.map((t) => {
             if (!descendants.has(t.id)) return t
-            if (t.id === taskId) return { ...t, listId, order: rootNewOrder, sectionId: null, updatedAt: now }
-            return { ...t, listId, sectionId: null, updatedAt: now }
+            if (t.id === taskId) return { ...t, listId, order: rootNewOrder, sectionId: null, updatedAt: now, ...carryReset }
+            return { ...t, listId, sectionId: null, updatedAt: now, ...carryReset }
           }),
         }
       })
@@ -298,6 +308,7 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       })
       if (rootsToMove.length === 0) return { moved: false }
       const listName = s.lists.find((l) => l.id === listId)?.name ?? i18n.t('lists.unnamedList')
+      const carryReset = carryResetFor(s.lists, listId)
       const descendantsUnion = new Set<string>()
       const taskToRoot = new Map<string, string>()
       for (const rid of rootsToMove) {
@@ -325,8 +336,8 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
             const rootId = taskToRoot.get(t.id)
             if (!rootId) return t
             const ord = rootOrder.get(rootId)
-            if (t.id === rootId && ord !== undefined) return { ...t, listId, order: ord, sectionId: null, updatedAt: now }
-            return { ...t, listId, sectionId: null, updatedAt: now }
+            if (t.id === rootId && ord !== undefined) return { ...t, listId, order: ord, sectionId: null, updatedAt: now, ...carryReset }
+            return { ...t, listId, sectionId: null, updatedAt: now, ...carryReset }
           }),
         }
       })

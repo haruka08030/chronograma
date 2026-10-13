@@ -118,7 +118,12 @@ export interface TaskState {
   logCategoryColors: Record<string, string>
   /** 分類名 → 週の目安（分、#291）。目安の無い分類は入れない（`labelTargets.ts`） */
   logLabelTargets: Record<string, number>
-  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
+  /**
+   * 分類名 → ラベルの id（#365、`labelIds.ts`）。無い名前の id は名前から決まる（`legacyLabelId`）。
+   * 名前を変えたラベルは元の id をここに持ち、記録・To-Do は id で指したまま（行を書き直さない）
+   */
+  logLabelIds: Record<string, string>
+  /** この端末でラベル表（timeLogTagPresets・logCategoryColors・logLabelTargets・logLabelIds）を最後に変えた・同期で合わせた時刻。まだ無ければ null */
   logLabelsUpdatedAt: string | null
   /** 取り込み（Notion・フォルダを畳む）で足し、まだサーバーに届いていないラベルの名前。手元の変えた時刻は進めず「無ければ足す」で送る（`labelSync.ts`、#357） */
   logLabelPendingAdds: string[]
@@ -283,13 +288,24 @@ export interface TaskState {
   setGoogleCanWrite: (canWrite: boolean) => void
 
   /** 足した習慣の id を返す */
-  addHabit: (fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>) => string
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency'>>) => void
+  addHabit: (
+    fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>,
+  ) => string
+  /** `weekdayTimes: undefined` は曜日ごとの時間、`goalMinutes: undefined` は時間の目標を外す */
+  updateHabit: (
+    id: string,
+    patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>>,
+  ) => void
   /**
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
    * 時刻ひとつの習慣は `endTime` を見ない
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /**
+   * `from`〜`to`（yyyy-MM-dd、両端を含む）を休みにする（`rest: false` で外す）。休みの日は予定の日に数えない。
+   * 「元に戻す」付きのトースト
+   */
+  setHabitRest: (id: string, from: string, to: string, rest: boolean) => void
   deleteHabit: (id: string) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
@@ -440,6 +456,8 @@ export interface TaskState {
   uncheckTasks: (ids: string[]) => void
   /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */
   promoteToPlanned: (id: string, dateKey: string) => void
+  /** いつかの段を変える（#221）。`dream` は夢、`wish` はやりたい。ルートの行だけ（一歩＝子は段を持たない） */
+  setSomedayTier: (ids: string[], tier: 'dream' | 'wish') => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
   /** ゴミ箱からまとめて復元（2 件以上なら件数のトースト）。Undo は 1 段 */
@@ -450,6 +468,8 @@ export interface TaskState {
   permanentlyDeleteTasks: (ids: string[]) => void
   /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
   emptyDeleted: () => void
+  /** ゴミ箱に入れてから `TRASH_KEEP_DAYS` 日たったタスクを完全に削除する（起動時。同期でサーバーからも消える）。消した件数 */
+  purgeExpiredDeleted: (now?: number) => number
   /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
   discardBlankTask: (id: string) => void
   /** アーカイブする（対象と全子孫に archivedAt を付与） */
@@ -538,6 +558,12 @@ export interface TaskState {
   backupJson: () => string
   /** 自動バックアップにあって今は無いものだけを戻す。戻したタスク数（読めなければ null） */
   restoreMissingFromBackup: (json: string) => number | null
-  /** CSV からタスクを追加（既存データは保持） */
-  importTasksFromCsv: (csv: string) => { imported: number; skipped: number; errors: string[] }
+  /**
+   * CSV からタスクを追加（既存データは保持）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
+   * 一致するリスト・ラベルの無いリスト名は、`unknownLists: 'label'` ならその名前のラベルを作って付け、`'inbox'`（既定）ならラベルなし
+   */
+  importTasksFromCsv: (
+    csv: string,
+    options?: { fileName?: string; unknownLists?: 'label' | 'inbox' },
+  ) => { imported: number; skipped: number; errors: string[] }
 }

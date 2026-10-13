@@ -144,6 +144,7 @@ describe('unknown fields', () => {
     expect(Object.keys(t).sort()).toEqual(
       [
         'archivedAt',
+        'carriedDays',
         'category',
         'color',
         'completed',
@@ -295,6 +296,43 @@ describe('task kind', () => {
     expect(tasks.map((t) => 'series' in t)).toEqual([true, true, false, false])
     const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
     expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.series).toEqual(series)
+  })
+
+  it('keeps the someday dream tier of a to-do through the file, and drops it on other kinds or unknown values (#221)', () => {
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 'd', title: 'マチュピチュ', listId: '__inbox__', kind: 'todo', somedayTier: 'dream' },
+          { id: 'r', title: 'オーロラ', list_id: '__inbox__', someday_tier: 'dream' },
+          { id: 'e', title: '授業', listId: '__inbox__', kind: 'event', somedayTier: 'dream' },
+          { id: 'w', title: 'ピクニック', listId: '__inbox__', kind: 'todo', somedayTier: 'wish' },
+        ],
+      }),
+    )!.tasks
+    expect(tasks.map((t) => t.somedayTier ?? null)).toEqual(['dream', 'dream', null, null])
+    expect(tasks.map((t) => 'somedayTier' in t)).toEqual([true, true, false, false])
+    const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
+    expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.somedayTier).toBe('dream')
+  })
+
+  it('keeps the moved-plan notes of a to-do through the file, and drops them on other kinds or when unreadable (#158)', () => {
+    const movedPlans = [{ date: '2026-10-02', startTime: '13:00', endTime: '14:00', to: '2026-10-05' }]
+    const tasks = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [
+          { id: 't', title: 'レポート', listId: '__inbox__', kind: 'todo', movedPlans },
+          { id: 'r', title: '発表', list_id: '__inbox__', moved_plans: movedPlans },
+          { id: 'e', title: '授業', listId: '__inbox__', kind: 'event', movedPlans },
+          { id: 'b', title: 'ゼミ', listId: '__inbox__', kind: 'todo', movedPlans: [{ date: 'x' }] },
+        ],
+      }),
+    )!.tasks
+    expect(tasks.map((t) => t.movedPlans ?? null)).toEqual([movedPlans, movedPlans, null, null])
+    expect(tasks.map((t) => 'movedPlans' in t)).toEqual([true, true, false, false])
+    const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
+    expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.movedPlans).toEqual(movedPlans)
   })
 })
 

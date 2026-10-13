@@ -26,6 +26,7 @@ import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
 import { openTaskDetail } from '../../lib/overlays'
 import { CourseAssignments } from './CourseAssignments'
+import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 320
 
@@ -56,6 +57,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   )
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(ref)
   const layer = useDismiss({ open: true, onClose, inside: [ref] })
 
   // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
@@ -116,7 +118,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
 
   return (
     <div
-      ref={ref}
+      ref={exitRef}
       role="dialog"
       aria-label={event.summary}
       tabIndex={-1}

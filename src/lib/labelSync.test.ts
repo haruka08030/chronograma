@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { pendingAddsAfterImport, planLabelSync, settledLabelAdds } from './labelSync'
+import { labelBaseIds, normalizeLabelBase, pendingAddsAfterImport, planLabelSync, settledLabelAdds } from './labelSync'
 
 const T1 = '2026-10-01T00:00:00.000Z'
 const T2 = '2026-10-02T00:00:00.000Z'
 const NOW = '2026-10-03T00:00:00.000Z'
 
+/** 送る行から id（#365。名前から決まる値は labelIds.test.ts で確かめる）を外して比べる */
+const noIds = <T extends { labels: { id?: string }[] }>(p: T | undefined) =>
+  p && { ...p, labels: p.labels.map(({ id: _id, ...r }) => (void _id, r)) }
+
 describe('ラベル表の同期', () => {
   it('サーバーに無ければ手元を送る', () => {
     const plan = planLabelSync({ presets: ['授業'], colors: { 授業: 'sage' }, updatedAt: T1 }, null, NOW)
-    expect(plan).toEqual({ push: { labels: [{ name: '授業', color: 'sage' }], updatedAt: T1, base: null } })
+    expect(noIds(plan.push)).toEqual({ labels: [{ name: '授業', color: 'sage' }], updatedAt: T1, base: null })
+    expect(Object.keys(plan)).toEqual(['push'])
   })
 
   it('サーバーが新しければ、ほかの端末で変えた名前・色に合わせる（PC で名前を変えたらスマホも）', () => {
@@ -97,7 +102,7 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
       { labels: [{ name: '授業', color: '' }], updatedAt: S1 },
       NOW,
     )
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: '授業', color: '' },
         { name: 'ジム', color: '' },
@@ -138,6 +143,53 @@ describe('ラベル表の同期（サーバーの時計の版）', () => {
     const offset = Date.parse(S2) - Date.parse(FAST) - 1000
     expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['他端末', '手元'])
   })
+
+  describe('片方で消したラベル（#357）', () => {
+    // 前回合わせた版（S1）の表は 授業・バイト・ジム
+    const synced = { presets: ['授業', 'バイト', 'ジム'], colors: { 授業: 'sage', バイト: 'peacock', ジム: 'basil' } }
+    const baseIds = labelBaseIds(
+      synced.presets.map((name) => ({ name, color: synced.colors[name as keyof typeof synced.colors] })),
+      { presets: synced.presets },
+    )
+
+    it('手元で消し、ほかの端末で別のラベルを足した: 消したラベルは戻らず、足したラベルは残る', () => {
+      const local = { presets: ['授業', 'ジム'], colors: { 授業: 'sage', ジム: 'basil' }, updatedAt: FAST, syncedAt: S1, baseIds }
+      const remote = { labels: [...synced.presets, 'ゼミ'].map((name) => ({ name, color: '' })), updatedAt: S2 }
+      expect(planLabelSync(local, remote, NOW, 0).apply?.presets).toEqual(['授業', 'ジム', 'ゼミ'])
+      // サーバーのほうが新しくても同じ
+      const offset = Date.parse(S2) - Date.parse(FAST) - 1000
+      expect(planLabelSync(local, remote, NOW, offset).apply?.presets).toEqual(['授業', 'ジム', 'ゼミ'])
+    })
+
+    it('ほかの端末で消し、手元で別のラベルを足した: 消したラベルは戻らない', () => {
+      const local = { presets: [...synced.presets, '筋トレ'], colors: synced.colors, updatedAt: FAST, syncedAt: S1, baseIds }
+      const remote = {
+        labels: [
+          { name: '授業', color: 'sage' },
+          { name: 'ジム', color: 'basil' },
+        ],
+        updatedAt: S2,
+      }
+      const plan = planLabelSync(local, remote, NOW, 0)
+      expect(plan.apply?.presets).toEqual(['授業', 'ジム', '筋トレ'])
+      expect(plan.push?.labels.map((l) => l.name)).toEqual(['授業', 'ジム', '筋トレ'])
+    })
+
+    it('控えが無ければ前と同じ（どちらにもあるものを残す）', () => {
+      const local = { presets: ['授業', 'ジム'], colors: {}, updatedAt: FAST, syncedAt: S1 }
+      const remote = { labels: [...synced.presets, 'ゼミ'].map((name) => ({ name, color: '' })), updatedAt: S2 }
+      expect(planLabelSync(local, remote, NOW, 0).apply?.presets).toEqual(['授業', 'ジム', 'バイト', 'ゼミ'])
+    })
+
+    it('控えの id は送った行の id、前の版の表（id なし）は名前で手元の id に合わせる', () => {
+      const pushed = planLabelSync({ ...synced, ids: {}, updatedAt: T1 }, null, NOW).push!
+      expect(labelBaseIds(pushed.labels, { presets: [] })).toEqual(pushed.labels.map((l) => l.id))
+      const renamed = { presets: ['講義'], ids: { 講義: pushed.labels[0]!.id! } }
+      expect(labelBaseIds([{ name: '講義', color: '' }], renamed)).toEqual([pushed.labels[0]!.id])
+      expect(normalizeLabelBase('x')).toBeNull()
+      expect(normalizeLabelBase(['a'])).toEqual(['a'])
+    })
+  })
 })
 
 describe('ラベルの週の目安の同期（#291）', () => {
@@ -151,7 +203,7 @@ describe('ラベルの週の目安の同期（#291）', () => {
       null,
       NOW,
     )
-    expect(plan.push?.labels).toEqual([
+    expect(noIds(plan.push)?.labels).toEqual([
       { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
       { name: 'バイト', color: 'peacock' },
     ])
@@ -199,7 +251,7 @@ describe('ラベルの週の目安の同期（#291）', () => {
     )
     expect(plan.apply?.presets).toEqual(['勉強', 'ES', 'ゼミ'])
     expect(plan.apply?.targets).toEqual({ 勉強: 900, ゼミ: 180 })
-    expect(plan.push?.labels).toEqual([
+    expect(noIds(plan.push)?.labels).toEqual([
       { name: '勉強', color: 'sage', weeklyTargetMinutes: 900 },
       { name: 'ES', color: 'tomato' },
       { name: 'ゼミ', color: 'grape', weeklyTargetMinutes: 180 },
@@ -285,7 +337,7 @@ describe('取り込みで足したラベルは「無ければ足す」だけ（#
       targets: { 授業: 600 },
       updatedAt: NOW,
     })
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: 'アルバイト', color: 'tomato' },
         { name: '授業', color: 'basil', weeklyTargetMinutes: 600 },
@@ -302,7 +354,7 @@ describe('取り込みで足したラベルは「無ければ足す」だけ（#
       { labels: [{ name: '授業', color: 'sage' }], updatedAt: S1 },
       NOW,
     )
-    expect(plan.push).toEqual({
+    expect(noIds(plan.push)).toEqual({
       labels: [
         { name: '授業', color: 'sage' },
         { name: '経済学', color: 'grape' },

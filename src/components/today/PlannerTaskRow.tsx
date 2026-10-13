@@ -5,6 +5,8 @@ import type { Task } from '../../types/task'
 import { startTaskDrag } from '../../lib/taskDrag'
 import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { openTaskMenu } from '../../lib/overlays'
+import { tip } from '../../lib/tooltip'
+import { CARRY_SHOW_DAYS, carriedDaysOn } from '../../lib/carryDays'
 import type { RowSwipeAction } from '../../hooks/useRowSwipe'
 import type { useTaskListSelection } from '../../hooks/useTaskListSelection'
 import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
@@ -54,7 +56,13 @@ export function PlannerTaskRow({
   const { day, viewingToday, rowIds, selectedCount, makeSelection, makeRowClick, openDetail, deferredComplete, isCoarse } = env
   const metaHide = hoverActions ? HIDE_ON_ROW_HOVER : ''
   const meta = rowMeta(task, dueMode, day)
-  const hasRowExtras = !task.completed && task.tags.length > 0
+  // サブタスク（企業の下の ES 締切など）は親の名前を題名の下に小さく添える
+  const parentTitle = useTaskStore((s) => (task.parentId ? (s.tasks.find((x) => x.id === task.parentId)?.title ?? null) : null))
+  const hasRowExtras = !task.completed && (task.tags.length > 0 || !!parentTitle)
+  // 続けて持ち越した日数（今日を見ているときの、やり残し・今日やる行だけ）。2 日以上で「3日目」。
+  // 締切が過ぎた行は「2日遅れ」が出ているので重ねない
+  const carried = viewingToday && (dueMode === 'all' || dueMode === 'urgent') ? carriedDaysOn(task, day.dateKey) : 0
+  const showCarry = carried >= CARRY_SHOW_DAYS && meta.due?.tone !== 'overdue'
   const sel = rowIds.includes(task.id) ? makeSelection(task.id) : null
   // 選べる行は listbox の option（名前は題名、選んでいるかは aria-selected）
   const optionId = sel?.optionId
@@ -129,7 +137,12 @@ export function PlannerTaskRow({
         </button>
         {/* タイトルの下にタグ。リンクの「開く」は幅が狭いので出さない（タイムラインのカード・詳細から開く） */}
         {hasRowExtras && (
-          <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-1 pb-2 pt-0.5">
+            {parentTitle && (
+              <span data-parent-title className="max-w-full truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {parentTitle}
+              </span>
+            )}
             {task.tags.map((tag) => (
               <span key={tag} className={chipClass({ variant: 'fill' })}>
                 {tag}
@@ -138,6 +151,16 @@ export function PlannerTaskRow({
           </div>
         )}
       </div>
+      {showCarry && (
+        <span
+          data-carry-days={carried}
+          {...tip(t('planner.carryDaysHint', { count: carried }))}
+          className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted} ${metaHide}`}
+        >
+          {t('planner.carryDay', { count: carried + 1 })}
+          <span className="sr-only"> {t('planner.carryDaysHint', { count: carried })}</span>
+        </span>
+      )}
       {meta.due && !task.completed && (
         <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]} ${metaHide}`}>{meta.due.text}</span>
       )}

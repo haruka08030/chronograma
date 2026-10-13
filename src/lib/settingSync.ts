@@ -84,8 +84,40 @@ export function saveSettingSyncedAt(userId: string, key: SettingKey, at: string)
 export function clearSettingSyncedAt(userId: string): void {
   try {
     localStorage.removeItem(syncedKey(userId))
+    localStorage.removeItem(baseKey(userId))
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * 手元の値のもとになったサーバーの版の中身の控え（ラベル表はラベルの id の一覧、#357）。版（`at`）と一緒に持ち、
+ * `syncedAt` と同じ版の控えだけを使う。両方の端末で変えたときに、片方で消したものを消したと分かるようにする
+ */
+const baseKey = (userId: string) => `chronograma-settings-base-v1:${userId}`
+
+function readBases(userId: string): Partial<Record<SettingKey, { at: string; value: unknown }>> {
+  try {
+    const raw = localStorage.getItem(baseKey(userId))
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<SettingKey, { at: string; value: unknown }>>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** その版の控え。無い・別の版の控えなら null */
+export function loadSettingBase(userId: string, key: SettingKey, at: string | null): unknown {
+  if (at === null) return null
+  const b = readBases(userId)[key]
+  return b && b.at === at ? b.value : null
+}
+
+export function saveSettingBase(userId: string, key: SettingKey, at: string, value: unknown): void {
+  try {
+    localStorage.setItem(baseKey(userId), JSON.stringify({ ...readBases(userId), [key]: { at, value } }))
+  } catch {
+    /* 保存できなければ控えの無いとき（前の版と同じ合わせ方）になるだけ */
   }
 }
 
@@ -102,7 +134,10 @@ export interface SettingSyncDeps<
 > {
   key: SettingKey
   fetch: () => Promise<R | null | { error: string }>
-  plan: (remote: R | null, syncedAt: string | null, clockOffsetMs: number) => { apply?: A; push?: P; adopt?: string }
+  /** `base` は `syncedAt` の版の中身の控え（`baseOf` で作ったもの。無ければ null） */
+  plan: (remote: R | null, syncedAt: string | null, clockOffsetMs: number, base: unknown) => { apply?: A; push?: P; adopt?: string }
+  /** 合わせた版の中身の控えを作る（サーバーの値か送った値から）。無ければ控えを持たない */
+  baseOf?: (synced: R | P) => unknown
   /** 手元の変えた時刻（`logLabelsUpdatedAt` など） */
   localUpdatedAt: () => string | null
   applyLocal: (apply: A) => void
@@ -110,6 +145,10 @@ export interface SettingSyncDeps<
   push: (p: P) => Promise<SettingPushResult>
   /** 送ったものがサーバーに通ったあと（断られた・失敗したときは呼ばない）。通ったときだけしてよいこと（記録を足すなど）に使う */
   onPushed?: (p: P) => void
+  /** 時刻のほかに、手元に送るものが残っていないか（取り込みで足したラベルなど）。無ければ常に true */
+  idle?: () => boolean
+  /** サーバーに行が無く、手元で一度も変えていなければ何もしない設定か（時間割は既定の値を送らない） */
+  emptyWhenUnset?: boolean
 }
 
 /**
@@ -123,10 +162,24 @@ export async function runSettingSync<
 >(
   userId: string,
   s: SettingSyncDeps<R, A, P>,
-  opts: { isCancelled?: () => boolean; clockOffsetMs?: number; maxStaleRetries?: number } = {},
+  opts: {
+    isCancelled?: () => boolean
+    clockOffsetMs?: number
+    maxStaleRetries?: number
+    /**
+     * 同じ同期の 1 往復（`sync_changes_since`）で分かったサーバーの版（行が無ければ null、分からなければ undefined）。
+     * 手元のもとにした版と同じで、手元でも変えていなければ取りに行かない（#258。何も変わらない同期で設定ごとに 1 往復していた）
+     */
+    remoteVersion?: string | null
+  } = {},
 ): Promise<void> {
   const cancelled = opts.isCancelled ?? (() => false)
   const retries = opts.maxStaleRetries ?? 3
+  if (opts.remoteVersion != null) {
+    const syncedAt = loadSettingSyncedAt(userId, s.key)
+    if (syncedAt === opts.remoteVersion && s.localUpdatedAt() === syncedAt && (s.idle?.() ?? true)) return
+  }
+  if (opts.remoteVersion === null && s.emptyWhenUnset && s.localUpdatedAt() === null) return
   for (let attempt = 0; attempt <= retries; attempt++) {
     const remote = await s.fetch()
     if (cancelled()) return
@@ -136,15 +189,22 @@ export async function runSettingSync<
       return
     }
     const plannedAt = s.localUpdatedAt()
-    const plan = s.plan(remote, loadSettingSyncedAt(userId, s.key), opts.clockOffsetMs ?? 0)
+    const syncedAt = loadSettingSyncedAt(userId, s.key)
+    const plan = s.plan(remote, syncedAt, opts.clockOffsetMs ?? 0, s.baseOf ? loadSettingBase(userId, s.key, syncedAt) : null)
+    /** この版に合わせた。版と中身の控えを覚える */
+    const synced = (at: string, value: R | P) => {
+      saveSettingSyncedAt(userId, s.key, at)
+      if (s.baseOf) saveSettingBase(userId, s.key, at, s.baseOf(value))
+    }
     if (plan.apply) {
       s.applyLocal(plan.apply)
-      if (remote && plan.apply.updatedAt === remote.updatedAt) saveSettingSyncedAt(userId, s.key, remote.updatedAt)
+      if (remote && plan.apply.updatedAt === remote.updatedAt) synced(remote.updatedAt, remote)
     }
     if (plan.adopt) {
       // 合わせている間に手元で変えていなければ、時刻をサーバーの版にそろえる
       if (s.localUpdatedAt() === plannedAt) s.setLocalUpdatedAt(plan.adopt)
-      saveSettingSyncedAt(userId, s.key, plan.adopt)
+      if (remote) synced(plan.adopt, remote)
+      else saveSettingSyncedAt(userId, s.key, plan.adopt)
     }
     if (!plan.push) return
     const pushedAt = s.localUpdatedAt()
@@ -158,7 +218,7 @@ export async function runSettingSync<
     if ('stale' in res) continue
     // 送っている間に手元で変えていたら、手元の時刻はそのまま（次の同期でこの版をもとに送る）
     if (s.localUpdatedAt() === pushedAt) s.setLocalUpdatedAt(res.updatedAt)
-    saveSettingSyncedAt(userId, s.key, res.updatedAt)
+    synced(res.updatedAt, plan.push)
     s.onPushed?.(plan.push)
     return
   }

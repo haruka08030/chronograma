@@ -39,7 +39,8 @@
 | サーバー | Supabase（Postgres + RLS で本人の行だけ）。外部サービスのトークンは Edge Function が暗号化して持ち、ブラウザには出さない。通知は pg_cron が 5 分ごとに Edge Function `daily-reminders` を呼ぶ | `supabase/migrations/`、`supabase/functions/` |
 | 画面と URL | ルーターは使わず、ストアの画面の状態を URL（`?view=` / `?list=`）に写して履歴に積む。ブラウザ・スマホの「戻る」が効く | `src/lib/viewUrl.ts`、`urlHistory.ts` |
 | 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
-| エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`） | `src/lib/errorReport.ts` |
+| エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`）。Edge Function の中のエラーは Supabase の Edge Functions → Logs | `src/lib/errorReport.ts` |
+| 問い合わせ | 設定の一番下から、ログインしている人が文面を Supabase の `feedback` に送る（端末からは送るだけで読めない。1 人 24 時間に 20 件まで） | `src/lib/feedback.ts` |
 | 数を見る | 本番の SQL Editor で流す読むだけの SQL。エラーと通知の回（`health.sql`）、同期している版（`versions.sql`）、使われ方（`usage.sql`: はじめの 3 日・2 週目・記録した日の数・機能ごとの人数・予定と記録の比・ラベルの無い記録の割合。数と日付だけで、タイトル・メモ・ラベル名は読まない）。migration には入れない | `supabase/metrics/` |
 
 **テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
@@ -180,6 +181,8 @@ supabase functions deploy google-calendar
 Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。
 
 Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy・Strict-Transport-Security などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と `wss://`）だけです。別の Supabase プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `vercel.json` の `connect-src` を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:` だけです。
+
+リンクを共有したときのプレビュー（OGP）の画像・URL は、ビルドのときに公開の URL を前に付けた絶対 URL になります。Vercel では本番ドメイン（独自ドメインを足せばそれ）が自動で入ります。ほかのホスティングでは環境変数 `SITE_URL`（例 `https://your-app.example`）を設定してください。
 
 ### Notion 連携（任意）
 

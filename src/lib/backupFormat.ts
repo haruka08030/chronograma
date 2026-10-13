@@ -1,13 +1,25 @@
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
+import {
+  inferHabitTimeMode,
+  readHabitFrequency,
+  readHabitRestDates,
+  readHabitTimeOverrides,
+  readHabitWeekdayTimes,
+  readHabitGoalMinutes,
+  type Habit,
+} from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeTimeLogTagPresetList } from './timeLogTags'
 import { INBOX_COLOR } from '../store/storeConstants'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
+import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
+import { readMovedPlans } from './movedPlans'
+import { readSomedayTier } from './somedayTier'
+import { isLabelId, normalizeLabelIds } from './labelIds'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -30,6 +42,8 @@ export interface BackupExportInput {
   sections: ListSection[]
   timeLogTagPresets: string[]
   logCategoryColors: Record<string, string>
+  /** ラベルの id（#365）。名前を変えたラベルだけ */
+  logLabelIds?: Record<string, string>
 }
 
 export interface BackupImportResult {
@@ -40,6 +54,8 @@ export interface BackupImportResult {
   timeLogTagPresets: string[] | null
   /** 旧バックアップには無い */
   logCategoryColors: Record<string, string> | null
+  /** ラベルの id（#365）。旧バックアップには無い（名前から決まる id になり、行は名前・色から付け直す） */
+  logLabelIds: Record<string, string>
 }
 
 /** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
@@ -206,8 +222,14 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   const createdAt = readStamp(now, row.createdAt, row.created_at)
   // 毎週の予定の印（#279）は予定の行だけ。印のある行だけ項目を持つ
   const series = kind === 'event' ? readEventSeries(row.series ?? row.event_series) : null
+  // 移した予定の控え（#158）は To-Do の行だけ。控えのある行だけ項目を持つ
+  // いつかの段（#221）は To-Do の行だけ。夢の行だけ項目を持つ
+  const somedayTier = kind === 'todo' ? readSomedayTier(row.somedayTier ?? row.someday_tier) : null
+  const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
   return {
     ...(series ? { series } : {}),
+    ...(movedPlans ? { movedPlans } : {}),
+    ...(somedayTier ? { somedayTier } : {}),
     id,
     title,
     listId,
@@ -222,11 +244,14 @@ export function normalizeTaskRow(raw: unknown): Task | null {
     endTime: readTime(row.endTime, row.end_time),
     tags: readStringArray(row.tags),
     category: typeof row.category === 'string' ? row.category : null,
+    // 指しているラベル（#365）。前の版の保存・バックアップには無い（名前・色から付け直す）
+    ...(isLabelId(row.labelId ?? row.label_id) ? { labelId: String(row.labelId ?? row.label_id).toLowerCase() } : {}),
     recurrence: readRecurrence(row.recurrence),
     reminders: readReminders(row.reminders),
     color: typeof row.color === 'string' ? row.color : null,
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
+    carriedDays: readCarriedDays(row.carriedDays ?? row.carried_days),
     timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
     timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
@@ -290,6 +315,9 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const timeMode =
     rec.timeMode === 'none' || rec.timeMode === 'fixed' || rec.timeMode === 'range' ? rec.timeMode : inferHabitTimeMode(startTime, endTime)
   const timeOverrides = readHabitTimeOverrides(rec.timeOverrides)
+  const restDates = readHabitRestDates(rec.restDates)
+  const weekdayTimes = readHabitWeekdayTimes(rec.weekdayTimes)
+  const goalMinutes = readHabitGoalMinutes(rec.goalMinutes)
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
@@ -306,6 +334,9 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     archivedAt: typeof rec.archivedAt === 'string' && !Number.isNaN(Date.parse(rec.archivedAt)) ? rec.archivedAt : null,
     // 古いバックアップ・1 日も無い習慣には無い
     ...(timeOverrides ? { timeOverrides } : {}),
+    ...(restDates ? { restDates } : {}),
+    ...(weekdayTimes ? { weekdayTimes } : {}),
+    ...(goalMinutes ? { goalMinutes } : {}),
   }
 }
 
@@ -325,6 +356,7 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     listSections: input.sections,
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
+    logLabelIds: input.logLabelIds ?? {},
   }
 }
 
@@ -373,6 +405,8 @@ export function readBackupJson(json: string): BackupReadResult {
         )
       : null
 
+  const logLabelIds = normalizeLabelIds(data.logLabelIds)
+
   // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
   const duplicateLists = findDuplicateIds(lists, (l) => l.name)
   if (duplicateLists) return { ok: false, problem: { kind: 'duplicateIds', item: 'list', ...duplicateLists } }
@@ -419,6 +453,7 @@ export function readBackupJson(json: string): BackupReadResult {
       sections,
       timeLogTagPresets,
       logCategoryColors,
+      logLabelIds,
     },
   }
 }

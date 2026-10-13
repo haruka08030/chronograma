@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from './taskStore'
 import { INBOX_ID } from './storeConstants'
-import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
+import { IMPORT_ROLLBACK_KEEP_DAYS, clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { buildBackupPayload } from '../lib/backupFormat'
+import { categoryHex } from '../lib/logCategoryColors'
+import { legacyLabelId } from '../lib/labelIds'
+import todoistProject from '../lib/fixtures/todoist-project.csv?raw'
 
 const st = () => useTaskStore.getState()
 const titles = () => st().tasks.map((t) => t.title)
@@ -90,7 +93,7 @@ describe('バックアップの取り込みと「取り込み前に戻す」', (
   it('控えが壊れていたら戻さずに控えを消す（手元はそのまま）', () => {
     seedCurrent()
     const tasks = st().tasks
-    saveImportRollback({ json: '{broken', savedAt: '2026-10-01T00:00:00.000Z', taskCount: 3 })
+    saveImportRollback({ json: '{broken', savedAt: new Date().toISOString(), taskCount: 3 })
     expect(st().restoreBeforeImport()).toBe(false)
     expect(st().tasks).toBe(tasks)
     expect(loadImportRollback()).toBeNull()
@@ -106,6 +109,50 @@ describe('バックアップの取り込みと「取り込み前に戻す」', (
   })
 })
 
+describe('バックアップのラベルの id（#365）', () => {
+  const rec = (id: string, category: string, over: Record<string, unknown> = {}) => ({
+    id,
+    title: id,
+    listId: INBOX_ID,
+    kind: 'log',
+    category,
+    tags: [category],
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...over,
+  })
+
+  it('書き出し → 取り込みで、名前を変えたラベルの id と行の id がそのまま残る', () => {
+    const math = legacyLabelId('数学')
+    const json = JSON.stringify(
+      buildBackupPayload({
+        tasks: [rec('r1', '数学II', { labelId: math }) as never],
+        lists: [{ id: INBOX_ID, name: 'Inbox', color: '#7986CB', order: 0 }],
+        habits: [],
+        sections: [],
+        timeLogTagPresets: ['数学II'],
+        logCategoryColors: { 数学II: 'tomato' },
+        logLabelIds: { 数学II: math },
+      }),
+    )
+    expect(st().importData(json)).toBe(true)
+    expect(st().logLabelIds).toEqual({ 数学II: math })
+    expect(st().tasks[0]).toMatchObject({ category: '数学II', labelId: math })
+    expect(JSON.parse(st().backupJson()).logLabelIds).toEqual({ 数学II: math })
+  })
+
+  it('前の版のバックアップ（id が無い）は、記録は分類名・To-Do は色から id を付ける', () => {
+    const json = JSON.stringify({
+      tasks: [rec('r1', '英語'), { id: 't1', title: 't1', listId: INBOX_ID, color: categoryHex('英語', { 英語: 'sage' }) }],
+      lists: [{ id: INBOX_ID, name: 'Inbox', color: '#7986CB', order: 0 }],
+      timeLogTagPresets: ['英語'],
+      logCategoryColors: { 英語: 'sage' },
+    })
+    expect(st().importData(json)).toBe(true)
+    expect(st().logLabelIds).toEqual({})
+    expect(st().tasks.map((t) => t.labelId)).toEqual([legacyLabelId('英語'), legacyLabelId('英語')])
+  })
+})
+
 describe('importRollback（控えの読み書き）', () => {
   it('形の違う控えは無いものとして扱う。件数が無ければ 0', () => {
     localStorage.setItem('chronograma-import-rollback-v1', '{"json":1,"savedAt":"x"}')
@@ -115,10 +162,27 @@ describe('importRollback（控えの読み書き）', () => {
     const json = JSON.stringify(
       buildBackupPayload({ tasks: [], lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} }),
     )
-    localStorage.setItem('chronograma-import-rollback-v1', JSON.stringify({ json, savedAt: '2026-10-01T00:00:00.000Z' }))
-    expect(loadImportRollback()).toEqual({ json, savedAt: '2026-10-01T00:00:00.000Z', taskCount: 0 })
+    const savedAt = new Date().toISOString()
+    localStorage.setItem('chronograma-import-rollback-v1', JSON.stringify({ json, savedAt }))
+    expect(loadImportRollback()).toEqual({ json, savedAt, taskCount: 0 })
     clearImportRollback()
     expect(loadImportRollback()).toBeNull()
+  })
+
+  it(`控えは ${IMPORT_ROLLBACK_KEEP_DAYS} 日たったら捨てる（全データの写しを残し続けない）`, () => {
+    const savedAt = '2026-10-01T00:00:00.000Z'
+    saveImportRollback({ json: '{}', savedAt, taskCount: 1 })
+    const day = 24 * 60 * 60_000
+    expect(loadImportRollback(Date.parse(savedAt) + IMPORT_ROLLBACK_KEEP_DAYS * day - 1)).not.toBeNull()
+    expect(loadImportRollback(Date.parse(savedAt) + IMPORT_ROLLBACK_KEEP_DAYS * day + 1)).toBeNull()
+    expect(localStorage.getItem('chronograma-import-rollback-v1')).toBeNull()
+  })
+
+  it('控えには持ち主（取り込んだときの dataOwner）を付ける', () => {
+    st().setDataOwner('u1')
+    seedCurrent()
+    st().importData(otherBackup())
+    expect(loadImportRollback()?.owner).toBe('u1')
   })
 })
 
@@ -149,5 +213,44 @@ describe('CSV の取り込み', () => {
     expect(titles()).toEqual(['今の 1', '今の 2', 'X', 'Y'])
     st().undoLastOperation()
     expect(titles()).toEqual(['今の 1', '今の 2'])
+  })
+
+  it('リスト名が同じ名前のラベルならその色を付け、Inbox はラベルなし。知らない名前は選んだときだけラベルを作る', () => {
+    seedCurrent()
+    const csv = 'title,list\nA,勉強\nB,Inbox\nC,趣味\nD,趣味\n'
+    st().importTasksFromCsv(csv)
+    const byTitle = (t: string) =>
+      st()
+        .tasks.filter((x) => x.title === t)
+        .at(-1)!
+    expect(byTitle('A')).toMatchObject({ listId: INBOX_ID, color: categoryHex('勉強', st().logCategoryColors) })
+    expect(byTitle('B')).toMatchObject({ listId: INBOX_ID, color: null })
+    // 選ばなければラベルは作らない
+    expect(byTitle('C').color).toBeNull()
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
+
+    st().importTasksFromCsv(csv, { unknownLists: 'label' })
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事', '趣味'])
+    const hobby = categoryHex('趣味', st().logCategoryColors)
+    expect(byTitle('C').color).toBe(hobby)
+    expect(byTitle('D').color).toBe(hobby)
+    // 作ったラベルも ⌘Z 1 回で消える
+    st().undoLastOperation()
+    expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
+  })
+
+  it('Todoist の CSV はファイル名をラベルにし、締切の時刻も入れる', () => {
+    seedCurrent()
+    const r = st().importTasksFromCsv(todoistProject, { fileName: 'ゼミ.csv', unknownLists: 'label' })
+    expect(r).toEqual({ imported: 4, skipped: 0, errors: [] })
+    const report = st().tasks.find((t) => t.title === 'レポートを出す')!
+    expect(report).toMatchObject({
+      dueDate: '2026-10-20',
+      dueTime: '17:00',
+      priority: 'high',
+      tags: ['大学', '提出'],
+      color: categoryHex('ゼミ', st().logCategoryColors),
+    })
+    expect(st().timeLogTagPresets).toContain('ゼミ')
   })
 })

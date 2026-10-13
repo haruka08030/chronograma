@@ -16,6 +16,7 @@ import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
 import { isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
+import { formatDate } from '../../lib/dateFormat'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
@@ -38,6 +39,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   onSelectDate,
   dayTimed,
   dayLogs,
+  dayMoved,
   timedEvents,
   habitIndex,
   splitLanes,
@@ -80,6 +82,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   dayTimed: Task[]
   /** この日にかかる記録 */
   dayLogs: Task[]
+  /** 過ぎたこの日から別の日へ移した時刻つきの予定（`movedPlans`） */
+  dayMoved: Task[]
   /** この日にかかる時刻つきの Google の予定（日をまたぐものは重なる日すべて） */
   timedEvents: CalendarEvent[]
   habitIndex: HabitRecordIndex
@@ -140,6 +144,11 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     const slot = habitToPlannedItem(h, key, habitIndex)
     return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
   })
+  // 移した予定は元の時間に点線の枠で残す（過ぎた日だけ。振り返りで「予定どおりだったか」を見る、#158）
+  const dayMovedPlans = dayMoved.flatMap((t) => {
+    const plan = t.movedPlans?.find((p) => p.date === key && p.startTime && p.endTime)
+    return plan ? [{ task: t, startTime: plan.startTime!, endTime: plan.endTime!, to: plan.to, id: `moved-${t.id}` }] : []
+  })
   const limitMin = logLimitMin(key)
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
@@ -161,6 +170,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           key,
           false,
         ),
+      })),
+      ...dayMovedPlans.map((m) => ({
+        id: m.id,
+        ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
       })),
       ...dayTimedEvents.map(({ e, seg }) => ({
         id: `event-${e.id}`,
@@ -270,6 +283,33 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               {/* 週表示は列が狭いので「+」だけ（長さは押す前に title で分かる） */}
               {mode === 'columns' && <span> {t('weekCalendar.unrecordedGap', { time: formatDuration(g.end - g.start) })}</span>}
             </span>
+          </button>
+        )
+      })}
+
+      {dayMovedPlans.map((m) => {
+        const geo = blockGeometry(
+          { id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false },
+          key,
+          false,
+        )
+        const to = formatDate(m.to, 'shortDate')
+        return (
+          <button
+            key={m.id}
+            type="button"
+            data-moved-plan
+            className="absolute flex items-start gap-1 overflow-hidden rounded-[5px] border border-dashed border-zinc-300 px-1 pt-0.5
+              text-left text-[10px] leading-tight text-zinc-400 hover:border-zinc-400 focus-visible:border-accent-500
+              focus-visible:outline-none dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-zinc-500"
+            style={{ left: 2, right: 2, ...planStyle(m.id), top: geo.top + 1, height: Math.max(geo.height - 2, 14) }}
+            aria-label={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
+            title={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => openCard(m.task.id)}
+          >
+            <span className="min-w-0 truncate">{m.task.title}</span>
+            <span className="shrink-0 tabular-nums">→{to}</span>
           </button>
         )
       })}

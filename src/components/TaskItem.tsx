@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
+import { dreamSteps } from '../lib/somedayTier'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
@@ -15,6 +16,7 @@ import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
+import { nextChildDue } from '../lib/childDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
@@ -124,6 +126,14 @@ export const TaskItem = memo(function TaskItem({
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
+  // いつかの夢（#221）: 本体は予定にせず、行に次の一歩と進み具合を出す。描き直しを抑えるため文字 1 つで受け取る
+  const dream = listKind === 'someday' && !task.parentId && task.somedayTier === 'dream'
+  const dreamStepKey = useTaskStore((s) => {
+    if (!dream) return ''
+    const steps = dreamSteps(s.tasks, task.id)
+    return steps ? `${steps.done}/${steps.total}\u0000${steps.next?.title ?? ''}` : ''
+  })
+  const [dreamProgress, dreamNext] = dreamStepKey ? dreamStepKey.split('\u0000') : ['', '']
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -195,6 +205,12 @@ export const TaskItem = memo(function TaskItem({
   const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
+  // 親の行に、まだ終わっていない子のいちばん近い締切（企業の下の ES 締切など）。親の締切のほうが先なら親の締切だけ
+  const nextChild = useTaskStore((s) => (timeLog || task.completed ? undefined : nextChildDue(s.tasks, task.id)))
+  const childDue =
+    nextChild?.dueDate && (!task.dueDate || nextChild.dueDate < task.dueDate)
+      ? dueDateLabel(nextChild.dueDate, nextChild.dueTime, t, language)
+      : null
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
@@ -413,10 +429,29 @@ export const TaskItem = memo(function TaskItem({
                 {dueText}
               </span>
             )}
+            {childDue && nextChild && (
+              <span
+                data-child-due={nextChild.id}
+                {...tip(t('taskItem.nextChildDueHint', { title: nextChild.title }))}
+                className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[childDue.tone]}`}
+              >
+                <CalendarIcon className="w-3 h-3 shrink-0" />
+                <span className="max-w-[10rem] truncate">{nextChild.title}</span>
+                <span className="shrink-0">{childDue.text}</span>
+              </span>
+            )}
             {scheduled && (!task.completed || timeLog) && (
               <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
                 <ClockIcon className="w-3 h-3" />
                 {scheduled.text}
+              </span>
+            )}
+            {dreamStepKey && (
+              <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                {dreamNext && <span className="max-w-[14rem] truncate">{t('someday.nextStep', { title: dreamNext })}</span>}
+                <span className="tabular-nums" aria-label={t('someday.stepProgressAria', { progress: dreamProgress })}>
+                  {dreamProgress}
+                </span>
               </span>
             )}
             {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
@@ -445,7 +480,7 @@ export const TaskItem = memo(function TaskItem({
           </div>
         </div>
 
-        {listKind === 'someday' && !task.completed && (
+        {listKind === 'someday' && !task.completed && !dream && (
           // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
           <DueDatePopover
             value={null}

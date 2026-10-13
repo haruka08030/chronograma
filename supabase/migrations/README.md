@@ -34,6 +34,13 @@
 | [`028_timer_ends_at.sql`](028_timer_ends_at.sql) | 動いているタイマーの「あと何分」の終わり `user_active_timer.ends_at`（null は終わりなし。始めた時刻より後で 1 日以内 `user_active_timer_ends_at_check`）。列を知らない前の版のアプリが別のタイマーを始めた・止めたときは、トリガー `user_active_timer_clear_ends_at` が null にする（始めた時刻が変わって `ends_at` がそのまま、または止まった）。`push_subscriptions` に写しの `timer_ends_at` と、時間の通知を送った終わり `timer_end_notified_for` を足し、`019` の `copy_active_timer_to_push` / `push_subscription_shared_timer` が `ends_at` も写す |
 | [`029_app_config_read_only.sql`](029_app_config_read_only.sql) | `app_config` の書き込み権限（insert / update / delete / truncate）を anon / authenticated から外す。端末からの書き込みは権限のエラー（42501）になる。下限を上げるのは SQL Editor から |
 | [`030_event_series_id_check.sql`](030_event_series_id_check.sql) | `027` の `tasks_event_series_check` を作り直し、id の無い印（`event_series -> 'id'` が文字列でない）を断る |
+| [`031_habit_rest_weekday_times_goal.sql`](031_habit_rest_weekday_times_goal.sql) | 習慣の休みの日 `habits.rest_dates`（日付の並び。予定の日に数えない）、曜日を指定した習慣の曜日ごとの時間 `habits.weekday_times`（ISO 曜日 → 開始・終了）、1 回の時間の目標 `habits.goal_minutes`（分、1〜1440）。どれも null は無し。形と大きさの上限 `habits_rest_dates_check` / `habits_weekday_times_check` / `habits_goal_minutes_check` |
+| [`032_moved_plans.sql`](032_moved_plans.sql) | 移した予定の控え `tasks.moved_plans`（`[{ date, startTime, endTime, to }]`、null は移していない To-Do。配列・8KB まで `tasks_moved_plans_check`）。その日が来てから To-Do の予定日を別の日へ移したときにアプリが足す |
+| [`033_task_label_id.sql`](033_task_label_id.sql) | 記録・To-Do・予定が指すラベルの id `tasks.label_id`（uuid、null 可、外部キーなし）と、この版のアプリが送った印 `tasks.label_id_sent`（行には残さない）。印の無い書き込み（前の版のアプリ）が名前 `category`・色 `color` を変えたら、トリガー `tasks_label_id_guard` が `label_id` を null にする。埋め戻し: id の無い `user_settings.log_labels` の行に名前から決まる id（`md5('chronograma-label:' \|\| 名前)::uuid`、アプリの `legacyLabelId` と同じ）を付け、`label_id` の無い行を記録は `category`、To-Do・予定は色で埋める（`updated_at` は変えない。何度流してもよい）。列を送るアプリより先に流す |
+| [`034_someday_tier.sql`](034_someday_tier.sql) | いつかの段 `tasks.someday_tier`（`'dream'` は夢、null はやりたい。`tasks_someday_tier_check`）。いつかのリストのルートの行だけで、ほかのリストへ移す・予定にするとアプリが外す。既にある行は、いつかのリストの一歩（消していない子）を持つルートの行を夢にする（`updated_at` を進める） |
+| [`035_sync_changes_since.sql`](035_sync_changes_since.sql) | 同期の 1 回の取得を 1 往復にする関数 `sync_changes_since(p_since, p_mood_since, p_limit)`（security invoker で RLS のまま、`authenticated` だけ実行できる）。1 つの文で、サーバーの時刻・版の下限・`p_since` より後に変わった `lists` / `list_sections` / `tasks` / `habits` の行（`select *` と同じ形、表ごとに `p_limit + 1` 行まで）・消えた行の印・上限で消した印があるか・4 表に本人の行があるか・設定の表（`user_settings` など 6 つ）の `updated_at`・`p_mood_since` より後に変わった `day_moods` を jsonb で返す |
+| [`036_feedback.sql`](036_feedback.sql) | お問い合わせ・フィードバック `feedback`（文面 1〜2000 文字・アプリの版・ブラウザ、`feedback_size_check`）。端末は本人の行の insert だけ（読めない・変えられない・消せない。anon は送れない）。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、SECURITY DEFINER。超えたら errcode `P0001`・メッセージ `feedback_rate_limited`）。アカウントの削除で消える |
+| [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
 
 テーブル（最新の形）:
 
@@ -41,9 +48,9 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、指しているラベルの id `label_id`（`033`。名前・色は前の版のアプリが読む写しで、古いことがある）、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days`、いつかの段 `someday_tier` を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
-| `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（分類名と色）の並び。どの端末でも同じラベル表になる |
+| `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（id・分類名・色・週の目安）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
 | `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり（null は終わりなし） |
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
@@ -58,6 +65,7 @@
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
 | `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
+| `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「お問い合わせ・フィードバック」） |
 | `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
 | `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 

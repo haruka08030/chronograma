@@ -122,3 +122,29 @@ describe('予定のあとに記録を確認（版 40）', () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe('ラベルの id（版 42、#365）', () => {
+  it('記録は分類名、To-Do は色から id を付ける。名前から決まる id で、updatedAt は変えない', async () => {
+    const { legacyLabelId } = await import('../lib/labelIds')
+    const rec = { ...log('r', 'ノート'), kind: 'log', category: '数学', tags: ['数学'], color: null }
+    const todo = { ...log('t', '課題'), kind: 'todo', completed: false, category: null, color: '#039BE5' }
+    const plain = { ...log('p', '買い物'), kind: 'todo', completed: false, category: null, color: '#123456' }
+    const out = migrateTaskState(
+      {
+        tasks: [rec, todo, plain],
+        lists: [],
+        sections: [],
+        habits: [],
+        timeLogTagPresets: ['数学'],
+        logCategoryColors: { 数学: 'peacock' },
+      },
+      41,
+    )
+    expect(out.logLabelIds).toEqual({})
+    expect(out.tasks.map((t) => [t.labelId, t.updatedAt])).toEqual([
+      [legacyLabelId('数学'), OLD],
+      [legacyLabelId('数学'), OLD],
+      [undefined, OLD],
+    ])
+  })
+})

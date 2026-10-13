@@ -122,6 +122,38 @@ describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業など�
   })
 })
 
+describe('getWeekReview: 移した予定（#158）', () => {
+  // 10/3 13:00 の予定を 10/5 へ移した（控えだけが 10/3 に残る）
+  const moved = task('report', {
+    title: 'レポート',
+    scheduledDate: '2026-10-05',
+    startTime: '13:00',
+    endTime: '14:00',
+    movedPlans: [{ date: '2026-10-03', startTime: '13:00', endTime: '14:00', to: '2026-10-05' }],
+  })
+
+  it('移した予定も元の日の分母に入れる（やらなかった予定）。棒の予定の枠にも入る', () => {
+    const review = getWeekReview([moved], [], at('20:00'), new Set(), at('20:00'))
+    expect(review.timedPlanned).toBe(1)
+    expect(review.followed).toBe(0)
+    expect(review.days.find((d) => d.dateKey === '2026-10-03')?.plannedMinutes).toBe(60)
+  })
+
+  it('元の時間に ▶ で記録してから移した予定は、予定どおりに数える', () => {
+    const log = task('log', {
+      kind: 'log',
+      title: 'レポート',
+      dueDate: '2026-10-03',
+      startTime: '13:00',
+      endTime: '13:50',
+      completed: true,
+      sourceTaskId: 'report',
+    })
+    const review = getWeekReview([moved, log], [], at('20:00'), new Set(), at('20:00'))
+    expect(review.followed).toBe(1)
+  })
+})
+
 describe('foldLabelMinutes', () => {
   const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ tag: `l${i}`, minutes: 60 - i }))
 

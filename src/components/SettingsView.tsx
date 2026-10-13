@@ -22,10 +22,12 @@ import { SettingsGroup, SettingsLinkRow, SettingsRow } from './settings/Settings
 import { Segmented } from './ui/Segmented'
 import { buttonClass } from './ui/buttonClass'
 import { openShortcutsHelp } from '../lib/shortcuts'
-import { askConfirm } from '../lib/confirmDialog'
+import { askChoice, askConfirm } from '../lib/confirmDialog'
+import { parseTasksCsv, unknownCsvListNames } from '../lib/importTasksCsv'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { TimetableDialog } from './calendar/TimetableDialog'
+import { FeedbackRow } from './settings/FeedbackDialog'
 
 /**
  * 設定。上から アカウント → ラベル → 通知・計画 → 時間割 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
@@ -207,8 +209,9 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           <InstallAppSection />
         </SettingsGroup>
 
-        {/* 規約は読みに行くだけのものなので、見出しを立てず一番下に小さな行で置く */}
+        {/* 規約・問い合わせはたまにしか使わないので、見出しを立てず一番下に小さな行で置く。問い合わせの送り先は Supabase なので、無ければ出さない */}
         <SettingsGroup>
+          {isSupabaseConfigured && <FeedbackRow />}
           <SettingsLinkRow label={t('settings.privacyPolicy')} href="/privacy.html" />
           <SettingsLinkRow label={t('settings.terms')} href="/terms.html" />
         </SettingsGroup>
@@ -271,9 +274,27 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               return
             }
             const reader = new FileReader()
-            reader.onload = () => {
+            reader.onload = async () => {
               const text = reader.result as string
-              const result = importTasksFromCsv(text)
+              // 一致するラベルの無いリスト名（TickTick のリスト・Todoist のプロジェクト）は、取り込む前にラベルを作るかを聞く
+              const parsed = parseTasksCsv(text, { fileName: file.name })
+              const current = useTaskStore.getState()
+              const unknown = unknownCsvListNames(parsed.rows, current.lists, current.timeLogTagPresets)
+              let unknownLists: 'label' | 'inbox' = 'inbox'
+              if (parsed.errors.length === 0 && unknown.count > 0) {
+                const choice = await askChoice({
+                  message: i18n.t('confirm.csvUnknownLists', {
+                    names: unknown.names.slice(0, 5).join(lang === 'en' ? ', ' : '、') + (unknown.names.length > 5 ? ' …' : ''),
+                    labels: unknown.names.length,
+                    count: unknown.count,
+                  }),
+                  confirmLabel: i18n.t('confirm.csvMakeLabels'),
+                  secondaryLabel: i18n.t('confirm.csvNoLabels'),
+                })
+                if (!choice) return
+                unknownLists = choice === 'confirm' ? 'label' : 'inbox'
+              }
+              const result = importTasksFromCsv(text, { fileName: file.name, unknownLists })
               // 取り込めたときは store が「元に戻す」付きの通知を出す
               if (result.errors.length > 0) notify(i18n.t('alert.invalidCsvFile'))
               else if (result.imported === 0) notify(i18n.t('alert.csvNoRows'))

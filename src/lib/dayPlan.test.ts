@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { calendarDayKey, dueMarkDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue } from './dayPlan'
+import { calendarDayKey, dueMarkDayKey, getDayPlan, getMoreSuggestions, groupCandidatesByDue, showsDayResult } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -191,5 +191,43 @@ describe('dueMarkDayKey（カレンダーの締切の日の印）', () => {
         task('d', { scheduledDate: '2026-10-08', dueDate: '2026-10-10', completed: true, completedAt: '2026-10-08T10:00:00Z' }),
       ),
     ).toBeNull()
+  })
+})
+
+describe('showsDayResult（今日の計画の見出しのその日の結果）', () => {
+  const evening = 17 * 60
+  it('過ぎた日はいつも出す', () => {
+    expect(showsDayResult('2026-10-12', '2026-10-13', 9 * 60, evening)).toBe(true)
+  })
+  it('今日は締めの時刻から。昼は出さない', () => {
+    expect(showsDayResult('2026-10-13', '2026-10-13', 12 * 60, evening)).toBe(false)
+    expect(showsDayResult('2026-10-13', '2026-10-13', 16 * 60 + 59, evening)).toBe(false)
+    expect(showsDayResult('2026-10-13', '2026-10-13', 17 * 60, evening)).toBe(true)
+  })
+  it('これからの日には出さない', () => {
+    expect(showsDayResult('2026-10-14', '2026-10-13', 23 * 60, evening)).toBe(false)
+  })
+})
+
+describe('サブタスクの締切（#308）', () => {
+  const tasks = [
+    task('company', { title: 'A 社' }),
+    task('es', { parentId: 'company', scheduledDate: '2026-09-28', dueDate: '2026-10-02' }),
+    task('late', { parentId: 'company', dueDate: '2026-09-29' }),
+    task('today', { parentId: 'company', scheduledDate: DAY }),
+    task('step', { parentId: 'company' }),
+    task('later', { parentId: 'company', scheduledDate: '2026-10-05', dueDate: '2026-10-20' }),
+  ]
+
+  it('日付のある子は 1 件の To-Do として締切間近・期限切れ・今日やるに出る。日付の無い子は出ない', () => {
+    const plan = getDayPlan([...tasks, task('esFuture', { parentId: 'company', scheduledDate: '2026-10-01', dueDate: '2026-10-02' })], DAY)
+    expect(plan.overdue.map((x) => x.id)).toEqual(['late'])
+    expect(plan.open.map((x) => x.id)).toEqual(['today'])
+    expect(plan.carryOver.map((x) => x.id)).toEqual(['es'])
+    expect(plan.dueSoon.map((x) => x.id)).toEqual(['esFuture'])
+  })
+
+  it('候補には日付のある子だけ（日付の無い子は親の中の手順のまま）', () => {
+    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['later', 'company'])
   })
 })

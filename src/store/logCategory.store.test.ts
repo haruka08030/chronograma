@@ -15,6 +15,7 @@ vi.mock('../i18n/config', () => ({
 const { useTaskStore } = await import('./taskStore')
 const { withTaskDefaults } = await import('../lib/taskDefaults')
 const { TASK_DEFAULTS } = await import('../lib/taskDefaults')
+const { legacyLabelId } = await import('../lib/labelIds')
 const OLD = '2026-01-01T00:00:00.000Z'
 
 const log = (id: string, patch: Record<string, unknown> = {}) => ({
@@ -71,6 +72,72 @@ describe('記録の分類（category）', () => {
     useTaskStore.getState().saveLogLabels([{ from: '勉強', name: 'Study', color: 'sage' }])
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: 'Study', tags: ['Study'] })
     expect(useTaskStore.getState().logLabelsUpdatedAt).not.toBeNull()
+  })
+
+  it('ラベルの名前・色を変えても記録・To-Do の行は書き直さない（updatedAt はそのまま、id で指したまま、#365）。⌘Z でも書き直さない', () => {
+    useTaskStore.setState({
+      tasks: [
+        log('rec', { category: '数学', tags: ['数学'] }),
+        log('todo', { kind: 'todo', completed: false, color: '#039BE5' }),
+        log('other', { category: '英語', tags: ['英語'] }),
+      ],
+      timeLogTagPresets: ['数学', '英語'],
+      logCategoryColors: { 数学: 'peacock', 英語: 'sage' },
+      logLabelIds: {},
+      filterColor: '#039BE5',
+    })
+    const s0 = useTaskStore.getState()
+    s0.saveLogLabels([
+      { from: '数学', name: '数学II', color: 'tomato' },
+      { from: '英語', name: '英語', color: 'sage' },
+    ])
+    const s = useTaskStore.getState()
+    const math = legacyLabelId('数学')
+    expect(s.logLabelIds).toEqual({ 数学II: math })
+    expect(s.tasks.map((t) => [t.category, t.color, t.labelId, t.updatedAt])).toEqual([
+      ['数学II', null, math, OLD],
+      [null, '#D50000', math, OLD],
+      ['英語', null, legacyLabelId('英語'), OLD],
+    ])
+    expect(s.filterColor).toBe('#D50000')
+    // 取り消しも表を戻して読み替えるだけ
+    s.undoLastOperation()
+    const u = useTaskStore.getState()
+    expect(u.timeLogTagPresets).toEqual(['数学', '英語'])
+    expect(u.tasks.map((t) => [t.category, t.color, t.updatedAt])).toEqual([
+      ['数学', null, OLD],
+      [null, '#039BE5', OLD],
+      ['英語', null, OLD],
+    ])
+  })
+
+  it('ラベルを消すと、その To-Do は色だけ残り id を外す', () => {
+    useTaskStore.setState({
+      tasks: [log('todo', { kind: 'todo', completed: false, color: '#039BE5', labelId: legacyLabelId('数学') })],
+      timeLogTagPresets: ['数学', '英語'],
+      logCategoryColors: { 数学: 'peacock', 英語: 'sage' },
+      logLabelIds: {},
+    })
+    useTaskStore.getState().saveLogLabels([{ from: '英語', name: '英語', color: 'sage' }])
+    const t = useTaskStore.getState().tasks[0]!
+    expect(t.color).toBe('#039BE5')
+    expect(t.labelId).toBeUndefined()
+  })
+
+  it('ラベルを選び直すと id を外し、名前・色から付け直す（名前・色が正）', () => {
+    useTaskStore.setState({
+      tasks: [log('rec', { category: '数学', tags: ['数学'], labelId: legacyLabelId('数学') })],
+      timeLogTagPresets: ['数学', '英語'],
+      logCategoryColors: { 数学: 'peacock', 英語: 'sage' },
+      logLabelIds: {},
+    })
+    useTaskStore.getState().updateTask('rec', { category: '英語' })
+    expect(useTaskStore.getState().tasks[0]!.labelId).toBeUndefined()
+    useTaskStore.getState().saveLogLabels([
+      { from: '数学', name: '数学', color: 'peacock' },
+      { from: '英語', name: 'English', color: 'sage' },
+    ])
+    expect(useTaskStore.getState().tasks[0]).toMatchObject({ category: 'English', labelId: legacyLabelId('英語') })
   })
 
   it('名前の無い色の色を変えると、その色のタスク・記録と絞り込みも新しい色へ', () => {

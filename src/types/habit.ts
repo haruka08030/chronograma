@@ -59,6 +59,30 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/** 曜日（1=月）→ その曜日の時間。曜日を指定した習慣で「曜日ごとに時間を変える」ときだけ */
+export type HabitWeekdayTimes = Partial<Record<HabitWeekday, HabitTimeOverride>>
+
+/** 保存データ・同期・バックアップの曜日ごとの時間を読む。読めない曜日は捨て、1 つも無ければ undefined */
+export function readHabitWeekdayTimes(raw: unknown): HabitWeekdayTimes | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const out: HabitWeekdayTimes = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const day = Number(k)
+    if (!Number.isInteger(day) || day < 1 || day > 7 || typeof v !== 'object' || v === null) continue
+    const { startTime, endTime } = v as Record<string, unknown>
+    if (typeof startTime !== 'string' || !OVERRIDE_TIME_RE.test(startTime)) continue
+    out[day as HabitWeekday] = { startTime, endTime: typeof endTime === 'string' && OVERRIDE_TIME_RE.test(endTime) ? endTime : null }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/** 保存データ・同期・バックアップの休みの日を読む。読めない日は捨てて並べ直し、1 日も無ければ undefined */
+export function readHabitRestDates(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const dates = [...new Set(raw.filter((d): d is string => typeof d === 'string' && OVERRIDE_DATE_RE.test(d)))].sort()
+  return dates.length > 0 ? dates : undefined
+}
+
 export interface Habit {
   id: string
   title: string
@@ -75,6 +99,33 @@ export interface Habit {
   archivedAt: string | null
   /** 日ごとの時間（タイムラインで枠を動かした日だけ）。無い日は上の時間。1 日も無ければ項目ごと無い */
   timeOverrides?: HabitTimeOverrides
+  /**
+   * 休みの日（yyyy-MM-dd、古い順）。予定の日に数えない（連続は止まらず数えもしない。達成率・週のふりかえりの分母から外れる）。
+   * 1 日も無ければ項目ごと無い
+   */
+  restDates?: string[]
+  /**
+   * 曜日を指定した習慣の曜日ごとの時間（「曜日ごとに時間を変える」）。無い曜日・ほかの頻度は上の時間。
+   * その日だけの時間（`timeOverrides`）がさらに優先。使わなければ項目ごと無い
+   */
+  weekdayTimes?: HabitWeekdayTimes
+  /**
+   * 1 回の時間の目標（分、1〜1440）。その日の習慣の記録の合計が届いたら達成（`habitDayStatus`）。
+   * 無ければ今までどおりチェックで達成。項目ごと無い
+   */
+  goalMinutes?: number
+}
+
+export const HABIT_GOAL_MINUTES_MAX = 1440
+
+/** 保存データ・同期・バックアップの時間の目標を読む。1〜1440 の整数でなければ undefined */
+export function readHabitGoalMinutes(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= HABIT_GOAL_MINUTES_MAX ? raw : undefined
+}
+
+/** その日を休みにした習慣か */
+export function isHabitRestOn(habit: Pick<Habit, 'restDates'>, dateKey: string): boolean {
+  return habit.restDates?.includes(dateKey) ?? false
 }
 
 /** 使用中か（アーカイブしていない）。古いデータで項目が無いものも使用中 */

@@ -1,7 +1,9 @@
 /** 習慣 */
+import { addDays } from 'date-fns'
 import type { Habit, HabitTimeOverrides } from '../../types/habit'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { newId } from '../../lib/id'
-import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
@@ -13,12 +15,16 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'setHabitDayTime'
+  | 'setHabitRest'
   | 'deleteHabit'
   | 'archiveHabit'
   | 'restoreHabit'
   | 'toggleHabitDate'
   | 'completeHabitAsPlanned'
 >
+
+/** 一度に休みにできる日数（期間で選んだとき） */
+const HABIT_REST_MAX_DAYS = 366
 
 export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActions {
   const { pushUndo } = undo
@@ -38,6 +44,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         updatedAt: now,
         completedDates: [],
         archivedAt: null,
+        ...(fields.weekdayTimes ? { weekdayTimes: fields.weekdayTimes } : {}),
+        ...(fields.goalMinutes ? { goalMinutes: fields.goalMinutes } : {}),
       }
       set((s) => ({ habits: [...s.habits, habit] }))
       return habit.id
@@ -45,10 +53,19 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     updateHabit: (id, patch) => {
       // 同じ値なら何もしない（取り消しの履歴を積まない）
       const habit = get().habits.find((h) => h.id === id)
-      if (habit && !patchChanges(habit, patch)) return
+      // patchChanges は undefined の項目を見ないので、曜日ごとの時間・時間の目標を外すのは別に見る
+      const drops = (['weekdayTimes', 'goalMinutes'] as const).some((k) => k in patch && !patch[k] && !!habit?.[k])
+      if (habit && !patchChanges(habit, patch) && !drops) return
       pushUndo()
       return set((s) => ({
-        habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch, updatedAt: new Date().toISOString() } : h)),
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          const updated: Habit = { ...h, ...patch, updatedAt: new Date().toISOString() }
+          // 曜日ごとの時間を外したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          if (!updated.weekdayTimes) delete updated.weekdayTimes
+          if (!updated.goalMinutes) delete updated.goalMinutes
+          return updated
+        }),
       }))
     },
     setHabitDayTime: (id, dateKey, startTime, endTime, label) => {
@@ -57,8 +74,9 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       if (!habit || !current) return
       const next = { startTime, endTime: current.endTime === null ? null : endTime }
       if (next.startTime === current.startTime && next.endTime === current.endTime) return
-      // 習慣の時間に戻したら、その日だけの時間は消す
-      const usual = next.startTime === habit.startTime && (next.endTime === null || next.endTime === habit.endTime)
+      // その曜日のいつもの時間に戻したら、その日だけの時間は消す
+      const base = habitUsualTimesOn(habit, dateKey)!
+      const usual = next.startTime === base.startTime && (next.endTime === null || next.endTime === base.endTime)
       const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
       if (usual) delete overrides[dateKey]
       else overrides[dateKey] = next
@@ -70,6 +88,26 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
           const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
           if (Object.keys(overrides).length === 0) delete updated.timeOverrides
+          return updated
+        }),
+      }))
+    },
+    setHabitRest: (id, from, to, rest) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit || to < from) return
+      const days = new Set<string>()
+      for (let d = fromDateKey(from), i = 0; toDateKey(d) <= to && i < HABIT_REST_MAX_DAYS; d = addDays(d, 1), i++) days.add(toDateKey(d))
+      const current = habit.restDates ?? []
+      const next = rest ? [...new Set([...current, ...days])].sort() : current.filter((d) => !days.has(d))
+      if (next.length === current.length && next.every((d, i) => d === current[i])) return
+      pushUndo({ key: rest ? 'undo.habitRest' : 'undo.habitRestCleared', params: { name: habit.title } })
+      const now = new Date().toISOString()
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          const updated: Habit = { ...h, restDates: next, updatedAt: now }
+          if (next.length === 0) delete updated.restDates
           return updated
         }),
       }))

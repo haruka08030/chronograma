@@ -15,7 +15,7 @@ import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
-import { loadPulled, savePulled } from '../lib/externalFields'
+import { NOTION_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
 import type { SyncStatus } from '../types/sync'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
@@ -46,7 +46,7 @@ export function requestNotionSync() {
 }
 
 /** 前回 Notion から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
-const notionPulledKey = (userId: string) => `chronograma-notion-pulled-v1:${userId}`
+const notionPulledKey = (userId: string) => `${NOTION_PULLED_PREFIX}${userId}`
 
 export function useNotionSyncState(): NotionSyncState {
   return useSyncExternalStore(

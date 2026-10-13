@@ -5,6 +5,7 @@ import { POPOVER_PANEL } from './ui/surface'
 import { fieldClass } from './ui/fieldClass'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
+import { useExitGhost } from '../hooks/useExitGhost'
 
 const LIST_HEIGHT = 280
 const WIDTH = 320
@@ -39,6 +40,7 @@ export function TimeZonePicker({
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
   const wrapRef = useRef<HTMLSpanElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(popRef)
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
   const listRef = useRef<HTMLUListElement>(null)
@@ -130,7 +132,7 @@ export function TimeZonePicker({
       )}
       {open && pos && (
         <div
-          ref={popRef}
+          ref={exitRef}
           role="dialog"
           aria-label={ariaLabel}
           className={`fixed z-[80] overflow-hidden ${POPOVER_PANEL}`}

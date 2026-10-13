@@ -895,6 +895,94 @@ describe('habits.time_overrides', () => {
   })
 })
 
+describe('habits.rest_dates', () => {
+  it('reads the rest days sorted, and leaves the field out when there are none', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [
+        habitRow('a', { rest_dates: ['2026-10-14', '2026-10-13', 'x', 3, '2026-10-13'] }),
+        habitRow('b'),
+        habitRow('c', { rest_dates: [] }),
+      ],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.restDates).toEqual(['2026-10-13', '2026-10-14'])
+    for (const id of ['b', 'c']) expect(byId.get(id)).not.toHaveProperty('restDates')
+  })
+
+  it('sends the rest days, and null when there are none', async () => {
+    const base: Habit = {
+      id: 'h',
+      title: 'h',
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      completedDates: [],
+      archivedAt: null,
+    }
+    const { client, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(client, 'u-rest', [], [], [base, { ...base, id: 'h2', restDates: ['2026-10-13'] }], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'h')).toMatchObject({ rest_dates: null })
+    expect(rows.find((r) => r.id === 'h2')).toMatchObject({ rest_dates: ['2026-10-13'] })
+  })
+})
+
+describe('habits.weekday_times', () => {
+  it('reads the per-weekday times, and sends them (null when there are none)', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [
+        habitRow('a', { weekday_times: { '6': { startTime: '10:00', endTime: '11:00' }, '9': { startTime: '10:00' } } }),
+        habitRow('b'),
+      ],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.weekdayTimes).toEqual({ 6: { startTime: '10:00', endTime: '11:00' } })
+    expect(byId.get('b')).not.toHaveProperty('weekdayTimes')
+
+    const { client: push, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(push, 'u-wd', [], [], [byId.get('a')!, byId.get('b')!], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({ weekday_times: { 6: { startTime: '10:00', endTime: '11:00' } } })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({ weekday_times: null })
+  })
+})
+
+describe('habits.goal_minutes', () => {
+  it('reads the goal (only whole minutes 1-1440) and sends it, null when there is none', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [habitRow('a', { goal_minutes: 30 }), habitRow('b', { goal_minutes: null }), habitRow('c', { goal_minutes: 0 })],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.goalMinutes).toBe(30)
+    for (const id of ['b', 'c']) expect(byId.get(id)).not.toHaveProperty('goalMinutes')
+
+    const { client: push, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(push, 'u-goal', [], [], [byId.get('a')!, byId.get('b')!], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({ goal_minutes: 30 })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({ goal_minutes: null })
+  })
+})
+
 describe('reading the server time and changes (#355)', () => {
   it('reports a missing sync_server_now as an error (no fallback to a full fetch)', async () => {
     const db = fakeDb()

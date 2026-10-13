@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { format } from 'date-fns'
+import { differenceInCalendarDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import {
   compareReviews,
@@ -38,6 +38,9 @@ import { ReviewShareDialog } from './ReviewShareDialog'
 /** 予定の時間の枠（棒の後ろと凡例の見本で同じ） */
 const PLANNED_FRAME = 'border border-dashed border-zinc-400 dark:border-zinc-500'
 import { tip } from '../lib/tooltip'
+import { clearReviewDay, peekReviewDay } from '../lib/reviewFocus'
+import { mostCarriedTasks } from '../lib/carryDays'
+import { openTaskMenu } from '../lib/overlays'
 import { useAppTodayKey } from '../hooks/useAppClock'
 
 /** 期間ごとの文言のキー（週 / 月） */
@@ -85,15 +88,27 @@ export function WeekReviewCard() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const selectView = useTaskStore((s) => s.selectView)
   const [period, setPeriod] = useState<ReviewPeriod>('week')
+  const todayKey = useAppTodayKey()
+  // 今日の計画の過ぎた日の 1 行から開いたときは、その日を含む週を開き、その日の棒に印を付ける
+  const [focusDay] = useState(() => {
+    const key = peekReviewDay()
+    return key !== null && key <= todayKey ? key : null
+  })
+  useEffect(() => clearReviewDay(), [])
   // 今の期間から何期間前か（0 = 今週 / 今月）。週 ↔ 月を切り替えたら今に戻す
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(() =>
+    focusDay === null
+      ? 0
+      : Math.round(
+          differenceInCalendarDays(reviewPeriodStart('week', fromDateKey(focusDay)), reviewPeriodStart('week', fromDateKey(todayKey))) / 7,
+        ),
+  )
   const keys = PERIOD_KEYS[period]
   const atCurrent = offset === 0
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const df = useDateFormat()
 
   // 週・月をまたいだら基準の期間も進める（今日の日付を依存に入れる）
-  const todayKey = useAppTodayKey()
   const anchor = useMemo(() => shiftReviewPeriod(period, fromDateKey(todayKey), offset), [period, todayKey, offset])
   const lists = useTaskStore((s) => s.lists)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
@@ -119,6 +134,8 @@ export function WeekReviewCard() {
     () => getEstimateRows(tasks, anchor, excluded, undefined, period).slice(0, ESTIMATE_ROWS),
     [tasks, anchor, excluded, period],
   )
+  // 持ち越しが続いているタスク（#300）: 今の日数なので今の週・月だけ。押すと To-Do 一覧と同じメニュー（詳細で分ける・いつかへ移す・削除）
+  const carriedRows = useMemo(() => (atCurrent ? mostCarriedTasks(tasks, todayKey, excluded) : []), [atCurrent, tasks, todayKey, excluded])
   const estimateMax = Math.max(1, ...estimateRows.map((r) => Math.max(r.estimateMinutes, r.loggedMinutes)))
   const weekStart = reviewPeriodStart(period, anchor)
   const openDay = (key: string) => {
@@ -316,6 +333,7 @@ export function WeekReviewCard() {
                       aria-label={dayTip}
                       {...tip(dayTip)}
                       onClick={() => openDay(toDateKey(date))}
+                      aria-current={toDateKey(date) === focusDay ? 'date' : undefined}
                       // 上の余白（pt-4）は合計の数字の分。棒の高さの % はその余白を除いた高さに対して
                       className="group relative flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-end pt-4"
                     >
@@ -356,8 +374,13 @@ export function WeekReviewCard() {
                 {Array.from({ length: 7 }, (_, i) => {
                   const date = fromDateKey(toDateKey(weekStart))
                   date.setDate(date.getDate() + i)
+                  // 今日の計画から開いたその日は、曜日を濃く（色は足さない）
+                  const focused = toDateKey(date) === focusDay
                   return (
-                    <span key={i} className="flex-1 text-center text-[10px] text-zinc-400 dark:text-zinc-500">
+                    <span
+                      key={i}
+                      className={`flex-1 text-center text-[10px] ${focused ? 'font-semibold text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'}`}
+                    >
                       {format(date, 'E', { locale: dateLocale })}
                     </span>
                   )
@@ -506,6 +529,36 @@ export function WeekReviewCard() {
                     style={{ width: `${(r.estimateMinutes / estimateMax) * 100}%` }}
                   />
                 </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 持ち越しが続いているタスク（#300）。無ければ出さない。日数は今日の計画の行と同じ「3日目」 */}
+      {carriedRows.length > 0 && (
+        <div className="mt-5">
+          <SectionLabel as="h3" id="review-carried" className="mb-2">
+            {t('weekReview.carriedTitle')}
+          </SectionLabel>
+          <ul aria-labelledby="review-carried" className="space-y-0.5">
+            {carriedRows.map(({ task, days }) => (
+              <li key={task.id}>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  {...tip(t('weekReview.carriedHint'))}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    openTaskMenu({ kind: 'task', x: r.left, y: r.bottom + 4, taskIds: [task.id] })
+                  }}
+                  className="-mx-1 flex w-[calc(100%+0.5rem)] cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                >
+                  <span className="truncate text-zinc-700 dark:text-zinc-300">{task.title}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">
+                    {t('planner.carryDay', { count: days + 1 })}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>

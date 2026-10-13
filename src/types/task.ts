@@ -31,6 +31,17 @@ export interface EventSeries {
   skipHolidays: boolean
 }
 
+/** 移した予定の控え。サーバーでは `tasks.moved_plans`（`032`） */
+export interface MovedPlan {
+  /** 元の予定日（`yyyy-MM-dd`） */
+  date: string
+  /** 元の時刻（`HH:mm`）。時刻の無い予定は null */
+  startTime: string | null
+  endTime: string | null
+  /** 移した先の日（`yyyy-MM-dd`） */
+  to: string
+}
+
 /**
  * タスクの種類。
  * - `todo`: To-Do（やること）
@@ -83,6 +94,11 @@ interface TaskBase {
    * 判定は `supabase/functions/daily-reminders/schedule.ts`
    */
   reminders: TaskReminder[] | null
+  /**
+   * 続けて持ち越した日数（今日かそれより前に置いて終わらず、後ろの日へ回した日の合計）。完了・実行日を外す・いつか / チェックリストへ移すと 0。
+   * 前の日に置いたままの日数は足さない（`carriedDaysOn` が見る日までの分を足す）
+   */
+  carriedDays: number
   /** 見積もり（かかりそうな時間、分）。タイムラインに置く・時間を決めるときの長さ。`null`/未設定は設定の既定の予定の長さ */
   estimateMinutes: number | null
   /** 場所（自由入力）。Google カレンダー風に Google Map へ飛べる。`null`/空は未設定 */
@@ -94,6 +110,12 @@ interface TaskBase {
   tags: string[]
   /** 記録の分類（ラベル）名。null はラベルなし。To-Do では使わない（null） */
   category: string | null
+  /**
+   * 指しているラベルの id（#365、`lib/labelIds.ts`）。無ければラベルなし（か、まだ名前・色から付けていない）。
+   * 名前（記録の `category`）・色（To-Do・予定の `color`）はいつもこのラベルの今の名前・色で、前の版の端末はそれを読む。
+   * サーバーでは `tasks.label_id`（`033`）
+   */
+  labelId?: string
   recurrence: Recurrence | null
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */
   habitId: string | null
@@ -107,6 +129,16 @@ interface TaskBase {
    * 持たない行どうしを「変わった」と見ないよう、繰り返しのある行だけ項目を持つ
    */
   series?: EventSeries | null
+  /**
+   * 予定日を別の日へ移した To-Do の、元の予定（その日が来てから移したものだけ。`movedPlans.ts`）。
+   * 過ぎた日のタイムラインに「→10/5」の控えを出し、「計画どおり実行」の分母に入れる。移していない行は持たない（無い）
+   */
+  movedPlans?: MovedPlan[]
+  /**
+   * いつかの中の段（#221）。`dream` は「夢」（人生レベル。本体ではなく一歩＝子を To-Do にする）、持たないものは「やりたい」。
+   * いつかのリストのルートの行だけ。サーバーでは `tasks.someday_tier`（`034`）
+   */
+  somedayTier?: 'dream'
   /** アーカイブした瞬間の ISO 時刻。`null`/未設定はアーカイブされていない。アーカイブ済みタスクは通常のビューから除外され「アーカイブ済み」箱に入る */
   archivedAt: string | null
   /** 削除（ゴミ箱行き）した瞬間の ISO 時刻。`null`/未設定は削除されていない。ソフト削除で「削除済み」箱から復元・完全削除できる */

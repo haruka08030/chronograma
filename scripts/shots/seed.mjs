@@ -48,9 +48,12 @@ function task(fields, stamp) {
     tags: fields.tags ?? [],
     recurrence: fields.recurrence ?? null,
     kind: fields.kind ?? 'todo',
+    carriedDays: fields.carriedDays ?? 0,
     habitId: null,
     estimateMinutes: fields.estimateMinutes ?? null,
     sourceTaskId: fields.sourceTaskId ?? null,
+    ...(fields.movedPlans ? { movedPlans: fields.movedPlans } : {}),
+    ...(fields.somedayTier ? { somedayTier: fields.somedayTier } : {}),
     archivedAt: null,
     deletedAt: null,
   }
@@ -112,7 +115,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       },
       instant,
     ),
-    task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6 }, instant),
+    task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6, carriedDays: 2 }, instant),
     // 記録（色が付く主役）。完了済みのタイムログ
     task(
       {
@@ -225,11 +228,16 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     task({ id: 's60', title: '確率論の課題', completed: true, dueDate: today, estimateMinutes: 60, order: 17 }, instant),
     task({ id: 's11', title: '履修登録', completed: true, dueDate: yesterday, order: 10 }, instant),
     task({ id: 's12', title: '健康診断の予約', completed: true, dueDate: yesterday, order: 11 }, instant),
+    // 企業を親にして、選考の締切を子に置く（#308: 今日の計画の締切間近に親の名前つきで出て、親の行に次の締切）
+    task({ id: 's90', title: 'B 商事', order: 12 }, instant),
+    task({ id: 's91', title: 'ES 提出', parentId: 's90', dueDate: inTwoDays, estimateMinutes: 180, order: 0 }, instant),
+    task({ id: 's92', title: '一次面接', parentId: 's90', scheduledDate: inTwoDays, dueDate: dayKey(shift(now, 6)), order: 1 }, instant),
     // いつか（Wish）と買い物（チェックリスト）は別リスト
     task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, order: 0 }, instant),
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, instant),
     // 下に置いた子（目標の下の一歩、メニューの下の材料）
-    task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2 }, instant),
+    // 一歩を置いた夢（いつかの上の段、#221）
+    task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2, somedayTier: 'dream' }, instant),
     task({ id: 's22', title: 'HSK 4 級に合格', listId: SOMEDAY_ID, parentId: 's21', order: 0 }, instant),
     task({ id: 's23', title: '単語帳を 1 冊終える', listId: SOMEDAY_ID, parentId: 's21', order: 1, completed: true }, instant),
     task({ id: 's15', title: '牛乳', listId: SHOPPING_ID, order: 0 }, instant),
@@ -287,6 +295,19 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       instant,
     ),
     task({ id: 's54', title: 'バイト', scheduledDate: yesterday, startTime: '18:00', endTime: '21:00', order: 24 }, instant),
+    // 昨日の 10:00 に予定していて、明日へ移したレポート（過ぎた日に控えが出る、#158）
+    task(
+      {
+        id: 's56',
+        title: '統計のレポート',
+        scheduledDate: dayKey(shift(now, 1)),
+        startTime: '16:00',
+        endTime: '17:30',
+        order: 26,
+        movedPlans: [{ date: yesterday, startTime: '16:00', endTime: '17:30', to: dayKey(shift(now, 1)) }],
+      },
+      instant,
+    ),
     task(
       {
         id: 's55',
@@ -302,7 +323,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       instant,
     ),
     // やり残し（前の日に置いて終わっていない。今日の計画の「やり残し N 件」に出る）
-    task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14 }, instant),
+    task({ id: 's19', title: '参考文献を集める', scheduledDate: yesterday, order: 14, carriedDays: 2 }, instant),
     // 先週より前・前の月の記録（月のふりかえりの日のマスと、前の月との差が見えるように。#304）
     ...[
       [-5, '企業研究', '13:00', '15:30', '就活'],
@@ -357,6 +378,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       updatedAt: instant.toISOString(),
       completedDates: [yesterday],
       archivedAt: null,
+      // 時間の目標（1 回 20 分以上。#293）
+      goalMinutes: 20,
     },
     // 週に◯回の習慣（曜日は決めない。回数を満たした週は「今週は達成」）
     {

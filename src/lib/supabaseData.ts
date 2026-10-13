@@ -1,24 +1,37 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, isTodoTask, taskKindFromFlags, type Task } from '../types/task'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
+import {
+  inferHabitTimeMode,
+  readHabitFrequency,
+  readHabitRestDates,
+  readHabitTimeOverrides,
+  readHabitWeekdayTimes,
+  readHabitGoalMinutes,
+  type Habit,
+} from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
+import { appTimeZone } from './timeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
+import { isLabelId } from './labelIds'
 import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { readEventSeries, withSeries } from './eventSeries'
+import { readMovedPlans, withMovedPlans } from './movedPlans'
+import { readSomedayTier, withSomedayTier } from './somedayTier'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
+import { readCarriedDays } from './carryDays'
 
 /** 更新時刻を持たない古いリスト・セクション。同期では最古として扱われる（列は not null） */
 const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z'
@@ -50,6 +63,12 @@ interface HabitRow {
   archived_at?: string | null
   /** 日ごとの時間（`018`）。古い DB には無い。無い・null は無し */
   time_overrides?: unknown
+  /** 休みの日（`031`）。古い DB には無い。無い・null は無し */
+  rest_dates?: unknown
+  /** 曜日ごとの時間（`031`）。古い DB には無い。無い・null は無し */
+  weekday_times?: unknown
+  /** 時間の目標（分、`031`）。古い DB には無い。無い・null は無し */
+  goal_minutes?: number | null
 }
 
 interface TaskRow {
@@ -73,10 +92,16 @@ interface TaskRow {
   location?: string | null
   /** 古い DB には無い（`015`） */
   estimate_minutes?: number | null
+  /** 続けて持ち越した日数（`029`）。古い DB には無い */
+  carried_days?: number | null
   /** 古い DB には無い（`016`） */
   source_task_id?: string | null
   /** 毎週の予定の印（`027`）。古い DB には無い */
   event_series?: unknown
+  /** 移した予定の控え（`032`）。古い DB には無い */
+  moved_plans?: unknown
+  /** いつかの段（`034`、'dream' か null）。古い DB には無い */
+  someday_tier?: string | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -93,6 +118,13 @@ interface TaskRow {
   priority: string
   tags: unknown
   category?: string | null
+  /** 指しているラベル（`033`、#365）。古い DB には無い */
+  label_id?: string | null
+  /**
+   * この版のアプリが `label_id` を送った印（`033`。行には残らない）。印の無い書き込み（前の版のアプリ）が名前・色を変えたら、
+   * サーバーが `label_id` を外す（id と名前・色が食い違わない）
+   */
+  label_id_sent?: boolean | null
   recurrence: unknown
   is_time_log: boolean
   completed_at?: string | null
@@ -162,6 +194,9 @@ function rowToHabit(row: HabitRow): Habit {
     updatedAt: row.updated_at,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     ...withTimeOverrides(row.time_overrides),
+    ...withRestDates(row.rest_dates),
+    ...withWeekdayTimes(row.weekday_times),
+    ...withGoalMinutes(row.goal_minutes),
   }
 }
 
@@ -169,6 +204,23 @@ function rowToHabit(row: HabitRow): Habit {
 function withTimeOverrides(raw: unknown): Pick<Habit, 'timeOverrides'> {
   const timeOverrides = readHabitTimeOverrides(raw)
   return timeOverrides ? { timeOverrides } : {}
+}
+
+/** 休みの日も、1 日でもあるときだけ項目を持つ */
+function withRestDates(raw: unknown): Pick<Habit, 'restDates'> {
+  const restDates = readHabitRestDates(raw)
+  return restDates ? { restDates } : {}
+}
+
+/** 曜日ごとの時間も、1 つでもあるときだけ項目を持つ */
+function withWeekdayTimes(raw: unknown): Pick<Habit, 'weekdayTimes'> {
+  const weekdayTimes = readHabitWeekdayTimes(raw)
+  return weekdayTimes ? { weekdayTimes } : {}
+}
+
+function withGoalMinutes(raw: unknown): Pick<Habit, 'goalMinutes'> {
+  const goalMinutes = readHabitGoalMinutes(raw)
+  return goalMinutes ? { goalMinutes } : {}
 }
 
 function habitToRow(userId: string, h: Habit): HabitRow {
@@ -186,6 +238,9 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     updated_at: h.updatedAt,
     archived_at: h.archivedAt ?? null,
     time_overrides: h.timeOverrides ?? null,
+    rest_dates: h.restDates ?? null,
+    weekday_times: h.weekdayTimes ?? null,
+    goal_minutes: h.goalMinutes ?? null,
   }
 }
 
@@ -204,8 +259,11 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
-  // 毎週の印は予定の行だけ。印のある行だけ項目を持つ
-  return task.kind === 'event' ? withSeries(task, readEventSeries(row.event_series)) : task
+  // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
+  if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
+  return task.kind === 'todo'
+    ? withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier))
+    : task
 }
 
 function rowToTaskFields(row: TaskRow): Task {
@@ -242,10 +300,12 @@ function rowToTaskFields(row: TaskRow): Task {
     endTime: row.end_time,
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimate_minutes),
+    carriedDays: readCarriedDays(row.carried_days),
     color: typeof row.color === 'string' ? row.color : null,
     priority,
     tags,
     category: typeof row.category === 'string' ? row.category : null,
+    ...(isLabelId(row.label_id) ? { labelId: row.label_id.toLowerCase() } : {}),
     recurrence,
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
@@ -292,16 +352,21 @@ function taskToRow(userId: string, task: Task): TaskRow {
     end_time: task.endTime,
     location: task.location ?? null,
     estimate_minutes: task.estimateMinutes,
+    carried_days: task.carriedDays,
     color: task.color,
     priority: task.priority,
     tags: task.tags,
     category: isLogTask(task) ? task.category : null,
+    label_id: task.labelId ?? null,
+    label_id_sent: true,
     recurrence: task.recurrence,
     // 種類はサーバーでは印の列（記録か・睡眠か・予定か）。前の版の端末も同じ列を読む（予定の印を読まない版では To-Do）
     is_time_log: isLogTask(task),
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
     event_series: isEventTask(task) ? (task.series ?? null) : null,
+    moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
+    someday_tier: isTodoTask(task) ? (task.somedayTier ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
@@ -383,7 +448,8 @@ const SYNC_TABLES: readonly SyncTable[] = ['lists', 'list_sections', 'tasks', 'h
 /**
  * `since` より後の行を、`keys` の順（先頭は時刻の列）に全部取る。続きは最後の行より後（keyset）から取るので、
  * 取っている間に行が消えたり変わったりしても飛ばさない（変わった行は後ろへ回り、続きか次の取得で届く）。
- * 件数は最初の 1 回だけ数える（`since` より後だけなので、索引で軽い）
+ * 空のページが返るまで取る（件数は数えない、#258。サーバーの上限がページの大きさより小さくても取りこぼさない）。
+ * ふだんの差分は `sync_changes_since` の 1 往復で、これを使うのは 1 回の上限を超えたときだけ
  */
 async function fetchRowsSince<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
@@ -393,13 +459,8 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
   keys: readonly [string, ...string[]],
 ): Promise<{ rows: T[] } | { error: string }> {
   const rows: T[] = []
-  let total: number | null = null
   for (;;) {
-    let q = supabase
-      .from(table)
-      .select('*', rows.length === 0 ? { count: 'exact' } : undefined)
-      .eq('user_id', userId)
-      .gt(keys[0], since)
+    let q = supabase.from(table).select('*').eq('user_id', userId).gt(keys[0], since)
     const last = rows[rows.length - 1]
     if (last) {
       // (k1, k2, …) > (最後の行の値): k1 > v1 か、k1 = v1 で k2 > v2 か …
@@ -411,13 +472,11 @@ async function fetchRowsSince<T extends Record<string, unknown>>(
       q = q.or(parts.join(','))
     }
     for (const k of keys) q = q.order(k)
-    const { data, count, error } = await q.limit(PAGE_SIZE)
+    const { data, error } = await q.limit(PAGE_SIZE)
     if (error) return { error: error.message }
-    if (rows.length === 0) total = count ?? null
     const page = (data ?? []) as T[]
     if (page.length === 0) break
     rows.push(...page)
-    if (total !== null && rows.length >= total) break
   }
   return { rows }
 }
@@ -461,15 +520,94 @@ export async function fetchChangesSince(supabase: SupabaseClient, userId: string
     .gt('last_deleted_at', since)
     .limit(1)
   if (trimmed.error) return { error: `sync_tombstone_purges: ${trimmed.error.message}` }
+  return changesFromRows(got, ts.rows, (trimmed.data ?? []).length > 0)
+}
+
+function changesFromRows(
+  got: Partial<Record<SyncTable, Record<string, unknown>[]>>,
+  tombstones: readonly { table_name: string; row_id: string; deleted_at: string }[],
+  trimmed: boolean,
+): SyncChanges {
   return {
-    lists: (got.lists as unknown as ListRow[]).map(rowToList),
-    sections: (got.list_sections as unknown as SectionRow[]).map(rowToSection),
-    tasks: (got.tasks as unknown as TaskRow[]).map(rowToTask),
-    habits: (got.habits as unknown as HabitRow[]).map(rowToHabit),
-    tombstones: ts.rows
+    lists: ((got.lists ?? []) as unknown as ListRow[]).map(rowToList),
+    sections: ((got.list_sections ?? []) as unknown as SectionRow[]).map(rowToSection),
+    tasks: ((got.tasks ?? []) as unknown as TaskRow[]).map(rowToTask),
+    habits: ((got.habits ?? []) as unknown as HabitRow[]).map(rowToHabit),
+    tombstones: tombstones
       .filter((r) => (SYNC_TABLES as readonly string[]).includes(r.table_name))
       .map((r) => ({ table: r.table_name as SyncTable, id: String(r.row_id), deletedAt: String(r.deleted_at) })),
-    tombstonesTrimmed: (trimmed.data ?? []).length > 0,
+    tombstonesTrimmed: trimmed,
+  }
+}
+
+/** 利用者ごとに 1 行の設定の表 */
+export type SettingTable =
+  'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable'
+const SETTING_TABLES: readonly SettingTable[] = [
+  'user_settings',
+  'user_extra_time_zones',
+  'user_active_timer',
+  'user_event_templates',
+  'user_course_links',
+  'user_timetable',
+]
+
+/** `sync_changes_since`（`035`）の 1 回の答え */
+export interface SyncRound {
+  /** サーバーの時刻（次の差分の目印） */
+  now: string
+  /** 同期の取り決めの版の下限（`app_config.min_sync_version`） */
+  minSyncVersion: number
+  /** `since` より後の変わった行と印。どれかの表が 1 回の上限を超えたら null（ページに分けて取り直す） */
+  changes: SyncChanges | null
+  /** 設定の表ごとのサーバーの版（行が無ければ null） */
+  settingVersions: Record<SettingTable, string | null>
+  /** `moodSince` より後に変わった 1 日の気分。`moodSince` を渡さなかった・上限を超えたら null */
+  dayMoods: RemoteDayMood[] | null
+  /** 4 表のどれかにこの人の行があるか（アカウントごと消されると印も消えるので、差分では分からない） */
+  hasRows: boolean
+}
+
+/** 1 回の答えに入れる行の上限（表ごと）。超えたらページに分けて取る */
+export const SYNC_ROUND_LIMIT = 1000
+
+/**
+ * 差分・消えた行の印・設定の版・版の下限・1 日の気分を 1 回で取る（`035` の sync_changes_since、#258）。
+ * 前は 1 分ごとの同期で 9 往復以上を 1 つずつ待っていた。関数がまだ無い DB では `missing`（前の取り方に戻る）
+ */
+export async function fetchSyncRound(
+  supabase: SupabaseClient,
+  since: string,
+  moodSince: string | null,
+): Promise<SyncRound | { missing: true } | { error: string }> {
+  const { data, error } = await supabase.rpc('sync_changes_since', { p_since: since, p_mood_since: moodSince, p_limit: SYNC_ROUND_LIMIT })
+  if (error) {
+    // 関数が無い（`035` を流す前の DB・PostgREST の一覧が古い）
+    if (error.code === 'PGRST202' || error.code === '42883') return { missing: true }
+    return { error: `sync_changes_since: ${error.message}` }
+  }
+  const r = (data ?? {}) as Record<string, unknown>
+  const now = typeof r.now === 'string' ? r.now : null
+  if (!now || !Number.isFinite(Date.parse(now))) return { error: 'sync_changes_since: bad value' }
+  const list = (k: string) => (Array.isArray(r[k]) ? (r[k] as Record<string, unknown>[]) : [])
+  const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
+  for (const table of SYNC_TABLES) got[table] = list(table)
+  const tombstones = list('tombstones') as unknown as { table_name: string; row_id: string; deleted_at: string }[]
+  const over = [...SYNC_TABLES.map((t) => got[t]!), tombstones].some((rows) => rows.length > SYNC_ROUND_LIMIT)
+  const settings = (r.settings ?? {}) as Record<string, unknown>
+  const settingVersions = Object.fromEntries(SETTING_TABLES.map((t) => [t, settings[t] == null ? null : String(settings[t])])) as Record<
+    SettingTable,
+    string | null
+  >
+  const moods = Array.isArray(r.day_moods) ? (r.day_moods as Record<string, unknown>[]) : null
+  const min = Number(r.min_sync_version ?? 0)
+  return {
+    now,
+    minSyncVersion: Number.isFinite(min) ? min : 0,
+    changes: over ? null : changesFromRows(got, tombstones, r.tombstones_trimmed === true),
+    settingVersions,
+    dayMoods: moods && moods.length <= SYNC_ROUND_LIMIT ? moods.map(dayMoodFromRow) : null,
+    hasRows: r.has_rows !== false,
   }
 }
 
@@ -547,6 +685,11 @@ export interface SyncPushResult {
   stale: SyncStaleRow[]
   /** サーバーの時計 − この端末の時計（ms）。サーバーが時刻を付けた行があったときだけ */
   clockOffsetMs?: number
+  /**
+   * 取得した行と中身も時刻も同じだが別のオブジェクトだった行（開き直して読み込んだ前回の内容など）。
+   * 前回の内容をこの行（手元のオブジェクト）に替えると、次からは同じオブジェクトとして比べずに済む（#258）
+   */
+  unchanged?: { table: SyncTable; id: string }[]
 }
 
 /** 取得に無かった行を送るときの「もとにした版」。サーバーに同じ id の行ができていたら断られる */
@@ -582,6 +725,7 @@ export async function pushListsTasksHabits(
   const rejected = new Map<string, SyncRejectedRow>()
   const written: SyncWrittenRow[] = []
   const stale: SyncStaleRow[] = []
+  const unchanged: { table: SyncTable; id: string }[] = []
   let clockOffsetMs: number | undefined
   /**
    * 行ごとの「もとにした版」＝取得したときのサーバーの updated_at（文字列のまま。マイクロ秒まで一致させる）。
@@ -608,12 +752,18 @@ export async function pushListsTasksHabits(
   ): R[] => {
     // 更新時刻は比べない（サーバーが付け直すので、中身が同じでも手元の時刻とは違う）
     const content = (x: T) => JSON.stringify({ ...toRow(normalize(x)), updated_at: undefined })
-    const sent = remoteItems ? new Map(remoteItems.map((x) => [x.id, content(x)])) : null
+    const fetched = remoteItems ? new Map(remoteItems.map((x) => [x.id, x])) : null
     const rows: R[] = []
     items.forEach((item) => {
+      const got = fetched?.get(item.id)
+      // 取得した行と同じオブジェクト（送った・取り込んだまま変えていない行）は文字列にして比べない（#257）
+      if (got === item) return
+      if (got !== undefined && content(got) === content(item)) {
+        if ((got as { updatedAt?: string }).updatedAt === (item as { updatedAt?: string }).updatedAt) unchanged.push({ table, id: item.id })
+        return
+      }
       const row = toRow(item)
       const json = JSON.stringify(row)
-      if (sent?.get(item.id) === content(item)) return
       const known = knownRejected.get(rejectKey(table, item.id))
       if (known?.row === json) {
         rejected.set(`${table}:${item.id}`, { table, id: item.id, op: 'upsert', message: known.message })
@@ -627,12 +777,21 @@ export async function pushListsTasksHabits(
   const sectionRows = changedOnly('list_sections', sections, remote?.sections, (s) => sectionToRow(userId, s))
   // 端末ごとにアプリのタイムゾーンが違うと、同じ瞬間でも列の書き方（timeZoneAnchor と時刻）が違う。
   // 両方をこの端末のタイムゾーンの書き方にそろえてから比べ、書き方の違いだけでは送らない（2 台で全件を送り合わない）
+  // 消すセクションを指しているサーバーの行は、セクションを消すと外部キー（on delete set null）が外す。
+  // 外れたものとして比べ、セクションを外しただけの行は送らない（#357。セクション 1 つで中の行を全部送らない）
+  const goneSections = new Set(deletes.sections)
+  const remoteTasks =
+    remote && goneSections.size > 0
+      ? remote.tasks.map((t) => (t.sectionId != null && goneSections.has(t.sectionId) ? { ...t, sectionId: null } : t))
+      : remote?.tasks
+  const zone = appTimeZone()
   const taskRows = changedOnly(
     'tasks',
     tasks,
-    remote?.tasks,
+    remoteTasks,
     (t) => taskToRow(userId, t),
-    (t) => reanchorTask(t),
+    // タイムゾーンは 1 回だけ読む（行ごとに読むと Intl を作り直して遅い、#257）
+    (t) => reanchorTask(t, zone),
   )
   const habitRows = changedOnly('habits', habits, remote?.habits, (h) => habitToRow(userId, h))
   let isolateRequests = 0
@@ -641,7 +800,7 @@ export async function pushListsTasksHabits(
     isRowLevelError(code) && rejected.size < MAX_REJECTED && isolateRequests < MAX_ISOLATE_REQUESTS
   const finish = (error?: string): SyncPushResult => {
     const out = [...rejected.values()]
-    if (error) return { error, rejected: out, written, stale, clockOffsetMs }
+    if (error) return { error, rejected: out, written, stale, clockOffsetMs, unchanged }
     // 送れた行は覚えを消し、拒否された行は送った内容を覚える
     const sentRows: [SyncTable, { id: string }[]][] = [
       ['lists', listRows],
@@ -658,7 +817,7 @@ export async function pushListsTasksHabits(
         else knownRejected.delete(rejectKey(table, row.id))
       }
     }
-    return { rejected: out, written, stale, clockOffsetMs }
+    return { rejected: out, written, stale, clockOffsetMs, unchanged }
   }
 
   // 主キーは (user_id, id)
@@ -788,12 +947,14 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
   if (!data) return null
   const rows = Array.isArray(data.log_labels) ? (data.log_labels as unknown[]) : []
   const labels = rows.flatMap((r): LogLabelRow[] => {
-    const x = r as { name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
+    const x = r as { id?: unknown; name?: unknown; color?: unknown; weeklyTargetMinutes?: unknown }
     if (typeof x.name !== 'string') return []
     const color = typeof x.color === 'string' ? x.color : ''
     // 週の目安（#291）。無い・壊れた値なら目安なし
     const target = validTargetMinutes(x.weeklyTargetMinutes)
-    return [target ? { name: x.name, color, weeklyTargetMinutes: target } : { name: x.name, color }]
+    // id（#365）。前の版のアプリが送った表には無い（名前で手元の id に合わせる、`labelSync.ts`）
+    const id = isLabelId(x.id) ? { id: x.id.toLowerCase() } : {}
+    return [target ? { ...id, name: x.name, color, weeklyTargetMinutes: target } : { ...id, name: x.name, color }]
   })
   return { labels, updatedAt: String(data.updated_at) }
 }
@@ -930,16 +1091,18 @@ export async function fetchDayMoods(
     if (error) return { error: `day_moods: ${error.message}` }
     const page = (data ?? []) as { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }[]
     if (page.length === 0) break
-    for (const r of page) {
-      out.push({
-        day: String(r.day),
-        mood: isMood(r.mood) ? r.mood : null,
-        note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
-        updatedAt: String(r.updated_at),
-      })
-    }
+    for (const r of page) out.push(dayMoodFromRow(r))
   }
   return out
+}
+
+function dayMoodFromRow(r: { day?: unknown; mood?: unknown; note?: unknown; updated_at?: unknown }): RemoteDayMood {
+  return {
+    day: String(r.day),
+    mood: isMood(r.mood) ? r.mood : null,
+    note: typeof r.note === 'string' ? r.note.slice(0, DAY_MOOD_NOTE_MAX) : '',
+    updatedAt: String(r.updated_at),
+  }
 }
 
 /**

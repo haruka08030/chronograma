@@ -128,17 +128,36 @@ const laterStamp = (a: string | null, b: string) => (a === null || Date.parse(b)
  * 気分を 1 回合わせる。失敗してもタスクの同期は止めない（ログに出し、次の同期でまた合わせる）。
  * 断られた日があれば全部を取り直して合わせ直す（`maxStaleRetries` 回まで）
  */
+/** 次の取得の目印（この時刻より後に変わった行を取る）。null なら全部を取る */
+export function dayMoodSince(state: DayMoodPullState): string | null {
+  return state.forceFull || state.cursor === null ? null : new Date(Date.parse(state.cursor) - OVERLAP_MS).toISOString()
+}
+
 export async function runDayMoodSync(
   io: DayMoodSyncIo,
   state: DayMoodPullState,
-  opts: { isCancelled?: () => boolean; clockOffsetMs?: number; maxStaleRetries?: number } = {},
+  opts: {
+    isCancelled?: () => boolean
+    clockOffsetMs?: number
+    maxStaleRetries?: number
+    /**
+     * 同じ同期の 1 往復（`sync_changes_since`）で、`dayMoodSince(state)` の目印から取ってある行（#258）。最初の 1 回はこれを使い、取りに行かない。
+     * `since` は取ったときの目印（変わっていれば使わない）
+     */
+    prefetched?: { since: string; rows: RemoteDayMood[] }
+    /**
+     * 取得の前に読んだサーバーの時刻。全部を取れたら、行が 1 つも無くても次からはこの時刻から差分で取る
+     * （行の時刻だけを目印にすると、気分を付けていない人は毎回全部を取りに行っていた）
+     */
+    serverNow?: string
+  } = {},
 ): Promise<void> {
   const cancelled = opts.isCancelled ?? (() => false)
   const retries = opts.maxStaleRetries ?? 3
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const full = state.forceFull || state.cursor === null
-    const since = full ? null : new Date(Date.parse(state.cursor!) - OVERLAP_MS).toISOString()
-    const remote = await io.fetch(since)
+    const since = dayMoodSince(state)
+    const pre = attempt === 0 && since !== null && opts.prefetched?.since === since ? opts.prefetched.rows : null
+    const remote = pre ?? (await io.fetch(since))
     if (cancelled()) return
     if ('error' in remote) {
       console.error('[sync] moods', remote.error)
@@ -147,6 +166,7 @@ export async function runDayMoodSync(
     }
     state.forceFull = false
     for (const r of remote) state.cursor = laterStamp(state.cursor, r.updatedAt)
+    if (since === null && opts.serverNow) state.cursor = laterStamp(state.cursor, opts.serverNow)
 
     // 取得の後は await を挟まずに決めて入れる（この間の手元の編集を取りこぼさない）
     const before = io.get()
