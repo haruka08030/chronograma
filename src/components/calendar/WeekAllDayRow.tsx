@@ -21,7 +21,7 @@ import { planHex, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { toDateKey } from '../../lib/dateKey'
-import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
+import { openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
 import { tip } from '../../lib/tooltip'
 import { ChevronDownIcon, ChevronUpIcon, FlagIcon } from '../icons'
@@ -48,6 +48,7 @@ export function WeekAllDayRow({
   allDayAddDate,
   setAllDayAddDate,
   openGoogleCard,
+  openCard,
 }: {
   gridDays: Date[]
   singleDay: boolean
@@ -64,7 +65,9 @@ export function WeekAllDayRow({
   allDayMoveKey: string | null
   allDayAddDate: string | null
   setAllDayAddDate: (dateKey: string | null) => void
-  openGoogleCard: (eventId: string) => void
+  openGoogleCard: (eventId: string, el?: Element | null) => void
+  /** To-Do・予定・締切の印を押したときの小さなカード */
+  openCard: (taskId: string, el?: Element | null) => void
 }) {
   const { t } = useTranslation()
   /** 予定を `t` で回す箇所でも使えるように */
@@ -73,7 +76,6 @@ export function WeekAllDayRow({
   const updateTask = useTaskStore((s) => s.updateTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
-  const openDetail = openTaskDetail
   /** 件数の多い日もすべて出すか（たたむと 1 日 3 行まで。Google カレンダーと同じ） */
   const [expanded, setExpanded] = useState(false)
   const dayItems = (key: string) => ({
@@ -129,7 +131,7 @@ export function WeekAllDayRow({
                   setDraggedGoogleEvent(null)
                   setAllDayDragOver(null)
                 }}
-                onClick={() => openGoogleCard(e.id)}
+                onClick={(ev) => openGoogleCard(e.id, ev.currentTarget)}
                 className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95
                     ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
@@ -148,7 +150,7 @@ export function WeekAllDayRow({
                   beginCalendarItemNativeDrag()
                 }}
                 onDragEnd={() => setAllDayDragOver(null)}
-                onClick={() => openDetail(t.id)}
+                onClick={(e) => openCard(t.id, e.currentTarget)}
                 // 時刻の無いタスクなので To-Do と同じメニュー（タッチは長押し）
                 data-touch-menu
                 onContextMenu={(e) => {
@@ -171,7 +173,7 @@ export function WeekAllDayRow({
                 <span className="truncate">{t.title}</span>
               </div>
             )),
-            // 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すと詳細
+            // 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すとカード
             ...dayDue.map((t) => {
               const label = t.dueTime
                 ? tr('weekCalendar.dueMarkTime', { title: t.title, time: t.dueTime })
@@ -180,7 +182,7 @@ export function WeekAllDayRow({
                 <button
                   key={`due-${t.id}`}
                   type="button"
-                  onClick={() => openDetail(t.id)}
+                  onClick={(e) => openCard(t.id, e.currentTarget)}
                   {...tip(label)}
                   className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
                 >

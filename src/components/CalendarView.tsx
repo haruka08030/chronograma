@@ -32,7 +32,10 @@ import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { openTaskMenu } from '../lib/overlays'
+import { useCalendarCards } from '../hooks/useCalendarCards'
+import { CalendarCards } from './calendar/CalendarCards'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
 import { isEventTask, isLogTask, planKindOf } from '../types/task'
@@ -99,7 +102,9 @@ export function CalendarView({
   const [addingDate, setAddingDate] = useState<string | null>(null)
   // C / ⌘N: 選んでいる日のマスに追加欄を開く（今日の計画へは移らない。日を押して入れる間は効かない）
   useQuickAddAction(stamp ? null : () => setAddingDate(selectedDateKey ?? appTodayKey()))
-  const openDetail = openTaskDetail
+  // 押すと小さなカード（週・スケジュールと同じ）
+  const cards = useCalendarCards()
+  const { openCard, openGoogleCard } = cards
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
@@ -348,6 +353,7 @@ export function CalendarView({
                     )
                   })()}
                   {shownEvents.map((e) => (
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
                     <div
                       key={`event-${e.id}`}
                       {...tip(e.summary)}
@@ -362,6 +368,10 @@ export function CalendarView({
                       onDragEnd={() => {
                         setDraggedGoogleEvent(null)
                         setDragOverDate(null)
+                      }}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        openGoogleCard(e.id, ev.currentTarget)
                       }}
                       onContextMenu={(ev) => {
                         ev.preventDefault()
@@ -397,7 +407,7 @@ export function CalendarView({
                       }}
                       onClick={(e) => {
                         e.stopPropagation()
-                        openDetail(t.id)
+                        openCard(t.id, e.currentTarget)
                       }}
                       // 時刻つきの予定・記録はタイムラインと同じメニュー、時刻なしのタスクは To-Do と同じメニュー
                       onContextMenu={(e) => {
@@ -458,6 +468,9 @@ export function CalendarView({
           })}
         </div>
       </div>
+      <OverlaySuspense>
+        <CalendarCards cards={cards} />
+      </OverlaySuspense>
     </div>
   )
 }
