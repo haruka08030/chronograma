@@ -240,6 +240,19 @@ describe('サブタスクの締切（#308）', () => {
   })
 })
 
+describe('締切が今日で先の日に置いた To-Do（#374）', () => {
+  const tasks = [
+    task('dueTodayLater', { scheduledDate: '2026-10-03', dueDate: DAY }),
+    task('soon', { scheduledDate: '2026-10-03', dueDate: '2026-10-01' }),
+    task('noDueLater', { scheduledDate: '2026-10-03' }),
+  ]
+
+  it('締切が近い候補の先頭に入り、先の日に置いたものには残らない', () => {
+    expect(getDayPlan(tasks, DAY).dueSoon.map((x) => x.id)).toEqual(['dueTodayLater', 'soon'])
+    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['noDueLater'])
+  })
+})
+
 describe('nowOrNextTask', () => {
   const at = (hm: string) => new Date(`${DAY}T${hm}:00`)
   const timed = [

@@ -13,7 +13,7 @@ export interface DayPlan {
   overdue: Task[]
   /** 過去に置いたまま終わっていないルートタスク（締切切れは overdue へ） */
   carryOver: Task[]
-  /** まだ先の日に置いてあるが、締切（期限日）が 3 日以内に来る未完了タスク（課題・ES など） */
+  /** まだ先の日に置いてあるが、締切（期限日）が見ている日〜3 日以内に来る未完了タスク（課題・ES など）。締切が今日なら先の日に置いていても入れる */
   dueSoon: Task[]
   open: Task[]
   done: Task[]
@@ -118,7 +118,7 @@ export function getDayPlan(
       overdue.push(task)
     } else if (placed && placed < dateKey) {
       carryOver.push(task)
-    } else if (placed && task.dueDate && task.dueDate > dateKey && task.dueDate <= dueSoonLimit) {
+    } else if (placed && task.dueDate && task.dueDate >= dateKey && task.dueDate <= dueSoonLimit) {
       dueSoon.push(task)
     }
   }
@@ -148,7 +148,8 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
     // 締切切れは getDayPlan の overdue で先頭に出している
     else if (task.dueDate && task.dueDate < dateKey) continue
     else if (task.dueDate && task.dueDate > dueSoonLimit) dueLater.push(task)
-    else if (!task.dueDate || task.dueDate === dateKey) placedLater.push(task)
+    // 締切が見ている日〜3 日以内のものは getDayPlan の dueSoon（締切が近い候補）に出している
+    else if (!task.dueDate) placedLater.push(task)
   }
   dueLater.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
   undated.sort(compareByOrder)
