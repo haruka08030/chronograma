@@ -9,6 +9,12 @@ import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { PartBoundary } from '../components/ui/ErrorBoundary'
 import { closeTaskNotifications } from '../lib/notificationCleanup'
+import type { CalendarEvent } from '../types/calendarEvent'
+import { googleEventTiming } from '../lib/googleCalendar'
+import { htmlToPlainText } from '../lib/linkify'
+
+/** `openRecordPrompt` に Google の予定を渡すときの id（タイムラインのブロックと同じ `event-` 付き） */
+export const googleRecordPromptId = (eventId: string) => `event-${eventId}`
 
 /**
  * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻で埋めておき、ずれたらそこを直す）。
@@ -33,6 +39,23 @@ export function useCompleteWithLog() {
       memo: task.description.trim(),
       fromEvent: isEventTask(task),
       ...logLabelFromTask(task, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
+    })
+  }, [])
+
+  /** Google の予定を記録にする（完了は無い。始まっていない・終日の予定は何もしない） */
+  const openGoogle = useCallback((event: CalendarEvent) => {
+    const timing = googleEventTiming(event)
+    if (!timing.startTime || !timing.endTime) return
+    setDraft({
+      taskId: googleRecordPromptId(event.id),
+      title: event.summary,
+      date: timing.date,
+      endDate: timing.endDate ?? timing.date,
+      startTime: timing.startTime,
+      endTime: timing.endTime,
+      memo: event.description ? htmlToPlainText(event.description).trim() : '',
+      fromEvent: true,
+      ...logLabelFromTask(event, useTaskStore.getState().timeLogTagPresets, useTaskStore.getState().logCategoryColors),
     })
   }, [])
 
@@ -69,5 +92,5 @@ export function useCompleteWithLog() {
     </PartBoundary>
   ) : null
 
-  return { open, modal }
+  return { open, openGoogle, modal }
 }
