@@ -412,6 +412,8 @@ const SCREENS = [
   // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
   { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
   { name: 'settings', view: 'settings' },
+  // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
+  { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },
   // 設定「計画」（1 日に計画する時間・既定の予定の長さ）
   { name: 'settings-planning', view: 'settings', scrollTo: '#settings-planning' },
   // iPhone の Safari（ホーム画面に未追加）の「通知」（通知は追加すると使える。手順の行へ飛ぶ 1 行）
