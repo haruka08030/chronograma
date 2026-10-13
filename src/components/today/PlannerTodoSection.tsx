@@ -99,7 +99,19 @@ export function PlannerTodoSection({
             </p>
             <ul role="group" aria-labelledby={`${ids}overdue`}>
               {overdueShown.map((task) => (
-                <PlannerTaskRow key={task.id} task={task} env={env} action={<TimerButton task={task} />} dueMode="all" hoverActions />
+                <PlannerTaskRow
+                  key={task.id}
+                  task={task}
+                  env={env}
+                  action={
+                    <>
+                      <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} collapse />
+                      <TimerButton task={task} />
+                    </>
+                  }
+                  dueMode="all"
+                  hoverActions
+                />
               ))}
             </ul>
             {overdueShown.length < overdue.length && (

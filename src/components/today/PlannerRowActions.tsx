@@ -47,14 +47,28 @@ export function TimerButton({ task }: { task: Task }) {
   )
 }
 
-/** 候補・やり残しの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。カレンダーに矢印＝その日へ移す */
-export function MoveHereButton({ task, dateKey, viewingToday }: { task: Task; dateKey: string; viewingToday: boolean }) {
+/**
+ * 候補・やり残し・締切切れの行の「今日やる」（ほかの日を見ているときは「この日にやる」）。カレンダーに矢印＝その日へ移す。
+ * `collapse`: 乗せたときだけ出す行（締切切れ。時刻・締切と入れ替わる）
+ */
+export function MoveHereButton({
+  task,
+  dateKey,
+  viewingToday,
+  collapse = false,
+}: {
+  task: Task
+  dateKey: string
+  viewingToday: boolean
+  collapse?: boolean
+}) {
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   return (
     <RowActionButton
       label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
       onClick={() => rescheduleTasks([task.id], dateKey)}
+      collapse={collapse}
       mouseOnly
     >
       <CalendarArrowIcon className="h-4 w-4" />

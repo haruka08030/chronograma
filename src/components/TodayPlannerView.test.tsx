@@ -283,3 +283,19 @@ describe('TodayPlannerView: 候補は「さらに表示」で足す（#372）', 
     expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull()
   })
 })
+
+describe('TodayPlannerView: 締切切れの行の「今日やる」（#373）', () => {
+  it('押すと今日やる行に移る', async () => {
+    const today = toDateKey(appToday())
+    const yesterday = toDateKey(addDays(appToday(), -1))
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const id = store.addTask('Late report')!
+    useTaskStore.getState().updateTask(id, { dueDate: yesterday })
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const row = document.querySelector(`[data-task-row="${id}"]`) as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'Do today' }))
+    expect(useTaskStore.getState().tasks.find((x) => x.id === id)!.scheduledDate).toBe(today)
+  })
+})
