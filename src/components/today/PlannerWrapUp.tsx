@@ -86,6 +86,7 @@ export function PlannerWrapUp({
                   rescheduleTasks(
                     open.map((x) => x.id),
                     tomorrowKey,
+                    t('undo.tasksMovedToTomorrow', { count: open.length }),
                   )
                 }
                 className={wrapUpButton}
