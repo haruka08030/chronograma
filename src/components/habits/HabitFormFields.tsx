@@ -2,6 +2,7 @@ import { useId, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import {
+  HABIT_GOAL_MINUTES_MAX,
   HABIT_TIMES_PER_WEEK_MAX,
   HABIT_TIMES_PER_WEEK_MIN,
   type HabitFrequencyType,
@@ -17,6 +18,7 @@ import { TimeInput } from '../TimeInput'
 import { ColorPalette } from '../labels/ColorPalette'
 import { PillToggle } from '../ui/PillToggle'
 import { SectionLabel } from '../ui/SectionLabel'
+import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT } from '../ui/textClass'
 import { formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
@@ -254,6 +256,30 @@ function HabitTimeFields({
   )
 }
 
+/** 1 回の時間の目標（分）。空なら目標なし（チェックで達成） */
+function GoalMinutesField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useTranslation()
+  const id = useId()
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      <label htmlFor={id} className={sectionLabelClass('field')}>
+        {t('habits.goalMinutesLabel')}
+      </label>
+      <input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={HABIT_GOAL_MINUTES_MAX}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={fieldClass({ size: 'sm' }, 'w-20 tabular-nums')}
+      />
+      <span className="text-zinc-500 dark:text-zinc-400">{t('habits.goalMinutesSuffix')}</span>
+    </div>
+  )
+}
+
 /**
  * 習慣の追加・編集で共通の欄: 名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時刻。
  * Enter で `onSubmit`、Esc で `onEscape`。`name` はラジオのまとまりの名前（追加と編集で分ける）
@@ -308,6 +334,7 @@ export function HabitFormFields({
         <TimesPerWeekPicker count={form.timesPerWeek} onChange={(timesPerWeek) => onChange({ timesPerWeek })} />
       ) : null}
       <HabitTimeFields form={form} name={name} onChange={onChange} />
+      <GoalMinutesField value={form.goalMinutes} onChange={(goalMinutes) => onChange({ goalMinutes })} />
     </>
   )
 }

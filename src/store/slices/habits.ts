@@ -45,6 +45,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         completedDates: [],
         archivedAt: null,
         ...(fields.weekdayTimes ? { weekdayTimes: fields.weekdayTimes } : {}),
+        ...(fields.goalMinutes ? { goalMinutes: fields.goalMinutes } : {}),
       }
       set((s) => ({ habits: [...s.habits, habit] }))
       return habit.id
@@ -52,9 +53,9 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     updateHabit: (id, patch) => {
       // 同じ値なら何もしない（取り消しの履歴を積まない）
       const habit = get().habits.find((h) => h.id === id)
-      // patchChanges は undefined の項目を見ないので、曜日ごとの時間を外すのは別に見る
-      const dropsWeekdayTimes = 'weekdayTimes' in patch && !patch.weekdayTimes && !!habit?.weekdayTimes
-      if (habit && !patchChanges(habit, patch) && !dropsWeekdayTimes) return
+      // patchChanges は undefined の項目を見ないので、曜日ごとの時間・時間の目標を外すのは別に見る
+      const drops = (['weekdayTimes', 'goalMinutes'] as const).some((k) => k in patch && !patch[k] && !!habit?.[k])
+      if (habit && !patchChanges(habit, patch) && !drops) return
       pushUndo()
       return set((s) => ({
         habits: s.habits.map((h) => {
@@ -62,6 +63,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           const updated: Habit = { ...h, ...patch, updatedAt: new Date().toISOString() }
           // 曜日ごとの時間を外したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
           if (!updated.weekdayTimes) delete updated.weekdayTimes
+          if (!updated.goalMinutes) delete updated.goalMinutes
           return updated
         }),
       }))

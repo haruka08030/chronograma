@@ -1,7 +1,14 @@
 import { useReducer } from 'react'
 import { hexForGoogleKey } from '../../lib/googleColors'
 import { canSubmitHabitDraft, habitFrequencyFromDraft, type HabitDraftFields } from '../../lib/habitDraft'
-import type { Habit, HabitFrequencyType, HabitTimeMode, HabitWeekday, HabitWeekdayTimes } from '../../types/habit'
+import {
+  HABIT_GOAL_MINUTES_MAX,
+  type Habit,
+  type HabitFrequencyType,
+  type HabitTimeMode,
+  type HabitWeekday,
+  type HabitWeekdayTimes,
+} from '../../types/habit'
 
 const DEFAULT_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5]
 /** 週に◯回を選んだときの最初の回数 */
@@ -25,6 +32,8 @@ export type HabitFormState = {
   perWeekday: boolean
   /** 曜日ごとの時間（入れた曜日だけ。無い曜日は上の時間から始める。曜日を外しても残す） */
   weekdayTimes: Partial<Record<HabitWeekday, { startTime: string; endTime: string }>>
+  /** 1 回の時間の目標（分）。空なら目標なし */
+  goalMinutes: string
   color: string
 }
 
@@ -38,6 +47,7 @@ export const EMPTY_HABIT_FORM: HabitFormState = {
   endTime: '10:00',
   perWeekday: false,
   weekdayTimes: {},
+  goalMinutes: '',
   color: DEFAULT_HABIT_COLOR,
 }
 
@@ -55,8 +65,17 @@ export function habitFormFrom(h: Habit): HabitFormState {
     weekdayTimes: Object.fromEntries(
       Object.entries(h.weekdayTimes ?? {}).map(([d, v]) => [d, { startTime: v.startTime, endTime: v.endTime ?? h.endTime ?? '10:00' }]),
     ),
+    goalMinutes: h.goalMinutes ? String(h.goalMinutes) : '',
     color: h.color,
   }
+}
+
+/** 時間の目標の欄の値。空は null（目標なし）、1〜1440 の整数でなければ NaN */
+function formGoalMinutes(f: HabitFormState): number | null {
+  const text = f.goalMinutes.trim()
+  if (!text) return null
+  const n = Number(text)
+  return Number.isInteger(n) && n >= 1 && n <= HABIT_GOAL_MINUTES_MAX ? n : NaN
 }
 
 /** 曜日ごとの時間の欄を使うか（曜日を指定・時間あり・「曜日ごとに時間を変える」を押した） */
@@ -84,6 +103,7 @@ function draftFields(f: HabitFormState, times: { startTime: string; endTime: str
 
 /** 曜日ごとの時間なら、選んだ曜日の欄が全部そろっていること */
 export function canSubmitHabitForm(f: HabitFormState): boolean {
+  if (Number.isNaN(formGoalMinutes(f))) return false
   if (!usesWeekdayTimes(f)) return canSubmitHabitDraft(draftFields(f))
   return f.weekdays.length > 0 && f.weekdays.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
 }
@@ -112,6 +132,7 @@ export function habitFromForm(f: HabitFormState) {
     endTime: f.timeMode === 'range' ? base.endTime : null,
     frequency: habitFrequencyFromDraft(f.freq, f.weekdays, f.timesPerWeek),
     weekdayTimes,
+    goalMinutes: formGoalMinutes(f) ?? undefined,
   }
 }
 

@@ -961,6 +961,28 @@ describe('habits.weekday_times', () => {
   })
 })
 
+describe('habits.goal_minutes', () => {
+  it('reads the goal (only whole minutes 1-1440) and sends it, null when there is none', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [habitRow('a', { goal_minutes: 30 }), habitRow('b', { goal_minutes: null }), habitRow('c', { goal_minutes: 0 })],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    const byId = new Map(res.habits.map((h) => [h.id, h]))
+    expect(byId.get('a')?.goalMinutes).toBe(30)
+    for (const id of ['b', 'c']) expect(byId.get(id)).not.toHaveProperty('goalMinutes')
+
+    const { client: push, upserts } = fakeSupabase({})
+    await pushListsTasksHabits(push, 'u-goal', [], [], [byId.get('a')!, byId.get('b')!], [], noDeletes)
+    const rows = upserts.find((u) => u.table === 'habits')?.rows ?? []
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({ goal_minutes: 30 })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({ goal_minutes: null })
+  })
+})
+
 describe('reading the server time and changes (#355)', () => {
   it('reports a missing sync_server_now as an error (no fallback to a full fetch)', async () => {
     const db = fakeDb()

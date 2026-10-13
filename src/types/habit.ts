@@ -109,6 +109,18 @@ export interface Habit {
    * その日だけの時間（`timeOverrides`）がさらに優先。使わなければ項目ごと無い
    */
   weekdayTimes?: HabitWeekdayTimes
+  /**
+   * 1 回の時間の目標（分、1〜1440）。その日の習慣の記録の合計が届いたら達成（`habitDayStatus`）。
+   * 無ければ今までどおりチェックで達成。項目ごと無い
+   */
+  goalMinutes?: number
+}
+
+export const HABIT_GOAL_MINUTES_MAX = 1440
+
+/** 保存データ・同期・バックアップの時間の目標を読む。1〜1440 の整数でなければ undefined */
+export function readHabitGoalMinutes(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= HABIT_GOAL_MINUTES_MAX ? raw : undefined
 }
 
 /** その日を休みにした習慣か */

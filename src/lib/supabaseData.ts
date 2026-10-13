@@ -9,6 +9,7 @@ import {
   readHabitRestDates,
   readHabitTimeOverrides,
   readHabitWeekdayTimes,
+  readHabitGoalMinutes,
   type Habit,
 } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
@@ -63,6 +64,8 @@ interface HabitRow {
   rest_dates?: unknown
   /** 曜日ごとの時間（`031`）。古い DB には無い。無い・null は無し */
   weekday_times?: unknown
+  /** 時間の目標（分、`031`）。古い DB には無い。無い・null は無し */
+  goal_minutes?: number | null
 }
 
 interface TaskRow {
@@ -181,6 +184,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withTimeOverrides(row.time_overrides),
     ...withRestDates(row.rest_dates),
     ...withWeekdayTimes(row.weekday_times),
+    ...withGoalMinutes(row.goal_minutes),
   }
 }
 
@@ -202,6 +206,11 @@ function withWeekdayTimes(raw: unknown): Pick<Habit, 'weekdayTimes'> {
   return weekdayTimes ? { weekdayTimes } : {}
 }
 
+function withGoalMinutes(raw: unknown): Pick<Habit, 'goalMinutes'> {
+  const goalMinutes = readHabitGoalMinutes(raw)
+  return goalMinutes ? { goalMinutes } : {}
+}
+
 function habitToRow(userId: string, h: Habit): HabitRow {
   return {
     id: h.id,
@@ -219,6 +228,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     time_overrides: h.timeOverrides ?? null,
     rest_dates: h.restDates ?? null,
     weekday_times: h.weekdayTimes ?? null,
+    goal_minutes: h.goalMinutes ?? null,
   }
 }
 

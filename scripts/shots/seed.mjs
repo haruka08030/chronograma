@@ -372,6 +372,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       updatedAt: instant.toISOString(),
       completedDates: [yesterday],
       archivedAt: null,
+      // 時間の目標（1 回 20 分以上。#293）
+      goalMinutes: 20,
     },
     // 週に◯回の習慣（曜日は決めない。回数を満たした週は「今週は達成」）
     {

@@ -3,7 +3,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { isHabitRestOn, type Habit } from '../../types/habit'
 import { habitLongestStreak, habitStreak, isHabitCountedOnDate } from '../../lib/habitStats'
 import { habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../lib/habitSchedule'
-import { habitDayStatus, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
+import { habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_TEXT } from '../../lib/dayMarker'
@@ -148,6 +148,9 @@ function HabitWeekRow({
           const isDue = isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
           const isFuture = key > todayKey
           const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
+          // 時間の目標に届いていない日の分（読み上げとツールチップだけ。マスには出さない）
+          const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
+          const progress = minutes > 0 ? t('habits.goalProgress', { done: minutes, goal: h.goalMinutes }) : null
           const cellDate = df.monthDayWeekday(d)
           const cellLabel = record
             ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
@@ -155,7 +158,9 @@ function HabitWeekRow({
               ? t('habits.cellDoneAria', { date: cellDate })
               : isRest
                 ? t('habits.restDayAria', { date: cellDate })
-                : cellDate
+                : progress
+                  ? `${cellDate} ${progress}`
+                  : cellDate
           return (
             <button
               key={key}
@@ -165,7 +170,13 @@ function HabitWeekRow({
               aria-label={cellLabel}
               aria-pressed={isDone || isOffTime}
               className="group/cell flex h-10 items-center justify-center"
-              {...tip(record ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime }) : undefined)}
+              {...tip(
+                record
+                  ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime })
+                  : progress
+                    ? `${cellDate} ${progress}`
+                    : undefined,
+              )}
             >
               <span
                 className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
