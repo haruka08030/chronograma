@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from './taskStore'
 import { INBOX_ID } from './storeConstants'
-import { clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
+import { IMPORT_ROLLBACK_KEEP_DAYS, clearImportRollback, loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { buildBackupPayload } from '../lib/backupFormat'
 
 const st = () => useTaskStore.getState()
@@ -90,7 +90,7 @@ describe('バックアップの取り込みと「取り込み前に戻す」', (
   it('控えが壊れていたら戻さずに控えを消す（手元はそのまま）', () => {
     seedCurrent()
     const tasks = st().tasks
-    saveImportRollback({ json: '{broken', savedAt: '2026-10-01T00:00:00.000Z', taskCount: 3 })
+    saveImportRollback({ json: '{broken', savedAt: new Date().toISOString(), taskCount: 3 })
     expect(st().restoreBeforeImport()).toBe(false)
     expect(st().tasks).toBe(tasks)
     expect(loadImportRollback()).toBeNull()
@@ -115,10 +115,27 @@ describe('importRollback（控えの読み書き）', () => {
     const json = JSON.stringify(
       buildBackupPayload({ tasks: [], lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} }),
     )
-    localStorage.setItem('chronograma-import-rollback-v1', JSON.stringify({ json, savedAt: '2026-10-01T00:00:00.000Z' }))
-    expect(loadImportRollback()).toEqual({ json, savedAt: '2026-10-01T00:00:00.000Z', taskCount: 0 })
+    const savedAt = new Date().toISOString()
+    localStorage.setItem('chronograma-import-rollback-v1', JSON.stringify({ json, savedAt }))
+    expect(loadImportRollback()).toEqual({ json, savedAt, taskCount: 0 })
     clearImportRollback()
     expect(loadImportRollback()).toBeNull()
+  })
+
+  it(`控えは ${IMPORT_ROLLBACK_KEEP_DAYS} 日たったら捨てる（全データの写しを残し続けない）`, () => {
+    const savedAt = '2026-10-01T00:00:00.000Z'
+    saveImportRollback({ json: '{}', savedAt, taskCount: 1 })
+    const day = 24 * 60 * 60_000
+    expect(loadImportRollback(Date.parse(savedAt) + IMPORT_ROLLBACK_KEEP_DAYS * day - 1)).not.toBeNull()
+    expect(loadImportRollback(Date.parse(savedAt) + IMPORT_ROLLBACK_KEEP_DAYS * day + 1)).toBeNull()
+    expect(localStorage.getItem('chronograma-import-rollback-v1')).toBeNull()
+  })
+
+  it('控えには持ち主（取り込んだときの dataOwner）を付ける', () => {
+    st().setDataOwner('u1')
+    seedCurrent()
+    st().importData(otherBackup())
+    expect(loadImportRollback()?.owner).toBe('u1')
   })
 })
 

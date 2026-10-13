@@ -34,6 +34,10 @@ export function externalPatch(
   return patch
 }
 
+/** 前回取り込んだ値を置くキーの頭（後ろに人の id）。ログアウトで消す（`deviceCleanup.ts`） */
+export const CANVAS_PULLED_PREFIX = 'chronograma-canvas-pulled-v1:'
+export const NOTION_PULLED_PREFIX = 'chronograma-notion-pulled-v1:'
+
 /** 前回取り込んだ値を、この端末に覚えておく（連携ごと・人ごと） */
 export function loadPulled(key: string): Record<string, PulledFields> {
   try {

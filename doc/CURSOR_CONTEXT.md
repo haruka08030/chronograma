@@ -365,7 +365,7 @@
   `isActiveTask` / `isArchivedTask` / `isDeletedTask`）。**削除は即時ハード削除ではなくソフト削除**
   で、`deleteTask` / `deleteTasks` は対象＋全子孫に `deletedAt`
   を付与し「ゴミ箱」へ。復元 `restoreDeletedTask`・完全削除
-  `permanentlyDeleteTask`・全消去 `emptyDeleted`。アーカイブは `archiveTask` /
+  `permanentlyDeleteTask`・全消去 `emptyDeleted`・ゴミ箱に入れて `TRASH_KEEP_DAYS`（30）日たったものの削除 `purgeExpiredDeleted`（起動時、同期でサーバーからも消える）。アーカイブは `archiveTask` /
   `archiveTasks`（子孫にも `archivedAt`）・解除 `unarchiveTask`。**削除済み /
   アーカイブ済みは通常ビュー（一覧・カレンダー・週・ログ・統計・検索・通知・予定vsログ・DnD・未完了カウント・サブタスク描画）から除外**し、`TaskBinView`
   だけが該当タスク（親も同じ箱にあれば親のみを代表表示）を出す。⌘Z（`undoLastOperation`）や削除トースト（`undoDelete`
