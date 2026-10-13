@@ -25,6 +25,7 @@ import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { readEventSeries, withSeries } from './eventSeries'
 import { readMovedPlans, withMovedPlans } from './movedPlans'
+import { readSomedayTier, withSomedayTier } from './somedayTier'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -97,6 +98,8 @@ interface TaskRow {
   event_series?: unknown
   /** 移した予定の控え（`032`）。古い DB には無い */
   moved_plans?: unknown
+  /** いつかの段（`034`、'dream' か null）。古い DB には無い */
+  someday_tier?: string | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -249,7 +252,9 @@ function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
   // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
   if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
-  return task.kind === 'todo' ? withMovedPlans(task, readMovedPlans(row.moved_plans)) : task
+  return task.kind === 'todo'
+    ? withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier))
+    : task
 }
 
 function rowToTaskFields(row: TaskRow): Task {
@@ -349,6 +354,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     source_task_id: task.sourceTaskId,
     event_series: isEventTask(task) ? (task.series ?? null) : null,
     moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
+    someday_tier: isTodoTask(task) ? (task.somedayTier ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,

@@ -31,6 +31,7 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
+import { somedayTierOf } from '../lib/somedayTier'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -95,7 +96,7 @@ export function TaskList({
 
   const selectedList = selectedListId ? (lists.find((l) => l.id === selectedListId) ?? null) : null
 
-  const { filtered, groupingScope, groupBySection, hasSections, showSectionBlocks, active, sectionBlocks } = useTaskListRows({
+  const rows = useTaskListRows({
     tasks,
     lists,
     sections,
@@ -107,11 +108,25 @@ export function TaskList({
     filterColor,
     taskFilter,
   })
+  const { filtered, groupingScope, groupBySection, hasSections } = rows
+  // いつかのリストは「夢」「やりたい」の 2 段で出す（#221）。段はセクションとは別なので、セクションの名前は行に添える
+  const tiered = listKind === 'someday' && Boolean(selectedListId)
+  const showSectionBlocks = !tiered && rows.showSectionBlocks
+  const sectionBlocks = tiered ? null : rows.sectionBlocks
+  const tiers = useMemo(
+    () =>
+      tiered
+        ? { dream: rows.active.filter((t) => somedayTierOf(t) === 'dream'), wish: rows.active.filter((t) => somedayTierOf(t) === 'wish') }
+        : null,
+    [tiered, rows.active],
+  )
+  /** 出している順の未完了のルート（段に分けるときは夢 → やりたい） */
+  const active = useMemo(() => (tiers ? [...tiers.dream, ...tiers.wish] : rows.active), [tiers, rows.active])
 
   /** 塊で分けないとき、行に出すセクション名 */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
   const sectionLabelFor = (task: { sectionId: string | null }) =>
-    !groupBySection && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
+    (!groupBySection || tiered) && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -345,6 +360,7 @@ export function TaskList({
               incompleteSubtasks={incompleteSubtasks}
               subtaskNestWithDrag={subtaskNestWithDrag}
               subtaskNestNoDrag={subtaskNestNoDrag}
+              tiers={tiers}
             />
           </div>
 

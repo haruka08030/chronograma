@@ -16,6 +16,7 @@ import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
 import { appTodayKey } from '../lib/timeZone'
+import { withDreamsFromSteps } from '../lib/somedayTier'
 
 /** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
 type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
@@ -314,6 +315,13 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
     // 許可のない端末では OFF に揃える（ON にし直すと許可を聞く）
     const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted'
     if (!granted) state.recordPrompts = false
+  }
+  if (version < 41) {
+    // いつかを「夢」と「やりたい」の 2 段に分けた（#221）。一歩（子）を持つ行は夢、ほかはやりたい。
+    // updatedAt は変えない（同期は中身の違いで送る。サーバーの行も 034 で同じ規則で直す）
+    const lists = (state.lists as TaskList[] | undefined) ?? []
+    const somedayIds = new Set(lists.filter((l) => l.kind === 'someday').map((l) => l.id))
+    state.tasks = withDreamsFromSteps((state.tasks as Task[] | undefined) ?? [], somedayIds)
   }
   return state as unknown as TaskState
 }

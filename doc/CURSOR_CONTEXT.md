@@ -140,6 +140,7 @@
   - 完了の印（`CompletionCircle` の `shape`）: To-Do は丸、チェックリストは四角、いつかは ☆ / ★
   - 締切・優先度の欄と並び順を出さない（行の日付ボタン、メニューの締切・優先度、`TaskDetail` の欄）。完了で「記録も付ける」を聞かない
   - いつかは行のカレンダーとメニューの「予定する」（`useScheduleWish` → `promoteToPlanned`。未分類へ移してその日の予定に。子だけ予定すると親から外れて 1 件になる）。下の一覧は「かなえたこと」
+  - いつかは「夢」「やりたい」の 2 段（`TaskList` の `tiers` → `TaskListActiveContent`、見出しは `SomedayTierHeading`（落とし先 `tier::dream` / `tier::wish`、`dragEnd.ts`））。段は `Task.somedayTier`（`'dream'` だけ、サーバーは `tasks.someday_tier`（`034`）、`setSomedayTier`）。夢の行の次の一歩と進み具合は `dreamSteps`
   - チェックリストは `toggleTask` が `toggleChecklistTree`（`lib/listTree.ts`）になる: 子のある行は子ごと、子がそろったら親もチェック済み。チェックした子は親の下に残す。下の「チェック済み」に「全部戻す」（`uncheckTasks`）「チェック済みを消す」
   - 追加欄の例文（`QuickAdd` の `placeholder`）。カレンダー（月・週・日パネル）と予定 vs ログからは除外
 - **記録の分類**: 分類は 1 つ選ぶチップ（`TimeLogTagField`、同じチップで解除、＋で追加すると設定の分類にも保存）。既定の分類

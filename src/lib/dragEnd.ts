@@ -14,6 +14,10 @@ import { canNestUnder } from './taskDepth'
 import { todoFilterFor } from './taskFilter'
 import { isIndentIntent, isOutdentIntent } from './taskDragIntent'
 import { compareByOrder } from './orderCompare'
+import { parseTierDropId, somedayTierOf } from './somedayTier'
+
+const isSomedayList = (state: { lists: { id: string; kind?: string }[] }, listId: string) =>
+  state.lists.find((l) => l.id === listId)?.kind === 'someday'
 
 /**
  * 画面全体の DndContext でドラッグを離したときの動き（タイマーへ・インデント・セクション/サブタスク/タスク/リストの並べ替え・
@@ -153,8 +157,19 @@ export function applyDragEnd(event: DragEndEvent) {
     })
     const built = buildReorderedActiveRootIdsForGroup(currentOrdered, taskId, overId, group, state.sections, state.selectedListId)
     if (built) {
-      state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
+      // いつかで別の段の行の前後へ落としたら、その段へも移す（並べ替えと 1 回の取り消しで戻る、#221）
+      const overTask = overId.startsWith(TASK_PREFIX) ? state.tasks.find((t) => t.id === overId.slice(TASK_PREFIX.length)) : undefined
+      const tier = overTask && isSomedayList(state, overTask.listId) ? somedayTierOf(overTask) : null
+      state.asOneUndo(() => {
+        state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
+        if (tier) state.setSomedayTier(group, tier)
+      })
     }
+  } else if (activeId.startsWith(TASK_PREFIX) && parseTierDropId(overId)) {
+    // いつかの段の見出しへ落としたら、その段へ移す
+    const taskId = activeId.slice(TASK_PREFIX.length)
+    const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]
+    useTaskStore.getState().setSomedayTier(group, parseTierDropId(overId)!)
   } else if (activeId.startsWith(TASK_PREFIX) && overId.startsWith(LABEL_DROP_PREFIX)) {
     const taskId = activeId.slice(TASK_PREFIX.length)
     const group = (active.data.current as TaskRootDragData | undefined)?.dragGroupRootIds ?? [taskId]

@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
+import { dreamSteps } from '../lib/somedayTier'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
@@ -124,6 +125,14 @@ export const TaskItem = memo(function TaskItem({
   // いつか・チェックリストのリストは完了の印・日付のボタンだけ変える（操作は To-Do と同じ）
   const listKind = useTaskStore((s) => s.lists.find((l) => l.id === task.listId)?.kind ?? 'tasks')
   const scheduleWish = useScheduleWish()
+  // いつかの夢（#221）: 本体は予定にせず、行に次の一歩と進み具合を出す。描き直しを抑えるため文字 1 つで受け取る
+  const dream = listKind === 'someday' && !task.parentId && task.somedayTier === 'dream'
+  const dreamStepKey = useTaskStore((s) => {
+    if (!dream) return ''
+    const steps = dreamSteps(s.tasks, task.id)
+    return steps ? `${steps.done}/${steps.total}\u0000${steps.next?.title ?? ''}` : ''
+  })
+  const [dreamProgress, dreamNext] = dreamStepKey ? dreamStepKey.split('\u0000') : ['', '']
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -419,6 +428,14 @@ export const TaskItem = memo(function TaskItem({
                 {scheduled.text}
               </span>
             )}
+            {dreamStepKey && (
+              <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                {dreamNext && <span className="max-w-[14rem] truncate">{t('someday.nextStep', { title: dreamNext })}</span>}
+                <span className="tabular-nums" aria-label={t('someday.stepProgressAria', { progress: dreamProgress })}>
+                  {dreamProgress}
+                </span>
+              </span>
+            )}
             {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
             {repeatText && (
               <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
@@ -445,7 +462,7 @@ export const TaskItem = memo(function TaskItem({
           </div>
         </div>
 
-        {listKind === 'someday' && !task.completed && (
+        {listKind === 'someday' && !task.completed && !dream && (
           // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
           <DueDatePopover
             value={null}

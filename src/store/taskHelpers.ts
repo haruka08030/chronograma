@@ -71,6 +71,8 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   }
   if (patch.listId !== undefined && patch.listId !== task.listId) {
     applied.sectionId = null
+    // いつかの段（夢）はそのいつかの中だけのもの。ほかのリストへ移したら外す
+    if ('somedayTier' in applied) delete applied.somedayTier
   }
   // 毎週の印は予定だけ。To-Do にしたらその回は繰り返しから外れる
   if (patch.kind !== undefined && patch.kind !== 'event' && 'series' in applied) delete applied.series

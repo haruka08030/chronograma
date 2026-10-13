@@ -509,6 +509,12 @@ export default {
     clearChecked: 'Clear checked',
   },
   someday: {
+    tierDream: 'Dreams',
+    tierWish: 'Wishes',
+    moveToDream: 'Move to Dreams',
+    moveToWish: 'Move to Wishes',
+    nextStep: 'Next step: {{title}}',
+    stepProgressAria: 'Steps done {{progress}}',
     addPlaceholder: 'Add something for someday',
     schedule: 'Schedule',
     scheduleItem: 'Schedule “{{title}}”',
