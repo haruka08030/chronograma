@@ -20,15 +20,22 @@ import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
-import { endKeepingLength, toMinutes } from '../../lib/clockTime'
+import { endKeepingLength, minutesToTime, toMinutes } from '../../lib/clockTime'
 import { CardTimeRange } from './CardTimeRange'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 import { compareByOrder } from '../../lib/orderCompare'
+import { pickTodoForSlot } from '../../lib/slotFitTodo'
+import { formatDuration } from '../../lib/timeGrid'
+import { menuDateHint } from '../../lib/menuDateHint'
+import { toastTitle } from '../../lib/undoWindow'
+import { MENU_ROW_HOVER, MENU_ROW_PRESS } from '../ui/surface'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
 /** リストの欄で「Google カレンダー」を選んだとき（予定だけ。Google の予定として作る） */
 const GOOGLE_TARGET = '__google__'
+/** 「◯◯を置く」の文の中で題名の入る所の目印 */
+const FIT_TITLE = '\u0001'
 
 /** 作るもの（Google カレンダーのクイック作成の「予定 / タスク」と同じ切り替え）と、予定を Google に作るか。端末に覚える */
 type QuickCreateChoice = { kind: 'todo' | 'event'; eventToGoogle: boolean }
@@ -94,10 +101,17 @@ export function QuickCreatePopover({
   const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
-  const plannable = useMemo(() => {
-    const excluded = unplannedListIds(lists)
-    return [...lists].filter((l) => !excluded.has(l.id)).sort(compareByOrder)
-  }, [lists])
+  const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const plannable = useMemo(() => [...lists].filter((l) => !excludedListIds.has(l.id)).sort(compareByOrder), [lists, excludedListIds])
+  const tasks = useTaskStore((s) => s.tasks)
+  const slotStart = toMinutes(startTime) ?? 0
+  const slotMinutes = (toMinutes(endTime) ?? 0) - slotStart
+  // 枠に入る To-Do を 1 件だけ（記録の列では出さない。書き始めたら消す）
+  const fit = useMemo(
+    () => (asLog ? null : pickTodoForSlot(tasks, dateKey, slotMinutes, excludedListIds)),
+    [asLog, tasks, dateKey, slotMinutes, excludedListIds],
+  )
+  const showFit = fit != null && title.trim() === ''
   const [listId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -149,8 +163,33 @@ export function QuickCreatePopover({
     onCreated(id, openDetail)
   }
 
+  const placeFit = () => {
+    if (!fit?.estimateMinutes) return
+    const end = minutesToTime(Math.min(slotStart + fit.estimateMinutes, 24 * 60))
+    updateTask(
+      fit.id,
+      { scheduledDate: dateKey, startTime, endTime: end },
+      t('undo.timeSet', { title: toastTitle(fit.title), time: `${startTime}–${end}` }),
+    )
+    onClose()
+  }
+
+  // 題名だけ切り詰めるので、文の前後（言語で語順が違う）を分けて出す
+  const fitText =
+    fit?.estimateMinutes != null
+      ? t('quickCreate.fit', {
+          title: FIT_TITLE,
+          meta: fit.dueDate
+            ? t('quickCreate.fitMetaDue', {
+                length: formatDuration(fit.estimateMinutes),
+                due: menuDateHint([{ date: fit.dueDate, time: fit.dueTime }], i18n.resolvedLanguage),
+              })
+            : formatDuration(fit.estimateMinutes),
+        }).split(FIT_TITLE)
+      : []
+
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (!asLog ? 270 : 230) + (editingTime ? 30 : 0))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (!asLog ? 270 : 230) + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
@@ -196,6 +235,18 @@ export function QuickCreatePopover({
         placeholder={asLog ? t('quickCreate.logPlaceholder') : t('quickCreate.titlePlaceholder')}
         className="w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
       />
+      {showFit && fit.estimateMinutes != null && (
+        // 既にある To-Do を枠の開始に見積もりの長さで置く（1 件だけ。選ぶ前に選択肢を並べない）
+        <button
+          type="button"
+          onClick={placeFit}
+          className={`-mx-1.5 mt-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-center rounded-md px-1.5 py-1 text-left text-sm text-zinc-600 transition-colors dark:text-zinc-300 ${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`}
+        >
+          <span className="shrink-0 whitespace-pre">{fitText[0]}</span>
+          <span className="min-w-0 truncate font-medium text-zinc-800 dark:text-zinc-100">{fit.title || t('quickCreate.untitled')}</span>
+          <span className="shrink-0 whitespace-pre">{fitText[1]}</span>
+        </button>
+      )}
       <div className={`mt-3 flex gap-2 text-sm text-zinc-600 dark:text-zinc-300 ${editingTime ? 'items-start' : 'items-center'}`}>
         <ClockIcon className={`h-4 w-4 shrink-0 text-zinc-400 ${editingTime ? 'mt-0.5' : ''}`} strokeWidth={1.75} />
         {editingTime ? (
