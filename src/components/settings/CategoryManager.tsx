@@ -13,7 +13,9 @@ import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
 import { HINT_TEXT, META_TEXT } from '../ui/textClass'
-import { isLogTask } from '../../types/task'
+import { isLogTask, type Task } from '../../types/task'
+import { isUnlabeledLog } from '../../lib/logCategory'
+import { UntaggedLogList } from '../UntaggedLogList'
 import { REVEAL_ON_HOVER } from '../ui/revealClass'
 
 const USAGE_DAYS = 30
@@ -33,9 +35,11 @@ export function CategoryManager() {
 
   const [editorOpen, setEditorOpen] = useState(false)
 
-  /** 分類 → 直近 30 日の分数（分類なしは ''） */
-  const usage = useMemo(() => {
+  /** 分類 → 直近 30 日の分数（分類なしは ''）と、ラベルなし（ラベル名も色も無い。睡眠は除く）の記録の分数・新しい順の id */
+  const { usage, unlabeledMinutes, unlabeledIds } = useMemo(() => {
     const map = new Map<string, number>()
+    const unlabeled: Task[] = []
+    let unlabeledMin = 0
     const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
     for (const task of tasks) {
       if (!isLogTask(task) || !isActiveTask(task)) continue
@@ -44,8 +48,13 @@ export function CategoryManager() {
       if (minutes <= 0) continue
       const key = task.category ?? ''
       map.set(key, (map.get(key) ?? 0) + minutes)
+      if (isUnlabeledLog(task)) {
+        unlabeled.push(task)
+        unlabeledMin += minutes
+      }
     }
-    return map
+    unlabeled.sort((a, b) => `${b.dueDate} ${b.startTime ?? ''}`.localeCompare(`${a.dueDate} ${a.startTime ?? ''}`))
+    return { usage: map, unlabeledMinutes: unlabeledMin, unlabeledIds: unlabeled.map((x) => x.id) }
   }, [tasks])
 
   const unlisted = useMemo(() => {
@@ -56,7 +65,8 @@ export function CategoryManager() {
     return [...set]
   }, [tasks, presets])
 
-  const uncategorized = usage.get('') ?? 0
+  // 開いたときのラベルなしの記録（付けても行は残し、押し間違いを直せる）。閉じていれば null
+  const [unlabeledOpen, setUnlabeledOpen] = useState<string[] | null>(null)
   // まだ 1 件も記録していない人に、全部のラベルへ「未使用」と並べない（責められているように見える）
   const anyUsage = usage.size > 0
 
@@ -103,7 +113,7 @@ export function CategoryManager() {
 
       <SettingsLinkRow label={t('labels.edit')} onClick={() => setEditorOpen(true)} />
 
-      {(unlisted.length > 0 || uncategorized > 0) && (
+      {(unlisted.length > 0 || unlabeledMinutes > 0 || unlabeledOpen) && (
         <div className={`space-y-2 px-4 py-3 ${HINT_TEXT}`}>
           {unlisted.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
@@ -115,7 +125,21 @@ export function CategoryManager() {
               ))}
             </div>
           )}
-          {uncategorized > 0 && <p>{t('categories.uncategorizedTime', { time: formatDuration(uncategorized) })}</p>}
+          {(unlabeledMinutes > 0 || unlabeledOpen) && (
+            <div>
+              {/* 押すとラベルなしの記録を並べ、行のチップで付ける（「1 日を締める」と同じ行） */}
+              <button
+                type="button"
+                aria-expanded={unlabeledOpen !== null}
+                onClick={() => setUnlabeledOpen((v) => (v ? null : unlabeledIds))}
+                className="-mx-1 inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-left transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                {t('categories.uncategorizedTime', { time: formatDuration(unlabeledMinutes) })}
+                <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 transition-transform ${unlabeledOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {unlabeledOpen && <UntaggedLogList ids={unlabeledOpen} showDate />}
+            </div>
+          )}
         </div>
       )}
       {editorOpen && <LabelsDialog onClose={() => setEditorOpen(false)} />}

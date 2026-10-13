@@ -5,7 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
-import { isActiveTask } from '../lib/taskLifecycle'
+import { isUnlabeledLog } from '../lib/logCategory'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
@@ -14,7 +14,6 @@ import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
-import { isLogTask, isSleepTask } from '../types/task'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
@@ -101,13 +100,11 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  /** 推定でも分類が決まらなかった今日の記録（1 日を締めるときにまとめて付ける） */
+  /** ラベル名も色も無い今日の記録（1 日を締めるときにまとめて付ける） */
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter(
-          (x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0,
-        )
+        .filter((x) => isUnlabeledLog(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
