@@ -19,6 +19,7 @@ import { formatDuration } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { ShowMoreButton } from '../ui/ShowMoreButton'
+import { shortDate } from '../../lib/moveToast'
 
 /**
  * 今日の計画の候補（締切間近・その先・日付なし）。畳んだ 1 行で、開くと締切の日ごとのまとまり。
@@ -142,6 +143,10 @@ export function PlannerSuggestions({
                       rescheduleTasks(
                         addAllTargets.map((x) => x.id),
                         dateKey,
+                        // やり残しの「すべて今日へ」と同じく件数と「元に戻す」
+                        viewingToday
+                          ? t('undo.tasksMovedToToday', { count: addAllTargets.length })
+                          : { key: 'undo.tasksMovedToDate', params: { count: addAllTargets.length, date: shortDate(dateKey) } },
                       )
                     }
                     className={`ml-11 mt-1 ${buttonClass({ variant: 'link', size: 'xs' })}`}
