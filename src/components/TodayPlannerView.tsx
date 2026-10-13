@@ -155,6 +155,7 @@ export function TodayPlannerView() {
   const {
     moreSuggestions,
     candidateGroups,
+    dueGroups,
     remaining: moreRemaining,
     showMore,
     shownSuggestions,
@@ -331,6 +332,7 @@ export function TodayPlannerView() {
             addAllTargets={shownSuggestions}
             pool={candidatePool}
             candidateGroups={candidateGroups}
+            dueGroups={dueGroups}
             open={showSuggestions}
             onToggle={() => setSuggestionsChoice(!showSuggestions)}
             remaining={moreRemaining}

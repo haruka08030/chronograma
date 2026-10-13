@@ -257,6 +257,35 @@ describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332
     act(() => void useTaskStore.setState({ dailyCapacityMinutes: 1440 }))
     expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
   })
+
+  it('優先度順では見出しを足さず、入りきらない締切の行の締切を赤くして数字はツールチップ', async () => {
+    const inTwo = toDateKey(addDays(appToday(), 2))
+    const inFive = toDateKey(addDays(appToday(), 5))
+    useTaskStore.setState({
+      dailyCapacityMinutes: 120,
+      plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'priority' },
+      tasks: [
+        todo('Report', { dueDate: inTwo, estimateMinutes: 600, priority: 'high' }),
+        todo('Memo', { dueDate: inTwo, order: 1 }),
+        todo('Essay', { dueDate: inFive, estimateMinutes: 60, order: 2 }),
+      ],
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Add from to-dos|Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    // 2 日後の締切: 見積もり 10 時間 / 空き 4 時間。見積もりの無い行も同じ締切なので赤。5 日後は 11 時間 / 10 時間で入りきらない
+    const overRows = [...document.querySelectorAll('[data-due-fit="over"]')].map((el) =>
+      el.closest('[data-task-row]')?.getAttribute('data-task-row'),
+    )
+    expect(overRows).toEqual(['Report', 'Memo', 'Essay'])
+    expect(document.querySelector('[data-task-row="Report"] [data-due-fit]')!.textContent).toMatch(/Estimated 10h/)
+    expect(screen.queryByText("won't fit")).toBeNull()
+    // 空きが足りれば元の色のまま
+    act(() => void useTaskStore.setState({ dailyCapacityMinutes: 1440 }))
+    expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
+  })
 })
 
 describe('TodayPlannerView: 候補は「さらに表示」で足す（#372）', () => {

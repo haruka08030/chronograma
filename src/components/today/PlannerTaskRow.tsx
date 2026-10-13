@@ -45,6 +45,7 @@ export function PlannerTaskRow({
   dueMode = 'all',
   hoverActions = false,
   lead,
+  dueOverHint,
 }: {
   task: Task
   env: PlannerRowEnv
@@ -53,6 +54,8 @@ export function PlannerTaskRow({
   hoverActions?: boolean
   /** 題名の前に置く短い語（スマホの「今」「次」） */
   lead?: ReactNode
+  /** 締切までの見積もりが空きに入りきらない（#332）ときの数字。締切の文字を締切の赤にして、数字はツールチップ */
+  dueOverHint?: string
 }) {
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -166,7 +169,14 @@ export function PlannerTaskRow({
         </span>
       )}
       {meta.due && !task.completed && (
-        <span className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS[meta.due.tone]} ${metaHide}`}>{meta.due.text}</span>
+        <span
+          data-due-fit={dueOverHint ? 'over' : undefined}
+          {...tip(dueOverHint)}
+          className={`shrink-0 text-xs tabular-nums ${dueOverHint ? META_TONE_CLASS.overdue : META_TONE_CLASS[meta.due.tone]} ${metaHide}`}
+        >
+          {meta.due.text}
+          {dueOverHint && <span className="sr-only"> {dueOverHint}</span>}
+        </span>
       )}
       {meta.time && !task.completed && (
         <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>
