@@ -1480,6 +1480,9 @@ export default {
     switch: 'Drop here to switch timer',
   },
   floatingTimer: {
+    editTitle: 'Edit title',
+    editLabel: 'Change label',
+    addLabel: 'Label',
     completePrompt: 'Mark “{{title}}” as done?',
     notYet: 'Not yet',
     markDone: 'Mark done',

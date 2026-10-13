@@ -1429,6 +1429,9 @@ export default {
     switch: 'ここに落として記録を切り替え',
   },
   floatingTimer: {
+    editTitle: '題名を直す',
+    editLabel: 'ラベルを変える',
+    addLabel: 'ラベル',
     completePrompt: '「{{title}}」を完了にしますか？',
     notYet: 'まだ',
     markDone: '完了にする',
