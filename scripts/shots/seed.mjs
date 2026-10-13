@@ -53,6 +53,7 @@ function task(fields, stamp) {
     estimateMinutes: fields.estimateMinutes ?? null,
     sourceTaskId: fields.sourceTaskId ?? null,
     ...(fields.movedPlans ? { movedPlans: fields.movedPlans } : {}),
+    ...(fields.somedayTier ? { somedayTier: fields.somedayTier } : {}),
     archivedAt: null,
     deletedAt: null,
   }
@@ -235,7 +236,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, order: 0 }, instant),
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, instant),
     // 下に置いた子（目標の下の一歩、メニューの下の材料）
-    task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2 }, instant),
+    // 一歩を置いた夢（いつかの上の段、#221）
+    task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2, somedayTier: 'dream' }, instant),
     task({ id: 's22', title: 'HSK 4 級に合格', listId: SOMEDAY_ID, parentId: 's21', order: 0 }, instant),
     task({ id: 's23', title: '単語帳を 1 冊終える', listId: SOMEDAY_ID, parentId: 's21', order: 1, completed: true }, instant),
     task({ id: 's15', title: '牛乳', listId: SHOPPING_ID, order: 0 }, instant),

@@ -18,6 +18,7 @@ import { readEstimateMinutes } from './estimate'
 import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
+import { readSomedayTier } from './somedayTier'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -217,10 +218,13 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   // 毎週の予定の印（#279）は予定の行だけ。印のある行だけ項目を持つ
   const series = kind === 'event' ? readEventSeries(row.series ?? row.event_series) : null
   // 移した予定の控え（#158）は To-Do の行だけ。控えのある行だけ項目を持つ
+  // いつかの段（#221）は To-Do の行だけ。夢の行だけ項目を持つ
+  const somedayTier = kind === 'todo' ? readSomedayTier(row.somedayTier ?? row.someday_tier) : null
   const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
   return {
     ...(series ? { series } : {}),
     ...(movedPlans ? { movedPlans } : {}),
+    ...(somedayTier ? { somedayTier } : {}),
     id,
     title,
     listId,

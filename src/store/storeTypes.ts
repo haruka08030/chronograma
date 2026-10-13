@@ -451,6 +451,8 @@ export interface TaskState {
   uncheckTasks: (ids: string[]) => void
   /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */
   promoteToPlanned: (id: string, dateKey: string) => void
+  /** いつかの段を変える（#221）。`dream` は夢、`wish` はやりたい。ルートの行だけ（一歩＝子は段を持たない） */
+  setSomedayTier: (ids: string[], tier: 'dream' | 'wish') => void
   /** ゴミ箱から復元（対象と全子孫の deletedAt をクリア） */
   restoreDeletedTask: (id: string) => void
   /** ゴミ箱からまとめて復元（2 件以上なら件数のトースト）。Undo は 1 段 */

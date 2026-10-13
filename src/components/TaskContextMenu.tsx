@@ -81,6 +81,7 @@ export function TaskContextMenu({
   const bulk = useBulkTaskActions()
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
+  const setSomedayTier = useTaskStore((s) => s.setSomedayTier)
 
   const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -101,6 +102,10 @@ export function TaskContextMenu({
   // 予定（完了の無いもの）だけなら、締切・優先度・完了は出さない
   const allEvents = targets.length > 0 && targets.every(isEventTask)
   const openWishes = targets.filter((x) => !x.completed).map((x) => x.id)
+  // いつかの夢は本体を予定にしない（一歩＝子を予定にする、#221）。段を変えられるのはルートの行だけ
+  const schedulableWishes = targets.filter((x) => !x.completed && !(x.somedayTier === 'dream' && !x.parentId)).map((x) => x.id)
+  const tierRoots = targets.filter((x) => !x.parentId && !x.completed)
+  const allDreams = tierRoots.length > 0 && tierRoots.every((x) => x.somedayTier === 'dream')
   const done = (fn: () => void) => () => {
     fn()
     onDone?.()
@@ -286,7 +291,7 @@ export function TaskContextMenu({
           kind="scheduled"
           value={null}
           onPick={(key) => {
-            done(() => scheduleWish(openWishes, key))()
+            done(() => scheduleWish(schedulableWishes, key))()
             close()
           }}
         />
@@ -303,10 +308,23 @@ export function TaskContextMenu({
     run: done(() => bulk.remove(taskIds)),
   }
   // いつか: 予定する・かなえた・削除だけ（かなえたものは削除だけ）
+  const tierEntry: ActionEntry[] =
+    tierRoots.length > 0 && tierRoots.length === targets.length
+      ? [
+          {
+            kind: 'leaf',
+            id: 'tier',
+            label: t(allDreams ? 'someday.moveToWish' : 'someday.moveToDream'),
+            icon: <ArrowRightIcon className={ICON} />,
+            run: done(() => setSomedayTier(taskIds, allDreams ? 'wish' : 'dream')),
+          },
+        ]
+      : []
   const somedayEntries: ActionEntry[] = [
     ...(openWishes.length > 0
       ? [
-          ...wishEntries,
+          ...(schedulableWishes.length > 0 ? wishEntries : []),
+          ...tierEntry,
           {
             kind: 'leaf' as const,
             id: 'complete',

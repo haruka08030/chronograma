@@ -495,6 +495,12 @@ export default {
     clearChecked: 'チェック済みを消す',
   },
   someday: {
+    tierDream: '夢',
+    tierWish: 'やりたい',
+    moveToDream: '夢へ移す',
+    moveToWish: 'やりたいへ移す',
+    nextStep: '次の一歩: {{title}}',
+    stepProgressAria: '済んだ一歩 {{progress}}',
     addPlaceholder: 'いつかやりたいことを追加',
     schedule: '予定する',
     scheduleItem: '「{{title}}」を予定する',
