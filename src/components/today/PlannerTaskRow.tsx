@@ -44,12 +44,15 @@ export function PlannerTaskRow({
   action,
   dueMode = 'all',
   hoverActions = false,
+  lead,
 }: {
   task: Task
   env: PlannerRowEnv
   action?: ReactNode
   dueMode?: DueMode
   hoverActions?: boolean
+  /** 題名の前に置く短い語（スマホの「今」「次」） */
+  lead?: ReactNode
 }) {
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -121,6 +124,7 @@ export function PlannerTaskRow({
         onClick={() => deferredComplete.toggle(task.id, task.completed)}
         label={t('taskItem.completeItem', { title: task.title })}
       />
+      {lead && <span className="shrink-0 text-xs font-medium text-zinc-500 dark:text-zinc-400">{lead}</span>}
       <div className="min-w-0 flex-1">
         <button
           type="button"

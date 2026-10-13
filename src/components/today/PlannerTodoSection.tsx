@@ -14,6 +14,7 @@ import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
 import { focusQuickAdd } from '../../lib/quickAddFocus'
+import { nowOrNextTask } from '../../lib/dayPlan'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
@@ -62,6 +63,8 @@ export function PlannerTodoSection({
   // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
   const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
   const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
+  // スマホは横にタイムラインが無いので、今日やる行の一番上に今・次の予定を 1 行（時間を決めた行にも残る）
+  const nowNext = viewingToday ? nowOrNextTask(timedOpen, day.now) : null
   const moveHere = (task: Task) => <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />
 
   const moveAllLeftOver = () =>
@@ -138,6 +141,17 @@ export function PlannerTodoSection({
             <p aria-hidden className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
               {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
             </p>
+          )}
+          {nowNext && (
+            // 下の時間を決めた行と同じタスクなので、キー操作・選択の対象には入れない（PC は横のタイムラインにある）
+            <ul data-now-next={nowNext.kind} className="md:hidden" role="group" aria-label={t('planner.nowNextAria')}>
+              <PlannerTaskRow
+                task={nowNext.task}
+                env={{ ...env, rowIds: [] }}
+                lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
+                dueMode="urgent"
+              />
+            </ul>
           )}
           <ul role="group" aria-label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}>
             {untimedOpen.map((task) => (
