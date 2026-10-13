@@ -17,6 +17,8 @@ import {
   pushListsTasksHabits,
   pushLogLabels,
   pushTimetable,
+  type SettingTable,
+  type SyncRound,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
 import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
@@ -25,7 +27,7 @@ import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
 import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { noteAppVersion } from '../lib/versionSeen'
-import { afterPush, createPullState, missingWithoutTombstone, pullRemote } from '../lib/syncPull'
+import { afterPush, loadPullState, missingWithoutTombstone, pullRemote, savePullState } from '../lib/syncPull'
 import {
   clearBaseline,
   DEFAULT_LIST_IDS,
@@ -60,7 +62,7 @@ import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
 import { planTimetableSync } from '../lib/timetable'
-import { createDayMoodPullState, runDayMoodSync } from '../lib/dayMood'
+import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
@@ -73,6 +75,51 @@ const POLL_MS = 60_000
  * ほかの端末で 1 件消すたびには取らない（#257）
  */
 const BEFORE_SYNC_BACKUP_MS = 10 * 60_000
+/** 画面に戻った・フォーカスが来たときに、どれかのタブがこれより前に同期し終えていなければ同期する（戻るたびに 2 回回していた、#258） */
+const RECENT_SYNC_MS = 5_000
+/** 設定ごとの表（`sync_changes_since` が返す版） */
+const SETTING_TABLE: Record<SettingKey, SettingTable> = {
+  labels: 'user_settings',
+  zones: 'user_extra_time_zones',
+  timer: 'user_active_timer',
+  templates: 'user_event_templates',
+  courses: 'user_course_links',
+  timetable: 'user_timetable',
+}
+
+/**
+ * どれかのタブがこの人の同期を最後に終えた時刻（localStorage、タブで共有）。1 分ごとの取得は、ほかのタブがその間に取っていれば飛ばす
+ * （タブの数だけ 1 分ごとに取りに行っていた、#258。ほかのタブの取り込んだ内容は保存の変更で届く）
+ */
+const SYNCED_AT_KEY = (userId: string) => `chronograma-sync-done-at-v1:${userId}`
+function lastSyncedByAnyTab(userId: string): number {
+  try {
+    const v = Number(localStorage.getItem(SYNCED_AT_KEY(userId)))
+    return Number.isFinite(v) ? v : 0
+  } catch {
+    return 0
+  }
+}
+function noteSyncedByThisTab(userId: string): void {
+  try {
+    localStorage.setItem(SYNCED_AT_KEY(userId), String(Date.now()))
+  } catch {
+    /* 書けなければ、どのタブも自分の 1 分ごとに取る（前と同じ） */
+  }
+}
+
+/** 差分で取りこぼして全部を取り直した回数（まだ送っていない分）と、最後に送った時刻。送るのは 1 日 1 回まで */
+let deltaMisses = 0
+let deltaMissReportedAt = -Infinity
+const DELTA_MISS_REPORT_MS = 24 * 60 * 60_000
+function noteDeltaMiss(): void {
+  deltaMisses++
+  if (Date.now() - deltaMissReportedAt < DELTA_MISS_REPORT_MS) return
+  reportSyncError('delta-miss', 'delta fetch missed rows; fetched everything', { count: deltaMisses })
+  deltaMisses = 0
+  deltaMissReportedAt = Date.now()
+}
+
 /** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
 const MAX_STALE_RETRIES = 3
 
@@ -195,8 +242,12 @@ export function useSupabaseSync() {
     let limitHit = false
     /** アプリの版が同期の下限より古い（送らない） */
     let outdated = false
-    /** 前回取得したサーバーの内容と、差分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
-    const pull = createPullState()
+    /** 前回取得したサーバーの内容と、差分の取得の目印（前に開いたときに残したものから。無ければ最初の同期は全部を取る、#258） */
+    const pull = loadPullState(userId)
+    /** この同期の 1 往復（`sync_changes_since`）で分かったこと（設定の版・1 日の気分）。関数が無い DB では null */
+    let round: SyncRound | null = null
+    /** `round` の 1 日の気分を取った目印 */
+    let roundMoodSince: string | null = null
     /** 1 日の気分の取得の目印（このログインの間だけ。最初の同期は全部を取る） */
     const moodPull = createDayMoodPullState()
     /** ログインする前のデータをこのアカウントに入れてよいと答えた（送るのに失敗して回り直しても聞き直さない） */
@@ -241,6 +292,8 @@ export function useSupabaseSync() {
         isCancelled: () => cancelled,
         clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0,
         maxStaleRetries: MAX_STALE_RETRIES,
+        // 版が手元のもとにした版と同じで、手元でも変えていなければ取りに行かない
+        remoteVersion: round ? round.settingVersions[SETTING_TABLE[s.key]] : undefined,
       })
 
     /** ラベル表（名前・並び・色・週の目安） */
@@ -292,6 +345,8 @@ export function useSupabaseSync() {
         push: (p) => pushLogLabels(supabase, userId, p, p.base),
         // 送れた表に入った取り込みのラベルは、もう覚えない
         onPushed: (p) => dropPendingLabelAdds(p.labels.map((l) => l.name)),
+        // 取り込みで足したラベルが残っていれば、版が同じでも合わせて送る
+        idle: () => useTaskStore.getState().logLabelPendingAdds.length === 0,
       })
 
     /** 他のタイムゾーン（並び・名前） */
@@ -365,6 +420,8 @@ export function useSupabaseSync() {
           asIncomingChange(() => useTaskStore.setState({ timetable, timetableUpdatedAt: updatedAt })),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ timetableUpdatedAt: at })),
         push: (p) => pushTimetable(supabase, userId, p, p.base),
+        // 一度も変えていない既定の値は送らない（`planTimetableSync`）。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
       })
     /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
     const syncDayMoods = () =>
@@ -376,7 +433,14 @@ export function useSupabaseSync() {
           set: (dayMoods) => asIncomingChange(() => useTaskStore.setState({ dayMoods })),
         },
         moodPull,
-        { isCancelled: () => cancelled, clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0, maxStaleRetries: MAX_STALE_RETRIES },
+        {
+          isCancelled: () => cancelled,
+          clockOffsetMs: loadBaseline(userId)?.clockOffsetMs ?? 0,
+          maxStaleRetries: MAX_STALE_RETRIES,
+          // 同じ 1 往復で取ってある
+          prefetched: round?.dayMoods && roundMoodSince !== null ? { since: roundMoodSince, rows: round.dayMoods } : undefined,
+          serverNow: round?.now,
+        },
       )
 
     /** 動いているタイマー（どの端末でも同じタイマー、#301） */
@@ -412,8 +476,20 @@ export function useSupabaseSync() {
     const syncOnceLocked = async (): Promise<boolean> => {
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
+      // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る。
+      // 版の下限・設定の版・1 日の気分も同じ 1 往復で取る（`sync_changes_since`、#258）
+      const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
+      const moodSince = dayMoodSince(moodPull)
+      round = null
+      const pulled = await pullRemote(supabase, userId, pull, { full: !known, moodSince })
+      if (cancelled) return true
+      if ('error' in pulled) {
+        console.error('[sync]', pulled.error)
+        reportSyncError('pull', pulled.error)
+        return false
+      }
       // 版の下限より古いアプリは送らない（端末の時計で書き勝たないように）。読み込み直しを促す
-      const min = await fetchMinSyncVersion(supabase)
+      const min = pulled.round ? pulled.round.minSyncVersion : await fetchMinSyncVersion(supabase)
       if (cancelled) return true
       if (typeof min !== 'number') {
         console.error('[sync]', min.error)
@@ -426,21 +502,16 @@ export function useSupabaseSync() {
         outdated = true
         return false
       }
-      // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る
-      const known = useTaskStore.getState().dataOwner !== null ? loadBaseline(userId) : null
-      const pulled = await pullRemote(supabase, userId, pull, { full: !known })
-      if (cancelled) return true
-      if ('error' in pulled) {
-        console.error('[sync]', pulled.error)
-        reportSyncError('pull', pulled.error)
-        return false
-      }
+      round = pulled.round ?? null
+      roundMoodSince = moodSince
       let remote = pulled.snapshot
       if (!pulled.full && known) {
         // 差分で取りこぼしがあると、手元の行を「他の端末で消された」と読んでしまう。消えた印の無い行があれば全部を取り直す
         const missing = missingWithoutTombstone(localSnapshot(), known, remote, pulled.tombstoned)
         if (missing.length > 0) {
           console.warn('[sync] delta missed rows, fetching everything', missing.slice(0, 5))
+          // 多ければ差分が効いていない。回数だけを間引いて記録に送る
+          noteDeltaMiss()
           const again = await pullRemote(supabase, userId, pull, { full: true })
           if (cancelled) return true
           if ('error' in again) {
@@ -667,6 +738,9 @@ export function useSupabaseSync() {
       if (ok) {
         retryMs = 0
         clearTimeout(retry)
+        // 前回取得したサーバーの内容と目印を残す（開き直したときも差分で取る）。本体を保存できていない間は残さない
+        if (!useTaskStore.getState().storageFull && !outdated) savePullState(userId, pull)
+        noteSyncedByThisTab(userId)
         setSyncState('idle', new Date().toISOString())
         return
       }
@@ -713,8 +787,11 @@ export function useSupabaseSync() {
       debounce = setTimeout(() => void sync(), DEBOUNCE_MS)
     })
 
+    /** 画面に戻った・フォーカスが来た（両方が続けて来る）。同期中か、どれかのタブが今さっき同期し終えていれば回さない */
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void sync()
+      if (document.visibilityState !== 'visible' || running) return
+      if (Date.now() - lastSyncedByAnyTab(userId) < RECENT_SYNC_MS) return
+      void sync()
     }
     /** 回線が戻ったら待たずに送る（地下鉄で編集 → 浮上してそのまま、を防ぐ） */
     const onOnline = () => {
@@ -724,8 +801,11 @@ export function useSupabaseSync() {
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
     window.addEventListener('online', onOnline)
+    // 1 分ごとの取得は、ほかのタブがこの 1 分の間に取っていれば飛ばす（2 タブ開いても 1 分に 1 本）
     const poll = setInterval(() => {
-      if (document.visibilityState === 'visible') void sync()
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastSyncedByAnyTab(userId) < POLL_MS - RECENT_SYNC_MS) return
+      void sync()
     }, POLL_MS)
 
     return () => {

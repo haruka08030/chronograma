@@ -145,6 +145,10 @@ export interface SettingSyncDeps<
   push: (p: P) => Promise<SettingPushResult>
   /** 送ったものがサーバーに通ったあと（断られた・失敗したときは呼ばない）。通ったときだけしてよいこと（記録を足すなど）に使う */
   onPushed?: (p: P) => void
+  /** 時刻のほかに、手元に送るものが残っていないか（取り込みで足したラベルなど）。無ければ常に true */
+  idle?: () => boolean
+  /** サーバーに行が無く、手元で一度も変えていなければ何もしない設定か（時間割は既定の値を送らない） */
+  emptyWhenUnset?: boolean
 }
 
 /**
@@ -158,10 +162,24 @@ export async function runSettingSync<
 >(
   userId: string,
   s: SettingSyncDeps<R, A, P>,
-  opts: { isCancelled?: () => boolean; clockOffsetMs?: number; maxStaleRetries?: number } = {},
+  opts: {
+    isCancelled?: () => boolean
+    clockOffsetMs?: number
+    maxStaleRetries?: number
+    /**
+     * 同じ同期の 1 往復（`sync_changes_since`）で分かったサーバーの版（行が無ければ null、分からなければ undefined）。
+     * 手元のもとにした版と同じで、手元でも変えていなければ取りに行かない（#258。何も変わらない同期で設定ごとに 1 往復していた）
+     */
+    remoteVersion?: string | null
+  } = {},
 ): Promise<void> {
   const cancelled = opts.isCancelled ?? (() => false)
   const retries = opts.maxStaleRetries ?? 3
+  if (opts.remoteVersion != null) {
+    const syncedAt = loadSettingSyncedAt(userId, s.key)
+    if (syncedAt === opts.remoteVersion && s.localUpdatedAt() === syncedAt && (s.idle?.() ?? true)) return
+  }
+  if (opts.remoteVersion === null && s.emptyWhenUnset && s.localUpdatedAt() === null) return
   for (let attempt = 0; attempt <= retries; attempt++) {
     const remote = await s.fetch()
     if (cancelled()) return

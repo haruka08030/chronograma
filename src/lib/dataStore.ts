@@ -13,6 +13,8 @@
 import { LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const BASELINE_KEY_PREFIX = 'chronograma-sync-baseline-v1:'
+/** 前回取得したサーバーの内容と差分の目印（`syncPull.ts` の `savePullState`、利用者ごと） */
+export const PULL_STATE_KEY_PREFIX = 'chronograma-sync-mirror-v1:'
 const DB_NAME = 'chronograma-data'
 const STORE = 'kv'
 const META = 'meta'

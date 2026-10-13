@@ -9,7 +9,7 @@ import { detachWebPush, resyncWebPush } from './webPush'
 import { clearBaseline } from './syncMerge'
 import { clearSettingSyncedAt } from './settingSync'
 import { clearAutoBackups } from './autoBackup'
-import { clearSignedOutLeftovers } from './deviceCleanup'
+import { clearSignedOutLeftovers, clearSyncMirrors } from './deviceCleanup'
 
 /** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
 const goneAccounts = new Set<string>()
@@ -43,13 +43,14 @@ export async function isAccountGone(sb: SupabaseClient, jwt?: string): Promise<b
 
 /**
  * 消えたアカウント（自分で消した・別の端末で消された）の写しをこの端末から消す。
- * 手元のデータ・前回同期の控え・設定の同期の記録・その人の自動バックアップを、控えを取らずに消す
+ * 手元のデータ・前回同期の控え・設定の同期の記録・前回取得したサーバーの内容・その人の自動バックアップを、控えを取らずに消す
  */
 export async function clearDeletedAccount(userId: string): Promise<void> {
   goneAccounts.add(userId)
   clearAccountData(userId, { backup: false })
   clearBaseline(userId)
   clearSettingSyncedAt(userId)
+  clearSyncMirrors()
   await clearAutoBackups(userId)
 }
 

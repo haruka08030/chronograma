@@ -67,7 +67,8 @@ function parseOr(text: string): (r: Row) => boolean {
  * 消すと `008` の印、同じ id が入り直すと印を消す。セクションを消すと中のタスクの section_id を外す（`001` の外部キー）。
  * 利用者ごとに 1 行の設定（`user_settings`・`user_extra_time_zones`・`user_active_timer`・`user_event_templates`・`user_course_links`・`user_timetable`）は `007` の settings_write_guard。
  * 1 日の気分（`day_moods`）は行を `(user_id, day)` で決める（`025` の day_mood_write_guard。確かめ方は sync_write_guard と同じ）。
- * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）
+ * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）。
+ * `035` の sync_changes_since（差分・印・設定の版・版の下限・1 日の気分を 1 回で）も真似る（`missing` に入れると前の取り方）
  */
 export function fakeDb(opts: { maxRows?: number } = {}) {
   const maxRows = opts.maxRows ?? 1000
@@ -147,6 +148,65 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
   }
   /** 取得の記録（`since` は updated_at などの時刻より後だけを取った = 差分） */
   const selects: { table: string; since: boolean }[] = []
+  /** 呼ばれた関数（rpc）の名前 */
+  const rpcs: string[] = []
+  /**
+   * `035` の sync_changes_since。ログイン中の人（`auth.user`。ログインの偽物を使わないテストでは u1）の行だけ。
+   * 差分（p_since が infinity でない）のときは、4 表を差分で取ったものとして `selects` にも残す
+   */
+  const changesSince = (args: Record<string, unknown>) => {
+    const uid = auth.user ?? 'u1'
+    const since = String(args.p_since)
+    const limit = Number(args.p_limit ?? 1000)
+    const after = (col: string, v: unknown) => (r: Row) => since !== 'infinity' && cmp(col, r[col], v) > 0
+    const rowsOf = (table: string, col: string, keys: string[]) => {
+      const rows = (tables[table] ?? []).filter((r) => r.user_id === uid && after(col, since)(r))
+      rows.sort((a, b) => {
+        for (const c of keys) {
+          const d = cmp(c, a[c], b[c])
+          if (d !== 0) return d
+        }
+        return 0
+      })
+      const out = rows.slice(0, limit + 1).map((r) => ({ ...r }))
+      downloaded[table] = (downloaded[table] ?? 0) + out.length
+      return out
+    }
+    if (since !== 'infinity') for (const t of ['lists', 'list_sections', 'tasks', 'habits']) selects.push({ table: t, since: true })
+    const setting = (table: string) => (tables[table] ?? []).find((r) => r.user_id === uid)?.updated_at ?? null
+    const moodSince = args.p_mood_since == null ? null : String(args.p_mood_since)
+    const min = (tables.app_config ?? []).find((r) => r.key === 'min_sync_version')?.value ?? 1
+    return {
+      now: fromMicros(clock),
+      min_sync_version: min,
+      lists: rowsOf('lists', 'updated_at', ['updated_at', 'id']),
+      list_sections: rowsOf('list_sections', 'updated_at', ['updated_at', 'id']),
+      tasks: rowsOf('tasks', 'updated_at', ['updated_at', 'id']),
+      habits: rowsOf('habits', 'updated_at', ['updated_at', 'id']),
+      tombstones: rowsOf('sync_tombstones', 'deleted_at', ['deleted_at', 'table_name', 'row_id']).map((r) => ({
+        table_name: r.table_name,
+        row_id: r.row_id,
+        deleted_at: r.deleted_at,
+      })),
+      has_rows: ['lists', 'list_sections', 'tasks', 'habits'].some((t) => (tables[t] ?? []).some((r) => r.user_id === uid)),
+      tombstones_trimmed:
+        since !== 'infinity' &&
+        (tables.sync_tombstone_purges ?? []).some((r) => r.user_id === uid && cmp('last_deleted_at', r.last_deleted_at, since) > 0),
+      settings: Object.fromEntries(
+        ['user_settings', 'user_extra_time_zones', 'user_active_timer', 'user_event_templates', 'user_course_links', 'user_timetable'].map(
+          (t) => [t, setting(t)],
+        ),
+      ),
+      day_moods:
+        moodSince === null
+          ? null
+          : (tables.day_moods ?? [])
+              .filter((r) => r.user_id === uid && cmp('updated_at', r.updated_at, moodSince) > 0)
+              .sort((a, b) => cmp('day', a.day, b.day))
+              .slice(0, limit + 1)
+              .map((r) => ({ day: r.day, mood: r.mood, note: r.note, updated_at: r.updated_at })),
+    }
+  }
   const remove = (table: string, match: (r: Row) => boolean) => {
     const at = now()
     const gone = (tables[table] ?? []).filter(match)
@@ -210,6 +270,13 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
             last_seen: at,
           })
         return { data: null, error: null }
+      }
+      if (name === 'sync_changes_since' && !missing.has(name)) {
+        rpcs.push(name)
+        // 関数の中で読む表が無ければ、関数ごと失敗する
+        const gone = ['lists', 'list_sections', 'tasks', 'habits', 'sync_tombstones', 'sync_tombstone_purges'].find((t) => missing.has(t))
+        if (gone) return { data: null, error: { code: '42P01', message: `relation "public.${gone}" does not exist` } }
+        return { data: changesSince(args ?? {}), error: null }
       }
       if (name !== 'sync_server_now' || missing.has(name)) {
         return {
@@ -309,6 +376,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
     tables,
     downloaded,
     selects,
+    rpcs,
     hooks,
     /** 読めなくする表・関数の名前 */
     missing,

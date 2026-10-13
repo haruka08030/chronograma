@@ -10,7 +10,7 @@ import {
   type LabelSyncPlan,
   type RemoteLabels,
 } from './labelSync'
-import { loadSettingSyncedAt, runSettingSync, settingSyncStep } from './settingSync'
+import { loadSettingSyncedAt, runSettingSync, saveSettingSyncedAt, settingSyncStep } from './settingSync'
 
 type SettingsRow = { user_id: string; log_labels: unknown; updated_at: string; base_updated_at?: string | null }
 
@@ -374,5 +374,46 @@ describe('取り込みで足したラベルは、ほかの端末のラベルの�
     // スマホももう何も送らない
     await syncLabels(client, phone, 'phone')
     expect(rows.get('u1')!.updated_at).toBe(version)
+  })
+})
+
+describe('同じ 1 往復で分かった版で、取りに行くかを決める（#258）', () => {
+  const run = (
+    remoteVersion: string | null | undefined,
+    local: { updatedAt: string | null },
+    extra: { idle?: boolean; emptyWhenUnset?: boolean } = {},
+  ) => {
+    const fetch = vi.fn(async () => null)
+    return runSettingSync<RemoteLabels, NonNullable<LabelSyncPlan['apply']>, NonNullable<LabelSyncPlan['push']>>(
+      'u-ver',
+      {
+        key: 'labels',
+        fetch,
+        plan: () => ({}),
+        localUpdatedAt: () => local.updatedAt,
+        applyLocal: () => {},
+        setLocalUpdatedAt: () => {},
+        push: async () => ({ updatedAt: 'x' }),
+        idle: () => extra.idle ?? true,
+        emptyWhenUnset: extra.emptyWhenUnset,
+      },
+      { remoteVersion },
+    ).then(() => fetch.mock.calls.length)
+  }
+
+  it('サーバーの版がもとにした版と同じで、手元でも変えていなければ取りに行かない', async () => {
+    saveSettingSyncedAt('u-ver', 'labels', 'V1')
+    expect(await run('V1', { updatedAt: 'V1' })).toBe(0)
+    // サーバーで変わった・手元で変えた・送るものが残っている・版が分からない
+    expect(await run('V2', { updatedAt: 'V1' })).toBe(1)
+    expect(await run('V1', { updatedAt: '2026-10-03T00:00:00.000Z' })).toBe(1)
+    expect(await run('V1', { updatedAt: 'V1' }, { idle: false })).toBe(1)
+    expect(await run(undefined, { updatedAt: 'V1' })).toBe(1)
+  })
+
+  it('サーバーに行が無いときは、既定の値を送らない設定で手元も変えていなければ取りに行かない', async () => {
+    expect(await run(null, { updatedAt: null }, { emptyWhenUnset: true })).toBe(0)
+    expect(await run(null, { updatedAt: null })).toBe(1)
+    expect(await run(null, { updatedAt: '2026-10-03T00:00:00.000Z' }, { emptyWhenUnset: true })).toBe(1)
   })
 })
