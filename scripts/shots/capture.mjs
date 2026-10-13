@@ -158,6 +158,17 @@ const SCREENS = [
     click: 'button[aria-expanded]:has-text("To-Do から追加") >> visible=true',
     scrollToBottom: true,
   },
+  // 締切順の候補で、見積もりが締切までの空きに入りきらない見出しに「入りきらない」（#332）
+  {
+    name: 'planner-due-fit',
+    view: 'planner',
+    state: {
+      dailyCapacityMinutes: 60,
+      plannerCandidateView: { sort: 'dueDate', listId: null, color: null, tag: null, priority: null, estimate: null },
+    },
+    click: OPEN_CANDIDATES,
+    scrollToBottom: true,
+  },
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {

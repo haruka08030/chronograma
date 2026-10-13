@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
@@ -192,5 +192,53 @@ describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
     const row = document.querySelector(`[data-task-row="${child}"]`)!
     expect(row).not.toBeNull()
     expect(row.querySelector('[data-parent-title]')!.textContent).toBe('A Inc.')
+  })
+})
+
+describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332）', () => {
+  const todo = (id: string, over: Partial<Task>): Task =>
+    ({
+      ...TASK_DEFAULTS,
+      id,
+      title: id,
+      description: '',
+      completed: false,
+      completedAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      order: 0,
+      listId: 'inbox',
+      sectionId: null,
+      parentId: null,
+      dueDate: null,
+      startTime: null,
+      endTime: null,
+      priority: 'none',
+      tags: [],
+      recurrence: null,
+      ...over,
+    }) as Task
+
+  it('見積もりが締切までの空きを超える見出しにだけ出す', async () => {
+    const today = toDateKey(appToday())
+    const inTwo = toDateKey(addDays(appToday(), 2))
+    const inThree = toDateKey(addDays(appToday(), 3))
+    useTaskStore.setState({
+      dailyCapacityMinutes: 120,
+      plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'dueDate' },
+      tasks: [todo('Report', { dueDate: inTwo, estimateMinutes: 600 }), todo('Memo', { dueDate: inThree })],
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    // 2 日後: 見積もり 10 時間 / 空き 4 時間、3 日後: 前の締切の分も足して 10 時間 / 6 時間
+    const marks = [...document.querySelectorAll('[data-due-fit="over"]')]
+    expect(marks).toHaveLength(2)
+    expect(marks[0]!.textContent).toMatch(/^won't fit/)
+    // 空きが足りれば何も出さない
+    act(() => void useTaskStore.setState({ dailyCapacityMinutes: 1440 }))
+    expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
   })
 })
