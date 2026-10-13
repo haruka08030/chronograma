@@ -4,14 +4,14 @@ import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, type Task } from '../types/task'
 import type { CompleteWithLogDraft } from '../components/CompleteWithLogModal'
 import { CompleteWithLogModal } from '../components/lazyOverlays'
-import { isCompleteDraftValid } from '../lib/completeWithLogDraft'
+import { endDateFor, isCompleteDraftValid } from '../lib/completeWithLogDraft'
 import { taskPlacementDate } from '../lib/taskTimeRange'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { PartBoundary } from '../components/ui/ErrorBoundary'
 import { closeTaskNotifications } from '../lib/notificationCleanup'
 
 /**
- * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻で埋めておき、ずれたらそこを直す）。
+ * 時間を決めた予定を「完了＋記録」にする（時刻欄は予定の時刻、ラベルは予定のラベルで埋めておき、ずれたらそこを直す）。
  * 通知の「記録する」から開く（完了の丸は記録を足さず完了だけ）。`modal` を描画しておくこと。
  */
 export function useCompleteWithLog() {
@@ -27,7 +27,7 @@ export function useCompleteWithLog() {
       taskId: task.id,
       title: task.title,
       date: placement,
-      endDate: task.endDate ?? placement,
+      endDate: task.endDate ?? endDateFor(placement, task.startTime, task.endTime),
       startTime: task.startTime,
       endTime: task.endTime,
       memo: task.description.trim(),
@@ -41,10 +41,12 @@ export function useCompleteWithLog() {
     // 終了が開始より前なら、画面の赤字と押せない保存ボタンで知らせている
     if (!isCompleteDraftValid(draft)) return
     const memo = draft.memo.trim()
+    // 題名を空にしたら記録パネルと同じくラベル名、それも無ければ元の題名
+    const title = draft.title.trim() || draft.tags[0] || useTaskStore.getState().tasks.find((x) => x.id === draft.taskId)?.title || ''
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
     // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
-      addTimeLog(draft.title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
+      addTimeLog(title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
       if (!draft.fromEvent) toggleTask(draft.taskId)
     })
     // 記録した件の通知（記録の確認・開始前）を通知センターから閉じる。予定は完了にならないのでここで閉じる
