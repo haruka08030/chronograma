@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -8,6 +8,7 @@ import { makeTask } from '../store/taskHelpers'
 import { INBOX_LIST_ID } from '../store/storeConstants'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { WeekCalendarView } from './WeekCalendarView'
+import { focusQuickAdd, hasQuickAddTarget } from '../lib/quickAddFocus'
 
 beforeAll(() => {
   // jsdom には無いもの（タイムラインの大きさ・スクロール）
@@ -278,5 +279,34 @@ describe('WeekCalendarView: 記録の無い時間（点線の枠）', () => {
     three.unmount()
     const next = render(<WeekCalendarView anchor={fromDateKey('2026-10-08')} selectedDateKey="2026-10-08" singleDay />)
     expect(gapsIn(next.container, '2026-10-08')).toHaveLength(0)
+  })
+})
+
+describe('WeekCalendarView: C で作成カード', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('選んでいる日の次の正時で作成カードが開き、そのまま入れるとその時間の予定になる', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:20', appTimeZone()))
+    useTaskStore.setState({ tasks: [], defaultBlockMinutes: 60 })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-08" threeDay />)
+    act(() => {
+      expect(focusQuickAdd()).toBe(true)
+    })
+    const input = await screen.findByPlaceholderText('Add title')
+    fireEvent.change(input, { target: { value: 'Seminar' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(useTaskStore.getState().tasks.find((t) => t.title === 'Seminar')).toMatchObject({
+      scheduledDate: '2026-10-08',
+      startTime: '17:00',
+      endTime: '18:00',
+    })
+  })
+
+  it('今日の計画（1 日表示）では登録しない（今日の追加欄へ）', () => {
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    expect(hasQuickAddTarget()).toBe(false)
   })
 })

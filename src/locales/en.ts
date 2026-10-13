@@ -647,7 +647,7 @@ export default {
     monthView: 'Calendar (month)',
     logView: 'Start logging (Today)',
     stopLog: 'Stop logging',
-    create: 'Add a task',
+    create: 'Add a task (in the calendar, on the selected day)',
     createAnywhere: 'Add a task (even while typing or in details)',
     search: 'Go to the to-do search box',
     searchAnywhere: 'Search palette (stays on the current screen, even while typing)',

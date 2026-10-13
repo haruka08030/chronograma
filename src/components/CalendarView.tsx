@@ -26,7 +26,8 @@ import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { dueToneOf } from '../lib/dueTone'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
-import { isAppToday } from '../lib/timeZone'
+import { appTodayKey, isAppToday } from '../lib/timeZone'
+import { useQuickAddAction } from '../lib/quickAddFocus'
 import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
@@ -96,6 +97,8 @@ export function CalendarView({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
+  // C / ⌘N: 選んでいる日のマスに追加欄を開く（今日の計画へは移らない。日を押して入れる間は効かない）
+  useQuickAddAction(stamp ? null : () => setAddingDate(selectedDateKey ?? appTodayKey()))
   const openDetail = openTaskDetail
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   /** 予定を `t` で回す箇所でも使えるように */

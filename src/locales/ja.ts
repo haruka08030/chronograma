@@ -630,7 +630,7 @@ export default {
     monthView: 'カレンダー（月）',
     logView: '記録を始める（今日）',
     stopLog: '記録を止める',
-    create: 'To-Do を追加',
+    create: 'To-Do を追加（カレンダーでは選んだ日に作る）',
     createAnywhere: 'To-Do を追加（入力中・詳細を開いていても）',
     search: 'To-Do の検索欄へ',
     searchAnywhere: '検索パレット（今の画面のまま探す。入力中でも）',

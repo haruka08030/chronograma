@@ -1,8 +1,9 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 /**
  * 画面の「タスクを追加」欄（To-Do 一覧の上・今日の計画）へのフォーカス。
  * 欄は出ている間だけ自分を登録し、ショートカット（C / ⌘N）はここに頼む（DOM を探さない）。
+ * 欄の無いカレンダーは、代わりに作成カードを開く処理を登録する（`useQuickAddAction`）。
  * 画面は必要になってから読み込むので、頼んだ時点で欄が無ければ覚えておき、出たときにフォーカスする
  */
 const targets: (() => void)[] = []
@@ -35,6 +36,24 @@ export function focusQuickAddWhenReady(timeoutMs = 3000) {
   waitTimer = window.setTimeout(() => {
     waitTimer = null
   }, timeoutMs)
+}
+
+/** 追加欄の代わりに C / ⌘N で行う処理を登録する（null の間は登録しない。カレンダーの作成カードなど） */
+export function useQuickAddAction(action: (() => void) | null) {
+  const ref = useRef(action)
+  useEffect(() => {
+    ref.current = action
+  })
+  const enabled = action !== null
+  useEffect(() => {
+    if (!enabled) return
+    const run = () => ref.current?.()
+    targets.push(run)
+    return () => {
+      const i = targets.lastIndexOf(run)
+      if (i >= 0) targets.splice(i, 1)
+    }
+  }, [enabled])
 }
 
 /** 追加欄の入力を登録する（出ている間だけ）。待っている頼みがあれば、出たときにフォーカスする */
