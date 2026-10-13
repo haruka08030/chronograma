@@ -320,3 +320,27 @@ describe('TodayPlannerView: 候補の「すべて追加」（#375）', () => {
     expect(useTaskStore.getState().undoBanner?.text).toBe('Moved 2 to today')
   })
 })
+
+describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
+  it('完了の欄を開くと ↓ で完了の行に行け、Space で完了を外す', async () => {
+    const today = toDateKey(appToday())
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const open = store.addTask('Open one')!
+    useTaskStore.getState().updateTask(open, { scheduledDate: today })
+    const done = useTaskStore.getState().addTask('Done one')!
+    useTaskStore.getState().updateTask(done, { scheduledDate: today })
+    useTaskStore.getState().toggleTask(done)
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const list = screen.getByRole('listbox')
+    expect(within(list).getAllByRole('option')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: '1 done' }))
+    act(() => (document.activeElement as HTMLElement).blur())
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    const cursor = document.getElementById(list.getAttribute('aria-activedescendant')!)
+    expect(cursor?.getAttribute('data-task-row')).toBe(done)
+    await user.keyboard(' ')
+    expect(useTaskStore.getState().tasks.find((x) => x.id === done)!.completed).toBe(false)
+  })
+})

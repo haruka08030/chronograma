@@ -178,7 +178,7 @@ export function TodayPlannerView() {
   )
 
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
-  // 対象は開いている未完了の行を上から順に
+  // 対象は開いている行を上から順に（完了は欄を開いているときだけ）
   const rowIds = useMemo(
     () =>
       [
@@ -187,8 +187,10 @@ export function TodayPlannerView() {
         ...untimedOpen,
         ...timedOpen,
         ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
+        // 完了の欄を開いているときは、その行も（Space で完了を外す）
+        ...(showDone ? done : []),
       ].map((x) => x.id),
-    [showLeftOver, leftOver, overdueShown, untimedOpen, timedOpen, showSuggestions, candidateGroups],
+    [showLeftOver, leftOver, overdueShown, untimedOpen, timedOpen, showSuggestions, candidateGroups, showDone, done],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
@@ -222,6 +224,9 @@ export function TodayPlannerView() {
       onClick: () => bulk.complete(ids),
     }
     const many = (label: string) => (ids.length > 1 ? label : undefined)
+    // 完了の行が混ざっていれば、日の付け替え・完了は出さない（「操作」のメニューから）
+    const doneIds = new Set(done.map((x) => x.id))
+    if (ids.some((id) => doneIds.has(id))) return []
     if (ids.every((id) => openIds.has(id))) {
       return [
         {
@@ -257,10 +262,11 @@ export function TodayPlannerView() {
   // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
   const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || nowMinutes >= wrapUpFrom)
 
-  // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
+  // 候補・完了の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
   const suggestionGroupId = (group: CandidateGroup) => `${idPrefix}due-${group.kind === 'day' ? group.dueDate : group.kind}`
-  const ownedGroupIds = showSuggestions ? candidateGroups.map(suggestionGroupId) : []
+  const doneGroupId = `${idPrefix}done`
+  const ownedGroupIds = [...(showSuggestions ? candidateGroups.map(suggestionGroupId) : []), ...(showDone ? [doneGroupId] : [])]
 
   /** 行が共通で使うもの */
   const rowEnv: PlannerRowEnv = {
@@ -346,7 +352,7 @@ export function TodayPlannerView() {
               {t('planner.doneHeading', { count: done.length })}
             </DisclosureButton>
             {showDone && (
-              <ul>
+              <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
                 {done.map((task) => (
                   <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
                 ))}
