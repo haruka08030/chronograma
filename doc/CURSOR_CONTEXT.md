@@ -24,8 +24,9 @@
   `chronograma-storage`、スキーマの版は `storeConstants.ts` の `STORE_VERSION`。置き場所は `src/lib/dataStore.ts`）。
   起動時（`main.tsx` の `openDataStore`、ストアと画面を読み込む前）に全部を読んで手元に持ち、ストアの読み込みは同期のまま。
   同じタスクの間の書き込み（本体・前回同期の控え・本体の中の `dataOwner`）は 1 つのトランザクションで書く。
-  localStorage にあった本体と控え（旧キー `tickdo-storage` も）は初めて開いたときに 1 回だけ移し、書けたのを読み直して確かめてから localStorage から消す。移した後に localStorage で動いた回（開けなかった）があれば（移した印があるのに localStorage に本体・控えがある）、次に開けたときにその分を取り込む: 行は id ごとに両方を残して同じ id は localStorage の回のほう、持ち主が片方だけなら null、別の人どうし・版違い・読めなければ localStorage の回のほう。取り込む前の本体は `chronograma-storage-before-recovery-{時刻}` に残し、localStorage の回に無い控えは消す（`reportFailure` の `storage` / `recovered`）。
+  localStorage にあった本体と控え（旧キー `tickdo-storage` も）は初めて開いたときに 1 回だけ移し、書けたのを読み直して確かめてから localStorage から消す。移した後に localStorage で動いた回（開けなかった）があれば（移した印があるのに localStorage に本体・控えがある）、次に開けたときにその分を取り込む: その回の本体を `chronograma-storage-recovered-local` に置き、ストアを作った直後に `store/recoverLocal.ts` の `mergeRecoveredState` で合わせる。行は id ごとに両方を残して同じ id はその回のほう。行以外は IndexedDB の本体を基にし、その回の値はストアの既定値（初期状態）と違うときだけ使う（`*UpdatedAt` を持つものはその時刻が新しいときだけ、オブジェクトはキーごと、id を持つ配列・文字列の配列は両方を残す）。動いているタイマーは IndexedDB の側。持ち主が片方だけなら null、別の人どうしならその回のほうにして IndexedDB の本体を `chronograma-storage-before-recovery-{時刻}` に残す。合わせた本体と取り込みの印の削除は同じトランザクション。その回に無い人の控えは消す（`reportFailure` の `storage` / `recovered`）。
   IndexedDB か BroadcastChannel が使えない・開けない（8 秒）・移せない端末は localStorage のまま（旧キーは `migrateLegacyPersistKey`）。
+  書き終える前にページを離れると（トランザクションが中断されることがある）、書き終えていない分を localStorage `chronograma-data-unsaved` に置き、次に開いたときに IndexedDB の書いた時刻（`meta` の `at:{キー}`）より新しければ書く。
   他のタブの書き込みは BroadcastChannel（localStorage のときは storage イベント）で知り、IndexedDB から読み直して取り込む
 - **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
   / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ

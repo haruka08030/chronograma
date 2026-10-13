@@ -8,7 +8,7 @@
  *   失敗するとどれも書かれない（本体だけ古い・控えだけ新しい、にならない）
  * - 書けたら他のタブに BroadcastChannel で知らせ、受けたタブは IndexedDB から読み直す（localStorage の storage イベントの代わり）
  * - localStorage にあった本体と控えは、初めて開いたときに 1 回だけ移す。IndexedDB に書けたのを読み直して確かめてから localStorage から消す
- * - 移した後に localStorage で動いた回（開けなかった）があれば、次に開けたときにその分を取り込む（`mergeRecoveredMain`）
+ * - 移した後に localStorage で動いた回（開けなかった）があれば、次に開けたときにその分を取り込む（`RECOVERED_LOCAL_KEY`）
  */
 import { LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
@@ -36,6 +36,8 @@ interface WriteCallbacks {
 }
 interface PendingWrite extends WriteCallbacks {
   value: string | null
+  /** 書いた時刻（`meta` に `at:{キー}` で残す。閉じる前に書き終えなかった分と、どちらが新しいかを比べる） */
+  at: number
 }
 let queue = new Map<string, PendingWrite>()
 let flushScheduled = false
@@ -83,7 +85,7 @@ export function writeStored(key: string, value: string | null, callbacks?: Write
   if (value === null) cache.delete(key)
   else cache.set(key, value)
   if (!queue.has(key)) busy.set(key, (busy.get(key) ?? 0) + 1)
-  queue.set(key, { value, ...callbacks })
+  queue.set(key, { value, at: Date.now(), ...callbacks })
   if (!flushScheduled) {
     flushScheduled = true
     queueMicrotask(flush)
@@ -95,6 +97,7 @@ function flush() {
   const batch = queue
   queue = new Map()
   if (batch.size === 0) return
+  for (const [key, w] of batch) lastWrite.set(key, { value: w.value, at: w.at })
   const finish = (err: unknown) => {
     for (const key of batch.keys()) {
       const n = (busy.get(key) ?? 1) - 1
@@ -113,11 +116,13 @@ function flush() {
   let tx: IDBTransaction | null = null
   try {
     if (!db) throw new DOMException('the data store is closed', 'InvalidStateError')
-    tx = db.transaction(STORE, 'readwrite')
+    tx = db.transaction([STORE, META], 'readwrite')
     const store = tx.objectStore(STORE)
+    const meta = tx.objectStore(META)
     for (const [key, w] of batch) {
       if (w.value === null) store.delete(key)
       else store.put(w.value, key)
+      meta.put(w.at, `at:${key}`)
     }
   } catch (err) {
     try {
@@ -144,10 +149,33 @@ function emitOtherTab(keys: string[]) {
   for (const l of otherTabListeners) l(keys)
 }
 
+/**
+ * 書き終えていない分を閉じる前に localStorage に置くキー。IndexedDB のトランザクションはページを離れると中断されることがあり、
+ * 編集の直後に閉じる・別のページへ移ると、その編集が消えていた。次に開いたときに、IndexedDB より新しければ書く（`loadAll`）
+ */
+const UNSAVED_KEY = 'chronograma-data-unsaved'
+/** 書き終えていないキーの、最後に書いた値と時刻 */
+const lastWrite = new Map<string, { value: string | null; at: number }>()
+
+function keepUnsavedForNextOpen() {
+  if (!db || busy.size === 0) return
+  const unsaved: Record<string, { value: string | null; at: number }> = {}
+  for (const key of busy.keys()) {
+    const w = queue.get(key) ?? lastWrite.get(key)
+    if (w) unsaved[key] = { value: w.value, at: w.at }
+  }
+  try {
+    localStorage.setItem(UNSAVED_KEY, JSON.stringify(unsaved))
+  } catch {
+    /* 置けなければ、書き終えるのを待つだけ */
+  }
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (!db && e.key !== null) emitOtherTab([e.key])
   })
+  window.addEventListener('pagehide', keepUnsavedForNextOpen)
 }
 
 /**
@@ -230,39 +258,11 @@ function localStorageEntries(): [string, string, string][] {
   return out
 }
 
-type SavedMain = { state?: Record<string, unknown>; version?: unknown }
-const ROW_KEYS = ['tasks', 'lists', 'habits', 'sections'] as const
-
 /**
- * 移した後に localStorage で動いた回（IndexedDB を開けなかった）の本体（`local`）と、IndexedDB の本体（`stored`）を合わせる。
- * その回は localStorage が空の状態から始まっているので、IndexedDB の行は見えていない（消してもいない）。
- * 行（タスク・リスト・習慣・セクション）は id ごとに両方を残し（同じ id は localStorage の回のほう）、ほかの値は localStorage の回のほう。
- * 持ち主（`dataOwner`）が違えば null にする（同期の前に、アカウントに入れてよいかを確かめる道に入る）。
- * 版が違う・読めない・別の人どうしのデータなら合わせずに localStorage の回のほう（IndexedDB の本体は呼ぶ側が別のキーに残す）
+ * 移した後に localStorage で動いた回（IndexedDB を開けなかった）の本体を置くキー。IndexedDB の本体はそのまま残し、
+ * ストアを作った後に、ストアの既定値と比べてその回で変えた分だけを合わせる（`store/recoverLocal.ts`）
  */
-export function mergeRecoveredMain(stored: string | null, local: string): string {
-  if (stored === null) return local
-  let a: SavedMain
-  let b: SavedMain
-  try {
-    a = JSON.parse(stored) as SavedMain
-    b = JSON.parse(local) as SavedMain
-  } catch {
-    return local
-  }
-  if (!a?.state || !b?.state || a.version !== b.version) return local
-  const ownerA = a.state.dataOwner ?? null
-  const ownerB = b.state.dataOwner ?? null
-  if (ownerA !== null && ownerB !== null && ownerA !== ownerB) return local
-  const state: Record<string, unknown> = { ...a.state, ...b.state, dataOwner: ownerA === ownerB ? ownerA : null }
-  for (const key of ROW_KEYS) {
-    const rowsA = Array.isArray(a.state[key]) ? (a.state[key] as { id?: unknown }[]) : []
-    const rowsB = Array.isArray(b.state[key]) ? (b.state[key] as { id?: unknown }[]) : []
-    const idsB = new Set(rowsB.map((r) => r?.id))
-    state[key] = [...rowsA.filter((r) => !idsB.has(r?.id)), ...rowsB]
-  }
-  return JSON.stringify({ ...b, state })
-}
+export const RECOVERED_LOCAL_KEY = `${PERSIST_STORAGE_KEY}-recovered-local`
 
 /** 移した後に localStorage で動いた回のデータを取り込んだ（`openDataStore` の後に 1 回だけ記録する） */
 let recoveredFromLocalStorage = false
@@ -272,8 +272,8 @@ export function dataStoreRecoveredFromLocalStorage(): boolean {
 
 /**
  * 全部を読む。まだ移していなければ、同じトランザクションで localStorage の分を写して印を付ける。
- * 移した印があるのに localStorage に本体・控えがある＝その間に localStorage で動いた回があった。その分を新しいものとして取り込む
- * （本体は `mergeRecoveredMain` で合わせ、取り込む前の本体は別のキーに残す。その回の控えが無い人の控えは、本体と食い違うので消す）
+ * 移した印があるのに localStorage に本体・控えがある＝その間に localStorage で動いた回があった。その分を取り込む
+ * （本体は `RECOVERED_LOCAL_KEY` に置いてストアが合わせる。控えはその回のものにし、その回に無い人の控えは本体と食い違うので消す）
  */
 function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied: [string, string, string][]; recovered: boolean }> {
   return new Promise((resolve, reject) => {
@@ -295,6 +295,23 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
         c.continue()
       }
     }
+    // 前に閉じたとき書き終えていなかった分。IndexedDB のほうが新しい（書き終えていた・ほかのタブが後から書いた）キーは捨てる
+    let unsaved: Record<string, { value: string | null; at: number }> = {}
+    try {
+      unsaved = JSON.parse(localStorage.getItem(UNSAVED_KEY) ?? '{}') as typeof unsaved
+    } catch {
+      /* 読めなければ無いものとして */
+    }
+    for (const [key, w] of Object.entries(unsaved)) {
+      if (typeof w?.at !== 'number' || (typeof w.value !== 'string' && w.value !== null)) continue
+      const at = meta.get(`at:${key}`)
+      at.onsuccess = () => {
+        if (typeof at.result === 'number' && at.result >= w.at) return
+        if (w.value === null) kv.delete(key)
+        else kv.put(w.value, key)
+        meta.put(w.at, `at:${key}`)
+      }
+    }
     const marker = meta.get(MIGRATED)
     marker.onsuccess = () => {
       const local = localStorageEntries()
@@ -310,18 +327,18 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
         return
       }
       recovered = true
-      const main = kv.get(PERSIST_STORAGE_KEY)
-      main.onsuccess = () => {
-        const stored = (main.result as string | undefined) ?? null
-        if (stored !== null) kv.put(stored, `${PERSIST_STORAGE_KEY}-before-recovery-${Date.now()}`)
-        copied = local.map(([key, value, from]) =>
-          key === PERSIST_STORAGE_KEY ? [key, mergeRecoveredMain(stored, value), from] : [key, value, from],
-        )
-        for (const [key, value] of copied) kv.put(value, key)
-        readAll()
-      }
+      copied = local.map(([key, value, from]) => [key === PERSIST_STORAGE_KEY ? RECOVERED_LOCAL_KEY : key, value, from])
+      for (const [key, value] of copied) kv.put(value, key)
+      readAll()
     }
-    tx.oncomplete = () => resolve({ entries, copied, recovered })
+    tx.oncomplete = () => {
+      try {
+        localStorage.removeItem(UNSAVED_KEY)
+      } catch {
+        /* ignore */
+      }
+      resolve({ entries, copied, recovered })
+    }
     tx.onabort = () => reject(tx.error)
   })
 }

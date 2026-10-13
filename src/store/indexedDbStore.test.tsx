@@ -102,6 +102,11 @@ describe('移した後に localStorage で動いた回', () => {
   it('その回の変更は、次に IndexedDB で開いたときに残る（前の本体の行も残り、取り込んだことを記録する）', async () => {
     const first = await openTab()
     first.useTaskStore.getState().addTask('in IndexedDB')
+    // IndexedDB の側で変えた設定・日ごとの気分・よく入れる予定
+    first.useTaskStore.getState().setTheme('dark')
+    first.useTaskStore.getState().setDefaultBlockMinutes(30)
+    first.useTaskStore.getState().setDayMood('2026-10-01', { mood: 4, note: 'good' })
+    first.useTaskStore.getState().saveEventTemplates([{ id: 't1', title: 'Gym', startTime: '19:00', endTime: '20:00', color: null }])
     first.sync.saveBaseline('u1', { lists: {}, tasks: {}, habits: {}, sections: {} } as never)
     await settle()
     first.data.closeDataStore()
@@ -114,6 +119,9 @@ describe('移した後に localStorage で動いた回', () => {
     expect(fallback.mode).toBe('localStorage')
     expect(titles(fallback)).toEqual([])
     fallback.useTaskStore.getState().addTask('while on localStorage')
+    // その回で変えた設定（ほかは既定値のまま）
+    fallback.useTaskStore.getState().setDailyCapacityMinutes(300)
+    fallback.useTaskStore.getState().setDayMood('2026-10-02', { mood: 2 })
     expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toContain('while on localStorage')
     open.mockRestore()
 
@@ -121,10 +129,20 @@ describe('移した後に localStorage で動いた回', () => {
     expect(again.mode).toBe('indexeddb')
     expect(again.data.dataStoreRecoveredFromLocalStorage()).toBe(true)
     expect(titles(again).sort()).toEqual(['in IndexedDB', 'while on localStorage'])
+    // 設定・気分・よく入れる予定は IndexedDB の側のまま、その回で変えたものだけが入る
+    const s = again.useTaskStore.getState()
+    expect(s.theme).toBe('dark')
+    expect(s.defaultBlockMinutes).toBe(30)
+    expect(s.dailyCapacityMinutes).toBe(300)
+    expect(s.eventTemplates.map((t) => t.title)).toEqual(['Gym'])
+    expect(Object.keys(s.dayMoods).sort()).toEqual(['2026-10-01', '2026-10-02'])
+    expect(s.dayMoods['2026-10-01']!.note).toBe('good')
+    await settle()
     expect(await diskTitles()).toEqual(['in IndexedDB', 'while on localStorage'])
+    expect(JSON.parse((await readDisk(PERSIST_STORAGE_KEY))!).state.theme).toBe('dark')
     expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBeNull()
-    // 取り込む前の本体は別のキーに残り、本体と食い違う控えは消える（次の同期は両方を残す合わせ方）
-    expect(again.data.storedKeys().some((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-before-recovery-`))).toBe(true)
+    // 合わせ終えたら取り込みの印は消え、本体と食い違う控えも消える（次の同期は両方を残す合わせ方）
+    expect(await readDisk(again.data.RECOVERED_LOCAL_KEY)).toBeUndefined()
     expect(again.sync.loadBaseline('u1')).toBeNull()
     again.data.closeDataStore()
 

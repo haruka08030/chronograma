@@ -68,11 +68,10 @@ describe('localStorage からの移し替え', () => {
     localStorage.setItem(PERSIST_STORAGE_KEY, 'written while on localStorage')
     const again = await openTab()
     expect(await again.openDataStore()).toBe('indexeddb')
-    // 読めない本体どうしは合わせず、localStorage の回のほう。前の本体は別のキーに残す
-    expect(again.readStored(PERSIST_STORAGE_KEY)).toBe('written while on localStorage')
+    // 本体はそのままで、その回の本体はストアが合わせるまで別のキーに置く
+    expect(again.readStored(PERSIST_STORAGE_KEY)).toBe('first')
+    expect(again.readStored(again.RECOVERED_LOCAL_KEY)).toBe('written while on localStorage')
     expect(again.dataStoreRecoveredFromLocalStorage()).toBe(true)
-    const kept = again.storedKeys().find((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-before-recovery-`))!
-    expect(again.readStored(kept)).toBe('first')
     expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBeNull()
   })
 
@@ -121,27 +120,6 @@ describe('localStorage からの移し替え', () => {
   })
 })
 
-describe('移した後に localStorage で動いた回の本体を合わせる（mergeRecoveredMain）', () => {
-  const saved = (owner: string | null, ids: string[], version = 1) =>
-    JSON.stringify({ state: { dataOwner: owner, theme: 'x', tasks: ids.map((id) => ({ id, title: id })) }, version })
-  const ids = (raw: string) => (JSON.parse(raw) as { state: { tasks: { id: string }[] } }).state.tasks.map((t) => t.id)
-
-  it('行は id ごとに両方を残し、同じ id は localStorage の回のほう', async () => {
-    const m = await openTab()
-    const out = m.mergeRecoveredMain(saved('u1', ['a', 'b']), saved('u1', ['b', 'c']))
-    expect(ids(out)).toEqual(['a', 'b', 'c'])
-    expect(JSON.parse(out).state.dataOwner).toBe('u1')
-  })
-
-  it('持ち主が片方だけなら null（アカウントに入れる前に確かめる）、別の人どうし・版違いは localStorage の回のほうだけ', async () => {
-    const m = await openTab()
-    expect(JSON.parse(m.mergeRecoveredMain(saved('u1', ['a']), saved(null, ['b']))).state.dataOwner).toBeNull()
-    expect(ids(m.mergeRecoveredMain(saved('u1', ['a']), saved('u2', ['b'])))).toEqual(['b'])
-    expect(ids(m.mergeRecoveredMain(saved('u1', ['a'], 1), saved('u1', ['b'], 2)))).toEqual(['b'])
-    expect(m.mergeRecoveredMain('{broken', saved('u1', ['b']))).toBe(saved('u1', ['b']))
-  })
-})
-
 describe('書き込み', () => {
   it('同じタスクの間に書いたもの（本体と控え）は 1 つのトランザクションで書く', async () => {
     const m = await openTab()
@@ -173,6 +151,48 @@ describe('書き込み', () => {
     expect(errors.sort()).toEqual(['baseline', 'main'])
     expect(await readDisk(PERSIST_STORAGE_KEY)).toBe('old')
     expect(await readDisk('chronograma-sync-baseline-v1:u1')).toBe('old-baseline')
+  })
+})
+
+describe('書き終える前にページを離れたとき', () => {
+  /** 書き込みのトランザクションが中断された（ページを離れた）ことにする */
+  const abortWrites = () => {
+    const real = IDBDatabase.prototype.transaction
+    return vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (this: IDBDatabase, ...args) {
+      if (args[1] === 'readwrite') throw new DOMException('the page was left', 'AbortError')
+      return real.apply(this, args)
+    })
+  }
+
+  it('書き終えていない分は localStorage に置き、次に開いたときに書く', async () => {
+    const a = await openTab()
+    await a.openDataStore()
+    a.writeStored(PERSIST_STORAGE_KEY, 'saved')
+    await settle()
+    const aborted = abortWrites()
+    a.writeStored(PERSIST_STORAGE_KEY, 'edited just before leaving')
+    window.dispatchEvent(new Event('pagehide'))
+    await settle()
+    aborted.mockRestore()
+    expect(await readDisk(PERSIST_STORAGE_KEY)).toBe('saved')
+
+    const b = await openTab()
+    await b.openDataStore()
+    expect(b.readStored(PERSIST_STORAGE_KEY)).toBe('edited just before leaving')
+    expect(await readDisk(PERSIST_STORAGE_KEY)).toBe('edited just before leaving')
+    expect(localStorage.getItem('chronograma-data-unsaved')).toBeNull()
+  })
+
+  it('書き終えていた・ほかのタブが後から書いたなら、置いた分は使わない', async () => {
+    const other = await openTab()
+    await other.openDataStore()
+    other.writeStored(PERSIST_STORAGE_KEY, 'later from another tab')
+    await settle()
+    // それより前に閉じたタブが置いた分
+    localStorage.setItem('chronograma-data-unsaved', JSON.stringify({ [PERSIST_STORAGE_KEY]: { value: 'from A', at: 1 } }))
+    const c = await openTab()
+    await c.openDataStore()
+    expect(c.readStored(PERSIST_STORAGE_KEY)).toBe('later from another tab')
   })
 })
 
