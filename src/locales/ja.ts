@@ -1293,7 +1293,7 @@ export default {
   },
   calendarDock: {
     unscheduled: '時間が未定のタスク',
-    listHeading: 'リスト',
+    labelFilter: 'ラベルで絞る',
     empty: 'タスクがありません',
   },
   weekCalendar: {

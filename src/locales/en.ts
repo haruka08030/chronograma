@@ -1346,7 +1346,7 @@ export default {
   },
   calendarDock: {
     unscheduled: 'Tasks without a time',
-    listHeading: 'Lists',
+    labelFilter: 'Filter by label',
     empty: 'No tasks',
   },
   weekCalendar: {
