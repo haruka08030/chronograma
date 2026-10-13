@@ -593,6 +593,8 @@ export default {
     kind: '作るもの',
     kindEvent: '予定',
     kindTodo: 'To-Do',
+    fit: '{{title}}（{{meta}}）を置く',
+    fitMetaDue: '{{length}}・締切 {{due}}',
   },
   shortcuts: {
     title: 'キーボードショートカット',

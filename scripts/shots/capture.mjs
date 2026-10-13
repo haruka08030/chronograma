@@ -31,6 +31,9 @@ const TIMEZONE = 'Asia/Tokyo'
 const IOS_SAFARI_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 
+/** ローカル時刻として読む Date の日付（`yyyy-MM-dd`） */
+const dayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 /** `at` を決めていない画面を撮る時刻（TIMEZONE の今日） */
 const DEFAULT_AT = '13:00'
 
@@ -72,7 +75,7 @@ const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -287,6 +290,13 @@ const SCREENS = [
   { name: 'calendar-3day', view: 'calendar', calendarMode: 'threeDay', mobileOnly: true },
   // スケジュール（予定の一覧）
   { name: 'calendar-schedule', view: 'calendar', calendarMode: 'schedule' },
+  // 空きをドラッグした作成カード: 見積もりの合う To-Do（TOEIC 申し込み 45 分）を置く 1 行（#333）
+  {
+    name: 'calendar-quick-create-fit',
+    view: 'calendar',
+    estimates: { s4: 45 },
+    steps: [{ dragTime: { from: '17:30', to: '18:30' } }],
+  },
   // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
   // 撮る日（2026/10）の次の週の 10/12 スポーツの日。スマホは月のマスの祝日を押してその日の 1 日表示へ
   { name: 'calendar-holiday', view: 'calendar', desktopOnly: true, click: 'button[aria-label="次の週"] >> visible=true' },
@@ -702,6 +712,7 @@ async function main() {
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
+            if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()
@@ -809,6 +820,29 @@ async function main() {
                 await page.keyboard.press(step.press)
               } else if (step.fill) {
                 await page.locator(step.fill.selector).first().fill(step.fill.text)
+              } else if (step.dragTime) {
+                // 今日の列の空きを時刻でドラッグする（左の予定の側。`from` / `to` は 'HH:MM'）
+                const col = page.locator(`[data-datekey="${dayKeyOf(seedNow)}"] >> visible=true`).first()
+                const y = (hm) => (Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3))) / 60
+                const hourPx = (await col.evaluate((el) => el.clientHeight)) / 24
+                await col.evaluate(
+                  (el, top) => {
+                    for (let p = el.parentElement; p; p = p.parentElement) {
+                      if (p.scrollHeight > p.clientHeight + 1 && getComputedStyle(p).overflowY !== 'visible') {
+                        p.scrollTop = top
+                        return
+                      }
+                    }
+                  },
+                  y(step.dragTime.from) * hourPx - 160,
+                )
+                await page.waitForTimeout(200)
+                const box = await col.boundingBox()
+                const x = box.x + box.width / 4
+                await page.mouse.move(x, box.y + y(step.dragTime.from) * hourPx + 2)
+                await page.mouse.down()
+                await page.mouse.move(x, box.y + y(step.dragTime.to) * hourPx - 2, { steps: 8 })
+                await page.mouse.up()
               }
               await page.waitForTimeout(300)
             }

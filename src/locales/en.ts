@@ -610,6 +610,8 @@ export default {
     kind: 'Create',
     kindEvent: 'Event',
     kindTodo: 'To-do',
+    fit: 'Place {{title}} ({{meta}})',
+    fitMetaDue: '{{length}} · due {{due}}',
   },
   shortcuts: {
     title: 'Keyboard shortcuts',
