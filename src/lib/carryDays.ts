@@ -34,7 +34,7 @@ export function carriedDaysOn(task: CarryFields, dateKey: string): number {
   return (task.carriedDays ?? 0) + waiting
 }
 
-/** 続けて持ち越した日数の上限（10 年。DB の `029` の制約と同じ） */
+/** 続けて持ち越した日数の上限（10 年。DB の `037` の制約と同じ） */
 const MAX_CARRIED_DAYS = 3650
 
 /** 保存・同期から読んだ続けて持ち越した日数。0 以上の整数でなければ 0 */
