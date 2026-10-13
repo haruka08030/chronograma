@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   CheckIcon,
   ClockIcon,
+  DuplicateIcon,
   FlagIcon,
   OpenPanelIcon,
   PlayIcon,
@@ -82,6 +83,7 @@ export function TaskContextMenu({
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
   const setSomedayTier = useTaskStore((s) => s.setSomedayTier)
+  const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
 
   const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -405,6 +407,21 @@ export function TaskContextMenu({
                   icon: <OpenPanelIcon className={ICON} />,
                   keys: '↵',
                   run: done(() => onOpenDetail(taskIds[0])),
+                },
+              ]
+            : []),
+          // 同じ日・同じ時間に写す（Google カレンダーの「複製」と同じ）。1 件なら写したものの詳細を開いて直せるようにする
+          ...(targets.some((x) => !isLogTask(x))
+            ? [
+                {
+                  kind: 'leaf' as const,
+                  id: 'duplicate',
+                  label: t('taskMenu.duplicate'),
+                  icon: <DuplicateIcon className={ICON} />,
+                  run: done(() => {
+                    const copies = duplicateTasks(taskIds)
+                    if (copies.length === 1) onOpenDetail(copies[0])
+                  }),
                 },
               ]
             : []),

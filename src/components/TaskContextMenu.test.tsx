@@ -71,3 +71,21 @@ describe('TaskContextMenu のラベル', () => {
     expect(task(b).color).toBe('#D50000')
   })
 })
+
+describe('TaskContextMenu の複製', () => {
+  it('1 件を複製すると写したものの詳細を開き、複数なら全部写す', async () => {
+    const user = userEvent.setup()
+    const { a, b } = seed()
+    let opened = ''
+    const { unmount } = render(<TaskContextMenu x={10} y={10} taskIds={[a]} onClose={() => {}} onOpenDetail={(id) => (opened = id)} />)
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }))
+    expect(opened).not.toBe(a)
+    expect(task(opened).title).toBe('A')
+    unmount()
+
+    const before = useTaskStore.getState().tasks.length
+    renderMenu([a, b])
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }))
+    expect(useTaskStore.getState().tasks.length).toBe(before + 2)
+  })
+})

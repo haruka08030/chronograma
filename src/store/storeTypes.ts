@@ -449,6 +449,11 @@ export interface TaskState {
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
   completeTasks: (ids: string[]) => void
+  /**
+   * 複製する（同じ日・同じ時間、元のすぐ後ろ。子も写す。完了・持ち越しは引き継がない、`duplicateTaskTrees`）。
+   * 記録・睡眠は写さない。複製の id を選んだ順に返す。Undo は 1 段
+   */
+  duplicateTasks: (ids: string[]) => string[]
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void
