@@ -139,3 +139,36 @@ describe('WeekCalendarView: ドラッグ中の描き直し（#265）', () => {
     expect(useTaskStore.getState().tasks.find((t) => t.id === 'p')).toMatchObject({ startTime: '10:00', endTime: '11:30' })
   })
 })
+
+describe('WeekCalendarView: ⌥ を押しながら動かすと複製（#398）', () => {
+  const x = 2 * COL_W + 20
+  const y0 = 10.5 * HOUR_HEIGHT
+  const tasks = () => useTaskStore.getState().tasks
+
+  it('元は動かさず、置いた日・時刻に複製を置く。複製に移した控え・持ち越しは付かず、1 回の取り消しで消える', () => {
+    const { grid, block } = renderWeek()
+    const before = tasks().length
+    fireEvent.pointerDown(block, { clientX: x, clientY: y0, button: 0, pointerId: 1, altKey: true })
+    for (let dx = 1; dx <= COL_W; dx += 10) fireEvent.pointerMove(grid, { clientX: x + dx, clientY: y0, pointerId: 1, altKey: true })
+    // 押している間は元を薄くしない
+    expect(block.parentElement!.style.opacity).toBe('1')
+    act(() => void fireEvent.pointerUp(grid, { clientX: x + COL_W, clientY: y0, pointerId: 1, altKey: true }))
+    expect(tasks().find((t) => t.id === 'p')).toMatchObject({ scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' })
+    expect(tasks().length).toBe(before + 1)
+    const copy = tasks().find((t) => t.title === 'p' && t.id !== 'p')!
+    expect(copy).toMatchObject({ scheduledDate: '2026-10-08', startTime: '10:00', endTime: '11:00', carriedDays: 0 })
+    expect(copy.movedPlans).toBeUndefined()
+    act(() => void useTaskStore.getState().undoLastOperation())
+    expect(tasks().length).toBe(before)
+  })
+
+  it('⌥ を押さなければ今までどおり動かす', () => {
+    const { grid, block } = renderWeek()
+    const before = tasks().length
+    fireEvent.pointerDown(block, { clientX: x, clientY: y0, button: 0, pointerId: 1 })
+    for (let dx = 1; dx <= COL_W; dx += 10) fireEvent.pointerMove(grid, { clientX: x + dx, clientY: y0, pointerId: 1 })
+    act(() => void fireEvent.pointerUp(grid, { clientX: x + COL_W, clientY: y0, pointerId: 1 }))
+    expect(tasks().length).toBe(before)
+    expect(tasks().find((t) => t.id === 'p')).toMatchObject({ scheduledDate: '2026-10-08' })
+  })
+})

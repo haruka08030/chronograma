@@ -2,6 +2,7 @@ import { addMinutes } from 'date-fns'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
+import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { parseHabitSlotId, habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
@@ -41,6 +42,8 @@ export type BlockEditContext = {
   logLimit: LogLimit
   /** 動かしている Google の予定（ドラッグはつかんだ時点のもの。週をめくって一覧から消えても動かせるように） */
   googleEvent?: CalendarEvent | null
+  /** ⌥ を押しながら離した: 元は動かさず、置いた先に複製を作る（アプリの予定・To-Do だけ。ほかは何もしない、`dragCopy.ts`） */
+  copy?: boolean
 }
 
 /** 習慣の枠を動かした・伸ばした: その日だけの時間にする */
@@ -57,6 +60,10 @@ function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string }, sta
 
 /** ブロックを `dateKey` の `startTime` へ動かす（長さは保つ）。動かしたら true */
 export function applyBlockMove(taskId: string, dateKey: string, startTime: string, endTime: string, ctx: BlockEditContext): boolean {
+  if (ctx.copy) {
+    if (!canCopyOnDrop(taskId)) return false
+    return placeCopies([taskId], (t) => patchAfterTimelineMove(t, dateKey, startTime, endTime)).length > 0
+  }
   const habitSlot = parseHabitSlotId(taskId)
   if (habitSlot) {
     // 習慣の枠はその日の中だけ動かせる（ほかの日へ持っていったら元に戻す）

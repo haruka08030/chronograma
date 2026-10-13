@@ -6,6 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
 import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey } from '../lib/timelineBlockEdit'
+import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
 import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
@@ -229,7 +230,11 @@ export function WeekCalendarView({
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
   const onMoveDone = useCallback((taskId: string, dateKey: string, startTime: string, endTime: string) => {
-    applyBlockMove(taskId, dateKey, startTime, endTime, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
+    applyBlockMove(taskId, dateKey, startTime, endTime, {
+      logLimit: logLimitRef.current,
+      googleEvent: googleDragRef.current,
+      copy: isCopyModifierHeld(),
+    })
   }, [])
   const onResizeDone = useCallback((taskId: string, startTime: string, endTime: string, dateKey: string) => {
     applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
@@ -346,7 +351,10 @@ export function WeekCalendarView({
     const toUnschedule = getCalendarItemDrag().overUnschedule
     if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
-      if (task && !isLogTask(task) && (allDayMoveKey || !isEventTask(task))) {
+      if (task && !isLogTask(task) && allDayMoveKey && isCopyModifierHeld()) {
+        // ⌥ を押して終日の行へ = その日の終日に複製を置く（元はそのまま）
+        placeCopies([task.id], () => ({ scheduledDate: allDayMoveKey, startTime: null, endTime: null }))
+      } else if (task && !isLogTask(task) && (allDayMoveKey || !isEventTask(task))) {
         updateTask(
           d.taskId,
           allDayMoveKey ? { scheduledDate: allDayMoveKey, startTime: null, endTime: null } : UNSCHEDULE_PATCH,
@@ -428,7 +436,11 @@ export function WeekCalendarView({
     })
   }, [gridDays, singleDay, allDayByDate, eventsByDate, dueByDate, holidayNameOf])
 
-  const { dragPreview, activeCreateIntent, movingTaskId, popup } = timelineDrag
+  const { dragPreview, activeCreateIntent, popup } = timelineDrag
+  // ⌥ を押しながら動かしている間は複製になるので、元は薄くせずその場に残す（カーソルもコピーの形）
+  const copyHeld = useCopyModifier()
+  const copying = copyHeld && timelineDrag.drag?.kind === 'move' && canCopyOnDrop(timelineDrag.drag.taskId)
+  const movingTaskId = copying ? null : timelineDrag.movingTaskId
   /** 動かしている予定がこの日の列にあるか（ある列にだけ渡し、つかむ・離すときに全部の列を描き直さない） */
   const movingIn = (key: string): string | null => {
     const id = movingTaskId
@@ -552,7 +564,7 @@ export function WeekCalendarView({
 
                 <div
                   ref={gridRef}
-                  className={`flex-1 grid relative ${gridColsClass}`}
+                  className={`flex-1 grid relative ${gridColsClass} ${copying && timelineDrag.didMove.current ? 'copy-drag' : ''}`}
                   onPointerMove={handleGridPointerMove}
                   onPointerUp={handleGridPointerUp}
                   onPointerCancel={handleGridPointerCancel}

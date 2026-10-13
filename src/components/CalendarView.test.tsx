@@ -38,3 +38,38 @@ describe('CalendarView（月）: 押すと小さなカード', () => {
     expect(onSelectDate).not.toHaveBeenCalled()
   }, 20000)
 })
+
+describe('CalendarView（月）: ⌥ を押して落とすと複製（#398）', () => {
+  /** ネイティブの D&D の中身（運んでいる To-Do の id） */
+  const transfer = (id: string) => ({
+    types: ['application/x-task-id'],
+    getData: (type: string) => (type === 'application/x-task-id' ? id : ''),
+    dropEffect: 'none',
+    effectAllowed: 'copyMove',
+  })
+  const cellOf = (day: string) => screen.getAllByText(day).map((el) => el.closest<HTMLElement>('.group')!)[0]
+
+  it('⌥ を押して別の日へ落とすと、元はそのままで時刻つきの複製がその日に入る。押さなければ動かす', () => {
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'バイト', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '17:00', endTime: '22:00' }, 0),
+          id: 'b1',
+        },
+      ],
+    })
+    render(<CalendarView displayMonth={fromDateKey('2026-10-01')} selectedDateKey="2026-10-01" />)
+    const tasks = () => useTaskStore.getState().tasks
+    // ⌥ を押す（ドラッグ中の dragover で覚える状態と同じ）
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true })
+    fireEvent.drop(cellOf('9'), { dataTransfer: transfer('b1'), altKey: true })
+    fireEvent.keyUp(window, { key: 'Alt', altKey: false })
+    expect(tasks().find((t) => t.id === 'b1')?.scheduledDate).toBe('2026-10-07')
+    const copy = tasks().find((t) => t.id !== 'b1')!
+    expect(copy).toMatchObject({ title: 'バイト', scheduledDate: '2026-10-09', startTime: '17:00', endTime: '22:00' })
+
+    fireEvent.drop(cellOf('10'), { dataTransfer: transfer('b1') })
+    expect(tasks()).toHaveLength(2)
+    expect(tasks().find((t) => t.id === 'b1')?.scheduledDate).toBe('2026-10-10')
+  })
+})

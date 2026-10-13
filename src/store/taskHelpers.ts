@@ -206,12 +206,14 @@ export function makeTask(
  * 選んだタスクの複製（Google カレンダーの「複製」と同じく、同じ日・同じ時間に作る）。子（ゴミ箱・アーカイブを除く）も同じ規則で写す。
  * 引き継がないもの: 完了・持ち越し日数・移した予定の控え・毎週の繰り返しの印（予定の 1 回分を写すと、ふつうの予定になる）。
  * 記録・睡眠は写さない。選んだ行の祖先も選んでいれば、その行は祖先と一緒に写る（2 つ作らない）。
+ * `place` を渡すと、写した行（子は除く）をその日時に置く（⌥ を押しながらのドラッグ、`dragCopy.ts`）。
  * 返すのは新しく足す行と、選んだ行ごとの複製の id（選んだ順）
  */
 export function duplicateTaskTrees(
   tasks: Task[],
   ids: string[],
   now: string = new Date().toISOString(),
+  place?: (src: Task) => Partial<Task>,
 ): { added: Task[]; copyIds: string[] } {
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const picked = new Set(ids)
@@ -253,7 +255,10 @@ export function duplicateTaskTrees(
       .filter((t) => t.listId === src.listId && t.parentId === src.parentId && (src.parentId !== null || t.sectionId === src.sectionId))
       .sort(compareByOrder)
     const next = siblings[siblings.findIndex((t) => t.id === src.id) + 1]
-    return copy(src, src.parentId, next ? (src.order + next.order) / 2 : src.order + 1).id
+    const out = copy(src, src.parentId, next ? (src.order + next.order) / 2 : src.order + 1)
+    // 置く先の日時はそのまま書く（`applyTaskPatch` を通すと「動かした」とみなされ、持ち越し・移した控えが付く）
+    if (place) Object.assign(out, place(src))
+    return out.id
   })
   return { added, copyIds }
 }
