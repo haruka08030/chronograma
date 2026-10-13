@@ -6,6 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
+import { useCanvasSubmitted } from '../lib/canvasSubmitted'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
@@ -190,6 +191,8 @@ export const TaskItem = memo(function TaskItem({
   const timeLog = isLogTask(task)
   // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
   const sourceLink = sourceLinkOf(task.description)
+  // Canvas で提出はしたが済んではいない課題（途中保存も）。終わったかは利用者が決める（#395）
+  const submitted = useCanvasSubmitted(task.id) && !task.completed
   const repeatText = task.recurrence ? recurrenceLabel(t, task.recurrence, task.dueDate) : null
   const notePreview = sourceLink
     ? ''
@@ -427,6 +430,11 @@ export const TaskItem = memo(function TaskItem({
               <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
                 <CalendarIcon className="w-3 h-3" />
                 {dueText}
+              </span>
+            )}
+            {submitted && (
+              <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                {t('canvas.submittedMark')}
               </span>
             )}
             {childDue && nextChild && (

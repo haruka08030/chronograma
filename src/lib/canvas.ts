@@ -63,8 +63,10 @@ export type CanvasItem = {
    * タイムゾーン付き・浮動の締切の壁時計（Moodle の書き出しだけ）。`timeZone` が null か読めない名前なら、アプリのタイムゾーンとして読む
    */
   dueWall?: { date: string; time: string; timeZone: string | null }
-  /** 提出済み・採点済み・免除・Canvas で完了にした */
+  /** 採点済み・免除・Canvas で完了にした（提出しただけは入らない） */
   done: boolean
+  /** 提出はしたが済んではいない（途中保存・下書きも）。トークンでつないだ Canvas だけ */
+  submitted?: boolean
 }
 
 export type CanvasConnectionItems = {
@@ -250,6 +252,8 @@ export type CanvasReconcileResult = {
   tasks: Task[]
   /** Canvas 側で済んだので自動で完了にしたタスク。Canvas へ書き戻さない */
   autoCompletedIds: string[]
+  /** Canvas で提出はしたが済んではいない課題のタスクの id（この接続の分だけ。手元で完了にしたものも入る） */
+  submittedIds: string[]
   /** 今回の取り込みのあとに覚えておく値（`opts.pulled` を渡したとき） */
   pulled: Record<string, PulledFields>
   changed: boolean
@@ -258,7 +262,8 @@ export type CanvasReconcileResult = {
 /**
  * 1 校ぶんの Canvas の課題を、To-Do のタスクに合わせる。
  * - 未提出で無いものは未分類に作る（科目のタグを付ける。ラベルは付けない）。未完了のものはタイトル・期限を Canvas に合わせる
- * - 提出済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
+ * - 採点済みなど Canvas で済んだものは、未完了なら完了にする（済んだものを新しく作りはしない）
+ * - 提出しただけのものは完了にせず、`submittedIds` で返す（終わったかは利用者が決める）
  * - 取り込む期間の中なのに返ってこなくなった（削除・非公開になった）ものは完了にする
  * - 完了済み・アーカイブ・削除済みのタスクは生き返らせない。`skipIds`（書き戻し待ち）にも触らない
  */
@@ -288,6 +293,7 @@ export function reconcileCanvasItems(
   const updates = new Map<string, Task>()
   const additions: Task[] = []
   const autoCompletedIds: string[] = []
+  const submittedIds: string[] = []
   const pulled: Record<string, PulledFields> = { ...(opts.pulled ?? {}) }
   let nextOrder = Math.max(-1, ...state.tasks.filter((t) => t.listId === listId).map((t) => t.order)) + 1
 
@@ -301,6 +307,8 @@ export function reconcileCanvasItems(
     if (seen.has(id)) continue
     seen.add(id)
     const existing = byId.get(id)
+    // 完了にしたものも覚える（完了を外したときに、もう一度は聞かない）
+    if (item.submitted && !item.done) submittedIds.push(id)
     if (existing && (existing.completed || existing.archivedAt || existing.deletedAt || skip.has(id))) continue
 
     if (item.done) {
@@ -360,12 +368,13 @@ export function reconcileCanvasItems(
   }
 
   if (updates.size === 0 && additions.length === 0) {
-    return { sections, tasks: state.tasks, autoCompletedIds, pulled, changed: false }
+    return { sections, tasks: state.tasks, autoCompletedIds, submittedIds, pulled, changed: false }
   }
   return {
     sections,
     tasks: [...state.tasks.map((t) => updates.get(t.id) ?? t), ...additions],
     autoCompletedIds,
+    submittedIds,
     pulled,
     changed: true,
   }

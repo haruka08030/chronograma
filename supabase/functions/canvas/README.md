@@ -2,6 +2,7 @@
 
 Reads the user's Canvas LMS planner (To Do) and returns assignments, quizzes, discussions, pages and planner notes, so the app can turn them into tasks.
 When such a task is completed (or reopened) in the app, marks the Canvas To Do item complete (or not) via a planner override.
+An item is `done` only when it is graded (without a redo request), excused, or marked complete in Canvas. Canvas also sets `submitted` for saved progress and drafts, so a submitted-only item comes back with `submitted: true` and stays open; the app asks the user once whether it is finished.
 The access token is stored in `canvas_connection` and never returned to the browser.
 
 ## Deploy

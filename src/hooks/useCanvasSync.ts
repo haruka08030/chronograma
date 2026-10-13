@@ -19,6 +19,7 @@ import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { CANVAS_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
+import { bindCanvasSubmitted, noteCanvasSubmitted } from '../lib/canvasSubmitted'
 import type { SyncStatus } from '../types/sync'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
@@ -86,8 +87,10 @@ export function useCanvasSync() {
   useEffect(() => {
     if (!isSupabaseConfigured || !userId || loading) {
       setSyncState({ lastSyncedAt: null, error: null, connectionErrors: {} })
+      bindCanvasSubmitted(null)
       return
     }
+    bindCanvasSubmitted(userId)
 
     let cancelled = false
     let running = false
@@ -133,6 +136,8 @@ export function useCanvasSync() {
           }
           const connectionErrors: Record<string, string> = {}
           const pulled = loadPulled(pulledKey(userId))
+          /** 接続ごとの、提出はしたが済んではいない課題（行の目印と「終わった？」の知らせ） */
+          const submitted: Array<[string, string[]]> = []
           for (const conn of res.connections) {
             if ('error' in conn) {
               connectionErrors[conn.id] = conn.error
@@ -149,6 +154,7 @@ export function useCanvasSync() {
               pulled,
             })
             Object.assign(pulled, result.pulled)
+            submitted.push([conn.id, result.submittedIds])
             result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
             if (result.changed) {
               next = { ...next, sections: result.sections, tasks: result.tasks }
@@ -157,6 +163,7 @@ export function useCanvasSync() {
           }
           savePulled(pulledKey(userId), pulled)
           if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId }))
+          for (const [id, ids] of submitted) noteCanvasSubmitted(id, ids)
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
         } while (rerun && !cancelled)
       } catch (e) {

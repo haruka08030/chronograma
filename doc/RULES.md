@@ -183,7 +183,7 @@
 - 保存データが読めないときは別キーに退避し、エラー画面に「書き出す」「自動バックアップから戻す」。退避した写し（`chronograma-storage-unreadable-{時刻}`・`-before-recovery-{時刻}`）は種類ごとに新しい 1 つだけ残す（`lib/deviceCleanup.ts`）
 - ゴミ箱に入れて 30 日（`TRASH_KEEP_DAYS`）たったタスクは起動時に完全に削除し、同期でサーバーからも消す。ゴミ箱の件数の横に「30 日後に自動で削除」
 - 取り込み前の控えは 7 日（`IMPORT_ROLLBACK_KEEP_DAYS`）で捨てる。控えには持ち主（取り込んだときの `dataOwner`）を付ける
-- ログアウトでは、保存データの写し・連携（Canvas・Notion）の前回取り込んだ値を誰の分も消し、前回同期の控えは中身を消して印（`null`）だけ残す（ほかの人として同期したことだけ分かる。`clearSignedOutLeftovers`）
+- ログアウトでは、保存データの写し・連携（Canvas・Notion）の前回取り込んだ値・Canvas の提出済みの控えを誰の分も消し、前回同期の控えは中身を消して印（`null`）だけ残す（ほかの人として同期したことだけ分かる。`clearSignedOutLeftovers`）
 - 設定「データ › 記録を書き出す」: 期間（今週・今月・先月・すべて。週は月曜はじまり、開始日で切る）を選んで CSV か ICS に（手元のデータから作り、サーバーは使わない、`lib/recordExport.ts`）。CSV は UTF-8 BOM・CRLF、列は 種類・日付・開始・終了・終了日（日をまたぐときだけ）・分・ラベル・タイトル・タグ・元の予定（ふりかえりと同じ予定の集まりと突き合わせた「予定どおり / 時間がずれた / 予定になし」）。見出しと値は画面の言語で、日付・タイトル・タグの見出しは CSV の取り込みでそのまま読める。日付・時刻はアプリのタイムゾーン、分は実際の長さ（夏時間も）。記録と睡眠を入れ、スイッチを入れたときだけ予定と ✓ で終えた時刻つきの To-Do も入れる（いつか・チェックリストは入れない）。題名・ラベル・タグが = + - @ で始まるなら先頭に ' を付ける。ICS は記録だけ（`VEVENT` に `SUMMARY`・`CATEGORIES` にラベル、時刻は UTC の `Z`、`UID` は記録の id から作るので書き出し直しても重ならない）。書き出すものが 0 件ならボタンを押せない（ICS は記録が 0 件なら）。ファイル名は `chronograma-records-YYYY-MM-DD.csv / .ics`
 - 自動バックアップには持ち主（控えたときの `dataOwner`）を付け、一覧・復元はいまの人の分だけ（`canViewBackup`）。ログアウト後の端末では前の人の控えは見えない。持ち主の分からない古い控えはログイン中だけ。残す数は持ち主ごと。いま使っている人以外の控えは 30 日（`OTHER_OWNER_KEEP_DAYS`）で消す（持ち主の分からない控えは数だけ）
 - 毎日の自動バックアップは、その日の分があるかを日付の索引（`chronograma-backups` の `dateKey`）で確かめてから全データを文字列にする。同期で手元のタスクが減るときの控え（同期の直前）は 10 分に 1 回まで
@@ -191,6 +191,7 @@
 - 繰り返しタスクの次回の id は「元の id@締切日」
 - 毎週の繰り返しは曜日（`weekdays`、1=月 … 7=日）を持てる。次回は選んだ曜日のうち締切の次に来る日、週の最後の曜日の後は間隔ぶん先の週の最初の曜日。曜日が無ければ締切の曜日で回る。やる日は締切と同じ日数だけずらす
 - 学校の LMS は「Canvas・Moodle」の欄で LMS を選んでつなぐ。Canvas はアクセストークンかカレンダーフィードの URL（`…/feeds/calendars/….ics`）、Moodle はカレンダーの書き出しの URL（`…/calendar/export_execute.php?userid=…&authtoken=…`、サブパスに置いた Moodle も可）。フィードと書き出しは読むだけで、Canvas のフィードと同じ間隔で取り込む。Moodle の書き出しは範囲を「すべての予定・最近と今後」に書き換えて読み（`userid`・`authtoken` 以外は捨てる）、科目の予定（CATEGORIES あり）の長さ 0 のもの（課題の期限・小テストの終了など）を締切つきの To-Do にし、科目の短い名前をタグにする。件名が「開始」「opens」で終わるものは締切ではないので読まない。`TZID` 付き・浮動の日時はそのタイムゾーン（浮動・読めない名前はアプリのタイムゾーン）の時刻として期限にする（`supabase/functions/canvas/moodle.ts`・`feedUrl.ts`）
+- トークンでつないだ Canvas の課題は、採点済み・免除・Canvas で完了にしたものだけ自動で完了にする（先生がやり直しを頼んでいれば済んでいない）。提出しただけ（途中保存・下書きも Canvas は提出にする）は未完了のまま、行に「提出済み」を出す。新しく提出済みになったものは、取り込みの直後に画面の下で 1 回だけ「終わりましたか？［完了にする］［まだ］」と聞く（何件か一度ならまとめて 1 回。答えなければ 12 秒で閉じる。見ているタブだけ数える）。提出済みは端末間で同期せず、この端末に人ごとに覚える（`lib/canvasSubmitted.ts`、`CanvasSubmittedToast`）
 - Canvas・Moodle の接続は 1 人 5 校まで。学校のサイトの応答は 5 MB まで読む（`canvas/body.ts`）。名前が引けない・内部を指す宛先には送らない
 - Edge Function の呼び出しは利用者ごとに 10 分あたり Google 600・Notion 300・Canvas 300 回まで、Canvas の接続は 1 時間 20 回・アカウントの削除は 1 時間 10 回まで（`_shared/rateLimit.ts`）。超えると 429 で、Notion / Canvas は `*_rate_limited` の文言。数えられないとき（`hit_rate_limit` の失敗）も 429 で止める
 - Google が断った理由は本文の `reason` で分ける（`supabase/functions/google-calendar/googleError.ts`）。利用上限（403 の `rateLimitExceeded` / `userRateLimitExceeded` / `quotaExceeded` / `dailyLimitExceeded`、429）は 429 の `google_rate_limited` で連携を残す（予定の読み取りは一度だけ待ってやり直す）。取り消し・期限切れ（`invalid_grant`・401）と許可不足（`insufficientPermissions`）は 409 でつなぎ直し、他人の予定は 409 の `google_read_only`、それ以外は 502 で連携を残す

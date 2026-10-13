@@ -14,6 +14,7 @@ import { TodayPlannerView } from './components/TodayPlannerView'
 import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
+import { CanvasSubmittedToast } from './components/CanvasSubmittedToast'
 import { StorageFullBanner } from './components/StorageFullBanner'
 import { DndTaskDragShell } from './components/DndTaskDragShell'
 import { TimerDropZone } from './components/TimerDropZone'
@@ -194,6 +195,9 @@ export default function App() {
         </PartBoundary>
         <PartBoundary name="moveToast" resetKey={partKey}>
           <MoveToast />
+        </PartBoundary>
+        <PartBoundary name="canvasSubmitted" resetKey={partKey}>
+          <CanvasSubmittedToast />
         </PartBoundary>
         <PartBoundary name="storageFull" resetKey={partKey}>
           <StorageFullBanner />
