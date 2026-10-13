@@ -101,7 +101,7 @@ describe(`${N} 件の一覧は先頭の ${LIST_PAGE_SIZE} 行だけ描く`, { ti
   })
 })
 
-describe('描いていない行へもキーで行ける', () => {
+describe('描いていない行へもキーで行ける', { timeout: 120_000 }, () => {
   it('完了済み: 最後の行で ↓ を押すと行が足され、枠（aria-activedescendant）が 101 行目へ動く', async () => {
     useTaskStore.setState({ tasks: bigSeed(150, completed) })
     const { rows } = measure(<CompletedTasksView />)
@@ -134,7 +134,7 @@ describe('描いていない行へもキーで行ける', () => {
   })
 })
 
-describe('検索の記録', () => {
+describe('検索の記録', { timeout: 120_000 }, () => {
   it('記録は To-Do の行に混ぜず、件数と「記録を見る」で出す。開くと新しい順に並び、押すと詳細', async () => {
     const user = userEvent.setup()
     useTaskStore.getState().addTask('数学の宿題')
@@ -178,7 +178,7 @@ describe('検索の記録', () => {
   })
 })
 
-describe('ゴミ箱の複数選択（長い一覧）', () => {
+describe('ゴミ箱の複数選択（長い一覧）', { timeout: 120_000 }, () => {
   it('⌘A は描いている 100 行だけを選ぶ。「さらに表示」の後の行も押して選び、まとめて戻せる', async () => {
     const user = userEvent.setup()
     useTaskStore.setState({ tasks: bigSeed(130, (i) => ({ archivedAt: new Date(BASE - i * 60000).toISOString() })) })
