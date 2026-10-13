@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { absolutizeOgUrls, siteOrigin } from './src/lib/ogMeta'
 
 // ライブラリごとに別ファイルにする。アプリのコードだけ変えたデプロイでは、これらはキャッシュがそのまま効く
 const vendor = (name: string, pkgs: string) => ({
@@ -28,8 +29,15 @@ const swBuildStamp = () => ({
   },
 })
 
+/** リンクのプレビュー（OGP）の画像・URL を公開の URL からの絶対 URL にする（SITE_URL、無ければ Vercel の本番ドメイン） */
+const ogAbsoluteUrls = () => ({
+  name: 'og-absolute-urls',
+  apply: 'build' as const,
+  transformIndexHtml: (html: string) => absolutizeOgUrls(html, siteOrigin(process.env)),
+})
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), swBuildStamp()],
+  plugins: [react(), tailwindcss(), swBuildStamp(), ogAbsoluteUrls()],
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
   },
