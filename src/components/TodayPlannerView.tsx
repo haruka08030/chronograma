@@ -27,7 +27,7 @@ import { SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskMenu } from '../lib/overlays'
 import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
-import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -42,6 +42,9 @@ import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSu
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
+
+/** スマホ幅で最初から出す締切切れの行の数 */
+const OVERDUE_PHONE_ROWS = 2
 
 /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
 const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
@@ -65,6 +68,7 @@ export function TodayPlannerView() {
   // 行を押したとき: PC は詳細、スマホは短いシート（To-Do 一覧と同じ）
   const openDetail = useOpenTaskRow()
   const isCoarse = useIsCoarsePointer()
+  const isDesktop = useIsDesktop()
 
   // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
   const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
@@ -78,6 +82,7 @@ export function TodayPlannerView() {
   const [suggestionsChoice, setSuggestionsChoice] = useState<boolean | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [showLeftOver, setShowLeftOver] = useState(false)
+  const [showAllOverdue, setShowAllOverdue] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
   /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
@@ -138,6 +143,11 @@ export function TodayPlannerView() {
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
   const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
+  // スマホ幅は締切切れが今日やる行を画面の外へ押し出さないよう 2 行まで（残りは「他 N 件」で開く）。PC は全部
+  const overdueShown = useMemo(
+    () => (isDesktop || showAllOverdue ? overdue : overdue.slice(0, OVERDUE_PHONE_ROWS)),
+    [isDesktop, showAllOverdue, overdue],
+  )
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
   const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
@@ -167,13 +177,13 @@ export function TodayPlannerView() {
   const rowIds = useMemo(
     () =>
       [
-        ...overdue,
+        ...overdueShown,
         ...(showLeftOver ? leftOver : []),
         ...untimedOpen,
         ...timedOpen,
         ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
       ].map((x) => x.id),
-    [showLeftOver, leftOver, overdue, untimedOpen, timedOpen, showSuggestions, candidateGroups],
+    [showLeftOver, leftOver, overdueShown, untimedOpen, timedOpen, showSuggestions, candidateGroups],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
@@ -292,6 +302,8 @@ export function TodayPlannerView() {
           env={rowEnv}
           headingClass={sectionHeading}
           overdue={overdue}
+          overdueShown={overdueShown}
+          onShowAllOverdue={() => setShowAllOverdue(true)}
           leftOver={leftOver}
           showLeftOver={showLeftOver}
           onToggleLeftOver={() => setShowLeftOver((v) => !v)}

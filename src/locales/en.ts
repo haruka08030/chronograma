@@ -221,6 +221,7 @@ export default {
     nowRow: 'Now',
     nextRow: 'Next',
     nowNextAria: 'Now and next',
+    moreOverdue: '{{count}} more',
     allDone: 'Everything you planned is done.',
     suggestionsHeading: 'Due soon ({{count}})',
     suggestionsHeadingPlain: 'Add from to-dos',
