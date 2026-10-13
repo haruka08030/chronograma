@@ -23,7 +23,7 @@ vi.mock('../../lib/canvas', async (importOriginal) => ({
 
 const { CanvasSettings } = await import('./CanvasSettings')
 
-const TOKEN = '3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6'
+const TOKEN = 'faketoken'
 const MOODLE_URL = `https://moodle.example.ac.jp/calendar/export_execute.php?userid=12&authtoken=${TOKEN}&preset_what=all&preset_time=recentupcoming`
 
 beforeEach(() => {
