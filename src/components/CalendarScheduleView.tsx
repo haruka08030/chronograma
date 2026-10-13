@@ -9,8 +9,8 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { HolidayLabel } from './calendar/HolidayLabel'
 import { TaskItem } from './TaskItem'
-import { GoogleEventPopover } from './lazyOverlays'
-import { rectOf, type AnchorRect } from './timeline/anchoredCard'
+import { useCalendarCards } from '../hooks/useCalendarCards'
+import { CalendarCards } from './calendar/CalendarCards'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon } from './icons'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
@@ -20,7 +20,7 @@ import { timeToMinutes } from '../lib/timeGrid'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { openTaskMenu } from '../lib/overlays'
 import { isEventTask, type Task } from '../types/task'
 import { planHex, planVisualState } from '../lib/planVisual'
 import type { CalendarEvent } from '../types/calendarEvent'
@@ -40,7 +40,7 @@ function byTime(a: { startTime?: string | null }, b: { startTime?: string | null
 
 /**
  * スケジュール（Google カレンダーと同じ予定の一覧）: 選んだ日から先の予定・To‑Do・Google の予定を日付ごとに縦に並べる。
- * 何も無い日は出さない。日付を押すとその日の 1 日表示、行は日のパネルと同じ（押すと詳細・✓ で完了）
+ * 何も無い日は出さない。日付を押すとその日の 1 日表示、行は日のパネルと同じ（押すと小さなカード・✓ で完了）
  */
 export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey: string; onOpenDay: (dateKey: string) => void }) {
   const { t, i18n } = useTranslation()
@@ -51,7 +51,8 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   const lists = useTaskStore((s) => s.lists)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const [pages, setPages] = useState(1)
-  const [googleCard, setGoogleCard] = useState<{ eventId: string; anchor: AnchorRect } | null>(null)
+  // 押すと小さなカード（月・週と同じ）
+  const cards = useCalendarCards()
 
   const days = useMemo(() => {
     const start = fromDateKey(startDateKey)
@@ -117,7 +118,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                       <button
                         key={event.id}
                         type="button"
-                        onClick={(e) => setGoogleCard({ eventId: event.id, anchor: rectOf(e.currentTarget)! })}
+                        onClick={(e) => cards.openGoogleCard(event.id, e.currentTarget)}
                         onContextMenu={(e) => {
                           e.preventDefault()
                           openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: event.id })
@@ -137,7 +138,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                         <button
                           key={task.id}
                           type="button"
-                          onClick={() => openTaskDetail(task.id)}
+                          onClick={(e) => cards.openCard(task.id, e.currentTarget)}
                           onContextMenu={(e) => {
                             e.preventDefault()
                             openTaskMenu({ kind: 'event', x: e.clientX, y: e.clientY, taskId: task.id })
@@ -151,7 +152,13 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                           </div>
                         </button>
                       ) : (
-                        <TaskItem key={task.id} task={task} dayKey={key} hideDueDatePicker onRowClick={() => openTaskDetail(task.id)} />
+                        <TaskItem
+                          key={task.id}
+                          task={task}
+                          dayKey={key}
+                          hideDueDatePicker
+                          onRowClick={(e) => cards.openCard(task.id, e.currentTarget)}
+                        />
                       ),
                     )}
                   </div>
@@ -163,7 +170,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
         <ShowMoreButton onClick={() => setPages((p) => p + 1)} />
       </div>
       <OverlaySuspense>
-        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+        <CalendarCards cards={cards} />
       </OverlaySuspense>
     </div>
   )

@@ -25,7 +25,8 @@ import { useIsDesktop } from '../hooks/useMediaQuery'
 import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
-import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
+import { QuickCreatePopover } from './lazyOverlays'
+import { CalendarCards } from './calendar/CalendarCards'
 import { appTodayKey, zonedNow } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
@@ -201,19 +202,8 @@ export function WeekCalendarView({
     return null
   }, [])
 
-  const {
-    eventCard,
-    setEventCard,
-    openCard,
-    closeCard,
-    openDetailFromCard,
-    googleCard,
-    setGoogleCard,
-    openGoogleCard,
-    closeGoogleCard,
-    createAnchor,
-    setCreateAnchorFromEl,
-  } = useCalendarCards(gridRef)
+  const cards = useCalendarCards(gridRef)
+  const { setEventCard, openCard, setGoogleCard, openGoogleCard, createAnchor, setCreateAnchorFromEl } = cards
 
   /**
    * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
@@ -526,6 +516,7 @@ export function WeekCalendarView({
               allDayAddDate={allDayAddDate}
               setAllDayAddDate={setAllDayAddDate}
               openGoogleCard={openGoogleCard}
+              openCard={openCard}
             />
           )}
 
@@ -591,10 +582,7 @@ export function WeekCalendarView({
       </div>
 
       <OverlaySuspense>
-        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
-        {eventCard && (
-          <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
-        )}
+        <CalendarCards cards={cards} />
         {timelineDrag.popup && createAnchor && (
           <QuickCreatePopover
             anchor={createAnchor}
