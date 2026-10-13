@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { dayLoad, freeMinutesOfDay, plannedTodoMinutes } from './dayLoad'
+import { dayLoad, daysBeforeDue, dueFits, freeMinutesOfDay, plannedTodoMinutes } from './dayLoad'
 import { busyMinutes } from './freeSlots'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -124,5 +124,33 @@ describe('dayLoad', () => {
 
   it('a day with no events has the whole target free', () => {
     expect(dayLoad([], [], DAY, { capacityMinutes: h(8) })).toEqual({ freeMinutes: h(8), plannedMinutes: 0, over: false })
+  })
+})
+
+describe('dueFits（締切の見出しの「入りきらない」、#332）', () => {
+  it('締切の前日までの日。今日・明日までの締切は今日だけ', () => {
+    expect(daysBeforeDue('2026-10-13', '2026-10-13')).toEqual(['2026-10-13'])
+    expect(daysBeforeDue('2026-10-13', '2026-10-14')).toEqual(['2026-10-13'])
+    expect(daysBeforeDue('2026-10-13', '2026-10-16')).toEqual(['2026-10-13', '2026-10-14', '2026-10-15'])
+  })
+
+  it('前の締切の見積もりも足して、締切の前日までの空きと比べる。見積もりの無い行は数えない', () => {
+    const free: Record<string, number> = { '2026-10-13': 60, '2026-10-14': 60, '2026-10-15': 60 }
+    const fits = dueFits(
+      [
+        { dueDate: '2026-10-14', tasks: [{ estimateMinutes: 60 }, { estimateMinutes: null }] },
+        { dueDate: '2026-10-16', tasks: [{ estimateMinutes: 240 }] },
+      ],
+      '2026-10-13',
+      (k) => free[k] ?? 0,
+    )
+    expect(fits.get('2026-10-14')).toEqual({ estimateMinutes: 60, freeMinutes: 60, over: false })
+    expect(fits.get('2026-10-16')).toEqual({ estimateMinutes: 300, freeMinutes: 180, over: true })
+  })
+
+  it('見積もりが無ければ空きが 0 でも入りきる', () => {
+    expect(dueFits([{ dueDate: '2026-10-14', tasks: [{ estimateMinutes: null }] }], '2026-10-13', () => 0).get('2026-10-14')!.over).toBe(
+      false,
+    )
   })
 })

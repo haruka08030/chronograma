@@ -190,6 +190,8 @@ export default {
     hoursMinutes: '{{h}}時間{{m}}分',
     overCapacity: '置いた To-Do（{{planned}}）が空き（{{free}}）を超えています。いくつか明日へ回すと余裕ができます。',
     overCapacityShort: '（超過）',
+    dueFitOver: '入りきらない',
+    dueFitHint: 'この締切までの見積もり {{estimate}} / 空き {{free}}（今日から締切の前日まで。授業・バイト・Google の予定を引いた空き）',
     todoHeading: 'To-Do',
     addPlaceholder: '追加',
     addPlaceholderExample: '追加（例: レポート 明日まで）',
