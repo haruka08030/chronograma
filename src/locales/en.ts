@@ -195,8 +195,7 @@ export default {
     summaryResultUnplanned: '{{done}} of {{total}} plans · {{time}} unplanned',
     summaryResultHint:
       'Time-blocked plans that matched a record or were checked off (counted like “Followed the plan” in the review). Unplanned is time logged outside any plan. Click to open the weekly review',
-    summaryUnrecordedHint:
-      'Total of gaps of 30 minutes or more with no record while awake (today: until now). Click a dashed frame on the timeline to record it',
+    summaryUnrecordedHint: 'Total of gaps of 30 minutes or more with no record while awake (today: until now). Click to log it',
     minutes: '{{m}}m',
     hours: '{{h}}h',
     hoursMinutes: '{{h}}h {{m}}m',

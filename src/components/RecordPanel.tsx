@@ -28,6 +28,8 @@ import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
 export const OPEN_TIMER_ACTION = 'open-timer'
+/** 見出しの「記録なし」から「後から記録」を開く（直前の記録の終わり → 今） */
+export const OPEN_LOG_LATER_ACTION = 'open-log-later'
 
 /** 後から記録の「長さで入れる」チップ（終了＝今、開始＝今−長さ） */
 const LATER_LENGTHS_MIN = [30, 60, 120] as const
@@ -107,8 +109,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     // 今日なら「直前の記録の終わり → 今」を初期値にして、空いた時間をそのまま埋められるように
     if (viewingToday) {
       const e = nowRounded()
+      // 夜から続く記録（睡眠など）も、今日終わったならその終わりから
       const prevEnd = dayLogs
-        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
+        .filter((x) => (x.endDate ?? x.dueDate) === dateKey && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
         .map((x) => x.endTime!)
         .sort()
         .at(-1)
@@ -120,6 +123,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     setMode('manual')
   }
+  usePendingAction(OPEN_LOG_LATER_ACTION, () => {
+    if (canLogLater) openManual()
+  })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
   const name = title.trim() || category.trim() || t('quickLog.untitled')
