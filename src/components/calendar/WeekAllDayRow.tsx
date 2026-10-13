@@ -29,7 +29,7 @@ import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { dueToneOf } from '../../lib/dueTone'
 import { HolidayLabel } from './HolidayLabel'
 
-/** たたんだときに 1 日に出す行数（超える日は 1 行減らして「他 N 件」） */
+/** たたんだときに 1 日に出す行数（超える日は 1 行減らして「他 N 件」）。締切の印は数えずに必ず出す */
 const COLLAPSED_ROWS = 3
 
 /** 終日の行（Google の終日の予定と、時刻の無い ToDo）。ToDo・Google の予定を落とすとその日へ移す */
@@ -87,7 +87,7 @@ export function WeekAllDayRow({
   })
   const overflows = gridDays.some((day) => {
     const d = dayItems(toDateKey(day))
-    return Number(d.holiday !== null) + d.events.length + d.tasks.length + d.due.length > COLLAPSED_ROWS
+    return Number(d.holiday !== null) + d.events.length + d.tasks.length > COLLAPSED_ROWS
   })
   const collapsed = overflows && !expanded
   return (
@@ -173,25 +173,26 @@ export function WeekAllDayRow({
                 <span className="truncate">{t.title}</span>
               </div>
             )),
-            // 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すとカード
-            ...dayDue.map((t) => {
-              const label = t.dueTime
-                ? tr('weekCalendar.dueMarkTime', { title: t.title, time: t.dueTime })
-                : tr('weekCalendar.dueMark', { title: t.title })
-              return (
-                <button
-                  key={`due-${t.id}`}
-                  type="button"
-                  onClick={(e) => openCard(t.id, e.currentTarget)}
-                  {...tip(label)}
-                  className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
-                >
-                  <FlagIcon className="h-2.5 w-2.5 shrink-0" />
-                  <span className="truncate">{t.dueTime ? `${t.dueTime} ${t.title}` : t.title}</span>
-                </button>
-              )
-            }),
           ]
+          // 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すとカード。
+          // たたんでも件数の上限に数えず必ず出す（月のマスと同じ。締切を「他 N 件」に隠さない）
+          const dueItems: ReactNode[] = dayDue.map((t) => {
+            const label = t.dueTime
+              ? tr('weekCalendar.dueMarkTime', { title: t.title, time: t.dueTime })
+              : tr('weekCalendar.dueMark', { title: t.title })
+            return (
+              <button
+                key={`due-${t.id}`}
+                type="button"
+                onClick={(e) => openCard(t.id, e.currentTarget)}
+                {...tip(label)}
+                className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
+              >
+                <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{t.dueTime ? `${t.dueTime} ${t.title}` : t.title}</span>
+              </button>
+            )
+          })
           const hidden = collapsed && items.length > COLLAPSED_ROWS ? items.length - (COLLAPSED_ROWS - 1) : 0
           return (
             <div
@@ -237,6 +238,7 @@ export function WeekAllDayRow({
               }}
             >
               {hidden ? items.slice(0, COLLAPSED_ROWS - 1) : items}
+              {dueItems}
               {hidden > 0 && (
                 <button
                   type="button"
