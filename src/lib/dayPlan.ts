@@ -171,3 +171,11 @@ export function groupCandidatesByDue(tasks: readonly Task[], dateKey: string): D
   if (none.length > 0) groups.push({ kind: 'none', tasks: none })
   return groups
 }
+
+/**
+ * 今日の計画の見出しに、その日の結果（時間に置いた予定のうちできた数・予定外の時間）を出すか。
+ * 過ぎた日はいつも、今日は「1 日を締める」と同じ時刻（`wrapUpFromMinutes`）から。これからの日・今日の昼は出さない
+ */
+export function showsDayResult(dateKey: string, todayKey: string, nowMinutes: number, wrapUpFromMinutes: number): boolean {
+  return dateKey < todayKey || (dateKey === todayKey && nowMinutes >= wrapUpFromMinutes)
+}

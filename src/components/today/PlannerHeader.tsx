@@ -2,6 +2,8 @@ import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { DayLoad } from '../../lib/dayLoad'
+import type { WeekReviewDay } from '../../lib/weekReview'
+import { openReviewDay } from '../../lib/reviewFocus'
 import { formatDuration } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
 import { toDateKey } from '../../lib/dateKey'
@@ -26,6 +28,7 @@ export function PlannerHeader({
   dayNav,
   load,
   loggedMinutes,
+  dayResult,
 }: {
   date: Date
   dateKey: string
@@ -34,6 +37,8 @@ export function PlannerHeader({
   /** その日の空きと置いた To-Do（週の見出しと同じ `dayLoad`） */
   load: DayLoad
   loggedMinutes: number
+  /** 過ぎた日（と今日の締めの時刻から）のその日の結果（ふりかえりの 1 日分）。null なら予定 / 空きを出す */
+  dayResult: WeekReviewDay | null
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -59,6 +64,16 @@ export function PlannerHeader({
     () => unrecordedMinutesOnDay(tasks, dateKey, logLimitAt(new Date(nowMinute * 60_000)), activeTimer, unplannedListIds(lists)),
     [tasks, lists, dateKey, activeTimer, nowMinute],
   )
+  // その日の結果は、時間に置いた予定があった日だけ（予定 / 空きの代わりに同じ場所へ。記録の時間は左に出ているので重ねない）
+  const result = dayResult && dayResult.timedPlanned > 0 ? dayResult : null
+  const resultText = result
+    ? t(result.unplannedMinutes > 0 ? 'planner.summaryResultUnplanned' : 'planner.summaryResult', {
+        total: result.timedPlanned,
+        done: result.followed,
+        time: formatDuration(result.unplannedMinutes),
+      })
+    : ''
+  const showSummary = loggedMinutes > 0 || plannedMinutes > 0 || unrecorded > 0 || result !== null
   // スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く）
   return (
     <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
@@ -80,7 +95,7 @@ export function PlannerHeader({
         </div>
       )}
       {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
-      {(loggedMinutes > 0 || plannedMinutes > 0 || unrecorded > 0) && (
+      {showSummary && (
         // 狭い幅では予定・空きを次の行の右へ送る（記録・記録なしの行と予定の行が互いに折り返して読みにくくならないように）
         <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 md:mt-5">
           {loggedMinutes > 0 && (
@@ -97,24 +112,38 @@ export function PlannerHeader({
               {t('planner.summaryUnrecorded', { time: formatDuration(unrecorded) })}
             </span>
           )}
-          {plannedMinutes > 0 && (
-            <span
-              {...tip(plannedHint)}
-              data-day-free={showFree ? (overCapacity ? 'over' : 'ok') : undefined}
-              className={`ml-auto min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+          {result ? (
+            // 押すと週のふりかえりのその日の週へ（数え方はふりかえりと同じ）
+            <button
+              type="button"
+              onClick={() => openReviewDay(dateKey)}
+              {...tip(t('planner.summaryResultHint'))}
+              data-day-result
+              className="ml-auto min-w-0 cursor-pointer text-right text-xs tabular-nums text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
-              {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
-              {showFree
-                ? t('planner.summaryPlannedFree', { time: plannedTime, free: freeTime })
-                : t('planner.summaryPlanned', { time: plannedTime })}
-              {overCapacity && ` ${t('planner.overCapacityShort')}`}
-              {plannedHint && <span className="sr-only"> {plannedHint}</span>}
-            </span>
+              {resultText}
+              <span className="sr-only"> {t('planner.summaryResultHint')}</span>
+            </button>
+          ) : (
+            plannedMinutes > 0 && (
+              <span
+                {...tip(plannedHint)}
+                data-day-free={showFree ? (overCapacity ? 'over' : 'ok') : undefined}
+                className={`ml-auto min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+              >
+                {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
+                {showFree
+                  ? t('planner.summaryPlannedFree', { time: plannedTime, free: freeTime })
+                  : t('planner.summaryPlanned', { time: plannedTime })}
+                {overCapacity && ` ${t('planner.overCapacityShort')}`}
+                {plannedHint && <span className="sr-only"> {plannedHint}</span>}
+              </span>
+            )
           )}
         </div>
       )}
       {/* 記録（タイマー・後から記録・分類ごとの時間）。スマホでは色の帯を押すと分類ごとの時間を開く */}
-      <div className={loggedMinutes > 0 || plannedMinutes > 0 || unrecorded > 0 ? 'mt-2' : 'mt-4'}>
+      <div className={showSummary ? 'mt-2' : 'mt-4'}>
         <RecordPanel key={dateKey} dateKey={dateKey} viewingToday={viewingToday} />
       </div>
     </header>

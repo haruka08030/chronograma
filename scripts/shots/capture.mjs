@@ -183,6 +183,13 @@ const SCREENS = [
     view: 'planner',
     click: ['button[aria-label="前の日"] >> visible=true', 'button[aria-label="気分: 良い"] >> visible=true'],
   },
+  // 過ぎた日の見出しの右のその日の結果（#282）と、押して開いた週のふりかえり
+  { name: 'planner-past-result', view: 'planner', click: 'button[aria-label="前の日"] >> visible=true' },
+  {
+    name: 'planner-past-result-review',
+    view: 'planner',
+    click: ['button[aria-label="前の日"] >> visible=true', '[data-day-result] >> visible=true'],
+  },
   // 見出しの期間を押したときの月のカレンダー（期限のカレンダーと同じ DatePickerBody）
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
