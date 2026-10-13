@@ -734,6 +734,8 @@ export default {
     streakCountWeek: '{{count}}週',
     statStreak: '連続',
     statLongest: '最長',
+    trendTitle: '直近 {{weeks}} 週',
+    trendRowAria: '{{title}}（直近 4 週 {{rate}}）',
     statRate: '直近 {{weeks}} 週',
     prevWeekAria: '前の週',
     nextWeekAria: '次の週',
