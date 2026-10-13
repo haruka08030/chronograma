@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addMonths, isSameMonth, startOfMonth } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
-import type { Habit } from '../../types/habit'
+import { isHabitRestOn, type Habit } from '../../types/habit'
 import {
   HABIT_RATE_WEEKS,
   habitLongestStreak,
@@ -148,7 +148,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** 月のカレンダー。やった日は習慣の色の丸、予定の日は濃い数字、予定の無い日・作る前・先の日は薄い数字。今日までの日は押すと付け外しできる */
+/** 月のカレンダー。やった日は習慣の色の丸、予定の日は濃い数字、予定の無い日・休みの日・作る前・先の日は薄い数字。今日までの日は押すと付け外しできる */
 function HabitMonth({ habit: h, habitRecords, todayKey }: { habit: Habit; habitRecords: HabitRecordIndex; todayKey: string }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -188,7 +188,12 @@ function HabitMonth({ habit: h, habitRecords, todayKey }: { habit: Habit; habitR
           const isOffTime = status === 'offTime'
           const isFuture = key > todayKey
           const isDue = !isFuture && isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
-          const label = isDone || isOffTime ? t('habits.cellDoneAria', { date: df.monthDayWeekday(d) }) : df.monthDayWeekday(d)
+          const label =
+            isDone || isOffTime
+              ? t('habits.cellDoneAria', { date: df.monthDayWeekday(d) })
+              : isHabitRestOn(h, key)
+                ? t('habits.restDayAria', { date: df.monthDayWeekday(d) })
+                : df.monthDayWeekday(d)
           return (
             <button
               key={key}

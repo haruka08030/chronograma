@@ -159,6 +159,7 @@ export function HabitsView() {
           x={habitMenu.x}
           y={habitMenu.y}
           habitId={habitMenu.habitId}
+          dateKey={habitMenu.dateKey}
           onClose={closeHabitMenu}
           onEdit={() => openDetail(habitMenu.habitId, true)}
         />

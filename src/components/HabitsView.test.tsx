@@ -1,7 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { HabitsView } from './HabitsView'
+import { useTaskStore } from '../store/taskStore'
+import { appTodayKey } from '../lib/timeZone'
 
 describe('習慣の画面: 新しい習慣のフォーム', () => {
   it('くり返しと時間のラジオは見出し付きの別のまとまりになる', async () => {
@@ -48,5 +50,41 @@ describe('習慣の画面: 新しい習慣のフォーム', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.getByText(/No habits yet/)).toBeInTheDocument()
+  })
+})
+
+describe('習慣の画面: 休み', () => {
+  it('日のマスを右クリックして「この日だけ」休みにし、同じメニューから外せる', async () => {
+    const user = userEvent.setup()
+    const todayKey = appTodayKey()
+    useTaskStore.setState({
+      selectedCalendarDateKey: todayKey,
+      habits: [
+        {
+          id: 'h',
+          title: 'Vocab',
+          color: '#33B679',
+          timeMode: 'none',
+          startTime: null,
+          endTime: null,
+          frequency: { type: 'daily' },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+        },
+      ],
+    })
+    render(<HabitsView />)
+    const cell = () => document.querySelector<HTMLElement>(`[data-habit-day="${todayKey}"]`)!
+    fireEvent.contextMenu(cell())
+    await user.click(screen.getByRole('menuitem', { name: /^Rest/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'This day only' }))
+    expect(useTaskStore.getState().habits[0].restDates).toEqual([todayKey])
+    expect(cell()).toHaveAccessibleName(/rest$/)
+
+    fireEvent.contextMenu(cell())
+    await user.click(screen.getByRole('menuitem', { name: /^End rest/ }))
+    expect(useTaskStore.getState().habits[0]).not.toHaveProperty('restDates')
   })
 })

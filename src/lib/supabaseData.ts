@@ -3,7 +3,7 @@ import { isEventTask, isLogTask, isSleepTask, taskKindFromFlags, type Task } fro
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { inferHabitTimeMode, readHabitFrequency, readHabitTimeOverrides, type Habit } from '../types/habit'
+import { inferHabitTimeMode, readHabitFrequency, readHabitRestDates, readHabitTimeOverrides, type Habit } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
@@ -50,6 +50,8 @@ interface HabitRow {
   archived_at?: string | null
   /** 日ごとの時間（`018`）。古い DB には無い。無い・null は無し */
   time_overrides?: unknown
+  /** 休みの日（`031`）。古い DB には無い。無い・null は無し */
+  rest_dates?: unknown
 }
 
 interface TaskRow {
@@ -162,6 +164,7 @@ function rowToHabit(row: HabitRow): Habit {
     updatedAt: row.updated_at,
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     ...withTimeOverrides(row.time_overrides),
+    ...withRestDates(row.rest_dates),
   }
 }
 
@@ -169,6 +172,12 @@ function rowToHabit(row: HabitRow): Habit {
 function withTimeOverrides(raw: unknown): Pick<Habit, 'timeOverrides'> {
   const timeOverrides = readHabitTimeOverrides(raw)
   return timeOverrides ? { timeOverrides } : {}
+}
+
+/** 休みの日も、1 日でもあるときだけ項目を持つ */
+function withRestDates(raw: unknown): Pick<Habit, 'restDates'> {
+  const restDates = readHabitRestDates(raw)
+  return restDates ? { restDates } : {}
 }
 
 function habitToRow(userId: string, h: Habit): HabitRow {
@@ -186,6 +195,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     updated_at: h.updatedAt,
     archived_at: h.archivedAt ?? null,
     time_overrides: h.timeOverrides ?? null,
+    rest_dates: h.restDates ?? null,
   }
 }
 
