@@ -159,9 +159,33 @@ export function CalendarHubView() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {isDesktop ? (
-        <>
-          <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-            <div className="flex min-w-0 items-center gap-2">
+        // 今日 ‹ › 日付 … 表示の切り替え を 1 行に（Google カレンダーと同じ。格子を広く）
+        <CalendarDateNav
+          mode={calendarMode}
+          selectedDateKey={selectedDateKey}
+          monthCursor={monthCursor}
+          weekAnchor={weekAnchor}
+          onGoToday={onGoToday}
+          onPrevPeriod={onPrevPeriod}
+          onNextPeriod={onNextPeriod}
+          onPickDate={applyPickedDate}
+          trailing={
+            <>
+              {templateButton}
+              <button
+                type="button"
+                onClick={() => setDockOpen((o) => !o)}
+                aria-pressed={dockOpen}
+                {...tip(t('calendarHub.dockHint'))}
+                // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  dockOpen
+                    ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+                    : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {t('calendarHub.dockToggle')}
+              </button>
               <Segmented
                 role="tab"
                 ariaLabel={t('calendarHub.calendarTabsAria')}
@@ -175,35 +199,9 @@ export function CalendarHubView() {
                 ]}
                 className="shrink-0"
               />
-              {templateButton}
-            </div>
-            <button
-              type="button"
-              onClick={() => setDockOpen((o) => !o)}
-              aria-pressed={dockOpen}
-              {...tip(t('calendarHub.dockHint'))}
-              // 右の「予定 / ToDo」とは別物（下に開く、時間が未定のタスク置き場）なので、中身の名前で出して開閉は押し込みで見せる
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                dockOpen
-                  ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {t('calendarHub.dockToggle')}
-            </button>
-          </div>
-
-          <CalendarDateNav
-            mode={calendarMode}
-            selectedDateKey={selectedDateKey}
-            monthCursor={monthCursor}
-            weekAnchor={weekAnchor}
-            onGoToday={onGoToday}
-            onPrevPeriod={onPrevPeriod}
-            onNextPeriod={onNextPeriod}
-            onPickDate={applyPickedDate}
-          />
-        </>
+            </>
+          }
+        />
       ) : (
         <CalendarMobileHeader
           mode={calendarMode}

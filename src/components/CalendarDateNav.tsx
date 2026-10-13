@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { startOfMonth } from 'date-fns'
 import { useDismiss } from '../hooks/useDismiss'
@@ -20,6 +20,8 @@ type CalendarDateNavProps = {
   onPrevPeriod: () => void
   onNextPeriod: () => void
   onPickDate: (dateKey: string) => void
+  /** 右端に並べるもの（表示の切り替えなど）。Google カレンダーと同じく 1 行にまとめる */
+  trailing?: ReactNode
 }
 
 export function CalendarDateNav({
@@ -31,6 +33,7 @@ export function CalendarDateNav({
   onPrevPeriod,
   onNextPeriod,
   onPickDate,
+  trailing,
 }: CalendarDateNavProps) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -104,6 +107,7 @@ export function CalendarDateNav({
           </div>
         )}
       </div>
+      {trailing && <div className="ml-auto flex shrink-0 items-center gap-2">{trailing}</div>}
     </div>
   )
 }
