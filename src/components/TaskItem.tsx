@@ -17,7 +17,8 @@ import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
-import { nextChildDue } from '../lib/childDue'
+import { ChildDueChip } from './ui/ChildDueChip'
+import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
@@ -81,6 +82,7 @@ export const TaskItem = memo(function TaskItem({
   sectionLabel,
   dayKey,
   keepHandleSpace = false,
+  showChildDue = false,
 }: {
   task: Task
   onClick?: () => void
@@ -111,6 +113,8 @@ export const TaskItem = memo(function TaskItem({
   sectionLabel?: string | null
   /** つまみを出さない並びでも、つまみの幅を空けておく（並び順を変えても行の文字が横に動かないように。PC だけ） */
   keepHandleSpace?: boolean
+  /** 親の行に子のいちばん近い締切を出す（子の行が下に並ばない所だけ。To-Do 一覧では出さない） */
+  showChildDue?: boolean
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
@@ -211,12 +215,7 @@ export const TaskItem = memo(function TaskItem({
   const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
-  // 親の行に、まだ終わっていない子のいちばん近い締切（企業の下の ES 締切など）。親の締切のほうが先なら親の締切だけ
-  const nextChild = useTaskStore((s) => (timeLog || task.completed ? undefined : nextChildDue(s.tasks, task.id)))
-  const childDue =
-    nextChild?.dueDate && (!task.dueDate || nextChild.dueDate < task.dueDate)
-      ? dueDateLabel(nextChild.dueDate, nextChild.dueTime, t, language)
-      : null
+  const childDue = useChildDue(task, showChildDue && !timeLog)
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
@@ -470,17 +469,7 @@ export const TaskItem = memo(function TaskItem({
                 {t('canvas.submittedMark')}
               </span>
             )}
-            {childDue && nextChild && (
-              <span
-                data-child-due={nextChild.id}
-                {...tip(t('taskItem.nextChildDueHint', { title: nextChild.title }))}
-                className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[childDue.tone]}`}
-              >
-                <CalendarIcon className="w-3 h-3 shrink-0" />
-                <span className="max-w-[10rem] truncate">{nextChild.title}</span>
-                <span className="shrink-0">{childDue.text}</span>
-              </span>
-            )}
+            {childDue && <ChildDueChip due={childDue} />}
             {scheduled && (!task.completed || timeLog) && (
               <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
                 <ClockIcon className="w-3 h-3" />

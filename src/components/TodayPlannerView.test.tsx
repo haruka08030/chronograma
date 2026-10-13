@@ -193,6 +193,22 @@ describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
     expect(row).not.toBeNull()
     expect(row.querySelector('[data-parent-title]')!.textContent).toBe('A Inc.')
   })
+
+  it('子の締切は子の行で出し、親の行には重ねない', async () => {
+    const today = toDateKey(appToday())
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const parent = store.addTask('B Corp')!
+    const child = useTaskStore.getState().addTask('ES', undefined, parent)!
+    useTaskStore.getState().updateTask(child, { dueDate: toDateKey(addDays(appToday(), 2)) })
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Add from to-dos|Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    const row = document.querySelector(`[data-task-row="${parent}"]`)!
+    expect(row.querySelector('[data-child-due]')).toBeNull()
+    expect(document.querySelector(`[data-task-row="${child}"]`)).not.toBeNull()
+  })
 })
 
 describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332）', () => {

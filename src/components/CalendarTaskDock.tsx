@@ -157,6 +157,7 @@ export function CalendarTaskDock() {
                 key={t.id}
                 task={t}
                 hideDueDatePicker
+                showChildDue
                 onRowClick={makeRowClick(t.id)}
                 selection={makeSelection(t.id)}
                 dragGroupIds={getDragGroupIds(t.id)}
