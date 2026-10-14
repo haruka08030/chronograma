@@ -11,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  # 書式・lint・ビルド（どれも速いので 1 つにまとめる）
+  static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,20 +24,75 @@ jobs:
 
       - run: npm ci
 
+      # ESLint の結果のキャッシュ。型を見るルールがあるので、別のファイルを変えただけで結果が変わることがある。
+      # そのため PR では dev / main で全部 lint した結果を読むだけにし、dev / main への push はキャッシュなしで全部見てから保存する
+      - name: Restore ESLint cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ hashFiles('package-lock.json', 'eslint.config.js', 'tsconfig*.json') }}-${{ github.sha }}
+          restore-keys: eslint-${{ hashFiles('package-lock.json', 'eslint.config.js', 'tsconfig*.json') }}-
+
       - name: Lint
-        run: npm run lint
+        run: npx eslint . --cache --cache-strategy content --cache-location .eslintcache
+
+      - name: Save ESLint cache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ hashFiles('package-lock.json', 'eslint.config.js', 'tsconfig*.json') }}-${{ github.sha }}
 
       - name: Format
         run: npm run format:check
 
-      # 単体テスト（node）と部品のテスト（jsdom）
-      - name: Test
-        run: npm test
+      - name: Build
+        run: npm run build
+
+  # 単体テスト（node）と部品のテスト（jsdom）。ファイルを 2 つに分けて同時に流す
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test (${{ matrix.shard }}/2)
+        run: npx vitest run --shard=${{ matrix.shard }}/2
+
+  # 画面を通しで動かすテスト（dev サーバーを起こし、Supabase なしの端末保存で動かす）
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium 本体は Playwright の版ごとにキャッシュする（OS のライブラリは毎回入れる）
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # 画面を通しで動かすテスト（dev サーバーを起こし、Supabase なしの端末保存で動かす）
       - name: E2E
         run: npm run test:e2e
 
@@ -49,8 +105,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build
-        run: npm run build
+  # 前の 1 つのジョブと同じ名前で、上の 3 つが全部通ったかをまとめる（必須のチェックを check のままにしておける）。
+  # 前のジョブが落ちたときに「スキップ」で通ってしまわないよう、always() で必ず動かして結果を見る
+  check:
+    if: always()
+    needs: [static, test, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.e2e.result }}" = success
 
   # Edge Function の型チェック（Supabase の実行環境と同じ Deno で、npm: / https: の import も解決する）
   functions:

@@ -43,3 +43,6 @@ supabase/.temp/
 
 # Edge Function の Deno の lock は supabase/functions/deno.lock。ルートで deno を動かしてできたものは入れない
 /deno.lock
+
+# ESLint のキャッシュ（CI で使う）
+.eslintcache
