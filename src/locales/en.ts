@@ -609,6 +609,7 @@ export default {
     more_other: '{{count}} more',
   },
   eventCard: {
+    more: 'More options',
     google: 'Google Calendar',
     colorScope: 'Apply color to',
     scopeEvent: 'This event',

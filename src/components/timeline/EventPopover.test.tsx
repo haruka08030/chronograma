@@ -44,3 +44,31 @@ describe('EventPopover: Alt+↑↓ / Alt+Shift+↑↓', () => {
     expect(plan()).toMatchObject({ startTime: '10:00', endTime: '11:00' })
   })
 })
+
+describe('EventPopover: ⋮（#402）', () => {
+  it('⋮ を押すと右クリックと同じメニューを出してカードを閉じる。メニューの「複製」で写したものの詳細を開く', async () => {
+    const { useOverlays } = await import('../../lib/overlays')
+    const { TaskEventMenu } = await import('./EventContextMenu')
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'バイト', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '17:00', endTime: '22:00' }, 0),
+          id: 'b',
+        },
+      ],
+    })
+    let closed = false
+    const view = render(<EventPopover taskId="b" anchor={anchor} onClose={() => (closed = true)} onOpenDetail={() => {}} />)
+    fireEvent.click(await view.findByRole('button', { name: 'More options' }))
+    expect(useOverlays.getState().menu).toMatchObject({ kind: 'event', taskId: 'b' })
+    expect(closed).toBe(true)
+    view.unmount()
+
+    let opened = ''
+    const menu = render(<TaskEventMenu x={0} y={0} taskId="b" onClose={() => {}} onOpenDetail={(id) => (opened = id)} />)
+    fireEvent.click(await menu.findByRole('menuitem', { name: 'Duplicate' }))
+    const copy = useTaskStore.getState().tasks.find((t) => t.id === opened)!
+    expect(copy).toMatchObject({ title: 'バイト', scheduledDate: '2026-10-07', startTime: '17:00' })
+    expect(opened).not.toBe('b')
+  })
+})

@@ -12,7 +12,8 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { CloseIcon, PencilIcon, TrashIcon } from '../icons'
+import { CloseIcon, EllipsisVerticalIcon, PencilIcon, TrashIcon } from '../icons'
+import { openTaskMenu } from '../../lib/overlays'
 import { CardActions } from './CardActions'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -161,6 +162,21 @@ function EventPopoverBody({
           {...shortcutTip(t('common.delete'), 'delete')}
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
+        </button>
+        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置。メニューを出したらカードは閉じる */}
+        <button
+          type="button"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            openTaskMenu({ kind: 'event', x: r.left, y: r.bottom, taskId: task.id })
+            onClose()
+          }}
+          className={iconButtonClass()}
+          aria-label={t('eventCard.more')}
+          aria-haspopup="menu"
+          {...tip(t('eventCard.more'))}
+        >
+          <EllipsisVerticalIcon className="h-4 w-4" strokeWidth={2.25} />
         </button>
         <button
           type="button"

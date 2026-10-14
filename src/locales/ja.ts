@@ -592,6 +592,7 @@ export default {
     more: 'ほか {{count}} 件',
   },
   eventCard: {
+    more: 'その他の操作',
     google: 'Google カレンダー',
     colorScope: '色を付ける範囲',
     scopeEvent: 'この予定',
