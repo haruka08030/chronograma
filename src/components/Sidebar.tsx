@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { useIsDesktop, useIsLargeScreen } from '../hooks/useMediaQuery'
-import { useEscapeLayer } from '../hooks/useHotkey'
+import { useDismiss } from '../hooks/useDismiss'
 import { isTodoNavView } from '../lib/todoSurfaceView'
 import { TodoNavContent } from './TodoNavPanel'
 import { SmartViewRow } from './SmartViewRow'
@@ -40,12 +40,13 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const isDesktop = useIsDesktop()
   const isLargeScreen = useIsLargeScreen()
   const onTodoView = isTodoNavView(selectedView)
-  // スマホのドロワーも、ほかのドロワー・ダイアログと同じく Esc で閉じる
-  useEscapeLayer(() => onClose?.(), Boolean(open) && !isDesktop)
   // ドロワーは閉じたあとも、左へ引っ込む動きのあいだは残す
   const drawer = usePresence(open && !isDesktop ? true : null)
   // ドロワーもダイアログと同じく、開いたら中へフォーカスし、Tab を中に閉じ込め、閉じたら開いたボタン（≡）へ戻す
   const drawerRef = useRef<HTMLDivElement>(null)
+  const drawerRootRef = useRef<HTMLDivElement>(null)
+  // スマホのドロワーも、ほかのシートと同じく背景の押下（閉じるだけ）・Esc で閉じる
+  useDismiss({ open: Boolean(open) && !isDesktop, onClose: () => onClose?.(), inside: [drawerRef], backdrop: drawerRootRef })
   const trapDrawerTab = useFocusTrap(drawerRef, { active: Boolean(drawer.shown) && !drawer.closing })
 
   const handleNav = (cb: () => void) => {
@@ -150,8 +151,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     }
     if (!drawer.shown) return null
     return (
-      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため
-      <div className="fixed inset-0 z-40 flex" onClick={onClose} onKeyDown={trapDrawerTab} inert={drawer.closing}>
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- onKeyDown は Tab を中に留めるため
+      <div ref={drawerRootRef} className="fixed inset-0 z-40 flex" onKeyDown={trapDrawerTab} inert={drawer.closing}>
         <div className={`absolute inset-0 bg-black/30 ${drawer.closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
         <div

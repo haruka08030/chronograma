@@ -6,7 +6,7 @@ import { planTiming } from '../../lib/planTiming'
 import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -53,7 +53,7 @@ export function EventPopover({
 }) {
   const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId) ?? null)
   const ref = useRef<HTMLDivElement>(null)
-  const layer = useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
 
   // カードが一番上のときだけ（上に色の一覧などが重なっていれば効かない）
   useHotkey(SHORTCUTS.edit.hotkeys, () => onOpenDetail(taskId), { scope: layer })

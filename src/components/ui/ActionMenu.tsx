@@ -8,6 +8,7 @@ import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../icons'
 import { isCancelEscape, isImeKeyEvent, isSubmitEnter } from '../../lib/keyboard'
 import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
 import { useExitGhost } from '../../hooks/useExitGhost'
+import { SheetBackdrop } from './SheetBackdrop'
 
 /** 画面の端からはみ出さないための余白 */
 const EDGE = 8
@@ -124,9 +125,8 @@ export function ActionMenu({
   // 閉じるとき縮みながら消える（シートは下へ。背景の幕は薄れる）
   const menuExit = useExitGhost(menuRef)
   const subExit = useExitGhost(subRef)
-  const backdropExit = useExitGhost()
   const subTimer = useRef(0)
-  useDismiss({ open: true, onClose, inside: [menuRef, subRef] })
+  useDismiss({ open: true, onClose, inside: [menuRef, subRef], swallow: sheet })
 
   const runLeaf = (leaf: ActionLeaf) => {
     leaf.run()
@@ -244,7 +244,7 @@ export function ActionMenu({
     // スマホ: 下からのシート。中のメニューは同じシートの中に出す
     return createPortal(
       <>
-        <div ref={backdropExit} className="fixed inset-0 z-[69] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />
+        <SheetBackdrop layer="below-menu" />
         <div
           ref={menuExit}
           role="menu"

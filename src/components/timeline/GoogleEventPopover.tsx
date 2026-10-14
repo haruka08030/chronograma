@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { ColorPalette } from '../labels/ColorPalette'
-import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { CardTimeRange } from './CardTimeRange'
 import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
@@ -64,7 +64,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
-  const layer = useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
 
   // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
   // 入力欄の外の Esc は層の仕組みが閉じる。欄が自分で使った Esc（時刻の取り消し）では閉じない
