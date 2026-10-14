@@ -386,6 +386,7 @@ export function TodayPlannerView() {
         <PlannerWrapUp
           showWrapUp={showWrapUp}
           showMood={showMood}
+          showGaps={viewingToday && (wrapUpFocus > 0 || nowMinutes >= wrapUpFrom)}
           dateKey={dateKey}
           focusKey={wrapUpFocus}
           open={open}

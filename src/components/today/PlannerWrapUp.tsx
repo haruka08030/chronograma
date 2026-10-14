@@ -8,6 +8,8 @@ import { ChevronDownIcon } from '../icons'
 import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
 import { DayMoodPicker } from './DayMood'
 import { UntaggedLogList } from '../UntaggedLogList'
+import { WrapUpGapList } from './WrapUpGaps'
+import { useWrapUpGaps } from '../../hooks/useWrapUpGaps'
 
 /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
 const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -20,6 +22,7 @@ const textButton = buttonClass({ variant: 'link', size: 'xs' })
 export function PlannerWrapUp({
   showWrapUp,
   showMood = false,
+  showGaps = false,
   dateKey,
   focusKey = 0,
   open,
@@ -30,6 +33,8 @@ export function PlannerWrapUp({
   showWrapUp: boolean
   /** 気分の記号の行を出すか（今日の締めの時刻から。残りが無い日も出す） */
   showMood?: boolean
+  /** 記録の無い時間を埋める行を出すか（今日の締めの時刻から。To-Do の無い日も出す、#418） */
+  showGaps?: boolean
   /** 見ている日（気分を付ける日） */
   dateKey: string
   /** 夜の締めの通知から開いた回数（増えるたびにここまでスクロールする） */
@@ -67,6 +72,8 @@ export function PlannerWrapUp({
   // 開いたときのラベルなしの記録（付けても行は残し、押し間違いを直せる）。閉じていれば null
   const [untaggedOpen, setUntaggedOpen] = useState<string[] | null>(null)
   const showUntagged = untaggedLogs.length > 0 || untaggedOpen !== null
+  const gaps = useWrapUpGaps(dateKey)
+  const hasGaps = showGaps && gaps.shown.length > 0
 
   const footerRef = useRef<HTMLElement>(null)
   useEffect(() => {
@@ -115,7 +122,15 @@ export function PlannerWrapUp({
           {untaggedOpen && <UntaggedLogList ids={untaggedOpen} />}
         </div>
       )}
-      {showWrapUp && focusKey > 0 && open.length === 0 && !showUntagged && (
+      {hasGaps && (
+        <section aria-labelledby="wrap-up-gaps" className="space-y-1 pt-2">
+          <h3 id="wrap-up-gaps" className="text-zinc-600 dark:text-zinc-300">
+            {t('planner.gapsHeading')}
+          </h3>
+          <WrapUpGapList dateKey={dateKey} {...gaps} />
+        </section>
+      )}
+      {showWrapUp && focusKey > 0 && open.length === 0 && !showUntagged && !hasGaps && (
         <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpAllSet')}</p>
       )}
       {showMood && <DayMoodPicker dateKey={dateKey} />}
