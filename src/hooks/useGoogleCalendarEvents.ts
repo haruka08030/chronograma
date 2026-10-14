@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { fetchCalendarEvents, googleWriteGeneration, localizeGoogleError, shouldDisconnectAfterFetchError } from '../lib/googleCalendar'
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
+import { withoutPushedEvents } from '../lib/googlePush'
 
 /** Google 側で変えた予定を拾う間隔（画面に戻ったときはすぐ取り直す） */
 const REFRESH_MS = 5 * 60 * 1000
@@ -31,7 +32,8 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
         setGoogleConnectionError(null)
         // 取得中にアプリから書き換えたなら、その結果を古い取得で巻き戻さない
         if (generation === -1 || generation !== googleWriteGeneration()) return
-        setCalendarEvents(withoutPendingDeletes(events))
+        // アプリの予定から作った Google の予定は、アプリの予定として出ている
+        setCalendarEvents(withoutPendingDeletes(withoutPushedEvents(events)))
       } catch (e) {
         if (cancelled) return
         const raw = e instanceof Error ? e.message : t('account.genericError')

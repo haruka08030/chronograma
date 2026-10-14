@@ -83,7 +83,7 @@ const LEGACY_CALENDAR: ReadonlyArray<readonly [hex: string, key: CalendarColorKe
 ]
 
 /** Google Calendar API の予定の colorId（1〜11）→ 画面に出る色 */
-const EVENT_COLOR_BY_ID: Record<string, string> = {
+export const EVENT_COLOR_BY_ID: Record<string, string> = {
   '1': '#7986CB', // Lavender
   '2': '#33B679', // Sage
   '3': '#8E24AA', // Grape
